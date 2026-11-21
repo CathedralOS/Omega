@@ -502,6 +502,17 @@ impl PackageCompilationInputs {
                 );
                 continue;
             }
+            if !description.independent_suppliers().is_empty() {
+                let dependencies = self.product_dependencies_of(package);
+                for supplier in description.independent_suppliers() {
+                    if *supplier == package || !dependencies.contains(supplier) {
+                        errors.push(PackageCompilationInputError::ForeignComponentSupplier {
+                            package,
+                            supplier: *supplier,
+                        });
+                    }
+                }
+            }
             if attached.insert(package, description).is_some() {
                 errors.push(
                     PackageCompilationInputError::DuplicateIndependentComponentDescription {
@@ -520,8 +531,8 @@ impl PackageCompilationInputs {
 
     pub fn independent_component_descriptions(
         &self,
-    ) -> impl Iterator<Item = &IndependentComponentDescription> {
-        self.target.independent_component_descriptions.values()
+    ) -> &BTreeMap<PackageKeyIdentity, IndependentComponentDescription> {
+        &self.target.independent_component_descriptions
     }
 
     #[doc(hidden)]
@@ -540,39 +551,6 @@ impl PackageCompilationInputs {
             .filter(|(_, record)| source.starts_with(&record.source_root))
             .max_by_key(|(_, record)| record.source_root.components().count())
             .map(|(identity, _)| *identity)
-    }
-}
-
-impl source_compiler::compile_time_invocations::BuildTimeSelectionAuthority for PackageCompilationInputs {
-    fn declaration_selection_scope(
-        &self,
-    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        Some(
-            self.source
-                .packages
-                .iter()
-                .map(|(requester, record)| {
-                    let mut owners = vec![*requester];
-                    owners.extend(record.dependencies.values().copied());
-                    owners.extend(record.build_dependencies.values().copied());
-                    owners.sort_unstable();
-                    owners.dedup();
-                    (*requester, owners)
-                })
-                .collect(),
-        )
-    }
-
-    fn allows_declaration_selection(
-        &self,
-        requester: PackageKeyIdentity,
-        owner: PackageKeyIdentity,
-    ) -> bool {
-        self.allows_declaration_selection(requester, owner)
-    }
-
-    fn package_label(&self, identity: PackageKeyIdentity) -> String {
-        self.package_label(identity)
     }
 }
 

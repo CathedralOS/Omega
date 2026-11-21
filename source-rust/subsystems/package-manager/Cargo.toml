@@ -9,6 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+project-build = { path = "../compiler/build" }
 build-evaluation-result = { path = "../compiler/build/evaluation/result" }
 source-completion-accounting = { path = "../compiler/source-to-psi/representations/evaluation-receipts" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
@@ -26,9 +27,9 @@ source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
-terminal-codec = { path = "../compiler/psi-artifact/codec" }
+terminal-codec = { path = "../compiler/psi/artifact/codec" }
 evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
-terminal-work = { path = "../compiler/psi-semantics/work" }
+terminal-work = { path = "../compiler/psi/semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/inputs/declarations" }
 build-execution = { path = "../compiler/build/evaluation" }
@@ -52,3 +53,7 @@ cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
+
+[[test]]
+name = "project_preparation"
+path = "tests/project_preparation.rs"

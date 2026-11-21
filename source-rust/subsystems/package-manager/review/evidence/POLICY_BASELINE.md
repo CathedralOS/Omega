@@ -146,6 +146,15 @@ this activation's selected plans; their callable and external-supply disclosure
 stays complete. The use's exact machine origin sets this scope and must agree
 with immutable source custody. An unknown origin never justifies omission.
 
+Version 38 saves the source positions of structural parameters for each public
+trait requirement. In a signature with a scalar, a borrow, a scalar and a
+second borrow, the list is `[1, 3]`. A returned borrow or domain qualification
+with index 1 therefore refers to the fourth source parameter. Recovery checks
+that the list is in source order, names existing parameters and covers every
+such index. Version 37 can still be read and compared when it has no borrow
+or qualification that needs the missing list. Other policy rows, including
+permission and Build grant rows, keep their existing bytes.
+
 One bounded envelope accounts for the whole baseline's resources and checks
 package, target and structural associations without an old checkout. The
 baseline excludes source graph pins and historical decisions, which belong to

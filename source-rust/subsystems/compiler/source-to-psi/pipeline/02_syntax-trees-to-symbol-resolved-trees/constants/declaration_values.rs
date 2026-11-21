@@ -24,12 +24,12 @@ use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceNode;
 
 /*
-    Even unused private constants owe their exact nominal destination. Check
-    resolved constructor and field identities after specialization, without
-    requiring a public/index encoding or duplicating scalar type checking.
+    A structural constant carries its destination down to each literal leaf.
+    Check nominal selections and land numeric literals at those selected field
+    types before a use copies the initializer.
 */
-pub(super) fn validate_nominal_destinations(
-    program: &SymbolResolvedTrees,
+pub(super) fn prepare_initializer_destinations(
+    program: &mut SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::expression::ExpressionNode;
@@ -40,8 +40,20 @@ pub(super) fn validate_nominal_destinations(
         .iter()
         .map(|declaration| (&declaration.declared_type, declaration.initializer))
         .collect::<Vec<_>>();
+    let mut numeric_leaves = Vec::new();
     while let Some((destination, expression)) = pending.pop() {
         let table = &program.tables.bodies.expressions;
+        if matches!(
+            table.expression(expression),
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_)
+        ) {
+            if let TypeReference::Named { symbol, .. } = destination
+                && let Some(atom) = program.symbols.builtin_type_atom(*symbol)
+            {
+                numeric_leaves.push((expression, atom, table.source_span(expression)));
+            }
+            continue;
+        }
         if let TypeReference::Constrained(constraint) = destination {
             pending.push((
                 program.child_type_reference(constraint.base_type),
@@ -108,6 +120,9 @@ pub(super) fn validate_nominal_destinations(
                 pending.push((&declared.type_reference, field.value));
             }
         }
+    }
+    for (expression, carrier, span) in numeric_leaves {
+        super::carrier::retain_scalar_carrier(program, expression, carrier, span)?;
     }
     Ok(())
 }
@@ -176,7 +191,7 @@ pub(crate) fn public_declaration_value_encoding(
         .map(|value| value.encoding)
 }
 
-pub(crate) fn validate_scalar_initializer(
+fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
     selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
@@ -270,6 +285,9 @@ pub(crate) fn validate_const_definition(
             .with_source_span(definition.name.source_span()))
         };
     }
+    if let Some(selection) = selection {
+        super::literal_declarations::validate_module_literal(syntax, definition, selection)?;
+    }
     if let TypeReferenceNode::Constrained { constraints, .. } =
         syntax_type_references(syntax).type_reference(definition.type_reference)
         && syntax_type_references(syntax)
@@ -314,7 +332,7 @@ pub(crate) fn retain_const_initializer(
             lowerer.constant_selection.as_ref(),
         )
     {
-        if crate::resolution::declarations::module_normalization::module_literal_constant(
+        if super::literal_declarations::primitive_literal_declaration(
             syntax,
             definition,
             lowerer.constant_selection.as_ref(),

@@ -3,19 +3,19 @@
 use reading_provider\main\Reading;
 
 boundary trait Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap;
+    machine consume(expected_tag: u64) -> u64 reaches Reading<17u64> crashes Trap;
 }
 FirstCalculationBody satisfies Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap {
+    machine consume(expected_tag: u64) -> u64 reaches Reading<17u64> crashes Trap {
         transition expected_tag == 17u64 { true -> calculate(), false -> bad() }
-        machine calculate() -> u64 reaches Reading { Reading::<17u64>::total() - 1000u64 }
+        machine calculate() -> u64 reaches Reading<17u64> { Reading::<17u64>::total() - 1000u64 }
         machine bad() -> u64 { crash Trap; }
     }
 }
 SecondCalculationBody satisfies Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap {
+    machine consume(expected_tag: u64) -> u64 reaches Reading<17u64> crashes Trap {
         transition expected_tag == 29u64 { true -> calculate(), false -> bad() }
-        machine calculate() -> u64 reaches Reading { Reading::<17u64>::total() - 1000u64 }
+        machine calculate() -> u64 reaches Reading<17u64> { Reading::<17u64>::total() - 1000u64 }
         machine bad() -> u64 { crash Trap; }
     }
 }

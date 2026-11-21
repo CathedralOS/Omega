@@ -1,8 +1,7 @@
 //! Compile the Build source selected for one planning stage. The host may
 //! inspect the checked program to admit filesystem access before publishing it.
-use crate::compile_time_invocations::{
-    BuildTimeSelectionAuthority, InvocationSourceConsent, SourceCompletionAccounting,
-};
+use declaration_scope::PackageDeclarationScope;
+use crate::compile_time_invocations::{InvocationSourceConsent, SourceCompletionAccounting};
 use crate::driver::judge_lowered_source;
 use crate::driver::prepare_typed_source::{
     SourceAdmission, SourcePreparationFailure, SourcePreparationRequest,
@@ -12,8 +11,8 @@ use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
 use checked_program_to_psi::production;
 use checked_program_to_psi::production::{
-    AcceptedTerminalSource, ConstantRead, ProducedTerminalProgram, TerminalProductionCustody,
-    TerminalSourceCompilation,
+    AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
+    ProducedTerminalProgram, TerminalSourceCompilation,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -59,7 +58,7 @@ impl ProductDeclarationSource {
         self,
         preparation: &SourcePreparation,
         host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<crate::compile_product::ProductDeclarations, Vec<Diagnostic>> {
         let typed = self.0.typed_declarations(preparation, host, authority)?;
         Ok(crate::compile_product::ProductDeclarations { typed })
@@ -72,14 +71,18 @@ impl BuildStageSource {
         previous: Option<&BuildStage>,
         preparation: &SourcePreparation,
         host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
         let entry = self.entry;
         let mut selected = self;
         let imports = std::mem::take(&mut selected.pending_imports);
         let mut request = selected.request(preparation, host, authority)?;
-        let mut plan =
-            waits::EntryPlan::new(&request.syntax.trees, entry, previous, !imports.is_empty())?;
+        let mut plan = waits::EntryPlan::new(
+            &mut request.syntax.trees,
+            entry,
+            previous,
+            !imports.is_empty(),
+        )?;
         let mut timings = CompileTimings::default();
         let mut resolved = None;
         let mut parked = Vec::new();
@@ -110,7 +113,7 @@ impl BuildStageSource {
         self,
         preparation: &SourcePreparation,
         host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
         subject: Option<PackageKeyIdentity>,
         declaration: &source_admission::RetainedDeclaration,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
@@ -128,7 +131,7 @@ impl BuildStageSource {
         self,
         preparation: &SourcePreparation,
         host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<Arc<TypedTrees>, Vec<Diagnostic>> {
         let checkpoint = self
             .request(preparation, host, authority)?
@@ -140,7 +143,7 @@ impl BuildStageSource {
         self,
         preparation: &SourcePreparation,
         host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(
@@ -209,12 +212,13 @@ impl CheckedBuildInvocation {
             },
         }
         .judge(terminal_codec::TerminalPublication::Invocation)?;
+        let constants = judged.accepted.constants_read();
         Ok(BuildInvocationJudgment {
             invocation: Self {
                 accepted: judged.accepted,
                 invocation_sources,
             },
-            constants: judged.constants,
+            constants,
             accounting: judged.accounting,
         })
     }
@@ -223,16 +227,34 @@ impl CheckedBuildInvocation {
         &self.accepted
     }
 
+    pub fn prepare_publication(self) -> Result<PreparedBuildInvocation, Vec<Diagnostic>> {
+        let publication = self
+            .accepted
+            .prepare_publication(self.invocation_sources.as_deref())?;
+        Ok(PreparedBuildInvocation {
+            accepted: self.accepted,
+            publication,
+        })
+    }
+}
+
+/// Keeps the host operations inspected during admission with the code that will run.
+pub struct PreparedBuildInvocation {
+    accepted: AcceptedTerminalSource,
+    publication: PreparedTerminalPublication,
+}
+
+impl PreparedBuildInvocation {
+    pub fn build_protocol_use(&self) -> BuildProtocolUse {
+        self.publication.build_protocol_use()
+    }
+
     pub fn publish(
         self,
     ) -> Result<(AcceptedTerminalSource, ProducedTerminalProgram), Vec<Diagnostic>> {
-        let produced = self.accepted.produce(
-            TerminalProductionCustody {
-                invocation_sources: self.invocation_sources.as_deref(),
-                ..Default::default()
-            },
-            &mut CompileTimings::default(),
-        )?;
+        let produced = self
+            .publication
+            .publish(&[], &mut CompileTimings::default())?;
         Ok((self.accepted, produced))
     }
 }
@@ -254,10 +276,13 @@ impl crate::StageSource<'_> {
                 "Build provider source did not select deployment target `{deployment}`"
             ))]);
         }
-        let (product, resolved) = self.resolve()?;
+        let mut timings = crate::CompileTimings::default();
+        let (product, resolved) = self.resolve(&mut timings)?;
         let checked = product.judge(
             resolved,
             crate::compile_product::ProductEntry::BuildBindings,
+            &mut SourceCompletionAccounting::default(),
+            &mut timings,
         )?;
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;
@@ -271,9 +296,10 @@ impl crate::StageSource<'_> {
             roster.supplies.push(supply);
         }
         let supplied = judge_lowered_source::SourcePublication::judge(
-            accepted.source().clone(),
+            accepted.prepared().clone(),
             roster,
             publication.optimizations().clone(),
+            &mut timings,
         )?;
         supplied
             .accepted()?

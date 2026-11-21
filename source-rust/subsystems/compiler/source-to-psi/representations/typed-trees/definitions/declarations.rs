@@ -2188,11 +2188,11 @@ pub mod invocations {
     };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum InvocationTarget {
-        /// Position among the callable's entry parameters after the receiver.
+    pub enum InvocationTarget {        /// Position among the callable's entry parameters after the receiver.
         Parameter(u32),
         /// A statically selected boundary service.
         Service(symbols::SymbolHandle),
+        AppliedService(semantic_vocabulary::ServiceReachId),
     }
 
     pub fn declared_signature_invocations(
@@ -2238,6 +2238,7 @@ pub mod invocations {
             targets.sort_by_key(|target| match target {
                 InvocationTarget::Parameter(index) => (0u8, *index),
                 InvocationTarget::Service(symbol) => (1u8, symbol.arena_index()),
+                InvocationTarget::AppliedService(id) => (2u8, id.0),
             });
         }
     }
@@ -2258,6 +2259,7 @@ pub mod invocations {
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)
                     .map(|_| InvocationTarget::Parameter(ordinal)),
+                AuthoredInvocationTarget::AppliedService(id) => program.service_reaches.definition(id).map(|_| InvocationTarget::AppliedService(id)),
                 AuthoredInvocationTarget::Service(symbol) => program
                     .trait_definition_by_symbol(symbol)
                     .map(|_| InvocationTarget::Service(symbol)),
@@ -2281,6 +2283,29 @@ pub mod layout_storage {
         pub semantic_type: TypeReferenceHandle,
         pub policy: TypeReferenceHandle,
         pub contract: SymbolHandle,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum LayoutPolicyError {
+        MissingEvidence(&'static str),
+        WrongSemanticType,
+    }
+
+    impl LayoutPolicyError {
+        pub fn message(self) -> &'static str {
+            match self {
+                Self::MissingEvidence(reason) => reason,
+                Self::WrongSemanticType => {
+                    "selected layout policy belongs to another semantic type"
+                }
+            }
+        }
+    }
+
+    impl From<&'static str> for LayoutPolicyError {
+        fn from(reason: &'static str) -> Self {
+            Self::MissingEvidence(reason)
+        }
     }
 
     impl TypedTrees {
@@ -2473,24 +2498,65 @@ pub mod layout_storage {
         }
     }
 
-    impl crate::source_state::PlanLaidLayout {
-        pub fn native_semantic_identity(&self, program: &TypedTrees) -> Result<String, String> {
-            use crate::source_state::type_identity::{
-                IndexIdentityArgument, portable_applied_index_identity,
-            };
-            let owner = program
+    impl LayoutStorageArguments {
+        pub fn argument_owner(
+            &self,
+            program: &TypedTrees,
+            argument: TypeReferenceHandle,
+        ) -> SymbolHandle {
+            let application = program.normalized_type_identity(self.application);
+            program
                 .data_implementation_applications
                 .iter()
                 .find_map(|(_, demand)| {
-                    (program.normalized_type_identity(demand.source_application)
-                        == program.normalized_type_identity(self.application))
+                    (program.normalized_type_identity(demand.source_application) == application)
                     .then_some(demand.lexical_owner)
                 })
                 .unwrap_or_else(|| {
                     program
                         .type_reference_table
-                        .operand_lifetime_owner(self.semantic_type)
-                });
+                        .operand_lifetime_owner(argument)
+                })
+        }
+
+        /// Resolve FixedLayout<T> through the selected policy's own binder
+        /// environment. This is a source obligation even without target facts.
+        pub fn plan_requirement(
+            &self,
+            program: &TypedTrees,
+            requester: SymbolHandle,
+        ) -> Result<SymbolHandle, LayoutPolicyError> {
+            use crate::source_state::type_identity::portable_applied_type_identity;
+            let contract = program
+                .trait_definition_by_symbol(self.contract)
+                .ok_or("layout storage lost its exact core contract")?;
+            let Some([parameter]) = program.trait_type_parameters(contract).as_array() else {
+                return Err("core layout contract lost its exact semantic parameter".into());
+            };
+            let Some([requirement]) = program.trait_machine_signatures(contract).as_array() else {
+                return Err("fixed layout contract has no exact plan requirement".into());
+            };
+            let policy = program
+                .applied_requirement_scope(requester, self.policy)
+                .and_then(|scope| scope.declaring_scope(program, self.contract))
+                .ok_or("selected policy does not retain the core layout application")?;
+            let selected = policy
+                .portable_parameter_identity(program, parameter.symbol)
+                .ok_or("layout policy lost its complete applied semantic argument")?;
+            let semantic =
+                portable_applied_type_identity(program, self.semantic_type, requester, &[])
+                    .ok_or("layout storage lost its complete semantic argument")?;
+            if selected != semantic {
+                return Err(LayoutPolicyError::WrongSemanticType);
+            }
+            Ok(requirement.symbol)
+        }
+
+        pub fn native_semantic_identity(&self, program: &TypedTrees) -> Result<String, String> {
+            use crate::source_state::type_identity::{
+                IndexIdentityArgument, portable_applied_index_identity,
+            };
+            let owner = self.argument_owner(program, self.semantic_type);
             let identity = portable_applied_index_identity(
                 program,
                 IndexIdentityArgument::TypeArgument(self.semantic_type),
@@ -2507,23 +2573,8 @@ pub mod layout_storage {
             use crate::source_state::type_identity::{
                 IndexIdentityArgument, portable_applied_index_identity,
             };
-            let storage = program
-                .layout_storage_arguments(self.application)
-                .ok_or("native layout lost its exact constructor application")?;
-            let selected = program.static_operand_from_type_reference(storage.policy)?;
-            let owner = program
-                .data_implementation_applications
-                .iter()
-                .find_map(|(_, demand)| {
-                    (program.normalized_type_identity(demand.source_application)
-                        == program.normalized_type_identity(self.application))
-                    .then_some(demand.lexical_owner)
-                })
-                .unwrap_or_else(|| {
-                    program
-                        .type_reference_table
-                        .operand_lifetime_owner(storage.policy)
-                });
+            let selected = program.static_operand_from_type_reference(self.policy)?;
+            let owner = self.argument_owner(program, self.policy);
             let identity = portable_applied_index_identity(
                 program,
                 IndexIdentityArgument::StaticArgument(&selected),
@@ -2544,7 +2595,7 @@ pub mod layout_storage {
         ) -> Result<String, String> {
             program.native_data_declaration_identity(data).or_else(|_| {
                 program
-                    .normalized_hermetic_symbol_identity(self.schema_symbol)
+                    .normalized_hermetic_symbol_identity(data.symbol)
                     .map(|schema| format!("closed-plan-laid-data::{policy}::{schema}"))
             })
         }

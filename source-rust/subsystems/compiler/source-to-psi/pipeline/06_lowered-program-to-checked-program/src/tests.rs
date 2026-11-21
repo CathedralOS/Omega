@@ -58,6 +58,7 @@ mod indexed_contracts;
 mod inferred_bounds;
 mod inferred_locals;
 mod layout_queries;
+mod optimization;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
@@ -344,11 +345,12 @@ fn assert_kernel_accepted(
             })
             .collect::<Vec<_>>()
     };
-    let context = PropositionContext::from_value_types(
-        tables
-            .values
-            .iter()
-            .map(|(value, row)| (value, row.scalar_type)),
+    let lowered = elaboration.module.machine(id(machine)).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        tables.values.iter().filter_map(|(value, row)| {
+            row.rigid.is_none().then_some((value, row.scalar_type))
+        }),
+        lowered.structural_places.iter().map(|place| (place.id, place.kind)),
     )
     .unwrap();
     let decide = |goal: &Proposition, certificate: &CertificateEnvelope| {
@@ -1238,8 +1240,7 @@ fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
 fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() {
     let refused = |reason| Refusal {
         reason,
-        machine: id(1),
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(id(1), Construct::Machine),
         source_span: None,
         detail: String::from("test"),
     };
@@ -2870,8 +2871,10 @@ fn the_verdict_rejects_a_program_with_an_unestablished_use() {
 fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
     let refused = terminal_check_tables::Refusal {
         reason: RefusalReason::Unestablished,
-        machine: id(1),
-        concerns: terminal_check_tables::Construct::Block(id(2)),
+        site: terminal_check_tables::RefusalSite::Machine(
+            id(1),
+            terminal_check_tables::Construct::Block(id(2)),
+        ),
         source_span: None,
         detail: String::from("a dispatch selects no arm for a declared case"),
     };
@@ -2911,7 +2914,7 @@ fn a_read_of_a_gated_local_nothing_was_stored_into_is_unestablished() {
         .unwrap();
     // The refusal concerns the read itself.
     assert_eq!(
-        refusal.concerns,
+        refusal.site.in_machine().unwrap().1,
         terminal_check_tables::Construct::Operation(field_reads(&elaboration)[0].0)
     );
     // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
@@ -3304,7 +3307,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 Ok(()) => established += 1,
                 Err(refusal) => {
                     assert_eq!(refusal.reason, RefusalReason::Unestablished);
-                    assert_eq!(refusal.concerns, used.at);
+                    assert_eq!(refusal.site.in_machine().unwrap().1, used.at);
                     unestablished += 1;
                 }
             }
@@ -6550,8 +6553,7 @@ mod generic_bodies {
 
         let refused = Refusal {
             reason: RefusalReason::Unsupported,
-            machine: id(1),
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(id(1), Construct::Machine),
             source_span: None,
             detail: "refinement unavailable".to_owned(),
         };

@@ -38,9 +38,7 @@ pub use admission_source::{
 pub use callback_entries::project_native_callback_arguments;
 pub use compiler_builtins::{
     AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
-    TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
-    derive_selected_intrinsic_settlement_proposals, numeric_boundary_execution,
-    prepare_retained_compiler_builtins, validate_external_provider_owners,
+    admit_terminal_intrinsics, numeric_boundary_execution, validate_external_provider_owners,
 };
 pub use installation_conditions::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
@@ -52,9 +50,10 @@ pub use model::{
     AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptHelper,
     AdmittedInstalledInterruptScope, AdmittedInterruptContextAnchor,
     AdmittedNativeCallbackArgument, InstalledInterruptNativeEntryProposal,
-    NativeBoundaryRealization, NativeCallbackArgumentProposal, NativeCompilerBuiltinSettlement,
-    NativeProviderSettlement, ProviderAdmissionRequest,
+    NativeBoundaryRealization, NativeCallbackArgumentProposal, NativeProviderSettlement,
+    ProviderAdmissionRequest,
 };
+pub use numeric_intrinsic_admission::direct_numeric_target;
 pub use provider_installation::{
     AdmittedProviderInstallation, ProviderInstallationError, SelectedProviderAdapter,
 };

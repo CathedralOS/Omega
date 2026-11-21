@@ -496,7 +496,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
     let callable_invocations = crate::preparation::PreparedCallableInvocations::new(
         &unit,
-        &terminal_semantics::callable_values::CallableInvocationRoots::new(),
+        &verified_optimization_input::NativeCallableBindings::default(),
     )
     .unwrap();
     let evidence = crate::preparation::PreparationEvidence {
@@ -3914,7 +3914,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             .all(|(_, body)| body.invocations.is_empty()),
         "{name}: the sum-layout fixture has no call occurrences"
     );
-    let callable_roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
+    let callable_bindings = verified_optimization_input::NativeCallableBindings::default();
     let prepared = crate::preparation::legalization::legalize_target_operations(
         &target,
         plan,
@@ -3925,7 +3925,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             target_context: None,
             module: &module,
         },
-        &callable_roots,
+        &callable_bindings,
         &interrupts,
         fixture_types(),
     )

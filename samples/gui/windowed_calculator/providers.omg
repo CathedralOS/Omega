@@ -156,11 +156,11 @@ reaches
 }
 
 public windows_x86_64 machine calc_msg_translate(window_state: @Window, message: [u64; 6]) -> u32
-reaches {
+reaches none {
     1
 }
 public macos_arm64 machine calc_msg_translate(window_state: @Window, message: [u64; 6]) -> u32
-reaches {
+reaches none {
     macos_window_msg_translate(window_state, message)
 }
 

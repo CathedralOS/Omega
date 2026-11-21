@@ -4,7 +4,7 @@ machine count(index: u64) -> u64
 requires index <= 4
 { index }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

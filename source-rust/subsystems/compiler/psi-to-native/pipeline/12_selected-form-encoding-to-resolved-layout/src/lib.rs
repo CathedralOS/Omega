@@ -1,4 +1,4 @@
-//! Place the encoded instructions and resolve their function-relative offsets.
+//! Resolve the function-relative offsets of encoded instructions, including selected branch rewrites.
 #![forbid(unsafe_code)]
 pub use encoding_admission::layout::OptimizedResolvedSelectedFormLayoutError;
 use encoding_admission::layout::geometry::declared_size_matches;
@@ -20,37 +20,58 @@ mod ordinary;
 #[path = "validation_tests.rs"]
 mod validation;
 
-/// Layout issues the resolved program and the alternatives available for each control row.
-pub struct PlacedProgram<Contracts> {
-    program: machine_code::ResolvedMachineProgram,
-    contracts: machine_code::layout::EncodedBodyContracts<Contracts>,
+pub mod relaxation;
+mod settled;
+mod x86_branch_relaxation;
+
+pub use settled::{
+    FunctionExitLayout, ResolvedFunctionLayout, ResolvedLayoutOptimizationError,
+    SettledFunctionLayout,
+};
+pub use x86_branch_relaxation::StagedOptimizedX86BranchRelaxation;
+
+#[derive(Debug)]
+pub enum LayoutError {
+    Baseline(OptimizedResolvedSelectedFormLayoutError),
+    Relaxation(ResolvedLayoutOptimizationError),
 }
 
-impl<Contracts> PlacedProgram<Contracts> {
-    pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
-        &self.program
-    }
-    pub fn into_parts(
-        self,
-    ) -> (
-        machine_code::ResolvedMachineProgram,
-        machine_code::layout::EncodedBodyContracts<Contracts>,
-    ) {
-        (self.program, self.contracts)
-    }
+/// The issued function layout and the optional input to independent replay.
+pub struct LayoutResolution<Contracts> {
+    pub layout: ResolvedFunctionLayout<Contracts>,
+    pub baseline_for_audit: Option<machine_code::ResolvedMachineProgram>,
 }
 
-/// Only the preceding stage can issue the input for this transformation.
+/// Resolve encoded rows to their final offsets under the selected branch policy.
+/// Independent replay also receives the original near-branch layout when requested.
 ///
 /// ```compile_fail,E0308
-/// fn skip_stage(raw: machine_code::EncodedMachineProgram) {
-///     let _ = selected_form_encoding_to_resolved_layout::place_encoded_program(raw);
+/// fn skip_encoding(raw: machine_code::EncodedMachineProgram) {
+///     let _ = selected_form_encoding_to_resolved_layout::resolve_program(raw);
 /// }
 /// ```
-pub fn place_encoded_program<Contracts>(
+pub fn resolve_program<Contracts>(
     issued: native_encoding::StagedOptimizedSelectedFormEncoding<Contracts>,
-) -> Result<PlacedProgram<Contracts>, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<LayoutResolution<Contracts>, LayoutError> {
     let (encoding, contracts) = issued.into_parts();
+    let program = baseline(encoding).map_err(LayoutError::Baseline)?;
+    let baseline_for_audit = if contracts.audit_requested() {
+        encoding_admission::layout::validate_baseline_resolved_layout(&program)
+            .map_err(LayoutError::Baseline)?;
+        Some(program.clone())
+    } else {
+        None
+    };
+    let layout = settled::settle(program, contracts).map_err(LayoutError::Relaxation)?;
+    Ok(LayoutResolution {
+        layout,
+        baseline_for_audit,
+    })
+}
+
+fn baseline(
+    encoding: machine_code::EncodedMachineProgram,
+) -> Result<machine_code::ResolvedMachineProgram, OptimizedResolvedSelectedFormLayoutError> {
     let layout = compute(
         &encoding.layout_requirements,
         encoding.context.physical(),
@@ -59,7 +80,7 @@ pub fn place_encoded_program<Contracts>(
     let control_alternatives =
         machine_code::EncodedControlIndex::for_layout(&encoding.encoding, &layout)
             .map_err(|_| OptimizedResolvedSelectedFormLayoutError::RootMismatch)?;
-    let program = machine_code::ResolvedMachineProgram {
+    Ok(machine_code::ResolvedMachineProgram {
         control_alternatives: control_alternatives.into(),
         bindings: encoding.bindings,
         exit_requirements: encoding.exit_requirements,
@@ -74,37 +95,26 @@ pub fn place_encoded_program<Contracts>(
         layout: Arc::new(layout),
         frame: encoding.frame,
         protocol: encoding.protocol,
-    };
-    if contracts.audit_requested() {
-        encoding_admission::layout::validate_baseline_resolved_layout(&program)?;
-    }
-    Ok(PlacedProgram { contracts, program })
+    })
 }
 fn compute(
     input: &machine_code::layout_requirements::EncodedLayoutRequirements,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
 ) -> Result<ResolvedMachineLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let selected_plan = input;
-    let machine = input;
-    let machine_plan = machine;
-    if pre_layout.selected() != machine.selected
-        || pre_layout.machine() != machine.machine
-        || machine.target.architecture != physical.model().architecture
-        || selected_plan.functions.len() != machine_plan.alternatives.len()
+    if pre_layout.selected() != input.selected
+        || pre_layout.machine() != input.machine
+        || input.target.architecture != physical.model().architecture
+        || input.functions.len() != input.alternatives.len()
         || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let policy = ordinary::select(&selected_plan.functions)?;
+    let policy = ordinary::select(&input.functions)?;
     let mut pre_rows = pre_layout.rows().iter();
-    let mut functions = Vec::with_capacity(selected_plan.functions.len());
-    for (function, machine_function) in selected_plan
-        .functions
-        .iter()
-        .zip(&machine_plan.alternatives)
-    {
+    let mut functions = Vec::with_capacity(input.functions.len());
+    for (function, machine_function) in input.functions.iter().zip(&input.alternatives) {
         let mut function_pre_rows = BTreeMap::new();
         for block in &function.blocks {
             for instruction in ordinary::instructions(block) {
@@ -132,7 +142,7 @@ fn compute(
             .map(|instruction| (instruction.instruction, instruction))
             .collect::<BTreeMap<_, _>>();
         functions.push(ordinary::layout(
-            machine.target.architecture,
+            input.target.architecture,
             function,
             &function_pre_rows,
             &machine_rows,
@@ -145,10 +155,10 @@ fn compute(
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let selected_root = machine.selected;
-    let machine_root = machine.machine;
+    let selected_root = input.selected;
+    let machine_root = input.machine;
     let pre_layout_root = pre_layout.identity();
-    let target = machine.target;
+    let target = input.target;
     let identity = layout_identity(
         selected_root,
         machine_root,
@@ -172,12 +182,3 @@ fn compute(
 
 pub mod entry_layout;
 pub mod program_entry_layout;
-
-/// A fixed-width entry with its body-call or relocation fields resolved.
-pub struct ResolvedEntry<T>(T);
-
-impl<T> ResolvedEntry<T> {
-    pub fn into_layout(self) -> T {
-        self.0
-    }
-}

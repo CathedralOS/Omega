@@ -2424,8 +2424,9 @@ fn the_lowest_refusing_machine_is_named() {
         &[],
         None,
     );
-    assert_eq!(settled.unwrap_err().machine, id(1));
-    assert_eq!(rounds.unwrap_err().machine, id(3));
+    let machine = |raw| terminal_check_tables::RefusalSite::from(id::<MachineId>(raw));
+    assert_eq!(settled.unwrap_err().site, machine(1));
+    assert_eq!(rounds.unwrap_err().site, machine(3));
 }
 
 /// A chain declared caller before callee settled one link per whole-program

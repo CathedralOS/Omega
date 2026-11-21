@@ -25,7 +25,7 @@ machine replacement(cursor: @mut Cursor) -> i32 in Wrapping {
 }
 machine store(value: @mut i32 in Wrapping, incoming: i32 in Wrapping) { $value = incoming; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

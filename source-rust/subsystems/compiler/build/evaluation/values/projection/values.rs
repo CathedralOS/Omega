@@ -223,6 +223,16 @@ fn scalar_value(
             TerminalScalarValue::Boolean(*value)
         }
         (
+            ScalarType::IeeeFloat(_),
+            ClosedScalarType::IeeeFloat(format),
+            BuildTimeValue::Float(value),
+        ) if value.format() == format => TerminalScalarValue::IeeeFloat(*value),
+        (
+            ScalarType::IeeeFloat(_),
+            ClosedScalarType::IeeeFloat(format),
+            BuildTimeValue::UndeterminedNaN(actual),
+        ) if *actual == format => TerminalScalarValue::UndeterminedNaN(format),
+        (
             ScalarType::Integer(raw),
             ClosedScalarType::Integer(integer),
             BuildTimeValue::Int(value),
@@ -246,6 +256,8 @@ pub fn scalar_result(
     let owner = closed_types(program)?;
     match value {
         TerminalScalarValue::Boolean(value) => Ok(BuildTimeValue::Bool(value)),
+        TerminalScalarValue::IeeeFloat(value) => Ok(BuildTimeValue::Float(value)),
+        TerminalScalarValue::UndeterminedNaN(format) => Ok(BuildTimeValue::UndeterminedNaN(format)),
         TerminalScalarValue::Integer { value, scalar_type } => {
             let integer = owner.integer(scalar_type).map_err(|error| {
                 format!("Terminal result scalar is not in its published type owner: {error:?}")

@@ -8,6 +8,9 @@ version.workspace = true
 path = "project_build.rs"
 
 [dependencies]
+psi-authorization = { path = "../psi/artifact/authorization" }
+declaration-scope = { path = "../foundation/declaration-scope" }
+retained-product-selections = { path = "../source-to-psi/representations/retained-product-selections" }
 retained-image-runtime = { path = "../../interpreter/host/retained-image" }
 review-evidence = { path = "../../package-manager/review/evidence" }
 optimization-requests = { path = "settings/optimizations" }
@@ -25,14 +28,34 @@ product-publication = { path = "publication" }
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
+build-evaluation-result = { path = "evaluation/result" }
+provider-acceptance = { path = "providers/acceptance" }
+direct-boundary-bindings = { path = "../psi-to-native/verification/provider-correspondence/direct-boundaries" }
+native-intrinsics = { path = "../psi-to-native/targets/intrinsics" }
+selected-provider-plans = { path = "providers/selections" }
+target-provider-admission = { path = "../psi-to-native/verification/target-providers" }
+provider-plans = { path = "providers/plans" }
+service-surface = { path = "../psi/interfaces/service-surface" }
+evaluation-receipts = { path = "evaluation/receipts" }
+source-provenance = { path = "../foundation/source-provenance" }
+numeric-literals = { path = "../foundation/numeric-literals" }
+source-admission = { path = "../source-to-psi/representations/source-files/custody" }
+source-text = { path = "../../../foundation/source-text" }
+arena = { path = "../../../foundation/arena" }
+calling-conventions = { path = "../psi-to-native/targets/calling-conventions" }
+terminal-psi = { path = "../psi" }
+symbols = { path = "../foundation/declaration-identity" }
+numerics = { path = "../foundation/numerics" }
+language-core = { path = "../foundation/language-core" }
+terminal-semantics = { path = "../psi/semantics" }
+psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 
 [dev-dependencies]
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
+provider-admission = { path = "../psi-to-native/verification/provider-admission" }
+provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 filesystem-authority = { path = "evaluation/authority/filesystem" }
 terminal-interpreter = { path = "../../interpreter" }
 package-manager = { path = "../../package-manager" }
-psi-authorization = { path = "../psi-artifact/authorization" }
-terminal-codec = { path = "../psi-artifact/codec" }
-terminal-psi = { path = "../psi" }
+terminal-codec = { path = "../psi/artifact/codec" }
 host-provider-inputs = { path = "../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-psi-provider-selections = { path = "../psi-execution-inputs/providers" }
-target-provider-admission = { path = "../psi-to-native/verification/target-providers" }

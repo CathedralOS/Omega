@@ -7,8 +7,8 @@
 // harness to see the greeting.)
 //
 // How every piece fits, all in this file + build.omg:
-//   * build.omg sets `efi_application` + `freestanding` -> an import-free
-//     PE32+ that firmware loads directly.
+//   * build.omg sets Subsystem::EfiApplication. The uefi_x86_64 target
+//     emits the PE32+ image that firmware loads.
 //   * `boundary machine Main::run(main: &Main, handle, table: &EfiSystemTable)` is
 //     the EXPORTED CALLABLE: firmware calls it, and the parameter list is the
 //     boundary-trusted shape imposed over the registers it hands us (handle in
@@ -23,7 +23,7 @@
 //   * `utf16"..."` is the CHAR16 text UEFI expects.
 
 public boundary trait TextOutput {
-    machine output_string(this: addr, text: @[u16; 19]) reaches crashes none;
+    machine output_string(this: addr, text: @[u16; 19]) reaches none crashes none;
 }
 data EfiTextOutputProtocol {
     reset: addr;

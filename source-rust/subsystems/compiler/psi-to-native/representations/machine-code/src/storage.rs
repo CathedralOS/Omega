@@ -107,6 +107,10 @@ pub enum StructuralSourceLocation {
     IncomingBorrowedPointer {
         location: calling_conventions::IndirectPointerLocation, // Original borrowed referent reached through incoming ABI pointer
     },
+    /// An unchanged incoming pointer whose declared pointee has no by-value representation.
+    IncomingOpaquePointer {
+        location: calling_conventions::IndirectPointerLocation,
+    },
 }
 
 impl StructuralSourceLocation {
@@ -115,7 +119,8 @@ impl StructuralSourceLocation {
             Self::Stack { byte_offset } => Some(byte_offset),
             Self::IncomingIndirectPointer { .. }
             | Self::IncomingIndirectStackPointer { .. }
-            | Self::IncomingBorrowedPointer { .. } => None,
+            | Self::IncomingBorrowedPointer { .. }
+            | Self::IncomingOpaquePointer { .. } => None,
         }
     }
 }

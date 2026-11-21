@@ -714,7 +714,14 @@ pub mod structural_reference_input {
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow,
                 terminal_psi::nonlinear_multiplicity_pair_pattern!(),
-            ) => internal_borrow_shape(parameter.structural_type, declarations),
+            ) => {
+                let declaration = find_structural_type(declarations, parameter.structural_type)?;
+                calling_conventions::terminal_layout::opaque_borrow_transport(
+                    &declaration.shape,
+                    parameter.access,
+                )
+                .or_else(|| internal_borrow_shape(parameter.structural_type, declarations))
+            }
             _ => None,
         }
     }

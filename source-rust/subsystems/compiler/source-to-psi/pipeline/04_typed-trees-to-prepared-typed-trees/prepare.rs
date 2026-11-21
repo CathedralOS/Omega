@@ -12,6 +12,8 @@ use source_symbol_table::source_symbols;
 use typed_trees::source_state;
 
 mod passes;
+mod values;
+pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
@@ -19,20 +21,25 @@ use diagnostics::Diagnostic;
 /// Prepare the typed program that stage 05 will lower.
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
-    wire_demands: &[WireCompatibilityDemand],
+    values: &[ValueInputs],
+    selected_providers: &[symbols::SymbolHandle],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
-    if !wire_demands.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "no product route yet: typed preparation: requested work: wire compatibility demands",
-        )]);
-    }
-    passes::specialization::prepare(&mut program)?;
+    passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
+    program
+        .prepare_conformance_requirement_headers()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    program
+        .settle_applied_service_lineage()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
-    Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))
+    let constants = values::constant_inputs(&program, values)?;
+    Ok(PreparedTypedTrees {
+        typed: std::sync::Arc::new(program.into()),
+        values: values.into(),
+        constants: constants.into(),
+    })
 }
-
-pub use source_declarations::source_selections::WireCompatibilityDemand;
 
 /// A shared snapshot of the exact trees that completed every stage 04 pass.
 ///
@@ -41,8 +48,8 @@ pub use source_declarations::source_selections::WireCompatibilityDemand;
 /// ```
 /// use typed_trees::source_state::TypedTrees;
 /// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
-/// let prepared = prepare_typed_trees(TypedTrees::default(), &[]).unwrap();
-/// assert!(std::sync::Arc::ptr_eq(&prepared, &prepared.clone()));
+/// let prepared = prepare_typed_trees(TypedTrees::default(), &[], &[]).unwrap();
+/// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
 /// A read-only snapshot alone cannot establish that those passes ran.
@@ -53,20 +60,33 @@ pub use source_declarations::source_selections::WireCompatibilityDemand;
 /// let _: PreparedTypedTrees = FrozenTypedTrees::default().into();
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PreparedTypedTrees(std::sync::Arc<FrozenTypedTrees>);
-
-impl PreparedTypedTrees {
-    /// Return to mutable trees for a new preparation after edits.
-    pub fn into_inner(self) -> TypedTrees {
-        std::sync::Arc::unwrap_or_clone(self.0).into_inner()
-    }
+pub struct PreparedTypedTrees {
+    typed: std::sync::Arc<FrozenTypedTrees>,
+    values: std::sync::Arc<[ValueInputs]>,
+    constants: std::sync::Arc<[arena::Handle<source_state::constant::ConstDeclaration>]>,
 }
 
-impl std::ops::Deref for PreparedTypedTrees {
-    type Target = std::sync::Arc<FrozenTypedTrees>;
+impl PreparedTypedTrees {
+    /// Read the exact source snapshot used to prepare this program.
+    pub fn trees(&self) -> &std::sync::Arc<FrozenTypedTrees> {
+        &self.typed
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    /// The source computations demanded during this preparation.
+    pub fn values(&self) -> &[ValueInputs] {
+        &self.values
+    }
+
+    /// Constants needed by the request or by its computed type arguments.
+    pub fn constants(&self) -> impl Iterator<Item = &source_state::constant::ConstDeclaration> {
+        self.constants
+            .iter()
+            .map(|&handle| self.typed.tables.const_declarations.get(handle))
+    }
+
+    /// Return to mutable source. A new preparation establishes its own inputs.
+    pub fn into_inner(self) -> TypedTrees {
+        std::sync::Arc::unwrap_or_clone(self.typed).into_inner()
     }
 }
 
@@ -162,8 +182,8 @@ mod tests {
             retained.push((carrier, identity));
         }
         assert_ne!(retained[0].1, retained[1].1);
-        let prepared = prepare_typed_trees(program, &[]).unwrap();
-        let prepared = &*prepared;
+        let prepared = prepare_typed_trees(program, &[], &[]).unwrap();
+        let prepared = prepared.trees();
         for (carrier, identity) in retained {
             let theory = prepared
                 .domain_definition_for_instance(domain, identity)
@@ -192,8 +212,8 @@ mod tests {
     fn preparation_preserves_the_program_identity() {
         let program = TypedTrees::default();
         let identity = program.identity;
-        let frozen = prepare_typed_trees(program, &[]).unwrap();
-        assert_eq!(frozen.identity.get(), identity.get());
+        let frozen = prepare_typed_trees(program, &[], &[]).unwrap();
+        assert_eq!(frozen.trees().identity.get(), identity.get());
     }
 
     #[test]
@@ -205,27 +225,7 @@ mod tests {
             .mathematical_definitions
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
-        let frozen = prepare_typed_trees(program, &[]).unwrap();
+        let frozen = prepare_typed_trees(program, &[], &[]).unwrap();
         assert_eq!(frozen.into_inner(), before);
-    }
-
-    #[test]
-    fn an_unserved_wire_schema_edge_is_refused_before_freezing() {
-        let demand = WireCompatibilityDemand {
-            edge: "request".into(),
-            lineage: "protocol".into(),
-            local_schema: "v2".into(),
-            peer_schema: "v1".into(),
-            require_readable: true,
-            require_writable: false,
-            require_unknown_preservation: false,
-            require_canonical: false,
-            require_complete_migration: false,
-        };
-        let refused = prepare_typed_trees(TypedTrees::default(), &[demand]).unwrap_err();
-        assert_eq!(
-            refused[0].message,
-            "no product route yet: typed preparation: requested work: wire compatibility demands"
-        );
     }
 }

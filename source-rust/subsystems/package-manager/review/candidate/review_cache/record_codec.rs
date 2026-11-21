@@ -1,6 +1,6 @@
 /*
     We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 20). Sequences are `u64` length-prefixed, byte strings are framed,
+    version 21). Sequences are `u64` length-prefixed, byte strings are framed,
     every enum uses a checked tag, and the provider identity table is serialized
     ahead of every service-schema field that indexes into it so recovery
     re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
@@ -49,7 +49,7 @@ use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 20;
+const RECORD_VERSION: u16 = 21;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -826,6 +826,13 @@ fn encode_component_description(description: &IndependentComponentDescription, o
     let subject = description.expected_subject();
     push_encoded(out, subject.vocabulary_marker.get().to_le_bytes());
     out.extend_from_slice(subject.program_fingerprint.as_bytes());
+    push_encoded(
+        out,
+        (description.independent_suppliers().len() as u64).to_le_bytes(),
+    );
+    for supplier in description.independent_suppliers() {
+        encode_identity(*supplier, out);
+    }
     push_framed(out, description.description());
 }
 
@@ -835,6 +842,10 @@ fn recover_component_description(
     let package = recover_identity(cursor)?;
     let vocabulary_marker = terminal_psi::VocabularyMarker::new(cursor.u16()?)?;
     let program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes(cursor_digest(cursor)?);
+    let suppliers = cursor_vec(cursor, recover_identity)?;
+    if suppliers.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return None;
+    }
     let description = cursor.framed()?.to_vec();
     Some(IndependentComponentDescription::new(
         package,
@@ -842,6 +853,7 @@ fn recover_component_description(
             vocabulary_marker,
             program_fingerprint,
         },
+        suppliers.into_iter().collect(),
         description,
     ))
 }
@@ -1119,6 +1131,33 @@ mod tests {
             bytes[0] = 255;
             assert!(recover_consumed_unit(&mut ObservationCursor::new(&bytes)).is_none());
         }
+    }
+
+    #[test]
+    fn a_cached_component_retains_its_own_independent_suppliers() {
+        let [owner, first, second] =
+            [1, 2, 3].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
+        let record = IndependentComponentDescription::new(
+            owner,
+            terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([9; 32]),
+            },
+            [first, second].into(),
+            vec![1, 2, 3],
+        );
+        let mut bytes = Vec::new();
+        encode_component_description(&record, &mut bytes);
+        let mut cursor = ObservationCursor::new(&bytes);
+        assert_eq!(recover_component_description(&mut cursor), Some(record));
+        assert!(cursor.exhausted());
+
+        let position = bytes
+            .windows(32)
+            .position(|digest| digest == second.digest())
+            .unwrap();
+        bytes[position..position + 32].copy_from_slice(&first.digest());
+        assert!(recover_component_description(&mut ObservationCursor::new(&bytes)).is_none());
     }
 
     #[test]

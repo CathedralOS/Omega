@@ -11,7 +11,13 @@
 //! authority or assumption; final obligation discharge still checks the
 //! evidence with the kernel.
 
+#[path = "known/normalization.rs"]
+mod normalization;
+pub(crate) use normalization::{BranchPreparation, NormalizedPremises};
+use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use arena::IdTable;
 use proof_admission::{
@@ -88,6 +94,8 @@ enum Origin {
 pub(crate) struct Fact {
     pub(crate) proposition: Proposition,
     origin: Origin,
+    /// Conjuncts in this scope may cite the same proof of their whole premise.
+    conjunction_proof: OnceCell<Arc<ProofNode>>,
     /// The index of a whole semantic axiom, cited by definition-bound rules.
     pub(crate) axiom: Option<usize>,
 }
@@ -161,9 +169,7 @@ impl Fact {
         None
     }
 
-    /// Expand only a selected derivation. The resulting owned tree is exactly
-    /// what the unchanged kernel/publication path has always received, so its
-    /// logical occurrence and depth budgets do not depend on physical sharing.
+    /// Expand a selected derivation. The checker visits the parent for every use of a conjunct.
     pub(crate) fn proof(&self, facts: &[Fact]) -> ProofNode {
         self.proof_with_work(facts, &mut FactProofWork::default())
     }
@@ -176,7 +182,10 @@ impl Fact {
                 unreachable!("conjunction construction is complete before proof selection")
             }
             Origin::Conjunction { parent, conjunct } => ProofRule::ConjunctionElimination {
-                conjunction: Box::new(facts[*parent].proof_with_work(facts, work)),
+                conjunction: facts[*parent]
+                    .conjunction_proof
+                    .get_or_init(|| Arc::new(facts[*parent].proof_with_work(facts, work)))
+                    .clone(),
                 conjunct: *conjunct,
             },
             Origin::IntegerEquality { premise } => {
@@ -216,6 +225,8 @@ impl Fact {
 
 #[derive(Debug)]
 pub(crate) struct Known {
+    #[cfg(test)]
+    pub(crate) normalization_checks: usize,
     pub(crate) facts: Vec<Fact>,
     /// Fact positions, in the original selected equation order.
     pub(crate) equations: Vec<usize>,
@@ -289,6 +300,7 @@ fn flatten(
     }
     let parent = facts.len();
     facts.push(Fact {
+        conjunction_proof: OnceCell::new(),
         proposition: proposition.clone(),
         origin,
         axiom,
@@ -343,9 +355,19 @@ impl Known {
         axioms: &[Proposition],
         values: &dyn ProofValues,
     ) -> Self {
+        Self::prepare(context, assumptions.iter(), axioms, values, None)
+    }
+
+    pub(crate) fn prepare<'a>(
+        context: &PropositionContext,
+        assumptions: impl Iterator<Item = &'a Proposition>,
+        axioms: &[Proposition],
+        values: &dyn ProofValues,
+        mut branch: Option<&mut BranchPreparation<'_>>,
+    ) -> Self {
         let mut facts = Vec::new();
         let mut conjuncts = Vec::new();
-        for (index, assumption) in assumptions.iter().enumerate() {
+        for (index, assumption) in assumptions.enumerate() {
             flatten(
                 assumption,
                 Origin::Assumption(index),
@@ -354,6 +376,7 @@ impl Known {
                 &mut conjuncts,
             );
         }
+        let assumption_count = facts.len();
         for (index, axiom) in axioms.iter().enumerate() {
             flatten(
                 axiom,
@@ -363,6 +386,7 @@ impl Known {
                 &mut conjuncts,
             );
         }
+        let declared_count = facts.len();
         // A supplied equality can name the application on either side.
         // Orient its proved symmetry for substitution; operation equations
         // keep their original read-to-application direction.
@@ -377,6 +401,7 @@ impl Known {
                 continue;
             }
             facts.push(Fact {
+                conjunction_proof: OnceCell::new(),
                 proposition: Proposition::Equal(right.clone(), left.clone()),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
@@ -429,6 +454,8 @@ impl Known {
             .map(|(index, _)| index)
             .collect();
         let mut result = Self {
+            #[cfg(test)]
+            normalization_checks: 0,
             facts,
             equations,
             definitions: IdTable::default(),
@@ -480,6 +507,7 @@ impl Known {
             if defined.get(right_id) == Some(&None) {
                 let symmetric = result.facts.len();
                 result.facts.push(Fact {
+                    conjunction_proof: OnceCell::new(),
                     proposition: Proposition::Equal(right, left),
                     origin: Origin::EqualitySymmetry { premise: index },
                     axiom: None,
@@ -498,7 +526,12 @@ impl Known {
             }
         }
         result.integer_equalities(0, &defined);
-        result.normalize(context, &mut defined, &mut conjuncts, values);
+        if !result.equations.is_empty()
+            && let Some(scope) = branch.as_deref_mut()
+        {
+            scope.begin(assumption_count, declared_count);
+        }
+        result.normalize(context, &mut defined, &mut conjuncts, values, branch);
         result.arrival_definitions(&defined);
         result.definitions = defined;
         result
@@ -570,6 +603,7 @@ impl Known {
             }
             if let Some(proposition) = integer_equality(&fact.proposition) {
                 self.facts.push(Fact {
+                    conjunction_proof: OnceCell::new(),
                     proposition,
                     origin: Origin::IntegerEquality { premise: index },
                     axiom: None,
@@ -634,6 +668,7 @@ impl Known {
             let id = *right_id;
             let fact = self.facts.len();
             self.facts.push(Fact {
+                conjunction_proof: OnceCell::new(),
                 proposition: Proposition::Equal(right.clone(), left.clone()),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
@@ -792,6 +827,7 @@ impl Known {
         defined: &mut IdTable<ValueId, Option<usize>>,
         conjuncts: &mut Vec<usize>,
         values: &dyn ProofValues,
+        mut branch: Option<&mut BranchPreparation<'_>>,
     ) {
         if self.equations.is_empty() {
             return;
@@ -816,15 +852,28 @@ impl Known {
                 defined,
                 &mut transport,
             );
-            let Ok(transported) = check_value_equality_denotation(
-                context,
-                &fact.proposition,
-                transport
-                    .selected
-                    .iter()
-                    .map(|&index| &self.facts[self.equations[index]].proposition),
-            ) else {
-                continue;
+            let inherited = branch.as_ref().and_then(|scope| {
+                scope.inherited(index, &self.facts, &self.equations, &transport.selected)
+            });
+            let transported = match inherited {
+                Some(result) => Cow::Borrowed(result),
+                None => {
+                    #[cfg(test)]
+                    {
+                        self.normalization_checks += 1;
+                    }
+                    let Ok(result) = check_value_equality_denotation(
+                        context,
+                        &fact.proposition,
+                        transport
+                            .selected
+                            .iter()
+                            .map(|&i| &self.facts[self.equations[i]].proposition),
+                    ) else {
+                        continue;
+                    };
+                    Cow::Owned(result)
+                }
             };
             // Unfolding has already exposed the dependencies on undefined
             // values, including those hidden behind operation-result values.
@@ -836,7 +885,10 @@ impl Known {
                     users.push(index);
                 }
             });
-            if transported == fact.proposition {
+            if transported.as_ref() == &fact.proposition {
+                if let Some(scope) = branch.as_deref_mut() {
+                    scope.record(index, index, &self.equations, &transport.selected);
+                }
                 continue;
             }
             // Capture only the equations available before this derivation.
@@ -850,7 +902,10 @@ impl Known {
                     .collect(),
             };
             let first = self.facts.len();
-            flatten(&transported, origin, None, &mut self.facts, conjuncts);
+            let result = flatten(&transported, origin, None, &mut self.facts, conjuncts);
+            if let Some(scope) = branch.as_deref_mut() {
+                scope.record(index, result, &self.equations, &transport.selected);
+            }
             self.integer_equalities(first, defined);
             for derived in first..self.facts.len() {
                 if let Some(value) = self

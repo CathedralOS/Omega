@@ -1,1 +1,1 @@
-cannot prove requires contract for call dyn WeightedCombine::combine
+cannot prove requires clause 2 of the called machine

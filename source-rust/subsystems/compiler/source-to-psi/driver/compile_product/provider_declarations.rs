@@ -4,111 +4,24 @@
 mod requests;
 #[path = "provider_declarations/retained.rs"]
 mod retained;
-pub(crate) use retained::rejoin_provider_defaults;
+pub(crate) use retained::{capture_provider_selection, rejoin_provider_defaults};
 #[cfg(test)]
 #[path = "provider_declarations/tests.rs"]
 mod tests;
 
-pub use super::retained_application::RetainedProductApplication;
+pub use crate::compile_product::provider_choices::retain_provider_defaults;
 use crate::declaration_selection::BuildSelectionOrigin;
+pub use crate::source_state::provider_declarations::ProviderPlanningContext;
 use checked_program_to_psi::provider_choice_inputs::application_id;
 pub use checked_program_to_psi::provider_choice_inputs::{
     ProviderApplicationId, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject, TargetProviderDefaults,
     source_application,
 };
-pub use crate::compile_product::provider_choices::retain_provider_defaults;
-pub use crate::source_state::provider_declarations::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use requests::collect_product_provider_selections;
 pub use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_admission::RetainedDeclaration;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetainedProviderSelection {
-    pub subject: RetainedProviderSubject,
-    pub provider: RetainedDeclaration,
-    pub provider_identity: String,
-    pub provider_application: Option<RetainedProductApplication>,
-    pub target: ProductTarget,
-    pub composition_mode: CompositionMode,
-    pub origin: BuildSelectionOrigin,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RetainedProviderSubject {
-    Declaration {
-        declaration: RetainedDeclaration,
-        identity: String,
-        application: Option<RetainedProductApplication>,
-    },
-    OperatorFamily(RetainedOperatorFamily),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetainedOperatorCoordinate {
-    pub declaration: RetainedDeclaration,
-    pub requirement_identity: String,
-    pub static_parameter_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetainedOperatorFamily {
-    pub canonical_path: String,
-    coordinates: Vec<RetainedOperatorCoordinate>,
-}
-
-impl RetainedOperatorFamily {
-    pub fn new(
-        canonical_path: String,
-        coordinates: Vec<RetainedOperatorCoordinate>,
-    ) -> Result<Self, &'static str> {
-        if canonical_path.is_empty()
-            || coordinates.is_empty()
-            || coordinates.iter().any(|member| {
-                member.requirement_identity.is_empty()
-                    || !matches!(
-                        member.declaration.kind(),
-                        symbols::SymbolKind::Machine | symbols::SymbolKind::Operator
-                    )
-            })
-            || coordinates
-                .windows(2)
-                .any(|pair| pair[0].requirement_identity >= pair[1].requirement_identity)
-        {
-            return Err("retained operator family needs its complete canonical coordinate roster");
-        }
-        Ok(Self {
-            canonical_path,
-            coordinates,
-        })
-    }
-
-    pub fn coordinates(&self) -> &[RetainedOperatorCoordinate] {
-        &self.coordinates
-    }
-}
-
-impl RetainedProviderSubject {
-    /// All files containing original declarations belong to the selected family.
-    pub fn declarations(&self) -> impl Iterator<Item = &RetainedDeclaration> {
-        let (single, family): (_, &[RetainedOperatorCoordinate]) = match self {
-            Self::Declaration { declaration, .. } => (Some(declaration), &[]),
-            Self::OperatorFamily(family) => (None, family.coordinates()),
-        };
-        single
-            .into_iter()
-            .chain(family.iter().map(|member| &member.declaration))
-    }
-
-    pub fn application(&self) -> Option<&RetainedProductApplication> {
-        match self {
-            Self::Declaration { application, .. } => application.as_ref(),
-            Self::OperatorFamily(_) => None,
-        }
-    }
-}
 
 pub(crate) fn identity(
     context: ProviderPlanningContext<'_>,

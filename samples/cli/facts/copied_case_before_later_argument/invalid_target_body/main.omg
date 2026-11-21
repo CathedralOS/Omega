@@ -15,7 +15,7 @@ requires before in Slot::Present
 }
 
 boundary trait CopiedCaseApply {
-    machine apply(mut chosen: Slot) -> u64 reaches
+    machine apply(mut chosen: Slot) -> u64 reaches none
     requires chosen in Slot::Present crashes none;
 }
 SelectedCopiedCaseApply satisfies CopiedCaseApply {

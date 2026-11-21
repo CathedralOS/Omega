@@ -27,27 +27,24 @@ requires value <= 37
 ensures result <= 37
 { value }
 trait Traversal {
-    machine traverse<machine Step>(value: u64) -> u64
-    requires machine Step satisfies StepContract::step;
+    machine traverse<const Step: StepContract::step>(value: u64) -> u64
     reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 TraversalCode satisfies Traversal {
-    machine traverse<machine Step>(value: u64) -> u64
-    requires machine Step satisfies StepContract::step;
+    machine traverse<const Step: StepContract::step>(value: u64) -> u64
     terminates
     requires value <= 37
     ensures result <= 37
     { Step(value) }
 }
-machine ordinary<machine Step>(value: u64) -> u64
-requires machine Step satisfies StepContract::step;
+machine ordinary<const Step: StepContract::step>(value: u64) -> u64
 terminates
 requires value <= 37
 ensures result <= 37
 { transition { _ -> Step(value) } }
-machine pure_observer() -> u64 reaches
+machine pure_observer() -> u64 reaches none
 ensures result <= 37
 { ordinary::<quiet>(37) }
 machine receive(result: u64) -> u64 requires result <= 37 { 37 - result }

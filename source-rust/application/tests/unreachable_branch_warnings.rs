@@ -138,3 +138,44 @@ fn a_wildcard_after_every_declared_case_warns() {
         );
     }
 }
+
+#[test]
+fn recursive_branches_warn_once_at_each_declaring_machines_own_arm() {
+    let directory =
+        fixture("source-rust/application/tests/fixtures/contracts/pass/recursive_branch_locations");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["--timings", "--check", "main.omg"])
+        .current_dir(&directory)
+        .output()
+        .expect("omega checks the two recursive machines");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for phase in ["Psi 06:", "selection admission:", "advisories:"] {
+        let rows = stderr
+            .lines()
+            .filter(|line| line.contains(" ms  Product (") && line.contains(phase));
+        assert_eq!(
+            rows.count(),
+            1,
+            "{phase} must be measured exactly once: {stderr}"
+        );
+    }
+    assert!(output.status.success(), "{stderr}");
+    let mut lines = stderr.lines();
+    let mut warnings = Vec::new();
+    while let Some(line) = lines.next() {
+        if line.trim_start().starts_with(WARNING) {
+            warnings.push((line, lines.next().expect("source location")));
+        }
+    }
+    assert_eq!(warnings.len(), 2, "{stderr}");
+    for ((warning, location), (machine, position)) in warnings
+        .into_iter()
+        .zip([("first", "main.omg:4:40"), ("second", "main.omg:11:40")])
+    {
+        assert!(
+            warning.contains(&format!("the `true` arm of a match in machine `{machine}`")),
+            "{warning}"
+        );
+        assert!(location.ends_with(position), "{location}");
+    }
+}

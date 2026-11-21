@@ -847,7 +847,7 @@ pub(crate) mod operations {
             }
             AbstractOperation::EstablishPrimitiveLocal { .. }
             | AbstractOperation::PrimitiveLocalStore { .. }
-            | AbstractOperation::StorageAddress { .. }
+            | AbstractOperation::ObserveStorageLocation { .. }
             | AbstractOperation::PrimitiveScalarRead { .. }
             | abstract_operations::byte_len_or_field_read_pattern!(..)
             | AbstractOperation::StructuralScalarFieldRead { .. } => {

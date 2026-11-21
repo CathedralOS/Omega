@@ -1,10 +1,6 @@
 // Complete-policy decision capture without candidate-only package indices.
 // Removed packages, root roles, and replacements refer to comparison subjects; `capture_policy` enforces the representation byte ceiling at capture as well as persistence.
 
-#[path = "policy_text.rs"]
-mod text;
-pub(super) use text::{HEADER, encode, recover};
-
 use super::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject as Subject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
@@ -57,10 +53,10 @@ impl HistoricalPackagePolicyDecisions {
             baseline_source_subject: changes
                 .baseline_source_subject()
                 .map(|source| *source.as_bytes()),
-            comparison: Some(resolution.comparison().digest()),
+            comparison: resolution.comparison().digest(),
             decisions,
         };
-        encode(&history, limits)?;
+        history.canonical_text(source, limits)?;
         Ok(history)
     }
 }

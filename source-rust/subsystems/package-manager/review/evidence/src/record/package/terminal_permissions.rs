@@ -1,6 +1,7 @@
 // Exact service-schema permissions (`PackagePolicyTerminalPermissions`),
 // recording review policy rather than exercised authority or admission.
 
+use crate::record::PackageReviewServiceIdentity;
 #[path = "terminal_permissions_generics.rs"]
 mod generics;
 
@@ -8,15 +9,15 @@ use super::{PackagePolicyServiceMethod, provider_policy::validate_service_method
 use crate::record::accessors::field_projection_accessors;
 use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
-use semantic_vocabulary::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
+use semantic_vocabulary::TerminalAuthorityDisposition;
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalPermissions {
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: TargetProfile,
-    pub(crate) services: Vec<PackagePolicyTerminalService>,
+    pub package: PackageKeyIdentity,
+    pub target: TargetProfile,
+    pub services: Vec<PackagePolicyTerminalService>,
 }
 
 impl PackagePolicyTerminalPermissions {
@@ -27,7 +28,8 @@ impl PackagePolicyTerminalPermissions {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
         for service in &self.services {
-            validate_service_methods(&service.methods, &service.service, self.target)?;
+            service.service.validate_resolved()?;
+            validate_service_methods(&service.methods, &service.service.declaration, self.target)?;
             generics::validate(service)?;
             if service.permissions.is_empty() {
                 return Err("terminal permission service has no permissions");
@@ -52,16 +54,16 @@ impl PackagePolicyTerminalPermissions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalService {
-    pub(crate) service: PackageReviewNominalIdentity,
-    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) lifetime_parameter_count: u32,
-    pub(crate) methods: Vec<PackagePolicyServiceMethod>, // Complete schema in original declaration order, including unpermitted methods.
-    pub(crate) permissions: Vec<PackagePolicyTerminalPermission>,
+    pub service: PackageReviewServiceIdentity,
+    pub static_parameters: Vec<PackagePolicyTypeParameter>,
+    pub lifetime_parameter_count: u32,
+    pub methods: Vec<PackagePolicyServiceMethod>, // Complete schema in original declaration order, including unpermitted methods.
+    pub permissions: Vec<PackagePolicyTerminalPermission>,
 }
 
 impl PackagePolicyTerminalService {
     field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
-    field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed service: &PackageReviewServiceIdentity);
 
     field_projection_accessors!(copied lifetime_parameter_count: u32);
     field_projection_accessors!(sliced methods: &[PackagePolicyServiceMethod]);
@@ -70,8 +72,8 @@ impl PackagePolicyTerminalService {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalPermission {
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) permitted: TerminalAuthorityDisposition,
+    pub requirement: PackageReviewNominalIdentity,
+    pub permitted: TerminalAuthorityDisposition,
 }
 
 impl PackagePolicyTerminalPermission {

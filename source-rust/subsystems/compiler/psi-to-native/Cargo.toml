@@ -11,16 +11,19 @@ path = "psi_to_native.rs"
 test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
+wire = { path = "../../../foundation/wire" }
+provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
+component-description = { path = "verification/component-description" }
 bound-framed-machine = { path = "representations/bound-framed-machine" }
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
+provider-plans = { path = "../build/providers/plans" }
 selected-provider-plans = { path = "../build/providers/selections" }
 provider-correspondence = { path = "verification/provider-correspondence" }
-psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
-psi-provider-selections = { path = "../psi-execution-inputs/providers" }
-psi-entry-memory = { path = "../psi-execution-inputs/entry-memory" }
-psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
+psi-scalar-applications = { path = "../psi/execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../psi/execution-inputs/providers" }
+psi-entry-memory = { path = "../psi/execution-inputs/entry-memory" }
 provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }
@@ -50,30 +53,28 @@ bound-installations = { path = "verification/installation-admission/bound-instal
 installation-conditions = { path = "verification/installation-admission/conditions" }
 selected-instruction-analyses = { path = "pipeline/06_selected-instructions-to-selected-instructions/analyses" }
 native-encoding = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding" }
-object-file = { path = "pipeline/15_placed-functions-to-objects" }
+object-file = { path = "pipeline/14_placed-functions-to-objects" }
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "pipeline/12_selected-form-encoding-to-resolved-layout" }
-relaxation = { package = "resolved-layout-to-resolved-layout", path = "pipeline/13_resolved-layout-to-resolved-layout" }
 calling-conventions = { path = "targets/calling-conventions" }
 boundary-applications = { path = "representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../foundation/diagnostics" }
-image-emission = { path = "pipeline/16_objects-to-image/image-emission" }
+image-emission = { path = "pipeline/15_objects-to-image/image-emission" }
 machine-code = { path = "representations/machine-code" }
 post-allocation-machine = { path = "representations/post-allocation-machine" }
 register-homes = { path = "representations/register-homes" }
-function-layout = { path = "pipeline/14_resolved-layout-to-placed-functions" }
-native-artifact = { path = "pipeline/16_objects-to-image/native-artifact" }
+function-layout = { path = "pipeline/13_resolved-layout-to-placed-functions" }
+native-artifact = { path = "pipeline/15_objects-to-image/native-artifact" }
 optimization-core = { path = "representations/optimization-records" }
 register-environment = { path = "targets/register-environment" }
 runtime-abi = { path = "targets/runtime-abi" }
 target = { path = "targets/target" }
-terminal-codec = { path = "../psi-artifact/codec" }
+terminal-codec = { path = "../psi/artifact/codec" }
 terminal-psi = { path = "../psi" }
-psi-authorization = { path = "../psi-artifact/authorization" }
+psi-authorization = { path = "../psi/artifact/authorization" }
 verified-optimization-input = { path = "representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 
 [dev-dependencies]
-provider-plans = { path = "../build/providers/plans" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }

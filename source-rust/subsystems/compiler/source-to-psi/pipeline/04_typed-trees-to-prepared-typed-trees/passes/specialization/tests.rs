@@ -752,6 +752,17 @@ fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
     };
     assert_eq!(at_byte, again, "one application, one machine");
     assert_ne!(at_byte, at_boolean);
+    let instances = program
+        .machine_specializations
+        .iter()
+        .filter(|row| row.template == relay.machine)
+        .map(|row| row.instance)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        instances,
+        [at_byte, at_boolean].map(|state| program.symbols.get(state).parent),
+        "the program publishes specializations in first-use order"
+    );
 
     for (state, applied) in [(at_byte, byte), (at_boolean, boolean)] {
         // The derivation names the generic machine's own state.
@@ -1679,7 +1690,7 @@ fn copied_headers_retain_written_empty_and_nonempty_reach_rows() {
         (
             forward.machine,
             vec![crate::source_state::signature::AuthoredServiceReachTarget {
-                service,
+                service: crate::source_state::signature::ReachSubject::Static(service),
                 source_span: Default::default(),
             }],
         ),
@@ -1866,9 +1877,8 @@ fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
 #[test]
 fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
     // Applications of three unrelated templates arrive interleaved and out of
-    // key order. Each distinct (template, arguments) key gets one row, rows
-    // keep encounter order, and an equal key from another template or with
-    // another argument kind is a different application.
+    // key order. A repeat must return the machine and state assigned when
+    // that exact application was first requested.
     use super::{Generated, GeneratedMachines, Identity};
     let templates = [3, 1, 2].map(|slot| SymbolHandle::from_parts(slot, 1));
     let arguments = |n: u32| -> Vec<Identity> {
@@ -1890,27 +1900,42 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         .collect::<Vec<_>>();
     let mut generated = GeneratedMachines::default();
     for (order, &(template, n)) in requests.iter().enumerate() {
-        let key = arguments(n);
-        let slot = generated
-            .search(template, &key)
-            .expect_err("a first request is not yet generated");
-        let made = generated.insert(
-            slot,
-            Generated {
-                template,
-                arguments: key.clone(),
-                machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
-                state: SymbolHandle::from_parts(20_000 + order as u32, 1),
-            },
-        );
-        assert!(made.arguments == key);
+        generated
+            .get_or_generate(template, None, arguments(n), || {
+                Ok(Generated {
+                    machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
+                    state: SymbolHandle::from_parts(20_000 + order as u32, 1),
+                })
+            })
+            .unwrap();
     }
     for (order, &(template, n)) in requests.iter().enumerate() {
-        let row = generated
-            .search(template, &arguments(n))
-            .expect("a repeated request finds its machine");
-        assert_eq!(row, order, "rows keep the order applications were met");
-        assert_eq!(generated.rows[row].template, template);
+        let made = generated
+            .get_or_generate(template, None, arguments(n), || {
+                panic!("an equal application tried to generate a second machine")
+            })
+            .unwrap();
+        assert_eq!(
+            made.machine,
+            SymbolHandle::from_parts(10_000 + order as u32, 1)
+        );
+        assert_eq!(
+            made.state,
+            SymbolHandle::from_parts(20_000 + order as u32, 1)
+        );
+    }
+    // Two public contracts served by the same body still need their own registrations.
+    for contract in templates {
+        let requirement = Some(contract);
+        let made = generated
+            .get_or_generate(templates[0], requirement, arguments(0), || {
+                Ok(Generated {
+                    machine: contract,
+                    state: contract,
+                })
+            })
+            .unwrap();
+        assert_eq!(made.machine, contract);
     }
     // Same payload, different template, generation or argument kind: unseen.
     let unseen = [
@@ -1923,7 +1948,9 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         (templates[0], Vec::new()),
     ];
     for (template, key) in unseen {
-        assert!(generated.search(template, &key).is_err());
+        let result =
+            generated.get_or_generate(template, None, key, || Err(super::unserved("unseen")));
+        assert!(matches!(result, Err(super::Stop::Unserved(message)) if message == "unseen"));
     }
 }
 
@@ -2629,13 +2656,12 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
         query.arguments = HandleSpan::empty();
         query.machine_arguments = Box::new([]);
         query.authored_machine_application = arena::Handle::invalid();
-        query.layout_query = Some(DataLayoutQueryRequest {
+        query.layout_query = Some(DataLayoutQueryRequest::Type {
             kind,
             operand: StaticMachineArgument {
                 type_reference: parameter,
                 ..argument(source.relay.parameter, "T")
             },
-            nonempty_view: ExpressionHandle::invalid(),
         });
         let expression = program.expression_table.insert(ExpressionNode::Call(query));
         let body = returns(program, expression);
@@ -2661,18 +2687,20 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
         let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
         let copied_calls = calls(program, copied.machine);
         let query = copied_calls[0].layout_query.as_ref().unwrap();
-        assert_eq!(query.kind, kind);
-        assert_eq!(query.operand.symbol, source.byte);
+        let DataLayoutQueryRequest::Type { kind: copied_kind, operand } = query else {
+            panic!("the specialized query measures a type")
+        };
+        assert_eq!(*copied_kind, kind);
+        assert_eq!(operand.symbol, source.byte);
         assert_eq!(
-            named_symbol(program, query.operand.type_reference),
+            named_symbol(program, operand.type_reference),
             source.byte
         );
-        assert!(!query.nonempty_view.is_valid());
         let original_calls = calls(program, source.relay.machine);
-        let original = original_calls[0].layout_query.as_ref().unwrap();
-        assert_eq!(original.operand.symbol, source.relay.parameter);
+        let original = original_calls[0].layout_query.as_ref().unwrap().type_operand().unwrap();
+        assert_eq!(original.symbol, source.relay.parameter);
         assert_eq!(
-            named_symbol(program, original.operand.type_reference),
+            named_symbol(program, original.type_reference),
             source.relay.parameter
         );
     }
@@ -2790,7 +2818,7 @@ fn applied_callbacks_with_nested_open_types_wait_for_the_enclosing_application()
         .unwrap()
     );
     assert!(callback.application.is_some());
-    assert!(generated.rows.is_empty());
+    assert!(generated.applications.is_empty());
 }
 
 #[test]
@@ -3067,7 +3095,7 @@ fn constructed_type_arguments_keep_their_supplying_binders_open() {
             ),
             "a constructed type keeps its enclosing binder instead of generating an open body"
         );
-        assert!(generated.rows.is_empty());
+        assert!(generated.applications.is_empty());
         let bindings = program
             .expression_table
             .static_machine_application_bindings(application);

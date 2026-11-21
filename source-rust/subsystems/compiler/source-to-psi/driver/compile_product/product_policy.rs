@@ -1,16 +1,17 @@
 //! Bind Build's authored and executed requests against a Product's typed declarations.
 use super::{ProductPolicyInputs, provider_requests};
-use typed_trees::TypedTrees;
+use crate::compile_product::declarations::AdmittedProductDeclarations;
+use crate::compile_product::native_binding_declarations::NativeBindingSelection;
+use crate::compile_product::provider_declarations::ProviderSelection;
 use crate::declaration_selection::CapturedNativeIntent;
 use crate::declaration_selection::ExecutedNativeBinding;
-use crate::compile_product::native_binding_declarations::{CapturedNativeDeclaration, NativeBindingSelection};
-use crate::compile_product::declarations::AdmittedProductDeclarations;
-use crate::compile_product::provider_declarations::ProviderSelection;
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 use diagnostics::Diagnostic;
+use retained_product_selections::CapturedNativeDeclaration;
 use symbols::SymbolHandle;
 use symbols::root_grants::AuthoredRootGrant;
+use typed_trees::TypedTrees;
 
 pub(crate) struct AdmittedProductPolicy {
     pub providers: Vec<ProviderSelection>,
@@ -145,7 +146,9 @@ pub(super) fn admit_product_policy(
         request.executed,
         &declaration_formations,
     )?;
-    crate::compile_product::declarations::require_supported_exclusions(
+    let exclusions = super::behavior_exclusions::admit(
+        typed,
+        activation,
         request.declared,
         request.executed,
         request.exclusions,
@@ -156,6 +159,6 @@ pub(super) fn admit_product_policy(
         native_bindings,
         grants,
         declarations,
-        exclusions: Vec::new(),
+        exclusions,
     })
 }

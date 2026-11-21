@@ -45,6 +45,138 @@ fn verdict(text: &str) -> String {
 }
 
 #[test]
+fn a_boundary_normal_guarantee_observes_its_returned_view() {
+    let source = r#"
+data Token { id: u64; }
+boundary trait Fs {
+    machine path(token: @Token) -> @[u8]
+    ensures result.len > 0u64
+    reaches none crashes none;
+}
+machine needs_bytes(bytes: @[u8]) requires bytes.len > 0u64 {}
+machine consume(token: @Token) reaches Fs invokes Fs {
+    let view: @[u8] = Fs::path(token);
+    needs_bytes(view);
+}
+machine entry() reaches Fs invokes Fs {
+    let token: Token = Token { id: 1 };
+    consume(@token);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let unpromised = source.replace("ensures result.len > 0u64", "");
+    let result = crate::checking::judge(elaborate(&unpromised)).unwrap();
+    assert!(
+        matches!(&result, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn a_saved_boundary_result_observation_requires_its_declared_shape() {
+    let source = r#"
+data Packet { count: u64; }
+boundary trait Reader {
+    machine issue(count: u64) -> Packet
+    requires count == 2u64 ensures result.count == 2u64 reaches none crashes none;
+}
+machine entry() -> u64 reaches Reader invokes Reader {
+    let packet: Packet = Reader::issue(2u64);
+    packet.count
+}
+"#;
+    let prepared = super::calling_policies::prepared(
+        super::boundary_calls::typed(source),
+        &["entry"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let verdicts = crate::checking::judge_compilation(prepared);
+    let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+        panic!("{verdicts:?}");
+    };
+    let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+    let mut premature = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = premature
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| !boundary.scalar_ensures.is_empty())
+        .unwrap();
+    boundary.scalar_requires[0] = boundary.scalar_ensures[0].clone();
+    let forged = terminal_codec::encode_module(&premature).unwrap();
+    let refused = terminal_codec::decode_module(&forged).unwrap_err();
+    assert!(
+        matches!(
+            refused,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "boundary scalar requires names an undeclared formal"
+                    | "scalar field predicate has no readable declared root"
+            )
+        ),
+        "{refused:?}"
+    );
+
+    let mut module = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = module
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| !boundary.scalar_ensures.is_empty())
+        .unwrap();
+    let result = boundary.structural_contract_result().unwrap().0;
+    let Proposition::Equal(left, right) = &mut boundary.scalar_ensures[0] else {
+        panic!("the published record field guarantee must be an equality");
+    };
+    let observed = [left, right]
+        .into_iter()
+        .find(|term| matches!(term, ScalarTerm::IntegerField { root, .. } if *root == result))
+        .unwrap();
+    let ScalarType::Integer(carrier) = observed.scalar_type() else {
+        unreachable!()
+    };
+    *observed = ScalarTerm::ViewExtent {
+        root: result,
+        path: Vec::new(),
+        scalar_type: carrier,
+    };
+    let forged = terminal_codec::encode_module(&module).unwrap();
+    assert!(matches!(
+        terminal_codec::decode_module(&forged),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "scalar field predicate disagrees with its declaration path or scalar carrier"
+        ))
+    ));
+}
+
+#[test]
+fn a_guarded_read_of_a_provider_view_keeps_its_input_alive() {
+    let source = r#"
+data Token { bytes: [u8; 2]; }
+boundary trait Fs {
+    machine path(token: @Token) -> @[u8] reaches none crashes none;
+}
+machine read(value: @u8) -> u8 { $value }
+machine entry() -> u8 reaches Fs invokes Fs {
+    let mut token: Token = Token { bytes: [47u8, 61u8] };
+    let view: @[u8] = Fs::path(@token);
+    match view.len > 0u64 { true -> read(@view[0]), false -> 0u8 }
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let changed = source.replace(
+        "    match view.len",
+        "    token.bytes[0] = 5u8;\n    match view.len",
+    );
+    let result = crate::checking::judge(elaborate(&changed)).unwrap();
+    assert!(
+        matches!(&result, RouteVerdict::Rejected { conflicts, .. }
+            if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed)),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
 boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }
@@ -464,6 +596,15 @@ machine read(pair: @Pair) -> i32 { pair.left }
 machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 "#;
 
+const DIRECT_PROVIDER_FIELD: &str = r#"
+data Pair { left: i32; right: i32; }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine entry() -> i32 reaches Source invokes Source {
+    let pair: @Pair = Source::cell();
+    pair.left
+}
+"#;
+
 const PROVIDER_NESTED_RECORD_REFERENCE: &str = r#"
 data Values { left: i32; right: i32; }
 data Pair { values: Values; other: i32; }
@@ -474,7 +615,11 @@ machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 
 #[test]
 fn boundary_reference_completion_reads_inline_record_leaves() {
-    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+    for source in [
+        PROVIDER_RECORD_REFERENCE,
+        PROVIDER_NESTED_RECORD_REFERENCE,
+        DIRECT_PROVIDER_FIELD,
+    ] {
         let verdict = crate::checking::judge(elaborate(source));
         assert!(
             matches!(verdict, Ok(RouteVerdict::Accepted(_))),
@@ -610,7 +755,11 @@ fn provider_reference_value_is_unknown(source: &str) {
 
 #[test]
 fn boundary_reference_completion_keeps_record_values_unknown() {
-    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+    for source in [
+        PROVIDER_RECORD_REFERENCE,
+        PROVIDER_NESTED_RECORD_REFERENCE,
+        DIRECT_PROVIDER_FIELD,
+    ] {
         provider_reference_value_is_unknown(source);
     }
 }

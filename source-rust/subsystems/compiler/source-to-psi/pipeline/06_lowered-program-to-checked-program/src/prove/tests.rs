@@ -636,6 +636,78 @@ mod bound_fact_index {
     }
 
     #[test]
+    fn case_branches_share_only_premises_with_the_same_substitutions() {
+        let values = inputs(21, 3);
+        let context = context(&values);
+        let subject = value(values.identity_at(0).unwrap());
+        let input = value(values.identity_at(1).unwrap());
+        let alias = value(values.identity_at(2).unwrap());
+        let axioms = [Proposition::Equal(alias.clone(), input.clone())];
+        let mut assumptions: Vec<_> = (1..=64)
+            .map(|n| Proposition::LessOrEqual(alias.clone(), literal(n)))
+            .collect();
+        let goal = Proposition::LessOrEqual(subject.clone(), literal(5));
+        assumptions.push(Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(subject, literal(3)),
+            goal.clone(),
+        ]));
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        let initial_checks = prover.activity.normalization_checks;
+        let proof = prover.split(&goal).unwrap();
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+            .unwrap();
+        assert!(activity.normalization_checks <= initial_checks + 2);
+
+        // Both choices satisfy the outer assumptions. Only input == 0
+        // justifies alias == 0, so the split must leave the goal unproved.
+        let equality = |n| Proposition::Equal(input.clone(), literal(n));
+        *assumptions.last_mut().unwrap() = Proposition::Disjunction(vec![equality(0), equality(1)]);
+        let goal = Proposition::Equal(alias, literal(0));
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        assert!(prover.split(&goal).is_none());
+    }
+
+    #[test]
+    fn a_branch_that_defines_an_alias_input_matches_fresh_preparation() {
+        use crate::checking::known::{BranchPreparation, Known};
+
+        let values = inputs(21, 2);
+        let context = context(&values);
+        let input = value(values.identity_at(0).unwrap());
+        let alias = value(values.identity_at(1).unwrap());
+        let axioms = [Proposition::Equal(alias.clone(), input.clone())];
+        let mut assumptions = vec![Proposition::LessOrEqual(alias, literal(5))];
+        let mut root = BranchPreparation::new(None);
+        let parent = Known::prepare(
+            &context,
+            assumptions.iter(),
+            &axioms,
+            &values,
+            Some(&mut root),
+        );
+        // Flattening the new conjunction also moves the axiom's fact position.
+        assumptions.push(Proposition::Conjunction(vec![
+            Proposition::Equal(input, literal(1)),
+            Proposition::Truth,
+        ]));
+        let mut branch = BranchPreparation::new(Some((&parent.facts, &root.prepared)));
+        let child = Known::prepare(
+            &context,
+            assumptions.iter(),
+            &axioms,
+            &values,
+            Some(&mut branch),
+        );
+        let fresh = Known::new(&context, &assumptions, &axioms, &values);
+        assert_eq!(child.facts.len(), fresh.facts.len());
+        for (actual, expected) in child.facts.iter().zip(&fresh.facts) {
+            assert_eq!(actual.proof(&child.facts), expected.proof(&fresh.facts));
+        }
+    }
+
+    #[test]
     fn each_split_uses_its_own_complete_context() {
         let values = inputs(21, 2);
         let subject = values.identity_at(0).unwrap();
@@ -1103,6 +1175,128 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
                 .unwrap();
         } else {
             assert!(proof.is_err(), "254 + 2 may produce zero");
+        }
+    }
+}
+
+#[test]
+fn scalar_counterexamples_check_every_premise_and_semantic_axiom() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let input = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        }),
+        scalar_type,
+    );
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let excluded = |key| {
+        Proposition::Disjunction(vec![
+            Proposition::LessThan(input.clone(), literal(key)),
+            Proposition::LessThan(literal(key), input.clone()),
+        ])
+    };
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let assumptions = [excluded(3), excluded(7)];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert!(prover.has_scalar_counterexample(&Proposition::Falsehood));
+    assert!(prover.prove(&Proposition::Falsehood).is_err());
+    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+
+    let conflicting = [Proposition::Equal(input, literal(3))];
+    let mut prover = Prover::new(&context, &assumptions, &conflicting, &values, &mut activity);
+    assert!(!prover.has_scalar_counterexample(&Proposition::Falsehood));
+    let proof = prover.prove(&Proposition::Falsehood).unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &conflicting,
+        &proof,
+    )
+    .unwrap();
+
+    let unknown = [Proposition::Equal(
+        ScalarTerm::ViewExtent {
+            root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            scalar_type: integer,
+        },
+        literal(1),
+    )];
+    let prover = Prover::new(&context, &assumptions, &unknown, &values, &mut activity);
+    assert!(!prover.has_scalar_counterexample(&Proposition::Falsehood));
+}
+
+#[test]
+fn a_taken_equality_can_supply_a_counterexample_between_both_extrema() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let input = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        }),
+        scalar,
+    );
+    let guard = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type: ScalarType::Boolean,
+            origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+            rigid: None,
+        }),
+        ScalarType::Boolean,
+    );
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let axioms = [Proposition::Equal(
+        guard.clone(),
+        ScalarTerm::IntegerEqual {
+            scalar_type: integer,
+            left: Box::new(input.clone()),
+            right: Box::new(literal(40)),
+        },
+    )];
+    let exclusion = |n| {
+        Proposition::Disjunction(vec![
+            Proposition::LessThan(input.clone(), literal(n)),
+            Proposition::LessThan(literal(n), input.clone()),
+        ])
+    };
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    for (excluded, consistent) in [(39, true), (40, false)] {
+        let assumptions = [
+            exclusion(excluded),
+            Proposition::Equal(guard.clone(), ScalarTerm::Boolean(true)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        assert_eq!(
+            prover.has_scalar_counterexample(&Proposition::Falsehood),
+            consistent
+        );
+        let proof = prover.prove(&Proposition::Falsehood);
+        if consistent {
+            assert!(proof.is_err());
+            assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+        } else {
+            proof_admission::accept_certificate(
+                &context,
+                &Proposition::Falsehood,
+                &assumptions,
+                &axioms,
+                &proof.unwrap(),
+            )
+            .unwrap();
         }
     }
 }
@@ -1949,7 +2143,7 @@ fn irrelevant_subtraction_endpoints_do_not_start_sign_searches() {
     let assumptions = [Proposition::LessOrEqual(sum, difference)];
     let mut activity = ProofSearchActivity::default();
     let steps =
-        Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject, &subject);
+        Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject, &subject, false);
     assert!(
         steps.is_empty(),
         "an order step cannot return its starting value"

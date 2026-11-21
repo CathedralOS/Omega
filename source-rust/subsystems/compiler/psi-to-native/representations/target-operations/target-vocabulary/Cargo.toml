@@ -9,6 +9,7 @@ name = "target_vocabulary"
 path = "src/lib.rs"
 
 [dependencies]
+native-execution-reach = { path = "../../target-bound-program/execution-reach" }
 operation-evidence = { path = "../../operation-evidence" }
 operation-operands = { path = "../../operation-operands" }
 wire = { path = "../../../../../../foundation/wire" }
@@ -22,8 +23,8 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 
 runtime-abi = { path = "../../../targets/runtime-abi" }
-terminal-semantics = { path = "../../../../psi-semantics" }
 
 
 optimization-core = { path = "../../optimization-records" }
-terminal-wire = { path = "../../../../psi-artifact/wire" }
+psi-declaration-encoding = { path = "../../../../psi/artifact/declaration-encoding" }
+psi-callable-encoding = { path = "../../../../psi/artifact/callable-encoding" }

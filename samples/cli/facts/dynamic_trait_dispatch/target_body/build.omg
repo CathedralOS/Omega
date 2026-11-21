@@ -1,6 +1,6 @@
 machine build(builder: @mut Build) {
     Build::application(builder, "dynamic_trait_dispatch_through_target_body");
-    Build::accept_boundary::<SelectedCombine>(builder);
+    Build::accept_boundary::<HostedCombine>(builder);
     Build::select_provider::<SelectedCombine, HostedCombine>(builder, macos_x86_64);
     Build::select_provider::<SelectedCombine, HostedCombine>(builder, windows_x86_64);
     Build::select_provider::<SelectedCombine, HostedCombine>(builder, linux_x86_64);

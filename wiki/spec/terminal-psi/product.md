@@ -324,9 +324,7 @@ input and output validators, and Psi-versus-native agreement, do that work.
 Those validators run in the corpus runner and the tests, not on the default
 compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`).
 
-A nonempty Psi selection has no product route yet.
-`ProductTerminalPublication::accepted` refuses it with
-`no product route yet: selected Psi optimizations have no second lowered-form check`.
+A producer must refuse a selection containing a pass it cannot execute. A selected pass that finds no eligible rewrite still requires the second check and an execution record naming that pass.
 
 Later Omega phases optimize their own representations while retaining the
 canonical Psi identity. They cannot mutate the published module or

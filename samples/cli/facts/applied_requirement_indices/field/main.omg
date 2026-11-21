@@ -7,11 +7,11 @@ data Other {}
 data Box<Value> { value: Value; }
 data Holder<Value, Alt> { value: Payload in Tagged<Value>; }
 boundary trait Identity<Value> {
-    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value> reaches crashes none;
-    machine compound(value: Payload in Tagged<Box<Value>>) -> Payload in Tagged<Box<Value>> reaches crashes none;
-    machine paired<Element>(value: Payload in Pair<Value, Element>) -> Payload in Pair<Value, Element> reaches crashes none;
+    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value> reaches none crashes none;
+    machine compound(value: Payload in Tagged<Box<Value>>) -> Payload in Tagged<Box<Value>> reaches none crashes none;
+    machine paired<Element>(value: Payload in Pair<Value, Element>) -> Payload in Pair<Value, Element> reaches none crashes none;
     machine stated(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-    reaches
+    reaches none
     requires value in Tagged<Value>
     ensures result in Tagged<Value> crashes none;
 }

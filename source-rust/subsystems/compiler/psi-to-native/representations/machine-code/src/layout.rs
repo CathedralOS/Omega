@@ -799,7 +799,7 @@ pub mod relaxation_policy {
     }
 }
 
-/// Stage 12 uses the bound program identity and the two requested readbacks.
+/// Encoding uses the bound program identity and the two requested readbacks.
 pub struct BoundEncodingRequirements<Publication> {
     subject: crate::program_context::BoundEncodingSubject,
     publication: Publication,

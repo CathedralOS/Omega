@@ -254,7 +254,7 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
             | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. }
-            | LegalizedScalarInstructionKind::StorageAddress { indices, .. }
+            | LegalizedScalarInstructionKind::ObserveStorageLocation { indices, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                 indices, ..
@@ -471,8 +471,7 @@ impl LegalizedScalarInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizedScalarInstructionKind {
-    InstallStaticInterrupt {
+pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         boundary: BoundaryMachineId,
         arguments: [terminal_psi::StructuralArgument; 6],
         indices: [Vec<LegalizedRuntimeIndexOperand>; 6],
@@ -532,7 +531,8 @@ pub enum LegalizedScalarInstructionKind {
     ProgramImageAddress {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
-    StorageAddress {
+    ObserveStorageLocation {
+        query: terminal_psi::StorageLocationQuery,
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1078,7 +1078,7 @@ impl LegalizedScalarInstructionKind {
             | Self::NearestIeeeFloatArithmetic { .. }
             | Self::ReleaseReference { .. }
             | Self::PrimitiveLocalStore { .. }
-            | Self::StorageAddress { .. }
+            | Self::ObserveStorageLocation { .. }
             | Self::PrimitiveScalarRead { .. }
             | Self::StructuralScalarFieldRead { .. }
             | Self::StructuralByteSequenceFieldRead { .. }

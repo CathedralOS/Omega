@@ -13,27 +13,43 @@ pub(crate) mod contracts {
 
         pub(crate) fn lower_authored_invocations(
             program: &resolved::SymbolResolvedTrees,
-            declarations: &[resolved::name::DiagnosticName],
+            declarations: &[resolved::signature::InvocationReference],
             parameters: &[resolved::signature::StateParameter],
             owner: &str,
         ) -> Result<Vec<typed::signature::AuthoredInvocation>, Diagnostic> {
             let mut lowered = Vec::with_capacity(declarations.len());
-            for declaration in declarations {
-                let target = if let Some((ordinal, parameter)) = parameters
-                    .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| parameter.name.as_str() == declaration.as_str())
-                {
-                    typed::signature::AuthoredInvocationTarget::Parameter {
-                ordinal: u32::try_from(ordinal).map_err(|_| {
-                    Diagnostic::error(format!(
-                        "callable `{owner}` has too many invocation parameters for portable identity"
-                    ))
-                })?,
-                symbol: parameter.symbol,
-            }
-                } else {
-                    invocation_target(program, declaration)
+            for written in declarations {
+                let declaration = written.name();
+                use typed::signature::AuthoredInvocationTarget as Target;
+                let target = match written {
+                    resolved::signature::InvocationReference::Service { service, .. } => {
+                        let row =
+                            program
+                                .service_reaches
+                                .definition(*service)
+                                .ok_or_else(|| {
+                                    Diagnostic::error("an invocation has no resolved service")
+                                })?;
+                        match &row.application {
+                            Some(_) => Target::AppliedService(*service),
+                            None => Target::Service(row.symbol),
+                        }
+                    }
+                    resolved::signature::InvocationReference::Name(_) => {
+                        match parameters.iter().enumerate().find(|(_, parameter)| {
+                            parameter.name.as_str() == declaration.as_str()
+                        }) {
+                            Some((ordinal, parameter)) => Target::Parameter {
+                                ordinal: u32::try_from(ordinal).map_err(|_| {
+                                    Diagnostic::error(format!(
+                                        "callable `{owner}` has too many invocation parameters for portable identity"
+                                    ))
+                                })?,
+                                symbol: parameter.symbol,
+                            },
+                            None => invocation_target(program, declaration),
+                        }
+                    }
                 };
                 lowered.push(typed::signature::AuthoredInvocation {
                     name: crate::typing::lowerer::name::lower_name(declaration),

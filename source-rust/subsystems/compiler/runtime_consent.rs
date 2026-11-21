@@ -1,11 +1,36 @@
 use diagnostics::Diagnostic;
 
-/// This program supplies no independent components or imports. Its receiver still
-/// compares the complete consent inventory, so a stale component decision also fails.
+/// Project scoped, verified supplier premises into the same rows for review and execution.
+pub(super) fn component_assumptions<'a>(
+    components: impl IntoIterator<
+        Item = (
+            semantic_vocabulary::PackageKeyIdentity,
+            &'a component_description::VerifiedComponent,
+        ),
+    >,
+) -> Result<Vec<review_evidence::record::PackagePolicyComponentAssumption>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for (component, verified) in components {
+        for (assumption, bound_rows) in verified
+            .assumption_rows()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            rows.push(review_evidence::record::PackagePolicyComponentAssumption {
+                component,
+                assumption,
+                bound_rows,
+            });
+        }
+    }
+    rows.sort();
+    Ok(rows)
+}
+
 pub(super) fn compare(
     accepted: &review_evidence::permission_acceptance::TerminalPermissionAcceptance,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     program: &native_compiler::NativeProgram,
+    components: &[review_evidence::record::PackagePolicyComponentAssumption],
     bindings: &[provider_acceptance::AcceptedSemanticBinding],
     declarations: &source_compiler::RuntimePermissionDeclarations,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -14,12 +39,17 @@ pub(super) fn compare(
             "locked runtime permission comparison requires the source Product's package identity",
         )]
     })?;
-    let proposal = program.native_realization_proposal()?;
+    let proposal = program.native_realization_proposal();
     if !proposal.providers().selection.assumed_bindings().is_empty() {
         return Err(vec![Diagnostic::error(
             "the selected provider's assumed binding lacks its canonical Build review request",
         )]);
     }
+    // The locked source and target were checked before this Build ran. Its root grants
+    // still have to name providers selected by this execution of the Build.
+    let grants = declarations.root_provider_grants(package)?;
+    super::selected_provider_grants(&proposal.providers().selection, grants)
+        .map_err(|error| vec![error])?;
     let mut rows = Vec::new();
     let identities = proposal.package_terminal_authority_permission_identities();
     for permission in proposal.package_terminal_authority_permissions() {
@@ -64,5 +94,5 @@ pub(super) fn compare(
             },
         );
     }
-    accepted.compare_service_permissions(package, proposal.target_profile(), &rows)
+    accepted.compare_runtime_permissions(package, proposal.target_profile(), &rows, components)
 }

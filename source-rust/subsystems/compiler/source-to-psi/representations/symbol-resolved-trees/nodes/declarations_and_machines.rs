@@ -402,7 +402,7 @@ pub mod declarations {
             pub requirement: Option<DiagnosticName>,
             pub signature: StateSignature,
             pub service_reach_keyword_source_spans: Vec<source_text::SourceSpan>,
-            pub service_reaches: Vec<DiagnosticName>,
+            pub service_reaches: Vec<TraitRequirement>,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
@@ -507,6 +507,7 @@ pub mod declarations {
     }
 
     pub mod type_aliases {
+        pub use crate::alias_bodies::AliasBody;
         use crate::source_resolved::data::TypeParameter;
         use crate::source_resolved::machine::GenericConformanceBound;
         use crate::source_resolved::name::DiagnosticName;
@@ -523,6 +524,7 @@ pub mod declarations {
             pub type_parameters: HandleSpan<TypeParameter>,
             pub conformance_bounds: Vec<GenericConformanceBound>,
             pub expansion: TypeReference,
+            pub body: AliasBody,
         }
     }
 }

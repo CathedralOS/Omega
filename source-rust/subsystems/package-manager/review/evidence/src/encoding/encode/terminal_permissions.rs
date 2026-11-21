@@ -1,11 +1,10 @@
 // Exact service-schema terminal permission encoding under one aggregate writer budget.
 
 use super::{
-    encoder::{Encoder, encode_canonical_component},
-    public_api::type_parameter as encode_type_parameter,
-    selected_providers::encode_service_method,
-    values::identity::encode_nominal,
+    encoder::Encoder, public_api::type_parameter as encode_type_parameter,
+    selected_providers::encode_service_method, values::identity::encode_nominal,
 };
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, PackageReviewEncodingError,
     TERMINAL_PERMISSION_POLICY_MAGIC,
@@ -14,11 +13,15 @@ use crate::record::{PackagePolicyTerminalPermission, PackagePolicyTerminalPermis
 use semantic_vocabulary::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
-    encode_canonical_component!(
-        TERMINAL_PERMISSION_POLICY_MAGIC,
-        PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
-        policy,
-    );
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        Encoder::versioned_policy_bytes(
+            TERMINAL_PERMISSION_POLICY_MAGIC,
+            crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
+            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+            self,
+            policy,
+        )
+    }
 }
 
 pub(super) fn policy(
@@ -29,7 +32,7 @@ pub(super) fn policy(
     encoder.string_field("target", policy.target.identity().as_str())?;
     encoder.field("services", |encoder| {
         encoder.sequence(&policy.services, |encoder, service| {
-            encoder.field_by("service", &service.service, encode_nominal)?;
+            encoder.field_by("service", &service.service, encode_service)?;
             encoder.field("static_parameters", |encoder| {
                 encoder.sequence(&service.static_parameters, encode_type_parameter)
             })?;

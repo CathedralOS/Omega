@@ -1,4 +1,5 @@
 //! Verify root grants against the immutable leaves, plans and identities of one selected target.
+pub use super::provider_grants::selected_provider_grants;
 use diagnostics::Diagnostic;
 
 pub struct SelectedTrustEvidence<'a> {

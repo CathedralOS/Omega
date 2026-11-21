@@ -22,6 +22,7 @@ use super::signatures::{encode_callable_behavior_tail, encode_callable_shape};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
 use crate::encoding::encode::public_api::type_parameter;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyConformanceShape;
 use crate::record::PackagePolicyDataShape;
 use crate::record::PackagePolicyDomainShape;
@@ -31,9 +32,25 @@ use crate::record::PackageReviewDataKind;
 use crate::record::PackageReviewDomainClassification;
 use crate::record::PackageReviewDomainSemanticRole;
 
+pub(in crate::encoding::encode) fn type_alias(
+    encoder: &mut Encoder,
+    alias: &crate::record::PackagePolicyTypeAlias,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field_by("identity", &alias.identity, encode_nominal)?;
+    encoder.usize_field("lifetime_parameter_count", alias.lifetime_parameter_count)?;
+    encoder.sequence_field("type_parameters", &alias.type_parameters, type_parameter)?;
+    encoder.sequence_field(
+        "conformance_bounds",
+        &alias.conformance_bounds,
+        encode_conformance_bound,
+    )?;
+    encoder.field_by("expansion", &alias.expansion, encode_type_identity)
+}
+
 pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyTraitShape,
+    baseline_schema: u16,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
@@ -63,11 +80,36 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.conformance_bounds,
                 encode_conformance_bound,
             )?;
+            let lifetimes = shape
+                .lifetime_parameter_count
+                .checked_add(requirement.lifetime_parameter_count)
+                .ok_or_else(|| {
+                    PackageReviewEncodingError::new("trait requirement lifetime scope overflows")
+                })?;
             encode_callable_shape!(
                 encoder,
                 &requirement.parameters,
-                requirement.return_type.as_ref()
+                requirement.return_type.as_ref(),
+                lifetimes
             );
+            let positions = requirement.structural_parameter_positions();
+            if positions.is_some()
+                != (baseline_schema >= crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS)
+            {
+                return Err(PackageReviewEncodingError::new(
+                    "public requirement structural parameters disagree with its policy version",
+                ));
+            }
+            if let Some(positions) = positions {
+                encoder.sequence_field(
+                    "structural_parameter_positions",
+                    positions,
+                    |encoder, position| {
+                        encoder.u32(*position);
+                        Ok(())
+                    },
+                )?;
+            }
             encode_callable_behavior_tail!(encoder, requirement, optional)?;
             encoder.field("returned_borrow_origins", |encoder| {
                 encoder.sequence(
@@ -187,7 +229,12 @@ pub(in crate::encoding::encode) fn operator_shape(
     encoder.option_field("spelling", shape.spelling.as_ref(), spelling)?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
-    encode_callable_shape!(encoder, &shape.parameters, shape.return_type.as_ref());
+    encode_callable_shape!(
+        encoder,
+        &shape.parameters,
+        shape.return_type.as_ref(),
+        shape.lifetime_parameter_count
+    );
     encoder.sequence_field("contracts", &shape.contracts, encode_callable_contract)?;
     encoder.sequence_field("published_crash", &shape.published_crash, crash_route)
 }
@@ -211,9 +258,7 @@ pub(in crate::encoding::encode) fn data_shape(
     encoder.field("supply", |encoder| {
         match shape.supply {
             language_core::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            language_core::DataSupplyMode::BoundaryOpaque => {
-                encoder.tag("boundary_opaque", 1)
-            }
+            language_core::DataSupplyMode::BoundaryOpaque => encoder.tag("boundary_opaque", 1),
         };
         Ok(())
     })?;

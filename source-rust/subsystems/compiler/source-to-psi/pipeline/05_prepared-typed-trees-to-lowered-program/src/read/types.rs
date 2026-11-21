@@ -419,8 +419,7 @@ impl Program<'_> {
                 .map_err(|reason| terminal_check_tables::Refusal {
                     source_span: None,
                     reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                    machine: id,
-                    concerns: Construct::Machine,
+                    site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
                     detail: reason.to_owned(),
                 })?
                 .map(ScalarType::Callable)

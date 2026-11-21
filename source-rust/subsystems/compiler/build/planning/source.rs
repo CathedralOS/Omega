@@ -63,6 +63,8 @@ pub struct PlannedProduct {
     pub(crate) source: AssembledSyntax,
     pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
+    pub(super) suppliers:
+        std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
     pub(crate) preparation: SourcePreparation,
     pub(crate) timings: CompileTimings,
 }
@@ -71,6 +73,15 @@ impl PlannedProduct {
     /// Restrict native and runtime requests to the reviewed Product occurrences of this lock.
     pub fn with_runtime_consents(mut self, accepted: Vec<TerminalPermissionAcceptance>) -> Self {
         self.runtime_consents = Some(accepted);
+        self
+    }
+
+    /// Captured Products from the same resolver traversal as the receiving Build.
+    pub fn with_component_suppliers(
+        mut self,
+        suppliers: std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, Self>,
+    ) -> Self {
+        self.suppliers = suppliers;
         self
     }
 
@@ -231,7 +242,9 @@ fn resolve(
             previous,
             preparation,
             profile.target_name(),
-            inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+            inputs.map(|inputs| {
+                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            }),
         )
         .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
 }
@@ -406,11 +419,12 @@ impl PlanningSource {
             })?
             .1;
         if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
-            let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
+            let authority = inputs.map(|inputs| {
+                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            });
             let declaration = evaluated
                 .configuration
-                .selected_build_declaration
-                .as_ref()
+                .selected_build_declaration()
                 .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
             let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
                 &self.preparation,
@@ -461,7 +475,6 @@ impl PlanningSource {
                 sources,
                 units,
                 first_source,
-                selection_authority: Arc::new(inputs.clone()),
             })
         };
         let mut build_advisories = self.stage.unused_import_advisories().to_vec();
@@ -480,6 +493,7 @@ impl PlanningSource {
             runtime_consents: None,
             source,
             package_inputs: inputs.cloned(),
+            suppliers: Default::default(),
             preparation: self.preparation,
             timings: self.timings,
         })

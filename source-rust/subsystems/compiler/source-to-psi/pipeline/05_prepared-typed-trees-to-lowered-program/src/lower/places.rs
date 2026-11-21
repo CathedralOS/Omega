@@ -754,8 +754,7 @@ pub(crate) fn declare<'a, 'b>(
         })
         .map_err(|detail| terminal_check_tables::Refusal {
             reason: RefusalReason::Unsupported,
-            machine: entry,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
             source_span: None,
             detail: format!("byte domain source identity: {detail}"),
         })?;
@@ -1104,7 +1103,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Borrow { place, home, .. } => {
+        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::StorageLocation { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 let slot = match place.kind {
                     ExpressionKind::Slot(slot) => Some(slot),
@@ -1419,8 +1418,7 @@ impl Records<'_> {
         }
         Err(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: String::from("a scalar place's exact primitive type is not uniquely declared"),
         })
@@ -2082,7 +2080,7 @@ impl<'a> Lowering<'a> {
         operand: &Expression,
         expression: &Expression,
         clauses: &[semantic_vocabulary::Proposition],
-        stated: Option<&terminal_check_tables::program::CastCondition>,
+        stated: Option<&terminal_check_tables::program::EstablishedCondition>,
     ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
@@ -2165,8 +2163,7 @@ impl<'a> Lowering<'a> {
             .get_mut(cast)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Block(cast),
+                site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(cast)),
                 source_span: None,
                 detail: String::from("a record cast's block is past its function"),
             })?
@@ -2563,7 +2560,9 @@ impl<'a> Lowering<'a> {
                 } else {
                     None
                 };
-                let lent = self.captured_loan(base, *access, captured, None)?;
+                let lent_access = borrowed_access(*access)
+                    .ok_or_else(|| self.internal("write-only array view"))?;
+                let lent = self.captured_loan(base, lent_access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 let region = if let Some(source_length) = source_length {
@@ -2850,6 +2849,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
@@ -2916,7 +2916,7 @@ impl<'a> Lowering<'a> {
                     } else {
                         false
                     };
-                let lent = self.captured_loan(place, *access, captured, None)?;
+                let lent = self.captured_loan(place, declared, captured, None)?;
                 let storage = if reinterpret && !shared_descriptor {
                     let byte_offset = self.zero(
                         ScalarType::Integer(
@@ -3202,16 +3202,19 @@ impl<'a> Lowering<'a> {
         &mut self,
         place: &Expression,
         access: language_core::ReferenceAccess,
+        has_later_argument: bool,
     ) -> Evaluation<Lent> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
+        let lent_access =
+            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
         if matches!(place.kind, ExpressionKind::OwnedTemporary { .. }) {
             // A returned reference or a folded call can keep borrowing
             // this backing. It belongs to ordinary owned-root cleanup.
             let captured = continuing!(self.capture_place(place));
             return self
-                .captured_loan(place, access, captured, None)
+                .captured_loan(place, lent_access, captured, None)
                 .map(Reached::Value);
         }
         let shared_view = match value_type {
@@ -3262,21 +3265,31 @@ impl<'a> Lowering<'a> {
             let (root, steps, exact, actual) = continuing!(self.capture_place(place));
             (root, steps, exact, actual, None)
         };
-        self.captured_loan(place, access, (root, steps, exact, actual), temporary)
+        // An address used after another operand or restored after an exclusive
+        // call needs its own captured home. An immediate shared observation
+        // can use the evaluated path at the call itself.
+        let (root, steps, exact) = if has_later_argument || access.is_exclusive() {
+            self.capture_view_element(root, steps, exact, lent_access, place.source)?
+        } else {
+            (root, steps, exact)
+        };
+        self.captured_loan(place, lent_access, (root, steps, exact, actual), temporary)
             .map(Reached::Value)
     }
 
     fn captured_loan(
         &mut self,
         place: &Expression,
-        access: language_core::ReferenceAccess,
+        lent_access: StructuralAccess,
         (root, steps, exact, actual): (PlaceId, Vec<Step>, ExactPlaceId, ValueType),
         temporary: Option<PlaceId>,
     ) -> Checked<Lent> {
-        let lent_access =
-            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
-        let (root, steps, exact) =
-            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
+        // A reference or view captures its single operand at formation. Keep
+        // the measured descriptor and selector together for its bounds check.
+        // A staged call operand already holds its captured address in a root.
+        if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
+            self.measured_view(&view, place.source)?;
+        }
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -4042,8 +4055,10 @@ impl<'a> Lowering<'a> {
                 None => {
                     return Err(Refusal {
                         reason: RefusalReason::Unestablished,
-                        machine: self.id,
-                        concerns: self.current.map_or(Construct::Machine, Construct::Block),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            self.id,
+                            self.current.map_or(Construct::Machine, Construct::Block),
+                        ),
                         source_span: None,
                         detail: String::from("a dispatch selects no arm for a declared case"),
                     });
@@ -4394,7 +4409,7 @@ impl<'a> Lowering<'a> {
         let Some(ValueType::Record(record, _, _)) = place.result else {
             return Err(self.internal("a byte observation has no structural argument"));
         };
-        let lent = continuing!(self.lend(place, *access));
+        let lent = continuing!(self.lend(place, *access, false));
         // This primitive only reads the captured view. Any reference or
         // view formation in its argument already owns its real loan row;
         // a byte read is neither another call nor a loan-forming operation.
@@ -4416,6 +4431,52 @@ impl<'a> Lowering<'a> {
             self.retire_homes(&[home], source)?;
         }
         Ok(Reached::Value(result))
+    }
+
+    pub(super) fn storage_location(
+        &mut self,
+        query: terminal_psi::StorageLocationQuery,
+        place: &Expression,
+        first_element: Option<StructuralTypeId>,
+        result: ScalarType,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let (root, steps) = if let Some(element) = first_element {
+            let at = continuing!(self.located(place));
+            self.measured_view(&at, source)?;
+            let zero = Expression {
+                call_context: None,
+                source,
+                result: Some(ValueType::plain(result)),
+                kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
+            };
+            let first = continuing!(self.index_step(at.record, element, &zero));
+            let mut path = at.path;
+            path.push(first);
+            (at.root, path)
+        } else {
+            let (root, steps, _, _) = continuing!(self.capture_place(place));
+            if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
+                self.measured_view(&view, source)?;
+            }
+            (root, steps)
+        };
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
+        let argument = StructuralArgument {
+            place: root,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        };
+        self.emit(
+            operation,
+            Some(result),
+            match query {
+                terminal_psi::StorageLocationQuery::Address => OperationKind::StorageAddress { source: argument },
+                terminal_psi::StorageLocationQuery::Alignment => OperationKind::StorageAlignment { source: argument },
+            },
+        )
+        .map(Reached::Value)
     }
 
     pub(super) fn measure_collection(

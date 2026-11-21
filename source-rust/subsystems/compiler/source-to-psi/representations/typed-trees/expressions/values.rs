@@ -1150,7 +1150,7 @@ pub mod expression {
                 self.native_code_layout
                     .iter()
                     .map(|request| &request.operand)
-                    .chain(self.layout_query.iter().map(|request| &request.operand))
+                    .chain(self.layout_query.iter().filter_map(|request| request.type_operand()))
                     .chain(
                         self.private_layout_operation
                             .iter()
@@ -1183,7 +1183,7 @@ pub mod expression {
                     .chain(
                         self.layout_query
                             .iter_mut()
-                            .map(|request| &mut request.operand),
+                            .filter_map(|request| request.type_operand_mut()),
                     )
                     .chain(
                         self.private_layout_operation
@@ -2082,16 +2082,6 @@ pub mod expression {
                         let arguments =
                             self.copy_expression_span(source, call.arguments, retain, copies);
                         let mut call = call;
-                        if let Some(request) = call.layout_query.as_mut()
-                            && request.nonempty_view.is_valid()
-                        {
-                            request.nonempty_view = self.copy_subtree_with_occurrences(
-                                source,
-                                request.nonempty_view,
-                                retain,
-                                copies,
-                            );
-                        }
                         call.visit_static_arguments_mut(|argument| {
                             *argument = match source {
                                 CopySource::Own => self.copy_static_argument_from_self(argument),
@@ -5132,10 +5122,29 @@ pub mod expression {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub struct DataLayoutQueryRequest {
-        pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
-        pub operand: StaticMachineArgument,
-        pub nonempty_view: ExpressionHandle,
+    pub enum DataLayoutQueryRequest {
+        Type {
+            kind: language_core::data_layout_queries::DataLayoutQueryKind,
+            operand: StaticMachineArgument,
+        },
+        /// The call's single expression is evaluated as a storage location.
+        LocationAlignment,
+    }
+
+    impl DataLayoutQueryRequest {
+        pub fn type_operand(&self) -> Option<&StaticMachineArgument> {
+            match self {
+                Self::Type { operand, .. } => Some(operand),
+                Self::LocationAlignment => None,
+            }
+        }
+
+        pub fn type_operand_mut(&mut self) -> Option<&mut StaticMachineArgument> {
+            match self {
+                Self::Type { operand, .. } => Some(operand),
+                Self::LocationAlignment => None,
+            }
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]

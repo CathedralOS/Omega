@@ -72,6 +72,7 @@ mod operational;
 mod owned_cleanup;
 mod places;
 mod prove;
+mod publication;
 mod rankings;
 mod refinement;
 mod result_summaries;
@@ -79,7 +80,6 @@ mod reuse;
 mod static_contracts;
 mod static_reach;
 mod verdict;
-mod publication;
 pub use publication::{CheckedPublication, judge_publication};
 
 #[cfg(any(test, feature = "test-support"))]
@@ -386,8 +386,10 @@ impl Discharge {
                 )
                 .map_err(|error| Refusal {
                     reason: RefusalReason::Unsupported,
-                    machine,
-                    concerns: Construct::Obligation(obligation),
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        machine,
+                        Construct::Obligation(obligation),
+                    ),
                     source_span: None,
                     detail: format!("evidence encoding {error:?}"),
                 })?;
@@ -546,15 +548,6 @@ fn discharge_inner(
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
-    let application_sized_storage =
-        terminal_semantics::application_sized_storage(module).map_err(|detail| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                diagnostic,
-                Construct::Machine,
-                detail,
-            )
-        })?;
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -593,11 +586,11 @@ fn discharge_inner(
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
                 &empty_contracts,
-                &application_sized_storage,
                 borrow_ends,
                 activity,
             )
         })?;
+    scope.publish_rankings(&machines)?;
     Ok(Discharge {
         machines,
         inferred_calls: scope.inferred_calls,
@@ -669,8 +662,7 @@ fn refusal(
 ) -> Refusal {
     Refusal {
         reason,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: detail.to_owned(),
     }
@@ -706,7 +698,6 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    application_sized_storage: &[StructuralTypeId],
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -734,7 +725,6 @@ fn machine(
                 unreached,
                 carried,
                 empty_contracts,
-                application_sized_storage,
                 borrow_ends,
                 activity,
             )
@@ -755,7 +745,6 @@ fn check_prepared_machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    application_sized_storage: &[StructuralTypeId],
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -821,8 +810,7 @@ fn check_prepared_machine(
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
     let carrier = carried.and_then(|carried| carried.carrier(tables, lowered, module));
-    let mut layout_conditions = module
-        .layout_call_conditions(lowered)
+    let mut layout_conditions = terminal_semantics::layout_call_conditions(module, lowered)
         .map_err(|detail| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -834,7 +822,7 @@ fn check_prepared_machine(
         .into_iter()
         .peekable();
     let mut target_ranges =
-        terminal_semantics::target_scalar_ranges(module, lowered, types, application_sized_storage)
+        terminal_semantics::target_scalar_ranges(module, lowered, types)
             .map_err(|detail| {
                 refusal(
                     RefusalReason::ForeignIdentity,
@@ -934,6 +922,24 @@ fn check_prepared_machine(
         });
         decided[index] = Some(verdict);
     }
+    rankings::settle_comparisons(
+        lowered,
+        ranking_bindings,
+        &mut decided,
+        |obligation, edge, goal| {
+            decide(
+                context,
+                graph,
+                tables,
+                id,
+                obligation,
+                ProgramPoint::Edge(edge),
+                goal,
+                unreached,
+                activity,
+            )
+        },
+    )?;
     if layout_conditions.next().is_some() || target_ranges.next().is_some() {
         return Err(refusal(
             RefusalReason::ForeignIdentity,
@@ -1100,8 +1106,7 @@ fn check_prepared_machine(
             {
                 let unestablished = Refusal {
                     reason: RefusalReason::Unestablished,
-                    machine: id,
-                    concerns: consumption.at,
+                    site: terminal_check_tables::RefusalSite::Machine(id, consumption.at),
                     source_span: None,
                     detail: format!(
                         "zeroed storage of a gated type is used before its requires holds: {}",
@@ -1158,26 +1163,10 @@ fn fill_knowledge<'a>(
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
-        // A clause over a field of a record formal is about what that field
-        // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here. Each
-        // conjunct of a clause holds on its own, so only the conjuncts that
-        // name such a field are dropped: an inferred input condition joins
-        // facts about every field the caller knew, and one about a field this
-        // body never reads must not discard the bound it does need. A
-        // disjunction stays whole, since dropping one of its alternatives
-        // would assume more than the clause says.
-        let mut conjuncts = vec![proposition];
-        while let Some(conjunct) = conjuncts.pop() {
-            if let Proposition::Conjunction(parts) = conjunct {
-                conjuncts.extend(parts);
-                continue;
-            }
-            let stated = match substitute(conjunct, &mut storage.at_entry(references, tables)) {
-                Ok(stated) => stated,
-                Err(Unbound::Unproved(_)) => continue,
-                Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-            };
+        let premises =
+            entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
+                .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        for stated in premises {
             push_knowledge(
                 tables,
                 stated,
@@ -1201,7 +1190,7 @@ fn fill_knowledge<'a>(
     }
     for block in &lowered.blocks {
         for operation in &block.operations {
-            if let Some(equation) = result_equation(module, id, operation, types)? {
+            if let Some(equation) = result_equation(module, lowered, operation, types)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1296,7 +1285,7 @@ fn fill_knowledge<'a>(
         } = row.site
         {
             let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
-            let formals = call.contract.structural_parameters;
+            let formals = call.structural_inputs();
             let ensures = call.contract.ensures.iter();
             let mut inputs = storage.at_cleanup_call(
                 references,
@@ -1353,7 +1342,7 @@ fn fill_knowledge<'a>(
             references,
             tables,
             &row.actuals,
-            (contract.structural_parameters, contract.result),
+            &call,
             operation,
             Construct::Invocation(invocation),
         )?;
@@ -1660,8 +1649,7 @@ fn semantics_refusal(
 ) -> impl Fn(terminal_semantics::OperationSemanticError) -> Refusal {
     move |error| Refusal {
         reason: RefusalReason::Unsupported,
-        machine,
-        concerns: Construct::Operation(operation),
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Operation(operation)),
         source_span: None,
         detail: format!("operation semantics {error:?}"),
     }
@@ -1672,20 +1660,33 @@ fn semantics_refusal(
 /// call).
 fn result_equation(
     module: &TerminalModule,
-    machine: MachineId,
+    lowered: &TerminalMachine,
     operation: &terminal_psi::Operation,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Option<Proposition>> {
-    if let Some(equation) =
-        terminal_semantics::scalar_application_read_equation(&module.scalars.scalar_applications, operation)
-            .map_err(|reason| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    machine,
-                    Construct::Operation(operation.id),
-                    reason,
-                )
-            })?
+    let machine = lowered.id;
+    let malformed = |reason| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Operation(operation.id),
+            reason,
+        )
+    };
+    if let Some(fact) = terminal_semantics::storage_alignment_fact(
+        &module.types.structural_types,
+        lowered,
+        operation,
+    )
+    .map_err(malformed)?
+    {
+        return Ok(Some(fact));
+    }
+    if let Some(equation) = terminal_semantics::scalar_application_read_equation(
+        &module.scalars.scalar_applications,
+        operation,
+    )
+    .map_err(malformed)?
     {
         return Ok(Some(equation));
     }
@@ -1757,10 +1758,43 @@ impl Unbound {
     }
 }
 
+use terminal_semantics::substitution::clauses::substitute_sufficient_clause;
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
-    substitute_sufficient_clause as sufficient_goal,
 };
+
+/// Express a machine input contract in the same vocabulary when assuming it
+/// at entry and when proving it is forwarded intact. An observable field has
+/// an SSA identity. An unread field still names its original entry snapshot.
+fn entry_snapshot_conjuncts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Vec<Proposition>, Unbound> {
+    storage_conjuncts(clause, bindings, |unread| Some(unread.clone()))
+}
+
+/// A conjunction admits independent projections. A disjunction must remain
+/// whole even if only one of its alternatives mentions an unread field.
+fn storage_conjuncts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+    unobserved: fn(&Proposition) -> Option<Proposition>,
+) -> Result<Vec<Proposition>, Unbound> {
+    let mut pending = vec![clause];
+    let mut stated = Vec::new();
+    while let Some(part) = pending.pop() {
+        if let Proposition::Conjunction(parts) = part {
+            pending.extend(parts);
+            continue;
+        }
+        match substitute(part, bindings) {
+            Ok(part) => stated.push(part),
+            Err(Unbound::Unproved(_)) => stated.extend(unobserved(part)),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(stated)
+}
 
 /// States a clause the checker must prove: a goal, never a premise.
 ///
@@ -1778,10 +1812,29 @@ pub(crate) fn substitute_goal(
     clause: &Proposition,
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Result<Proposition, Unbound> {
+    // A single reaching alternative may decide the whole disjunction. Keep
+    // that correlation before trying the branches this arrival can observe.
+    match substitute_sufficient_clause(clause, bindings) {
+        Err(Unbound::Unproved(_))
+            if matches!(
+                clause,
+                Proposition::Conjunction(_) | Proposition::Disjunction(_)
+            ) =>
+        {
+            goal_from_observed_parts(clause, bindings)
+        }
+        result => result,
+    }
+}
+
+fn goal_from_observed_parts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Proposition, Unbound> {
     let (parts, conjunction) = match clause {
         Proposition::Conjunction(parts) => (parts, true),
         Proposition::Disjunction(parts) => (parts, false),
-        _ => return sufficient_goal(clause, bindings),
+        _ => return substitute_sufficient_clause(clause, bindings),
     };
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
@@ -1791,12 +1844,11 @@ pub(crate) fn substitute_goal(
     let mut kept = Vec::with_capacity(parts.len());
     let mut unstated = None;
     for part in parts {
-        match substitute_goal(part, bindings) {
+        match goal_from_observed_parts(part, bindings) {
             Ok(part) if part == deciding => return Ok(deciding),
             Ok(part) if part == unit => {}
             Ok(part) => kept.push(part),
             // A conjunct is owed whatever the others say.
-            Err(unbound) if conjunction => unstated = unstated.or(Some(unbound)),
             Err(Unbound::Unproved(detail)) => {
                 unstated = unstated.or(Some(Unbound::Unproved(detail)))
             }
@@ -1913,6 +1965,15 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.field(version, root, path, scalar_type)
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.structural_read(root, path, scalar_type)
     }
 
     fn field_alternatives(
@@ -2158,7 +2219,7 @@ fn stated_goal<'a>(
                     },
                 )
             };
-            let formals = call.contract.structural_parameters;
+            let formals = call.structural_inputs();
             match row.site {
                 InvocationSite::Cleanup {
                     edge,
@@ -2223,9 +2284,14 @@ fn stated_goal<'a>(
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
-        ObligationKind::RankComparison { component, edge } => {
-            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
-        }
+        ObligationKind::RankComparison { component, edge } => rankings::goal(
+            lowered,
+            ranking_bindings,
+            obligation,
+            component,
+            edge,
+            rankings::Comparison::Claimed,
+        ),
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
@@ -2439,8 +2505,7 @@ fn unproved(
 ) -> Refusal {
     Refusal {
         reason: RefusalReason::Unproved(cause),
-        machine: id,
-        concerns: Construct::Obligation(obligation),
+        site: terminal_check_tables::RefusalSite::Machine(id, Construct::Obligation(obligation)),
         source_span: None,
         detail,
     }

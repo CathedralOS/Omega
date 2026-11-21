@@ -10,4 +10,4 @@ mod provider_grants;
 pub use trust_admission::{TrustAdmission, TrustAdmissionDigest};
 
 mod selected;
-pub use selected::SelectedTrustEvidence;
+pub use selected::{SelectedTrustEvidence, selected_provider_grants};

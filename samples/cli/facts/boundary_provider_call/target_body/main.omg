@@ -1,7 +1,7 @@
 // A provider-settled boundary call whose contract establishes result >= 100u64 && result <= 100u64 discharges exact subtraction result - 100u64.
 // Expected exit: 0.
 boundary trait Provider {
-    machine get() -> u64 reaches ensures result >= 100u64 && result <= 100u64 crashes none;
+    machine get() -> u64 reaches none ensures result >= 100u64 && result <= 100u64 crashes none;
 }
 
 Actual satisfies Provider {
@@ -11,7 +11,7 @@ Actual satisfies Provider {
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

@@ -908,7 +908,7 @@ mod ieee_float_arithmetic {
                 IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
                 None
             );
-            assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 140);
+            assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 146);
             for payload in 0_u8..88 {
                 let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
                     .expect("every pre-extension machine payload remains decodable");

@@ -6,12 +6,14 @@ use representations\symbol_resolved_trees\BuiltinType;
 use representations\symbol_resolved_trees\MachineArgument;
 use representations\symbol_resolved_trees\MachineOwner;
 use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\TypeBinding;
 use representations\symbol_resolved_trees\TypeScope;
 use representations\symbol_resolved_trees\ValueBinding;
 use representations\symbol_resolved_trees\VisibleOverloads;
 use representations\symbol_resolved_trees\machine_owner;
 use representations\symbol_resolved_trees\name_resolution_machine_argument;
 use representations\symbol_resolved_trees\next_overload;
+use representations\symbol_resolved_trees\type_binding_at;
 use representations\symbol_resolved_trees\value_binding;
 use representations\syntax_trees\ConstructField;
 use representations\syntax_trees\DataCase;
@@ -329,162 +331,72 @@ crashes Trap
         || owner.container == MachineContainer::Refinement || item.has_target
 }
 
-// Bind a signature's generic parameters `first..first + count`, lifetimes
-// aside, to the call's static arguments by kind: a static argument naming
-// a machine (binders.omg) to the next machine binder, any other to the next
-// other parameter, each in order. Whether they fit: one per machine binder,
-// and none or one per other parameter (none leaves those to inference).
+// Explicit arguments bind a prefix of the declaration in source order.
+// Lifetimes have a separate argument list. Inference fills any omitted suffix.
 machine bind_static_arguments(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments) -> bool
 crashes Trap
 {
-    let machines: u64 in Trapping = machine_static_count(syntax, resolution, statics);
-    let binders: u64 in Trapping = kind_count(syntax, first, count, true);
-    let others: u64 in Trapping = kind_count(syntax, first, count, false);
-    let types: u64 in Trapping = statics.count - machines;
-    transition machines == binders && (types == 0 || types == others) {
-        true -> next(typer, syntax, resolution, first, count, statics, 0, 0, 0),
-        _ -> unfitted()
-    }
+    transition { _ -> next(typer, syntax, resolution, first, count, statics, 0u64 as +Trapping, 0u64 as +Trapping) }
 
-    machine next(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, typed: u64 in Trapping, machined: u64 in Trapping) -> bool {
-        transition offset < count {
-            true -> parameter(typer, syntax, resolution, first, count, statics, offset, typed, machined),
-            _ -> fitted()
+    machine next(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
+        transition {
+            position == statics.count -> accepted(),
+            offset < count -> parameter(typer, syntax, resolution, first, count, statics, offset, position),
+            _ -> rejected()
         }
     }
 
-    machine parameter(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, typed: u64 in Trapping, machined: u64 in Trapping) -> bool {
+    machine parameter(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
         let handle: u64 in Trapping = first + offset;
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
         transition generic.kind {
-            GenericParameterKind::Lifetime -> next(typer, syntax, resolution, first, count, statics, offset + 1, typed, machined),
-            GenericParameterKind::Machine -> machine(typer, syntax, resolution, first, count, statics, offset, typed, machined, handle),
-            _ -> other(typer, syntax, resolution, first, count, statics, offset, typed, machined, handle)
+            GenericParameterKind::Lifetime -> next(typer, syntax, resolution, first, count, statics, offset + 1, position),
+            _ -> argument(typer, syntax, resolution, first, count, statics, offset, position, handle, generic.kind)
         }
     }
 
-    machine machine(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, typed: u64 in Trapping, machined: u64 in Trapping, handle: u64 in Trapping) -> bool {
-        let position: u64 in Trapping = nth_static(syntax, resolution, statics, true, machined);
+    machine argument(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping, kind: GenericParameterKind) -> bool {
         let row: u64 in Trapping = type_argument(syntax, statics.first + position);
+        let bound: bool = bind_static_argument(typer, syntax, resolution, handle, kind, row);
+        transition bound {
+            true -> next(typer, syntax, resolution, first, count, statics, offset + 1, position + 1),
+            _ -> rejected()
+        }
+    }
+
+    machine accepted() -> bool { true }
+    machine rejected() -> bool { false }
+}
+
+machine bind_static_argument(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, kind: GenericParameterKind, row: u64 in Trapping) -> bool
+crashes Trap
+{
+    let binding: TypeBinding = type_binding_at(resolution, row);
+    transition slot_accepts(syntax, kind, binding) {
+        true -> bind(typer, syntax, resolution, handle, kind, row),
+        _ -> rejected()
+    }
+
+    machine bind(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, kind: GenericParameterKind, row: u64 in Trapping) -> bool {
+        transition kind {
+            GenericParameterKind::Machine -> machine_binder(typer, syntax, resolution, handle, row),
+            _ -> type_binder(typer, handle, row)
+        }
+    }
+
+    machine machine_binder(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, row: u64 in Trapping) -> bool {
         let argument: MachineArgument = name_resolution_machine_argument(syntax, resolution, row);
         bind_machine(typer, handle, argument);
-        transition { _ -> next(typer, syntax, resolution, first, count, statics, offset + 1, typed, machined + 1) }
-    }
-
-    machine other(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, typed: u64 in Trapping, machined: u64 in Trapping, handle: u64 in Trapping) -> bool {
-        let machines: u64 in Trapping = machine_static_count(syntax, resolution, statics);
-        transition statics.count > machines {
-            true -> typed_argument(typer, syntax, resolution, first, count, statics, offset, typed, machined, handle),
-            _ -> next(typer, syntax, resolution, first, count, statics, offset + 1, typed, machined)
-        }
-    }
-
-    machine typed_argument(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, typed: u64 in Trapping, machined: u64 in Trapping, handle: u64 in Trapping) -> bool {
-        let position: u64 in Trapping = nth_static(syntax, resolution, statics, false, typed);
-        let row: u64 in Trapping = type_argument(syntax, statics.first + position);
-        let argument: u64 in Trapping = reference_type(@typer.output, row);
-        typer_bind(typer, handle, argument);
-        transition { _ -> next(typer, syntax, resolution, first, count, statics, offset + 1, typed + 1, machined) }
-    }
-
-    machine fitted() -> bool {
         true
     }
 
-    machine unfitted() -> bool {
-        false
-    }
-}
-
-// How many of a call's static arguments name machines.
-machine machine_static_count(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments) -> u64 in Trapping
-crashes Trap
-{
-    transition { _ -> next(syntax, resolution, statics, 0, 0) }
-
-    machine next(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, position: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
-        transition position < statics.count {
-            true -> argument(syntax, resolution, statics, position, counted),
-            _ -> finished(counted)
-        }
+    machine type_binder(typer: @mut Typer, handle: u64 in Trapping, row: u64 in Trapping) -> bool {
+        let argument: u64 in Trapping = reference_type(@typer.output, row);
+        typer_bind(typer, handle, argument);
+        true
     }
 
-    machine argument(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, position: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
-        let row: u64 in Trapping = type_argument(syntax, statics.first + position);
-        let machine: bool = names_machine(syntax, resolution, row);
-        transition machine {
-            true -> next(syntax, resolution, statics, position + 1, counted + 1),
-            _ -> next(syntax, resolution, statics, position + 1, counted)
-        }
-    }
-
-    machine finished(counted: u64 in Trapping) -> u64 in Trapping {
-        counted
-    }
-}
-
-// How many of the generic parameters `first .. first + count` are machine
-// binders (`machines`) or, lifetimes aside, other parameters.
-machine kind_count(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, machines: bool) -> u64 in Trapping
-crashes Trap
-{
-    transition { _ -> next(syntax, first, count, machines, 0, 0) }
-
-    machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, machines: bool, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
-        transition offset < count {
-            true -> parameter(syntax, first, count, machines, offset, counted),
-            _ -> finished(counted)
-        }
-    }
-
-    machine parameter(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, machines: bool, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
-        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
-        let machine: bool = generic.kind == GenericParameterKind::Machine;
-        let lifetime: bool = generic.kind == GenericParameterKind::Lifetime;
-        transition !lifetime && machine == machines {
-            true -> next(syntax, first, count, machines, offset + 1, counted + 1),
-            _ -> next(syntax, first, count, machines, offset + 1, counted)
-        }
-    }
-
-    machine finished(counted: u64 in Trapping) -> u64 in Trapping {
-        counted
-    }
-}
-
-// The position among a call's static arguments of the `wanted`-th (from
-// zero) that names a machine (`machines`) or a type.
-machine nth_static(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, machines: bool, wanted: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition { _ -> next(syntax, resolution, statics, machines, wanted, 0, 0) }
-
-    machine next(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, machines: bool, wanted: u64 in Trapping, position: u64 in Trapping, seen: u64 in Trapping) -> u64 in Trapping {
-        transition position < statics.count {
-            true -> argument(syntax, resolution, statics, machines, wanted, position, seen),
-            _ -> finished(position)
-        }
-    }
-
-    machine argument(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, machines: bool, wanted: u64 in Trapping, position: u64 in Trapping, seen: u64 in Trapping) -> u64 in Trapping {
-        let row: u64 in Trapping = type_argument(syntax, statics.first + position);
-        let machine: bool = names_machine(syntax, resolution, row);
-        transition machine == machines {
-            true -> matched(syntax, resolution, statics, machines, wanted, position, seen),
-            _ -> next(syntax, resolution, statics, machines, wanted, position + 1, seen)
-        }
-    }
-
-    machine matched(syntax: @SyntaxTrees, resolution: @NameResolution, statics: StaticArguments, machines: bool, wanted: u64 in Trapping, position: u64 in Trapping, seen: u64 in Trapping) -> u64 in Trapping {
-        transition seen == wanted {
-            true -> finished(position),
-            _ -> next(syntax, resolution, statics, machines, wanted, position + 1, seen + 1)
-        }
-    }
-
-    machine finished(position: u64 in Trapping) -> u64 in Trapping {
-        position
-    }
+    machine rejected() -> bool { false }
 }
 
 // Unify each parameter type of a generic signature with its argument's

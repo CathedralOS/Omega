@@ -10,6 +10,14 @@ data OmegaByteRange {
     length: i32;
 }
 
+// Reborrowing a shared incoming slice keeps the same backing. Negative endpoint
+// handles denote the omitted zero/length edges; other handles are checked u64s.
+data OmegaByteSubrange {
+    slot: i32;
+    start: i32;
+    end: i32;
+}
+
 // Shared record references occupy [400000, 404096). A shared byte slice
 // carries two words and has no nominal declaration row.
 machine omega_shared_byte_slice() -> i32 { return 404096; }
@@ -72,6 +80,12 @@ machine OmegaScalarCompiler::check_byte_range(
         }
     }
     state base(collection: i32, range: OmegaRangeExpressionSyntax) {
+        transition self.byte_slice_parameter(source, state_index, before, collection) >= 0 {
+            true -> return self.check_byte_subrange(source, state_index, before, expression, collection, range)
+            _ -> fixed_base(collection, range)
+        }
+    }
+    state fixed_base(collection: i32, range: OmegaRangeExpressionSyntax) {
         transition self.check_place(source, state_index, before, collection) {
             1 -> array(collection, range, self.indexable_array_row(self.place_types[collection], 0))
             _ -> return 0
@@ -139,12 +153,208 @@ machine OmegaScalarCompiler::check_byte_range(
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
 
+// A terminal transfer may narrow its incoming shared slice. It still cannot
+// borrow fresh local array backing whose cells that transfer could reuse.
+machine OmegaScalarCompiler::check_forward_byte_subrange(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, indexed: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[indexed];
+    transition row.kind {
+        OmegaExpressionKind::Indexed -> selector(self.parser.indexed_expressions[row.payload0])
+        _ -> unsupported()
+    }
+    state selector(row: OmegaIndexedExpressionSyntax) {
+        let index: OmegaExpressionSyntax = self.parser.expressions[row.index];
+        transition index.kind {
+            OmegaExpressionKind::Range -> return self.check_byte_subrange(source, state_index, before,
+                expression, row.base, self.parser.range_expressions[index.payload0])
+            _ -> unsupported()
+        }
+    }
+    state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+}
+
+// This subset accepts pure u64 endpoints and proves both independent orders.
+// A relation about another slice, or an endpoint call that may change storage,
+// supplies no permission to form this view. Empty and one-past-end ranges use <=.
+machine OmegaScalarCompiler::check_byte_subrange(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32,
+    collection: i32, range: OmegaRangeExpressionSyntax
+) -> i32 {
+    let slot: i32 = self.byte_slice_parameter(source, state_index, before, collection);
+    transition (slot >= 0) && (range.end_inclusive == 0) {
+        true -> storage(slot)
+        _ -> unsupported()
+    }
+    state storage(slot: i32) {
+        transition self.require_cell(source, 49152 + expression, omega_shared_byte_slice()) {
+            1 -> base(slot)
+            _ -> return 0
+        }
+    }
+    state base(slot: i32) {
+        transition self.check_forward_reference(source, state_index, before, collection, omega_shared_byte_slice()) {
+            1 -> start(slot)
+            _ -> return 0
+        }
+    }
+    state start(slot: i32) {
+        transition range.has_start { 1 -> start_value(slot) _ -> end(slot) }
+    }
+    state start_value(slot: i32) {
+        transition self.check_value(source, self.state_owners[state_index], state_index, before, range.start, 64) {
+            1 -> start_pure(slot)
+            _ -> return 0
+        }
+    }
+    state start_pure(slot: i32) {
+        transition self.pure_value(range.start) {
+            1 -> end(slot)
+            _ -> unsupported()
+        }
+    }
+    state end(slot: i32) {
+        transition range.has_end { 1 -> end_value(slot) _ -> extent(slot) }
+    }
+    state end_value(slot: i32) {
+        transition self.check_value(source, self.state_owners[state_index], state_index, before, range.end, 64) {
+            1 -> end_pure(slot)
+            _ -> return 0
+        }
+    }
+    state end_pure(slot: i32) {
+        transition self.pure_value(range.end) {
+            1 -> extent(slot)
+            _ -> unsupported()
+        }
+    }
+    state extent(slot: i32) {
+        transition range.has_end {
+            1 -> explicit_end(slot)
+            _ -> ordering(slot)
+        }
+    }
+    state explicit_end(slot: i32) {
+        transition self.byte_subrange_endpoint(source, state_index, before, range.end, collection, slot) {
+            1 -> ordering(slot)
+            _ -> unsupported()
+        }
+    }
+    state ordering(slot: i32) {
+        transition range.has_start { 0 -> retain(slot) _ -> lower(slot) }
+    }
+    state lower(slot: i32) {
+        transition (range.has_end == 0) ||
+            (self.slice_length_parameter(source, state_index, before, range.end) == slot) {
+            true -> bounded_start(slot)
+            _ -> pair(slot)
+        }
+    }
+    state bounded_start(slot: i32) {
+        transition self.byte_subrange_endpoint(source, state_index, before, range.start, collection, slot) {
+            1 -> retain(slot)
+            _ -> unsupported()
+        }
+    }
+    state pair(slot: i32) {
+        transition self.prove_actual_scalar_order(source, state_index, before, range.start, range.end, -1, 0, 0) {
+            1 -> retain(slot)
+            _ -> unsupported()
+        }
+    }
+    state retain(slot: i32) {
+        self.byte_subranges[expression].slot = slot;
+        self.byte_subranges[expression].start = -1;
+        self.byte_subranges[expression].end = -1;
+        transition range.has_start { 1 -> retain_start(slot) _ -> retain_end() }
+    }
+    state retain_start(slot: i32) {
+        self.byte_subranges[expression].start = range.start;
+        transition true { true -> retain_end() }
+    }
+    state retain_end() {
+        transition range.has_end { 1 -> explicit_end_handle() _ -> complete() }
+    }
+    state explicit_end_handle() {
+        self.byte_subranges[expression].end = range.end;
+        transition true { true -> complete() }
+    }
+    state complete() { self.value_kinds[expression] = OmegaCheckedValueKind::SharedByteSubrange; return 1; }
+    state unsupported() { self.record_incomplete(4, range.operator_start); return 0; }
+}
+
+machine OmegaScalarCompiler::byte_subrange_endpoint(
+    &mut self, source: &[u8], state_index: i32, before: i32, endpoint: i32, collection: i32, slot: i32
+) -> i32 {
+    transition self.slice_length_parameter(source, state_index, before, endpoint) == slot {
+        1 -> return 1
+        _ -> return self.prove_actual_slice_index(source, state_index, before, endpoint, collection, -1, 0, 0)
+    }
+}
+
+// Capture the original descriptor before evaluating the start and then the end.
+// Its own private two-word cell also holds the pending start across end emission.
+// No endpoint is evaluated twice and no call parameter is overwritten early.
+machine OmegaScalarCompiler::emit_byte_subrange(&mut self, expression: i32) -> i32 {
+    let range: OmegaByteSubrange = self.byte_subranges[expression];
+    let cell: i32 = omega_storage_base() + self.cell_offsets[49152 + expression];
+    transition (self.emit_value_load(range.slot) == 1) &&
+        (self.emit_value_store(49152 + expression) == 1) {
+        true -> start(range, cell)
+        _ -> return 0
+    }
+    state start(range: OmegaByteSubrange, cell: i32) {
+        transition range.start < 0 {
+            true -> zero_start(range, cell)
+            _ -> explicit_start(range, cell)
+        }
+    }
+    state zero_start(range: OmegaByteSubrange, cell: i32) {
+        transition self.tape.emit_imm(0, 0, 0) { 1 -> end_kind(range, cell) _ -> return 0 }
+    }
+    state explicit_start(range: OmegaByteSubrange, cell: i32) {
+        transition self.emit_value(range.start) { 1 -> end_kind(range, cell) _ -> return 0 }
+    }
+    state end_kind(range: OmegaByteSubrange, cell: i32) {
+        transition range.end < 0 { true -> omitted_end(cell) _ -> save_start(range, cell) }
+    }
+    state omitted_end(cell: i32) {
+        transition (self.tape.emit_rr(2, 2, 0) == 1) && (self.emit_byte_subrange_pointer(cell) == 1) &&
+            (self.tape.emit_imm(0, cell + 8, 0) == 1) && (self.tape.emit_rr(10, 0, 0) == 1) &&
+            (self.tape.emit_rr(4, 0, 2) == 1) {
+            true -> finish(cell)
+            _ -> return 0
+        }
+    }
+    state save_start(range: OmegaByteSubrange, cell: i32) {
+        transition (self.tape.emit_imm(1, cell + 8, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&
+            (self.emit_byte_subrange_pointer(cell) == 1) && (self.emit_value(range.end) == 1) &&
+            (self.tape.emit_imm(1, cell + 8, 0) == 1) && (self.tape.emit_rr(10, 1, 1) == 1) &&
+            (self.tape.emit_rr(4, 0, 1) == 1) {
+            true -> finish(cell)
+            _ -> return 0
+        }
+    }
+    state finish(cell: i32) {
+        return (self.tape.emit_imm(1, cell + 8, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&
+            (self.tape.emit_imm(0, cell, 0) == 1);
+    }
+}
+
+// r0 holds the checked start and is replaced by the captured pointer plus start.
+// r2 is preserved for the omitted-end case's captured length subtraction.
+machine OmegaScalarCompiler::emit_byte_subrange_pointer(&mut self, cell: i32) -> i32 {
+    return (self.tape.emit_imm(1, cell, 0) == 1) && (self.tape.emit_rr(10, 1, 1) == 1) &&
+        (self.tape.emit_rr(3, 0, 1) == 1) && (self.tape.emit_imm(1, cell, 0) == 1) &&
+        (self.tape.emit_rr(11, 1, 0) == 1);
+}
+
 // The two-word descriptor is staged and copied across every call like other
 // compound arguments. Its address is private to this expression. The first
 // word points into the original array and the second holds the live length.
 machine OmegaScalarCompiler::emit_byte_range(&mut self, expression: i32) -> i32 {
     let range: OmegaByteRange = self.byte_ranges[expression];
-    let cell: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    let cell: i32 = omega_storage_base() + self.cell_offsets[49152 + expression];
     return (self.emit_place_address(range.collection) == 1) &&
         (self.tape.emit_imm(1, range.start, 0) == 1) && (self.tape.emit_rr(3, 0, 1) == 1) &&
         (self.tape.emit_imm(1, cell, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&
@@ -219,10 +429,17 @@ machine OmegaScalarCompiler::slice_length_parameter(
     }
 }
 
-// Removing Trapping preserves the u64 value. General arithmetic, casts to
-// another carrier, locals and projected fields do not preserve this identity.
+// Slice indices use u64. Scalar order also applies to plain u32 unit
+// ordinals and u8 values. Only removing Trapping from u64 preserves the
+// identity of a cast operand in these comparisons.
 machine OmegaScalarCompiler::u64_index_parameter(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    return self.unsigned_formal(source, state_index, before, expression, 0);
+}
+
+machine OmegaScalarCompiler::unsigned_formal(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, allow_narrow: i32
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
@@ -255,91 +472,220 @@ machine OmegaScalarCompiler::u64_index_parameter(
         }
     }
     state slot(cell: i32, removed: i32) {
-        transition (cell >= 0) && ((self.parameter_types[cell] == 320) ||
-            ((removed == 0) && (self.parameter_types[cell] == 64))) {
+        transition cell >= 0 { true -> carrier(cell, removed, self.parameter_types[cell]) _ -> return -1 }
+    }
+    state carrier(cell: i32, removed: i32, kind: i32) {
+        transition (kind == 320) || ((removed == 0) && ((kind == 64) ||
+            ((allow_narrow == 1) && ((kind == 8) || (kind == 32))))) {
             true -> return cell
             _ -> return -1
         }
     }
 }
 
-machine OmegaScalarCompiler::slice_relation(
+// Compare the actual parameter identities and the right-hand projection. An
+// inclusive premise can establish an endpoint, but only strict ordering can
+// justify reading a byte at the index.
+machine OmegaScalarCompiler::parameter_order(
     &mut self, source: &[u8], state_index: i32, before: i32,
-    index: i32, slice: i32, guard: i32, truth: i32
+    left: i32, right: i32, offset: i32, guard: i32, truth: i32, strict: i32
 ) -> i32 {
-    transition (index >= 0) && (slice >= 0) {
-        true -> guarded()
+    transition (left >= 0) && (right >= 0) {
+        true -> reflexive()
         _ -> return 0
     }
+    state reflexive() {
+        transition (left == right) && (offset == 0) && (strict == 0) {
+            true -> return 1
+            _ -> guarded()
+        }
+    }
     state guarded() {
-        transition (guard >= 0) && (truth == 1) && (self.pure_value(guard) == 1) {
-            true -> shape(self.parser.expressions[guard])
-            _ -> preserved()
-        }
-    }
-    state shape(row: OmegaExpressionSyntax) {
-        transition row.kind {
-            OmegaExpressionKind::Binary -> operator(self.parser.binary_expressions[row.payload0])
-            _ -> preserved()
-        }
-    }
-    state operator(row: OmegaBinaryExpressionSyntax) {
-        transition row.operator {
-            OmegaBinaryOperatorKind::Less -> operands(row.left, row.right)
-            OmegaBinaryOperatorKind::Greater -> operands(row.right, row.left)
-            _ -> preserved()
-        }
-    }
-    state operands(left: i32, right: i32) {
-        transition (self.u64_index_parameter(source, state_index, before, left) == index) &&
-            (self.slice_length_parameter(source, state_index, before, right) == slice) {
+        transition (guard >= 0) && (self.pure_value(guard) == 1) &&
+            (self.guard_parameter_order(source, state_index, before, left, right, offset, guard, truth, strict) == 1) {
             true -> return 1
             _ -> preserved()
         }
     }
     state preserved() {
-        transition (self.preserve_entry_place(state_index, before, index, 0) == 1) &&
-            (self.preserve_entry_place(state_index, before, slice, 8) == 1) {
+        transition (self.preserve_entry_place(state_index, before, left, 0) == 1) &&
+            (self.preserve_entry_place(state_index, before, right, offset) == 1) {
             true -> bound(0)
             _ -> return 0
         }
     }
-    state bound(offset: i32) {
-        transition offset < self.bound_count[state_index] {
-            true -> pair(offset, self.entry_bounds[self.bound_first[state_index] + offset])
+    state bound(index: i32) {
+        transition index < self.bound_count[state_index] {
+            true -> pair(index, self.entry_bounds[self.bound_first[state_index] + index])
             _ -> return 0
         }
     }
-    state pair(offset: i32, row: OmegaEntryBound) {
-        transition (row.root == index) && (row.slice == slice) {
+    state pair(index: i32, row: OmegaEntryBound) {
+        transition row.kind {
+            OmegaEntryBoundKind::StrictOrder -> identity(index, row, 1)
+            OmegaEntryBoundKind::InclusiveOrder -> identity(index, row, 0)
+            _ -> bound(index + 1)
+        }
+    }
+    state identity(index: i32, row: OmegaEntryBound, evidence: i32) {
+        transition (evidence >= strict) && (row.root == left) && (row.right == right) && (row.right_offset == offset) {
             true -> return 1
-            _ -> bound(offset + 1)
+            _ -> bound(index + 1)
+        }
+    }
+}
+
+// Normalize the selected truth of each comparison before matching places. A
+// true conjunction supplies either conjunct; a true disjunction supplies neither.
+machine OmegaScalarCompiler::guard_parameter_order(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    left: i32, right: i32, offset: i32, guard: i32, truth: i32, strict: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[guard];
+    transition row.kind {
+        OmegaExpressionKind::Binary -> operator(self.parser.binary_expressions[row.payload0])
+        _ -> return 0
+    }
+    state operator(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Less -> relation(row.left, row.right, 1)
+            OmegaBinaryOperatorKind::Greater -> relation(row.right, row.left, 1)
+            OmegaBinaryOperatorKind::LessEqual -> relation(row.left, row.right, 0)
+            OmegaBinaryOperatorKind::GreaterEqual -> relation(row.right, row.left, 0)
+            OmegaBinaryOperatorKind::And -> conjunction(row)
+            _ -> return 0
+        }
+    }
+    state conjunction(row: OmegaBinaryExpressionSyntax) {
+        transition truth { 1 -> parts(row) _ -> return 0 }
+    }
+    state parts(row: OmegaBinaryExpressionSyntax) {
+        return (self.guard_parameter_order(source, state_index, before, left, right, offset, row.left, truth, strict) == 1) ||
+            (self.guard_parameter_order(source, state_index, before, left, right, offset, row.right, truth, strict) == 1);
+    }
+    state relation(a: i32, b: i32, evidence: i32) {
+        transition truth {
+            1 -> operands(a, b, evidence)
+            _ -> operands(b, a, 1 - evidence)
+        }
+    }
+    state operands(a: i32, b: i32, evidence: i32) {
+        transition evidence >= strict { true -> projection(a, b) _ -> return 0 }
+    }
+    state projection(a: i32, b: i32) {
+        transition offset {
+            0 -> return (self.unsigned_formal(source, state_index, before, a, 1) == left) &&
+                (self.unsigned_formal(source, state_index, before, b, 1) == right)
+            8 -> return (self.u64_index_parameter(source, state_index, before, a) == left) &&
+                (self.slice_length_parameter(source, state_index, before, b) == right)
+            _ -> return 0
+        }
+    }
+}
+
+// An unsigned value strictly below another value of its own type, including
+// the u64 length of a slice, can increase by one without exceeding that type.
+// The entry promise survives only while both places retain their values.
+machine OmegaScalarCompiler::formal_successor_bound(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    let index: i32 = self.unsigned_formal(source, state_index, before, expression, 1);
+    transition (index >= 0) && (self.preserve_entry_place(state_index, before, index, 0) == 1) {
+        true -> next(index, 0)
+        _ -> return 0
+    }
+    state next(index: i32, cursor: i32) {
+        transition cursor < self.bound_count[state_index] {
+            true -> bound(index, cursor, self.entry_bounds[self.bound_first[state_index] + cursor])
+            _ -> return 0
+        }
+    }
+    state bound(index: i32, cursor: i32, row: OmegaEntryBound) {
+        transition row.kind {
+            OmegaEntryBoundKind::StrictOrder -> pair(index, cursor, row)
+            _ -> next(index, cursor + 1)
+        }
+    }
+    state pair(index: i32, cursor: i32, row: OmegaEntryBound) {
+        transition (row.root == index) &&
+            (self.preserve_entry_place(state_index, before, row.right, row.right_offset) == 1) {
+            true -> return 1
+            _ -> next(index, cursor + 1)
+        }
+    }
+}
+
+// Only a checked, non-overflowing addition of one preserves this relationship.
+// All other expressions must prove their own bounds through the usual paths.
+machine OmegaScalarCompiler::order_base(&mut self, expression: i32) -> i32 {
+    transition self.value_kinds[expression] {
+        OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
+        _ -> return expression
+    }
+    state addition(row: OmegaBinaryExpressionSyntax) {
+        transition self.interval_literal(row.right) == 1 { true -> return row.left _ -> return expression }
+    }
+}
+
+machine OmegaScalarCompiler::prove_actual_scalar_order(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    left: i32, right: i32, guard: i32, truth: i32, strict: i32
+) -> i32 {
+    let minimum: i32 = self.interval_literal(left);
+    let maximum: i32 = self.interval_literal(right);
+    transition (minimum >= 0) && (minimum <= 2147483647 - strict) {
+        true -> return self.prove_bound(source, state_index, before, right, minimum + strict, -1, guard, truth)
+        _ -> upper(maximum)
+    }
+    state upper(maximum: i32) {
+        transition maximum >= strict {
+            true -> return self.prove_bound(source, state_index, before, left, 0, maximum - strict, guard, truth)
+            _ -> bases(self.order_base(left), self.order_base(right))
+        }
+    }
+    state bases(a: i32, b: i32) {
+        // Subtract the two unit shifts from the requested order. One strict
+        // comparison proves one unit of separation; it cannot prove two.
+        let needed: i32 = strict + (a != left) - (b != right);
+        transition needed <= 1 {
+            true -> return self.parameter_order(source, state_index, before,
+                self.unsigned_formal(source, state_index, before, a, 1),
+                self.unsigned_formal(source, state_index, before, b, 1), 0, guard, truth, needed > 0)
+            _ -> return 0
         }
     }
 }
 
 machine OmegaScalarCompiler::prove_actual_slice_index(
     &mut self, source: &[u8], state_index: i32, before: i32,
-    index: i32, slice: i32, guard: i32, truth: i32
+    index: i32, slice: i32, guard: i32, truth: i32, strict: i32
 ) -> i32 {
     transition self.value_kinds[slice] {
+        OmegaCheckedValueKind::QuotedBytes -> length(self.parser.expressions[slice].payload2)
         OmegaCheckedValueKind::SharedByteRange -> length(self.byte_ranges[slice].length)
         OmegaCheckedValueKind::ForwardedReference -> forward(self.value_payloads[slice])
         _ -> return 0
     }
     state length(count: i32) {
-        transition count > 0 {
-            true -> return self.prove_bound(source, state_index, before, index, 0, count - 1, guard, truth)
+        transition count >= strict {
+            true -> return self.prove_bound(source, state_index, before, index, 0, count - strict, guard, truth)
             _ -> return 0
         }
     }
     state forward(slot: i32) {
         let literal: i32 = self.byte_range_bound(source, 1, index, 0);
-        transition (literal >= 0) && (literal < 2147483647) {
+        transition (literal >= 0) && (literal <= 2147483647 - strict) {
             true -> return self.prove_place_bound(source, state_index, before, slot, 8, -1, 64,
-                literal + 1, -1, guard, truth)
-            _ -> return self.slice_relation(source, state_index, before,
-                self.u64_index_parameter(source, state_index, before, index), slot, guard, truth)
+                literal + strict, -1, guard, truth)
+            _ -> base(slot, self.order_base(index))
+        }
+    }
+    state base(slot: i32, value: i32) {
+        let needed: i32 = strict + (value != index);
+        transition needed <= 1 {
+            true -> return self.parameter_order(source, state_index, before,
+                self.u64_index_parameter(source, state_index, before, value), slot, 8, guard, truth, needed)
+            _ -> return 0
         }
     }
 }
@@ -358,8 +704,8 @@ machine OmegaScalarCompiler::check_shared_byte_read(
     state bound(index: i32) {
         transition (index >= 0) && (index < 2147483647) {
             true -> proved(self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0))
-            _ -> proved(self.slice_relation(source, state_index, before,
-                self.u64_index_parameter(source, state_index, before, row.index), slot, -1, 0))
+            _ -> proved(self.parameter_order(source, state_index, before,
+                self.u64_index_parameter(source, state_index, before, row.index), slot, 8, -1, 0, 1))
         }
     }
     state proved(proof: i32) {
@@ -379,4 +725,142 @@ machine OmegaScalarCompiler::emit_shared_byte_read(&mut self, expression: i32) -
     return (self.emit_value(row.index) == 1) && (self.tape.emit_rr(2, 2, 0) == 1) &&
         (self.emit_value_load(slot) == 1) && (self.tape.emit_rr(10, 0, 0) == 1) &&
         (self.tape.emit_rr(3, 0, 2) == 1) && (self.tape.emit_rr(8, 0, 0) == 1);
+}
+
+// A quoted value is a shared view of bytes owned by the executable image.
+// A caller can copy the descriptor; no invocation owns or initializes the bytes.
+machine OmegaScalarCompiler::check_quoted_bytes(&mut self, expression: i32, expected: i32) -> i32 {
+    transition expected == omega_shared_byte_slice() {
+        true -> admitted()
+        _ -> unsupported()
+    }
+    state admitted() {
+        self.value_kinds[expression] = OmegaCheckedValueKind::QuotedBytes;
+        return 1;
+    }
+    state unsupported() { self.record_incomplete(4, self.parser.expressions[expression].payload0); return 0; }
+}
+
+// Write one jumped-over literal span before this unit's machine bodies. Pointer
+// and length are eight-byte Alpha words inside the immutable image itself.
+machine OmegaScalarCompiler::emit_quoted_image(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> measure(0, 0) }
+    state measure(index: i32, size: i32) {
+        transition index < self.parser.expression_count {
+            true -> measure_row(index, size, self.parser.expressions[index])
+            _ -> reserve(size)
+        }
+    }
+    state measure_row(index: i32, size: i32, row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::String -> measure(index + 1, size + 16 + row.payload2)
+            _ -> measure(index + 1, size)
+        }
+    }
+    state reserve(size: i32) {
+        transition size == 0 {
+            true -> return 1
+            _ -> space(size)
+        }
+    }
+    state space(size: i32) {
+        transition self.tape.literal_span_count < 512 {
+            true -> skip(size)
+            _ -> return self.tape.fail_internal(self.tape.literal_span_count)
+        }
+    }
+    state skip(size: i32) {
+        let end: i32 = self.tape.length + 9 + size;
+        transition (self.tape.reserve(9 + size) == 1) && (self.tape.emit_jump(12, end) == 1) {
+            true -> begin_image(end)
+            _ -> return 0
+        }
+    }
+    state begin_image(end: i32) {
+        self.tape.literal_starts[self.tape.literal_span_count] = self.tape.length;
+        self.tape.literal_ends[self.tape.literal_span_count] = end;
+        self.tape.literal_span_count = self.tape.literal_span_count + 1;
+        transition true { true -> field(0, end) }
+    }
+    state field(index: i32, end: i32) {
+        transition index < self.parser.expression_count {
+            true -> literal(index, end, self.parser.expressions[index])
+            _ -> finish(end)
+        }
+    }
+    state literal(index: i32, end: i32, row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::String -> descriptor(index, end, row)
+            _ -> field(index + 1, end)
+        }
+    }
+    state descriptor(index: i32, end: i32, row: OmegaExpressionSyntax) {
+        self.value_payloads[index] = self.tape.length;
+        let bytes: i32 = self.tape.length + 16;
+        self.tape.write_reserved_address(bytes);
+        self.tape.write_reserved_address(row.payload2);
+        transition true { true -> body(index, end, row.payload0 + 1, row.payload1 - 1, bytes + row.payload2) }
+    }
+    state body(index: i32, end: i32, cursor: i32, limit: i32, target: i32) {
+        transition cursor < limit {
+            true -> byte(index, end, cursor, limit, target)
+            _ -> done(index, end, cursor, limit, target)
+        }
+    }
+    state byte(index: i32, end: i32, cursor: i32, limit: i32, target: i32) {
+        transition (self.tape.length < target) && (target <= end) {
+            true -> symbol(index, end, cursor, limit, target)
+            _ -> return self.tape.fail_internal(cursor)
+        }
+    }
+    state symbol(index: i32, end: i32, cursor: i32, limit: i32, target: i32) {
+        transition source[cursor] {
+            92 -> escape(index, end, cursor, limit, target)
+            _ -> write(index, end, cursor + 1, limit, target, source[cursor])
+        }
+    }
+    state escape(index: i32, end: i32, cursor: i32, limit: i32, target: i32) {
+        transition cursor + 1 < limit {
+            true -> escaped(index, end, cursor + 1, limit, target, source[cursor + 1])
+            _ -> return self.tape.fail_internal(cursor)
+        }
+    }
+    state escaped(index: i32, end: i32, code: i32, limit: i32, target: i32, value: i32) {
+        transition value {
+            110 -> write(index, end, code + 1, limit, target, 10)
+            114 -> write(index, end, code + 1, limit, target, 13)
+            116 -> write(index, end, code + 1, limit, target, 9)
+            48 -> write(index, end, code + 1, limit, target, 0)
+            34 -> write(index, end, code + 1, limit, target, 34)
+            92 -> write(index, end, code + 1, limit, target, 92)
+            120 -> hex(index, end, code, limit, target)
+            _ -> return self.tape.fail_internal(code)
+        }
+    }
+    state hex(index: i32, end: i32, code: i32, limit: i32, target: i32) {
+        transition code + 2 < limit {
+            true -> digits(index, end, code, limit, target,
+                omega_hex_value(source[code + 1]), omega_hex_value(source[code + 2]))
+            _ -> return self.tape.fail_internal(code)
+        }
+    }
+    state digits(index: i32, end: i32, code: i32, limit: i32, target: i32, high: i32, low: i32) {
+        transition (high >= 0) && (low >= 0) {
+            true -> write(index, end, code + 3, limit, target, high * 16 + low)
+            _ -> return self.tape.fail_internal(code)
+        }
+    }
+    state write(index: i32, end: i32, next: i32, limit: i32, target: i32, value: i32) {
+        self.tape.write_reserved_byte(value);
+        transition true { true -> body(index, end, next, limit, target) }
+    }
+    state done(index: i32, end: i32, cursor: i32, limit: i32, target: i32) {
+        transition (cursor == limit) && (self.tape.length == target) {
+            true -> field(index + 1, end)
+            _ -> return self.tape.fail_internal(cursor)
+        }
+    }
+    state finish(end: i32) {
+        transition self.tape.length == end { true -> return 1 _ -> return self.tape.fail_internal(end) }
+    }
 }

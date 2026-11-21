@@ -1,12 +1,12 @@
 //! Resolve Build's native supplies in the same source arena that will judge the Product.
 
-use typed_trees::TypedTrees;
 use crate::declaration_selection::CapturedNativeIntent;
-use crate::compile_product::native_binding_declarations::CapturedNativeDeclaration;
 use checked_program_to_psi::provider_choice_inputs::{NativeBindingSelection, NativeBuildSupply};
 use diagnostics::Diagnostic;
 use evaluation_receipts::NativeBuildEvaluation;
+use retained_product_selections::CapturedNativeDeclaration;
 use std::sync::Arc;
+use typed_trees::TypedTrees;
 
 /// One supplying dependency's source-admitted declarations and completed Build effects.
 pub struct PackageNativeBindings<'a> {

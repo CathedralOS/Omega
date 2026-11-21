@@ -3,7 +3,8 @@
 
 use syntax_trees_to_symbol_resolved_trees::resolution;
 use symbol_resolved_trees_to_typed_trees::typing;
-use crate::compile_time_invocations::{BuildTimeSelectionAuthority, PreCheckEvaluation};
+use crate::compile_time_invocations::PreCheckEvaluation;
+use declaration_scope::PackageDeclarationScope;
 use artifacts::compile_timings::{CompileTimings, source as stages};
 use diagnostics::{Diagnostic, DiagnosticStage};
 use std::sync::Arc;
@@ -24,7 +25,7 @@ pub struct ResolveAndTypeRequest {
     pub build_helper_identity: &'static str,
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
-    pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    pub selection_authority: Option<Arc<PackageDeclarationScope>>,
 }
 
 #[derive(Clone, record_storage::Record)]
@@ -43,7 +44,6 @@ struct SourceCompletionInput {
 
 #[derive(Clone, record_storage::Record)]
 pub(crate) struct CompletedSource {
-    declaration_syntax: Arc<syntax_trees::SyntaxTrees>,
     accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     typing: typing::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
@@ -54,7 +54,6 @@ pub struct SourceExtensionRequest {
     pub units: source_admission::LoadedSources,
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub first_source: source_text::SourceId,
-    pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
 pub(crate) struct CompletedTypedSource {
@@ -141,11 +140,9 @@ impl ResolveAndTypeRequest {
         parked: Vec<crate::source_state::ParkedBuildLocals>,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
-            declaration_syntax: Arc::new(self.syntax.trees.clone()),
             bindings: self.top_level_bindings.clone(),
-            authority: self.selection_authority.clone(),
+            declaration_scope: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
-            recorded_authority: None,
         };
         let activation = if resolved.is_none() {
             activation::select_retained_source(&self, &context, &parked, timings)?
@@ -160,56 +157,46 @@ impl ResolveAndTypeRequest {
         let retained_requests = activation.as_ref().map(|activation| {
             PreCheckEvaluation::require_recorded_requests(activation.typing.typed())
         });
-        let retained_declaration_syntax = activation
-            .as_ref()
-            .map(|activation| Arc::clone(&activation.declaration_syntax));
-        let (mut retained, mut pending_pre_checks) = match activation {
-            Some(activation) => (Some(activation.typing), activation.pre_checks),
-            None => (None, Vec::new()),
-        };
-        let resolved_base = retained
-            .as_mut()
-            .map(|typing| typing.resolved_base_for_extension())
-            .transpose()?;
         let syntax = self.syntax.trees;
         let pre_check = PreCheckEvaluation::new(self.selection_authority);
-        let (mut typing, mut pending_bodies) =
-            if let (Some(typing), Some(base), Some(base_declarations)) =
-                (retained, resolved_base, retained_declaration_syntax)
-            {
-                extend_declarations(
-                    typing,
-                    resolution::ExtensionRequest {
-                        base,
-                        base_declarations,
-                        syntax,
-                        sources: self.sources,
-                        top_level_bindings: self.top_level_bindings,
-                    },
-                    timings,
-                )?
-            } else {
-                let frontier = match resolved {
-                    Some(frontier) => frontier,
-                    None => resolve_build_bodies(resolution::ResolutionRequest {
+        let (mut typing, mut pending_bodies, mut pending_pre_checks) = if let Some(mut activation) =
+            activation
+        {
+            let base = activation.typing.resolved_base_for_extension()?;
+            let (typing, frontier) = extend_declarations(
+                activation.typing,
+                resolution::ExtensionRequest {
+                    base,
+                    syntax,
+                    sources: self.sources,
+                    top_level_bindings: self.top_level_bindings,
+                },
+                timings,
+            )?;
+            (typing, frontier, activation.pre_checks)
+        } else {
+            let frontier = match resolved {
+                Some(frontier) => frontier,
+                None => resolve_build_bodies(
+                    resolution::ResolutionRequest {
                         syntax,
                         sources: Some(self.sources),
                         top_level_bindings: self.top_level_bindings,
                         retained_base: None,
-                    }, timings)?,
-                };
-                let typing = {
-                    timings
-                        .record_result(stages::TYPE, || {
-                            typing::lower_symbol_resolved_trees_to_seeded_base(
-                                frontier.shared_trees(),
-                            )
-                            .map_err(|diagnostic| vec![diagnostic])
-                        })
-                        .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?
-                };
-                (typing, frontier)
+                    },
+                    timings,
+                )?,
             };
+            let typing = {
+                timings
+                    .record_result(stages::TYPE, || {
+                        typing::lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+                            .map_err(|diagnostic| vec![diagnostic])
+                    })
+                    .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?
+            };
+            (typing, frontier, Vec::new())
+        };
         loop {
             let build_bodies = pending_bodies
                 .pending_machines_in(resolution::DeferredBodyScope::BuildAndToolchain)?;
@@ -320,7 +307,7 @@ impl SourceTypingCheckpoint {
             mut typing,
             mut pending_bodies,
             pending_pre_checks,
-            context,
+            ..
         } = Arc::unwrap_or_clone(owned_input);
         (typing, pending_bodies) = complete_pending_bodies(
             typing,
@@ -331,7 +318,6 @@ impl SourceTypingCheckpoint {
         drop(pending_bodies);
         PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
         let source = CompletedSource {
-            declaration_syntax: context.declaration_syntax,
             typing,
             pending_pre_checks: Vec::new(),
             accounting: Default::default(),
@@ -441,6 +427,7 @@ impl CompletedSource {
     pub(crate) fn extend(
         mut self,
         extension: SourceExtensionRequest,
+        declaration_scope: Option<Arc<PackageDeclarationScope>>,
         timings: &mut CompileTimings,
     ) -> Result<CompletedTypedSource, Vec<Diagnostic>> {
         // Parse admitted generated bytes before touching the retained typed
@@ -448,8 +435,12 @@ impl CompletedSource {
         let units = crate::SourceInput(extension.units).into_parsed_units(timings)?;
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
-        let pre_checks =
-            vec![PreCheckEvaluation::new(Some(extension.selection_authority)); units.len()];
+        let scope = declaration_scope.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "generated Product source requires its package declaration scope",
+            )]
+        })?;
+        let pre_check = PreCheckEvaluation::new(Some(scope));
         let mut units = units.into_iter().map(crate::RetainedSourceParse::into_tree);
         let mut syntax = units
             .next()
@@ -466,7 +457,6 @@ impl CompletedSource {
             self.typing,
             resolution::ExtensionRequest {
                 base: resolved_base,
-                base_declarations: self.declaration_syntax,
                 syntax,
                 sources: extension.sources,
                 top_level_bindings: Vec::new(),
@@ -480,7 +470,7 @@ impl CompletedSource {
             timings,
         )?;
         let mut typed = typing.into_typed();
-        PreCheckEvaluation::record_extension(pre_checks, wire_schema_frontier, &mut typed)?;
+        pre_check.record_extension(wire_schema_frontier, &mut typed)?;
         Ok(CompletedTypedSource {
             accounting: self.accounting,
             typed,

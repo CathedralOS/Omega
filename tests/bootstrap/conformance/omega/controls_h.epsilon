@@ -11,6 +11,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.check_literal_partition();
     self.compiler.compile("machine helper() -> u8 { 1 } machine answer() -> u8 { self.helper(); 2 }", "answer");
     self.incomplete();
 
@@ -21,10 +22,10 @@ machine Main::main(&mut self) {
     self.complete(80);
 
     self.compiler.compile("machine answer() -> u8 { transition { _ -> first(),_ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 2 } }", "answer");
-    self.incomplete();
+    self.complete(42);
 
     self.compiler.compile("machine answer() -> u8 { transition { 1 -> first() } machine first() -> u8 { 1 } }", "answer");
-    self.incomplete();
+    self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { transition true { 1 -> first(),_ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 0 } }", "answer");
     self.incomplete();
@@ -91,4 +92,33 @@ machine Main::incomplete(&mut self) {
         assert self.compiler.tape.finalized == 0;
         assert self.compiler.tape.payload_length() == 0;
     }
+}
+
+// Literal payload bytes can spell arbitrary opcodes. A branch may land only
+// on code, and a literal span must have an unconditional jump around it.
+machine Main::check_literal_partition(&mut self) {
+    self.literal_partition();
+    assert self.compiler.tape.finalize() == 1;
+
+    self.literal_partition();
+    assert self.compiler.tape.emit_jump(12, 9) == 1;
+    assert self.compiler.tape.finalize() == 0;
+    assert self.compiler.tape.failure_offset == 13;
+
+    self.literal_partition();
+    self.compiler.tape.bytes[0] = 19;
+    assert self.compiler.tape.finalize() == 0;
+    assert self.compiler.tape.failure_offset == 9;
+}
+
+machine Main::literal_partition(&mut self) {
+    self.compiler.tape.initialize();
+    assert self.compiler.tape.emit_jump(12, 11) == 1;
+    self.compiler.tape.literal_span_count = 1;
+    self.compiler.tape.literal_starts[0] = 9;
+    self.compiler.tape.literal_ends[0] = 11;
+    assert self.compiler.tape.reserve(2) == 1;
+    self.compiler.tape.write_reserved_byte(255);
+    self.compiler.tape.write_reserved_byte(20);
+    assert self.compiler.tape.emit_r(0, 0) == 1;
 }

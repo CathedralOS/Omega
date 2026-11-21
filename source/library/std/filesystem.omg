@@ -62,8 +62,11 @@ public data DirStatsResult {
     case Ok(stats: DirStats);
 }
 
+// A Windows component contains at most 255 UTF-16 code units. Three UTF-8
+// bytes per unit covers its longest valid spelling; a surrogate pair uses
+// four bytes for two units. POSIX component names fit in the same storage.
 public data DirEntry [copy] {
-    name: [u8; 256];
+    name: [u8; 765];
     name_len: u64;
     is_dir: bool;
     is_file: bool;

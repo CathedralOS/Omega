@@ -288,6 +288,21 @@ follow from the observation kind or diagnostic description. A completion row
 requires the named calculation to finish. It carries the application identity
 and no role tag.
 
+An integer bound recipe can also compare its two top intervals for equality
+(tag 9) or strict integer order (tag 10). The result bounds the comparison's
+integer indicator over every pair of operand values. It is one when every
+pair satisfies the comparison, zero when no pair does, and the interval
+from zero through one otherwise. Multiplying an operation's result range by
+a necessary branch indicator therefore tests representability on targets where
+the operation can execute. Every integer carrier contains zero.
+
+A deployment-dependent call prerequisite applies on paths reaching its
+invocation. A retained predicate can express this as an implication from a
+dominating branch comparison over the selected layout. The artifact reader
+reconstructs the guard from the caller's control flow and the comparison's
+actual operands. A branch whose outcome depends on runtime input supplies no
+deployment-only premise.
+
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
@@ -969,6 +984,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 138 | SelectMachine | descriptor id; the scalar result has the descriptor's callable contract type |
 | 139 | CallMachine | callee value id + callable contract id + counted scalar argument value ids + erased scalar terms + erased proof terms + structural arguments + claim transfers + requirement obligation ids + crash continuations |
 | 140 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
+| 141 | StorageAlignment | shared structural argument naming the observed location |
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces

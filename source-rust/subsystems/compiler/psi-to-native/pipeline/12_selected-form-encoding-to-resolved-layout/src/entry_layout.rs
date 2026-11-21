@@ -104,21 +104,21 @@ impl ResolvedForeignAdapter {
 
 pub fn resolve_foreign_adapter(
     adapter: native_encoding::native_foreign_bridge::EncodedForeignAdapter,
-) -> Result<crate::ResolvedEntry<ResolvedForeignAdapter>, BridgePlacementError> {
+) -> Result<ResolvedForeignAdapter, BridgePlacementError> {
     let ForeignAdapterParts {
         bridge,
         imports,
         locator,
         application,
     } = adapter.into_parts();
-    Ok(crate::ResolvedEntry(ResolvedForeignAdapter(
+    Ok(ResolvedForeignAdapter(
         ForeignAdapterParts {
             bridge: resolve_native_foreign_bridge(bridge)?,
             imports,
             locator,
             application,
         },
-    )))
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,13 +139,13 @@ impl ResolvedCallableEntry {
 
 pub fn resolve_callable_entry(
     encoded: native_encoding::callable_entry::CallableEntryTransport,
-) -> Result<crate::ResolvedEntry<ResolvedCallableEntry>, BridgePlacementError> {
+) -> Result<ResolvedCallableEntry, BridgePlacementError> {
     let (context, bridge) = encoded.into_parts();
     let bridge = bridge.map(resolve_native_entry_bridge).transpose()?;
-    Ok(crate::ResolvedEntry(ResolvedCallableEntry {
+    Ok(ResolvedCallableEntry {
         context,
         bridge,
-    }))
+    })
 }
 
 pub struct ResolvedPrivateEntry {
@@ -165,12 +165,12 @@ impl ResolvedPrivateEntry {
 
 pub fn resolve_private_entry(
     encoded: native_encoding::callable_entry::EncodedPrivateEntry,
-) -> Result<crate::ResolvedEntry<ResolvedPrivateEntry>, BridgePlacementError> {
+) -> Result<ResolvedPrivateEntry, BridgePlacementError> {
     let (identity, transport) = encoded.into_parts();
-    Ok(crate::ResolvedEntry(ResolvedPrivateEntry {
+    Ok(ResolvedPrivateEntry {
         identity,
-        transport: resolve_callable_entry(transport)?.into_layout(),
-    }))
+        transport: resolve_callable_entry(transport)?,
+    })
 }
 
 #[cfg(test)]

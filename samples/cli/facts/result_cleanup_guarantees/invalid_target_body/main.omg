@@ -7,7 +7,7 @@ machine make_token(seed: @Seed) -> Token
 ensures result.ready == seed.ready { Token { ready: seed.ready, value: 7 } }
 machine read(token: @Token) -> u64 { token.value }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

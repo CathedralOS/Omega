@@ -3,8 +3,8 @@ use super::{encode_callable_conformance, encode_type_parameter};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::callable_policy::behavior;
 use crate::encoding::encode::declarations::encode_conformance_bound;
-use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::type_identity_in_scope;
 use crate::encoding::encode::values::contracts::encode_callable_contract;
 use crate::encoding::encode::values::declarations::{
     encode_operator_coordinate, operator_spelling_name, operator_spelling_tag,
@@ -12,6 +12,7 @@ use crate::encoding::encode::values::declarations::{
 use crate::encoding::encode::values::effects::encode_installation_reach;
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::encode::values::identity::encode_supply;
 use crate::encoding::encode::values::identity::encode_target_context;
 use crate::record::PackagePolicyCallable;
@@ -56,20 +57,19 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("conformance_bounds", |encoder| {
         encoder.sequence(&callable.conformance_bounds, encode_conformance_bound)
     })?;
+    let signature_type = |encoder: &mut Encoder, identity: &_| {
+        type_identity_in_scope(encoder, identity, Some(callable.lifetime_parameter_count))
+    };
     encoder.field("parameters", |encoder| {
         encoder.sequence(&callable.parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
+            encoder.field_by("type", &parameter.type_identity, signature_type)?;
             encoder.boolean_field("const", parameter.is_const)?;
             encoder.boolean_field("mutable", parameter.is_mutable)?;
             Ok(())
         })
     })?;
-    encoder.option_field(
-        "return_type",
-        callable.return_type.as_ref(),
-        encode_type_identity,
-    )?;
+    encoder.option_field("return_type", callable.return_type.as_ref(), signature_type)?;
     encoder.field("conformances", |encoder| {
         encoder.sequence(&callable.conformances, encode_callable_conformance)
     })?;
@@ -108,12 +108,12 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("declared_service_reach", |encoder| {
         encoder.option(
             callable.declared_service_reach.as_deref(),
-            |encoder, row| encoder.sequence(row, encode_nominal),
+            |encoder, row| encoder.sequence(row, encode_service),
         )
     })?;
     encoder.field("service_reach_dependency", |encoder| {
         encoder.field("concrete", |encoder| {
-            encoder.sequence(&callable.service_reach_dependency.concrete, encode_nominal)
+            encoder.sequence(&callable.service_reach_dependency.concrete, encode_service)
         })?;
         encoder.field("parameters", |encoder| {
             encoder.sequence(
@@ -130,8 +130,8 @@ pub(in crate::encoding) fn encode_callable(
             PackageReviewCheckedServiceReach::NoCheckedBody => encoder.tag("no_checked_body", 0),
             PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } => {
                 encoder.tag("checked_body", 1);
-                encoder.sequence_field("realized", realized, encode_nominal)?;
-                encoder.sequence_field("concrete", concrete, encode_nominal)?;
+                encoder.sequence_field("realized", realized, encode_service)?;
+                encoder.sequence_field("concrete", concrete, encode_service)?;
             }
         }
         Ok(())

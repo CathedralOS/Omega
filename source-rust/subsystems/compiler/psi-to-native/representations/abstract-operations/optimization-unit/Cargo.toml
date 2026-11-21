@@ -18,6 +18,5 @@ abstract-operations = { path = ".." }
 language-core = { path = "../../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi-semantics" }
 
-terminal-codec = { path = "../../../../psi-artifact/codec" }
+psi-declaration-encoding = { path = "../../../../psi/artifact/declaration-encoding" }

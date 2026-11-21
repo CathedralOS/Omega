@@ -12,14 +12,14 @@ grants package admission.
 mod accessors;
 mod authority;
 mod baseline;
-pub(crate) use baseline::PackagePolicyComponentAssumption;
+pub use baseline::PackagePolicyComponentAssumption;
 pub use baseline::{PackagePolicyBaseline, PackagePolicyNativeBinding};
 mod authority_expressions;
 mod behavior_policy;
-pub(crate) use behavior_policy::{
-    PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyCrashGuard,
-    PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
-    PackagePolicyProgressPremise, PackagePolicyTermination,
+pub(crate) use behavior_policy::{PackagePolicyCapabilityFlow, PackagePolicyProgressPremise};
+pub use behavior_policy::{
+    PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
+    PackagePolicyInferredCrash, PackagePolicyMutation, PackagePolicyTermination,
 };
 mod calling;
 mod conformances;
@@ -29,9 +29,9 @@ mod domains;
 mod identity;
 mod semantic_bindings;
 mod semantic_policy;
-pub(crate) use identity::write_framed_identity;
+pub use identity::write_framed_identity;
 pub use semantic_bindings::SemanticBindingReviewCandidate;
-pub(crate) use semantic_policy::{
+pub use semantic_policy::{
     PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
 };
 pub(crate) mod package;
@@ -51,59 +51,73 @@ pub use policy_rows::{
 pub(crate) mod signatures;
 mod target_context;
 pub(in crate::record) use public_policy::validation;
-pub(crate) use public_policy::{
+pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
-    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
-    PackagePolicyOperatorShape, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackagePolicyMachineParameterContract, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackagePolicyTypeAlias, PackagePolicyTypeParameter,
+    PackagePolicyTypeParameterKind,
 };
-pub(crate) use target_context::PackagePolicyTargetContext;
+pub(crate) use public_policy::{
+    PackagePolicyMachineParameterSignature, PackagePolicyOperatorShape,
+};
+pub use target_context::PackagePolicyTargetContext;
 
 pub use authority::PackageReviewDangerousAuthorityClass;
 pub(crate) use authority::{
-    PackageReviewBooleanExpression, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack,
-    PackageReviewIeeeFloatComparisonKind, PackageReviewInstallationReach,
+    PackageReviewBooleanExpression, PackageReviewDangerousAuthority,
+    PackageReviewDangerousAuthoritySlack, PackageReviewIeeeFloatComparisonKind,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
     PackageReviewPrimitiveType, PackageReviewProgressSubject, PackageReviewRuntimeIndex,
     PackageReviewScalarExpression, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment, PackageReviewWriteFrameCompleteness,
+    PackageReviewStructuralPredicatePathSegment,
+};
+pub use authority::{
+    PackageReviewCrashCause, PackageReviewCrashInterface, PackageReviewInstallationReach,
+    PackageReviewWriteFrameCompleteness,
 };
 pub(crate) use calling::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication, PackagePolicyCallbackMaterialization,
-    PackagePolicyCallbacks, PackagePolicyCallingOpaqueUse, PackagePolicyCallingParameter,
-    PackagePolicyCallingPlan, PackagePolicyEntryControl, PackagePolicyEntryStack,
-    PackagePolicyMachineRegime, PackagePolicyMachineState, PackagePolicyMachineStateSet,
-    PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin,
-    PackagePolicyPhysicalCallingContract, PackagePolicyPreemption, PackagePolicyStatePlan,
+    PackagePolicyCallingOpaqueUse, PackagePolicyEntryStack, PackagePolicyPreemption,
+};
+pub use calling::{
+    PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyCallingPlan,
+    PackagePolicyEntryControl, PackagePolicyMachineRegime, PackagePolicyMachineState,
+    PackagePolicyMachineStateSet, PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin,
+    PackagePolicyPhysicalCallingContract, PackagePolicyStatePlan,
 };
 pub(crate) use conformances::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
     PackagePolicyConformanceRow,
 };
+pub use contracts::PackageReviewLayoutQueryKind;
+pub use contracts::{
+    PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewFloatLiteral,
+    PackageReviewReferenceAccess,
+};
 pub(crate) use contracts::{
-    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCallableSupply, PackageReviewCastForm,
-    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewConstructorField,
-    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
+    PackageReviewAtomicLoadOrdering, PackageReviewConstructorField,
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewMatchArm,
+    PackageReviewOperatorRealization, PackageReviewPropositionApplication,
+    PackageReviewPropositionBinder, PackageReviewPropositionBinderArgument,
+    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody,
+};
+pub use contracts::{
+    PackageReviewByteSequencePredicate, PackageReviewCallableSupply, PackageReviewConstMeaning,
+    PackageReviewConstShape, PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewEvidenceInterface,
-    PackageReviewEvidenceRequirement, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
-    PackageReviewMatchArm, PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,
-    PackageReviewPropositionApplication, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
-    PackageReviewReferenceAccess, PackageReviewResultCaseIdentity,
+    PackageReviewContractOperatorMeaning, PackageReviewEvidenceInterface,
+    PackageReviewEvidenceRequirement, PackageReviewOperatorCoordinate,
+    PackageReviewResultCaseIdentity,
 };
 pub use contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
-pub(crate) use data::{
+pub use data::{
     PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataProperties,
 };
@@ -112,63 +126,71 @@ pub(crate) use domains::{
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainSemanticRole,
 };
-pub use identity::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-pub(crate) use identity::{
+pub use identity::{
+    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewServiceIdentity,
+};
+pub use identity::{
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewToolchainSourceIdentity,
 };
 pub(crate) use package::{
-    PackagePolicyBoundaryApplicationDemand, PackagePolicyBoundaryApplicationRealization,
-    PackagePolicyBoundaryApplications, PackagePolicyBoundaryRealization,
-    PackagePolicyCallableConformance, PackagePolicyCallableRole, PackagePolicyCallables,
-    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
-    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
-    PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
-    PackagePolicyServiceProgressRoute, PackagePolicyServiceReachDependency,
-    PackagePolicyServiceSignature, PackagePolicyTerminalPermission, PackagePolicyTerminalService,
-    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
+    PackagePolicyBoundaryApplicationDemand, PackagePolicyCallableConformance,
+    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate,
+    PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
+    PackageReviewBoundaryApplicationArgument, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority, PackageReviewSymbolicBoundaryApplicationArgument,
+};
+pub use package::{
+    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
+    PackagePolicyBoundaryRealization, PackagePolicyCallableRole, PackagePolicyCallables,
+    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderPlan,
+    PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceReachDependency,
+    PackagePolicyServiceSignature, PackageReviewBoundaryApplication,
     PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
-    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
-    PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewProviderGrantSelectorKind, PackageReviewSelectedInstallationReach,
 };
 pub use package::{
     PackagePolicyCallable, PackagePolicySelectedProviders, PackagePolicyServiceMethod,
     PackagePolicyTerminalPermissions,
 };
+pub use package::{PackagePolicyTerminalPermission, PackagePolicyTerminalService};
 pub use representation::PackagePolicyRepresentation;
 pub(crate) use representation::{
     PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
     PackagePolicyRepresentationSelection, PackageReviewBoundaryCallingPolicy,
-    PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
-    PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,
-    PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
-    PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,
-    PackageReviewMachineRegister, PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackageReviewBoundaryShapeClass, PackageReviewMachineRegister,
+    PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
     PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
-    PackageReviewOpaqueRepresentationPathElement, PackageReviewRepresentationArchitecture,
+    PackageReviewOpaqueRepresentationPathElement,
+};
+pub use representation::{
+    PackageReviewBoundaryShape, PackageReviewBoundaryShapeField, PackageReviewBoundaryShapeGraph,
+    PackageReviewBoundaryValueClass, PackageReviewBoundaryValueLocation,
+    PackageReviewBoundaryValuePlacement, PackageReviewBoundaryValueShape,
+    PackageReviewIndirectPointerLocation, PackageReviewRepresentationArchitecture,
     PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
     PackageReviewRepresentationTargetProfile, PackageReviewSystemVEightbyteClass,
 };
+pub use restricted_build::PackagePolicyRestrictedBuildRequest;
 pub(crate) use restricted_build::{
     PackagePolicyEvaluationSponsorLimits, PackagePolicyFilesystemSponsorLimits,
     PackagePolicyRestrictedBuildBounds, PackagePolicyRestrictedBuildGrant,
     PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
-    PackagePolicyRestrictedBuildRequest,
 };
 
+pub use signatures::{
+    PackagePolicyEvaluatedBindingProducer, PackageReviewConformanceBound,
+    PackageReviewSignatureParameter, PackageReviewTypeIdentity,
+};
 pub(crate) use signatures::{
-    PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
-    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement, PackageReviewConformanceBound,
+    PackagePolicyExternalBinding, PackagePolicyExternalCallableSignature,
+    PackagePolicyExternalExecutableSupply, PackagePolicyExternalRequirement,
     PackageReviewExternalCallableParameter, PackageReviewPropositionParameterSignature,
     PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
-    PackageReviewSignatureParameter, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTypeIdentity,
 };
 pub use signatures::{
     PackageReviewBorrowOrigin, PackageReviewForeignLocator, PackageReviewParameterQualification,
-    PackageReviewReturnedBorrowOrigin,
+    PackageReviewReturnedBorrowOrigin, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
 };

@@ -1333,6 +1333,14 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
     ) {
     }
+    /// The nominal type retained in an already-formed Product selection.
+    fn product_type_input(
+        &mut self,
+        _: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
+        self.extend([symbol]);
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1353,6 +1361,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     }
     fn derived_declaration_references(&self) -> bool {
         true
+    }
+    /// A carried type belongs to the typed program. Inferring it never names
+    /// its declaration in the receiver's source.
+    fn inferred_type_references(&self) -> bool {
+        self.derived_declaration_references()
     }
     fn declaration(&mut self, _: SymbolHandle) -> bool {
         true
@@ -1451,6 +1464,13 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     ) {
         self.0.authored_selection(occurrence);
     }
+    fn product_type_input(
+        &mut self,
+        input: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
+        self.0.product_type_input(input, symbol);
+    }
     fn static_application(
         &mut self,
         application: StaticMachineApplicationHandle,
@@ -1469,6 +1489,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn derived_declaration_references(&self) -> bool {
         self.0.derived_declaration_references()
+    }
+    fn inferred_type_references(&self) -> bool {
+        self.0.inferred_type_references()
     }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         self.0.declaration(symbol)
@@ -2376,6 +2399,20 @@ fn visit_proof_facts(
     }
 }
 
+fn visit_service_reach(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    id: semantic_vocabulary::ServiceReachId,
+) {
+    let Some(row) = program.service_reaches.definition(id) else {
+        return;
+    };
+    visit_symbol(retained, row.symbol);
+    if let Some(application) = &row.application {
+        application.arguments.visit_references(program, retained);
+    }
+}
+
 fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
     retained.extend([symbol]);
 }
@@ -3256,8 +3293,10 @@ pub fn visit_signature(
         .signature_invokes
         .span_or_empty(signature.invokes)
     {
-        if let AuthoredInvocationTarget::Service(target) = invocation.target {
-            visit_symbol(retained, target);
+        match invocation.target {
+            AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
+            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            _ => {}
         }
     }
     for contract in program
@@ -3301,6 +3340,20 @@ fn visit_contract(
         visit_symbol(retained, *result_case);
     }
     visit_proof_facts(program, retained, contract.facts);
+}
+
+fn visit_type_name(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    reference: TypeReferenceHandle,
+    symbol: SymbolHandle,
+) {
+    match program.type_reference_table.operand_origin(reference) {
+        crate::source_state::types::TypeOperandOrigin::ProductInput(input) => {
+            retained.product_type_input(*input, symbol)
+        }
+        _ => visit_symbol(retained, symbol),
+    }
 }
 
 pub fn visit_type_reference(
@@ -3392,7 +3445,7 @@ pub fn visit_type_reference(
             lifetime_arguments,
             ..
         } => {
-            visit_symbol(retained, *base_symbol);
+            visit_type_name(program, retained, type_reference, *base_symbol);
             let arguments = program.type_reference_handles(*arguments);
             // A universe level may use the same syntax node as a computed
             // type. Only its edge from the exact sort makes it a level.
@@ -3431,7 +3484,7 @@ pub fn visit_type_reference(
                     )
                     .is_some()) => {}
         TypeReferenceNode::Named { symbol, .. } => {
-            visit_symbol(retained, *symbol);
+            visit_type_name(program, retained, type_reference, *symbol);
         }
         TypeReferenceNode::Unit => {}
     }
@@ -3677,53 +3730,6 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.declaring_trait);
 }
 
-/// A completed primitive has no nominal callee. Its exact call occurrence,
-/// attachment and primitive meaning establish that absence; unresolved names
-/// and conflicting retained coordinates remain ordinary references.
-fn completed_byte_predicate_call(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    call: &TableCallExpression,
-) -> bool {
-    use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    use crate::source_state::{
-        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
-    };
-
-    let Some((predicate, _)) =
-        crate::source_state::byte_predicates::byte_predicate_call(program, expression)
-    else {
-        return false;
-    };
-    let Some(occurrence) = call.authored_call_selection else {
-        return false;
-    };
-    let Some(row) = program.authored_declaration_selections().get(occurrence) else {
-        return false;
-    };
-    if row.kind() != Kind::Call
-        || row.target() != Target::Intrinsic(Intrinsic::ByteSequencePredicate(predicate))
-    {
-        return false;
-    }
-    let mut own_attached = false;
-    for attached in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
-        let Some(row) = program.authored_declaration_selections().get(attached) else {
-            return false;
-        };
-        if row.kind() == Kind::Call {
-            if attached != occurrence {
-                return false;
-            }
-            own_attached = true;
-        }
-    }
-    own_attached
-}
-
 fn visit_call_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -3743,13 +3749,11 @@ fn visit_call_expression(
             );
         }
     }
-    // Computed calls and core layout queries retain their operands separately
-    // and have no nominal callee. Any present target stays visible for the
-    // source admission owner to diagnose, including malformed coordinates.
-    if (call.runtime_call.is_none()
-        && call.layout_query.is_none()
-        && !completed_byte_predicate_call(program, expression, call))
-        || call.target_symbol != SymbolHandle::invalid()
+    // Every nominal target is a dependency, including the declaration that
+    // supplies a byte predicate. Computed calls and layout queries can omit
+    // the target. All other missing or malformed handles reach admission.
+    if call.target_symbol != SymbolHandle::invalid()
+        || (call.runtime_call.is_none() && call.layout_query.is_none())
     {
         visit_callable_symbol(program, retained, call.target_symbol);
     }
@@ -3822,8 +3826,12 @@ fn visit_call_expression(
     if let Some(query) = &call.native_code_layout {
         visit_static_argument(program, retained, &query.operand);
     }
-    if let Some(query) = &call.layout_query {
-        visit_static_argument(program, retained, &query.operand);
+    if let Some(operand) = call
+        .layout_query
+        .as_ref()
+        .and_then(|query| query.type_operand())
+    {
+        visit_static_argument(program, retained, operand);
     }
     for argument in program.expression_table.expression_handles(call.arguments) {
         visit_expression(program, retained, *argument);
@@ -3926,7 +3934,9 @@ fn visit_statement(
             }
         }
         StatementNode::LocalData(local) => {
-            visit_type_reference(program, retained, local.type_reference);
+            if !local.type_is_inferred || retained.inferred_type_references() {
+                visit_type_reference(program, retained, local.type_reference);
+            }
             for field in program.expression_table.match_fields(local.pattern_fields) {
                 if field.field_symbol.is_valid() {
                     visit_symbol(retained, field.field_symbol);
@@ -4162,8 +4172,10 @@ fn visit_machine_with_sidecars(
     }
 
     for invocation in program.machine_invokes(machine) {
-        if let AuthoredInvocationTarget::Service(target) = invocation.target {
-            visit_symbol(retained, target);
+        match invocation.target {
+            AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
+            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            _ => {}
         }
     }
 
@@ -4171,13 +4183,19 @@ fn visit_machine_with_sidecars(
         if let Some(sidecars) = sidecars {
             for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
                 for target in &program.authored_service_reach_rows[index as usize].targets {
-                    visit_symbol(retained, target.service);
+                    match target.service {
+                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
+                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                    }
                 }
             }
         } else if !program.authored_service_reach_rows.is_empty() {
             for row in program.authored_service_reach_rows_for(from) {
                 for target in &row.targets {
-                    visit_symbol(retained, target.service);
+                    match target.service {
+                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
+                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                    }
                 }
             }
         }

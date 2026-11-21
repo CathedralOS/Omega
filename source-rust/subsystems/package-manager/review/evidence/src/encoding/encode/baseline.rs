@@ -1,5 +1,6 @@
 // Canonical wire framing and resource budget for the composed package policy baseline.
 
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::{
     PackagePolicyBaseline, PackagePolicySemanticDependency,
     PackagePolicySemanticDependencyConsumer, PackageReviewSemanticDependencyExposure,
@@ -14,8 +15,7 @@ use super::{
     selected_providers, terminal_permissions, values,
 };
 use crate::encoding::{
-    PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackagePolicyRecoveryLimits,
-    PackageReviewEncodingError,
+    PACKAGE_POLICY_BASELINE_MAGIC, PackagePolicyRecoveryLimits, PackageReviewEncodingError,
 };
 use declarations::encode_dangerous_authority;
 use declarations::encode_dangerous_authority_slack;
@@ -38,7 +38,7 @@ pub(in crate::encoding) fn framed_policy(
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.fixed_bytes_field("binary_format", PACKAGE_POLICY_BASELINE_MAGIC)?;
-    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
+    encoder.u16_field("baseline_schema", value.schema_version)?;
     encoder.record("package_policy", |encoder| policy(encoder, value))
 }
 
@@ -46,9 +46,13 @@ pub(in crate::encoding) fn policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.applied_services =
+        value.schema_version >= crate::encoding::BASELINE_WITH_APPLIED_SERVICES;
     encoder.package_identity_field("package", value.package)?;
     encoder.string_field("target", value.target.identity().as_str())?;
-    encoder.field_by("public_api", &value.public_api, public_api::public_api)?;
+    encoder.field("public_api", |encoder| {
+        public_api::public_api(encoder, &value.public_api, value.schema_version)
+    })?;
     encoder.field_by("callables", &value.callables, callable_policy::policy)?;
     encoder.field_by(
         "selected_providers",
@@ -76,7 +80,12 @@ pub(in crate::encoding) fn policy(
         encoder.sequence(&value.slack_uses, encode_dangerous_authority_slack)
     })?;
     encoder.field("semantic_dependencies", |encoder| {
-        encoder.sequence(&value.semantic_dependencies, semantic_dependency)
+        encoder.sequence(
+            value
+                .validated_semantic_dependencies()
+                .map_err(PackageReviewEncodingError::new)?,
+            semantic_dependency,
+        )
     })?;
     encoder.field_by(
         "boundary_applications",
@@ -90,7 +99,7 @@ pub(in crate::encoding) fn policy(
         encoder.sequence(&value.assumed_bindings, |encoder, row| encoder.string(row))
     })?;
     encoder.field("service_audits", |encoder| {
-        encoder.sequence(&value.service_audits, encode_nominal)
+        encoder.sequence(&value.service_audits, encode_service)
     })?;
     encoder.sequence_field(
         "component_assumptions",
@@ -110,38 +119,63 @@ pub(super) fn component_assumption(
     })
 }
 
+pub(super) fn carried_type_key(
+    encoder: &mut Encoder,
+    nominal: &crate::record::PackageReviewNominalIdentity,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.tag("carried_type", 2);
+    encoder.field_by("dependency", nominal, encode_nominal)
+}
+
 pub(super) fn semantic_dependency(
     encoder: &mut Encoder,
     dependency: &PackagePolicySemanticDependency,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("consumer", |encoder| {
-        match &dependency.consumer {
-            PackagePolicySemanticDependencyConsumer::Callable(identity) => {
-                encoder.tag("callable", 0);
-                encoder.field_by("identity", identity, encode_nominal)?;
-            }
-            PackagePolicySemanticDependencyConsumer::PackageImplementation => {
-                encoder.tag("package_implementation", 1)
-            }
+    match dependency {
+        PackagePolicySemanticDependency::CarriedType {
+            dependency,
+            supplier_sources,
+            ..
+        } => {
+            carried_type_key(encoder, dependency)?;
+            encoder.fixed_bytes_field("supplier_sources", &supplier_sources.digest())?;
         }
-        Ok(())
-    })?;
-    encoder.field_by("dependency", &dependency.dependency, encode_nominal)?;
-    encoder.field("kind", |encoder| {
-        let name = match dependency.kind {
-            PackageReviewSemanticDependencyKind::NominalIdentity => "nominal_identity",
-            PackageReviewSemanticDependencyKind::Layout => "layout",
-            PackageReviewSemanticDependencyKind::OwnershipBehavior => "ownership_behavior",
-            PackageReviewSemanticDependencyKind::AutomaticCleanup => "automatic_cleanup",
-            PackageReviewSemanticDependencyKind::AutomaticCleanupMachine => {
-                "automatic_cleanup_machine"
-            }
-        };
-        encoder.tag(name, semantic_dependency_kind_tag(dependency.kind));
-        Ok(())
-    })?;
+        PackagePolicySemanticDependency::Declaration {
+            consumer,
+            dependency,
+            kind,
+            ..
+        } => {
+            encoder.field("consumer", |encoder| {
+                match consumer {
+                    PackagePolicySemanticDependencyConsumer::Callable(identity) => {
+                        encoder.tag("callable", 0);
+                        encoder.field_by("identity", identity, encode_nominal)?;
+                    }
+                    PackagePolicySemanticDependencyConsumer::PackageImplementation => {
+                        encoder.tag("package_implementation", 1)
+                    }
+                }
+                Ok(())
+            })?;
+            encoder.field_by("dependency", dependency, encode_nominal)?;
+            encoder.field("kind", |encoder| {
+                let name = match kind {
+                    PackageReviewSemanticDependencyKind::NominalIdentity => "nominal_identity",
+                    PackageReviewSemanticDependencyKind::Layout => "layout",
+                    PackageReviewSemanticDependencyKind::OwnershipBehavior => "ownership_behavior",
+                    PackageReviewSemanticDependencyKind::AutomaticCleanup => "automatic_cleanup",
+                    PackageReviewSemanticDependencyKind::AutomaticCleanupMachine => {
+                        "automatic_cleanup_machine"
+                    }
+                };
+                encoder.tag(name, semantic_dependency_kind_tag(*kind));
+                Ok(())
+            })?;
+        }
+    }
     encoder.field("exposure", |encoder| {
-        match dependency.exposure {
+        match dependency.exposure() {
             PackageReviewSemanticDependencyExposure::PrivateImplementation => {
                 encoder.tag("private_implementation", 0)
             }

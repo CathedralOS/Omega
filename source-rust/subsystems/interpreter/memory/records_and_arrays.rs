@@ -5837,6 +5837,14 @@ pub(crate) mod structural_storage {
                 &self,
                 source: &TerminalStructuralValue,
             ) -> Result<Option<OriginalAllocation>, TerminalInterpretError> {
+                self.owned_allocation_at(source.opaque_identity, &source.path)
+            }
+
+            pub(crate) fn owned_allocation_at(
+                &self,
+                identity: u64,
+                path: &[terminal_psi::StructuralPathSegment],
+            ) -> Result<Option<OriginalAllocation>, TerminalInterpretError> {
                 let homes = self
                     .call_stack
                     .iter()
@@ -5852,8 +5860,8 @@ pub(crate) mod structural_storage {
                 for (depth, machine_id, values) in homes {
                     let machine = self.program.machine(machine_id)?;
                     for (place, allocation) in values {
-                        if allocation.opaque_identity != source.opaque_identity
-                            || !source.path.starts_with(&allocation.path)
+                        if allocation.opaque_identity != identity
+                            || !path.starts_with(&allocation.path)
                         {
                             continue;
                         }

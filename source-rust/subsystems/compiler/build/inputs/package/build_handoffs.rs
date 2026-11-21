@@ -10,7 +10,9 @@ use super::{PackageCompilationInputError, PackageCompilationInputs, PackageDepen
 use crate::PackageSourceConsumptionCommitment;
 use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;
+use retained_product_selections::{CapturedNativeDeclaration, RetainedProviderSelection};
 use semantic_vocabulary::PackageKeyIdentity;
+use source_declarations::declaration_selection::CapturedNativeIntent;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -29,8 +31,7 @@ struct PackageBuildHandoffContents {
     dependency_closure: PackageDependencyClosure,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     sources: Vec<PackageGeneratedSource>,
-    provider_selections:
-        Arc<[source_compiler::compile_product::provider_declarations::RetainedProviderSelection]>,
+    provider_selections: Arc<[RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native: super::native_bindings::NativeBuildOutputs,
 }
@@ -130,21 +131,15 @@ impl PackageBuildHandoff {
         Ok(matched)
     }
 
-    pub fn provider_selections(
-        &self,
-    ) -> &[source_compiler::compile_product::provider_declarations::RetainedProviderSelection] {
+    pub fn provider_selections(&self) -> &[RetainedProviderSelection] {
         &self.contents.provider_selections
     }
 
-    pub fn native_declarations(
-        &self,
-    ) -> &[source_compiler::compile_product::native_binding_declarations::CapturedNativeDeclaration] {
+    pub fn native_declarations(&self) -> &[CapturedNativeDeclaration] {
         &self.contents.native.declarations
     }
 
-    pub fn native_intents(
-        &self,
-    ) -> &[source_compiler::representations::declaration_selection::CapturedNativeIntent] {
+    pub fn native_intents(&self) -> &[CapturedNativeIntent] {
         &self.contents.native.intents
     }
 
@@ -155,8 +150,8 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_native_binding_outputs(
         self,
-        declarations: Vec<source_compiler::compile_product::native_binding_declarations::CapturedNativeDeclaration>,
-        intents: Vec<source_compiler::representations::declaration_selection::CapturedNativeIntent>,
+        declarations: Vec<CapturedNativeDeclaration>,
+        intents: Vec<CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
         if let (Some(provider_observation), Some(native)) =
@@ -185,9 +180,7 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_retained_provider_selections(
         self,
-        selections: Vec<
-            source_compiler::compile_product::provider_declarations::RetainedProviderSelection,
-        >,
+        selections: Vec<RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
         if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())
@@ -219,30 +212,6 @@ impl PackageBuildHandoff {
         Ok(Self {
             contents: Arc::new(contents),
         })
-    }
-
-    #[doc(hidden)]
-    pub fn with_checked_provider_selections(
-        self,
-        typed: &source_compiler::representations::source_state::TypedTrees,
-        selections: &[source_compiler::compile_product::provider_declarations::ProviderSelection],
-        observation: Option<&crate::BuildObservationSummary>,
-    ) -> Result<Self, String> {
-        // Each selection leaves this typing as source anchors a consumer
-        // can rejoin; what an anchor cannot carry is refused by the capture.
-        let retained = selections
-            .iter()
-            .map(|selection| {
-                source_compiler::compile_product::provider_declarations::RetainedProviderSelection::capture(
-                    typed, selection,
-                )
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        self.with_retained_provider_selections(
-            retained,
-            observation.map(|summary| summary.identity().digest()),
-        )
-        .map_err(str::to_owned)
     }
 }
 

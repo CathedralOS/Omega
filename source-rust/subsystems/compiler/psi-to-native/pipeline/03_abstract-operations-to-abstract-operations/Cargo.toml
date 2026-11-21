@@ -10,19 +10,19 @@ test-support = []
 [dependencies]
 abstract-operations = { path = "../../representations/abstract-operations" }
 arena = { path = "../../../../../foundation/arena" }
-optimization = { path = "../../../psi-artifact/optimization-selections" }
+optimization = { path = "../../../psi/artifact/optimization-selections" }
 optimization-core = { path = "../../representations/optimization-records" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-work = { path = "../../../psi/semantics/work" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]
-psi-authorization = { path = "../../../psi-artifact/authorization" }
+psi-authorization = { path = "../../../psi/artifact/authorization" }
 source-compiler = { path = "../../../source-to-psi", features = ["test-support"] }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../02_target-bound-program-to-abstract-operations", features = ["test-support"] }

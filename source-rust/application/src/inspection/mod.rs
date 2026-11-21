@@ -42,9 +42,14 @@ pub fn inspect_terminal(
 ) -> Result<TerminalInspection, InspectTerminalError> {
     let profile = target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
         .map_err(|error| InspectTerminalError::Diagnostics(vec![error]))?;
-    let product =
-        crate::project_sources::open_product(&request.root_path, profile, false, None, None)
-            .map_err(InspectTerminalError::Diagnostics)?;
+    let product = package_manager::project::open_product(
+        &request.root_path,
+        profile,
+        false,
+        &product_publication::output_directory::base(&request.root_path, None),
+        None,
+    )
+    .map_err(InspectTerminalError::Diagnostics)?;
     let stage = product
         .product_stage(&[profile])
         .map_err(InspectTerminalError::Diagnostics)?;

@@ -118,8 +118,7 @@ impl CallableNamespace {
         let refuse = |reason: &str| Refusal {
             source_span: None,
             reason: RefusalReason::Unsupported,
-            machine: context,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(context, Construct::Machine),
             detail: reason.to_owned(),
         };
         if module.execution.callables != TerminalCallableCatalog::default() {

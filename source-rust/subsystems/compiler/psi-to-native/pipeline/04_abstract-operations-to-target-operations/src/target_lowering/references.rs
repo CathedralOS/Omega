@@ -1567,13 +1567,11 @@ mod stored_calls {
                     && structural_arguments.len() == declaration.structural_parameters.len()
                     && structural_arguments.iter().zip(&declaration.structural_parameters)
                         .all(|(actual, formal)| actual.access == formal.access)
-                    && target_operations::descriptor_input_guard_with_closed_scalars(
+                    && crate::descriptor_input::descriptor_input_guard_with_closed_scalars(
                         declaration,
                         binding,
                         types.catalog(),
-                        |buffer| {
-                            crate::target_lowering::borrowed_storage::capture_type(buffer, types)
-                        },
+                        |buffer| types.borrowed_layout(buffer),
                         |scalar| types.closed_scalar(scalar),
                     )
                     .is_ok_and(|guard| guard.is_some())
@@ -1805,7 +1803,7 @@ mod stored_calls {
                         let mut path = formal.path.clone();
                         path.push(StructuralPathSegment::Referent);
                         if !access_covers(supplied.access, formal.access)
-                        || !abstract_operations::control_flow::address_joins::loan_access_permitted(
+                        || !structural_storage_queries::address_joins::loan_access_permitted(
                             types.values().copied(),
                             parameter.structural_type,
                             &path,

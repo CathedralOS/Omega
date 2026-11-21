@@ -13,6 +13,7 @@ pub struct AdmittedRuntimeInput<'input> {
     artifact: &'input AuthorizedTerminalArtifact,
     entry: MachineId,
     boundaries: &'input [terminal_psi::BoundaryMachineDeclaration],
+    borrowed_storage: &'input runtime_abi::NativeBorrowedStorageLayouts,
     target: Option<&'input TerminalTargetContext>,
     scalar_applications: Option<&'input AdmittedScalarApplications>,
     native_scope: Option<&'input crate::NativeExecutionScope>,
@@ -26,6 +27,7 @@ impl VerifiedPsiOptimizationInput {
             artifact: &self.context.artifact,
             entry: self.plan.entry,
             boundaries: &self.plan.boundary_machines,
+            borrowed_storage: self.borrowed_storage.layouts(),
             target: self.target_context.as_ref(),
             scalar_applications: self.scalar_applications.as_ref(),
             native_scope: self.native_execution_scope.as_deref(),
@@ -34,6 +36,10 @@ impl VerifiedPsiOptimizationInput {
 }
 
 impl AdmittedRuntimeInput<'_> {
+    pub(super) fn borrowed_storage(&self) -> &runtime_abi::NativeBorrowedStorageLayouts {
+        self.borrowed_storage
+    }
+
     pub(super) fn require_native_providers(
         &self,
         providers: &crate::ScopedProviderSelection,
@@ -47,7 +53,7 @@ impl AdmittedRuntimeInput<'_> {
             .native_scope
             .ok_or("runtime provisions require the lowered native execution scope")?;
         if scope != providers.scope()
-            || scope.source_native_bindings() != Some(bindings.identity_digest())
+            || scope.source_native_bindings() != bindings.identity_digest()
         {
             return Err("runtime providers differ from their lowered artifact, selection or native bindings".into());
         }

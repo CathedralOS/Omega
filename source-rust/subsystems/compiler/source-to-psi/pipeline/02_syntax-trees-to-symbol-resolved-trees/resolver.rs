@@ -17,6 +17,7 @@ use crate::resolution::names::target_siblings::bind_sibling_calls;
 use crate::resolution::names::type_predicates::retain_operands;
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
+pub use declarations::dispatches::prepare as prepare_dispatches;
 use declarations::machine_equations::complete;
 use declarations::machine_equations::required;
 use declarations::machine_equations::validate_declarations;
@@ -43,16 +44,6 @@ use syntax_trees::SyntaxTrees;
 #[cfg(any(test, feature = "test-support"))]
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     resolve_deferred(request)?.into_complete_trees()
-}
-
-/*
-    Index declarations without granting their implementations execution. The
-    returned owner retains the exact prepared source for subsequent body demand.
-*/
-pub fn resolve_deferred(
-    request: ResolutionRequest,
-) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
-    resolve_deferred_with_declarations(request, None)
 }
 
 /*
@@ -93,15 +84,17 @@ impl ResolutionRequest {
         }
     }
 }
-fn resolve_deferred_with_declarations(
+/*
+    Index declarations without granting their implementations execution. The
+    returned owner retains the exact prepared source for subsequent body demand.
+*/
+pub fn resolve_deferred(
     request: ResolutionRequest,
-    base_declarations: Option<&SyntaxTrees>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) =
-        begin_with_declarations(request, ConstResolutionMode::Complete, base_declarations)?;
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
     if required(&syntax, base.as_deref()) {
         loop {
             let mut provisional = Lowerer::new(sources.clone(), bindings.clone());
@@ -183,23 +176,9 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     Prepare the forest under its constant selector and a lowerer that owns the
     request's custody.
 */
-#[cfg(any(test, feature = "test-support"))]
 fn begin(
     request: ResolutionRequest,
     constants: ConstResolutionMode,
-) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
-    begin_with_declarations(request, constants, None)
-}
-
-/*
-    `begin` for an extension whose retained base was resolved from
-    `base_declarations`: alias expansion reads the base's authored alias
-    declarations there.
-*/
-fn begin_with_declarations(
-    request: ResolutionRequest,
-    constants: ConstResolutionMode,
-    base_declarations: Option<&SyntaxTrees>,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let ResolutionRequest {
         syntax,
@@ -213,7 +192,6 @@ fn begin_with_declarations(
         top_level_bindings.clone(),
         constants,
         retained_base.clone(),
-        base_declarations,
     )?;
     validate_declarations(&prepared.syntax, Some(&prepared.constant_selection))?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);

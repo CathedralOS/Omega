@@ -13,10 +13,10 @@ A release or bootstrap input set can omit the Rust compiler when its dependency 
 | [Compiler](subsystems/compiler/compiler.rs) | Select the requested product. Source can produce portable Psi. Source or an authorized saved Psi artifact can request runtime admission or a native image. |
 | [Source to Psi](subsystems/compiler/source-to-psi/README.md) | Run the numbered source stages from lexing to checked Psi publication. |
 | [Psi program](subsystems/compiler/psi/README.md) | Define the machine bodies, declarations and evidence shared by source publication, interpretation and native lowering. |
-| [Psi artifacts](subsystems/compiler/psi-artifact/README.md) | Encode a published program as a portable `.psi` file and reopen it for a receiving host. |
+| [Psi artifacts](subsystems/compiler/psi/artifact/README.md) | Encode a published program as a portable `.psi` file and reopen it for a receiving host. |
 | [Psi to native](subsystems/compiler/psi-to-native/README.md) | Admit the program and its providers, then run the numbered native stages for the receiving target. |
 | [Interpreter](subsystems/interpreter/README.md) | Execute admitted Psi using the services supplied by its host. |
-| [Package manager](subsystems/package-manager/README.md) | Acquire package sources and maintain dependency, review and publication records. |
+| [Package manager](subsystems/package-manager/README.md) | Prepare projects and their dependencies for Build, and maintain package review and publication records. |
 
 The normal source-to-native route passes checked Psi in memory. Saving `.psi` and
 reopening it are explicit file operations. A requested native stage validator
@@ -25,7 +25,9 @@ checks the original inputs retained for that emission before releasing the image
 
 ## Where code belongs
 
-The [source driver](subsystems/compiler/source-to-psi/driver.rs) and [native driver](subsystems/compiler/psi-to-native/driver/mod.rs) coordinate their numbered transformations in `pipeline/`. Put the data passed between its stages in the corresponding [source representations](subsystems/compiler/source-to-psi/representations) or [native representations](subsystems/compiler/psi-to-native/representations). Shared consumers can use the representation or a verifier for its evidence directly. For example, Build can request [admitted scalar values](subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications) without taking on image production.
+The [source driver](subsystems/compiler/source-to-psi/driver.rs) and [native driver](subsystems/compiler/psi-to-native/driver/mod.rs) coordinate their numbered transformations in `pipeline/`. Put the data passed between its stages in the corresponding [source representations](subsystems/compiler/source-to-psi/representations) or [native representations](subsystems/compiler/psi-to-native/representations).
+
+The [Build scalar evaluator](subsystems/compiler/build/evaluation/scalars/) runs the calculations requested by a published Psi program. [Psi's execution inputs](subsystems/compiler/psi/execution-inputs/) check the supplied scalar results against the program, its providers and its target layout. The interpreter and native compiler both use those checks.
 
 [Compiler foundations](subsystems/compiler/foundation) hold compiler identities and vocabulary used across these boundaries. The [Rust foundation](foundation) provides cross-subsystem facilities, including arenas, exact arithmetic, record storage, byte encoding and [host filesystem operations](foundation/filesystem/src/lib.rs).
 

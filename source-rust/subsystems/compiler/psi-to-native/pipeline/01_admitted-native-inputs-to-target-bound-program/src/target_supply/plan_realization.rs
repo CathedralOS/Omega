@@ -20,15 +20,27 @@ use super::realized_supply::{
 /// No default constructor turns an unfinished projection into empty supply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetSupplyExecutionInputs {
+    pub components: Option<PublishedComponentSuppliers>,
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    pub terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    pub terminal_authority_permissions:
+        Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublishedComponentSuppliers {
+    pub receiver: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    pub suppliers: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        Arc<component_description::VerifiedComponent>,
+    >,
+}
+
 pub struct TargetSupplyRealizationRequest<'a> {
+    components: Option<PublishedComponentSuppliers>,
     logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
     module: &'a TerminalModule,
     target: &'a str,
@@ -52,6 +64,7 @@ impl<'a> TargetSupplyRealizationRequest<'a> {
             logical,
             target: logical.target(),
             reached: logical.requirements(),
+            components: inputs.components,
             calling_applications: inputs.calling_applications,
             external_bindings: inputs.external_bindings,
             evaluated_native_bindings: inputs.evaluated_native_bindings,
@@ -152,31 +165,58 @@ fn checked_plan(
     let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
     attach_calling(&mut schema_value, &choice.target, calling)?;
     let mut identities = ProviderIdentityTable::default();
-    let rows = schema
-        .surface
-        .methods
-        .iter()
-        .zip(&logical.rows)
-        .map(|(method, row)| ProviderPlanRow {
+    let mut rows = Vec::with_capacity(logical.rows.len());
+    let mut row_realizations = Vec::with_capacity(logical.rows.len());
+    let mut row_executions = Vec::with_capacity(logical.rows.len());
+    for (method, row) in schema.surface.methods.iter().zip(&logical.rows) {
+        let (binding, declaration, execution) = match &row.realization {
+            terminal_semantics::logical_providers::LogicalRealization::Checked(_) => (
+                ProviderBinding::CheckedAdapter {
+                    machine_identity: identities.intern(&row.machine),
+                    machine_package_identity: row.machine_package,
+                },
+                None,
+                None,
+            ),
+            terminal_semantics::logical_providers::LogicalRealization::External(position) => {
+                let supply = module
+                    .interfaces
+                    .external_providers
+                    .get(*position)
+                    .ok_or("logical provider lost its checked external supply")?;
+                let execution =
+                    provider_correspondence::external_providers::canonical_external_execution(
+                        supply,
+                        &choice.target,
+                    )?
+                    .ok_or("selected external provider has no canonical execution")?;
+                (
+                    ProviderBinding::CompilerIntrinsic {
+                        machine: row.machine.clone(),
+                    },
+                    Some(text(module, supply.realization.machine.identity())?.to_owned()),
+                    Some(execution),
+                )
+            }
+        };
+        rows.push(ProviderPlanRow {
             method: method.name.clone(),
             requirement_identity: identities.intern(&row.requirement),
             declared_requirement_identity: identities.intern(&row.requirement),
             calling_signature: None,
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
-            binding: ProviderBinding::CheckedAdapter {
-                machine_identity: identities.intern(&row.machine),
-                machine_package_identity: row.machine_package,
-            },
-        })
-        .collect::<Vec<_>>();
+            binding,
+        });
+        row_realizations.push(declaration);
+        row_executions.push(execution);
+    }
     let provider_application = choice
         .provider_application
         .map(|identity| text(module, identity))
         .transpose()?
         .map(|identity| identities.intern(identity))
         .unwrap_or_default();
-    let count = rows.len();
     let plan = ProviderPlan {
         name: crate::satisfies_plan_name(
             &choice.target,
@@ -185,7 +225,7 @@ fn checked_plan(
         ),
         provider_type: provider.to_owned(),
         provider_declaration: Some(owner.to_owned()),
-        row_numeric_realizations: vec![None; count],
+        row_numeric_realizations: row_realizations,
         provider_application,
         provider_type_package_identity: choice.provider_package,
         target: choice.target.clone(),
@@ -197,11 +237,12 @@ fn checked_plan(
         ..ProviderPlan::default()
     };
     Ok(ProviderPlanRealizationInput {
+        component: None,
         composition_mode: choice.composition_mode,
         schema_declaration: choice.schema_declaration,
         schema_application: choice.schema_application,
         declaration: plan,
-        row_executions: vec![None; count],
+        row_executions,
     })
 }
 
@@ -500,11 +541,26 @@ pub fn realize_target_supply(
     let mut plans = Vec::with_capacity(logical.len());
     let mut covered = vec![false; request.reached.len()];
     for selected in logical {
-        plans.push(checked_plan(
-            module,
-            selected,
-            &request.calling_applications,
-        )?);
+        let mut plan = checked_plan(module, selected, &request.calling_applications)?;
+        if let Some(components) = &request.components
+            && selected.choice.composition_mode
+                == semantic_vocabulary::source_selections::CompositionMode::Independent
+        {
+            if components.receiver.view().identity() != request.logical.program() {
+                return Err("component imports belong to another receiving publication".into());
+            }
+            let supplier = selected
+                .choice
+                .provider_package
+                .and_then(|package| components.suppliers.get(&package))
+                .ok_or("independent provider has no separately verified supplier package")?;
+            plan.component = Some(verified_optimization_input::ComponentImport::admit(
+                components.receiver.view(),
+                Arc::clone(supplier),
+                &plan.declaration,
+            )?);
+        }
+        plans.push(plan);
         for (ordinal, boundary) in request.reached.iter().enumerate() {
             covered[ordinal] |= selected.covered.contains(boundary);
         }

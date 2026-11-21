@@ -59,8 +59,7 @@ impl Lowering<'_> {
         let id = self.id;
         self.blocks.get_mut(block).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: id,
-            concerns: Construct::Block(block),
+            site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
             source_span: None,
             detail: String::from("block is past the end of this machine"),
         })
@@ -421,13 +420,8 @@ impl Lowering<'_> {
                 // whether any arrival can take (`MachineSources::branches`):
                 // this arm, and the arm after it when that one takes
                 // whatever this guard turned away.
-                self.sources.branches.push(crate::lowering::Branch {
-                    block: arm,
-                    decided_in,
-                    arm: (*source).into(),
-                    condition: guard.source.into(),
-                });
-                self.fallthrough = Some(crate::lowering::Branch {
+                self.authored_arm(arm, decided_in, *source, guard.source);
+                self.fallthrough = self.owns_body.then_some(crate::lowering::Branch {
                     block: rest,
                     decided_in,
                     arm: (*source).into(),
@@ -814,8 +808,7 @@ impl Lowering<'_> {
                 let Some((_, arm_source)) = default else {
                     return Err(Refusal {
                         reason: RefusalReason::Unestablished,
-                        machine: self.id,
-                        concerns: Construct::Block(self.current()?),
+                        site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Block(self.current()?)),
                         source_span: source.span(),
                         detail: "a conditional case pattern leaves values uncovered; add a case fallback or wildcard".into(),
                     });
@@ -852,7 +845,8 @@ impl Lowering<'_> {
             self.selected.clone_from(&selected);
             self.path.truncate(path);
         }
-        if let Some((_, source)) = default
+        if self.owns_body
+            && let Some((_, source)) = default
             && !default_used
         {
             self.sources.dead_wildcards.push(source.into());
@@ -926,6 +920,9 @@ impl Lowering<'_> {
         arm: SourceOrigin,
         condition: SourceOrigin,
     ) {
+        if !self.owns_body {
+            return;
+        }
         self.sources.branches.push(crate::lowering::Branch {
             block,
             decided_in,
@@ -1013,8 +1010,10 @@ impl Lowering<'_> {
                     .get_mut(join)
                     .ok_or(Refusal {
                         reason: RefusalReason::ForeignIdentity,
-                        machine: id,
-                        concerns: Construct::Block(join),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            id,
+                            Construct::Block(join),
+                        ),
                         source_span: None,
                         detail: String::from("a match join is past its function"),
                     })?
@@ -1067,7 +1066,7 @@ impl Lowering<'_> {
         scalar_type: ScalarType,
         qualification: crate::lowering::body::Qualification,
         clauses: &[Proposition],
-        stated: Option<&terminal_check_tables::program::CastCondition>,
+        stated: Option<&terminal_check_tables::program::EstablishedCondition>,
         source: SourceOrigin,
     ) -> Checked<ValueId> {
         let id = self.id;
@@ -1148,8 +1147,7 @@ impl Lowering<'_> {
             .get_mut(block)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Block(block),
+                site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
                 source_span: None,
                 detail: String::from("block is past the end of this machine"),
             })?

@@ -197,23 +197,16 @@ impl<'program> Program<'program> {
         if declaration.is_boundary {
             schema_local_shape(typed, context, declaration)?;
             if !declaration.requires.is_empty() {
-                let scope = AppliedTraitScope::new(
-                    typed,
-                    declaration,
-                    crate::source_state::trait_definition::TraitApplicationArguments {
-                        lexical_owner: declaration.symbol,
-                        enclosing_data_applications: &[],
-                        arguments: &[],
-                        lifetimes: &[],
-                    },
-                )
-                .ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "boundary parent contracts need their complete declaration application",
-                    )
-                })?;
-                self.require_boundary_parent_contract(context, &scope)?;
+                // A schema owns an open telescope. Closed calls independently
+                // project the same parent edges under their actual arguments.
+                let scope = AppliedTraitScope::abstract_scope(declaration);
+                if declaration.type_parameters.is_empty()
+                    && declaration.lifetime_parameters.is_empty()
+                {
+                    self.require_boundary_parent_contract(context, &scope)?;
+                } else {
+                    Self::check_boundary_parents(typed, context, &scope)?;
+                }
             }
         } else {
             schema_shape(typed, context, declaration)?;
@@ -380,7 +373,22 @@ impl<'program> Program<'program> {
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
     ) -> Checked<()> {
-        let typed = self.typed;
+        if Self::check_boundary_parents(self.typed, context, scope)? {
+            let environment = scope.environment();
+            if !self.boundary_parent_contracts.contains(&environment) {
+                self.boundary_parent_contracts.push(environment);
+            }
+        }
+        Ok(())
+    }
+
+    /// A schema can check its inheritance with open parameters. Calling
+    /// policies are issued for the receiving application when it is supplied.
+    fn check_boundary_parents(
+        typed: &crate::source_state::TypedTrees,
+        context: MachineId,
+        scope: &AppliedTraitScope<'_>,
+    ) -> Checked<bool> {
         if !scope.declaration.is_boundary {
             return Err(services::unavailable(
                 context,
@@ -430,13 +438,7 @@ impl<'program> Program<'program> {
                 }
             }
         }
-        if needs_contract_owner {
-            let environment = scope.environment();
-            if !self.boundary_parent_contracts.contains(&environment) {
-                self.boundary_parent_contracts.push(environment);
-            }
-        }
-        Ok(())
+        Ok(needs_contract_owner)
     }
 
     pub(super) fn prepare_inherited_boundary_contracts(
@@ -454,7 +456,6 @@ impl<'program> Program<'program> {
             root.clone(),
         )
         .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
-        let mut required_headers = std::collections::HashSet::new();
         for parent in scopes.iter().skip(1) {
             let declaration = parent.declaration;
             if declaration.is_boundary {
@@ -462,6 +463,9 @@ impl<'program> Program<'program> {
                 // service, the declaring boundary owns each inherited contract.
                 if selected_calling.is_none() && !declaration.machines.is_empty() {
                     self.boundary_trait_declaration(context, declaration)?;
+                    let schema = self.static_contracts.schemas.iter()
+                        .find(|schema| schema.declaration == declaration.symbol)
+                        .ok_or_else(|| unavailable("inherited service lost its admitted declaration"))?;
                     for requirement in typed.trait_machine_signatures(declaration) {
                         let header = typed
                             .applied_callable_signature(parent, requirement.symbol)
@@ -471,7 +475,9 @@ impl<'program> Program<'program> {
                             .ok_or_else(|| {
                                 unavailable("inherited boundary call has no complete applied header")
                             })?;
-                        required_headers.insert(header.symbol);
+                        if !schema.requirements.iter().any(|row| row.declaration == header.symbol) {
+                            return Err(unavailable("inherited call is absent from the declaring service's contract"));
+                        }
                     }
                 }
                 continue;
@@ -504,22 +510,6 @@ impl<'program> Program<'program> {
                         ));
                     }
                 }
-            }
-        }
-        if !required_headers.is_empty() {
-            for (id, source) in self.declaration_sources.iter() {
-                if self
-                    .declaration_selections
-                    .get(id)
-                    .is_some_and(Option::is_none)
-                {
-                    required_headers.remove(&source.symbol);
-                }
-            }
-            if !required_headers.is_empty() {
-                return Err(unavailable(
-                    "inherited boundary call has no admitted declaration contract",
-                ));
             }
         }
         Ok(())
@@ -715,44 +705,56 @@ impl<'program> Program<'program> {
                     "implementation has no complete exact trait application",
                 )
             })?;
-        let application_identity = application
-            .portable_application_identity(typed)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "implementation trait application has no portable identity",
-                )
-            })?;
-        let requirements = typed.trait_machine_signatures(application.declaration);
+        // Check each generic body against the public contract even when no
+        // call in this compilation needs a concrete implementation.
+        if schema.is_boundary && self.is_generic_conformance(declaration) {
+            self.generic_conformance_witnesses(context, declaration)?;
+        }
+        let receivers = crate::source_state::service_declarations::projection::inherited_scopes(
+            typed, application,
+        )
+        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        let mut requirements = std::collections::HashMap::new();
+        for receiver in &receivers {
+            for signature in typed.trait_machine_signatures(receiver.declaration) {
+                if requirements
+                    .insert(signature.symbol, (receiver, signature))
+                    .is_some()
+                {
+                    return Err(services::unavailable(
+                        context,
+                        "two declarations claim the same implementation requirement",
+                    ));
+                }
+            }
+        }
         if declaration.rows.len() != requirements.len() {
             return Err(services::unavailable(
                 context,
                 "implementation rows do not cover the complete schema",
             ));
         }
-        let mut entered = Vec::with_capacity(declaration.rows.len());
         let mut questions = Vec::with_capacity(declaration.rows.len());
         for row in &declaration.rows {
-            if row.declaring_trait != application.declaration.symbol
-                || entered.contains(&row.requirement)
-            {
-                return Err(services::unavailable(
-                    context,
-                    "implementation repeats or changes an exact schema requirement",
-                ));
-            }
-            let required = requirements
-                .iter()
-                .find(|signature| signature.symbol == row.requirement)
+            let (application, required) = requirements
+                .remove(&row.requirement)
+                .filter(|(owner, _)| owner.declaration.symbol == row.declaring_trait)
                 .ok_or_else(|| {
                     services::unavailable(
                         context,
-                        "implementation row names no exact schema requirement",
+                        "implementation row repeats or changes an exact declaring requirement",
                     )
                 })?;
-            entered.push(row.requirement);
+            let application_identity = application
+                .portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "implementation requirement has no portable receiver identity",
+                    )
+                })?;
             let supplied = typed
                 .machine_by_symbol(row.realization_machine)
                 .ok_or_else(|| {
@@ -775,7 +777,7 @@ impl<'program> Program<'program> {
                                 required.symbol,
                             )
                             .map_err(|reason| services::unavailable(context, reason))?
-                            .is_some_and(|own| own.same_application(typed, &application)));
+                            .is_some_and(|own| own.same_application(typed, application)));
                 if !same_application {
                     return Err(services::unavailable(
                         context,
@@ -811,123 +813,136 @@ impl<'program> Program<'program> {
                     ));
                 }
             }
-            let implementation = if self.select_native_provider(context, supplied.symbol)? {
-                SourceImplementation::Native(supplied.symbol)
-            } else {
-                let machine = self.subject_machine(supplied.symbol)?;
-                self.fixed_contracts
-                    .push(super::FixedContract::Interface(machine));
-                SourceImplementation::Machine(machine)
-            };
-            let scope = self.applied_scope(context, &application, required)?;
-            let signature = self.static_requirement_signature(
-                context,
-                required,
-                scope,
-                application.declaration.is_boundary,
-                false,
-            )?;
-            if signature
-                .parameters
-                .iter()
-                .any(|value| matches!(value, ValueType::Rigid(_)))
-                || matches!(signature.result, Some(ValueType::Rigid(_)))
-            {
-                return Err(services::unavailable(
-                    context,
-                    "conformance requirement retains an unapplied abstract carrier",
-                ));
-            }
-            let provider = if application.declaration.is_boundary
-                && matches!(implementation, SourceImplementation::Machine(_))
-            {
-                let requirement = if application.keeps_declared_signatures(typed) {
-                    required.symbol
+            let members =
+                self.conformance_method_bodies(context, application, required, supplied)?;
+            for (applied_requirement, supplied) in members {
+                let implementation = if self.select_native_provider(context, supplied.symbol)? {
+                    SourceImplementation::Native(supplied.symbol)
                 } else {
-                    let mut closed = typed.closed_requirement_applications().filter(|closed| {
-                        closed.template == required.symbol
-                            && typed
-                                .type_identity_text(closed.portable_trait_application_identity)
-                                .as_deref()
-                                == Some(application_identity.as_str())
-                            && closed.local_arguments.is_empty()
-                    });
-                    let selected = closed.next().ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "boundary implementation lost its prepared exact receiving application",
-                        )
-                    })?;
-                    if closed.next().is_some() {
-                        return Err(services::unavailable(
-                            context,
-                            "boundary implementation has ambiguous receiving applications",
-                        ));
-                    }
-                    selected.signature.symbol
+                    let machine = self.subject_machine(supplied.symbol)?;
+                    self.fixed_contracts
+                        .push(super::FixedContract::Interface(machine));
+                    SourceImplementation::Machine(machine)
                 };
-                let (boundary, _) = self
-                    .read_boundary_declaration(context, requirement)?
-                    .ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "boundary implementation lost its genuine required header",
-                        )
-                    })?;
-                let mut templates = typed
-                    .machine_specializations
+                let scope = self.applied_scope(context, application)?;
+                let signature = self.static_requirement_signature(
+                    context,
+                    applied_requirement,
+                    scope,
+                    application.declaration.is_boundary,
+                    false,
+                )?;
+                if signature
+                    .parameters
                     .iter()
-                    .filter(|receipt| receipt.instance == supplied.symbol);
-                let template = templates
-                    .next()
-                    .map_or(supplied.symbol, |receipt| receipt.template);
-                if templates.next().is_some() {
+                    .any(|value| matches!(value, ValueType::Rigid(_)))
+                    || matches!(signature.result, Some(ValueType::Rigid(_)))
+                {
                     return Err(services::unavailable(
                         context,
-                        "provider body has ambiguous specialization provenance",
+                        "conformance requirement retains an unapplied abstract carrier",
                     ));
                 }
-                let original = typed.machine_by_symbol(template).ok_or_else(|| {
-                    services::unavailable(context, "provider body lost its original declaration")
-                })?;
-                Some(StaticProviderCandidate {
-                    boundary,
-                    declaration: symbol,
-                    provider_identity: typed
-                        .normalized_hermetic_symbol_identity(
-                            typed.implementation_value_head(symbol),
-                        )
-                        .map_err(|reason| services::unavailable(context, reason))?,
-                    source_requirement: typed.trait_requirement_callable_identity_text(
-                        application.declaration,
-                        required,
-                    ),
-                    source_candidate: typed.machine_callable_identity_text(original).ok_or_else(
-                        || {
+                let provider = if application.declaration.is_boundary
+                    && matches!(implementation, SourceImplementation::Machine(_))
+                {
+                    let requirement = if typed
+                        .closed_requirement_application(applied_requirement.symbol)
+                        .is_some()
+                        || application.keeps_declared_signatures(typed)
+                    {
+                        applied_requirement.symbol
+                    } else {
+                        let mut closed = typed.closed_requirement_applications().filter(|closed| {
+                            closed.template == applied_requirement.symbol
+                                && typed.requirement_application_matches_contract_scope(
+                                    closed.signature.symbol,
+                                    application,
+                                )
+                                && closed.local_arguments.is_empty()
+                        });
+                        let selected = closed.next().ok_or_else(|| {
                             services::unavailable(
                                 context,
-                                "provider body has no original callable identity",
+                                "boundary implementation lost its prepared exact receiving application",
                             )
-                        },
+                        })?;
+                        if closed.next().is_some() {
+                            return Err(services::unavailable(
+                                context,
+                                "boundary implementation has ambiguous receiving applications",
+                            ));
+                        }
+                        selected.signature.symbol
+                    };
+                    let (boundary, _) = self
+                        .read_boundary_declaration(context, requirement)?
+                        .ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "boundary implementation lost its genuine required header",
+                            )
+                        })?;
+                    let mut templates = typed
+                        .machine_specializations
+                        .iter()
+                        .filter(|receipt| receipt.instance == supplied.symbol);
+                    let template = templates
+                        .next()
+                        .map_or(supplied.symbol, |receipt| receipt.template);
+                    if templates.next().is_some() {
+                        return Err(services::unavailable(
+                            context,
+                            "provider body has ambiguous specialization provenance",
+                        ));
+                    }
+                    let original = typed.machine_by_symbol(template).ok_or_else(|| {
+                        services::unavailable(
+                            context,
+                            "provider body lost its original declaration",
+                        )
+                    })?;
+                    Some(StaticProviderCandidate {
+                        boundary,
+                        declaration: symbol,
+                        provider_identity: typed
+                            .normalized_hermetic_symbol_identity(
+                                typed.implementation_value_head(symbol),
+                            )
+                            .map_err(|reason| services::unavailable(context, reason))?,
+                        // The selection names the public method in the service schema.
+                        // Its boundary above identifies this particular checked call.
+                        source_requirement: typed.trait_requirement_callable_identity_text(
+                            application.declaration,
+                            required,
+                        ),
+                        source_candidate: typed
+                            .machine_callable_identity_text(original)
+                            .ok_or_else(|| {
+                                services::unavailable(
+                                    context,
+                                    "provider body has no original callable identity",
+                                )
+                            })?,
+                        package: typed.symbols.symbol_package_identity(template),
+                    })
+                } else {
+                    None
+                };
+                questions.push(SourceConformance {
+                    declaration: symbol,
+                    requirement: applied_requirement.symbol,
+                    application: application_identity.clone(),
+                    implementation,
+                    signature,
+                    envelope: self.static_envelope(
+                        context,
+                        applied_requirement,
+                        application.declaration.is_boundary,
                     )?,
-                    package: typed.symbols.symbol_package_identity(template),
-                })
-            } else {
-                None
-            };
-            questions.push(SourceConformance {
-                declaration: symbol,
-                requirement: row.requirement,
-                application: application_identity.clone(),
-                implementation,
-                signature,
-                envelope: self.static_envelope(
-                    context,
-                    required,
-                    application.declaration.is_boundary,
-                )?,
-                provider,
-            });
+                    provider,
+                });
+            }
         }
         let start = self.static_contracts.conformances.len();
         self.static_contracts.conformances.extend(questions);
@@ -945,34 +960,23 @@ impl<'program> Program<'program> {
         &mut self,
         context: MachineId,
         application: &AppliedTraitScope<'_>,
-        signature: &StateSignature,
     ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
         let typed = self.typed;
         let outer = std::mem::take(&mut self.scope);
-        let view = application.type_reference(typed, signature.return_type);
-        let result = (|| {
-            for (parameter, _) in &application.substitutions {
-                let actual = view.parameter_argument(typed, *parameter).ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "trait substitution lost its exact supplying frame",
-                    )
-                })?;
-                let value = self.value_type(context, actual.reference)?;
-                if let Some((_, previous)) = self
-                    .scope
-                    .iter_mut()
-                    .find(|(symbol, _)| symbol == parameter)
-                {
-                    *previous = value;
-                } else {
-                    self.scope.push((*parameter, value));
-                }
-            }
-            Ok(self.scope.clone())
-        })();
+        // A non-generic conformance supplies its receiver arguments together,
+        // independently of which parameters its chosen method uses.
+        let scope = typed
+            .trait_type_parameters(application.declaration)
+            .iter()
+            .filter(|binder| binder.kind == crate::source_state::data::TypeParameterKind::Type)
+            .map(|binder| {
+                let actual = application.parameter_argument(typed, binder.symbol);
+                self.value_type(context, actual)
+                    .map(|value| (binder.symbol, value))
+            })
+            .collect();
         self.scope = outer;
-        result
+        scope
     }
 }
 
@@ -1031,11 +1035,6 @@ fn schema_local_shape(
     for parameter in parameters {
         if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
             || seen.contains(&parameter.symbol)
-            || !matches!(
-                parameter.kind,
-                crate::source_state::data::TypeParameterKind::Type
-                    | crate::source_state::data::TypeParameterKind::Implementation
-            )
             || parameter.bounds.carry.is_some()
             || parameter.bounds.multiplicity != language_core::Multiplicity::Affine
             || typed.symbols.get(parameter.symbol).parent != schema.symbol
@@ -1097,11 +1096,11 @@ impl crate::source_state::references::TypedReferences for SignatureReferences<'_
         }
         if let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
             self.typed.type_reference_table.type_reference(reference)
-            && (!self.typed.symbols.symbols().nodes().is_valid(*symbol)
-                || (self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-                    && !self.binders.contains(symbol)))
+            && self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && !self.binders.contains(symbol)
         {
-            self.error = Some("static signature has an unresolved or out-of-scope type binder");
+            self.error = Some("static signature has an out-of-scope type binder");
             return false;
         }
         enter(&mut self.types, reference)

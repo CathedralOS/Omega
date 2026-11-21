@@ -33,7 +33,7 @@ pub fn boundary_contract_matches_selected_schema(
     }) && matching.next().is_none()
 }
 
-fn numeric_boundary_realization(
+pub(crate) fn numeric_boundary_realization(
     module: &terminal_psi::TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
 ) -> Result<NearestIeeeFloatArithmeticRealization, &'static str> {
@@ -41,7 +41,7 @@ fn numeric_boundary_realization(
     let meaning = boundary
         .numeric_intrinsic
         .ok_or("numeric boundary has no numeric meaning")?;
-    crate::catalog_realization(meaning.into(), None)
+    crate::catalog_realization(meaning.into(), meaning.builtin_format().map(Into::into))
         .ok_or("numeric boundary has no closed execution catalog entry")
 }
 pub fn numeric_boundary_execution(

@@ -312,6 +312,32 @@ fn about_result(description: Proposition, result: ValueId) -> Vec<Proposition> {
         .collect()
 }
 
+/// A return can choose among several exact scalar values even if no single
+/// value is common to all exits. A literal, a formal or a target observation
+/// names a whole value and adds no arithmetic formation condition.
+fn result_choice(parts: &[Proposition], result: &ScalarTerm) -> Option<Proposition> {
+    parts.iter().find_map(|part| {
+        let Proposition::Equal(left, right) = part else {
+            return None;
+        };
+        let value = if left == result {
+            right
+        } else if right == result {
+            left
+        } else {
+            return None;
+        };
+        (value != result
+            && matches!(
+                value,
+                ScalarTerm::Integer { .. }
+                    | ScalarTerm::Value { .. }
+                    | ScalarTerm::Application { .. }
+            ))
+        .then(|| part.clone())
+    })
+}
+
 /// The bound every return seen so far satisfies, after one more return whose
 /// own bound is `next`: the one further out in the direction `outward`
 /// (`Less` for a lower bound). `Some(None)` before any return; `None` once a
@@ -470,6 +496,7 @@ fn summarize(
     // What every return establishes: a comparison each return's description
     // holds, and the widest of the returns' literal bounds.
     let mut common: Option<Vec<Proposition>> = None;
+    let mut choices = Some(Vec::new());
     let mut lowest = Some(None);
     let mut highest = Some(None);
     for (edge, value) in &exits {
@@ -513,6 +540,13 @@ fn summarize(
             lowest = widest(lowest, lower, integer, std::cmp::Ordering::Less);
             highest = widest(highest, upper, integer, std::cmp::Ordering::Greater);
         }
+        if let Some(values) = &mut choices {
+            if let Some(value) = result_choice(&parts, &result) {
+                values.push(value);
+            } else {
+                choices = None;
+            }
+        }
         common = Some(match common {
             None => parts,
             Some(mut common) => {
@@ -533,6 +567,11 @@ fn summarize(
         if let Some(Some(upper)) = highest {
             parts.push(Proposition::LessOrEqual(result.clone(), literal(upper)));
         }
+    }
+    if parts.is_empty()
+        && let Some(values) = choices
+    {
+        parts.push(joins::connective(values, false));
     }
     let Ok(summary) = entry_inputs::canonical(joins::connective(parts, true), id) else {
         return Ok(());

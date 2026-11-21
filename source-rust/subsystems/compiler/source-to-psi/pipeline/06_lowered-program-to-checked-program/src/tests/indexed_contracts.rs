@@ -202,8 +202,48 @@ machine entry(buffer: @Buffer) -> u16 { buffer.large[4095] }
     );
 }
 
-const NATIVE: &str =
-    include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
+#[test]
+fn a_recursive_edge_owes_the_element_at_its_own_selector() {
+    let source = r#"machine selected(items: @[u8; 4], index: u64, remaining: u64) -> u8
+        requires index < 4u64
+        requires items[index] == 71u8
+        terminates by remaining
+        {
+            transition remaining > 0u64 {
+                true -> selected(items, index, remaining - 1u64),
+                _ -> items[index]
+            }
+        }
+        machine main() -> u8 {
+            let bytes: [u8; 4] = [1, 2, 3, 71];
+            selected(@bytes, 3u64, 2u64)
+        }"#;
+    let kept = judge(invocation(source, "main")).unwrap();
+    assert!(matches!(kept, RouteVerdict::Accepted(_)), "{kept:?}");
+    for (case, changed) in [
+        (
+            "different recursive selector",
+            source.replace("selected(items, index,", "selected(items, 0u64,"),
+        ),
+        (
+            "different input byte",
+            source.replace("[1, 2, 3, 71]", "[1, 2, 3, 70]"),
+        ),
+        (
+            "selector past the end",
+            source.replace("@bytes, 3u64", "@bytes, 4u64"),
+        ),
+    ] {
+        assert_ne!(source, changed);
+        let refused = judge(invocation(&changed, "main")).unwrap();
+        assert!(
+            matches!(refused, RouteVerdict::Rejected { .. }),
+            "{case}: {refused:?}"
+        );
+    }
+}
+
+const NATIVE: &str = include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
 #[test]
 fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {

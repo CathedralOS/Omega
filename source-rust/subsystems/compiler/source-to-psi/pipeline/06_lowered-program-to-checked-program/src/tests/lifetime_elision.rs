@@ -221,8 +221,11 @@ machine helper(name: @[u8]) -> Session { Session { ready: true, name: name } }
 /// The source record rows of an accepted Build program, by the name of the
 /// data declaration each came from: whether the row kept a type occurrence.
 fn record_rows(build: &str) -> Vec<(String, bool)> {
-    let typed = crate::prepare_fixture(super::build_purpose::frontier_of("machine product_entry() { }", build));
-    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let typed = crate::prepare_fixture(super::build_purpose::frontier_of(
+        "machine product_entry() { }",
+        build,
+    ));
+    let entry = super::build_purpose::symbol(typed.trees(), "build_entry");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         super::build_purpose::roster(
@@ -245,7 +248,10 @@ fn record_rows(build: &str) -> Vec<(String, bool)> {
         .records
         .iter()
         .map(|row| {
-            let data = typed.data_definition_by_symbol(row.declaration).unwrap();
+            let data = typed
+                .trees()
+                .data_definition_by_symbol(row.declaration)
+                .unwrap();
             (data.name.as_str().to_owned(), row.application.is_some())
         })
         .collect();

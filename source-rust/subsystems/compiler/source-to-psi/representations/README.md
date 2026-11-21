@@ -18,11 +18,13 @@ shows which records its operations produce and what the next operation reads.
 | [Terminal Psi](../../psi/psi.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 | [Published target providers](published-target-providers/publication.rs) | [Stage 07](../pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs) binds the checked provider demand and completed Build bindings to a Psi manifest and deployment. | [Native stage 00](../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) receives them for that manifest and target. |
 
+When a dependency's Build chooses a provider or a native binding, the package stores the [declarations and arguments it selected](retained-product-selections/selections.rs). Build reads [provider choices](../../build/inputs/package/provider_selection_codec.rs) and [native bindings](../../build/inputs/package/native_output_codec.rs) from those records. The source compiler checks them against the consuming program.
+
 The [Terminal interpreter](../../../interpreter/README.md) runs the published
-program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi-artifact/optimization-selections/src/lib.rs)
+program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/artifact/optimization-selections/src/lib.rs)
 defines pass selections and their identities.
 
-The shared Psi representation has companion packages for [canonical encoding](../../psi-artifact/codec/), [operation semantics](../../psi-semantics/) and [logical work bounds](../../psi-semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
+The shared Psi representation has companion packages for [canonical encoding](../../psi/artifact/codec/), [operation semantics](../../psi/semantics/) and [logical work bounds](../../psi/semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
 
 ## Records and facts
 
@@ -36,10 +38,10 @@ The shared Psi representation has companion packages for [canonical encoding](..
 | [Carry](../../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread and address demands, combined separately, each with the origin that explains it. |
 | [Effects](../../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes and positive progress, separate even when inference computes them in one graph walk. |
 
-The [resolved domain](symbol-resolved-trees/src/declarations_and_machines.rs)
-and [typed domain](typed-trees/src/declarations.rs) keep
+The [resolved domain](symbol-resolved-trees/nodes/declarations_and_machines.rs)
+and [typed domain](typed-trees/definitions/declarations.rs) keep
 predicate, role, route, alias, classification and semantic-identity records.
-The [typed machine](typed-trees/src/calls_and_control_flow.rs) carries
+The [typed machine](typed-trees/callables/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row and separate operational
 clauses. Shared vocabulary belongs in
 [semantic vocabulary](../../foundation/semantic-records/src/lib.rs). Having these records does not mean every later proof,

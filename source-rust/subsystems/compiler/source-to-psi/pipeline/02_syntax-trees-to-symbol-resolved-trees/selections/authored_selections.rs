@@ -1487,6 +1487,14 @@ fn expression_candidates(
                 {
                     continue;
                 }
+                // A type-scoped constant is selected by the whole authored path.
+                // Its final segment keeps that same selection after substitution.
+                let symbol = if !symbol.is_valid() && offset + 1 == members.len() {
+                    crate::resolution::constants::selected_expression_constant(program, expression)
+                        .map_or(symbol, |(_, constant)| constant)
+                } else {
+                    symbol
+                };
                 candidates.push(Candidate {
                     argument_path: None,
                     expression,
@@ -2231,7 +2239,6 @@ mod copied_call_tests {
 
         let resumed = crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
             base: Arc::new(projected),
-            base_declarations: Arc::new(parse()),
             syntax: parse(),
             sources: Arc::clone(&sources),
             top_level_bindings: Vec::new(),
@@ -2400,7 +2407,6 @@ mod copied_call_tests {
         assert!(!projected.symbols.symbol_source_is_selected(original_owner));
         let resumed = crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
             base: Arc::new(projected),
-            base_declarations: Arc::new(parse()),
             syntax: parse(),
             sources: Arc::clone(&sources),
             top_level_bindings: Vec::new(),

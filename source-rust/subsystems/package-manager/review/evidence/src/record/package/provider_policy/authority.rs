@@ -1,7 +1,8 @@
 // Source-qualified operational authority records for service methods, kept independent of readable schemas.
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
-use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::service_set;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::ordered;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSynchronousInvocation};
@@ -10,13 +11,13 @@ use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubj
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyServiceAuthority {
-    pub(crate) service_reach: Vec<PackageReviewNominalIdentity>,
-    pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    pub(crate) progress_premises: Vec<PackagePolicyServiceProgressPremise>,
+    pub service_reach: Vec<PackageReviewServiceIdentity>,
+    pub synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
+    pub progress_premises: Vec<PackagePolicyServiceProgressPremise>,
 }
 
 impl PackagePolicyServiceAuthority {
-    field_projection_accessors!(sliced service_reach: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced service_reach: &[PackageReviewServiceIdentity]);
     field_projection_accessors!(sliced synchronous_invocations: &[PackageReviewSynchronousInvocation]);
     field_projection_accessors!(sliced progress_premises: &[PackagePolicyServiceProgressPremise]);
 }
@@ -77,7 +78,7 @@ impl super::PackagePolicyServiceMethod {
         {
             return Err("provider authority detaches its progress premises");
         }
-        nominal_set(&authority.service_reach)?;
+        service_set(&authority.service_reach)?;
         for invocation in &authority.synchronous_invocations {
             match invocation {
                 PackageReviewSynchronousInvocation::Parameter(ordinal) => {

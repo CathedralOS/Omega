@@ -67,8 +67,10 @@ impl Lowering<'_> {
         let location = self.operation_locations.get_mut(operation).ok_or_else(|| {
             terminal_check_tables::Refusal {
                 reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                machine: self.id,
-                concerns: Construct::Operation(operation),
+                site: terminal_check_tables::RefusalSite::Machine(
+                    self.id,
+                    Construct::Operation(operation),
+                ),
                 source_span: None,
                 detail: "an operation has no allocated source coordinate".to_owned(),
             }
@@ -293,6 +295,9 @@ impl Lowering<'_> {
             ExpressionKind::Field { base, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
+            }
+            ExpressionKind::StorageLocation { query, place, first_element, .. } => {
+                self.storage_location(*query, place, *first_element, self.result_type(expression)?, source)
             }
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)

@@ -124,7 +124,8 @@ def compiler_input(with_build_sources=False):
             build_inputs.add(base / 'defaults/build.omg')
         for path in sorted(base.rglob('*.omg')):
             relative = path.relative_to(base)
-            if 'build' in relative.parts:
+            # Compiler tests own separate example packages under tests/fixtures.
+            if 'build' in relative.parts or relative.parts[:2] == ('tests', 'fixtures'):
                 continue
             data = path.read_bytes()
             if path in build_inputs:

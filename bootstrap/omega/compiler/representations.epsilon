@@ -21,6 +21,10 @@ data AlphaTapeBuffer {
     fixup_operands: [i32; 1864134];
     fixup_resolved: [u8; 1864134];
     length: i32;
+    // One immutable literal span per source unit, or one for pooled compilation.
+    literal_starts: [i32; 512];
+    literal_ends: [i32; 512];
+    literal_span_count: i32;
     label_count: i32;
     fixup_count: i32;
     status: i32;
@@ -340,12 +344,21 @@ data OmegaBoundaryTraitSyntax {
 // share the parser's requirement arena and retain their source-owned range.
 data OmegaTraitSyntax {
     name: OmegaRelativeSpan;
+    first_static_parameter: i32;
+    static_parameter_count: i32;
     keyword: OmegaRelativeSpan;
     first_requirement: i32;
     requirement_count: i32;
     is_public: i32;
     start: i32;
     end: i32;
+}
+
+// A typed static parameter owns its declared type. Later checking determines
+// whether that type describes a value, callable, or implementation.
+data OmegaTraitStaticParameterSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
 }
 
 // Inline provider members use ordinary machine syntax under the exact
@@ -392,6 +405,7 @@ data OmegaTypeConsumer {
     case LocalData;
     case Cast;
     case DomainCarrier;
+    case TraitStaticParameter;
 }
 
 data OmegaPathDestination {
@@ -407,6 +421,7 @@ data OmegaTypeReferenceKind {
     case FixedArray;
     case Slice;
     case Reference;
+    case NamedWithLifetimes;
 }
 
 data OmegaTypeBaseKind {
@@ -427,9 +442,11 @@ data OmegaTypeArrayKind {
 }
 
 // Compact tagged type node. Payload interpretation is owned by kind:
-// Named uses payload0/payload1 as its name span; Constrained uses payload0 as
-// its base node and payload1/payload2 for the exact domain name span; FixedArray uses
-// payload0 for its element and payload1/payload2 for the exact length span;
+// Named and NamedWithLifetimes use payload0/payload1 as the name span.
+// NamedWithLifetimes adds the first member span and count in payload2/payload3;
+// these ordered arguments remain separate from runtime type arguments.
+// Constrained uses payload0 for its base and payload1/payload2 for its domain.
+// FixedArray uses payload0 for its element and payload1/payload2 for its length.
 // Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
 // 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
@@ -475,6 +492,8 @@ data OmegaDataMemberSyntax {
 
 data OmegaDataSyntax {
     name: OmegaRelativeSpan;
+    first_lifetime: i32;
+    lifetime_count: i32;
     first_requirement: i32;
     requirement_count: i32;
     first_member: i32;
@@ -526,6 +545,7 @@ data OmegaMachineClauseKind {
     case BlocksFalse;
     case Terminates;
     case EventualTermination;
+    case Invokes;
 }
 
 data OmegaExternalBindingKind {
@@ -535,7 +555,8 @@ data OmegaExternalBindingKind {
 // Satisfies owns exactly Trait::requirement and may own one closed external
 // binding. This slice admits the payload-free Binding::CompilerIntrinsic case
 // and retains each authored component separately. Reaches owns one or more
-// source-ordered service identifiers. An unguarded crash clause owns its
+// source-ordered service identifiers. Invokes owns one synchronous-entry name
+// per authored row. An unguarded crash clause owns its
 // single cause or none spelling. Terminates owns one path-shaped
 // subject in first_member/member_count and one qualified ranking-view path in
 // first_view_member/view_member_count; it is a private witness, not the bare
@@ -664,6 +685,7 @@ data OmegaTransitionGuardKind {
     case Integer;
     case Path;
     case Destructure;
+    case Predicate;
 }
 
 data OmegaTransitionPatternFieldKind {
@@ -697,6 +719,7 @@ data OmegaTransitionStatementSyntax {
     has_subject: i32;
     subject: i32;
     guard_kind: OmegaTransitionGuardKind;
+    guard_expression: i32;
     guard_boolean: i32;
     guard_start: i32;
     guard_end: i32;
@@ -815,7 +838,8 @@ data OmegaExpressionConsumer {
     case CallArgument;
     case AssignmentValue;
     case StructFieldValue;
-    case TransitionSubject;
+    // The subject before a block or the Boolean condition before an arm arrow.
+    case TransitionHead;
     case ExpressionStatement;
     case LocalDataInitialValue;
     case CastValue;
@@ -1033,6 +1057,16 @@ data OmegaParseDiagnosticCode {
     case ExpectedDomainEnd;
     case ExpectedDomainRequirement;
     case RetiredDomainSubject;
+    case ExpectedLifetimeSeparator;
+    case DuplicateLifetimeBinder;
+    case ExpectedTraitStaticParameter;
+    case ExpectedTraitStaticParameterColon;
+    case ExpectedTraitStaticParameterType;
+    case ExpectedTraitStaticParameterEnd;
+    case DuplicateTraitStaticParameter;
+    case RetiredTraitEvidenceBinder;
+    case ExpectedInvokesBinding;
+    case ClauseNotAdmitted;
 }
 
 data OmegaParserResource {
@@ -1133,6 +1167,9 @@ data OmegaParser {
     boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
     ordinary_traits: [OmegaTraitSyntax; 4096];
     ordinary_trait_count: i32;
+    // Each retained static parameter owns at least one type node.
+    trait_static_parameters: [OmegaTraitStaticParameterSyntax; 16384];
+    trait_static_parameter_count: i32;
     // Both trait kinds publish one distinct root, after the whole body closes.
     pending_trait: OmegaTraitSyntax;
     pending_trait_is_boundary: i32;
@@ -1248,6 +1285,12 @@ data OmegaParser {
     item_start: i32;
     first_member: i32;
     path_destination: OmegaPathDestination;
+    first_data_lifetime: i32;
+    data_first_lifetime: i32;
+    data_lifetime_count: i32;
+    type_first_lifetime: i32;
+    type_lifetime_count: i32;
+    lifetime_list_is_declaration: i32;
     data_name_start: i32;
     data_name_end: i32;
     data_first_member: i32;
@@ -1413,6 +1456,7 @@ data OmegaParser {
     transition_has_subject: i32;
     transition_subject_expression: i32;
     transition_guard_kind: OmegaTransitionGuardKind;
+    transition_guard_expression: i32;
     transition_guard_boolean: i32;
     transition_guard_start: i32;
     transition_guard_end: i32;

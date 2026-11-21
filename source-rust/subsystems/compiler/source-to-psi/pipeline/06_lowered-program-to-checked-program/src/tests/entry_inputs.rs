@@ -120,7 +120,7 @@ fn private_inputs_cross_an_omitted_helper_chain() {
         .expect("the proved input contract must encode canonically");
 }
 
-fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict {
+fn judge_source_arrivals(source: &str, expected_private: &[&str]) -> RouteVerdict {
     let typed = super::boundary_calls::typed(source);
     let entry = super::boundary_calls::entry(&typed);
     let package = typed
@@ -141,7 +141,13 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    assert_eq!(elaboration.private_inputs.len(), expected_private);
+    let mut helpers: Vec<_> = elaboration
+        .private_inputs
+        .iter()
+        .map(|id| elaboration.names.get(*id).unwrap().machine.as_str())
+        .collect();
+    helpers.sort_unstable();
+    assert_eq!(helpers, expected_private);
     judge(Ok(elaboration)).unwrap()
 }
 
@@ -151,7 +157,7 @@ fn a_private_result_receipt_matches_its_actual_return_and_never_its_written_clau
 machine entry() -> i32 { increment(7) }
 machine increment(n: i32) -> i32 requires n >= 0 && n <= 9 ensures result == n + 1 { n + 1 }
 ";
-    let RouteVerdict::Accepted(accepted) = judge_source_arrivals(source, 0) else {
+    let RouteVerdict::Accepted(accepted) = judge_source_arrivals(source, &[]) else {
         panic!("the bounded addition satisfies its written guarantee");
     };
     let publication = accepted.publish_invocation().unwrap();
@@ -192,8 +198,10 @@ machine entry() -> u32 {
 }
 "#;
     for (header, eligible) in [("", true), ("requires n == 7", false)] {
-        let verdict =
-            judge_source_arrivals(&program.replace("WRITTEN", header), usize::from(eligible));
+        let verdict = judge_source_arrivals(
+            &program.replace("WRITTEN", header),
+            if eligible { &["next"] } else { &[] },
+        );
         let RouteVerdict::Accepted(accepted) = verdict else {
             panic!("the two calls pass seven: {verdict:?}");
         };
@@ -260,8 +268,8 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/inferred_branch_inputs/main.omg"
     ));
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
-    let entry = super::build_purpose::symbol(&typed, "main");
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
+    let entry = super::build_purpose::symbol(typed.trees(), "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         super::build_purpose::roster(
@@ -296,20 +304,21 @@ machine entry(bytes: @[u8], other: @[u8], index: u64) -> u8 {
 OTHER_BODY
 }
 "#;
-    let judge_input = |input, other_body, expected_private| {
+    let judge_input = |input, other_body, expected_private: &[&str]| {
         let source = source
             .replace("INPUT", input)
             .replace("OTHER_BODY", other_body);
         judge_source_arrivals(&source, expected_private)
     };
-    let verdict = judge_input("bytes", "", 2);
+    let helpers = ["fetch", "next"];
+    let verdict = judge_input("bytes", "", &helpers);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("the guarded descriptor reaches both helpers: {verdict:?}");
     };
     accepted.publish_invocation().unwrap();
 
     for input in ["other", "@bytes[0..index]"] {
-        let verdict = judge_input(input, "", 2);
+        let verdict = judge_input(input, "", &helpers);
         let RouteVerdict::Rejected { unproved, .. } = verdict else {
             panic!("the guard cannot justify indexing {input}: {verdict:?}");
         };
@@ -321,9 +330,9 @@ OTHER_BODY
     }
 
     let outside = "    machine unchecked(bytes: @[u8], index: u64) -> u8 { fetch(bytes, index) }";
-    let verdict = judge_input("bytes", outside, 1);
+    let verdict = judge_input("bytes", outside, &["fetch", "next", "unchecked"]);
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
-        panic!("the unread sibling also calls fetch: {verdict:?}");
+        panic!("the unguarded caller also reaches fetch: {verdict:?}");
     };
     assert!(
         unproved
@@ -356,13 +365,14 @@ machine entry(bytes: @[u8], index: u64) -> u8 {
     }
 }
 "#;
-    let verdict = judge_source_arrivals(&source.replace("INPUT", "next"), 3);
+    let helpers = ["fetch", "following", "lead"];
+    let verdict = judge_source_arrivals(&source.replace("INPUT", "next"), &helpers);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("the checked computed index reaches the helper: {verdict:?}");
     };
     accepted.publish_invocation().unwrap();
 
-    let verdict = judge_source_arrivals(&source.replace("INPUT", "bytes.len"), 3);
+    let verdict = judge_source_arrivals(&source.replace("INPUT", "bytes.len"), &helpers);
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
         panic!("the original guard does not justify a different index: {verdict:?}");
     };
@@ -387,13 +397,14 @@ machine entry(character: Character) -> u32 {
     }
 }
 "#;
-    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "point"), 2);
+    let helpers = ["encode", "forward"];
+    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "point"), &helpers);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("the field guard crosses both owned arguments: {verdict:?}");
     };
     accepted.publish_invocation().unwrap();
 
-    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "sibling"), 2);
+    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "sibling"), &helpers);
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
         panic!("guarding the sibling leaves the subtraction unproved: {verdict:?}");
     };
@@ -608,7 +619,19 @@ machine entry(options: OpenOptions) -> u32
     }
 }
 "#;
-    let verdict = judge_source_arrivals(source, 8);
+    let verdict = judge_source_arrivals(
+        source,
+        &[
+            "access",
+            "acquire",
+            "create_mode",
+            "creating",
+            "disposition",
+            "existing_mode",
+            "ordinary_write",
+            "writable",
+        ],
+    );
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("each option route establishes one inferred arrival: {verdict:?}");
     };
@@ -684,47 +707,99 @@ machine entry() crashes Trap {
 
 #[test]
 fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() {
-    for (name, write, contract, alternative, accepted) in [
+    let advance = "input.index + 1";
+    for (name, intermediate_write, write, contract, alternative, next_index, accepted) in [
         (
             "guarded_index_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "",
             "0u32",
+            advance,
             true,
         ),
         (
             "replaced_index_cycle",
+            None,
             "input.index = 3u32 as +Wrapping;",
             "",
             "0u32",
+            advance,
             false,
         ),
         (
             "unbounded_index_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "requires true",
             "0u32",
+            advance,
             false,
         ),
         (
             "unguarded_arrival_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "",
             "block fetch(input)",
+            advance,
+            false,
+        ),
+        (
+            "guard_survives_two_more_transfers",
+            Some("input.mask = 1u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            advance,
+            true,
+        ),
+        (
+            "reset_on_the_backedge_after_the_guarded_read",
+            Some("input.mask = 1u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            "0u32 as +Wrapping",
+            true,
+        ),
+        (
+            "a_write_between_transfers_invalidates_the_guard",
+            Some("input.index = 3u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            advance,
             false,
         ),
     ] {
+        let (successor, intermediate) = match intermediate_write {
+            None => ("fetch", String::new()),
+            Some(write) => (
+                "relay",
+                format!(
+                    "machine relay(input: @mut Input) -> u32 {{
+                    {write}
+                    transition {{ _ -> block handoff(input) }}
+                 }}
+                 machine handoff(input: @mut Input) -> u32 {{
+                    transition {{ _ -> block fetch(input) }}
+                 }}"
+                ),
+            ),
+        };
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
             public machine entry(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
                 machine test(input: @mut Input) -> u32 {{
-                    transition input.index < 3u32 {{ true -> block fetch(input), _ -> {alternative} }}
+                    transition input.index < 3u32 {{ true -> block {successor}(input), _ -> {alternative} }}
                 }}
+                {intermediate}
                 machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
-                    input.index = input.index + 1;
+                    input.index = {next_index};
                     transition found == 0u32 {{ true -> 0u32, _ -> block test(input) }}
                 }}
             }}"
@@ -785,11 +860,86 @@ machine fill(board: @mut Board, value: u32) {
     board.cells[1] = value;
 }
 "#;
-    let verdict = judge_source_arrivals(source, 2);
+    let verdict = judge_source_arrivals(source, &["fill", "report", "second_step"]);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("each caller states the disjunct it established: {verdict:?}");
     };
-    accepted.publish_invocation().unwrap();
+    let publication = accepted.publish_invocation().unwrap();
+    let module = publication.artifact.view().module();
+    let report = module.machine(id(3)).unwrap();
+    let [predicate @ Proposition::Disjunction(_)] = report.requires.as_slice() else {
+        panic!("report must accept the alternatives established by its two callers");
+    };
+    assert!(
+        module
+            .identities
+            .matches_inferred_input_clause(report.id, 0, predicate)
+    );
+    for caller in [id(1), id(2)] {
+        let mut calls = module
+            .machine(caller)
+            .unwrap()
+            .module_invocations()
+            .filter(|call| call.inputs.callee == report.id);
+        let call = calls.next().expect("each caller invokes report");
+        assert!(calls.next().is_none());
+        let [obligation] = call.inputs.requirement_obligations else {
+            panic!("the call must prove report's inferred requirement");
+        };
+        assert!(module.identities.proved_inferred_input(
+            caller,
+            call.site,
+            report.id,
+            0,
+            *obligation
+        ));
+    }
+}
+
+/// The first caller reads cell zero. After a call that may write the board,
+/// the recursive caller reads cell one. Each arrival must establish its own
+/// disjunct even when the body never needs the other cell's entry snapshot.
+#[test]
+fn recursive_arrivals_prove_their_observed_input_alternative() {
+    let source = r"
+public data Board { cells: [u32; 2]; }
+public machine entry(board: @mut Board) -> u32 {
+    fill(board, 1u32);
+    transition board.cells[0] == 1u32 { true -> report(board, 3u32), false -> 6u32 }
+}
+machine report(board: @mut Board, remaining: u32) -> u32
+WRITTEN
+terminates by remaining
+{
+    fill(board, remaining);
+    transition board.cells[1] == 0u32 && remaining > 0u32 {
+        true -> report(board, remaining - 1u32),
+        false -> 7u32
+    }
+}
+machine fill(board: @mut Board, value: u32) {
+    board.cells[0] = value;
+    board.cells[1] = value;
+}
+";
+    let written = "requires board.cells[0] == 1u32 || board.cells[1] == 0u32";
+    for (header, helpers) in [("", &["fill", "report"][..]), (written, &["fill"][..])] {
+        let verdict = judge_source_arrivals(&source.replace("WRITTEN", header), helpers);
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("each arrival establishes one input alternative: {verdict:?}");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+    let wrong = source
+        .replace("WRITTEN", written)
+        .replace("board.cells[1] == 0u32 &&", "board.cells[1] == 2u32 &&");
+    let RouteVerdict::Rejected { unproved, .. } = judge_source_arrivals(&wrong, &["fill"]) else {
+        panic!("the recursive edge establishes neither disjunct");
+    };
+    assert!(unproved.iter().any(|row| matches!(
+        row.kind,
+        ObligationKind::ArrivalInvariant { .. } | ObligationKind::CallRequirement { .. }
+    )));
 }
 
 /// A written disjunctive requirement whose second disjunct names a field the
@@ -807,7 +957,7 @@ machine check(pair: @mut Pair) -> u32 requires pair.first < 10 || pair.second < 
 }
 "#;
     for (bound, accepted) in [("10", true), ("20", false)] {
-        match judge_source_arrivals(&source.replace("BOUND", bound), 0) {
+        match judge_source_arrivals(&source.replace("BOUND", bound), &[]) {
             RouteVerdict::Accepted(proved) if accepted => {
                 proved.publish_invocation().unwrap();
             }

@@ -472,6 +472,9 @@ boundary trait Child: Parent<i32> + Other {}",
 
 #[test]
 fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
+    use crate::source_state::service_declarations::{
+        projection::from_typed_application, provider_declarations::ProviderPlanningContext,
+    };
     use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
     use crate::source_state::type_identity::{
         TypeIdentityRequest, descriptive_type_identity_in_region_scope,
@@ -520,13 +523,28 @@ machine carrier<'left, 'right>(first: @'left mut i32, second: @'right mut i64) -
             },
         )
         .unwrap();
-        program
-            .requirement_definition_types(&scope, signature)
-            .unwrap()
+        let types = program.requirement_definition_types(&scope, signature)?;
+        let surface = from_typed_application(
+            ProviderPlanningContext::new(&program, source_provenance::DependencyScope::Product),
+            scope,
+        )
+        .unwrap();
+        let [method] = surface.declaration.methods.as_slice() else {
+            panic!("one declared method");
+        };
+        assert_eq!(
+            method.declared_type_signature,
+            service_surface::declared_type_signature(types.0.iter(), &types.1).unwrap()
+        );
+        Some(types)
     };
-    let left_i32 = applied(scalar(0), "left");
-    let left_i64 = applied(scalar(1), "left");
-    let right_i32 = applied(scalar(0), "right");
+    let left_i32 = applied(scalar(0), "left").unwrap();
+    let left_i64 = applied(scalar(1), "left").unwrap();
+    let right_i32 = applied(scalar(0), "right").unwrap();
+    assert!(
+        applied(scalar(0), "absent").is_none(),
+        "a missing caller lifetime cannot become a fresh method binder"
+    );
     let caller_type = descriptive_type_identity_in_region_scope(
         &program,
         TypeIdentityRequest::package_qualified(parameters[0].type_reference),
@@ -572,21 +590,19 @@ boundary machine + Operations::write(left: @mut Host, right: @mut Host) reaches 
 machine entry() {}
 "#,
     );
-    let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
-    let requirement = program
+    let program = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
+    let trees = program.trees();
+    let requirement = trees
         .machines()
         .iter()
         .find(|requirement| requirement.name.as_str() == "Operations::write")
         .unwrap();
     let surface = from_typed_boundary_requirement(
-        ProviderPlanningContext::new(
-            &program,
-            source_provenance::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(trees, source_provenance::DependencyScope::Product),
         requirement,
     )
     .unwrap();
-    let (parameters, result) = program.machine_definition_types(requirement).unwrap();
+    let (parameters, result) = trees.machine_definition_types(requirement).unwrap();
     assert!(parameters[0].contains("region(owner(schema),ordinal(0))"));
     assert!(parameters[1].contains("region(owner(schema),ordinal(1))"));
     let expected =
@@ -700,8 +716,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    frozen
+    crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap()
 }
 
 fn read_applied_boundary(
@@ -727,7 +742,84 @@ fn read_applied_boundary(
 }
 
 fn applied_boundary(limit: u32) -> Checked<crate::lowering::Elaboration> {
-    read_applied_boundary(&applied_boundary_prepared(limit))
+    read_applied_boundary(applied_boundary_prepared(limit).trees())
+}
+
+#[test]
+fn inferred_boundary_const_arguments_keep_their_value_and_carrier() {
+    let source = r#"
+boundary trait Probe {
+    machine size<const N: u64>(bytes: @[u8; N]) -> u64 reaches none crashes none;
+    machine marker<const N: u32>() -> u32 reaches none crashes none;
+}
+machine entry(three: @[u8; 3], four: @[u8; 4]) -> u64 {
+    let a: u64 = Probe::size(three);
+    let b: u64 = Probe::size(four);
+    let c: u64 = Probe::size::<0x3u64>(three);
+    let marker: u32 = Probe::marker::<3u32>();
+    a
+}
+"#;
+    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+    let verdict = judge(read_applied_boundary(prepared.trees())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let mut program = prepared.into_inner();
+    let calls: Vec<_> = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| {
+            let crate::source_state::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program.closed_requirement_application(call.target_symbol)?;
+            Some((call.target_symbol, call.authored_machine_application))
+        })
+        .collect();
+    let [three, four, explicit_three, marker] = calls.as_slice() else {
+        panic!("expected the three array applications and the u32 marker");
+    };
+    let operand = |call: &(_, _)| {
+        program
+            .expression_table
+            .static_machine_application_arguments(call.1)[0]
+            .clone()
+    };
+    let matching = operand(explicit_three);
+    let wrong_value = operand(four);
+    let wrong_carrier = operand(marker);
+    for (argument, expected) in [
+        (matching, true),
+        (wrong_value, false),
+        (wrong_carrier, false),
+    ] {
+        program
+            .expression_table
+            .static_machine_application_arguments_mut(three.1)[0] = argument;
+        let actual = program.require_closed_requirement_call_application(three.0, three.1);
+        if expected {
+            actual.expect("another spelling of the landed three");
+        } else {
+            assert_eq!(
+                actual,
+                Err("closed requirement call argument differs from its retained binding")
+            );
+        }
+    }
+    // Sharing the same wrong carrier in both stored rows cannot satisfy u64.
+    let narrow_binding = program
+        .expression_table
+        .static_machine_application_bindings(marker.1)[0]
+        .value
+        .clone();
+    program
+        .expression_table
+        .static_machine_application_bindings_mut(three.1)[0]
+        .value = narrow_binding;
+    assert_eq!(
+        program.require_closed_requirement_call_application(three.0, three.1),
+        Err("closed requirement call argument differs from its retained binding")
+    );
 }
 
 #[test]
@@ -887,8 +979,8 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
-    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(source, &[], &[]).unwrap();
+    let elaboration = read_applied_boundary(prepared.trees()).unwrap();
     let module = &elaboration.module;
     let [first, second] = module.interfaces.boundary_machines.as_slice() else {
         panic!("two requirements of the same trait");
@@ -968,7 +1060,7 @@ boundary trait Pair {
 machine entry() -> u32 crashes none { 3 }
 "#,
     );
-    let mut program = crate::preparation::prepare_typed_trees(source, &[])
+    let mut program = crate::preparation::prepare_typed_trees(source, &[], &[])
         .unwrap()
         .into_inner();
     let pair = program
@@ -1098,7 +1190,75 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
+    crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap()
+}
+
+#[test]
+fn a_forwarded_boundary_method_const_keeps_its_declared_binder_and_preconditions() {
+    const SOURCE: &str = r#"
+public boundary trait ObjectiveC {
+    machine send_byte_string<const Count: u64>(recv: u64, sel: u64, text: @[u8; Count]) -> u64
+    requires Count > 0
+    requires text[Count - 1] == 0
+    reaches none crashes none;
+}
+public machine entry<const Count: u64>(title: @[u8; Count]) -> u64
+requires Count > 0
+{caller_fact}
+reaches none
+invokes ObjectiveC
+{
+    ObjectiveC::send_byte_string::<Count>(7u64, 9u64, title)
+}
+"#;
+    let check = |text: &str| {
+        let prepared = crate::preparation::prepare_typed_trees(typed(text), &[], &[]).unwrap();
+        let typed = prepared.trees();
+        judge(crate::lowering::elaborate_generic(typed, entry(typed))).unwrap()
+    };
+    let source = SOURCE.replace("{caller_fact}", "requires title[Count - 1] == 0");
+    let accepted = check(&source);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let missing = check(&SOURCE.replace("{caller_fact}", ""));
+    assert!(
+        matches!(missing, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{missing:?}"
+    );
+
+    // The callee asks for a shared loan, but a write through the caller's
+    // mutable input invalidates its original value.
+    let overwritten = source
+        .replace(
+            "entry<const Count: u64>(title: @[u8;",
+            "entry<const Count: u64>(title: @mut [u8;",
+        )
+        .replace(
+            "    ObjectiveC::send_byte_string::<Count>",
+            "    title[Count - 1] = 1u8;\n    ObjectiveC::send_byte_string::<Count>",
+        );
+    let stale = check(&overwritten);
+    assert!(
+        matches!(stale, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{stale:?}"
+    );
+
+    let unrelated = source
+        .replace(
+            "entry<const Count: u64>",
+            "entry<const Count: u64, const Other: u64>",
+        )
+        .replace("send_byte_string::<Count>", "send_byte_string::<Other>");
+    let mismatch = check(&unrelated);
+    assert!(
+        matches!(mismatch, RouteVerdict::FallBack(ref refusal) if refusal.detail.contains("argument types")),
+        "{mismatch:?}"
+    );
 }
 
 /// What a native binding of `Sink::take` claims: the generic requirement,
@@ -1142,8 +1302,8 @@ fn sink_requirement(frozen: &crate::source_state::FrozenTypedTrees) -> symbols::
 #[test]
 fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     let applied = value_generic_boundary("Sink::take::<4>(@buffer, 3)");
-    let requirement = sink_requirement(&applied);
-    let elaboration = claimed(&applied, requirement).unwrap();
+    let requirement = sink_requirement(applied.trees());
+    let elaboration = claimed(applied.trees(), requirement).unwrap();
     // The claim and the call name the one closed application.
     assert_eq!(elaboration.module.interfaces.boundary_machines.len(), 1);
     let verdict = judge(Ok(elaboration)).unwrap();
@@ -1151,7 +1311,7 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
 
     // The twin differs in one argument: an `i32` of 5 is past the `u64` 4.
     let verdict = judge(claimed(
-        &value_generic_boundary("Sink::take::<4>(@buffer, 5)"),
+        value_generic_boundary("Sink::take::<4>(@buffer, 5)").trees(),
         requirement,
     ))
     .unwrap();
@@ -1164,7 +1324,7 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     // With no application there is no contract to read, so the claim
     // publishes no boundary; a consumer's call would close its own.
     let unapplied = value_generic_boundary("7u32");
-    let elaboration = claimed(&unapplied, sink_requirement(&unapplied)).unwrap();
+    let elaboration = claimed(unapplied.trees(), sink_requirement(unapplied.trees())).unwrap();
     assert!(elaboration.module.interfaces.boundary_machines.is_empty());
 }
 
@@ -1239,18 +1399,19 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
-    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
+    let trees = prepared.trees();
+    let elaboration = read_applied_boundary(trees).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.interfaces.boundary_machines.len(), 2);
-    let owner = prepared
+    let owner = trees
         .traits()
         .iter()
-        .find(|owner| prepared.symbols.name(owner.symbol) == "Probe")
+        .find(|owner| trees.symbols.name(owner.symbol) == "Probe")
         .unwrap();
     let surface = crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
-            &prepared,
+            trees,
             source_provenance::DependencyScope::Product,
         ),
         owner,
@@ -1454,19 +1615,19 @@ machine entry() -> u32 crashes none {
     );
     // Native binding preparation also nominates the generic declaration's
     // schema. Its abstract header is metadata, while these two calls are closed.
-    let probe = prepared
+    let probe = trees
         .traits()
         .iter()
         .find(|declaration| declaration.name.as_str() == "Probe")
         .unwrap()
         .symbol;
     let elaboration = crate::lowering::elaborate_for(
-        &prepared,
+        trees,
         crate::lowering::Compilation {
             calling: None,
             providers: None,
             declaration_metadata: &[probe],
-            entries: &[entry(&prepared)],
+            entries: &[entry(trees)],
             subjects: &[],
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],
@@ -1504,7 +1665,7 @@ machine entry() -> u32 crashes none {
     // A normal product also checks every declaration owned by its package.
     // Use the actual compilation entrance so generic source forms are judged
     // separately from the executable closure that must be published.
-    let package = prepared
+    let package = trees
         .symbols
         .source_map()
         .unwrap()
@@ -1524,7 +1685,7 @@ machine entry() -> u32 crashes none {
                 calling: None,
                 providers: None,
                 declaration_metadata: &[probe],
-                entries: &[entry(&prepared)],
+                entries: &[entry(trees)],
                 subjects: &[Some(package)],
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
@@ -1677,10 +1838,15 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .expect("the authored call's operational violation");
         let call = text.rfind("read(").expect("the authored boundary call");
         assert_eq!(site.span, source_text::Span::new(call, call + "read".len()));
-        let terminal_check_tables::Construct::Operation(operation) = refusal.concerns else {
+        let terminal_check_tables::Construct::Operation(operation) =
+            refusal.site.in_machine().unwrap().1
+        else {
             panic!("the boundary has a normal call operation");
         };
-        let origins = elaboration.sources.get(refusal.machine).unwrap();
+        let origins = elaboration
+            .sources
+            .get(refusal.site.in_machine().unwrap().0)
+            .unwrap();
         let full = origins
             .operations
             .get(operation)
@@ -1952,7 +2118,7 @@ pub(super) fn compilation_results_for_subjects(
     typed: &crate::preparation::PreparedTypedTrees,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let entry = entry(typed);
+    let entry = entry(typed.trees());
     let prepared = crate::lowering::prepare_compilation(
         typed,
         crate::lowering::Compilation {
@@ -2108,7 +2274,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         .replacen("trait Step", "boundary trait Step", 1)
         .replacen("requires value > 0", "reaches none requires value > 0", 1);
     let typed = crate::prepare_fixture(typed(&text));
-    let entry = entry(&typed);
+    let entry = entry(typed.trees());
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -2148,7 +2314,7 @@ machine chosen() -> u32 satisfies Read::value crashes none { 7 }
 machine entry() -> u32 reaches none crashes none { chosen() }
 "#,
     ));
-    let entry = entry(&typed);
+    let entry = entry(typed.trees());
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -2193,7 +2359,7 @@ fn named_selected_calls_keep_their_public_reach_ceiling() {
              }}
              machine entry() -> u32 reaches {ceiling} crashes none {{ Named::value() }}"
         )));
-        let entry = entry(&typed);
+        let entry = entry(typed.trees());
         let verdicts = crate::checking::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
@@ -2250,7 +2416,8 @@ trait Other {
 Rebound satisfies Other { Other::apply = previous; }
 "#;
     let typed = crate::prepare_fixture(typed(&text));
-    let entry = entry(&typed);
+    let trees = typed.trees();
+    let entry = entry(trees);
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -2278,19 +2445,19 @@ Rebound satisfies Other { Other::apply = previous; }
     );
     // Reached dependency obligations use the same witness admission even
     // when this compilation does not claim that declaration as a subject.
-    let other = typed
+    let other = trees
         .traits()
         .iter()
         .find(|declared| declared.name.as_str() == "Other")
         .unwrap();
-    let requirement = &typed.trait_machine_signatures(other)[0];
-    let member = typed
+    let requirement = &trees.trait_machine_signatures(other)[0];
+    let member = trees
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "previous")
         .unwrap();
     let Err(refusal) = crate::lowering::elaborate_witness(
-        &typed,
+        trees,
         other.symbol,
         requirement.symbol,
         &[],
@@ -2328,7 +2495,7 @@ machine entry() -> u32 reaches none crashes none {{ 7 }}
                     calling: None,
                     providers: None,
                     declaration_metadata: &[],
-                    entries: &[entry(&typed)],
+                    entries: &[entry(typed.trees())],
                     subjects: &[None],
                     purpose: source_provenance::DependencyScope::Product,
                     selected: &[],
@@ -2415,8 +2582,7 @@ machine entry() -> u32 crashes none {{ relay::<Inline>() }}
     );
     // Use the actual specialization pass, retaining the exact source
     // parameter dispatch and selected realization it produces.
-    let prepared = crate::preparation::prepare_typed_trees(read(&text), &[]).unwrap();
-    prepared
+    crate::preparation::prepare_typed_trees(read(&text), &[], &[]).unwrap()
 }
 
 fn inline_parameter_read(
@@ -2444,8 +2610,11 @@ fn inline_parameter_read(
 
 fn inline_parameter_dispatch(actual: &str, guarantee: &str) -> crate::lowering::Elaboration {
     let prepared = inline_parameter_prepared(actual, guarantee);
-    let elaboration =
-        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+    let elaboration = inline_parameter_read(
+        prepared.trees(),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
     assert_eq!(
         elaboration.selections.len(),
         1,
@@ -2555,10 +2724,11 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
     let prepared = inline_parameter_prepared_with("7", "", |text| {
         try_typed_in_package(text, None).expect("type the unowned invocation")
     });
+    let trees = prepared.trees();
     let first =
-        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+        inline_parameter_read(trees, terminal_codec::TerminalPublication::Invocation).unwrap();
     let second =
-        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+        inline_parameter_read(trees, terminal_codec::TerminalPublication::Invocation).unwrap();
     let template = |elaboration: &crate::lowering::Elaboration| {
         elaboration
             .module
@@ -2585,15 +2755,17 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
         ),
         "equal source bytes do not transfer an invocation's declaration authority"
     );
-    let Err(refusal) =
-        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Portable)
+    let Err(refusal) = inline_parameter_read(trees, terminal_codec::TerminalPublication::Portable)
     else {
         panic!("anonymous specialization must not acquire a hermetic package owner");
     };
     // Portable publication needs a real source owner before the anonymous
     // specialization can even ask for a hermetic template identity.
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(refusal.concerns, terminal_check_tables::Construct::Machine);
+    assert_eq!(
+        refusal.site.in_machine().unwrap().1,
+        terminal_check_tables::Construct::Machine
+    );
     assert!(
         refusal
             .detail
@@ -2785,8 +2957,8 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
 fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
     for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
         let program = crate::prepare_fixture(typed(&named_owned_source(actual, promised, "0")));
-        let entry = entry(&program);
-        let mut conformances = program.conformances().iter();
+        let entry = entry(program.trees());
+        let mut conformances = program.trees().conformances().iter();
         let conformance = conformances
             .next()
             .expect("the authored Inline conformance");
@@ -3406,7 +3578,7 @@ fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
 #[test]
 fn generic_named_map_invokes_its_closed_own_telescope() {
     let prepared =
-        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[]).unwrap();
+        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[], &[]).unwrap();
     let verdicts = compilation_verdicts_of(&prepared);
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
@@ -3707,7 +3879,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
 }
 
 fn prepare_named_map(text: &str) -> crate::preparation::PreparedTypedTrees {
-    crate::preparation::prepare_typed_trees(typed(text), &[]).unwrap()
+    crate::preparation::prepare_typed_trees(typed(text), &[], &[]).unwrap()
 }
 
 fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {
@@ -3729,6 +3901,7 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         );
     let prepared = prepare_named_map(&text);
     let captures = prepared
+        .trees()
         .captured_machine_applications
         .iter()
         .map(|(_, row)| row)
@@ -3780,6 +3953,7 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
     );
     let prepared = prepare_named_map(&text);
     let captures = prepared
+        .trees()
         .captured_machine_applications
         .iter()
         .map(|(_, row)| row)
@@ -3788,10 +3962,12 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
     assert_ne!(captures[0].instance, captures[1].instance);
     assert_ne!(
         prepared
+            .trees()
             .expression_table
             .static_machine_application(captures[0].binding_application)
             .lexical_owner,
         prepared
+            .trees()
             .expression_table
             .static_machine_application(captures[1].binding_application)
             .lexical_owner
@@ -3890,7 +4066,7 @@ fn full_named_map_verdicts(typed: &crate::preparation::PreparedTypedTrees) -> Ve
                 calling: None,
                 providers: None,
                 declaration_metadata: &[],
-                entries: &[entry(typed)],
+                entries: &[entry(typed.trees())],
                 subjects: &[None],
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &[],

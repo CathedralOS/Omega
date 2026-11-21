@@ -786,7 +786,7 @@ described below. Nor does a box imply that every language construct works.</p>
 </tr>
 <tr>
 <td>04, typed preparation</td>
-<td><code>prepare_typed_trees(TypedTrees, &amp;PreparationRequest) -&gt; Result&lt;(FrozenTypedTrees, TypedPreparation), Vec&lt;Diagnostic&gt;&gt;</code></td>
+<td><code>prepare_typed_trees(TypedTrees, &amp;PreparationRequest, &[]) -&gt; Result&lt;(FrozenTypedTrees, TypedPreparation), Vec&lt;Diagnostic&gt;&gt;</code></td>
 <td>Runs specialization, domain applications and record patterns in that order, then freezes the result. <code>TypedPreparation</code> is request metadata, with no judgment receipt. Deferred layouts, opaque representation selections and wire demands without a serving pass refuse explicitly. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs#L25">Pass list</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs#L95">entrance and refusals</a></td>
 </tr>
 <tr>

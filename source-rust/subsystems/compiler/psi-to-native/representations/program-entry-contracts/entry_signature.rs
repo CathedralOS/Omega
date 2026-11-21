@@ -336,6 +336,17 @@ impl SelectedProgramEntrySignature {
         Ok(())
     }
 
+    pub fn declared_type_signature(&self) -> Result<[u8; 32], &'static str> {
+        service_surface::declared_type_signature(
+            self.visible_parameters.iter().map(|parameter| {
+                self.identities.text(parameter.normalized_type_identity).unwrap_or_default()
+            }),
+            match self.result {
+                ProgramEntryResultSignature::Unit => "unit",
+            },
+        )
+    }
+
     pub fn visible_parameter(
         role: ProgramStorageEntryRootRole,
         visible_parameter_index: usize,

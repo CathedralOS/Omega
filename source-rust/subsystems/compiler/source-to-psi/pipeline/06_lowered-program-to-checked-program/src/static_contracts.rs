@@ -4,14 +4,14 @@
 use arena::IdTable;
 use semantic_vocabulary::CallableCrashPolicy;
 use semantic_vocabulary::{
-    MachineId, ObligationId, PlaceId, PropositionContext, StructuralPlaceKind, ValueId,
+    MachineId, ObligationId, PlaceId, PropositionContext, ServiceId, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::contracts::{
     CallableHeader, StaticCallableEnvelope, StaticImplementation, StaticRequirementSchema,
     StaticServiceCeiling, StaticSignature as Signature, StaticValueType as ValueType,
 };
 use terminal_check_tables::program::Elaboration;
-use terminal_check_tables::{Checked, Construct, RefusalReason};
+use terminal_check_tables::{Checked, Refusal, RefusalReason, RefusalSite};
 use terminal_semantics::callable_envelopes::{
     CallableOperationalView, callable_operational_refines,
 };
@@ -19,13 +19,8 @@ use terminal_semantics::calls::callable_refinement::{
     CallableContractView, contract_refinement_context, contract_refinement_goals,
 };
 
-fn fault(machine: MachineId, detail: &'static str) -> terminal_check_tables::Refusal {
-    crate::checking::refusal(
-        RefusalReason::ForeignIdentity,
-        machine,
-        Construct::Machine,
-        detail,
-    )
+fn fault(site: impl Into<RefusalSite>, detail: &'static str) -> Refusal {
+    Refusal::at(RefusalReason::ForeignIdentity, site.into(), detail)
 }
 fn operational(envelope: &StaticCallableEnvelope) -> CallableOperationalView<'_> {
     CallableOperationalView {
@@ -49,12 +44,13 @@ fn view(header: &CallableHeader) -> CallableContractView<'_> {
 
 pub(crate) fn check_envelope(
     module: &terminal_psi::TerminalModule,
-    machine: MachineId,
+    site: impl Into<RefusalSite>,
     envelope: &StaticCallableEnvelope,
     signature: Option<&Signature>,
 ) -> Checked<()> {
+    let site = site.into();
     if let StaticServiceCeiling::Closed(row) = &envelope.service_reach {
-        crate::checking::ceilings::well_formed_reach(module, machine, row)?;
+        crate::checking::ceilings::well_formed_reach(module, site, row)?;
     }
     if envelope
         .invocations
@@ -62,7 +58,7 @@ pub(crate) fn check_envelope(
         .any(|pair| pair[0] >= pair[1])
     {
         return Err(fault(
-            machine,
+            site,
             "static invocation ceiling is repeated or unordered",
         ));
     }
@@ -85,7 +81,7 @@ pub(crate) fn check_envelope(
                     .all(|declaration| declaration.id != *service) =>
             {
                 return Err(fault(
-                    machine,
+                    site,
                     "static invocation ceiling names no declared service",
                 ));
             }
@@ -93,13 +89,13 @@ pub(crate) fn check_envelope(
                 if let Some(signature) = signature {
                     let position = usize::try_from(*position).map_err(|_| {
                         fault(
-                            machine,
+                            site,
                             "static invocation ordinal exceeds its formal namespace",
                         )
                     })?;
                     let (source, value_type) = loop {
                         let formal = formals.as_mut().and_then(Iterator::next)
-                            .ok_or_else(|| fault(machine, "static invocation ceiling escapes its runtime formal namespace"))?;
+                            .ok_or_else(|| fault(site, "static invocation ceiling escapes its runtime formal namespace"))?;
                         let requested = next_runtime == position;
                         next_runtime += 1;
                         if requested {
@@ -113,7 +109,7 @@ pub(crate) fn check_envelope(
                         ))
                     {
                         return Err(fault(
-                            machine,
+                            site,
                             "static invocation ceiling names no callable or inbound formal",
                         ));
                     }
@@ -126,10 +122,9 @@ pub(crate) fn check_envelope(
         &envelope.termination
         && !premises.is_empty()
     {
-        return Err(crate::checking::refusal(
+        return Err(Refusal::at(
             RefusalReason::Unsupported,
-            machine,
-            Construct::Machine,
+            site,
             "static progress premises need retained declaration subjects",
         ));
     }
@@ -262,10 +257,11 @@ pub(crate) fn requirement_declarations(
 
 fn schema_context(
     module: &terminal_psi::TerminalModule,
-    machine: MachineId,
+    site: impl Into<RefusalSite>,
     signature: &Signature,
     abstract_types: u32,
 ) -> Checked<PropositionContext> {
+    let site = site.into();
     if signature.erased.windows(2).any(|pair| pair[0] >= pair[1])
         || signature
             .erased
@@ -277,7 +273,7 @@ fn schema_context(
             .any(|pair| pair[0].position >= pair[1].position)
     {
         return Err(fault(
-            machine,
+            site,
             "static signature has an invalid formal mode namespace",
         ));
     }
@@ -287,7 +283,7 @@ fn schema_context(
     for (position, value_type) in signature.parameters.iter().enumerate() {
         if let ValueType::Rigid(rigid) = value_type {
             if rigid.0 >= abstract_types {
-                return Err(fault(machine, "abstract schema input has no declared type"));
+                return Err(fault(site, "abstract schema input has no declared type"));
             }
             if signature.borrowed(position).is_none() {
                 // An opaque logical input occupies a formal value ID, but
@@ -303,30 +299,24 @@ fn schema_context(
                 .and_then(|n| n.checked_add(1))
                 .and_then(PlaceId::new)
                 .ok_or_else(|| {
-                    fault(
-                        machine,
-                        "static place namespace exceeds its coordinate width",
-                    )
+                    fault(site, "static place namespace exceeds its coordinate width")
                 })?;
             let position = u32::try_from(position)
-                .map_err(|_| fault(machine, "static formal ordinal exceeds u32"))?;
+                .map_err(|_| fault(site, "static formal ordinal exceeds u32"))?;
             places.push((place, StructuralPlaceKind::Parameter { position }));
         } else {
             // Predicates name the stored carrier. The complete signature keeps
             // the arithmetic policy which controls operations over that value.
             let scalar = value_type
                 .scalar()
-                .ok_or_else(|| fault(machine, "static value formal has no exact scalar type"))?;
+                .ok_or_else(|| fault(site, "static value formal has no exact scalar type"))?;
             module
                 .execution.callables
                 .validate_scalar_type(scalar)
-                .map_err(|detail| fault(machine, detail))?;
+                .map_err(|detail| fault(site, detail))?;
             scalars.push((
                 values[position].ok_or_else(|| {
-                    fault(
-                        machine,
-                        "static scalar formal lost its exact value identity",
-                    )
+                    fault(site, "static scalar formal lost its exact value identity")
                 })?,
                 scalar,
             ));
@@ -338,7 +328,7 @@ fn schema_context(
                 .all(|declared| declared.id != *record)
         {
             return Err(fault(
-                machine,
+                site,
                 "static signature names an undeclared structural carrier",
             ));
         }
@@ -348,7 +338,7 @@ fn schema_context(
             module
                 .execution.callables
                 .validate_scalar_type(scalar)
-                .map_err(|detail| fault(machine, detail))?;
+                .map_err(|detail| fault(site, detail))?;
             let relevant = signature
                 .parameters
                 .iter()
@@ -364,10 +354,7 @@ fn schema_context(
                 .and_then(|n| n.checked_add(1))
                 .and_then(ValueId::new)
                 .ok_or_else(|| {
-                    fault(
-                        machine,
-                        "static result namespace exceeds its coordinate width",
-                    )
+                    fault(site, "static result namespace exceeds its coordinate width")
                 })?;
             scalars.push((result, scalar));
         }
@@ -377,7 +364,7 @@ fn schema_context(
                 .iter()
                 .all(|declared| declared.id != record)
             {
-                return Err(fault(machine, "static result carrier is undeclared"));
+                return Err(fault(site, "static result carrier is undeclared"));
             }
             let result = u64::try_from(places.len())
                 .ok()
@@ -385,7 +372,7 @@ fn schema_context(
                 .and_then(PlaceId::new)
                 .ok_or_else(|| {
                     fault(
-                        machine,
+                        site,
                         "static result place namespace exceeds its coordinate width",
                     )
                 })?;
@@ -395,41 +382,189 @@ fn schema_context(
         // it supplies no observable scalar, so a predicate naming `result`
         // still fails scope validation below and the schema is refused.
         Some(ValueType::Rigid(rigid)) if rigid.0 >= abstract_types => {
-            return Err(fault(
-                machine,
-                "abstract schema result has no declared type",
-            ));
+            return Err(fault(site, "abstract schema result has no declared type"));
         }
         Some(ValueType::Rigid(_)) => {}
         None => {}
     }
     PropositionContext::from_value_types_and_places(scalars, places).map_err(|_| {
         fault(
-            machine,
+            site,
             "static declaration has conflicting formal/result identities",
         )
     })
+}
+
+fn check_service_limit(
+    site: RefusalSite,
+    required: &StaticServiceCeiling,
+    concrete: &[ServiceId],
+    open: bool,
+) -> Checked<()> {
+    if let StaticServiceCeiling::Closed(ceiling) = required {
+        if open {
+            return Err(Refusal::at(
+                RefusalReason::Conflict,
+                site,
+                "an open callback dependency cannot establish the static requirement's finite service ceiling",
+            ));
+        }
+        if concrete
+            .iter()
+            .any(|service| ceiling.binary_search(service).is_err())
+        {
+            return Err(Refusal::at(
+                RefusalReason::Conflict,
+                site,
+                "implementation exceeds the static requirement's authored service ceiling",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The check form retains a generic body's fixed crash routes. A callback
+/// with an open crash requirement can add routes when it is selected. Never
+/// use that body's fixed rows alone to prove a closed receiving requirement.
+fn check_deferred_callback_crashes(
+    elaboration: &Elaboration,
+    site: RefusalSite,
+    application: &terminal_psi::static_reach::StaticReachArgument,
+    required: &CallableHeader,
+) -> Checked<()> {
+    if required.crash_policy == CallableCrashPolicy::Open {
+        return Ok(());
+    }
+    let covers = |cause| {
+        required.proof.crash_routes.iter().any(|route| {
+            route.cause == cause
+                && route
+                    .alternatives
+                    .contains(&terminal_psi::CrashRouteGuard::Truth)
+        })
+    };
+    let mut pending = vec![application];
+    while let Some(application) = pending.pop() {
+        let parameters = &elaboration.static_reach_parameters;
+        let first = parameters.partition_point(|row| row.owner < application.selected);
+        for parameter in parameters[first..]
+            .iter()
+            .take_while(|row| row.owner == application.selected)
+        {
+            let requirement = elaboration
+                .module
+                .machine(parameter.requirement)
+                .ok_or_else(|| {
+                    fault(
+                        site,
+                        "generic callback lost its originating crash requirement",
+                    )
+                })?;
+            if requirement.contract.declared_crash_routes.is_some() {
+                // Its authored routes already contribute through the body. Its
+                // own refinement question checks the nested selection.
+                continue;
+            }
+            let actual = application.arguments.iter().find(|actual| {
+                actual.parameter == parameter.parameter
+                    && actual.requirement == parameter.requirement
+            });
+            let Some(actual) = actual else {
+                return Err(Refusal::at(
+                    RefusalReason::Unsupported,
+                    site,
+                    "an open crash dependency has no supplied callback application",
+                ));
+            };
+            let selected = elaboration
+                .module
+                .machine(actual.selected)
+                .ok_or_else(|| fault(site, "nested callback lost its selected crash contract"))?;
+            if selected
+                .contract
+                .crash_routes
+                .iter()
+                .any(|route| !covers(route.cause))
+            {
+                return Err(Refusal::at(
+                    RefusalReason::Unsupported,
+                    site,
+                    "the nested callback's crash routes need coverage at its invocation",
+                ));
+            }
+            if selected.declaration.is_none() {
+                pending.push(actual);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// An executable body supplies its published contract. A generic checking
+/// body supplies a contract only for its selected application, after the
+/// call's own arguments have been substituted into its reach dependencies.
+fn machine_operations<'a>(
+    elaboration: &'a Elaboration,
+    site: RefusalSite,
+    body: &terminal_psi::TerminalMachine,
+    argument: Option<&terminal_psi::static_reach::StaticReachArgument>,
+    question: &terminal_check_tables::contracts::StaticConformanceQuestion,
+) -> Checked<CallableOperationalView<'a>> {
+    let limit = &question.envelope.service_reach;
+    if body.declaration.is_some() {
+        let runtime = elaboration
+            .module
+            .execution
+            .callables
+            .machine_envelope(body.id)
+            .ok_or_else(|| {
+                fault(
+                    site,
+                    "static implementation lost its published operational contract",
+                )
+            })?;
+        check_service_limit(site, limit, &runtime.service_reach, false)?;
+        return Ok(CallableOperationalView::from(runtime));
+    }
+    let generic = elaboration
+        .generic_callable_declarations
+        .binary_search_by_key(&body.id, |declaration| declaration.machine)
+        .ok()
+        .map(|index| &elaboration.generic_callable_declarations[index])
+        .ok_or_else(|| fault(site, "static conformance names no genuine checked body"))?;
+    if question.provider.is_some() {
+        return Err(fault(
+            site,
+            "a generic checking body is not an executable provider",
+        ));
+    }
+    let argument = argument
+        .filter(|argument| argument.selected == body.id)
+        .ok_or_else(|| fault(site, "generic callback lost its selecting application"))?;
+    check_deferred_callback_crashes(elaboration, site, argument, &question.required)?;
+    let summary = |machine| {
+        elaboration
+            .static_reach_summaries
+            .binary_search_by_key(&machine, |row| row.machine)
+            .ok()
+            .map(|index| &elaboration.static_reach_summaries[index].term)
+    };
+    let reach =
+        terminal_semantics::static_reach::substitute(&generic.reach, &argument.arguments, summary)
+            .map_err(|reason| fault(site, reason))?;
+    check_service_limit(site, limit, &reach.concrete, !reach.parameters.is_empty())?;
+    Ok(operational(&generic.envelope))
 }
 
 pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
     if elaboration.static_schemas.is_empty() && elaboration.static_conformances.is_empty() {
         return Ok(());
     }
-    let machine = elaboration
-        .module
-        .machines
-        .first()
-        .map(|machine| machine.id)
-        .ok_or_else(|| {
-            fault(
-                MachineId::new(1).expect("one is nonzero"),
-                "static questions have no real diagnostic context",
-            )
-        })?;
     let module = &elaboration.module;
     let mut bound = Vec::new();
     let mut instances = Vec::new();
     for schema in &elaboration.static_schemas {
+        let site = RefusalSite::Declaration(schema.declaration);
         for binding in &schema.bindings {
             if !binding.parameter.is_valid()
                 || !binding.owner.is_valid()
@@ -438,7 +573,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 || !elaboration.generic_binders.contains(&binding.parameter)
             {
                 return Err(fault(
-                    machine,
+                    site,
                     "static record has an invalid, repeated or unquantified binder account",
                 ));
             }
@@ -457,7 +592,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     })
                 {
                     return Err(fault(
-                        machine,
+                        site,
                         "static record member escapes its complete originating schema",
                     ));
                 }
@@ -476,7 +611,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                             .is_none_or(|machine| !machine.blocks.is_empty())
                     {
                         return Err(fault(
-                            machine,
+                            site,
                             "static record requirement instance changes its binder, arguments or logical callable",
                         ));
                     }
@@ -486,17 +621,18 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
             }
         }
         for requirement in &schema.requirements {
+            let site = RefusalSite::Declaration(requirement.declaration);
             // A template requirement's open signature is checked once in its
             // own generic check form; here it contributes only its envelope.
             let Some(signature) = &requirement.signature else {
-                check_envelope(module, machine, &requirement.envelope, None)?;
+                check_envelope(module, site, &requirement.envelope, None)?;
                 continue;
             };
-            let context = schema_context(module, machine, signature, requirement.abstract_types)?;
+            let context = schema_context(module, site, signature, requirement.abstract_types)?;
             for proposition in signature.requires.iter().chain(&signature.ensures) {
                 context.validate(proposition).map_err(|_| {
                     fault(
-                        machine,
+                        site,
                         "static declaration predicate escapes its exact typed formal/result scope",
                     )
                 })?;
@@ -507,36 +643,62 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 for guard in routes.iter().flat_map(|route| &route.alternatives) {
                     if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
                         context.validate(predicate.proposition()).map_err(|_| {
-                            fault(machine, "static crash guard escapes its invocation scope")
+                            fault(site, "static crash guard escapes its invocation scope")
                         })?;
                     }
                 }
             }
-            check_envelope(module, machine, &requirement.envelope, Some(signature))?;
+            check_envelope(module, site, &requirement.envelope, Some(signature))?;
         }
     }
-    for question in &elaboration.static_conformances {
+    // Retain the precise source application for generic callback questions.
+    // Ordinals are shared with reach substitution; a question cannot acquire
+    // two different tuples just because both select the same machine.
+    let mut selections = vec![None; elaboration.static_conformances.len()];
+    if !elaboration.generic_callable_declarations.is_empty() {
+        let mut pending = elaboration
+            .static_reach_applications
+            .iter()
+            .flat_map(|call| &call.arguments)
+            .collect::<Vec<_>>();
+        while let Some(argument) = pending.pop() {
+            let slot = selections
+                .get_mut(argument.conformance as usize)
+                .ok_or_else(|| {
+                    fault(
+                        argument.selected,
+                        "static callback lost its refinement question",
+                    )
+                })?;
+            if slot
+                .replace(argument)
+                .is_some_and(|previous| previous != argument)
+            {
+                return Err(fault(
+                    argument.selected,
+                    "static callback refinement has conflicting applications",
+                ));
+            }
+            pending.extend(&argument.arguments);
+        }
+    }
+    for (index, question) in elaboration.static_conformances.iter().enumerate() {
+        let site = RefusalSite::Declaration(question.declaration);
         if question.application.is_empty() {
             return Err(fault(
-                machine,
+                site,
                 "static conformance lost its exact applied declaration identity",
             ));
         }
-        check_envelope(module, machine, &question.envelope, None)?;
-        let (supplied, envelope) = match question.implementation {
+        check_envelope(module, site, &question.envelope, None)?;
+        let (supplied, operations) = match question.implementation {
             StaticImplementation::Machine(id) => {
                 let body = module
                     .machine(id)
-                    .filter(|body| body.declaration.is_some() && !body.blocks.is_empty())
+                    .filter(|body| !body.blocks.is_empty())
                     .ok_or_else(|| {
-                        fault(machine, "static conformance names no genuine checked body")
+                        fault(site, "static conformance names no genuine checked body")
                     })?;
-                let envelope = module.execution.callables.machine_envelope(id).ok_or_else(|| {
-                    fault(
-                        machine,
-                        "static implementation lost its published operational contract",
-                    )
-                })?;
                 (
                     CallableContractView {
                         parameter_order: &body.parameter_order,
@@ -547,7 +709,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                         evidence_owner: Some(terminal_psi::EvidenceCallableOwner::Machine(id)),
                         crash_policy: CallableCrashPolicy::Closed,
                     },
-                    envelope,
+                    machine_operations(elaboration, site, body, selections[index], question)?,
                 )
             }
             StaticImplementation::Native { source, candidate } => {
@@ -560,36 +722,28 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     })
                     .ok_or_else(|| {
                         fault(
-                            machine,
+                            site,
                             "static conformance lost its checked native declaration",
                         )
                     })?;
-                (view(&candidate.supplied), &candidate.supplied_envelope)
+                let envelope = &candidate.supplied_envelope;
+                check_service_limit(
+                    site,
+                    &question.envelope.service_reach,
+                    &envelope.service_reach,
+                    false,
+                )?;
+                (
+                    view(&candidate.supplied),
+                    CallableOperationalView::from(envelope),
+                )
             }
         };
-        if let StaticServiceCeiling::Closed(ceiling) = &question.envelope.service_reach
-            && envelope
-                .service_reach
-                .iter()
-                .any(|service| ceiling.binary_search(service).is_err())
-        {
-            return Err(crate::checking::refusal(
-                RefusalReason::Conflict,
-                machine,
-                Construct::Machine,
-                "implementation exceeds the static requirement's authored service ceiling",
-            ));
-        }
-        callable_operational_refines(
-            operational(&question.envelope),
-            CallableOperationalView::from(envelope),
-        )
-        .map_err(|detail| {
-            crate::checking::refusal(RefusalReason::Conflict, machine, Construct::Machine, detail)
-        })?;
+        callable_operational_refines(operational(&question.envelope), operations)
+            .map_err(|detail| Refusal::at(RefusalReason::Conflict, site, detail))?;
         let required = view(&question.required);
         let context =
-            contract_refinement_context(required).map_err(|detail| fault(machine, detail))?;
+            contract_refinement_context(required).map_err(|detail| fault(site, detail))?;
         let declarations = question
             .required
             .scalar_parameters
@@ -599,7 +753,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
             .map(|formal| (formal.id, formal.scalar_type))
             .collect::<Vec<_>>();
         let goals = contract_refinement_goals(module, required, supplied)
-            .map_err(|detail| fault(machine, detail))?;
+            .map_err(|detail| fault(site, detail))?;
         for (position, goal) in goals.iter().enumerate() {
             let obligation = u64::try_from(position)
                 .ok()
@@ -607,7 +761,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 .and_then(ObligationId::new)
                 .ok_or_else(|| {
                     fault(
-                        machine,
+                        site,
                         "static refinement obligation namespace exceeds its coordinate width",
                     )
                 })?;
@@ -619,10 +773,9 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 &mut Default::default(),
             )
             .map_err(|detail| {
-                crate::checking::refusal(
+                Refusal::at(
                     RefusalReason::Unproved(terminal_check_tables::UnprovedCause::NoDerivation),
-                    machine,
-                    Construct::Machine,
+                    site,
                     detail,
                 )
             })?;
@@ -638,14 +791,8 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     admit(elaboration)?;
     let module = &mut elaboration.module;
     if !module.interfaces.provider_candidates.is_empty() {
-        let context = module.machines.first().map(|row| row.id).ok_or_else(|| {
-            fault(
-                MachineId::new(1).expect("one is nonzero"),
-                "provider catalog has no diagnostic context",
-            )
-        })?;
         return Err(fault(
-            context,
+            RefusalSite::Program,
             "static provider candidates were already published",
         ));
     }
@@ -656,14 +803,8 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             continue;
         };
         let StaticImplementation::Machine(id) = question.implementation else {
-            let context = module.machines.first().map(|row| row.id).ok_or_else(|| {
-                fault(
-                    MachineId::new(1).expect("one is nonzero"),
-                    "static provider has no diagnostic context",
-                )
-            })?;
             return Err(fault(
-                context,
+                RefusalSite::Declaration(question.declaration),
                 "static provider candidate is not an executable declaration",
             ));
         };

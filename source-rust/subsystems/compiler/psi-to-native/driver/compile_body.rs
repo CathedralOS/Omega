@@ -17,23 +17,6 @@ pub enum NativeBodyPlanningError {
     Target(target_lowering::LoweringError),
 }
 
-fn optimize(
-    input: VerifiedNativeArtifactInput,
-    selections: &PostTerminalOptimizationSelections,
-    budget: OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<abstract_optimization::ValidatedOptimizedAbstractPlan, NativeBodyPlanningError> {
-    observation.enter(NativePipelineStage::AbstractOptimization);
-    let selections = selections.selections();
-    abstract_optimization::optimize_abstract_operations(
-        input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
-        budget,
-    )
-    .map_err(NativeBodyPlanningError::AbstractOptimization)
-}
-
 pub fn plan_native_body(
     input: VerifiedNativeArtifactInput,
     target: OptimizedTargetLoweringRequest<'_>,
@@ -42,22 +25,17 @@ pub fn plan_native_body(
     observation: &NativePipelineObservation,
     retain_original: bool,
 ) -> Result<NativeBodyPlan, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, observation)?;
+    observation.enter(NativePipelineStage::AbstractOptimization);
+    let selections = selections.selections();
+    let optimized = abstract_optimization::optimize_abstract_operations(
+        input.into_optimization_input(),
+        selections,
+        &selections.project_psi(),
+        budget,
+    )
+    .map_err(NativeBodyPlanningError::AbstractOptimization)?;
     observation.enter(NativePipelineStage::AbstractToTarget);
     target_lowering::lower_native_body(optimized.into_lowering_input(), target, retain_original)
-        .map_err(NativeBodyPlanningError::Target)
-}
-
-/// Runtime-only admission needs the exact storage layout of optimized borrows.
-pub fn plan_runtime_storage(
-    input: VerifiedNativeArtifactInput,
-    target: target::NativeTarget,
-    selections: &PostTerminalOptimizationSelections,
-    budget: OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<runtime_abi::NativeBorrowedStorageLayouts, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, observation)?;
-    target_lowering::runtime_storage(&optimized.into_lowering_input(), target)
         .map_err(NativeBodyPlanningError::Target)
 }
 
@@ -75,8 +53,7 @@ pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
     RegisterAllocation(allocation::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     Encoding(native_encoding::OptimizedSelectedFormEncodingError),
-    Layout(placement::OptimizedResolvedSelectedFormLayoutError),
-    LayoutOptimization(relaxation::ResolvedLayoutOptimizationError),
+    Layout(placement::LayoutError),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
@@ -95,7 +72,6 @@ impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
             }
             Self::Encoding(error) => write!(formatter, "Encoding({error:?})"),
             Self::Layout(error) => write!(formatter, "Layout({error:?})"),
-            Self::LayoutOptimization(error) => write!(formatter, "LayoutOptimization({error:?})"),
             Self::FunctionRelativeRealization(error) => {
                 write!(formatter, "FunctionRelativeRealization({error:?})")
             }
@@ -240,20 +216,23 @@ pub(crate) fn layout_encoded_body(
     let EncodedBody { program, originals } = encoded;
     observation.enter(NativePipelineStage::ResolvedLayout);
     let originals = originals.map(|earlier| (earlier, program.current().clone()));
-    let placed = placement::place_encoded_program(program)
+    let placement::LayoutResolution { layout: output, baseline_for_audit } = placement::resolve_program(program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Layout)?;
-    let retained = originals.map(|(earlier, encoding)| {
-        Box::new(published_object_verification::RetainedPhysicalInputs {
-            allocation: earlier.allocation,
-            machine: earlier.machine,
-            encoding,
-            baseline_layout: placed.program().clone(),
-            selected_optimization: earlier.selected_optimization,
-        })
-    });
-    observation.enter(NativePipelineStage::LayoutOptimization);
-    let output = relaxation::relax_resolved_layout(placed)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::LayoutOptimization)?;
+    let retained = match (originals, baseline_for_audit) {
+        (Some((earlier, encoding)), Some(baseline_layout)) => Some(Box::new(
+            published_object_verification::RetainedPhysicalInputs {
+                allocation: earlier.allocation,
+                machine: earlier.machine,
+                encoding,
+                baseline_layout,
+                selected_optimization: earlier.selected_optimization,
+            },
+        )),
+        (None, None) => None,
+        _ => return Err(BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(
+            "layout and encoding disagree on independent replay custody",
+        )])),
+    };
     if retained
         .as_ref()
         .is_some_and(|originals| !originals.belongs_to(output.layout_for_audit()))
@@ -286,7 +265,7 @@ pub(crate) struct BodyObject {
 }
 
 pub(crate) fn construct_body_object(body: LaidOutBody) -> Result<BodyObject, BodyEmissionError> {
-    let issued = object_file::stage_optimized_relocation_free_object_container(body.placed)
+    let issued = object_file::publish_function_object(body.placed)
         .map_err(object_publication_error)?;
     let projection =
         native_artifact::emit_fragment_object(issued).map_err(BodyEmissionError::Object)?;

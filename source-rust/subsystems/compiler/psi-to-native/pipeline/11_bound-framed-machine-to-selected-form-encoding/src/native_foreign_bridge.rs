@@ -53,7 +53,7 @@ pub fn encode_native_foreign_bridge<Origin>(
     })
 }
 
-/// An encoded bridge issued by stage 12 from the selected physical plan.
+/// A bridge encoded from the selected physical plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeForeignBridge<Origin> {
     code: NativeForeignBridgeCode,

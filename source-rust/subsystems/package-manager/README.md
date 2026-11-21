@@ -22,6 +22,7 @@ independent of installation.
 ```text
 package-manager/
 ├── package_manager.rs            library entry and public package APIs
+├── project/                      resolve dependencies and prepare Products for each target
 ├── dependencies/                 project preparation, declarations and source graphs
 ├── lockfile/                     recovery and journaled file publication
 ├── review/                       candidate evidence, comparisons and decisions
@@ -35,9 +36,12 @@ decision documents or publishes accepted files, completion needs every target
 from that admission. The original proposal handle stays borrowed throughout,
 so completion checks the file admission read, not a replacement. Binding
 discovery, exact occurrence reuse, policy comparison and cache admission live
-here. Application Build runs the admitted dependency work through one
-whole-pass executor that commands and audit share. Package policy does not
-prepare Builds, publish components or finish compiler reviews.
+here. The [project module](project/mod.rs) resolves the dependencies that Build
+requests. It reuses each workspace member's first Build result, looks up
+providers by their Build-scoped aliases, and prepares dependencies for the
+host or deployment target. Compilation calls `project::open_products`. Package
+review uses `project::resolve_build_sources` to resolve the same graph. Build
+executes the declarations and the compiler produces the requested artifacts.
 The independent [declaration](../compiler/build/inputs/declarations/README.md),
 [output](../compiler/build/inputs/trees/README.md) and [compilation-input](../compiler/build/inputs/README.md)
 packages sit below both the compiler and this crate, so the compiler does not
@@ -202,23 +206,18 @@ dependency bindings. Saved Psi hosts can open a separately pinned application
 lock and recover its reviewed providers through
 [`ReviewedHostPackages`](dependencies/reviewed_host_packages.rs).
 
-Candidate review derives the exact dependency-first Product and Build
-occurrence roster. `PackageReviewPass::recover_cached` first recovers discovery
-evidence and repeats the lookup with consumer-scoped bindings when required.
-The persistent cache key includes the package, compiler, target, execution
-profile, entry, complete compilation inputs and Build snapshot. Recovery checks
-lineage and resolution and re-derives source consumption from the retained
-units and current inputs. Complete reviews use the existing policy comparison,
-consent and lock encodings. The closure permits at most 64 MiB of canonical
-policy data. [Review passes](review/candidate/passes.rs)
-and [occurrence recovery](review/candidate/passes_occurrences.rs).
+Candidate review visits the Product and Build occurrences in dependency order.
+Each occurrence opens a Product from the Build that resolved its sources.
+The compiler checks the declarations a package publishes, including unused
+exports, and selects providers for the requested target. A consumer whose
+semantic bindings change during discovery is checked with the settled bindings.
+[Review passes](review/candidate/passes.rs)
 
-A cache miss identifies the package occurrence and target that require a fresh
-review. The current project Build and source compilation APIs still need to
-issue the complete checked policy, provider nominations and generated handoff
-for that occurrence. The previous scheduler and projection are preserved under
-[`v1-project-admission`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-admission) and
-[`v1-project-review`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-review).
+A cached review must match the package, compiler, target, execution profile,
+entry, compilation inputs and Build snapshot. Recovery rejoins its source
+commitment, Build observations, restricted requests and target handoff to the
+current occurrence. The closure retains up to 64 MiB of canonical policy data.
+[Occurrence review](review/candidate/passes_occurrences.rs)
 
 Acquisition binds each returned package declaration and dependency ledger to
 the same immutable capture that admitted its Build. A staged Build can name
@@ -235,10 +234,8 @@ subject. `HistoricalPackagePolicyDecisions::capture_policy` takes the
 complete-policy comparison and its exact resolved project choices. Version 2
 keeps the comparison identity, an optional link to the prior source, and typed
 row, root-role and source-replacement subjects. Decisions about removed
-packages do not index the candidate-only graph. Version 1 records stay
-readable in their original indexed form; loading does not invent a modern
-comparison for them. Recovery needs only the kept source subject, not an old
-checkout or a recreated compiler conflict. Acceptances and rejections stay
+packages do not index the candidate-only graph. Recovery checks the current decision record against its retained source subject
+and comparison identity. Acceptances and rejections stay
 trusted project records, not fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and
@@ -264,7 +261,7 @@ Version 4 `omega.lock` text holds canonical source, compact acceptance,
 required accepted-compilation and historical-decision sections, each with an
 explicit byte length. Older versions, including version 3, are rejected rather
 than guessing compiler identity or bindings. The compact acceptance section
-uses policy row schema 3. No section is stored as an opaque escaped payload. Loading requires no checkout,
+uses the current policy row schema. Loading requires no checkout,
 source acquisition, compiler run, proof certificate, or native replay. Recovery
 checks outer framing and every child's canonical meaning and associations.
 `PackageLockRecoveryLimits` bounds the entire input, requested owned storage

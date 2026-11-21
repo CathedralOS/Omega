@@ -27,7 +27,7 @@ machine entry() -> u32 {
 /// The entry closure's verdicts, as `judge_compilation` lists them.
 fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = crate::prepare_fixture(boundary_calls::typed(text));
-    let entry = boundary_calls::entry(&typed);
+    let entry = boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -218,5 +218,6 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
     assert!(refused.iter().all(|refused| refused.detail.contains(
         "whole-referent restoration requires unqualified nonlinear owned storage without claims"
     )));
-    assert!(refused[0].machine < refused[1].machine, "{refused:#?}");
+    let machines: Vec<_> = refused.iter().map(|r| r.site.in_machine().unwrap().0).collect();
+    assert!(machines[0] < machines[1], "{refused:#?}");
 }

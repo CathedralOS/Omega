@@ -46,6 +46,23 @@ The Rust compiler's front end also separates tokenization, parsing and name
 resolution. Its later stages produce Psi. The Epsilon compiler's executable
 product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compiler/source-to-psi/pipeline)
 
+### Private helper arrivals
+
+A private nested helper with no authored `requires` can infer one unsigned
+parameter interval needed by fixed-array reads. The compiler checks its body
+under that proposed condition, then revisits every ordinary and terminal arrival
+before the owner may emit. Actual argument identities, representation-preserving
+carrier removal, pure terminal guards and recorded mutation effects govern the
+proof. A guarded field's declared upper bound can close `index < count <= extent`.
+
+This provision covers same-owner static arrivals with an acyclic predecessor
+graph. Public/free entries, explicit contracts, uncalled helpers and recursive
+arrivals do not acquire inferred conditions. Ordinary calls currently transport
+literal or existing entry facts. Broader copied-value and call-site inference
+remains `Incomplete`. The constructor regressions named `private-arrival-*`
+check these boundaries, including exact product declarations on the full
+`SyntaxTrees` carrier.
+
 ## Retention inventory
 
 | Retained file | Canonical role | Deletion condition |
@@ -95,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,341 lines / 1,108,030 bytes with SHA-256
-`db46d240ab70b03f6c7ceb9b10914960e04649c79d670ca2dd92c1c6c2d967dd`.
+The manifest materializes 30,311 lines / 1,198,639 bytes with SHA-256
+`2d6109c993f1994c66457b4f4723a37aabcdf56c5e88a8d2b326aca3d579b30d`.
 The manifest itself is 2,905 bytes, SHA-256
-`34d5c4243c2626ff2859a1063ef02786d58301ee92bbf288c4b0ec49d3ffa3ce`;
+`38d2b00abd7fc5fdc533fa8c4aa8767eb6fca32072a29bca5721c5efde21f462`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -129,8 +146,15 @@ and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters. Up to 16,384 state labels can span a construction request.
-Each file still parses at most 4,096 states. Parameter ranges, source
-coordinates and declared effect bounds survive the release of that file.
+Each file still parses at most 4,096 states.
+The parser admits at most 16,384 parameters in one file. A multi-file request
+can exceed that total. Machine roots keep permanent argument slots across
+files, and nested machines reuse the remaining slots while their file is
+loaded. The root parameters across the request plus the largest nested
+parameter count in any one file must fit in 16,384 slots. Emitted code gives
+different nested machines distinct argument storage so a call preserves the
+caller's values. Parameter ranges, source coordinates and declared effect
+bounds survive the release of the file.
 A state body, its lexical scope, and its checked terminal instructions belong
 to the current file. Calls across files resolve a machine root; nested states
 remain visible through their lexical owner.
@@ -204,12 +228,19 @@ Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards, a comma between arms and an optional trailing comma. An arm
 can transfer to a machine or produce a value. Booleans, integers, local names
 and qualified sum cases with or without named payloads use the ordinary result
-checker and Alpha emitter.
+checker and Alpha emitter. In a subjectless transition the compiler checks every
+condition as a Boolean and checks every target, including targets after an
+unconditional arm. At runtime it evaluates conditions in source order until
+one succeeds. A wildcard or literal `true` establishes coverage in this subset.
 An operand of a transition subject may use a local with a keyword spelling,
 including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
 and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
+
+The bootstrap compiler implements intrinsic equality and inequality for values
+of the same payload-free sum. It reads the left case before evaluating the
+right operand, which can call a machine or change the left operand's backing.
 
 An unrestricted `[copy]` sum uses a private eight-byte case tag followed by
 storage for its largest admitted payload. The compiler checks each field's
@@ -248,8 +279,11 @@ and the crash and blocking ceilings described below, receivers,
 other runtime carriers/policies, arithmetic beyond the checked unsigned families below,
 and other dynamic subjects remain explicit coverage boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
-An ordinary call to a visible nested declaration remains outside this compiler subset,
-including when a free machine has the same name.
+Expression calls to visible nested declarations use their own parameter and result
+signature, entry requirements, effect acknowledgements and checked call loans.
+Lexical helpers take precedence over a free machine with the same name; a local
+value binding still takes precedence over a helper. Ordinary nested call statements
+remain an explicit coverage boundary.
 
 Each machine owns the helpers declared after its executable body. Terminal
 transfers search the caller's children and then each enclosing declaration
@@ -282,15 +316,53 @@ A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, broader explicit landing, and other typed runtime operations remain work.
 
 Private static storage separates parameter, local, pending-argument and
-expression-scratch cells within a 16 MiB arena `[0x02000000, 0x03000000)`,
-beyond the maximum 16 MiB tape and
-below Alpha's return stack. Each call evaluates arguments left to right into
+expression-scratch cells within a checked 1 GiB backing window
+`[0x20000000, 0x60000000)`, above Alpha's downward-growing return stack.
+`omega_storage_base()` and `omega_storage_capacity()` supply this private map
+to every backing-address emitter and layout/allocation check, including borrowed
+byte-view descriptors. The Alpha tape limit remains **16,777,212 bytes**.
+This map describes the emitted Omega program, not the Epsilon evaluator or
+Gamma runtime that executes the compiler; those have separate memory profiles.
+
+| Region | Half-open address range or origin | Admission |
+| --- | --- | --- |
+| Tape and inline data | `[0, L)`, `L <= 0x00fffffc` | Existing encoder and seed materializer check the unchanged raw tape limit. |
+| Alpha return stack | Origin `0x10000000`, grows downward | Alpha checks each complete eight-byte push and pop against its memory extent. |
+| Checked value backing | `[0x20000000, 0x60000000)` | Nonzero rounded extents and the accumulated arena must fit `0x40000000` bytes. |
+
+The backing window is disjoint from tape and stack, and its exclusive end is
+below signed `i32`'s maximum and AlphaBootstrapV5's `0x2000000000` memory extent.
+Array products are admitted by `count <= capacity / stride` before multiplying;
+record/payload growth and cell allocation use `extent <= capacity - used`
+before adding. Word rounding remains within positive `i32` arithmetic. Every
+checked index plan repeats the extent/product check before emitting an address.
+These are private compiler limits; Omega's array, provider and ownership rules
+are unchanged. Layout or arena overflow retains its existing `Incomplete`
+refusal before tape publication.
+
+The normal request controls in
+[`directory_names.py`](../../../tests/bootstrap/independent/directory_names.py)
+cover the exact and first overflowing array, record, payload and arena extents;
+a product that would wrap `i32` multiplication; independent live regions; and
+borrowed-byte descriptors after relocation. Its complete `SyntaxTrees` customer
+retains the product declaration's fields, bounds and data dependencies. It
+reserves two 45,156,664-byte owners and checks their final word and an earlier
+constrained field through separate calls. The arena-boundary customer reserves
+an unused parameter region, so testing a 1 GiB reservation does not execute a
+1 GiB initialization loop. Source-owned seed observations require a replay
+against the exact selected compiler identity.
+
+Each call evaluates arguments left to right into
 its own pending cells before copying them into destination parameters, including
 same-state transfers. This preserves
 earlier arguments and caller locals across nested calls. A whole-owner call
-DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
-all admitted state transfers stay within the owner, so mixed transfer/call
-cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
+DAG collects free-machine calls from every state. Nested expression calls retain
+exact declaration identities in the state-invocation graph. For each such call,
+a bounded reverse walk through ordinary calls and terminal transfers refuses
+any route from the callee back into its suspended caller. Each state is queued
+once per walk. Terminal-only cycles remain admitted, including within a called
+helper. Both checks cover unused declarations as well as the selected entry.
+At most 16,384 distinct state invocations can be suspended by ordinary calls.
 No admitted source operation converts these private addresses to numeric values.
 An `i32` value retains its sign through local storage, parameters, and returns.
 Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
@@ -405,7 +477,8 @@ rounded up to a word boundary so record copies and zeroing can use whole words.
 Bounds checks use the declared element count. The `SourceUnit` byte array
 occupies 128 KiB and the construction application's 4 MiB byte array fits in
 its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
-at 64 steps and the complete private storage arena at 16 MiB. By-value cycles,
+at 64 steps. Compound extents and the complete private storage arena are
+bounded by the 1 GiB backing window described above. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and
 unsupported domains decline before allocation. An intact affine local with no
 contained cleanup may leave scope; it is never implicitly copied.
@@ -440,19 +513,42 @@ checked selectors and element stride as a record field.
 
 A machine taking `@[u8]` can read the live length of a shared byte slice.
 A literal index needs a proved lower bound on that length. A scalar index
-can also carry the declared requirement `index < bytes.len`. At each call
-or transfer the compiler checks the two actual arguments. An in-range literal,
-a matching strict guard or the caller's requirement on the same pair can
-establish the relation. Another slice or index cannot supply it. Callers can borrow
-a whole packed byte array or a half-open subrange with literal endpoints,
+can also carry the declared requirement `index < bytes.len`. A half-open
+endpoint can use `index <= bytes.len`; it still needs a strict bound for
+a byte read. Two parameters with the same plain `u8`, `u32` or `u64` type
+may require `start <= index` or
+`start < index`. At each call or transfer the compiler substitutes both
+actual arguments. Literals, pure selected comparisons and preserved entry
+requirements can establish the relation on that exact pair. A true conjunction
+can supply either of its comparisons. With `index < bytes.len`, the plain
+`u64` successor `index + 1` cannot overflow and can reach the endpoint.
+Reading at that successor requires a further bound. A preserved strict pair
+`unit < limit` likewise establishes that `unit + 1` fits its unsigned carrier. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
 including an empty range. The descriptor carries the original address and
 the live length in two words. The caller retains the shared loan through
 argument evaluation. The storage test forwards the final two bytes of the
 construction input and reads the last byte through a nested call.
 [Shared byte slices](shared_byte_slices.epsilon)
 
-Mutable slices, dynamic range endpoints, other domains and structural
-equivalence of separately spelled array value types remain outside this profile.
+A shared incoming slice can also be narrowed with pure, checked `u64`
+endpoints. The compiler proves `start <= end <= source.len` for that exact
+slice; omitted endpoints mean zero and the captured length. Equality admits
+empty views at the end without authorizing a read. The emitted descriptor
+retains the same backing, evaluates start before end exactly once, and stages
+before any callee parameter is overwritten. Nested transfers may narrow an
+incoming shared loan but cannot introduce local array backing.
+
+Mutable slices, effectful or inclusive range endpoints, other domains and
+structural equivalence of separately spelled array value types remain outside
+this profile. Dynamic ranges do not yet supply a derived length to a callee's
+entry contract; that unsupported proof cannot become an assumed fact.
+
+`tests/bootstrap/independent/shared_subranges.py CONSTRUCTOR NEW_DIRECTORY`
+runs normal closed-set requests, then executes accepted tapes on Alpha. It
+covers endpoint order, backing identity, empty/open ranges, argument staging,
+tail reuse and refusal twins. `--product-helpers` additionally requires all
+three unchanged Build-path helper callers to execute; this remains a separate
+acceptance while later guard/call coverage is unfinished.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements of the production `SourceSet`. It checks a copy taken before a write,
@@ -480,7 +576,10 @@ establish bounds at nested arrivals, with pure actual expressions required for
 contract-bearing calls. No private requirement is inferred from a later access.
 An overlapping write or exclusive call invalidates the entry version. Call
 mutation ranges are retained before checking the next operand, including within
-the same expression; disjoint sibling ranges preserve their evidence.
+the same expression; disjoint sibling ranges preserve their evidence. When a transition condition calls a
+machine, its target may use independently established bounds that survived
+the call. The checker discards proof derived from the condition itself and
+checks retained writes before reusing an entry bound.
 The collection is captured before
 the selector and the resulting destination before the RHS; selector mutation
 cannot redirect a pending store. A scoped collection loan remains live during
@@ -596,7 +695,7 @@ A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.
 
-Its retained Alpha encoder targets `AlphaBootstrapV4` directly: at most
+Its retained Alpha encoder targets `AlphaBootstrapV5` directly: at most
 16,777,212 raw tape bytes, targets below that exact extent, and at most 1,864,134
 nine-byte-dominated fixups. These are outer compiler-resource bounds, not Omega
 language limits, and move only with the common seed/checker profile.
@@ -629,6 +728,15 @@ the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases.
 
+A data declaration can bind lifetimes and forward them through a named field
+type. In `source/library/std/calling.omg`, the `Rejected` case of
+`BoundaryPlanResult<'reason>` stores a `CallingPolicyRejection<'reason>`.
+The parser retains each binder and argument in source order. The checker
+rejects duplicate binders, unbound field lifetimes and applications with the
+wrong lifetime arity. A valid declaration with explicit data lifetimes still
+reports incomplete until the compiler checks loans carried through storage.
+See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
+
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
 `public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
@@ -638,7 +746,18 @@ The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
 
-A nongeneric ordinary `trait` retains each bodyless machine signature in
+An ordinary `trait` retains its ordered typed static parameters. For example,
+`trait Calling<const Policy: CallingPolicy> {}` preserves the parameter name
+and declared type. The parser rejects repeated parameter names and the retired
+`Policy satisfies CallingPolicy` binder. The compiler still reports incomplete
+for an ordinary trait until it can check and publish its contract.
+[Typed static parameters](../../../wiki/spec/language/generics.md#typed-static-parameters)
+govern the source spelling. The installed `std/calling.omg` still uses the
+retired binder. Its migration belongs to `TYPED-STATIC-PARAMETERS` in
+[TASKS.md](../../../TASKS.md), alongside the product compiler's checks on callers
+such as `Calling<LinuxX86_64CallingPolicy>`.
+
+An ordinary `trait` retains each bodyless machine signature in
 its declaring trait's range. `ConsoleByteOperations` and
 `PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
 traits in a separate table from boundary services. Executable construction
@@ -648,8 +767,11 @@ A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,
 source span and ordered requirements. A requirement's name, parameters, return
 type, predicates and effect clauses retain their original spans and handles.
-Requirement names may repeat across overloads. Reaches, crash and blocking
-clauses use the ordinary machine-header parser. Bare `terminates` on a
+Requirement names may repeat across overloads. Reach, invocation, crash and
+blocking clauses use the ordinary machine-header parser. Each `invokes Entry`
+on a free machine or trait requirement owns a distinct binding-name span. The
+rows preserve source order. Checking an entry ceiling needs the binding and
+its direction, so this compiler currently returns `Incomplete` on such contracts. Bare `terminates` on a
 requirement retains the public eventual-termination guarantee. The checker resolves a memberless service to its exact declaration, including
 its package and module. An ordinary call contributes its callee's published
 reach. An omitted ceiling infers that reach through every checked call. An
@@ -794,8 +916,8 @@ shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
 optional trailing comma. A
-subjectless block retains absence explicitly and does not manufacture a unit
-expression. Computed or multiple subjects, record/tuple patterns, renamed or
+subjectless block retains each condition as an ordinary expression with its own
+source span. A wildcard has a distinct guard kind. Computed or multiple subjects, record/tuple patterns, renamed or
 waived fields, non-path fixed values, proof selectors, richer guards, richer
 target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
@@ -844,7 +966,7 @@ names its entry with the final authored declaration-path member. Machine and
 termination-witness paths share the general path-member arena. A machine
 snapshots its declaration path before reading parameter types and clauses. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
-`Slice<T>` spelling, return types placed after clauses, generics, remaining
+`Slice<T>` spelling, return types placed after clauses, other generics, remaining
 machine-clause forms beyond the supported contracts, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
 other bodyless declarations, and other body forms
@@ -922,7 +1044,7 @@ nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
 combined, exclusive, expression-bound, or multiple constraints; constrained
-slice elements, the `Slice<T>` spelling, generic types, rich array elements or
+slice elements, the `Slice<T>` spelling, generic type arguments, rich array elements or
 lengths; numbered identities;
 field relevance; other public roots; and every other unimplemented valid form
 stop as implementation-incomplete rather than becoming false Omega rejections.
@@ -1219,3 +1341,13 @@ mutating calls in reverse declaration order and checks both saved values, the
 omitted zero and the final counter. [Bindings](../../../tests/bootstrap/conformance/omega/payload_bindings.omg),
 [omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
 and [initializer order](../../../tests/bootstrap/conformance/omega/payload_field_order.omg)
+
+### Nested expression call controls
+
+`python3 tests/bootstrap/independent/nested_calls.py CONSTRUCTOR NEW_DIRECTORY`
+runs a supplied source-built Epsilon constructor on closed-source-set requests.
+The positive cases execute the emitted tapes on the audited Alpha seed; twins
+exercise signatures, lexical visibility, runtime capture, entry requirements,
+blocking and trapping ceilings, and mixed ordinary/terminal cycles. The test
+retains exact requests and observations. This does not claim that a development
+source model alone establishes the closed-set construction route.

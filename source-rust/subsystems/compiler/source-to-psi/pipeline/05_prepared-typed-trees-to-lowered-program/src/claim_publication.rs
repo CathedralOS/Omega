@@ -27,8 +27,7 @@ fn preparation_error(
     };
     Refusal {
         reason,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: format!("preparing logical claim transport: {detail}"),
     }

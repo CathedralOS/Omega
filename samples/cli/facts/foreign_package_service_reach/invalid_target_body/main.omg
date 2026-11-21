@@ -15,7 +15,7 @@ boundary trait Shouting {
     machine shout(character: i32) -> i32 reaches Lettering crashes none;
 }
 UpperShouting satisfies Shouting {
-    machine shout(character: i32) -> i32 reaches {
+    machine shout(character: i32) -> i32 reaches none {
         CharacterCase::upper(character)
     }
 }

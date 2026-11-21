@@ -149,7 +149,7 @@ fn prepare(
                 access: target.access,
                 shape: target.shape,
                 source: target.placement.clone(),
-                location: incoming_location(target.access, &target.placement)?,
+                location: parameter_location(contract, target)?,
                 indirect: true,
             });
         }
@@ -391,7 +391,7 @@ fn published_call(
                     };
                     parameter.place != target.place
                         || parameter.structural_type != target.root_structural_type
-                        || structural_storage::address_joins::is_address_join_in(
+                        || structural_storage_queries::address_joins::is_address_join_in(
                             parameter,
                             signature.structural_types.as_slice(),
                         )
@@ -435,24 +435,39 @@ fn source_location(
     function: &SelectedFunction,
     place: PlaceId,
 ) -> Result<StructuralSourceLocation, Error> {
-    let parameters = function
-        .structural
-        .as_ref()
-        .and_then(|contract| {
-            let mut parameters = contract
-                .parameters
-                .iter()
-                .filter(|parameter| parameter.target.place == place);
-            let parameter = parameters.next()?;
-            parameters.next().is_none().then_some(parameter)
-        })
-        .ok_or(Error::Mismatch("structural argument has no incoming root"))?;
-    incoming_location(parameters.target.access, &parameters.target.placement)
+    let contract = function.structural.as_ref().ok_or(Error::Mismatch(
+        "structural argument has no incoming contract",
+    ))?;
+    let mut parameters = contract
+        .parameters
+        .iter()
+        .filter(|parameter| parameter.target.place == place);
+    let (Some(parameter), None) = (parameters.next(), parameters.next()) else {
+        return Err(Error::Mismatch(
+            "structural argument has no unique incoming root",
+        ));
+    };
+    parameter_location(contract, &parameter.target)
+}
+
+fn parameter_location(
+    contract: &target_vocabulary::LegalizedStructuralContract,
+    parameter: &target_vocabulary::TargetStructuralParameter,
+) -> Result<StructuralSourceLocation, Error> {
+    let declared = contract
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .ok_or(Error::Mismatch(
+            "structural parameter has no declared carrier",
+        ))?;
+    incoming_location(parameter.access, &parameter.placement, &declared.shape)
 }
 
 fn incoming_location(
     access: terminal_psi::StructuralAccess,
     placement: &ValuePlacement,
+    declaration: &terminal_psi::StructuralTypeShape,
 ) -> Result<StructuralSourceLocation, Error> {
     if access == terminal_psi::StructuralAccess::Owned {
         let [
@@ -491,7 +506,15 @@ fn incoming_location(
     }
     let scalar_descriptor =
         placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
-    if !(placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+    let opaque_pointer =
+        calling_conventions::terminal_layout::opaque_borrow_transport(declaration, access);
+    if opaque_pointer.is_some_and(|pointer| pointer != placement.shape) {
+        return Err(Error::Mismatch(
+            "opaque borrow has a substituted pointer shape",
+        ));
+    }
+    if !(opaque_pointer.is_some()
+        || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
         || scalar_descriptor
             && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
     {
@@ -523,7 +546,8 @@ fn incoming_location(
                 byte_size,
                 alignment,
             },
-        ] if *byte_size == placement.shape.byte_size
+        ] if opaque_pointer.is_none()
+            && *byte_size == placement.shape.byte_size
             && *alignment == placement.shape.alignment
             && indirect_pointer_supports_copy(pointer) =>
         {
@@ -535,7 +559,11 @@ fn incoming_location(
             ));
         }
     };
-    Ok(StructuralSourceLocation::IncomingBorrowedPointer { location })
+    Ok(if opaque_pointer.is_some() {
+        StructuralSourceLocation::IncomingOpaquePointer { location }
+    } else {
+        StructuralSourceLocation::IncomingBorrowedPointer { location }
+    })
 }
 
 fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
@@ -556,6 +584,38 @@ mod incoming_tests {
     use terminal_psi::StructuralAccess;
 
     #[test]
+    fn an_opaque_borrowed_word_retains_its_incoming_pointer() {
+        let register = MachineRegister::X86Rdx;
+        let mut placement = ValuePlacement {
+            shape: ValueShape::integer(8, 8),
+            locations: vec![ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }],
+        };
+        let source = StructuralSourceLocation::IncomingOpaquePointer {
+            location: IndirectPointerLocation::Register(register),
+        };
+        let opaque = terminal_psi::StructuralTypeShape::Opaque;
+        assert_eq!(
+            incoming_location(StructuralAccess::SharedBorrow, &placement, &opaque).unwrap(),
+            source
+        );
+        assert!(
+            incoming_location(
+                StructuralAccess::SharedBorrow,
+                &placement,
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            )
+            .is_err()
+        );
+        assert!(incoming_location(StructuralAccess::Owned, &placement, &opaque).is_err());
+        placement.shape = ValueShape::borrowed_reference(64, 16);
+        assert!(incoming_location(StructuralAccess::SharedBorrow, &placement, &opaque).is_err());
+    }
+
+    #[test]
     fn owned_indirect_location_keeps_owned_copy_meaning() {
         let register = MachineRegister::Aarch64X(0);
         let mut placement = ValuePlacement {
@@ -568,7 +628,12 @@ mod incoming_tests {
             }],
         };
         assert_eq!(
-            incoming_location(StructuralAccess::Owned, &placement).unwrap(),
+            incoming_location(
+                StructuralAccess::Owned,
+                &placement,
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            )
+            .unwrap(),
             StructuralSourceLocation::IncomingIndirectPointer { register }
         );
         let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_mut_slice() else {
@@ -579,14 +644,26 @@ mod incoming_tests {
             alignment: 8,
         };
         assert_eq!(
-            incoming_location(StructuralAccess::Owned, &placement).unwrap(),
+            incoming_location(
+                StructuralAccess::Owned,
+                &placement,
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            )
+            .unwrap(),
             StructuralSourceLocation::IncomingIndirectStackPointer {
                 stack_byte_offset: 32,
                 alignment: 8
             }
         );
         placement.shape = ValueShape::integer(8, 8);
-        assert!(incoming_location(StructuralAccess::Owned, &placement).is_err());
+        assert!(
+            incoming_location(
+                StructuralAccess::Owned,
+                &placement,
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            )
+            .is_err()
+        );
     }
 }
 

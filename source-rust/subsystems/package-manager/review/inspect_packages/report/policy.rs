@@ -4,7 +4,7 @@ use super::{CanonicalSourceClosureSubject, Name, Output};
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyCallable, PackagePolicyRepresentation,
     PackagePolicySelectedProviders, PackagePolicyServiceMethod, PackageReviewCallableContract,
-    PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
+    PackageReviewNominalIdentity, PackageReviewServiceIdentity, PackageReviewSynchronousInvocation,
 };
 use std::fmt::{self, Write};
 
@@ -31,6 +31,23 @@ pub(super) fn render(
         policy.public_consts().len(),
         policy.public_operators().len()
     )?;
+    match &policy.public_api().type_aliases {
+        Some(aliases) => {
+            writeln!(output, "  public type aliases {}", aliases.len())?;
+            for alias in aliases {
+                writeln!(
+                    output,
+                    "    {} = {}",
+                    names.name(&alias.identity),
+                    alias.expansion.canonical()
+                )?;
+            }
+        }
+        None => writeln!(
+            output,
+            "  public type aliases unavailable in this review format"
+        )?,
+    }
     for constant in policy.public_consts() {
         writeln!(output, "  constant {}", names.name(constant.identity()))?;
     }
@@ -97,7 +114,7 @@ pub(super) fn render(
             output,
             "    {:?} {}",
             danger.class(),
-            names.name(danger.service())
+            names.service(danger.service())
         )?;
     }
     writeln!(
@@ -110,7 +127,7 @@ pub(super) fn render(
             output,
             "    {:?} {} declared but absent from checked reach of {}",
             slack.class(),
-            names.name(slack.service()),
+            names.service(slack.service()),
             names.name(slack.callable())
         )?;
     }
@@ -130,7 +147,7 @@ pub(super) fn render(
         policy.terminal_permissions().services().len()
     )?;
     for service in policy.terminal_permissions().services() {
-        writeln!(output, "    service {}", names.name(service.service()))?;
+        writeln!(output, "    service {}", names.service(service.service()))?;
         for permission in service.permissions() {
             writeln!(
                 output,
@@ -149,6 +166,20 @@ pub(super) fn render(
         "  semantic-dependencies {}; complete owner/type relationships: --details",
         policy.semantic_dependencies().len()
     )?;
+    for dependency in policy.semantic_dependencies() {
+        if let review_evidence::record::PackagePolicySemanticDependency::CarriedType {
+            dependency,
+            exposure,
+            ..
+        } = dependency
+        {
+            writeln!(
+                output,
+                "    carried type {} ({exposure:?})",
+                names.name(dependency)
+            )?;
+        }
+    }
     for demand in policy.boundary_applications().demands() {
         writeln!(
             output,
@@ -182,6 +213,16 @@ pub(super) fn render(
 struct Names<'a>(&'a CanonicalSourceClosureSubject);
 
 impl Names<'_> {
+    fn service<'a>(&'a self, service: &'a PackageReviewServiceIdentity) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |out| {
+            write!(out, "{}", self.name(&service.declaration))?;
+            if let Some(application) = &service.application {
+                write!(out, " ({})", application.canonical())?;
+            }
+            Ok(())
+        })
+    }
+
     fn name<'a>(&'a self, identity: &'a PackageReviewNominalIdentity) -> Name<'a> {
         Name {
             source: self.0,

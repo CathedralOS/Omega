@@ -125,5 +125,6 @@ fn memory_word(register: u8, base: u8, offset: usize, size: usize, load: bool) -
         );
     }
     // The 64-bit load also admits an unscaled positive displacement.
-    (load && size == 8 && offset <= 255).then(|| 0xf840_0000 | ((offset as u32) << 12) | registers)
+    (load && size == 8 && offset <= 255)
+        .then_some(0xf840_0000 | ((offset as u32) << 12) | registers)
 }

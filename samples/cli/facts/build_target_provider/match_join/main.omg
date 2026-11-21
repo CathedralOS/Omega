@@ -2,7 +2,7 @@
 // Expected exit: 0
 use reading_provider\main\Reading;
 data Carrier [copy] { total: u64; tag: u64; }
-machine journey(expected: u64, select: bool, expected_tag: u64) reaches Reading crashes Trap {
+machine journey(expected: u64, select: bool, expected_tag: u64) reaches Reading<17u64> crashes Trap {
     let carrier: Carrier = match select {
         true -> Carrier { total: Reading::<17u64>::total(), tag: 17u64 },
         false -> Carrier { total: Reading::<17u64>::total(), tag: 29u64 }
@@ -11,5 +11,5 @@ machine journey(expected: u64, select: bool, expected_tag: u64) reaches Reading 
     transition difference == expected && carrier.tag == expected_tag { true -> done(), false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-machine first_entry() reaches Reading crashes Trap { journey(100u64, true, 17u64); journey(100u64, false, 29u64); }
-machine second_entry() reaches Reading crashes Trap { journey(1100u64, true, 17u64); journey(1100u64, false, 29u64); }
+machine first_entry() reaches Reading<17u64> crashes Trap { journey(100u64, true, 17u64); journey(100u64, false, 29u64); }
+machine second_entry() reaches Reading<17u64> crashes Trap { journey(1100u64, true, 17u64); journey(1100u64, false, 29u64); }

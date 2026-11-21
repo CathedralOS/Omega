@@ -2,13 +2,15 @@
 
 use super::Program;
 use crate::lowering::body::Signature;
-use crate::lowering::publication::{RequirementReview, RequirementReviewMetadata};
+use crate::lowering::publication::{
+    RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
+};
+use crate::lowering::reach::SourceInvocation;
 use crate::lowering::static_contracts::SourceServiceCeiling;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
-use terminal_check_tables::contracts::CrashCeiling;
 use terminal_psi::{BoundaryLifetimeDependency, TerminalCallableTermination, TerminalModule};
 
 impl Program<'_> {
@@ -47,7 +49,7 @@ impl Program<'_> {
             .into_iter()
             .filter_map(|(declaration, signature, machine)| {
                 let (owner, source) = self.typed.trait_machine_signature(declaration)?;
-                if !owner.is_public || owner.is_boundary {
+                if !owner.is_public && !owner.is_boundary {
                     return None;
                 }
                 let metadata = self.read_public_requirement_contract(
@@ -74,8 +76,7 @@ impl Program<'_> {
         machine: Option<MachineId>,
     ) -> Result<RequirementReviewMetadata, String> {
         let (owner, source) = definition;
-        if !owner.type_parameters.is_empty()
-            || !owner.lifetime_parameters.is_empty()
+        if !owner.lifetime_parameters.is_empty()
             || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || !source.native_callback_parameters.is_empty()
@@ -100,29 +101,47 @@ impl Program<'_> {
             .checked_add(elided)
             .ok_or("public requirement lifetime namespace exceeds usize")?;
         let envelope = self
-            .static_envelope(context, source, false)
+            .static_envelope(context, source, owner.is_boundary)
             .map_err(|refusal| format!("public requirement operational envelope: {refusal:?}"))?;
-        let service_reach = match envelope.service_reach {
+        let service = |id| {
+            let scope = self.typed.service_effect_scope(id, None)?;
+            let declaration = scope.declaration;
+            let application = if declaration.type_parameters.is_empty()
+                && declaration.lifetime_parameters.is_empty()
+            {
+                None
+            } else {
+                Some(
+                    scope
+                        .portable_application_identity(self.typed)
+                        .and_then(|id| self.typed.type_identity_text(id))
+                        .ok_or("public requirement lost its service application")?,
+                )
+            };
+            Ok::<_, &'static str>(RequirementService {
+                declaration: declaration.symbol,
+                application,
+            })
+        };
+        let service_reach = match &envelope.service_reach {
             SourceServiceCeiling::Open => None,
-            SourceServiceCeiling::Closed(ref services) if services.is_empty() => Some(Vec::new()),
-            SourceServiceCeiling::Closed(_) => {
-                return Err(
-                    "public requirement review needs its nonempty service identity roster"
-                        .to_owned(),
-                );
-            }
+            SourceServiceCeiling::Closed(services) => Some(
+                services
+                    .iter()
+                    .map(|id| service(*id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
         };
-        if !envelope.invocations.is_empty() {
-            return Err(
-                "public requirement review needs its synchronous invocation roster".to_owned(),
-            );
-        }
-        let crash_is_open = match &signature.crashes {
-            CrashCeiling::Inferred => true,
-            CrashCeiling::DeclaredNone => false,
-            CrashCeiling::Authored(routes) if routes.is_empty() => false,
-            _ => return Err("public requirement review needs its complete crash routes".to_owned()),
-        };
+        let synchronous_invocations = envelope
+            .invocations
+            .iter()
+            .map(|invocation| match invocation {
+                SourceInvocation::Parameter(position) => {
+                    Ok(RequirementInvocation::Parameter(*position))
+                }
+                SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
+            })
+            .collect::<Result<_, _>>()?;
         let terminates = match envelope.termination {
             TerminalCallableTermination::NotGuaranteed => false,
             TerminalCallableTermination::Terminates { ref premises } if premises.is_empty() => true,
@@ -192,12 +211,21 @@ impl Program<'_> {
         }
         returned_parameters.sort_unstable();
         returned_parameters.dedup();
+        if signature.parameters.len() != parameter_types.len() {
+            return Err("public requirement source and lowered parameter counts differ".to_owned());
+        }
         let mut parameter_qualifications = Vec::new();
-        let mut structural_index = 0u32;
+        let mut structural_parameter_positions = Vec::new();
         for (position, value) in signature.parameters.iter().enumerate() {
             if !signature.is_place(position) {
                 continue;
             }
+            let structural_index = u32::try_from(structural_parameter_positions.len())
+                .map_err(|_| "public requirement structural namespace exceeds u32")?;
+            structural_parameter_positions.push(
+                u32::try_from(position)
+                    .map_err(|_| "public requirement parameter position exceeds u32")?,
+            );
             for domain in value.qualification().domains.members() {
                 let definition = self
                     .typed
@@ -212,16 +240,15 @@ impl Program<'_> {
                 }
                 parameter_qualifications.push((structural_index, domain.declaration));
             }
-            structural_index = structural_index
-                .checked_add(1)
-                .ok_or("public requirement structural namespace exceeds u32")?;
         }
         Ok(RequirementReviewMetadata {
             parameter_types,
+            structural_parameter_positions,
             result_type: source.return_type.is_valid().then_some(result),
             lifetime_parameter_count,
             service_reach,
-            crash_is_open,
+            synchronous_invocations,
+            published_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
             returned_parameters,
             parameter_qualifications,
             suspends: envelope.suspends,

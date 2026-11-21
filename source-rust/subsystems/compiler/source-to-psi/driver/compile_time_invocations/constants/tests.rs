@@ -13,6 +13,7 @@ use source_provenance::DependencyScope;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::typing;
 use syntax_trees_to_symbol_resolved_trees::resolution;
+use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, prepare_typed_trees};
 
 fn typed_source(text: &str) -> TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x52; 32]).unwrap();
@@ -78,10 +79,15 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
         &mut accounting,
     )
     .unwrap();
-    assert_eq!(demanded.len(), 1);
+    let [input] = demanded.as_slice() else {
+        panic!("one demanded constant")
+    };
+    let PreparedValue::Constant(demanded) = input.value else {
+        panic!("named initializer")
+    };
     assert!(
         typed
-            .const_declaration_by_symbol(demanded[0])
+            .const_declaration_by_symbol(demanded)
             .unwrap()
             .evaluated_value
             .is_some()
@@ -101,20 +107,106 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
         validate_constant_evaluations(&typed, &Default::default()).unwrap_err(),
         "constant result has no accepted invocation receipt"
     );
+    let original = Arc::downgrade(accounting.constant_input(receipt).unwrap().unwrap());
+    let mut retry = SourceCompletionAccounting::default();
+    retry.append(accounting.clone());
+    accounting.release_constant_inputs();
+    accounting.validate_charges().unwrap();
+    validate_constant_evaluations(&typed, &retry).unwrap();
+    retry.release_constant_inputs();
+    assert_eq!(original.strong_count(), 0);
+    retry.validate_charges().unwrap();
+}
+
+#[test]
+fn a_closed_arithmetic_extent_settles_at_its_original_array() {
+    let source = |expression: &str| {
+        typed_source(&format!(
+            "machine read(bytes: @[u8; {expression}]) -> u8 {{ bytes[3u64] }}"
+        ))
+    };
+    let mut program = source("3u64 + 1u64");
+    let reader = program.realized_machine_named("read").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let values = evaluate_const_arguments(
+        &mut program,
+        request(&[reader]),
+        None,
+        None,
+        &mut accounting,
+    )
+    .unwrap();
+    let [input] = values.as_slice() else {
+        panic!("the written addition is one input")
+    };
+    assert!(matches!(input.value, PreparedValue::StaticArgument { owner, .. } if owner == reader));
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(program.deferred_refusal(reader).is_none());
+    assert!(
+        program
+            .type_reference_table
+            .type_reference_rows()
+            .any(|(_, ty)| matches!(
+                ty,
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Literal(4),
+                    ..
+                }
+            ))
+    );
+    let mut invalid = source("18446744073709551615u64 + 1u64");
+    let reader = invalid.realized_machine_named("read").unwrap().symbol;
+    let failure = evaluate_const_arguments(
+        &mut invalid,
+        request(&[reader]),
+        None,
+        None,
+        &mut Default::default(),
+    )
+    .expect_err("an exact addition outside its u64 carrier cannot supply an extent");
+    assert!(diagnostics::join_messages(&failure).contains("computed array extent"));
 }
 
 #[test]
 fn only_a_reader_of_an_array_requests_its_extent() {
     let base = typed_source(
-        "machine extent() -> u64 { 4u64 } data Packet { bytes: [u8; extent()]; }
+        "const WIDTH: u64 = 4u64; const UNUSED: u64 = 4u64;
+        machine extent() -> u64 { WIDTH } data Packet { bytes: [u8; extent()]; }
         machine reader(packet: @Packet) -> u64 { 0u64 } machine unrelated() -> u64 { 0u64 }",
     );
     for (entry, computes_extent) in [("reader", true), ("unrelated", false)] {
         let mut typed = base.clone();
         let entry = typed.realized_machine_named(entry).unwrap().symbol;
         let mut accounting = SourceCompletionAccounting::default();
-        evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
-            .unwrap();
+        let values =
+            evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
+                .unwrap();
+        let prepared = prepare_typed_trees(typed.clone(), &values, &[]).unwrap();
+        assert_eq!(prepared.values().len(), usize::from(computes_extent));
+        assert_eq!(
+            prepared
+                .constants()
+                .map(|constant| typed.symbols.name(constant.symbol))
+                .collect::<Vec<_>>(),
+            if computes_extent {
+                vec!["WIDTH"]
+            } else {
+                Vec::new()
+            }
+        );
+        if computes_extent {
+            assert!(matches!(
+                values[0].value,
+                PreparedValue::StaticArgument { .. }
+            ));
+            assert_eq!(values[0].targets, TargetInputs::None);
+            let other = typed_source("const WIDTH:u64 = 4u64; machine main() -> u64 { WIDTH }");
+            assert!(
+                prepare_typed_trees(other, &values, &[]).unwrap_err()[0]
+                    .message
+                    .contains("another source program")
+            );
+        }
         assert_eq!(accounting.receipts().len(), usize::from(computes_extent));
         accounting.validate_charges().unwrap();
         let packet = typed.data_definition_by_name_str("Packet").unwrap();
@@ -268,7 +360,17 @@ fn a_supplied_requirement_only_evaluates_its_provider_member() {
         if succeeds {
             let demanded = result.unwrap();
             assert_eq!(demanded.len(), 1);
-            assert_eq!(typed.symbols.name(demanded[0]), "GOOD");
+            assert_eq!(
+                demanded[0].value,
+                typed_trees_to_prepared_typed_trees::PreparedValue::Constant(
+                    typed
+                        .const_declarations()
+                        .iter()
+                        .find(|row| typed.symbols.name(row.symbol) == "GOOD")
+                        .unwrap()
+                        .symbol
+                )
+            );
             let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
                 panic!("only the selected member's initializer runs")
             };
@@ -414,11 +516,68 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
             panic!("expected the actual invocation receipt: {refusal}");
         };
-        assert!(std::ptr::eq(receipt.program(), produced.as_ref()));
+        receipt.require_program(&produced).unwrap();
         assert!(
             matches!(receipt.outcome(), PureTerminalEvaluationOutcome::Failed { reason } if *reason == refusal)
         );
         assert!(receipt.usage().total_units() > 0);
         accounting.validate_charges().unwrap();
     }
+}
+
+#[test]
+fn completed_invocations_release_the_generated_caller_and_program() {
+    use crate::compile_time_invocations::{InvocationTarget, PreparedBuildMachineProgram};
+    use build_time_values::BuildTimeValue;
+
+    let typed = typed_source("machine compute(value: u32) -> u32 crashes none { value }");
+    let symbol = typed.realized_machine_named("compute").unwrap().symbol;
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let mut accounting = SourceCompletionAccounting::default();
+    let mut owners = Vec::new();
+    let target = InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    for number in 0..16 {
+        let value = BuildTimeValue::Int(number);
+        let entry = prepared
+            .entry(symbol, symbol, std::slice::from_ref(&value))
+            .unwrap();
+        let program = Arc::new(entry.produce_invocation().unwrap());
+        owners.push((
+            Arc::downgrade(entry.accepted().source()),
+            Arc::downgrade(&program),
+        ));
+        if let Some(PureEvaluationRecord::Invocation(previous)) = accounting.receipts().last() {
+            let refusal = previous
+                .require_site(&entry.source_invocation_inputs())
+                .unwrap_err();
+            assert_eq!(
+                refusal,
+                "evaluation receipt belongs to another source invocation"
+            );
+        }
+        let returned = entry
+            .invoke_with_observations(program, target, &mut accounting, &[], |value, _| Ok(value))
+            .unwrap();
+        assert_eq!(returned, value);
+    }
+    assert_eq!(accounting.receipts().len(), owners.len());
+    accounting.validate_charges().unwrap();
+    let callers = owners
+        .iter()
+        .filter(|(source, _)| source.strong_count() != 0)
+        .count();
+    let programs = owners
+        .iter()
+        .filter(|(_, code)| code.strong_count() != 0)
+        .count();
+    assert_eq!(
+        (callers, programs),
+        (0, 0),
+        "objects retained after completing 16 calls"
+    );
 }

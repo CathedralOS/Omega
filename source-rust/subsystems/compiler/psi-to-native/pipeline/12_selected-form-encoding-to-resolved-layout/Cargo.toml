@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+optimization-core = { path = "../../representations/optimization-records" }
 function-identity = { path = "../../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 target-aarch64 = { path = "../../targets/target-aarch64" }

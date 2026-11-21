@@ -170,7 +170,7 @@ fn claim_verification_preserves_the_exact_unavailable_storage() {
         crate::checking::discharge(&mut elaboration, &mut Default::default()).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unestablished);
     assert_eq!(refused.detail, actual.message());
-    assert_eq!(refused.concerns, concerns);
+    assert_eq!(refused.site.in_machine().unwrap().1, concerns);
 }
 
 #[test]

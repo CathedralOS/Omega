@@ -15,15 +15,15 @@ Conversion checks verified at runtime:
 The guard ladders require every conversion to fall within its authored tolerance;
 success exits 70 and a failed check exits 71–80.
 
-Run the complete program after reviewing its package inputs:
+To check all five conversions in both engines, run this from the repository root.
 
 ```sh
-omega run samples/cli/basics/unit_converter/main.omg
+omega run --both samples/cli/basics/unit_converter/build.omg
 ```
 
-Native compilation currently stops at nested boundary-call composition in
-`celsius_to_fahrenheit`. Ordinary float arithmetic also needs native builtin
-installation; a successful checked comparison alone does not close this sample.
+Press Enter at the final prompt. On Linux x86-64, the program prints
+`PASS: all five conversions landed in tolerance (exit 70)` and both engines
+report exit 70.
 
 ## What it tests
 

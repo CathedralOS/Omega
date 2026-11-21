@@ -44,11 +44,9 @@ pub(super) fn semantic_reference(
         {
             Ok(plan.semantic_type)
         }
-        (Some(_), None) => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("layout storage without its evaluated plan"),
-        )),
+        // The authored application already fixes the logical fields. Its
+        // target geometry is required only when a consumer asks for it.
+        (Some(storage), None) => Ok(storage.semantic_type),
         _ => Err(malformed(
             machine,
             "layout plan does not describe this storage application",
@@ -1084,6 +1082,17 @@ impl Program<'_> {
                 continue;
             }
             let mut retained = correspondence(record, declaration, source, machine)?;
+            if let Some(storage) = source
+                .application
+                .as_ref()
+                .and_then(|application| self.typed.layout_storage_arguments(application.reference))
+            {
+                retained.policy = self
+                    .typed
+                    .static_operand_from_type_reference(storage.policy)
+                    .map_err(|reason| malformed(machine, reason))?
+                    .symbol;
+            }
             if let Some(plan) = source
                 .application
                 .as_ref()
@@ -1111,7 +1120,12 @@ impl Program<'_> {
                     .span(span)
                     .ok_or_else(|| malformed(machine, "source layout members are unavailable"))?;
                 retained.schema = plan.schema_symbol;
-                retained.policy = plan.policy_symbol;
+                if retained.policy != plan.policy_symbol {
+                    return Err(malformed(
+                        machine,
+                        "source layout changed its selected policy",
+                    ));
+                }
                 retained.layout = Some(crate::source_state::SourceLayoutPlanCoordinate {
                     ordinal,
                     application: plan.application,
@@ -1139,8 +1153,7 @@ impl Program<'_> {
 fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
     Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.into(),
     }

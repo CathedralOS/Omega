@@ -50,8 +50,8 @@ macro_rules! copied_state_signature {
             service_reach_keyword_source_spans: $signature
                 .service_reach_keyword_source_spans
                 .clone(),
-            service_reaches: $self.copy_item_identifier_span($other, $signature.service_reaches),
-            invokes: $self.copy_item_identifier_span($other, $signature.invokes),
+            service_reaches: $self.copy_type_reference_handle_span($other, $signature.service_reaches),
+            invokes: $self.copy_type_reference_handle_span($other, $signature.invokes),
             suspends_keyword_source_spans: $signature.suspends_keyword_source_spans.clone(),
             blocks_keyword_source_spans: $signature.blocks_keyword_source_spans.clone(),
             suspends: $signature.suspends,

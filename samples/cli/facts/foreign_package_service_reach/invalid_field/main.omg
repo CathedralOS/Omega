@@ -12,7 +12,7 @@ machine demand(result: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 data Letters [copy] { before: i32; upper: i32; after: i32; }
-machine start() reaches crashes Trap {
+machine start() reaches none crashes Trap {
     let letters: Letters = Letters { before: 1701, upper: CharacterCase::upper(100), after: 1801 };
     demand(letters.before == 1701 && letters.upper == 68 && letters.after == 1801);
     let digits: Letters = Letters { before: 1702, upper: CharacterCase::upper(50), after: 1802 };

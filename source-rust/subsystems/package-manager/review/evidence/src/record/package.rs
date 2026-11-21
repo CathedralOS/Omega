@@ -4,15 +4,16 @@
 mod boundary_policy;
 pub(in crate::record) mod callable_policy;
 
-pub(crate) use boundary_policy::{
-    PackagePolicyBoundaryApplicationDemand, PackagePolicyBoundaryApplicationRealization,
-    PackagePolicyBoundaryApplications, PackagePolicyBoundaryRealization,
+pub(crate) use boundary_policy::PackagePolicyBoundaryApplicationDemand;
+pub use boundary_policy::{
+    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
+    PackagePolicyBoundaryRealization,
 };
 mod callables;
 pub use callable_policy::PackagePolicyCallable;
-pub(crate) use callable_policy::{
-    PackagePolicyCallableConformance, PackagePolicyCallableRole, PackagePolicyCallables,
-    PackagePolicyServiceReachDependency,
+pub(crate) use callable_policy::PackagePolicyCallableConformance;
+pub use callable_policy::{
+    PackagePolicyCallableRole, PackagePolicyCallables, PackagePolicyServiceReachDependency,
 };
 #[allow(clippy::module_inception)]
 mod provider_policy;
@@ -21,22 +22,24 @@ mod providers;
 mod terminal_permissions;
 
 pub use terminal_permissions::PackagePolicyTerminalPermissions;
-pub(crate) use terminal_permissions::{
-    PackagePolicyTerminalPermission, PackagePolicyTerminalService,
-};
+pub use terminal_permissions::{PackagePolicyTerminalPermission, PackagePolicyTerminalService};
 
-pub(crate) use callables::PackageReviewCheckedServiceReach;
+pub use callables::PackageReviewCheckedServiceReach;
+pub use provider_policy::{
+    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderPlan,
+    PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceSignature,
+};
 pub(crate) use provider_policy::{
-    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
-    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
-    PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
-    PackagePolicyServiceProgressRoute, PackagePolicyServiceSignature,
+    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate,
+    PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
 };
 pub use provider_policy::{PackagePolicySelectedProviders, PackagePolicyServiceMethod};
 
+pub use providers::{
+    PackageReviewBoundaryApplication, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderGrantSelectorKind, PackageReviewSelectedInstallationReach,
+};
 pub(crate) use providers::{
-    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach, PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewBoundaryApplicationArgument, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority, PackageReviewSymbolicBoundaryApplicationArgument,
 };

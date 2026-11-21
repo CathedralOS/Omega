@@ -8,11 +8,12 @@ version.workspace = true
 path = "program_entry.rs"
 
 [dependencies]
-psi-publication-records = { path = "../../../psi-artifact/publication" }
+service-surface = { path = "../../../psi/interfaces/service-surface" }
+psi-publication-records = { path = "../../../psi/artifact/publication" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 provider-plans = { path = "../../../build/providers/plans" }
-psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
+psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-psi = { path = "../../../psi" }

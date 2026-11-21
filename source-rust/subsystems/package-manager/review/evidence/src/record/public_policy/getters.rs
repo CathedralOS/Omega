@@ -33,6 +33,10 @@ impl PackagePolicyTraitRequirement {
 
     crate::record::accessors::package_policy_callable_signature_accessors!(optional_ceilings);
 
+    pub fn structural_parameter_positions(&self) -> Option<&[u32]> {
+        self.structural_parameter_positions.as_deref()
+    }
+
     pub fn returned_borrow_origins(&self) -> &[crate::record::PackageReviewReturnedBorrowOrigin] {
         &self.returned_borrow_origins
     }

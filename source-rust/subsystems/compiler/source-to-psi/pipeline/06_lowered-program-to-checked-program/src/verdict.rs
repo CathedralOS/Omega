@@ -72,10 +72,10 @@ the other two as a `ConflictingUse`.
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, ObligationId};
 use terminal_check_tables::obligations::ObligationKind;
-use terminal_check_tables::program::{Elaboration, SourceOrigin};
+use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
 
-use crate::checking::{Discharge, describe, refusal};
+use crate::checking::{Discharge, ImpossibleArm, describe, refusal};
 
 /// What the route decided for one closure.
 #[derive(Debug)]
@@ -156,49 +156,53 @@ impl AcceptedClosure {
         // contradicts (state_contracts.md, "Unreachable branches": "The
         // diagnostic identifies the branch condition and the conflicting
         // premises").
-        for (machine, branch) in self.elaboration.authored_branches() {
-            let Some(impossible) = self.discharge.machines.get(machine).and_then(|discharge| {
-                let tables = self.elaboration.tables.machines.get(machine)?;
-                let lowered = self.elaboration.module.machine(machine)?;
-                let branches = &self.elaboration.sources.get(machine)?.branches;
-                discharge
-                    .branch_warnings
-                    .materialize(lowered, tables, branches, &mut activity)
-                    .iter()
-                    .find(|arm| arm.block == branch.block)
-            }) else {
+        for (machine, branches) in self.elaboration.authored_branches() {
+            let (Some(discharge), Some(tables), Some(lowered)) = (
+                self.discharge.machines.get(machine),
+                self.elaboration.tables.machines.get(machine),
+                self.elaboration.module.machine(machine),
+            ) else {
                 continue;
             };
-            let names = self.elaboration.names.get(machine);
-            let arm = match (names, branch.arm) {
-                (Some(names), SourceOrigin::Authored(span)) => names
-                    .arms
-                    .iter()
-                    .find(|(at, _)| *at == span)
-                    .map(|(_, label)| label.clone()),
-                _ => None,
+            let impossible =
+                discharge
+                    .branch_warnings
+                    .materialize(lowered, tables, branches, &mut activity);
+            if impossible.is_empty() {
+                continue;
             }
-            .unwrap_or_else(|| String::from("an arm"));
-            let owner = describe::owner(names, branch.condition);
-            let premises: Vec<String> = impossible
-                .premises
-                .iter()
-                .map(|premise| describe::premise(&self.elaboration, machine, *premise))
-                .collect();
-            let reason = if premises.is_empty() {
-                String::from("its condition can never hold")
-            } else {
-                format!(
-                    "its condition contradicts the facts in force here: {}",
-                    premises.join(", ")
-                )
-            };
-            advisories.push(located(
-                Diagnostic::warning(format!(
-                    "unreachable branch: {arm} in {owner} can never run; {reason}"
-                )),
-                branch.condition,
-            ));
+            let names = self.elaboration.names.get(machine);
+            for (branch, impossible) in impossible_authored_arms(branches, impossible) {
+                let arm = match (names, branch.arm) {
+                    (Some(names), SourceOrigin::Authored(span)) => names
+                        .arms
+                        .iter()
+                        .find(|(at, _)| *at == span)
+                        .map(|(_, label)| label.clone()),
+                    _ => None,
+                }
+                .unwrap_or_else(|| String::from("an arm"));
+                let owner = describe::owner(names, branch.condition);
+                let premises: Vec<String> = impossible
+                    .premises
+                    .iter()
+                    .map(|premise| describe::premise(&self.elaboration, machine, *premise))
+                    .collect();
+                let reason = if premises.is_empty() {
+                    String::from("its condition can never hold")
+                } else {
+                    format!(
+                        "its condition contradicts the facts in force here: {}",
+                        premises.join(", ")
+                    )
+                };
+                advisories.push(located(
+                    Diagnostic::warning(format!(
+                        "unreachable branch: {arm} in {owner} can never run; {reason}"
+                    )),
+                    branch.condition,
+                ));
+            }
         }
         // A `_` arm after arms naming every declared case of the subject is
         // an authored branch no arrival takes: lowering left it out, and it
@@ -226,6 +230,63 @@ impl AcceptedClosure {
         }
         advisories
     }
+}
+
+/// A separate invocation entry and a loop head can lower the same source arm
+/// twice. Warn once for that arm only if neither occurrence can execute.
+fn impossible_authored_arms<'a>(
+    branches: &'a [Branch],
+    impossible: &'a [ImpossibleArm],
+) -> impl Iterator<Item = (&'a Branch, &'a ImpossibleArm)> {
+    let mut by_block: Vec<_> = impossible.iter().collect();
+    by_block.sort_unstable_by_key(|arm| arm.block);
+    let refutation = move |block| {
+        by_block
+            .binary_search_by_key(&block, |arm| arm.block)
+            .ok()
+            .map(|position| by_block[position])
+    };
+    let mut excluded: std::collections::HashSet<_> = branches
+        .iter()
+        .filter(|branch| refutation(branch.block).is_none())
+        .filter_map(|branch| branch.arm.span())
+        .collect();
+    branches.iter().filter_map(move |branch| {
+        let impossible = refutation(branch.block)?;
+        if branch.arm.span().is_some_and(|span| !excluded.insert(span)) {
+            return None;
+        }
+        Some((branch, impossible))
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn a_source_arm_with_two_entries_requires_two_refutations_and_warns_once() {
+    use semantic_vocabulary::BlockId;
+    use source_text::{SourceId, SourceSpan, Span};
+
+    let source = SourceOrigin::Authored(SourceSpan::new(SourceId(1), Span::new(4, 8)));
+    let blocks = [BlockId::new(2).unwrap(), BlockId::new(7).unwrap()];
+    let branches = blocks.map(|block| Branch {
+        block,
+        decided_in: BlockId::new(1).unwrap(),
+        arm: source,
+        condition: source,
+    });
+    let impossible = blocks.map(|block| ImpossibleArm {
+        block,
+        premises: Vec::new(),
+    });
+    assert_eq!(
+        impossible_authored_arms(&branches, &impossible[..1]).count(),
+        0
+    );
+    assert_eq!(
+        impossible_authored_arms(&branches, &impossible[1..]).count(),
+        0
+    );
+    assert_eq!(impossible_authored_arms(&branches, &impossible).count(), 1);
 }
 
 /// An accepted closure published as Terminal Psi: the canonical artifact of
@@ -284,6 +345,7 @@ enum PublicationBody {
 
 pub struct CheckedPublicationModule {
     module: PublicationBody,
+    optimization: Option<terminal_codec::PsiOptimizationExecutionRecord>,
     seals: terminal_codec::EvidenceSeals,
 }
 
@@ -296,19 +358,19 @@ impl CheckedPublicationModule {
     }
 
     pub fn publish(self) -> Result<RoutePublication, PublicationError> {
-        let Self { module, seals } = self;
+        let Self { module, seals, optimization } = self;
         let PublicationBody::Complete(module) = module else {
             return Err(PublicationError::Semantic(
                 "the Build prefix still owes a checked suffix".into(),
             ));
         };
         let identity = module.identity();
-        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
-            optimization::PsiOptimizationSelections::default(),
-            identity,
-            identity,
-        )
-        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let record = match optimization {
+            Some(record) => record,
+            None => terminal_codec::PsiOptimizationExecutionRecord::new(
+                optimization::PsiOptimizationSelections::default(), identity, identity,
+            ).map_err(|error| PublicationError::Semantic(error.to_string()))?,
+        };
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
                 .map_err(PublicationError::Artifact)?;
@@ -318,7 +380,12 @@ impl CheckedPublicationModule {
     pub fn publish_invocation(
         self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
-        let Self { module, seals } = self;
+        let Self { module, seals, optimization } = self;
+        if optimization.is_some() {
+            return Err(PublicationError::Semantic(
+                "executed Psi optimizations require their portable publication record".into(),
+            ));
+        }
         let artifact = match module {
             PublicationBody::Complete(closed) => {
                 terminal_codec::InvocationTerminalCode::from_closed_module(closed)
@@ -349,7 +416,7 @@ impl AcceptedClosure {
             module: identity,
             seals: self.seals.clone(),
         };
-        Ok(CheckedPublicationModule { module, seals })
+        Ok(CheckedPublicationModule { module, seals, optimization: self.optimization.clone() })
     }
 
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
@@ -549,9 +616,12 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
         }
         // The invocation may execute only through this call. Its outstanding
         // result cannot supply a checked body for compiler evaluation.
-        if body.blocks.iter().any(|block| matches!(
-            block.terminator, terminal_psi::Terminator::PendingNormalCompletion { .. }
-        )) {
+        if body.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                terminal_psi::Terminator::PendingNormalCompletion { .. }
+            )
+        }) {
             if header.supplies_checked_body {
                 return Err(invalid(machine, "an unfinished Build suffix claims to supply a checked callable body"));
             }
@@ -1620,6 +1690,7 @@ fn conclude(
         elaboration,
         discharge: discharged,
         seals,
+        optimization: None,
     });
     Ok(if pending {
         RouteVerdict::AcceptedPrefix(checked)
@@ -2074,12 +2145,15 @@ impl<'a> Roster<'a> {
     }
 
     fn locate(self, mut refused: Refusal) -> Refusal {
-        let names = self.names.get(refused.machine);
+        let terminal_check_tables::RefusalSite::Machine(machine, concerns) = refused.site else {
+            return refused;
+        };
+        let names = self.names.get(machine);
         if refused.source_span.is_none() {
             refused.source_span = self
                 .sources
-                .get(refused.machine)
-                .and_then(|sources| site_of(sources, refused.concerns))
+                .get(machine)
+                .and_then(|sources| site_of(sources, concerns))
                 .and_then(SourceOrigin::authored_span)
                 .or_else(|| names.and_then(|names| names.declared));
         }
@@ -2109,18 +2183,22 @@ fn source_of(
 }
 
 fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
-    match refused.reason {
-        RefusalReason::Unsupported => Ok(RouteVerdict::FallBack(refused)),
+    let (reason, site) = (refused.reason, refused.site);
+    match (reason, site) {
+        (RefusalReason::Unsupported, _) => Ok(RouteVerdict::FallBack(refused)),
         // Elaboration or discharge refused the closure outright because some
         // storage is used unestablished: a rejection of the program, with no
         // source correspondence to look its construct up in.
-        RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
+        (
+            RefusalReason::Unestablished,
+            terminal_check_tables::RefusalSite::Machine(machine, at),
+        ) => Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             violations: Vec::new(),
             unproved: Vec::new(),
             unestablished: vec![UnestablishedUse {
-                machine: refused.machine,
-                at: refused.concerns,
+                machine,
+                at,
                 site: refused.source_span.map(SourceOrigin::Authored),
                 detail: refused.detail,
                 declared: None,
@@ -2130,22 +2208,21 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         }),
         // A rule the source form breaks, whoever found it: the reader of
         // the typed trees, before anything was lowered.
-        RefusalReason::Violation => Ok(RouteVerdict::Rejected {
-            formations: Vec::new(),
-            violations: vec![RuleViolation {
-                machine: refused.machine,
-                site: refused.source_span,
-                statement: refused.detail,
-            }],
-            unproved: Vec::new(),
-            unestablished: Vec::new(),
-            conflicts: Vec::new(),
-            exceeded: Vec::new(),
-        }),
-        RefusalReason::Unproved(_)
-        | RefusalReason::NotConserved
-        | RefusalReason::Conflict
-        | RefusalReason::ForeignIdentity => Err(refused),
+        (RefusalReason::Violation, terminal_check_tables::RefusalSite::Machine(machine, _)) => {
+            Ok(RouteVerdict::Rejected {
+                formations: Vec::new(),
+                violations: vec![RuleViolation {
+                    machine,
+                    site: refused.source_span,
+                    statement: refused.detail,
+                }],
+                unproved: Vec::new(),
+                unestablished: Vec::new(),
+                conflicts: Vec::new(),
+                exceeded: Vec::new(),
+            })
+        }
+        _ => Err(refused),
     }
 }
 

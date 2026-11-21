@@ -459,7 +459,8 @@ fn fragment_lines(text: &str) -> Vec<String> {
 /// missing fragment each fail the sample.
 fn verify_native_rejection(
     cli: &Path,
-    entry: &Path,
+    source_entry: &Path,
+    product_entry: &Path,
     target: &str,
     fragments: &[String],
     evidence: &Path,
@@ -472,7 +473,7 @@ fn verify_native_rejection(
         with_source_inputs(
             Command::new(cli)
                 .arg("--check")
-                .arg(entry)
+                .arg(source_entry)
                 .stdin(Stdio::null()),
             source_inputs,
         ),
@@ -490,7 +491,7 @@ fn verify_native_rejection(
         with_source_inputs(
             Command::new(cli)
                 .args(["--target", target])
-                .arg(entry)
+                .arg(product_entry)
                 .stdin(Stdio::null()),
             source_inputs,
         ),
@@ -550,26 +551,19 @@ pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
 pub fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
     let build =
         strip_comments(&fs::read_to_string(sample_dir.join("build.omg")).unwrap_or_default());
-    let mut targets = BTreeSet::new();
-    for part in build.split("::ProgramEntry") {
-        let target: String = part
-            .chars()
-            .rev()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect::<String>()
-            .chars()
-            .rev()
-            .collect();
-        if !target.is_empty()
-            && target
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_lowercase())
-        {
-            targets.insert(target);
-        }
-    }
-    targets
+    build
+        .split(',')
+        .filter_map(|slot| {
+            let (target, name) = slot.trim().split_once('\\')?;
+            let target = target.trim_end();
+            (name.trim_start() == "ProgramEntry"
+                && target.starts_with(|c: char| c.is_ascii_lowercase())
+                && target
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'_'))
+            .then(|| target.to_owned())
+        })
+        .collect()
 }
 
 fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
@@ -711,10 +705,16 @@ pub fn verify_sample(
         &project.source_inputs,
     )?;
 
+    // The CLI selects Build from the file it is asked to run or compile.
+    // The sample's source entry carries its expected exit and output.
+    let build = project.directory.join("build.omg");
+    let product_entry = if build.is_file() { &build } else { entry };
+
     if let Some(fragments) = &project.native_rejection {
         return verify_native_rejection(
             cli,
             entry,
+            product_entry,
             target,
             fragments,
             evidence,
@@ -755,7 +755,7 @@ pub fn verify_sample(
             with_source_inputs(
                 Command::new(cli)
                     .args(["--target", target])
-                    .arg(entry)
+                    .arg(product_entry)
                     .stdin(Stdio::null()),
                 &project.source_inputs,
             ),
@@ -776,7 +776,7 @@ pub fn verify_sample(
     with_source_inputs(&mut cmd, &project.source_inputs);
     let scratch = project.directory.join("build/gate-run");
     let _ = fs::create_dir_all(&scratch);
-    cmd.arg(entry).current_dir(&scratch);
+    cmd.arg(product_entry).current_dir(&scratch);
     if has_input {
         let file = fs::File::open(&input_path)
             .map_err(|e| format!("failed opening {}: {e}", input_path.display()))?;
@@ -1249,6 +1249,30 @@ mod tests {
     }
 
     #[test]
+    fn sample_targets_come_from_target_module_entry_bindings() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::write(
+            directory.join("build.omg"),
+            r#"machine build(builder: @mut Build) {
+                Build::bind(builder, windows_x86_64\ProgramEntry, main);
+                Build::bind (builder,
+                    linux_arm64 \ ProgramEntry,
+                    main);
+                Build::bind(builder, macos_arm64\ProgramEntryOther, main);
+                Build::bind(builder, macos_x86_64::ProgramEntry, main);
+                Build::application(builder, "unused\ProgramEntry");
+                // Build::bind(builder, linux_x86_64\ProgramEntry, main);
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            bound_targets(&directory),
+            BTreeSet::from(["linux_arm64".to_owned(), "windows_x86_64".to_owned()])
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn exit_oracles_keep_their_integer_before_a_following_sentence() {
         let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
         let entry = directory.join("main.omg");
@@ -1282,7 +1306,7 @@ mod tests {
         )
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
-            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}::ProgramEntry, main); }}\n", host_target())).unwrap();
+            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
         fs::write(
             directory.join("sample.json"),
             r#"{"source_inputs":["main.omg","build.omg"]}"#,
@@ -1301,7 +1325,7 @@ for argument do
   fi
   previous="$argument"
 done
-if [ "$main" != yes ] || [ "$build" != yes ]; then
+if [ "$main" != yes ] || { [ -f "${0%/*}/build.omg" ] && [ "$build" != yes ]; }; then
   echo 'caller inventory was lost' >&2
   exit 91
 fi
@@ -1312,7 +1336,16 @@ case "$1" in
       *) exit 92;;
     esac
     ;;
-  run) echo 'native exit 0' >&2; echo 'interp exit: 0' >&2; exit 0;;
+  run)
+    if [ -f "${0%/*}/build.omg" ]; then expected=build.omg; else expected=main.omg; fi
+    if [ "$previous" != "${0%/*}/$expected" ]; then
+      echo "expected the gate to launch $expected, got $previous" >&2
+      exit 93
+    fi
+    echo 'native exit 0' >&2
+    echo 'interp exit: 0' >&2
+    exit 0
+    ;;
   *) exit 92;;
 esac
 "#,
@@ -1324,6 +1357,23 @@ esac
             verify_sample(&cli, &project, host_target(), &directory.join("evidence"))
                 .unwrap()
                 .starts_with("pass")
+        );
+        fs::remove_file(directory.join("build.omg")).unwrap();
+        fs::write(
+            directory.join("sample.json"),
+            r#"{"role":"program","source_inputs":["main.omg"]}"#,
+        )
+        .unwrap();
+        let standalone = project_at(&directory, &directory).unwrap();
+        assert!(
+            verify_sample(
+                &cli,
+                &standalone,
+                host_target(),
+                &directory.join("standalone")
+            )
+            .unwrap()
+            .starts_with("pass")
         );
         fs::remove_dir_all(directory).unwrap();
     }

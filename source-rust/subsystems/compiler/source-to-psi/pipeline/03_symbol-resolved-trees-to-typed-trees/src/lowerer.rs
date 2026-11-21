@@ -1146,10 +1146,7 @@ pub(crate) mod seeded_continuation {
             .service_reaches
             .definitions()
             .starts_with(base.service_reaches.definitions())
-            || !source
-                .service_reaches
-                .definitions()
-                .starts_with(candidate.service_reaches.definitions())
+            || candidate.service_reaches.definitions().len() != base.service_reaches.definitions().len()
         {
             return Err(Diagnostic::error(
                 "source continuation changed retained service definitions",
@@ -1220,7 +1217,6 @@ pub(crate) mod seeded_continuation {
             }
         }
         candidate.symbols = source.symbols.clone();
-        candidate.service_reaches = source.service_reaches.clone();
         candidate.service_reach_rows = source.service_reach_rows.clone();
         candidate.external_bindings = source.external_bindings.clone();
         candidate.retain_authored_declaration_selections(
@@ -1599,7 +1595,6 @@ pub fn lower_symbol_resolved_trees(
             Some(crate::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
     };
-    lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
     lowerer.typed_trees.authored_service_reach_rows = symbol_resolved_trees
         .authored_service_reach_rows
@@ -1828,7 +1823,7 @@ fn complete_retained_machine_body(
     Ok(())
 }
 
-fn check_generic_binding_overlaps(
+fn check_static_value_shadowing(
     source: &SymbolResolvedTrees,
     typed: &TypedTrees,
 ) -> Result<(), Diagnostic> {
@@ -1867,7 +1862,12 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    check_generic_binding_overlaps(lowerer.source_trees, &lowerer.typed_trees)?;
+    lower_service_applications(lowerer)?;
+    check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
+    crate::typing::type_reference::alias_uses::check_applications(
+        &lowerer.typed_trees,
+        cohort.typed_type_references,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::typing::runtime_callables::bind_calls(
@@ -1906,8 +1906,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    typed_trees::data_applications::prepare_from(&mut lowerer.typed_trees, cohort.typed_type_references)
-        .map_err(Diagnostic::error)?;
+    typed_trees::data_applications::prepare_from(
+        &mut lowerer.typed_trees,
+        cohort.typed_type_references,
+    )
+    .map_err(Diagnostic::error)?;
     let cast_destinations = crate::typing::expressions::construction_destinations::prepare(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -1975,6 +1978,64 @@ pub(crate) fn close_typed_cohort(
     )
 }
 
+/// Resolve the effect telescope after all its possible owner declarations
+/// have been typed. Its numeric effect rows retain their source coordinates.
+fn lower_service_applications(lowerer: &mut Lowerer<'_>) -> Result<(), Diagnostic> {
+    use crate::source_state::trait_definition::TraitApplicationArguments;
+    let source = lowerer.source_trees;
+    let mut table = std::mem::take(&mut lowerer.typed_trees.service_reaches);
+    source
+        .service_reaches
+        .try_extend_arguments(&mut table, |row, application| {
+            let reference = &application.arguments;
+            let arguments = lowerer.with_source_owner(application.lexical_owner, |lowerer| {
+                source
+                    .child_type_references(reference.arguments)
+                    .iter()
+                    .map(|argument| {
+                        crate::typing::type_reference::lower_type_reference_into_table(
+                            lowerer, argument,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()
+            })?;
+            let lifetimes = name::lower_names(&reference.lifetime_arguments);
+            let typed = &lowerer.typed_trees;
+            let declaration = typed
+                .trait_definition_by_symbol(row.symbol)
+                .filter(|declaration| declaration.is_boundary)
+                .ok_or_else(|| {
+                    Diagnostic::error("an applied effect lost its typed boundary declaration")
+                })?;
+            let environment = typed
+                .checked_service_scope(
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: application.lexical_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &arguments,
+                        lifetimes: &lifetimes,
+                    },
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!("boundary service `{}`: {reason}", row.name))
+                        .with_source_span(reference.name.source_span())
+                })?
+                .environment();
+            environment
+                .retain(&mut lowerer.typed_trees)
+                .map_err(Diagnostic::error)
+        })?;
+    lowerer.typed_trees.service_reaches = table;
+    let typed = &mut lowerer.typed_trees;
+    typed
+        .settle_applied_service_lineage()
+        .map_err(Diagnostic::error)?;
+    typed
+        .check_refined_service_ceilings()
+        .map_err(Diagnostic::error)
+}
+
 fn lower_authored_service_reach_row(
     row: &crate::source_resolved::signature::AuthoredServiceReachRow,
 ) -> crate::source_state::signature::AuthoredServiceReachRow {
@@ -1985,7 +2046,7 @@ fn lower_authored_service_reach_row(
             .targets
             .iter()
             .map(|target| ReachTarget {
-                service: target.service,
+                service: crate::source_state::signature::ReachSubject::Service(target.service),
                 source_span: target.source_span,
             })
             .collect(),
@@ -2118,10 +2179,11 @@ impl Lowerer<'_> {
         &mut self,
         alias: &crate::source_resolved::type_aliases::TypeAliasDefinition,
     ) -> Result<(), Diagnostic> {
-        let alias = self
-            .with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
+        let alias = self.with_source_owner(alias.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
                 lower_type_alias_definition(lowerer, alias)
-            })?;
+            })
+        })?;
         self.typed_trees.push_type_alias_definition(alias);
         Ok(())
     }

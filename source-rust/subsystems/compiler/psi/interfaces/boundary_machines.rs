@@ -16,6 +16,21 @@ pub struct StructuralDomainRequirement {
     pub domain: StructuralDomainId,
 }
 
+impl StructuralDomainRequirement {
+    /// Memberships required on the complete value at each declared structural formal.
+    pub fn declared_roots(
+        parameters: &[StructuralParameterDeclaration],
+    ) -> impl Iterator<Item = Self> + '_ {
+        parameters.iter().flat_map(|formal| {
+            formal.qualifications.iter().map(move |domain| Self {
+                argument_index: formal.position,
+                path: Vec::new(),
+                domain: *domain,
+            })
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScalarDomainRequirement {
     pub argument_index: u32,
@@ -237,6 +252,8 @@ pub enum CheckedBoundaryExecution {
     Provider,
     /// Exact sealed numeric declaration, realized by the selected target table.
     NumericPrimitive,
+    /// Immutable snapshot of the layout-policy argument issued for this invocation.
+    LayoutTargetFacts,
     /// The actual primitive remains distinct from the public requirement.
     HostedPrimitive {
         operation: language_core::sealed_intrinsics::HostedOperation,
@@ -269,6 +286,7 @@ impl CheckedBoundaryExecution {
             }
             Self::Provider
             | Self::NumericPrimitive
+            | Self::LayoutTargetFacts
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::AccessInitialize
@@ -286,6 +304,7 @@ impl CheckedBoundaryExecution {
         match self {
             Self::Provider
             | Self::NumericPrimitive
+            | Self::LayoutTargetFacts
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::StaticInterruptInstall
@@ -604,6 +623,21 @@ impl BoundaryMachineDeclaration {
             .iter()
             .enumerate()
             .filter_map(move |(position, found)| (*found == kind).then_some(position))
+    }
+
+    /// Structural input places occupy the first coordinates in the public
+    /// contract. The normal result follows them and has no entry contents.
+    pub fn structural_contract_result(
+        &self,
+    ) -> Option<(semantic_vocabulary::PlaceId, StructuralTypeId)> {
+        Some((
+            semantic_vocabulary::PlaceId::new(
+                u64::try_from(self.structural_parameters.len())
+                    .ok()?
+                    .checked_add(1)?,
+            )?,
+            self.result.structural()?,
+        ))
     }
 
     pub fn scalar_contract_result(&self) -> Option<ValueDeclaration> {

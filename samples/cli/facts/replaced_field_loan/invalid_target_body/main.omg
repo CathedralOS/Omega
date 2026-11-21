@@ -12,7 +12,7 @@ machine store(target: @mut Cell, value: i32) -> bool requires value == 41 {
     target.value == 41
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

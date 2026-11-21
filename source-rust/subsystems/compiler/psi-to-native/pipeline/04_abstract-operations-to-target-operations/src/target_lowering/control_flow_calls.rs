@@ -24,7 +24,7 @@ pub(crate) mod borrowed_calls {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
     use terminal_semantics::borrowed_referent_matches;
 
-    fn direct_referent(
+    pub(super) fn direct_referent(
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
@@ -1659,13 +1659,15 @@ pub(crate) mod calls {
             shape: placement.shape,
             placement: placement.placement.clone(),
         };
-        // Present an array's backing before classifying ordinary reference
-        // and descriptor arguments. Every addressable root uses the same
-        // checked window, including a field or a block arrival.
-        if prepared.parameter(argument.place).is_some()
-            || live.structural_homes.contains_key(&argument.place)
-            || live.block_views.contains(&argument.place)
-            || live.address_joins.contains(&argument.place)
+        // Only view formals can receive an array window. Resolving an argument's
+        // backing asks for its byte extent, which opaque loans need never reveal.
+        if types
+            .get(declaration.structural_type)
+            .is_some_and(|ty| ty.shape.is_view_descriptor())
+            && (prepared.parameter(argument.place).is_some()
+                || live.structural_homes.contains_key(&argument.place)
+                || live.block_views.contains(&argument.place)
+                || live.address_joins.contains(&argument.place))
         {
             let root = crate::target_lowering::unit::argument_roots::resolve(
                 argument.place,
@@ -1796,6 +1798,30 @@ pub(crate) mod calls {
                 live,
                 types,
             );
+        }
+        if argument.path.is_empty()
+            && declaration.access == argument.access
+            && let Some(source) = parameters_by_place.get(&argument.place)
+            && declaration.access.admits_referent(source.access)
+            && source.structural_type == declaration.structural_type
+            && let Some(pointer) = types.get(source.structural_type).and_then(|ty| {
+                calling_conventions::terminal_layout::opaque_borrow_transport(
+                    &ty.shape,
+                    argument.access,
+                )
+            })
+            && source.shape == pointer
+            && destination.shape == pointer
+        {
+            return super::borrowed_calls::direct_referent(
+                argument,
+                declaration,
+                destination,
+                source.structural_type,
+                source.placement.clone().into(),
+                types,
+            )
+            .ok_or(LoweringError::UnknownStructuralType(source.structural_type));
         }
         if live.structural_homes.contains_key(&argument.place) {
             return super::borrowed_calls::argument(

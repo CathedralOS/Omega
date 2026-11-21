@@ -1801,7 +1801,7 @@ pub(crate) mod parameter_use {
                         [gdt, task_state, scratch].into_iter().any(|argument| argument.place == place),
     LegalizedScalarInstructionKind::ReloadSegmentDescriptors { gdt, scratch, .. } =>
                         [gdt, scratch].into_iter().any(|argument| argument.place == place),
-                    LegalizedScalarInstructionKind::StorageAddress { source, .. }
+                    LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
                     | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }

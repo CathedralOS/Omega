@@ -1,17 +1,15 @@
-// The source owner judges and publishes one exact root roster. Policy and
-// Product consumers share its immutable portable code. `SourcePublication` fixes Psi optimization choices before
-// targets settle and memoizes the produced `PortableTerminalProgram` (or its
-// refusal) in a `OnceLock` without retrying or permitting a different Psi
-// optimization projection to replace it.
+//! Publish one checked source roster once. Product and policy consumers share
+//! the canonical Psi artifact and the source's fixed optimization choices.
 
-use crate::{PortableTerminalProgram, SourceCompilationRoster};
+use crate::SourceCompilationRoster;
 use diagnostics::Diagnostic;
 use optimization::PsiOptimizationSelections;
 use std::sync::{Arc, OnceLock};
+use terminal_codec::CanonicalTerminalArtifact;
 
 pub struct SourcePublication {
     optimizations: PsiOptimizationSelections,
-    program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
+    program: OnceLock<Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>>>,
     accepted: Option<(Arc<crate::AcceptedTerminalSource>, SourceCompilationRoster)>,
 }
 
@@ -38,7 +36,6 @@ impl SourcePublication {
     /// The checker returns the exact lowered roster alongside its own verdicts.
     pub fn from_judgment(
         judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
-        optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
         let (accepted, roster) = crate::AcceptedTerminalSource::accept_judgment(judgment)?;
         let roster = roster.ok_or_else(|| {
@@ -46,6 +43,7 @@ impl SourcePublication {
                 "source publication requires the checked product roster",
             )]
         })?;
+        let optimizations = accepted.closure().optimization().map(|record| record.selections().clone()).unwrap_or_default();
         let mut publication = Self::new(optimizations);
         publication.accepted = Some((Arc::new(accepted), roster));
         Ok(publication)
@@ -95,14 +93,6 @@ impl SourcePublication {
     pub(crate) fn accepted_owner(
         &self,
     ) -> Result<&Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
-        // The factory seals the module the unoptimized check judged. A
-        // nonempty selection needs the second lowered-form check, which has
-        // no route yet.
-        if !self.optimizations.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: selected Psi optimizations have no second lowered-form check",
-            )]);
-        }
         self.accepted
             .as_ref()
             .map(|(accepted, _)| accepted)
@@ -113,6 +103,34 @@ impl SourcePublication {
             })
     }
 
+    /// Check the package selections against the module the source judgment owns.
+    /// This stopping point needs neither a portable envelope nor a native target.
+    pub fn check(
+        &self,
+        authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
+        timings: &mut artifacts::compile_timings::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let accepted = self.accepted()?;
+        timings.record_result(artifacts::compile_timings::source::CHECK_SELECTIONS, || {
+            let module = accepted.module();
+            let selections =
+                crate::production::source_selection_publication::prepare(accepted, module, None)
+                    .map_err(|diagnostic| vec![diagnostic])?;
+            psi_authorization::selection_questions::admit_selection_questions(
+                module,
+                &selections.questions,
+                &psi_authorization::selection_questions::SelectionAuthorities {
+                    build: None,
+                    product: authority,
+                },
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+        })?;
+        timings.record_result(artifacts::compile_timings::source::ADVISORIES, || {
+            Ok(accepted.advisories().to_vec())
+        })
+    }
+
     /// Publish the accepted source once, with the declaration authority admitted
     /// for this request. Consumers receive code and evidence, never a producer
     /// callback capable of replacing a failed result.
@@ -121,7 +139,7 @@ impl SourcePublication {
         optimizations: &PsiOptimizationSelections,
         authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
         timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
+    ) -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>> {
         self.retain(optimizations, || {
             let produced = self.accepted()?.produce(Default::default(), timings)?;
             let artifact = produced
@@ -141,10 +159,10 @@ impl SourcePublication {
                     },
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            produced
-                .into_shared_portable()
-                .map(Arc::new)
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])
+            let (artifact, _) = produced
+                .into_portable_publication()
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+            Ok(Arc::new(artifact))
         })
     }
 
@@ -152,31 +170,23 @@ impl SourcePublication {
         &self.optimizations
     }
 
-    pub fn published(&self) -> Option<&PortableTerminalProgram> {
-        self.program.get()?.as_ref().ok().map(Arc::as_ref)
-    }
-
-    pub fn require_published(
-        &self,
-        optimizations: &PsiOptimizationSelections,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
-        if &self.optimizations != optimizations {
-            return Err(vec![Diagnostic::error(
-                "Terminal publication differs from the Product's fixed Psi optimization selection",
-            )]);
-        }
-        self.program.get().cloned().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "target compilation requires the shared Terminal program to be published first",
-            )]
-        })?
+    pub(crate) fn require_published(&self) -> Result<&CanonicalTerminalArtifact, Vec<Diagnostic>> {
+        self.program
+            .get()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "target compilation requires the shared Terminal program to be published first",
+                )]
+            })?
+            .as_deref()
+            .map_err(Clone::clone)
     }
 
     fn retain(
         &self,
         optimizations: &PsiOptimizationSelections,
-        produce: impl FnOnce() -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
+        produce: impl FnOnce() -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>>,
+    ) -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>> {
         if &self.optimizations != optimizations {
             return Err(vec![Diagnostic::error(
                 "Terminal publication differs from the Product's fixed Psi optimization selection",
@@ -219,16 +229,6 @@ mod tests {
         assert_eq!(
             attempts, 1,
             "a different projection cannot replace published code or its refusal"
-        );
-    }
-    #[test]
-    fn accepted_publication_refuses_unexecuted_psi_optimizations() {
-        let selected =
-            PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
-        let publication = SourcePublication::new(selected);
-        assert_eq!(
-            publication.accepted().unwrap_err()[0].message,
-            "no product route yet: selected Psi optimizations have no second lowered-form check"
         );
     }
 }

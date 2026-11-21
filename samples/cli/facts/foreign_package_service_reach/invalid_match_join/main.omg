@@ -11,7 +11,7 @@ machine demand(result: bool) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-machine joined(choice: bool) -> i32 reaches {
+machine joined(choice: bool) -> i32 reaches none {
     match choice {
         true -> CharacterCase::upper(103),
         false -> CharacterCase::upper(53)

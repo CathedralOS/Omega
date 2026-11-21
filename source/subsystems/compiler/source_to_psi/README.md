@@ -30,6 +30,16 @@ normalization. A memberless boundary trait and its checked reach row can
 appear in an Alpha program. Executing a boundary operation also requires its
 selected provider and the installed target environment.
 
+An ordinary trait's typed static parameter can require an explicit, closed
+implementation. In `trait Calling<const Policy: CallingPolicy> {}`, the
+resolver binds `CallingPolicy` to its declaration. For `Calling<Selected>`,
+the typer checks that the named conformance satisfies that same trait.
+Type names, integer arguments and implementations of another trait reject at
+the argument. Applied contracts and forwarding an implementation parameter
+still need substitution support. The
+[typed static parameter rules](../../../../wiki/spec/language/generics.md#typed-static-parameters)
+govern the spelling.
+
 Implemented so far: source/span and token representations, a UTF-8-framed
 lexer that stores only semantic tokens, and a fail-closed whole-file parser
 for ordinary
@@ -422,10 +432,10 @@ integer may land too. Float arithmetic, negation and IEEE comparisons take
 one format, so formats never mix, and `as` never converts between floats and
 integers (named conversion machines do). A call to a generic machine binds
 its generic parameters ([`pipeline/symbol_resolved_trees_to_typed_trees/generics.omg`](pipeline/symbol_resolved_trees_to_typed_trees/generics.omg)) from
-explicit static arguments `path<arguments>(...)`, one per non-lifetime
-parameter, and by unifying each parameter's type with its argument's type;
-every parameter must be bound, each argument is admitted at its substituted
-parameter type, and the result is substituted the same way. A construction
+explicit static arguments `path<arguments>(...)`, in declaration order, skipping lifetimes. It infers
+omitted arguments by unifying parameter and argument types. Every parameter
+must have a binding. The compiler then checks each argument against its
+substituted parameter type and substitutes the result type the same way. A construction
 of generic data infers its arguments from its fields' values. A
 value-position match ([`pipeline/symbol_resolved_trees_to_typed_trees/matches.omg`](pipeline/symbol_resolved_trees_to_typed_trees/matches.omg)) admits its
 patterns at its subject as a transition arm's head, gives its arms' values
@@ -489,7 +499,7 @@ expressions
 ([`pipeline/symbol_resolved_trees_to_typed_trees/clauses.omg`](pipeline/symbol_resolved_trees_to_typed_trees/clauses.omg)); a requirement with generic
 parameters of its own rejects as unsupported. A machine binder's call is
 typed through its contract, and a generic call's static machine arguments
-match its machine binders in order, each argument's signature refining its
+occupy the declared machine binder positions, each argument's signature refining its
 binder's contract under the call's bindings and binding the callee's other
 generic parameters the contract names
 ([`pipeline/symbol_resolved_trees_to_typed_trees/binders.omg`](pipeline/symbol_resolved_trees_to_typed_trees/binders.omg)). An arithmetic or order

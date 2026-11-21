@@ -519,6 +519,7 @@ impl<'a> Lowering<'a> {
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
             exclusive_roots: Vec::new(),
+            owns_body: true,
             fallthrough: None,
             pending_build: None,
             block_ranks: IdTable::default(),
@@ -676,8 +677,10 @@ impl Lowering<'_> {
                 .get_mut(block)
                 .ok_or_else(|| Refusal {
                     reason: RefusalReason::ForeignIdentity,
-                    machine: self.id,
-                    concerns: Construct::Block(block),
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        self.id,
+                        Construct::Block(block),
+                    ),
                     source_span: None,
                     detail: String::from("a parameter block is missing"),
                 })?
@@ -853,6 +856,9 @@ struct Lowering<'a> {
     /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
     /// an owned value may be moved out of (`places::record`).
     exclusive_roots: Vec<PlaceId>,
+    /// Only the machine that declares a body publishes its source advisories.
+    /// Other members of a terminal call cycle also contain its executable blocks.
+    owns_body: bool,
     /// The block a guarded arm's guard turns away to, when nothing has been
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
@@ -959,8 +965,7 @@ impl<'a> Lowering<'a> {
             .and_then(|index| self.value_qualifications.get_mut(index))
             .ok_or_else(|| terminal_check_tables::Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: self.id,
-                concerns: Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
                 source_span: None,
                 detail: "a qualification names a value outside this lowering".into(),
             })?;
@@ -1025,6 +1030,8 @@ impl<'a> Lowering<'a> {
     /// continuation, and so does a statement some path of which goes on past
     /// the call (the right operand of `&&`, one arm of a `match`).
     fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
+        self.owns_body = member == self.id;
+        self.fallthrough = None;
         self.lender_homes = self.records.lender_homes(member, self.id)?;
         let entry = self.current()?;
         let source = self
@@ -1086,7 +1093,9 @@ impl<'a> Lowering<'a> {
                     Some(SourceOrigin::Unpositioned(Unpositioned::SpanAbsent))
                 }
             });
-            if let Some(statement) = first {
+            if self.owns_body
+                && let Some(statement) = first
+            {
                 self.sources.unreachable.push(crate::lowering::Unreachable {
                     statement: statement.into(),
                     call: call.into(),
@@ -1245,8 +1254,10 @@ impl<'a> Lowering<'a> {
     fn internal(&self, detail: &str) -> Refusal {
         Refusal {
             reason: RefusalReason::Unsupported,
-            machine: self.id,
-            concerns: self.current.map_or(Construct::Machine, Construct::Block),
+            site: terminal_check_tables::RefusalSite::Machine(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+            ),
             source_span: None,
             detail: format!("completion {detail}"),
         }
@@ -1260,8 +1271,7 @@ impl<'a> Lowering<'a> {
         let id = self.id;
         self.slots.get_mut(slot).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: id,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
@@ -1270,8 +1280,7 @@ impl<'a> Lowering<'a> {
     fn slot_type(&self, slot: usize) -> Checked<ValueType> {
         self.slot_types.get(slot).copied().ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: self.id,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
         })

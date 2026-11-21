@@ -379,32 +379,6 @@ impl SymbolResolvedTreeTables {
     }
 }
 
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn rebuild_tables_collects_typed_program_payloads() {
-        let (mut program, states) =
-            crate::source_resolved::machine::test_program_with_guarded_transition();
-        program
-            .machines
-            .push(crate::source_resolved::machine::test_machine(states));
-
-        program.rebuild_tables();
-
-        assert_eq!(program.tables.types.references.type_reference_count(), 1);
-        assert_eq!(program.tables.bodies.expressions.expression_count(), 1);
-        assert_eq!(program.tables.bodies.statements.statement_count(), 1);
-        let state = program
-            .machine_state_handles(program.machines[0].states)
-            .first()
-            .map(|state| program.machine_state(*state))
-            .expect("entry state");
-        assert_eq!(state.statement_nodes.count(), 1);
-    }
-}
-
-
 impl crate::SymbolResolvedTrees {
     pub fn rebuild_tables(&mut self) {
         let tables =
@@ -427,5 +401,30 @@ impl crate::SymbolResolvedTrees {
         self.tables.bodies.expressions = tables.bodies.expressions;
         self.tables.bodies.statements = tables.bodies.statements;
         self.tables.types.references = tables.types.references;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn rebuild_tables_collects_typed_program_payloads() {
+        let (mut program, states) =
+            crate::source_resolved::machine::test_program_with_guarded_transition();
+        program
+            .machines
+            .push(crate::source_resolved::machine::test_machine(states));
+
+        program.rebuild_tables();
+
+        assert_eq!(program.tables.types.references.type_reference_count(), 1);
+        assert_eq!(program.tables.bodies.expressions.expression_count(), 1);
+        assert_eq!(program.tables.bodies.statements.statement_count(), 1);
+        let state = program
+            .machine_state_handles(program.machines[0].states)
+            .first()
+            .map(|state| program.machine_state(*state))
+            .expect("entry state");
+        assert_eq!(state.statement_nodes.count(), 1);
     }
 }

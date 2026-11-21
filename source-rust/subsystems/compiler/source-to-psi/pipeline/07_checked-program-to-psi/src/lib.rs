@@ -11,9 +11,10 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
+mod invocation_site;
+pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;
 pub use crate::lowering::Compilation as TerminalSourceCompilation;
-pub use crate::lowering::RequirementReviewMetadata;
 pub use crate::lowering::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use crate::lowering::Supply as TerminalSourceSupply;
 pub use crate::lowering::provider_selections::{
@@ -31,10 +32,12 @@ pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 
 mod build_bindings;
 mod build_companions;
+mod build_receiver;
+pub use build_receiver::CheckedBuildReceiver;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod published_entry;
-mod source_selection_publication;
+pub(crate) mod source_selection_publication;
 mod source_selections;
 pub use source_selections::TerminalSourceSelections;
 pub(crate) mod production_selection {
@@ -89,9 +92,10 @@ pub use self::terminal_production::{
 };
 pub use application::ProducedTerminalApplication;
 pub use build_bindings::{
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    ProviderSelectionOption, TerminalBuildBindingCall, TerminalBuildBindingOperand,
+    TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildNativeLocator,
+    TerminalBuildProviderRequirement, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape,
 };
 pub use build_companions::BuildProtocolUse;
 pub use build_filesystem::{
@@ -102,7 +106,7 @@ pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
-pub use custody::{PortableTerminalProgram, ProducedTerminalProgram, TerminalProductionCustody};
+pub use custody::{ProducedTerminalProgram, TerminalProductionCustody};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
 pub use terminal_codec::entry_receipt::application::{
     TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,

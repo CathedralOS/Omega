@@ -133,6 +133,29 @@ impl crate::source_state::TypedTrees {
         }
     }
 
+    /// The checked scalar value at a callable binder's declared carrier.
+    pub fn callable_scalar_value(
+        &self,
+        primitive: crate::source_state::types::PrimitiveType,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Result<application_identity::const_value::DecodedCanonicalConstValue, &'static str> {
+        use crate::source_state::expression::ExpressionNode;
+        use application_identity::const_value::DecodedCanonicalConstValue;
+
+        match self.prepare_callable_scalar_argument(primitive, argument)? {
+            ExpressionNode::Integer(literal) => Ok(DecodedCanonicalConstValue::Integer {
+                integer_type: primitive
+                    .landed_landing_fixed()
+                    .ok_or("an application's integer binding has no admitted carrier")?,
+                value: literal
+                    .value_bignum()
+                    .ok_or("an application's integer binding has no canonical value")?,
+            }),
+            ExpressionNode::Boolean(value) => Ok(DecodedCanonicalConstValue::Boolean(value)),
+            _ => Err("an application's value binding has no admitted scalar value"),
+        }
+    }
+
     /// The ordinary schema of a const operation-record parameter. This does
     /// not admit its construction or provide callable refinement evidence.
     pub fn static_record_schema(
@@ -469,10 +492,7 @@ impl crate::source_state::TypedTrees {
                         return Err("a callable type argument requires its resolved type");
                     }
                     let reference = self.static_operand_type_reference_in_scope(argument, owner)?;
-                    if matches!(
-                        self.type_reference_node(reference),
-                        TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    if self.type_argument_names_value(reference) {
                         return Err("a callable type argument cannot be a value");
                     }
                     reference
@@ -6022,6 +6042,42 @@ pub(crate) mod selected_operands {
             Ok(supplier)
         }
 
+        /// Both callable and type-alias applications use the same type-reference
+        /// arena for type and value arguments. A type binder cannot accept a
+        /// value, including when substitution would erase the argument.
+        pub fn type_argument_names_value(&self, reference: types::TypeReferenceHandle) -> bool {
+            use crate::source_state::data::TypeParameterKind;
+            use symbols::SymbolKind;
+            let symbol = match self.type_reference_table.type_reference(reference) {
+                types::TypeReferenceNode::ConstExpression(_) => return true,
+                types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                _ => return false,
+            };
+            if !self.symbols.symbols().nodes().is_valid(symbol) {
+                return self
+                    .static_const_literal_from_type_reference(reference)
+                    .is_some();
+            }
+            match self.symbols.get(symbol).kind {
+                SymbolKind::TypeParameter => {
+                    self.data_type_parameter_by_symbol(symbol)
+                        .is_some_and(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                            )
+                        })
+                }
+                SymbolKind::Const
+                | SymbolKind::Parameter
+                | SymbolKind::Local
+                | SymbolKind::Machine
+                | SymbolKind::MachineParameter
+                | SymbolKind::ConformanceParameter => true,
+                _ => false,
+            }
+        }
+
         pub fn static_operand_from_type_reference(
             &self,
             reference: types::TypeReferenceHandle,
@@ -6645,8 +6701,80 @@ pub(crate) mod signatures {
     }
 
     impl CallableApplication {
+        pub fn service_reach(
+            &mut self,
+            program: &mut TypedTrees,
+            id: semantic_vocabulary::ServiceReachId,
+        ) -> Result<semantic_vocabulary::ServiceReachId, &'static str> {
+            let row = program
+                .service_reaches
+                .definition(id)
+                .ok_or("missing declared service in callable substitution")?;
+            let Some(application) = &row.application else {
+                return Ok(id);
+            };
+            let mut environment = application
+                .arguments
+                .scope(program)
+                .ok_or("service application lost its declaring scope")?
+                .environment();
+            environment.substitute_service(program, self)?;
+            program.intern_service_reach_environment(&environment)
+        }
+
+        pub(super) fn applied_reach_row(
+            &mut self,
+            program: &mut TypedTrees,
+            row: semantic_vocabulary::ServiceReachRowId,
+        ) -> Result<semantic_vocabulary::ServiceReachRowId, &'static str> {
+            if row.0 == 0 {
+                return Ok(row);
+            }
+            let services = program.service_reach_rows.services(row).to_vec();
+            let applied = services
+                .into_iter()
+                .map(|service| self.service_reach(program, service))
+                .collect::<Result<Vec<_>, _>>()?;
+            let concrete = program.service_reach_rows.intern(applied);
+            Ok(if program.service_reach_rows.is_abstract(row) {
+                program.service_reach_rows.intern_abstract(concrete)
+            } else {
+                concrete
+            })
+        }
+
+        /// A copied declaration owns the written reach clause, including a
+        /// written empty ceiling. Substitute each target in the binder scope
+        /// that also produces the copied signature's normalized reach.
+        pub(super) fn copy_authored_reach(
+            &mut self,
+            program: &mut TypedTrees,
+            declared: symbols::SymbolHandle,
+            applied: symbols::SymbolHandle,
+        ) -> Result<(), &'static str> {
+            let mut rows = program
+                .authored_service_reach_rows_for(declared)
+                .cloned()
+                .collect::<Vec<_>>();
+            for row in &mut rows {
+                row.owner = applied;
+                for target in &mut row.targets {
+                    target.service = match target.service {
+                        signature::ReachSubject::Service(id) => {
+                            signature::ReachSubject::Service(self.service_reach(program, id)?)
+                        }
+                        signature::ReachSubject::Static(symbol) => {
+                            signature::ReachSubject::Static(self.symbol(symbol))
+                        }
+                    };
+                }
+            }
+            program.authored_service_reach_rows.extend(rows);
+            Ok(())
+        }
+
         pub(super) fn invocations(
-            &self,
+            &mut self,
             program: &mut TypedTrees,
             declared: HandleSpan<signature::AuthoredInvocation>,
         ) -> Result<HandleSpan<signature::AuthoredInvocation>, &'static str> {
@@ -6665,6 +6793,9 @@ pub(crate) mod signatures {
                     }
                     signature::AuthoredInvocationTarget::Service(symbol) => {
                         signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
+                    }
+                    signature::AuthoredInvocationTarget::AppliedService(service) => {
+                        signature::AuthoredInvocationTarget::AppliedService(self.service_reach(program, service)?)
                     }
                     unresolved @ (signature::AuthoredInvocationTarget::Unresolved
                     | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
@@ -6834,6 +6965,11 @@ pub(crate) mod signatures {
                     program
                         .signature_contracts
                         .append_to_span(&mut applied.contracts, contract);
+                }
+                applied.service_reach_row =
+                    self.applied_reach_row(program, declared.service_reach_row)?;
+                if applied.symbol != declared.symbol && applied.symbol == self.owned_signature {
+                    self.copy_authored_reach(program, declared.symbol, applied.symbol)?;
                 }
                 applied.invokes = self.invocations(program, declared.invokes)?;
                 if let source_declarations::TerminationGuarantee::Terminates { premises } =
@@ -7978,6 +8114,80 @@ pub(crate) mod trait_scopes {
                     }
                     Some(&prepared.signature)
                 })
+        }
+
+        /// A concrete conformance supplies its required header even when no
+        /// source call enters the member. Close the same requirement as an
+        /// explicit call using the row's declaring (possibly inherited) scope.
+        pub fn prepare_conformance_requirement_headers(&mut self) -> Result<(), &'static str> {
+            let mut requests = Vec::new();
+            for conformance in self.conformances() {
+                if !conformance.type_parameters.is_empty()
+                    || !conformance.lifetime_parameters.is_empty()
+                {
+                    continue;
+                }
+                let Some(root) = AppliedTraitScope::from_conformance(self, conformance) else {
+                    continue;
+                };
+                for row in &conformance.rows {
+                    let Some(receiver) = root.declaring_scope(self, row.declaring_trait) else {
+                        continue;
+                    };
+                    let Some((owner, required)) = self.trait_machine_signature(row.requirement)
+                    else {
+                        continue;
+                    };
+                    if owner.symbol != receiver.declaration.symbol
+                        || !owner.is_boundary
+                        || !required.type_parameters.is_empty()
+                        || !required.lifetime_parameters.is_empty()
+                        || receiver.keeps_declared_signatures(self)
+                        || self.require_receiving_trait_operands(&receiver).is_err()
+                    {
+                        continue;
+                    }
+                    requests.push((
+                        receiver.environment(),
+                        receiver.argument_owner,
+                        required.symbol,
+                        required.name.clone(),
+                    ));
+                }
+            }
+            for (environment, supplying_owner, required, name) in requests {
+                let receiver = environment
+                    .scope(self)
+                    .ok_or("conformance lost its declaring receiver")?;
+                if self.closed_requirement_applications().any(|closed| {
+                    closed.template == required
+                        && closed.local_arguments.is_empty()
+                        && self.requirement_application_matches_contract_scope(
+                            closed.signature.symbol,
+                            &receiver,
+                        )
+                }) {
+                    continue;
+                }
+                let operands = self.materialize_trait_application_arguments(&environment)?;
+                let application =
+                    self.expression_table
+                        .retain_static_machine_application(required, name, &[]);
+                let row = self
+                    .expression_table
+                    .static_machine_application_mut(application);
+                row.lexical_owner = supplying_owner;
+                row.binding_declaration = required;
+                self.expression_table
+                    .set_static_machine_application_lifetimes(application, required, &[]);
+                self.instantiate_requirement_application(
+                    &environment,
+                    required,
+                    &operands,
+                    application,
+                )?;
+            }
+            Ok(())
         }
 
         pub fn prepare_applied_callable_signatures(
@@ -9145,7 +9355,7 @@ impl CallableApplication {
         })
     }
 
-    fn lifetime(
+    pub(crate) fn lifetime(
         &self,
         original: &crate::source_state::name::Identifier,
     ) -> crate::source_state::name::Identifier {
@@ -9156,7 +9366,7 @@ impl CallableApplication {
             .map_or_else(|| original.clone(), |binding| binding.argument.clone())
     }
 
-    fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
+    pub(crate) fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
         self.symbols
             .iter()
             .rev()
@@ -9637,6 +9847,8 @@ impl TypedTrees {
         }
         for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
+            machine.service_reach_row = application.applied_reach_row(self, machine.service_reach_row)?;
+            application.copy_authored_reach(self, declaration, machine.symbol)?;
             machine.invokes = application.invocations(self, machine.invokes)?;
             // Definitions belong to the copied declaration just like its
             // written contract. Apply both sides through the same type copier.

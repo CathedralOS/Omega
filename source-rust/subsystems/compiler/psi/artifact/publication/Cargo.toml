@@ -1,0 +1,14 @@
+[package]
+name = "psi-publication-records"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "publication.rs"
+
+[dependencies]
+terminal-psi = { path = "../.." }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+source-text = { path = "../../../../../foundation/source-text" }

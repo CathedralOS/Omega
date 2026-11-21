@@ -4,7 +4,7 @@
 use crate::source_state::machine::Machine;
 use crate::source_state::signature::StateSignature;
 use crate::source_tables::ServiceReachRowTable;
-use language_core::sealed_intrinsics::SealedIntrinsic;
+use language_core::sealed_intrinsics::{FixedImageOperation, SealedIntrinsic};
 use semantic_vocabulary::ExternalBindingIdentity;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ServiceReachRowId;
@@ -266,7 +266,7 @@ impl Program<'_> {
         }
         envelope.service_reach.sort_by_key(|service| service.0);
         envelope.service_reach.dedup();
-        let (mut signature, _) = self.native_provider_signature(context, &declared)?;
+        let (mut signature, _) = self.boundary_signature(context, &declared)?;
         signature.termination = match &envelope.termination {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => {
                 crate::lowering::body::Termination::Silent
@@ -319,7 +319,12 @@ impl Program<'_> {
             provider,
             package: typed.symbols.symbol_package_identity(machine.symbol),
             requirement_package: typed.symbols.symbol_package_identity(required.symbol),
-            target: typed.machine_authored_target(machine).map(str::to_owned),
+            target: match sealed_intrinsic {
+                Some(terminal_psi::TerminalSealedNativeIntrinsic::FixedImage(_)) => {
+                    Some(FixedImageOperation::TARGET.to_owned())
+                }
+                _ => typed.machine_authored_target(machine).map(str::to_owned),
+            },
             binding,
             sealed_intrinsic,
             boundary: None,
@@ -418,10 +423,7 @@ fn has_native_provider_owner(typed: &crate::source_state::TypedTrees, machine: &
             typed
                 .symbols
                 .sealed_declaration(machine.symbol, machine.name.as_str()),
-            Some(
-                SealedIntrinsic::HostedRealization { .. }
-                    | SealedIntrinsic::FixedImageRealization(_)
-            )
+            Some(SealedIntrinsic::FixedImageRealization(_))
         ),
         _ => false,
     }
@@ -494,15 +496,6 @@ fn native_binding(
         .symbols
         .sealed_member_intrinsic(owner, required.name.as_str());
     let intrinsic = match (realization, requirement) {
-        (
-            Some(SealedIntrinsic::HostedRealization {
-                operation: actual,
-                target,
-            }),
-            Some(SealedIntrinsic::HostedRequirement(expected)),
-        ) if actual == expected && typed.machine_authored_target(machine) == Some(target) => {
-            terminal_psi::TerminalSealedNativeIntrinsic::Hosted(actual)
-        }
         (
             Some(SealedIntrinsic::FixedImageRealization(actual)),
             Some(SealedIntrinsic::FixedImageRequirement(expected)),

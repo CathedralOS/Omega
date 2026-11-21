@@ -11,7 +11,7 @@
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 
-pub(crate) fn write_framed_identity<'a>(
+pub fn write_framed_identity<'a>(
     writer: &mut impl std::fmt::Write,
     label: &str,
     children: impl IntoIterator<Item = &'a str>,
@@ -25,7 +25,7 @@ pub(crate) fn write_framed_identity<'a>(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageReviewToolchainSourceIdentity {
-    pub(crate) digest: [u8; 32],
+    pub digest: [u8; 32],
 }
 
 impl PackageReviewToolchainSourceIdentity {
@@ -41,8 +41,8 @@ pub enum PackageReviewNominalOwner {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewNominalIdentity {
-    pub(crate) owner: PackageReviewNominalOwner,
-    pub(crate) path: String,
+    pub owner: PackageReviewNominalOwner,
+    pub path: String,
 }
 
 impl PackageReviewNominalIdentity {
@@ -58,6 +58,45 @@ impl PackageReviewNominalIdentity {
         } else {
             Ok(())
         }
+    }
+}
+
+/// One boundary effect. Its original declaration establishes ownership, while
+/// an applied declaration also retains the compiler's normalized static inputs.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewServiceIdentity {
+    pub declaration: PackageReviewNominalIdentity,
+    pub application: Option<super::PackageReviewTypeIdentity>,
+}
+
+impl From<PackageReviewNominalIdentity> for PackageReviewServiceIdentity {
+    fn from(declaration: PackageReviewNominalIdentity) -> Self {
+        Self {
+            declaration,
+            application: None,
+        }
+    }
+}
+
+impl PackageReviewServiceIdentity {
+    pub fn owner(&self) -> PackageReviewNominalOwner {
+        self.declaration.owner()
+    }
+    pub fn path(&self) -> &str {
+        self.declaration.path()
+    }
+    pub(crate) fn validate_resolved(&self) -> Result<(), &'static str> {
+        self.declaration.validate_resolved()?;
+        if self.application.as_ref().is_some_and(|application| {
+            !self
+                .declaration
+                .matches_applied_trait_declaration(&application.canonical)
+        }) {
+            return Err(
+                "applied service identity does not name its declared receiver and complete arguments",
+            );
+        }
+        Ok(())
     }
 }
 

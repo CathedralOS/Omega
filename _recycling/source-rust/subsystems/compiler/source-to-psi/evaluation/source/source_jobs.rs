@@ -627,6 +627,7 @@ pub(crate) mod tests {
         let (prepared, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .unwrap();
         crate::production::AcceptedTerminalSource::judge(
@@ -819,6 +820,7 @@ pub(crate) mod tests {
         let (prepared, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .unwrap();
         let accepted = crate::production::AcceptedTerminalSource::judge(
@@ -911,6 +913,7 @@ pub(crate) mod tests {
         let (prepared, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .unwrap();
         let accepted = crate::production::AcceptedTerminalSource::judge(
@@ -1003,6 +1006,7 @@ pub(crate) mod tests {
         let (prepared, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .unwrap();
         let prepared = Arc::new(prepared);
@@ -1604,6 +1608,7 @@ pub(crate) mod tests {
         let (portable_source, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .unwrap();
         let accepted = crate::production::AcceptedTerminalSource::judge(
@@ -1906,6 +1911,7 @@ pub(crate) mod tests {
         let (source, _) = crate::preparation::prepare_typed_trees(
             source,
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .expect("prepare the actual source declarations");
         let accepted = crate::production::AcceptedTerminalSource::judge(
@@ -2276,6 +2282,7 @@ pub(crate) mod tests {
         let (portable, _) = crate::preparation::prepare_typed_trees(
             source.clone(),
             &crate::preparation::PreparationRequest::settled(),
+            &[],
         )
         .expect("prepare the same original source for ordinary portable publication");
         let portable = crate::production::AcceptedTerminalSource::judge(
@@ -3575,6 +3582,7 @@ pub(crate) mod tests {
             let (source, _) = crate::preparation::prepare_typed_trees(
                 typed,
                 &crate::preparation::PreparationRequest::settled(),
+                &[],
             )
             .expect("typed preparation refuses nothing in this source");
             let source = Arc::new(source);

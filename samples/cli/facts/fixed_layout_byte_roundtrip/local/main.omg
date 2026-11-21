@@ -15,7 +15,7 @@ data Payload [copy] requires self.second >= 42u64 {
     last: u16;
 }
 Spread satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 16 } };

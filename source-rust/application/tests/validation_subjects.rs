@@ -78,10 +78,14 @@ struct Outcome {
 }
 
 fn check(directory: &Path) -> Outcome {
+    check_entry(directory, "main.omg")
+}
+
+fn check_entry(directory: &Path, entry: &str) -> Outcome {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
         .arg("--offline")
-        .arg("main.omg")
+        .arg(entry)
         .current_dir(directory)
         .stdin(std::process::Stdio::null())
         .output()
@@ -132,6 +136,30 @@ fn an_unused_invalid_declaration_of_the_subject_fails() {
         ..Project::valid()
     };
     assert_refused_in(&project.write("subject_unused_invalid"), "unused");
+}
+
+#[test]
+fn an_entryless_subject_checks_its_unimported_module_in_any_filename() {
+    let root = Project::valid().write("entryless_subject_module");
+    let supplier = root.join("vendor");
+    std::fs::rename(supplier.join("main.omg"), supplier.join("supply.omg")).unwrap();
+    std::fs::create_dir(supplier.join("units")).unwrap();
+    std::fs::write(
+        supplier.join("units/conversion.omg"),
+        "public machine from_kelvin(count: u64) -> u64 { count + 1u64 }",
+    )
+    .unwrap();
+
+    let consumer = check_entry(&root, "build.omg");
+    assert!(consumer.success, "{}", consumer.stderr);
+    let checked_supplier = check_entry(&supplier, "build.omg");
+    assert!(!checked_supplier.success);
+    assert!(
+        checked_supplier.stderr.contains(UNPROVED)
+            && checked_supplier.stderr.contains("from_kelvin"),
+        "{}",
+        checked_supplier.stderr
+    );
 }
 
 #[test]

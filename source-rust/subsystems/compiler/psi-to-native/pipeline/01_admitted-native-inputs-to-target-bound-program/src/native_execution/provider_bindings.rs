@@ -1,16 +1,16 @@
 //! Bind the reachable boundary requirements of an authorized program or export.
 use super::PreparedNativeExecution;
 use diagnostics::Diagnostic;
+use provider_correspondence::CompilerIntrinsicPlanProvenance;
 use std::collections::BTreeSet;
-use verified_optimization_input::{
-    NativeExecutionFacts, NativeExecutionScope, ScopedProviderBindings, ScopedProviderSelection,
-    TerminalNativeRealizationProposal,
-};
+use target_bound_program::{NativeExecutionScope, ScopedProviderSelection};
+use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
+use verified_optimization_input::TerminalNativeRealizationProposal;
 
 fn selected_intrinsic_provenance<'a>(
     proposal: &'a TerminalNativeRealizationProposal,
     selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
-) -> Result<Vec<provider_admission::CompilerIntrinsicPlanProvenance<'a>>, Vec<Diagnostic>> {
+) -> Result<Vec<CompilerIntrinsicPlanProvenance<'a>>, Vec<Diagnostic>> {
     static NON_INTRINSIC_EXECUTION: [Option<
         native_intrinsics::CompilerIntrinsicExecutionIdentity,
     >; 1] = [None];
@@ -34,7 +34,7 @@ fn selected_intrinsic_provenance<'a>(
                             "native execution lost original intrinsic row custody",
                         )]
                     })?;
-                return Ok(provider_admission::CompilerIntrinsicPlanProvenance {
+                return Ok(CompilerIntrinsicPlanProvenance {
                     plan,
                     semantic_schema: &plan.schema,
                     row_executions,
@@ -59,7 +59,7 @@ fn selected_intrinsic_provenance<'a>(
                         &NON_INTRINSIC_EXECUTION
                     }
                 };
-            Ok(provider_admission::CompilerIntrinsicPlanProvenance {
+            Ok(CompilerIntrinsicPlanProvenance {
                 plan,
                 semantic_schema: &leaf.satisfied_schema,
                 row_executions,
@@ -101,7 +101,7 @@ pub(super) fn bind(
         .interfaces
         .boundary_machines
         .iter()
-        .filter(|boundary| scope.contains_boundary(boundary.id))
+        .filter(|boundary| scope.reach().contains_boundary(boundary.id))
     {
         let name = identity(boundary)?;
         demands.insert(name.to_owned());
@@ -149,10 +149,16 @@ pub(super) fn bind(
         module,
         &proposal.providers().selection,
         &proposal.providers().direct_boundary_leaves,
-        scope.emitted_reach(),
+        scope.reach().emitted_reach(),
         &direct,
     )?;
-    let checked = ScopedProviderSelection::bind(authorization, proposal, scope, verified)?;
+    let checked = ScopedProviderSelection::bind(
+        authorization,
+        proposal.scope_source(),
+        scope,
+        &proposal.providers().direct_boundary_leaves,
+        verified,
+    )?;
     let scope = checked.scope();
     let selection = checked.selection();
     let intrinsic_provenance = selected_intrinsic_provenance(proposal, selection)?;
@@ -162,11 +168,11 @@ pub(super) fn bind(
         selection,
         &intrinsic_provenance,
     )?;
-    let compiler_builtins = provider_admission::derive_selected_intrinsic_settlement_proposals(
+    let compiler_builtins = SelectedCompilerBuiltin::select(
         selection,
         intrinsic_provenance.into_iter(),
         &demands,
-        module,
+        artifact.view(),
         &proposal.providers().direct_boundary_leaves,
     )?;
     let demands = demands
@@ -184,18 +190,18 @@ pub(super) fn bind(
             .interfaces
             .boundary_machines
             .iter()
-            .filter(|boundary| scope.contains_boundary(boundary.id))
+            .filter(|boundary| scope.reach().contains_boundary(boundary.id))
             .count();
         let mut text = format!(
             "prepared native boundaries: entry={:?} total={} in_scope={} direct_leaves={} builtins={}\n",
-            scope.entry(),
+            scope.reach().entry(),
             module.interfaces.boundary_machines.len(),
             retained_boundary_count,
             proposal.providers().direct_boundary_leaves.len(),
             compiler_builtins.len(),
         );
         for boundary in module.interfaces.boundary_machines.iter().take(16) {
-            let retained = scope.contains_boundary(boundary.id);
+            let retained = scope.reach().contains_boundary(boundary.id);
             let name = module.identities.text(boundary.identity);
             let selected =
                 name.is_some_and(|name| selection.selected_requirement_row(name).is_some());
@@ -229,7 +235,7 @@ pub(super) fn bind(
         }
         eprint!("{}", &text[..end]);
     }
-    NativeExecutionFacts::from_scoped_providers(
+    PreparedNativeExecution::from_scoped_providers(
         checked,
         ScopedProviderBindings {
             external_bindings,
@@ -238,5 +244,4 @@ pub(super) fn bind(
             boundary_application_coverage,
         },
     )
-    .map(PreparedNativeExecution)
 }

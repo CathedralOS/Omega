@@ -12,29 +12,26 @@
 
 use abstract_operations::AbstractOperationPlan;
 use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
-use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
+use psi_target_layouts::TerminalTargetContext;
 use psi_scalar_applications::AdmittedScalarApplications;
 
+pub mod borrowed_storage;
 mod emission_admission;
 pub mod hosted_receiver;
 pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
 pub mod publication;
 
-mod native_execution_scope;
-pub use native_execution_scope::{NativeExecutionScope, NativeScopeBinding};
+mod callable_bindings;
+pub use callable_bindings::NativeCallableBindings;
+pub use target_bound_program::NativeExecutionScope;
 
 pub mod callback_settlement;
 pub mod component_inputs;
-pub mod entry_settlement;
+pub use target_bound_program::entry_settlement;
 pub mod native_proposal;
 pub mod settlement;
-pub use component_inputs::{
-    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-    RetainedComponentNativeInputs,
-};
-mod native_execution;
-mod scoped_provider_selection;
-pub use scoped_provider_selection::ScopedProviderSelection;
+pub use component_inputs::{AdmittedNativeComponentCall, ComponentImport};
+pub use target_bound_program::ScopedProviderSelection;
 mod runtime_input;
 pub mod runtime_provisions;
 pub use callback_settlement::{
@@ -45,9 +42,9 @@ pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, PhysicalProgramEntry,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
-pub use native_execution::{NativeExecutionFacts, ScopedProviderBindings, requires_scalar_values};
 pub use native_proposal::{
-    RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
+    NativeRootNomination, RetainedTerminalArtifact, TerminalNativeProposalRequest,
+    TerminalNativeRealizationProposal,
 };
 pub use provider_admission::{
     InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,
@@ -61,11 +58,11 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 // Saved native inputs are read and written beside the retained artifact they
 // rebuild, so a saved product is recovered without running an Omega stage.
 
-mod entry_call;
-pub use entry_call::SelectedProgramEntryCall;
+pub use target_bound_program::SelectedProgramEntryCall;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
+    borrowed_storage: borrowed_storage::AdmittedBorrowedStorage,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
     scalar_applications: Option<AdmittedScalarApplications>,
@@ -76,7 +73,6 @@ pub struct VerifiedPsiOptimizationInput {
     admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     target_context: Option<TerminalTargetContext>,
-    target_layout_selections: Option<AdmittedTargetLayouts>,
     external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
     selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
     evidence: ObligationEvidence,
@@ -170,7 +166,9 @@ impl VerifiedPsiOptimizationInput {
             return Err("lowered plan belongs to another host-authorized artifact");
         }
         validate_cleanup_source(&plan, artifact.artifact().semantic_module())?;
+        let borrowed_storage = borrowed_storage::AdmittedBorrowedStorage::from_plan(&plan)?;
         Ok(Self {
+            borrowed_storage,
             native_execution_scope: None,
             selected_provider_closure: None,
             scalar_applications: None,
@@ -184,7 +182,6 @@ impl VerifiedPsiOptimizationInput {
             context: VerifiedPsiOptimizationContext { artifact },
             admitted_assumed_bindings: Vec::new(),
             target_context,
-            target_layout_selections: None,
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::default(
             ),
@@ -192,22 +189,36 @@ impl VerifiedPsiOptimizationInput {
         })
     }
 
-    /// Records the selected entry call, layouts and scalar applications that
+    fn require_native_scope(
+        &self,
+        scope: &NativeExecutionScope,
+        selected_provider_closure: [u8; 32],
+    ) -> Result<(), &'static str> {
+        let reach = scope.reach();
+        if scope.artifact_identity() != self.context.artifact.identity()
+            || reach.target_context().terminal_psi() != self.plan.psi
+            || reach.entry() != self.plan.entry
+            || Some(reach.target_context()) != self.target_context.as_ref()
+            || scope.selected_provider_closure() != selected_provider_closure
+        {
+            return Err(
+                "native execution scope belongs to another artifact, entry, target or provider selection",
+            );
+        }
+        Ok(())
+    }
+
+    /// Records the selected entry call, scope and scalar applications that
     /// native admission settled for this exact module.
     pub fn retain_native_selections(
         &mut self,
         entry_call: Option<SelectedProgramEntryCall>,
-        layouts: AdmittedTargetLayouts,
         scalar_applications: Option<AdmittedScalarApplications>,
         scope: Option<std::sync::Arc<NativeExecutionScope>>,
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         if let Some(scope) = scope.as_ref() {
-            scope.require_input_context(
-                &self.plan,
-                self.target_context.as_ref(),
-                selected_provider_closure,
-            )?;
+            self.require_native_scope(scope, selected_provider_closure)?;
             if scope.entry_call() != entry_call.as_ref() {
                 return Err("native input changes its checked semantic entry call");
             }
@@ -216,7 +227,6 @@ impl VerifiedPsiOptimizationInput {
             return Err("native input already retains a different checked execution scope");
         }
         self.selected_program_entry_call = entry_call;
-        self.target_layout_selections = Some(layouts);
         self.scalar_applications = scalar_applications;
         self.native_execution_scope = scope;
         self.selected_provider_closure = Some(selected_provider_closure);
@@ -231,11 +241,7 @@ impl VerifiedPsiOptimizationInput {
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         if let Some(scope) = self.native_execution_scope.as_ref() {
-            scope.require_input_context(
-                &self.plan,
-                self.target_context.as_ref(),
-                selected_provider_closure,
-            )?;
+            self.require_native_scope(scope, selected_provider_closure)?;
         }
         self.external_requirement_applications = external_requirement_applications;
         self.selected_provider_requirement_identities = identities;
@@ -255,13 +261,13 @@ impl VerifiedPsiOptimizationInput {
         let machines = match self.native_execution_scope.as_deref() {
             Some(scope) => {
                 if scope.selected_provider_closure() != *providers.identity_digest().as_bytes()
-                    || scope.target_context().target() != profile.target_name()
+                    || scope.reach().target_context().target() != profile.target_name()
                 {
                     return Err(vec![diagnostics::Diagnostic::error(
                         "behavior exclusions belong to another target or selected provider closure",
                     )]);
                 }
-                Some(scope.machines())
+                Some(scope.reach().machines())
             }
             None => None,
         };
@@ -341,6 +347,7 @@ impl VerifiedPsiOptimizationInput {
 
     pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
         AdmittedLoweringFacts {
+            borrowed_storage: self.borrowed_storage,
             terminal: self.plan.psi,
             entry: self.plan.entry,
             native_execution_scope: self.native_execution_scope,
@@ -368,10 +375,6 @@ impl VerifiedPsiOptimizationInput {
 
     pub fn selected_provider_requirement_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.selected_provider_requirement_identities
-    }
-
-    pub fn target_layout_selections(&self) -> Option<&AdmittedTargetLayouts> {
-        self.target_layout_selections.as_ref()
     }
 
     pub fn selected_calling_abi_identity(
@@ -407,6 +410,7 @@ impl VerifiedPsiOptimizationContext {
 // its verified input; later stages borrow the sealed association.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedLoweringFacts {
+    borrowed_storage: borrowed_storage::AdmittedBorrowedStorage,
     terminal: terminal_psi::TerminalPsiIdentity,
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
@@ -446,150 +450,6 @@ impl OptimizedAbstractBody {
 }
 
 impl AdmittedLoweringFacts {
-    /// Retain private entry bindings at their real registrar operations. The call
-    /// graph activates these rows only when execution reaches the registrar.
-    pub fn callable_invocation_roots(
-        &self,
-        target: &target_operations::TargetOperationPlan,
-    ) -> Result<terminal_semantics::callable_values::CallableInvocationRoots, String> {
-        if target.psi != self.terminal || target.entry != self.entry {
-            return Err("callable roots belong to another Terminal program or entry".into());
-        }
-        let module = self.module();
-        let installed_helpers =
-            provider_correspondence::CallbackProviderDeclarations::installed_helper_roots(module);
-        let mut roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
-        for machine in &module.machines {
-            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-                if !matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::BoundaryCall { .. }
-                ) {
-                    continue;
-                }
-                let mut entries = Vec::new();
-                // Admission owns which helper operations can execute. Ignore an
-                // unused proposal; retain the admitted helper's exact declarations.
-                if self.installed_interrupts().helpers().iter().any(|helper| {
-                    helper.installation_machine() == machine.id
-                        && helper.installation() == operation.id
-                }) {
-                    let index = installed_helpers
-                        .binary_search_by_key(&(machine.id, operation.id), |(operation, _)| *operation)
-                        .map_err(|_| "admitted interrupt installation lost its exact checked helper declarations")?;
-                    entries.extend(
-                        installed_helpers[index]
-                            .1
-                            .as_ref()
-                            .map_err(Clone::clone)?
-                            .iter()
-                            .copied(),
-                    );
-                }
-                entries.extend(
-                    self.native_callbacks()
-                        .callbacks()
-                        .iter()
-                        .filter(|callback| {
-                            callback.registrar_machine == machine.id
-                                && callback.terminal_operation == operation.id
-                        })
-                        .map(|callback| callback.entry().machine()),
-                );
-                entries.extend(
-                    self.installed_interrupts()
-                        .entries()
-                        .iter()
-                        .filter(|entry| {
-                            entry.machine == machine.id && entry.operation == operation.id
-                        })
-                        .map(|entry| entry.entry().machine()),
-                );
-                if !entries.is_empty() {
-                    entries.sort_unstable();
-                    entries.dedup();
-                    roots.push(
-                        terminal_semantics::callable_values::CallableInvocationRoot {
-                            caller: machine.id,
-                            operation: operation.id,
-                            entries,
-                        },
-                    );
-                }
-            }
-        }
-        roots.sort_unstable_by_key(|row| (row.caller, row.operation));
-        if roots
-            .windows(2)
-            .any(|pair| (pair[0].caller, pair[0].operation) == (pair[1].caller, pair[1].operation))
-        {
-            return Err("callable entry roots have ambiguous registrar occurrences".into());
-        }
-        // Target lowering retains the admitted selected body for each boundary
-        // invocation. Activate that body at this exact source operation, while its
-        // boundary inputs remain external inputs rather than invented actual facts.
-        for function in &target.functions {
-            for operation in function.graph.operations() {
-                let target_operations::TargetUnitOperation::Call {
-                    origin,
-                    psi_operation,
-                    target: target_operations::NativeCallTarget::Machine(callee),
-                    ..
-                } = operation
-                else {
-                    continue;
-                };
-                let boundary = match origin {
-                    target_operations::NativeCallOrigin::Authored => continue,
-                    target_operations::NativeCallOrigin::ProgramEntry { boundary, .. }
-                    | target_operations::NativeCallOrigin::InstalledProvider { boundary, .. } => {
-                        *boundary
-                    }
-                };
-                let owner = module
-                    .machine(function.machine)
-                    .ok_or("selected native boundary caller is absent from the retained module")?;
-                let mut sources = owner
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .filter(|source| source.id == *psi_operation);
-                let (Some(source), None) = (sources.next(), sources.next()) else {
-                    return Err(
-                        "selected native boundary call has no exact source occurrence".into(),
-                    );
-                };
-                if !matches!(source.kind, terminal_psi::OperationKind::BoundaryCall { boundary: found, .. } if found == boundary)
-                    || module.machine(*callee).is_none()
-                {
-                    return Err(
-                        "selected native boundary body does not rejoin its admitted source call"
-                            .into(),
-                    );
-                }
-                match roots.binary_search_by_key(&(function.machine, *psi_operation), |row| {
-                    (row.caller, row.operation)
-                }) {
-                    Ok(position) => {
-                        let entries = &mut roots[position].entries;
-                        if let Err(position) = entries.binary_search(callee) {
-                            entries.insert(position, *callee);
-                        }
-                    }
-                    Err(position) => roots.insert(
-                        position,
-                        terminal_semantics::callable_values::CallableInvocationRoot {
-                            caller: function.machine,
-                            operation: *psi_operation,
-                            entries: vec![*callee],
-                        },
-                    ),
-                }
-            }
-        }
-        Ok(roots)
-    }
-
     pub fn require_lowering_context(
         &self,
         plan: &AbstractOperationPlan,
@@ -601,10 +461,30 @@ impl AdmittedLoweringFacts {
         {
             return Err("lowering facts belong to another Terminal program or entry");
         }
+        self.require_target(target)
+    }
+
+    pub fn borrowed_storage_layouts(
+        &self,
+        target: target::NativeTarget,
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, &'static str> {
+        self.require_target(target)?;
+        Ok(self.borrowed_storage.layouts().clone())
+    }
+
+    pub fn replay_borrowed_storage_layouts(
+        &self,
+        target: target::NativeTarget,
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, &'static str> {
+        self.require_target(target)?;
+        self.borrowed_storage.replay()
+    }
+
+    fn require_target(&self, target: target::NativeTarget) -> Result<(), &'static str> {
         if let Some(selections) = &self.target_context {
             let profile = target::TargetProfile::from_canonical_target_name(selections.target())
                 .map_err(|_| "lowering facts name an unknown target")?;
-            if selections.terminal_psi() != plan.psi || profile.native_target() != target {
+            if selections.terminal_psi() != self.terminal || profile.native_target() != target {
                 return Err("lowering facts belong to another target selection");
             }
         } else if self.native_execution_scope.is_some() {

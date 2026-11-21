@@ -514,10 +514,21 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             scalar_abis.insert(function.machine, abi);
         }
     }
-    let structural_types = match verified_input {
-        Some(input) => StructuralTypeLookup::for_verified(&plan.structural_types, input, target),
-        None => StructuralTypeLookup::new(&plan.structural_types, target),
+    let borrowed_layouts = match verified_input {
+        Some(facts) => facts.borrowed_storage_layouts(target),
+        None => verified_optimization_input::borrowed_storage::AdmittedBorrowedStorage::from_plan(plan)
+            .map(|storage| storage.layouts().clone()),
     }
+    .map_err(|reason| LoweringError::FunctionContract {
+        machine: plan.entry,
+        reason,
+    })?;
+    let structural_types = StructuralTypeLookup::new(
+        &plan.structural_types,
+        target,
+        verified_input,
+        borrowed_layouts.layouts(),
+    )
     .map_err(LoweringError::NonDenseStructuralTypes)?;
     let mut mixed_structural_scalar_abis = BTreeMap::new();
     for function in &plan.functions {
@@ -610,13 +621,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         publication: crate::preparation::capture_source_publication(plan).map_err(|reason| {
             LoweringError::Publication { machine: plan.entry, reason }
         })?,
-        borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts::seal(
-            super::borrowed_storage::capture(plan, &structural_types),
-        )
-        .map_err(|error| LoweringError::FunctionContract {
-            machine: plan.entry,
-            reason: error.reason,
-        })?,
+        borrowed_storage_layouts: borrowed_layouts.clone(),
         psi: plan.psi,
         target,
         entry: plan.entry,

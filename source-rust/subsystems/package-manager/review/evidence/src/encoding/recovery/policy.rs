@@ -34,14 +34,14 @@ fn recover_component<Policy>(
     bytes: &[u8],
     limits: PackagePolicyRecoveryLimits,
     magic: &[u8],
-    version: u16,
+    supports_version: impl FnOnce(u16) -> bool,
     decode: impl FnOnce(&mut reader::Reader<'_>) -> Result<Policy, Error>,
     validate: impl FnOnce(&Policy) -> Result<(), Error>,
     encode: impl FnOnce(&Policy) -> Result<Vec<u8>, crate::encoding::PackageReviewEncodingError>,
 ) -> Result<Policy, Error> {
     let mut reader = reader::Reader::new(bytes, limits)?;
     reader.literal(magic)?;
-    if reader.u16()? != version {
+    if !supports_version(reader.u16()?) {
         return Err(Error::UnsupportedVersion);
     }
     let policy = decode(&mut reader)?;
@@ -55,7 +55,7 @@ fn recover_component<Policy>(
 }
 
 macro_rules! recover_canonical_component {
-    ($magic:expr, $version:expr, $decode:expr, validate $(,)?) => {
+    ($magic:expr, $version:expr, $decode:expr, validate $(, also $earlier:expr)? $(,)?) => {
         pub fn recover_canonical(
             bytes: &[u8],
             limits: PackagePolicyRecoveryLimits,
@@ -64,7 +64,7 @@ macro_rules! recover_canonical_component {
                 bytes,
                 limits,
                 $magic,
-                $version,
+                |version| version == $version $(|| version == $earlier)?,
                 $decode,
                 |policy| {
                     policy
@@ -84,7 +84,7 @@ macro_rules! recover_canonical_component {
                 bytes,
                 limits,
                 $magic,
-                $version,
+                |version| version == $version,
                 $decode,
                 |_| Ok(()),
                 Self::canonical_bytes,

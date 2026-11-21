@@ -3,10 +3,10 @@
 // to its retained product source before using it.
 
 use super::PackageBuildHandoff;
+use retained_product_selections::CapturedNativeDeclaration;
 use semantic_vocabulary::PackageKeyIdentity;
 pub use semantic_vocabulary::source_selections::NativeBindingProducer;
-use source_compiler::representations::declaration_selection::CapturedNativeIntent;
-use source_compiler::compile_product::native_binding_declarations::CapturedNativeDeclaration;
+use source_declarations::declaration_selection::CapturedNativeIntent;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

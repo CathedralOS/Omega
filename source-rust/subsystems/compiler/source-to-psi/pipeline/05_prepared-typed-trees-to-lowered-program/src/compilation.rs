@@ -93,6 +93,7 @@ pub fn prepare_compilation(
     compilation: crate::lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
+    let typed = typed.trees();
     match crate::lowering::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
             return Ok(LoweredCompilationWithSource {
@@ -125,9 +126,7 @@ pub fn prepare_compilation(
             )
             .map_err(|detail| terminal_check_tables::Refusal {
                 reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                machine: semantic_vocabulary::MachineId::new(1)
-                    .expect("nonzero diagnostic identity"),
-                concerns: terminal_check_tables::Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Program,
                 source_span: None,
                 detail: detail.to_owned(),
             })?;

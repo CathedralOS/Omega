@@ -156,11 +156,7 @@ impl Program<'_> {
         context: MachineId,
         source: &crate::source_state::signature::StateSignature,
     ) -> Checked<()> {
-        let reach_author = self
-            .typed
-            .closed_requirement_application(source.symbol)
-            .map_or(source.symbol, |closed| closed.template);
-        self.reach_ceiling(context, reach_author, false)?;
+        self.reach_ceiling(context, source.symbol, source.service_reach_row)?;
         let parameters = super::span(
             |span| self.typed.state_parameters.span(span),
             source.parameters,

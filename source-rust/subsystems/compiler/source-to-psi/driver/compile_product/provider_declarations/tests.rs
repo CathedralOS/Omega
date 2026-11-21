@@ -25,6 +25,7 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
+    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;
 }
 public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
     builder
@@ -450,7 +451,6 @@ fn provider_events_cannot_replace_their_declared_occurrence_or_lexical_author() 
 /// with the target, composition mode and origin each was made with.
 #[test]
 fn retained_provider_choices_rejoin_the_same_declarations_in_another_typing() {
-    use super::RetainedProviderSelection;
     let package = Fixture::new(TWO_CHOICES, PRODUCT, None);
     let selected = package
         .collect(&package.events(&[
@@ -460,7 +460,7 @@ fn retained_provider_choices_rejoin_the_same_declarations_in_another_typing() {
         .unwrap();
     let retained = selected
         .iter()
-        .map(|selection| RetainedProviderSelection::capture(&package.typed, selection).unwrap())
+        .map(|selection| super::capture_provider_selection(&package.typed, selection).unwrap())
         .collect::<Vec<_>>();
     let mut consumer = Fixture::new(TWO_CHOICES, PRODUCT, None).typed;
     let rejoined = super::rejoin_provider_defaults(&mut consumer, &retained).unwrap();
@@ -488,7 +488,6 @@ fn retained_provider_choices_rejoin_the_same_declarations_in_another_typing() {
 /// for it.
 #[test]
 fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
-    use super::RetainedProviderSelection;
     let package = Fixture::new(TWO_CHOICES, PRODUCT, None);
     let selected = package
         .collect(&package.events(&[
@@ -496,23 +495,27 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
             (ProductTarget::MacosArm64, CompositionMode::Independent),
         ]))
         .unwrap();
-    let retained = RetainedProviderSelection::capture(&package.typed, &selected[0]).unwrap();
+    let retained = super::capture_provider_selection(&package.typed, &selected[0]).unwrap();
     let moved = format!("\ndata Padding {{}}{PRODUCT}");
     let mut consumer = Fixture::new(TWO_CHOICES, &moved, None).typed;
-    assert!(
-        retained
-            .rejoin(
-                &mut consumer,
-                DependencyScope::Product,
-                &[],
-                &mut crate::source_symbols::SourceSpanCandidates::default(),
-            )
-            .is_err()
-    );
+    let changed = "retained declaration is absent or changed in the admitted source context";
+    let error = super::rejoin_provider_defaults(&mut consumer, std::slice::from_ref(&retained))
+        .unwrap_err();
+    assert_eq!(error[0].message, changed);
+
+    let mut consumer = Fixture::new(TWO_CHOICES, PRODUCT, None).typed;
+    let mut mismatched = retained;
+    let second = super::capture_provider_selection(&package.typed, &selected[1]).unwrap();
+    assert_ne!(mismatched.provider_identity, second.provider_identity);
+    mismatched.provider_identity = second.provider_identity;
+    let error = super::rejoin_provider_defaults(&mut consumer, &[mismatched]).unwrap_err();
+    assert_eq!(error[0].message, changed);
 }
 
 #[test]
 fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
+    use retained_product_selections::{RetainedOperatorFamily, RetainedProviderSubject};
+
     let build = "machine build(builder: @mut Build) {
         Build::select_provider::<Buffer::index, First>(builder, linux_x86_64);
     }";
@@ -546,42 +549,33 @@ fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
             .collect::<Vec<_>>();
         arities.sort_unstable();
         assert_eq!(arities, [0, 1]);
-        let retained =
-            super::RetainedProviderSelection::capture(&fixture.typed, &selected[0]).unwrap();
+        let retained = super::capture_provider_selection(&fixture.typed, &selected[0]).unwrap();
         let mut receiving = Fixture::new(build, &product, Some(dependency)).typed;
-        let mut candidates = crate::source_symbols::SourceSpanCandidates::default();
-        let replayed = retained
-            .rejoin(
-                &mut receiving,
-                DependencyScope::Product,
-                &[],
-                &mut candidates,
-            )
-            .unwrap();
-        assert!(replayed.subject.same_declaration_as(&selected[0].subject));
+        let rejoined =
+            super::rejoin_provider_defaults(&mut receiving, std::slice::from_ref(&retained))
+                .unwrap();
+        assert_eq!(rejoined.len(), 1);
+        assert!(
+            rejoined[0]
+                .subject
+                .same_declaration_as(&selected[0].subject)
+        );
 
         let mut partial = retained;
-        let super::RetainedProviderSubject::OperatorFamily(complete) = &partial.subject else {
+        let RetainedProviderSubject::OperatorFamily(complete) = &partial.subject else {
             panic!("expected a retained operator family");
         };
-        partial.subject = super::RetainedProviderSubject::OperatorFamily(
-            super::RetainedOperatorFamily::new(
+        partial.subject = RetainedProviderSubject::OperatorFamily(
+            RetainedOperatorFamily::new(
                 complete.canonical_path.clone(),
                 complete.coordinates()[..1].to_vec(),
             )
             .unwrap(),
         );
-        let error = partial
-            .rejoin(
-                &mut receiving,
-                DependencyScope::Product,
-                &[],
-                &mut candidates,
-            )
-            .unwrap_err();
-        assert!(
-            error.message.contains("complete source roster"),
-            "{error:?}"
+        let errors = super::rejoin_provider_defaults(&mut receiving, &[partial]).unwrap_err();
+        assert_eq!(
+            errors[0].message,
+            "retained provider family changed its complete source roster"
         );
         orders.push(members);
     }

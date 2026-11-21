@@ -14,6 +14,7 @@ pub(crate) mod evidence;
 pub use evidence::GenericBoundRequirement;
 pub(crate) mod refinement_views;
 pub(crate) mod retention;
+mod service_reach;
 
 pub(crate) use retention::RetainedTraitApplicationFrame;
 pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
@@ -154,6 +155,9 @@ impl TypedTrees {
                         .flatten()
                     }),
             )
+            .chain(self.service_reaches.all_definitions().filter_map(|(_, row)| {
+                row.application.as_ref()?.arguments.scope(self)
+            }))
             .chain(
                 occurrences
                     .requirement_applications

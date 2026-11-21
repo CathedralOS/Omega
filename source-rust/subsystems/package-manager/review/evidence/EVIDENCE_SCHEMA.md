@@ -16,6 +16,38 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+Whole-package baseline version 42 records a service application in reach,
+synchronous entry, installation and permission evidence. An applied service
+stores the checked declaration and the complete normalized receiver, including
+its static and lifetime arguments. A previous baseline retains its nominal
+identities. Only rows that encode an application use the new row version.
+Standalone callable, selected-provider and terminal-permission policies use
+versions 20, 29 and 16 respectively when they contain an application.
+
+Whole-package baseline version 41 records a carried nominal type by its supplier,
+exact declaration path, complete supplier source commitment and public or private
+exposure. Earlier versions support only their original declaration dependencies.
+
+Whole-package baseline version 40 adds the public type alias inventory, including
+checked binder positions, conformance bounds and the normalized expansion. Older
+baselines omit this field. Each alias has its own public interface row and adds
+no permission.
+
+Whole-package baseline version 39 can record the provider application a Build
+accepted. Selected-provider component version 28 records it as tag 2 followed by
+the optional canonical static application. The containing plan identifies the
+provider declaration, package and target. A target whose plans have no application
+grants keeps its version 27 component encoding and its previous lock row. Versions 37 and 38
+of the whole-package baseline remain readable.
+
+Whole-package baseline version 38 adds `structural_parameter_positions` after
+the return type of each public trait requirement. It is a sequence of `u32`
+source positions, indexed from zero. Both returned-parameter borrows and
+parameter domain qualifications index this sequence. Version 37 omitted it.
+Its public trait rows keep their original bytes when they contain no index
+that needs the list. Public trait rows from version 38 name that version in
+their header. Version 38 kept the version 37 framing for all other rows.
+
 The separate external-supply policy component uses
 `OMEGA-EXTERNAL-SUPPLY-POLICY` version 7, at most 4 MiB. It keeps the
 complete callable and requirement coordinates, all eight binding alternatives,

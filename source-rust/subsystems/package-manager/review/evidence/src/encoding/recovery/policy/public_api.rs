@@ -12,14 +12,29 @@ use crate::record::PackagePolicyPublicApi;
 
 pub(in crate::encoding::recovery) fn public_api(
     reader: &mut Reader<'_>,
+    schema_version: u16,
 ) -> Result<PackagePolicyPublicApi, Error> {
     Ok(PackagePolicyPublicApi {
-        traits: reader.sequence(1, traits::trait_shape)?,
+        traits: reader.sequence(1, |reader| traits::trait_shape(reader, schema_version))?,
         conformances: reader.sequence(1, traits::conformance_shape)?,
         domains: reader.sequence(1, domains::domain_shape)?,
         propositions: reader.sequence(1, declarations::proposition_shape)?,
         consts: reader.sequence(1, declarations::const_shape)?,
         operators: reader.sequence(1, traits::operator_shape)?,
         data: reader.sequence(1, data::data_shape)?,
+        type_aliases: if schema_version >= crate::encoding::BASELINE_WITH_TYPE_ALIASES {
+            Some(reader.sequence(1, |reader| {
+                Ok(crate::record::PackagePolicyTypeAlias {
+                    identity: super::identity::nominal(reader)?,
+                    lifetime_parameter_count: reader.usize()?,
+                    type_parameters: reader.sequence(3, type_parameter)?,
+                    conformance_bounds: reader
+                        .sequence(62, super::signatures::conformance_bound)?,
+                    expansion: super::identity::type_identity(reader)?,
+                })
+            })?)
+        } else {
+            None
+        },
     })
 }

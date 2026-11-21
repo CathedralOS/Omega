@@ -6,21 +6,13 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **ITERATION-PERFORMANCE.** Reduce measured delays in the edit/build/run cycle.
-  - Use the [worktree assignment](tools/xtask/src/worktree.rs) to prefer collecting idle build outputs under disk pressure. Exercise independent collectors with one target's worth of space, an assignment and a release. Preserve explicit keep/evict settings, command leases and Cargo locks.
-  - After real-program bottlenecks, measure arena growth and copied nodes on repeated aggregate [constant substitutions](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/substitution.rs). Preserve per-occurrence metadata when sharing definition content.
-  - Measure ascending, descending, repeated and tiny sets of [specializations](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs). Count movement in the sorted index before changing storage. Preserve application identity, encounter order and deduplication.
-- **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
-  - Run `mbx xtask check-rules` against the active compiler and exercise a known violation. The [repository rules repair](OWNER_CODE_CONCERNS.md#repository-rules-still-scan-the-retired-rust-checkout-paths) owns the scanner paths and baselines.
-  - Bind `FilesystemHost`, `TimeHost` and direct foreign services to the exact operation and owner. Keep insufficient or installation-dependent evidence a refusal.
-  - Make all nine output-publication cases in the [construction host test](source/application/construction/tests/test_construct.py#L86) exercise the producer on Windows. The test launches an extensionless Python script by its shebang, which Windows rejects with error 193 before it can compare stdout or the exit code.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
 
 - **LOWERED-FORM-CHECKER.** Highest priority by owner ruling. Finish the [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md) for the accepted language. Every valid program must reach publication with its obligations proved, and an invalid program must be refused at the responsible obligation. [Checker entry](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/verdict.rs)
 
-  - Check `source/library/std/main.omg` as a package on each hosted target, then run `mbx xtask sample-gate --filter cli/basics`. Follow the first unsupported construct through the ordinary Build and Product. The [case-split repair](OWNER_CODE_CONCERNS.md#case-splits-rebuild-unchanged-proof-facts) tracks the cost of rebuilding unchanged proof facts.
+  - Check `source/library/std/main.omg` as a package on each hosted target, then run `mbx xtask sample-gate --filter cli/basics`. Follow the first unsupported construct through the ordinary Build and Product.
   - Run the [portable filesystem program](_recycling/tests/fixtures/pending/filesystem_portable_rules/main.omg) with a 4,200-file `omega_fs_rules_wide/` directory. Preserve its truncate, oversized-read, default-permission and recursive-directory checks. Its expected exit is 42 in both engines.
   - Complete ownership and loan facts for affine locals, mutable sequence backing, views and mixed-origin reference results. Check fixed-array lengths on call results, indexed values and case payloads, and reject out-of-extent indices at the access.
   - Check [domain predicates](wiki/spec/language/domains.md#byte-containers-and-encoding-domains) that call machines with requirements, type parameters or borrowed byte views. Prove ordinary `core::Identity<FloatMeaning>` clauses from the helper body, including `abs_f64` and `sqrt_f64`.
@@ -32,7 +24,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
-  - Prove `jp = j + 1` stays below the array length in [bubble sort](samples/cli/algorithms/bubble_sort), and prove the arithmetic in `blue_put`'s inferred requirement total in [Dutch flag](samples/cli/algorithms/dutch_flag). Run their existing oracles.
   - Check the linked repositories and both compilers against the same declaration model. Preserve the original execution results of migrated programs.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete [scalar range contracts](wiki/spec/language/domains.md#declaration-and-membership).
@@ -66,10 +57,12 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Foundation and core generator, then suspension leases and pause-protocol/per-step progress contracts; rebuild tasks on it.
 
 - **RUNTIME-PLATFORM-PROVIDERS.** Deliver authorized task/lifecycle and interrupt save/restore packages over exact primitives ([acceptance](wiki/drafts/designs/runtime_provider_authority.md#acceptance)); fake-intrinsic rejection alone is not delivery.
+  - Bind firmware and a hosted process in one Build. Give only the firmware provider interrupt-mask authority. Firmware must admit the operation and the hosted process must refuse it. See [Build permissions](wiki/spec/build/permissions.md#where-the-operation-can-run).
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
+  - A UEFI Build selects the checked `ProgramImageNativeProvider` member for its image address. To emit the UEFI application, derive its two visible entry grants from the installed arrival contract. For `ProgramStorageEntryNativeProvider`, check and retain the two `Extent in Granted` parameter requirements before publishing the external conformance.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
   - Add checked-machine realization to [the target float table](source-rust/subsystems/compiler/psi-to-native/targets/target/src/float_realization.rs) and exercise it on a selected target. Measure remaining provider-selection cost separately.
@@ -105,7 +98,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **LIBRARY-RESPONSIBILITY-NAMES.** Migrate `std` to `system` and `alloc` to `allocation` across imports, registrations, sealed references, fixtures and docs. Preserve exact primitive ownership and the hosted, UEFI and explicit-storage customers. [Library names](wiki/spec/build/declarations.md#library-responsibilities-and-names)
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Complete the handoff from [source provider publication](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply) to [native admission](source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs). Bind external realizations and calling plans to the exact requirement, provider, target and published program.
-  - Finish provider-backed operator, opaque representation, constant and review cases, including float/FMA and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
+  - Finish provider-backed operator, opaque representation, constant and review cases, including the remaining floating-point and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
   - Preserve a rootless package's private `SelectedAnswer` choice for public `Answer::read() -> u32` in UEFI review. Recover the exact source contract without inventing a runnable entry.
   - Preserve the selected implementation's authored `reaches ReadCapability` and its checked effects independently of its requirement in [reviewed service rows](samples/cli/probes/reviewed_service_rows).
 
@@ -172,7 +165,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
-  - Retire bare `reaches` in the maintained parsers and migrate its sample and fixture uses to `reaches none`.
   - Add the [result-relation row](wiki/spec/language/effects.md#callback-result-relations): opaque relation per checked call, authored `F::ensures(args, r)` claims discharged from it, selected relation substituted at specialization; immutable arguments first.
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
@@ -235,7 +227,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Support the remaining forms of a decreasing measure: `Nat::IncreasingTo`, declared measures, bounded ranges, and multiple subjects. Allow measures to read fields and handle the remaining signed, address, and width-generic inputs with the required proofs.
   - Check loop result contracts (`ensures`), erased bindings, and the remaining storage cases. Check ranked non-tail recursion during proof or compile-time evaluation; runtime recursion remains tail-only.
   - Preserve termination promises when a program consumes a separately compiled package.
-  - Check [joint rankings across different parameter shapes](wiki/spec/language/termination.md#mutual-ranking-source-contract) when comparing the members’ selected views requires a proved conversion. Exercise a parser that hands an unread slice to a cursor-based payload machine and a twin that can return without consuming input.
 
 - **DEFAULT-SYNCHRONIZATION-CHECKING.** Implement [mandatory synchronization checking](wiki/spec/language/concurrency.md#default-admission-obligation). The current effects/carry, call-dependency and activation plans do not supply the retained protocol contracts or closed-composition deadlock judgment.
   - Prove the [automatic floor](wiki/spec/language/concurrency.md#first-required-automatic-floor) for an executable lock provider and guard. Track aliases, nonrecursive exclusive acquisition, helper and generic calls, callback reentry and preemption through independently published summaries. The default and `--floor-only` modes must cover the stated cases.
@@ -270,10 +261,9 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 <a id="observation-profile"></a>
 
-- **OBSERVATION-PROFILE.** Derive the [observation profile](wiki/spec/terminal-psi/observations.md) from the validated Psi module, including its identity, ordinary events, crashes and terminal external sites. Encode it in the [wire format](source-rust/subsystems/compiler/psi-artifact/wire). Have an independent consumer compare the decoded rows with the program and reject a changed association.
+- **OBSERVATION-PROFILE.** Derive the [observation profile](wiki/spec/terminal-psi/observations.md) from the validated Psi module, including its identity, ordinary events, crashes and terminal external sites. Encode it in the [wire format](source-rust/subsystems/compiler/psi/artifact/wire). Have an independent consumer compare the decoded rows with the program and reject a changed association.
 
 - **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Carry structural loans and slice views through native and Psi, including nested element views. Exercise lending an owned sequence as `&[T]` when its elements themselves retain borrowed views. Preserve each backing and its exact loan through return and cleanup.
-  - Run [case-selected slice references](samples/cli/probes/case_selected_slice_reference/main.omg) unchanged with native/Psi agreement: establish the mutable typed slice's actual backing and loan, then preserve the selected child through the return, including a rebound slice. Its recorded refusal precedes the returned-window checks; those checks and the independent projection-bound rejection remain required.
   - Check an unused `Observe<T>` machine taking `&T` under its declared lifetime and requirements. Run closed applications through both engines and reject mutation through a shared formal.
 
 <a id="normalized-abi-lowering"></a>
@@ -284,7 +274,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Build-level behavior exclusions
 
-- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions). The [CLI test](source-rust/application/tests/build_prelude_operation_calls.rs) still expects an intermediate refusal. Require a clean selected body to run and a selected transitive `Trap` to reject for the exclusion.
+- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions).
   - Distinguish dormant bodies from selected callbacks, semantic service calls from physical effects and a stale replacement from the accepted installation. Check a saved publication independently before accepting its exclusions.
 
 ## Requirement-based tests

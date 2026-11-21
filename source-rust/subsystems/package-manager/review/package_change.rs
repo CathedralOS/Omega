@@ -105,7 +105,7 @@ pub fn review_package_change_reusing(
     session: &mut PackageBuildSession,
     root_build_snapshot: Option<&BuildSnapshotRequest>,
     source_bindings: &mut PackageSourceBindings,
-    execute: &mut crate::review::PackageReviewExecutor<'_>,
+    builds: &crate::project::PackageReviewBuilds,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
         return Err(PackageChangeError::Comparison(
@@ -122,7 +122,7 @@ pub fn review_package_change_reusing(
         },
         session,
         source_bindings,
-        execute,
+        builds,
     )
     .map_err(PackageChangeError::Compilation)?;
     verify_compiler_identity(compiler_identity)?;

@@ -8,12 +8,12 @@ version.workspace = true
 path = "demand.rs"
 
 [dependencies]
-psi-provider-selections = { path = "../../../../psi-execution-inputs/providers" }
+psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 source-provider-publication = { path = "../../../../source-to-psi/representations/published-target-providers" }
 host-provider-inputs = { path = "../host-providers" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
-terminal-codec = { path = "../../../../psi-artifact/codec" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }
+terminal-semantics = { path = "../../../../psi/semantics" }

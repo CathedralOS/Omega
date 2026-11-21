@@ -17,7 +17,7 @@ metering inside the shared interpreter.
 */
 
 /*
-We depend only on `numerics`, `layout_plans`, and `record_storage`. Field and
+We depend only on the scalar vocabulary, `layout_plans`, and `record_storage`. Field and
 variant labels remain pure result descriptors that issue no nominal identity or
 host authority; source-bound callers join actual declaration handles before
 admitting or executing these values.
@@ -25,14 +25,16 @@ admitting or executing these values.
 
 #![forbid(unsafe_code)]
 
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+
 #[derive(Debug, Clone, PartialEq, record_storage::Record)]
 pub enum BuildTimeValue {
     Unit,
     LayoutTarget(layout_plans::LayoutTargetFacts), // Compiler-issued opaque context; ordinary source constructors cannot issue it.
     Int(i64),
     Bool(bool),
-    Float(f64),
-    UndeterminedNaN(numerics::intrinsics::FloatFormat), // Evaluation may transport this meaning, but cannot publish its bits.
+    Float(IeeeFloatValue),
+    UndeterminedNaN(IeeeFloatFormat), // Evaluation may transport this meaning, but cannot publish its bits.
     Text(Vec<u8>), // Text/byte content (Omega text is bytes that are only UTF-8 at domain boundaries).
     Struct {
         type_name: String,
@@ -103,7 +105,7 @@ mod tests {
                 "rows".into(),
                 BuildTimeValue::Array(vec![
                     BuildTimeValue::Text(vec![0, 0xff]),
-                    BuildTimeValue::UndeterminedNaN(numerics::intrinsics::FloatFormat::F32),
+                    BuildTimeValue::UndeterminedNaN(semantic_vocabulary::IeeeFloatFormat::Binary32),
                     BuildTimeValue::LayoutTarget(layout_plans::LayoutTargetFacts {
                         profile: "example".into(),
                         pointer_size: 8,

@@ -148,6 +148,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
             ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
             ieee_float_directed_binary: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
+            ieee_float_directed_ternary: Some(crate::AARCH64_IEEE_FLOAT_TERNARY),
             ieee_float_directed_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
             ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
             ieee_float_conversion_control: Some(crate::AARCH64_IEEE_FLOAT_UNARY),

@@ -179,14 +179,13 @@ mod tests {
 
     #[test]
     fn integer_width_evidence_rejects_previous_policy_versions() {
-        use crate::encoding::{
-            CALLABLE_POLICY_MAGIC, PACKAGE_CALLABLE_POLICY_VERSION, PACKAGE_POLICY_BASELINE_MAGIC,
-            PACKAGE_POLICY_BASELINE_VERSION,
-        };
+        use crate::encoding::{CALLABLE_POLICY_MAGIC, PACKAGE_POLICY_BASELINE_MAGIC};
         use crate::record::{PackagePolicyBaseline, PackagePolicyCallables};
 
         let mut callable_header = CALLABLE_POLICY_MAGIC.to_vec();
-        callable_header.extend_from_slice(&(PACKAGE_CALLABLE_POLICY_VERSION - 1).to_le_bytes());
+        callable_header.extend_from_slice(
+            &(crate::encoding::CALLABLE_POLICY_WITH_NOMINAL_SERVICES - 1).to_le_bytes(),
+        );
         assert_eq!(
             PackagePolicyCallables::recover_canonical(
                 &callable_header,
@@ -195,7 +194,9 @@ mod tests {
             Err(Error::UnsupportedVersion)
         );
         let mut baseline_header = PACKAGE_POLICY_BASELINE_MAGIC.to_vec();
-        baseline_header.extend_from_slice(&(PACKAGE_POLICY_BASELINE_VERSION - 1).to_le_bytes());
+        baseline_header.extend_from_slice(
+            &(crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS - 1).to_le_bytes(),
+        );
         assert_eq!(
             PackagePolicyBaseline::recover_canonical(
                 &baseline_header,

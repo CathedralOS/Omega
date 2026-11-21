@@ -79,9 +79,18 @@ use crate::source_state::{
 
 mod callable_binder;
 mod named_conformances;
+mod provider_methods;
 mod reflected_fields;
 
-pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+#[cfg(test)]
+fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    prepare_with_providers(program, &[])
+}
+
+pub(crate) fn prepare_with_providers(
+    program: &mut TypedTrees,
+    selected_providers: &[SymbolHandle],
+) -> Result<(), Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
     // Reflection creates one potential callback branch per declared case. Lowering
@@ -90,8 +99,15 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut case_branches = std::collections::HashSet::new();
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
+    let mut selected_methods = provider_methods::SelectedMethods::new(program, selected_providers);
     let mut position = 0;
-    while position < program.machines().len() {
+    loop {
+        if position == program.machines().len() {
+            selected_methods.prepare_applications(program, &mut generated)?;
+            if position == program.machines().len() {
+                break;
+            }
+        }
         let holder = program.machines()[position].symbol;
         let conditional = program.machines()[position].purpose
             == crate::source_state::machine::MachinePurpose::ActiveCaseBranch
@@ -191,52 +207,45 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     Ok(())
 }
 
-/// One generated machine: the generic machine, the declaration each of its
-/// parameters was bound to, and the generated machine and its one state.
-struct Generated {
-    template: SymbolHandle,
+// Newer slots sort first so ascending applications need fewer comparisons within each tree node.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct ApplicationKey {
+    template: (u32, u32),
+    // Each selected body implements the contract of one closed public method.
+    requirement: Option<(u32, u32)>,
     arguments: Vec<Identity>,
+}
+
+struct Generated {
     machine: SymbolHandle,
     state: SymbolHandle,
 }
 
-/// Every machine this pass generated, in the order the applications were
-/// first met, and an index answering "has this application already been
-/// generated?" without reading rows of other applications.
-///
-/// One application makes one machine, so a closed application is looked up
-/// before it is generated. Scanning `rows` for that made the pass quadratic
-/// in the number of distinct closed applications, across unrelated
-/// templates too. `by_application` holds row numbers ordered by template,
-/// then by the complete argument key; a lookup is a binary search comparing
-/// whole keys, never a digest. Rows stay in encounter order: nothing reads a
-/// row's position as anything but a stable name.
+/// A closed application generates its machine on first use. The program records
+/// machines in that encounter order. This lookup only answers repeated calls.
 #[derive(Default)]
 struct GeneratedMachines {
-    rows: Vec<Generated>,
-    by_application: Vec<u32>,
+    applications: std::collections::BTreeMap<std::cmp::Reverse<ApplicationKey>, Generated>,
 }
 
 impl GeneratedMachines {
-    /// The row generated for `template` at `arguments`, or the place in
-    /// `by_application` where that application belongs.
-    fn search(&self, template: SymbolHandle, arguments: &[Identity]) -> Result<usize, usize> {
-        let wanted = (symbol_order(template), arguments);
-        self.by_application
-            .binary_search_by(|&row| {
-                let row = &self.rows[row as usize];
-                (symbol_order(row.template), row.arguments.as_slice()).cmp(&wanted)
-            })
-            .map(|slot| self.by_application[slot] as usize)
-    }
-
-    /// Append `made` and index it at `slot`, the place [`Self::search`]
-    /// reported for its application.
-    fn insert(&mut self, slot: usize, made: Generated) -> &Generated {
-        let row = u32::try_from(self.rows.len()).expect("generated machines fit a u32 row");
-        self.rows.push(made);
-        self.by_application.insert(slot, row);
-        &self.rows[row as usize]
+    fn get_or_generate(
+        &mut self,
+        template: SymbolHandle,
+        requirement: Option<SymbolHandle>,
+        arguments: Vec<Identity>,
+        generate: impl FnOnce() -> Served<Generated>,
+    ) -> Served<&Generated> {
+        use std::collections::btree_map::Entry;
+        let key = std::cmp::Reverse(ApplicationKey {
+            template: symbol_order(template),
+            requirement: requirement.map(symbol_order),
+            arguments,
+        });
+        match self.applications.entry(key) {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => Ok(entry.insert(generate()?)),
+        }
     }
 }
 
@@ -595,18 +604,16 @@ fn specialize_application(
         .iter()
         .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
-    let entry = match generated.search(callee, &key) {
-        Ok(row) => &generated.rows[row],
-        Err(slot) => {
-            let made = generate(program, callee, application, &operands)?;
-            if made.template != callee || made.arguments != key {
-                return Err(Stop::Defect(
-                    "a generated machine changed the application it was generated for",
-                ));
-            }
-            generated.insert(slot, made)
-        }
-    };
+    let registration = program
+        .expression_table
+        .static_machine_application(application)
+        .registration_operation;
+    let requirement = program
+        .closed_requirement_application(registration)
+        .map(|closed| closed.signature.symbol);
+    let entry = generated.get_or_generate(callee, requirement, key, || {
+        generate(program, callee, application, &operands)
+    })?;
     Ok(Some((entry.machine, entry.state)))
 }
 
@@ -1302,7 +1309,7 @@ fn copied_parts(
                 && row
                     .targets
                     .iter()
-                    .all(|target| program.symbols.symbols().nodes().is_valid(target.service))
+                    .all(|target| target.service.symbol(program).is_some_and(|symbol| program.symbols.symbols().nodes().is_valid(symbol)))
         })
         && !program
             .proof_output_calls
@@ -1718,20 +1725,6 @@ fn copy_declarations(
         }
         machine.is_public = false;
         copy_progress(program, source, &mut machine, symbols)?;
-        // A written empty ceiling differs from an omitted one. Retain each
-        // authored row on its actual copied owner; never turn it into inference.
-        let reach_rows = program
-            .authored_service_reach_rows_for(source.symbol)
-            .cloned()
-            .map(|mut row| {
-                row.owner = machine.symbol;
-                for target in &mut row.targets {
-                    target.service = symbols.lookup(target.service).unwrap_or(target.service);
-                }
-                row
-            })
-            .collect::<Vec<_>>();
-        program.authored_service_reach_rows.extend(reach_rows);
         let remaining = program
             .machine_type_parameters(source)
             .iter()
@@ -1918,11 +1911,6 @@ fn generate(
         });
     }
     Ok(Generated {
-        template: template_symbol,
-        arguments: operands
-            .iter()
-            .map(|operand| operand.identity.clone())
-            .collect(),
         machine: copied.machine,
         state: copied.state,
     })

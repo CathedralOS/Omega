@@ -6,14 +6,20 @@ use representations\symbol_resolved_trees\TypeBinding;
 use representations\symbol_resolved_trees\domain_binding_at;
 use representations\symbol_resolved_trees\name_resolution_domain_item;
 use representations\symbol_resolved_trees\type_binding_at;
+use representations\syntax_trees\ConformanceItem;
 use representations\syntax_trees\DataItem;
 use representations\syntax_trees\GenericParameter;
 use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\IntegerLiteral;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\TraitItem;
 use representations\syntax_trees\TypeReference;
+use representations\syntax_trees\TypeReferenceKind;
+use representations\syntax_trees\conformance_item;
+use representations\syntax_trees\static_integer_is_valid;
 use representations\syntax_trees\syntax_trees_data_item;
 use representations\syntax_trees\syntax_trees_generic_parameter;
+use representations\syntax_trees\syntax_trees_integer_literal;
 use representations\syntax_trees\syntax_trees_type_reference;
 use representations\syntax_trees\trait_item;
 use representations\syntax_trees\type_argument;
@@ -31,7 +37,7 @@ use representations\typed_trees\typing_reject;
 // Every written type, row by row. A type's rows follow their children in the
 // syntax table, so one pass in table order meets each row after the rows it
 // names and interns it from their types and its own binding. Integer static
-// arguments and array lengths read their spelling here; a named static value
+// arguments and array lengths use their decoded values; a named static value
 // (a `const` parameter) has no value before evaluation exists and rejects.
 public machine type_references(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
@@ -219,6 +225,23 @@ crashes Trap
         parameter: u64 in Trapping,
         domain: DomainBinding
     ) {
+        let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
+        transition static_parameter_annotation(resolution, declared) {
+            TypeBinding::Trait { item } -> unsupported(typer, reference),
+            _ -> generic_type(typer, sources, syntax, resolution, index, reference, parameter, domain)
+        }
+    }
+
+    machine generic_type(
+        typer: @mut Typer,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        parameter: u64 in Trapping,
+        domain: DomainBinding
+    ) {
         let mut row: TypeRow = type_row_of(TypeKind::GenericParameter);
         row.item = parameter;
         transition domain == DomainBinding::Unqualified {
@@ -310,10 +333,10 @@ crashes Trap
         index: u64 in Trapping,
         reference: TypeReference
     ) {
-        let value: LiteralValue = literal_value(syntax, reference.literal);
+        let value: IntegerLiteral = syntax_trees_integer_literal(syntax, reference.literal);
         let mut row: TypeRow = type_row_of(TypeKind::StaticInteger);
         row.length = value.magnitude as u64 +Trapping;
-        transition value.valid && !value.has_suffix {
+        transition static_integer_is_valid(value) {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> literal_rejected(typer, reference)
         }
@@ -672,7 +695,7 @@ crashes Trap
     machine classify(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
         let argument: u64 in Trapping = type_argument(syntax, reference.first_argument + position);
         let binding: TypeBinding = type_binding_at(resolution, argument);
-        let fits: bool = slot_accepts(syntax, parameter.kind, binding);
+        let fits: bool = trait_slot_accepts(syntax, resolution, parameter, argument, binding);
         transition fits {
             true -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position + 1),
             _ -> slot_rejected(typer, syntax, argument)
@@ -689,4 +712,67 @@ crashes Trap
     }
 
     machine done() {}
+}
+
+// Resolution gives a typed static parameter its annotation's identity. A
+// parameter describing an implementation supplies no runtime value type.
+machine static_parameter_annotation(resolution: @NameResolution, parameter: GenericParameter) -> TypeBinding
+crashes Trap
+{
+    transition parameter.kind == GenericParameterKind::Const && parameter.has_type_reference {
+        true -> read(resolution, parameter.type_reference),
+        _ -> absent()
+    }
+    machine read(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding { type_binding_at(resolution, row) }
+    machine absent() -> TypeBinding { TypeBinding::Unresolved }
+}
+
+// Match a closed implementation to the exact trait required by this slot.
+// An applied or forwarded map needs substitution evidence of its own.
+machine trait_slot_accepts(syntax: @SyntaxTrees, resolution: @NameResolution, parameter: GenericParameter, argument: u64 in Trapping, binding: TypeBinding) -> bool
+crashes Trap
+{
+    transition static_parameter_annotation(resolution, parameter) {
+        TypeBinding::Trait { item } -> contract(syntax, resolution, parameter.type_reference, item, argument, binding),
+        _ -> ordinary(syntax, parameter.kind, binding)
+    }
+    machine ordinary(syntax: @SyntaxTrees, kind: GenericParameterKind, binding: TypeBinding) -> bool {
+        slot_accepts(syntax, kind, binding)
+    }
+    machine contract(syntax: @SyntaxTrees, resolution: @NameResolution, required: u64 in Trapping, item: u64 in Trapping, argument: u64 in Trapping, binding: TypeBinding) -> bool {
+        let trait_definition: TraitItem = trait_item(syntax, item);
+        transition trait_definition.generic_parameter_count == 0 && plain_static_name(syntax, required) && plain_static_name(syntax, argument) {
+            true -> selected(syntax, resolution, item, binding),
+            _ -> no()
+        }
+    }
+    machine selected(syntax: @SyntaxTrees, resolution: @NameResolution, expected: u64 in Trapping, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Conformance { item } -> declaration(syntax, resolution, expected, item),
+            _ -> no()
+        }
+    }
+    machine declaration(syntax: @SyntaxTrees, resolution: @NameResolution, expected: u64 in Trapping, item: u64 in Trapping) -> bool {
+        let selected: ConformanceItem = conformance_item(syntax, item);
+        transition selected.generic_parameter_count == 0 && plain_static_name(syntax, selected.trait_type) {
+            true -> identity(resolution, expected, selected.trait_type),
+            _ -> no()
+        }
+    }
+    machine identity(resolution: @NameResolution, expected: u64 in Trapping, supplied: u64 in Trapping) -> bool {
+        let actual: TypeBinding = type_binding_at(resolution, supplied);
+        transition actual {
+            TypeBinding::Trait { item } -> same(expected, item),
+            _ -> no()
+        }
+    }
+    machine same(expected: u64 in Trapping, actual: u64 in Trapping) -> bool { expected == actual }
+    machine no() -> bool { false }
+}
+
+machine plain_static_name(syntax: @SyntaxTrees, index: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeReference = syntax_trees_type_reference(syntax, index);
+    row.kind == TypeReferenceKind::Named && row.argument_count == 0 && row.lifetime_count == 0 && !row.has_domain
 }

@@ -17,7 +17,7 @@ use crate::{
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x04";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x05";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
 pub fn package_build_handoff_digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
@@ -61,7 +61,7 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
     for binding in inputs.accepted_semantic_bindings() {
         hash_accepted_binding(&mut digest, binding);
     }
-    for description in inputs.independent_component_descriptions() {
+    for description in inputs.independent_component_descriptions().values() {
         hash_component_description(&mut digest, description);
     }
     digest.finish()
@@ -232,6 +232,11 @@ fn hash_component_description(
 ) {
     digest.raw(&description.package().digest());
     let subject = description.expected_subject();
+    digest.u64(u64::from(subject.vocabulary_marker.get()));
     digest.raw(subject.program_fingerprint.as_bytes());
+    digest.u64(description.independent_suppliers().len() as u64);
+    for supplier in description.independent_suppliers() {
+        digest.raw(&supplier.digest());
+    }
     digest.bytes(description.description());
 }

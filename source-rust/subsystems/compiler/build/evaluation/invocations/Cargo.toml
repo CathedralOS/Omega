@@ -14,9 +14,9 @@ build-value-projection = { path = "../values/projection" }
 evaluation-accounting = { path = "../accounting" }
 evaluation-admission = { path = "../authority/admission" }
 layout-plans = { path = "../../../psi/layouts/geometry" }
-psi-scalar-applications = { path = "../../../psi-execution-inputs/scalar-applications" }
+psi-scalar-applications = { path = "../../../psi/execution-inputs/scalar-applications" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-work = { path = "../../../psi/semantics/work" }

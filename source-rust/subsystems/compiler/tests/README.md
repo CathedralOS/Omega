@@ -15,3 +15,12 @@ not a checked expected result.
 ## Running a fixture
 
 From the repository root, run the Rust test which names the fixture, for example `mbx test -p compiler --test final_stage_validators`. This harness opens a saved Psi artifact and checks target-specific validation through the compiler API. A direct CLI invocation follows the [CLI package review workflow](../../../application/README.md).
+
+Run the provider selection checks in the package whose behavior changed.
+
+- `mbx test -p source-compiler --lib provider_choices::tests` checks which provider authored declarations select and which declarations produce a diagnostic.
+- `mbx test -p admitted-native-inputs-to-target-bound-program --test source_provider_choices` checks the native plans for those selections.
+
+For each published program, the source tests check that its ID matches the one the native planner reads from the saved Psi file. [Shared provider programs](../../../../tests/fixtures/providers/pass/source_provider_choices/)
+
+To update the saved programs after an intentional change, set `OMEGA_PROVIDER_TEST_OUTPUT` to an existing temporary directory and run the source tests. They write fresh publications with a `.new.psi` suffix and check the committed `.psi` files. Copy each reviewed update over its corresponding fixture, then run both checks.

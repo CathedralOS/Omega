@@ -30,7 +30,7 @@ ensures result == left + right
 // Place: another target body. Every target body dispatches combine on the bounded operands.
 // Expected exit: 0
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

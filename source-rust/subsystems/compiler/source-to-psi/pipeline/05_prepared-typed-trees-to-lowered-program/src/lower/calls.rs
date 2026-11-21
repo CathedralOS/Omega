@@ -50,8 +50,7 @@ pub(crate) fn publish_write_frames(
 
     let problem = |machine, concerns, detail: String| Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail,
     };
@@ -519,6 +518,8 @@ impl Lowering<'_> {
             erased: Vec::new(),
         };
         let observes_storage = !signature.requires.is_empty() || !signature.ensures.is_empty();
+        let last_runtime_argument =
+            (0..arguments.len()).rfind(|&position| !signature.is_erased(position));
         let mut argument_types = Vec::new();
         for (position, argument) in arguments.iter().enumerate() {
             // contracts.md, "Explicit erased bindings": "Construction
@@ -552,7 +553,8 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let lent = continuing!(self.lend(place, *access));
+                let has_later_argument = Some(position) != last_runtime_argument;
+                let lent = continuing!(self.lend(place, *access, has_later_argument));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
                 evaluated.loans.push(CallLoan {
@@ -1025,8 +1027,10 @@ impl Lowering<'_> {
             .get_mut(invocation)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Invocation(invocation),
+                site: terminal_check_tables::RefusalSite::Machine(
+                    id,
+                    Construct::Invocation(invocation),
+                ),
                 source_span: None,
                 detail: String::from("invocation is past the end of this machine"),
             })?

@@ -2,7 +2,7 @@
 // Place: target_body.
 // Expected rejection: the empty descriptor does not satisfy the read's live bound.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -41,8 +41,7 @@ use crate::lowering::{
 fn identity(machine: MachineId, detail: &str) -> Refusal {
     Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.to_owned(),
     }

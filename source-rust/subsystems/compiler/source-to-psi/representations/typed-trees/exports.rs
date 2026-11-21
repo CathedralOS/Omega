@@ -9,8 +9,8 @@ pub use callables::{
     source_call_occurrences, static_operand_binding,
 };
 pub use definitions::{
-    compiler_intrinsics, declaration_authority, declarations, native_locators,
-    service_declarations, source_names, source_subjects,
+    compiler_intrinsics, declarations, native_locators, service_declarations, source_names,
+    source_subjects,
 };
 pub(crate) use definitions::{
     declaration_reflection, declared_bindings, numeric_declarations, operator_declarations,

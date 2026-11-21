@@ -64,7 +64,7 @@ pub(crate) mod byte_views {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> bool {
-        abstract_operations::control_flow::owner_loans::is_shared_byte_view(parameter, |identity| {
+        structural_storage_queries::owner_loans::is_shared_byte_view(parameter, |identity| {
             structural_types.get(identity).copied()
         })
     }
@@ -101,7 +101,7 @@ pub(crate) mod byte_views {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> bool {
-        abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
+        structural_storage_queries::owner_loans::is_bounded_owner_loan(
             parameter,
             |identity| structural_types.get(identity).copied(),
         )
@@ -111,7 +111,7 @@ pub(crate) mod byte_views {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> bool {
-        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+        structural_storage_queries::owner_loans::is_owned_bounded_byte_parameter(
             parameter,
             |identity| structural_types.get(identity).copied(),
         )
@@ -1073,12 +1073,12 @@ pub(crate) mod element_views {
         direct_scalar_field_geometry, runtime_projection, runtime_storage_projection,
     };
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
-    use abstract_operations::control_flow::address_joins::is_address_join;
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use semantic_vocabulary::{
         IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
+    use structural_storage_queries::address_joins::is_address_join;
     use target_operations::{
         TargetElementView, TargetIntegerExpression, TargetStructuralArgumentSource,
         TargetStructuralHomeOrigin, TargetStructuralHomeRequirement, TargetStructuralParameter,
@@ -1593,7 +1593,7 @@ pub(crate) mod element_views {
                 structural_types.values().copied(),
             )?;
             if entry.block == function.entry
-                || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                || !structural_storage_queries::address_joins::is_descriptor_join(
                     parameter,
                     |identity| structural_types.get(identity).copied(),
                 )
@@ -3004,8 +3004,7 @@ mod width_tests {
             &catalog,
             target::TargetProfile::LinuxX64
                 .native_realization()
-                .unwrap(),
-        )
+                .unwrap(), None, &[])
         .unwrap();
         let value = ValueId::new(1).unwrap();
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());

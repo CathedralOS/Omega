@@ -5,6 +5,7 @@ use std::time::Instant;
 use crate::arguments::CompileArguments;
 use crate::diagnostic_output::DiagnosticOutput;
 use crate::saved_program::SavedProgramError;
+use artifacts::compile_timings::CompileTimings;
 use compiler::CompilerRequestOutcome;
 use compiler::stage_validators::{NativeValidationError, StageValidationRow, StageValidator};
 use compiler::{Artifact, CompileRequest};
@@ -141,16 +142,16 @@ fn compile_targets(
     let plans = if active.is_empty() {
         None
     } else {
-        Some(crate::project_sources::open_products(
+        Some(package_manager::project::open_products(
             if arguments.check_only {
-                crate::project_sources::ProjectInput::PackageCheck(&arguments.root_path)
+                package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
             } else {
-                crate::project_sources::ProjectInput::File(&arguments.root_path)
+                package_manager::project::ProjectInput::File(&arguments.root_path)
             },
             &active,
             arguments.offline,
             arguments.timings,
-            Some(&base),
+            &base,
             snapshot,
         ))
     };
@@ -170,13 +171,7 @@ fn compile_targets(
     if arguments.timings
         && let Some((planned, _)) = prepared.iter().find_map(|row| row.as_ref().ok())
     {
-        for phase in planned.timings().phases() {
-            eprintln!(
-                "{:>10.3} ms  {}",
-                phase.microseconds as f64 / 1_000.0,
-                phase.phase
-            );
-        }
+        print_phases("Build", planned.timings());
     }
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
@@ -399,7 +394,16 @@ fn compile_target(
                     .map_err(output_error)?,
             );
         } else {
-            advisories = compiler::check(stage.source())?;
+            let mut timings = if arguments.timings {
+                CompileTimings::enabled()
+            } else {
+                CompileTimings::default()
+            };
+            let checked = compiler::check(stage.source(), &mut timings);
+            if arguments.timings {
+                print_phases(&format!("Product ({})", profile.target_name()), &timings);
+            }
+            advisories = checked?;
         }
     } else {
         let program = stage.program(
@@ -465,11 +469,12 @@ fn compile_target(
         wrote_output = true;
         show_summary = false;
     }
-    if let Some(outputs) = completed {
-        if !arguments.check_only && arguments.emit_psi.is_none() {
-            publish_outputs(Some(outputs), directory, &mut publications)?;
-            wrote_output = true;
-        }
+    if let Some(outputs) = completed
+        && !arguments.check_only
+        && arguments.emit_psi.is_none()
+    {
+        publish_outputs(Some(outputs), directory, &mut publications)?;
+        wrote_output = true;
     }
     if arguments.timings && !rows.is_empty() {
         eprintln!("{} validator rows", rows.len());
@@ -593,6 +598,16 @@ fn batch_outcome(
         });
     }
     combined.unwrap_or(CompilerRequestOutcome::Reject)
+}
+
+fn print_phases(scope: &str, timings: &CompileTimings) {
+    for phase in timings.phases() {
+        eprintln!(
+            "{:>10.3} ms  {scope} / {}",
+            phase.microseconds as f64 / 1_000.0,
+            phase.phase
+        );
+    }
 }
 
 fn print_elapsed(started: Instant) {

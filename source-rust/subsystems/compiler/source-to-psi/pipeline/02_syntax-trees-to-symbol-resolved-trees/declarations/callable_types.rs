@@ -21,7 +21,6 @@ pub(super) fn nominal_contract(
     selection: &ConstantSelection<'_>,
     reference: TypeReferenceHandle,
     bound: &[String],
-    declarations: &[&SyntaxTrees],
 ) -> Result<Option<MachineParameterContract>, Diagnostic> {
     let (owner, member, arguments) = match syntax.type_references.type_reference(reference).clone()
     {
@@ -36,12 +35,8 @@ pub(super) fn nominal_contract(
                 return Ok(None);
             };
             if is_trait_owner(syntax, selection, &owner, bound)? {
-                let parameters = selection.generic_parameter_roles(
-                    syntax,
-                    declarations,
-                    &owner,
-                    &[SymbolKind::Trait],
-                );
+                let parameters =
+                    selection.generic_parameter_roles(syntax, &owner, &[SymbolKind::Trait]);
                 if parameters.is_some_and(|parameters| !parameters.is_empty()) {
                     return Err(Diagnostic::error(
                         "a nominal callable type must supply its trait arguments before `::requirement`; member arguments do not supply the trait telescope",

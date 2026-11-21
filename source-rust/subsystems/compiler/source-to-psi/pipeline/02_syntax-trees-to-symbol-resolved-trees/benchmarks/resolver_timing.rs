@@ -251,7 +251,6 @@ fn measure() -> Result<(), String> {
         }
         "extension" => {
             let base = result(resolve_deferred(pkg.request()))?.shared_trees();
-            let declarations = Arc::new(pkg.syntax.clone());
             let mut sources = pkg.sources.as_ref().clone();
             let text = "machine generated() { main(); }";
             let id = sources
@@ -268,7 +267,6 @@ fn measure() -> Result<(), String> {
                 || {
                     Ok(ExtensionRequest {
                         base: Arc::clone(&base),
-                        base_declarations: Arc::clone(&declarations),
                         syntax: syntax.clone(),
                         sources: Arc::clone(&sources),
                         top_level_bindings: Vec::new(),

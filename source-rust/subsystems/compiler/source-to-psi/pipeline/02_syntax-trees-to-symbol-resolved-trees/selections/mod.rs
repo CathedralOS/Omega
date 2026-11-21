@@ -183,6 +183,11 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
         predecessor,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    crate::resolution::names::bind_service_application_arguments(
+        &mut lowerer.symbol_resolved_trees,
+        predecessor.map_or(0, |base| base.service_reaches.definitions().len()),
+        predecessor.map_or(0, |base| base.traits.len()),
+    )?;
     Ok(())
 }
 

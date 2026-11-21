@@ -18,14 +18,14 @@ use terminal_psi::{TerminalCallableTermination, TerminalModule};
 
 use super::Program;
 use crate::lowering::body::{
-    Body, CallTarget, Expression, ExpressionKind as E, Statement, Target, ValueType,
+    Body, CallTarget, Expression, ExpressionKind as E, RecordType, Signature, Statement,
+    StorageShape, Target, ValueType,
 };
 
 pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         source_span: None,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         reason: RefusalReason::Unsupported,
         detail: detail.into(),
     }
@@ -40,7 +40,7 @@ pub(super) fn service(
         .service_reaches
         .definition(id)
         .ok_or_else(|| unavailable(context, "service permission names an absent declaration"))?;
-    Ok(id)
+    Ok(typed.service_reaches.canonical_id(id))
 }
 
 pub(super) fn service_closure(
@@ -103,6 +103,7 @@ pub(super) fn invocations(
                     unavailable(context, "invocation runtime parameter coordinate overflow")
                 })?)
             }
+            AuthoredInvocationTarget::AppliedService(id) => Invocation::Service(service(typed, context, id)?),
             AuthoredInvocationTarget::Service(symbol) if symbol.is_valid() => {
                 let id = typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| {
                     unavailable(
@@ -188,44 +189,6 @@ impl Program<'_> {
         components: &crate::lowering::components::Components,
     ) -> Checked<()> {
         let declaration_policies = self.declaration_policies()?;
-        // Open requirements keep their unknown axes. They prevent executable
-        // callable publication, but do not prevent independent bodies from
-        // completing their own contracts.
-        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
-            self.symbols
-                .get(*id)
-                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
-                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
-                && !self
-                    .declared_envelope_policies
-                    .get(*id)
-                    .and_then(Option::as_ref)
-                    .is_some_and(Policy::is_complete)
-        }) {
-            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
-                return Err(unavailable(
-                    requirement,
-                    "runtime callable needs the abstract requirement's complete operational contract",
-                ));
-            }
-            for (contract, policy) in declaration_policies.iter() {
-                if policy.reach.is_none()
-                    || policy.invokes.is_none()
-                    || policy.suspends.is_none()
-                    || policy.blocks.is_none()
-                {
-                    let caller = self
-                        .declaration_selections
-                        .get(contract)
-                        .and_then(Option::as_ref)
-                        .map_or(requirement, |selected| selected.0);
-                    return Err(unavailable(
-                        caller,
-                        "selected public contract needs completion in its open abstract operational context",
-                    ));
-                }
-            }
-        }
         let mut abstract_requirements = self.requirements.clone();
         abstract_requirements.sort_unstable();
         let mut known = IdTable::default();
@@ -233,11 +196,11 @@ impl Program<'_> {
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
         for (id, symbol) in self.symbols.iter() {
-            let operational = self
+            let signature = self
                 .signatures
                 .get(id)
-                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
-                .operational;
+                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?;
+            let operational = signature.operational;
             let policy = if let Some(policy) = self
                 .declared_envelope_policies
                 .get(id)
@@ -321,10 +284,7 @@ impl Program<'_> {
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-            let mut found = Vec::new();
-            for statement in &body.statements {
-                collect_statement(statement, &mut found);
-            }
+            let found = CallCollector::for_body(id, signature, body, &self.records)?;
             if !components.members(id)?.is_empty()
                 && found
                     .iter()
@@ -343,9 +303,14 @@ impl Program<'_> {
                 let mut reached = empty();
                 let mut reached_known = KnownAxes::ALL;
                 for invocation in uses {
-                    if invocation.required_contract.is_none()
-                        && let CallTarget::Machine(callee) = invocation.target
-                    {
+                    if let Some(required) = invocation.required_contract {
+                        reached_known.intersect(self.declaration_axes(
+                            id,
+                            required,
+                            &declaration_policies,
+                            &known,
+                        )?);
+                    } else if let CallTarget::Machine(callee) = invocation.target {
                         reached_known.intersect(*known.get(*callee).ok_or_else(|| {
                             unavailable(id, "callee lost its operational inference state")
                         })?);
@@ -421,96 +386,61 @@ impl Program<'_> {
                                             "invocation permission lost its exact actual",
                                         )
                                     })?;
-                                match &actual.kind {
-                                    E::Slot(slot)
-                                        if *slot
-                                            < self
-                                                .signatures
-                                                .get(id)
-                                                .ok_or_else(|| {
-                                                    unavailable(id, "caller has no signature")
-                                                })?
-                                                .parameters
-                                                .len() =>
-                                    {
-                                        union(
-                                            &mut reached.invocations,
-                                            &[Invocation::Parameter(
-                                                u32::try_from(self.signatures.get(id)
-                                                    .and_then(|signature| signature.runtime_parameter_position(*slot))
-                                                    .ok_or_else(|| unavailable(id, "invocation actual names no runtime caller formal"))?).map_err(|_| {
-                                                    unavailable(id, "invocation parameter coordinate overflow")
-                                                })?,
-                                            )],
+                                if let Some((_, parameter)) = invocation
+                                    .parameter_arguments
+                                    .iter()
+                                    .find(|(argument, _)| *argument == source_position)
+                                {
+                                    union(
+                                        &mut reached.invocations,
+                                        &[Invocation::Parameter(*parameter)],
+                                    );
+                                    continue;
+                                }
+                                let Some(ValueType::Scalar(
+                                    semantic_vocabulary::ScalarType::Callable(contract),
+                                    _,
+                                )) = actual.result
+                                else {
+                                    return Err(unavailable(
+                                        id,
+                                        "invocation permission actual has no retained callable type",
+                                    ));
+                                };
+                                let actual =
+                                    self.callables.contracts.get(contract).ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invoked actual has no retained callable contract",
                                         )
-                                    }
-                                    _ => {
-                                        let Some(ValueType::Scalar(
-                                            semantic_vocabulary::ScalarType::Callable(contract),
-                                            _,
-                                        )) = actual.result
-                                        else {
+                                    })?;
+                                union_services(
+                                    &mut reached.service_reach,
+                                    &actual.envelope.service_reach,
+                                );
+                                reached.suspends |= actual.envelope.suspends;
+                                reached.blocks |= actual.envelope.blocks;
+                                for dependency in &actual.envelope.invocations {
+                                    match dependency {
+                                        Invocation::Service(service) => union(
+                                            &mut reached.invocations,
+                                            &[Invocation::Service(*service)],
+                                        ),
+                                        Invocation::Parameter(_) => {
                                             return Err(unavailable(
                                                 id,
-                                                "invocation permission actual has no retained callable type",
+                                                "nested invocation permission needs the invocation's exact actual mapping",
                                             ));
-                                        };
-                                        let actual = self.callables.contracts.get(contract).ok_or_else(|| unavailable(id, "invoked actual has no retained callable contract"))?;
-                                        union_services(
-                                            &mut reached.service_reach,
-                                            &actual.envelope.service_reach,
-                                        );
-                                        reached.suspends |= actual.envelope.suspends;
-                                        reached.blocks |= actual.envelope.blocks;
-                                        for dependency in &actual.envelope.invocations {
-                                            match dependency {
-                                                Invocation::Service(service) => union(
-                                                    &mut reached.invocations,
-                                                    &[Invocation::Service(*service)],
-                                                ),
-                                                Invocation::Parameter(_) => {
-                                                    return Err(unavailable(
-                                                        id,
-                                                        "nested invocation permission needs the invocation's exact actual mapping",
-                                                    ));
-                                                }
-                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    if let CallTarget::Selected { callable, .. } = invocation.target
-                        && let E::Slot(slot) = callable.kind
-                        && slot
-                            < self
-                                .signatures
-                                .get(id)
-                                .ok_or_else(|| unavailable(id, "caller has no signature"))?
-                                .parameters
-                                .len()
-                    {
+                    if let Some(parameter) = invocation.selected_parameter {
                         union(
                             &mut reached.invocations,
-                            &[Invocation::Parameter(
-                                u32::try_from(
-                                    self.signatures
-                                        .get(id)
-                                        .and_then(|signature| {
-                                            signature.runtime_parameter_position(slot)
-                                        })
-                                        .ok_or_else(|| {
-                                            unavailable(
-                                                id,
-                                                "selected callee names no runtime caller formal",
-                                            )
-                                        })?,
-                                )
-                                .map_err(|_| {
-                                    unavailable(id, "invocation parameter coordinate overflow")
-                                })?,
-                            )],
+                            &[Invocation::Parameter(parameter)],
                         );
                     }
                 }
@@ -574,6 +504,20 @@ impl Program<'_> {
             }
             if !changed {
                 break;
+            }
+        }
+        // Public invocation contracts must be finite at publication. An open
+        // static requirement elsewhere in the body graph is independent.
+        for (contract, selected) in self.declaration_selections.iter() {
+            if let Some((caller, ..)) = selected
+                && !self
+                    .declaration_axes(*caller, contract, &declaration_policies, &known)?
+                    .is_complete()
+            {
+                return Err(unavailable(
+                    *caller,
+                    "selected public contract depends on an unknown operational bound of its implementation",
+                ));
             }
         }
         // The completed envelopes are carried into Terminal Psi. Its checker
@@ -700,6 +644,34 @@ impl Program<'_> {
         Ok(())
     }
 
+    fn declaration_axes(
+        &self,
+        caller: MachineId,
+        contract: ContractId,
+        policies: &IdTable<ContractId, Policy>,
+        known: &IdTable<MachineId, KnownAxes>,
+    ) -> Checked<KnownAxes> {
+        let policy = policies.get(contract).ok_or_else(|| {
+            unavailable(caller, "selected public contract lost its declared policy")
+        })?;
+        match self.declaration_selections.get(contract) {
+            Some(Some((_, selected, ..))) => known
+                .get(*selected)
+                .map(|axes| axes.with_policy(policy))
+                .ok_or_else(|| {
+                    unavailable(
+                        caller,
+                        "selected public contract lost its implementation bounds",
+                    )
+                }),
+            Some(None) => Ok(KnownAxes::of_policy(policy)),
+            None => Err(unavailable(
+                caller,
+                "public contract lost its selection coordinate",
+            )),
+        }
+    }
+
     fn declaration_policies(&self) -> Checked<IdTable<ContractId, Policy>> {
         let diagnostic = MachineId::new(1).expect("nonzero diagnostic identity");
         if self.declaration_signatures.len() != self.declaration_sources.len()
@@ -763,22 +735,24 @@ impl Program<'_> {
             .signature_invokes
             .span(signature.invokes)
             .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
-        let mut reach =
-            if crate::lowering::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
-                if signature.service_reach_is_installation_bound && source_owner != signature.symbol
-                {
-                    crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
-                } else {
-                    Some(finite_reach(self.typed, id, signature.service_reach_row)?)
-                }
+        // A concrete member determines open and installation-bound rows. A
+        // fixed ceiling on the requirement remains its own applied contract.
+        let reach =
+            if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
+                crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
             } else {
-                None
+                match crate::lowering::reach::authored_source_ceiling(
+                    self.typed,
+                    id,
+                    signature.symbol,
+                    signature.service_reach_row,
+                )? {
+                    None if source_owner != signature.symbol => {
+                        crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
+                    }
+                    declared => declared,
+                }
             };
-        // An open requirement defers to the implementation's published bound.
-        // Infer from its body only when that declaration also omits the bound.
-        if reach.is_none() && source_owner != signature.symbol {
-            reach = crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?;
-        }
         let policy = Policy {
             reach,
             invokes: Some(invocations(self.typed, id, authored, parameters)?),
@@ -988,13 +962,6 @@ pub(super) struct Policy {
     termination: TerminalCallableTermination,
 }
 impl Policy {
-    fn is_complete(&self) -> bool {
-        self.reach.is_some()
-            && self.invokes.is_some()
-            && self.suspends.is_some()
-            && self.blocks.is_some()
-    }
-
     fn initial(&self) -> SourceEnvelope {
         SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or_default(),
@@ -1036,13 +1003,96 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.dedup();
 }
 struct Use<'a> {
+    selected_parameter: Option<u32>,
+    parameter_arguments: Vec<(usize, u32)>,
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
     static_reach_arguments: &'a [terminal_psi::static_reach::StaticReachArgument],
 }
 
-fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
+struct CallCollector<'a> {
+    sites: Vec<Use<'a>>,
+    // Which caller parameter, if any, supplied the value now in each slot.
+    parameters: Vec<Option<u32>>,
+}
+
+impl<'a> CallCollector<'a> {
+    fn for_body(
+        id: MachineId,
+        signature: &Signature,
+        body: &'a Body,
+        records: &IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
+    ) -> Checked<Vec<Use<'a>>> {
+        let mut collector = Self {
+            sites: Vec::new(),
+            parameters: vec![None; body.slots.len()],
+        };
+        for (slot, ty) in signature.parameters.iter().enumerate() {
+            let scalar = match ty {
+                ValueType::Scalar(scalar, _) => Some(scalar),
+                ValueType::Record(record, _, _) => match records
+                    .get(*record)
+                    .map(|record| &record.shape)
+                {
+                    Some(StorageShape::PrimitiveScalar { scalar_type, .. }) => Some(scalar_type),
+                    _ => None,
+                },
+                ValueType::Rigid(_) => None,
+            };
+            if matches!(scalar, Some(semantic_vocabulary::ScalarType::Callable(_)))
+                && let Some(position) = signature.runtime_parameter_position(slot)
+                && let Some(binding) = collector.parameters.get_mut(slot)
+            {
+                *binding =
+                    Some(u32::try_from(position).map_err(|_| {
+                        unavailable(id, "invocation parameter coordinate overflow")
+                    })?);
+            }
+        }
+        for statement in &body.statements {
+            collect_statement(statement, &mut collector);
+            // Evaluate the right-hand side against the old binding before replacing it.
+            match statement {
+                Statement::Bind { slot, value }
+                | Statement::Store {
+                    destination:
+                        Expression {
+                            kind: E::Slot(slot),
+                            ..
+                        },
+                    value,
+                    ..
+                } => {
+                    let parameter = collector.parameter(value);
+                    *collector
+                        .parameters
+                        .get_mut(*slot)
+                        .ok_or_else(|| unavailable(id, "binding names no body slot"))? = parameter;
+                }
+                _ => {}
+            }
+        }
+        Ok(collector.sites)
+    }
+
+    fn parameter(&self, expression: &Expression) -> Option<u32> {
+        self.parameters
+            .get(Self::slot(expression)?)
+            .copied()
+            .flatten()
+    }
+
+    fn slot(expression: &Expression) -> Option<usize> {
+        match &expression.kind {
+            E::Slot(slot) => Some(*slot),
+            E::Requalify(value) => Self::slot(value),
+            _ => None,
+        }
+    }
+}
+
+fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>) {
     match statement {
         Statement::Bind { value, .. }
         | Statement::Evaluate {
@@ -1084,12 +1134,12 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         }
     }
 }
-fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
+fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
     if let Target::Value(value) = target {
         collect_expression(value, calls);
     }
 }
-fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
+fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
     match &expression.kind {
         E::Call {
             callee,
@@ -1098,13 +1148,23 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             static_reach_arguments,
             ..
         } => {
-            if let CallTarget::Selected { callable, .. } = callee {
+            let selected_parameter = if let CallTarget::Selected { callable, .. } = callee {
+                let parameter = calls.parameter(callable);
                 collect_expression(callable, calls);
-            }
-            for argument in arguments {
+                parameter
+            } else {
+                None
+            };
+            let mut parameter_arguments = Vec::new();
+            for (position, argument) in arguments.iter().enumerate() {
+                if let Some(parameter) = calls.parameter(argument) {
+                    parameter_arguments.push((position, parameter));
+                }
                 collect_expression(argument, calls);
             }
-            calls.push(Use {
+            calls.sites.push(Use {
+                selected_parameter,
+                parameter_arguments,
                 target: callee,
                 required_contract: *required_contract,
                 arguments,
@@ -1114,17 +1174,27 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }
         | E::CollectionView { base, .. }
+        | E::StorageLocation { place: base, .. }
         | E::CollectionMeasure { base, .. }
         | E::ByteSequencePredicate { base, .. }
         | E::Establish { operand: base, .. }
         | E::Payload { base, .. }
         | E::IsCase { subject: base, .. }
-        | E::Borrow { place: base, .. }
         | E::Not(base)
         | E::BitwiseNot(base)
         | E::Cast(base)
         | E::Requalify(base)
         | E::Referent(base) => collect_expression(base, calls),
+        E::Borrow { place, access, .. } => {
+            collect_expression(place, calls);
+            // An exclusive borrower can replace the callback before its next read.
+            if access.is_exclusive()
+                && let Some(slot) = CallCollector::slot(place)
+                && let Some(binding) = calls.parameters.get_mut(slot)
+            {
+                *binding = None;
+            }
+        }
         E::Record { fields } | E::Case { fields, .. } => {
             for (_, field) in fields {
                 collect_expression(field, calls);
@@ -1213,20 +1283,7 @@ impl Program<'_> {
         let roots = crate::lowering::reach::source_closure(self.typed, context, &roots)?;
         let mut bindings = Vec::with_capacity(roots.len());
         for source in roots {
-            let symbol = self
-                .typed
-                .service_reaches
-                .definition(source)
-                .ok_or_else(|| unavailable(context, "service declaration is absent"))?
-                .symbol;
-            let declaration = self
-                .typed
-                .trait_definition_by_symbol(symbol)
-                .filter(|declaration| declaration.is_boundary)
-                .ok_or_else(|| {
-                    unavailable(context, "service does not name its exact boundary trait")
-                })?;
-            let id = self.declared_service(context, declaration)?;
+            let id = self.applied_source_service(context, source)?;
             bindings.push((source, id));
         }
         Ok(bindings)
@@ -1389,6 +1446,25 @@ impl<'t> Program<'t> {
         Ok(self.services.push((scope, parents)))
     }
 
+    fn applied_source_service(
+        &mut self,
+        caller: MachineId,
+        source: ServiceReachId,
+    ) -> Checked<ServiceId> {
+        let typed = self.typed;
+        let scope = typed.service_reach_scope(source).ok_or_else(|| {
+            let name = typed
+                .service_reaches
+                .definition(source)
+                .map_or("<absent>", |row| row.name.as_str());
+            unavailable(
+                caller,
+                format!("boundary service `{name}` requires its complete declared application"),
+            )
+        })?;
+        self.service(caller, scope)
+    }
+
     pub(super) fn declared_service(
         &mut self,
         caller: MachineId,
@@ -1414,42 +1490,24 @@ impl<'t> Program<'t> {
         self.service(caller, scope)
     }
 
-    /// What `owner`'s header says about service reach: its `reaches` clause
-    /// as the services it names and their boundary parents, or `Inferred`
-    /// when it wrote none. One reader for a checked body, a requirement and
-    /// a boundary requirement.
-    ///
-    /// effects.md, "Declarations": "`reaches A + B` bounds service reach by
-    /// the named boundary services and their boundary parents"; "Boundary
-    /// traits supply identities that may be named in `reaches`"; "Ordinary
-    /// traits are not service identities." The typed trees keep one authored
-    /// row per written clause, with no target for `reaches none`, so a
-    /// clause is told from an omission by the row and never by an empty
-    /// set. `reaches <= Bound` contributes its written upper bound while
-    /// checking source; the selected installation still owes its exact row.
     pub(super) fn reach_ceiling(
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
-        requirement: bool,
+        row: ServiceReachRowId,
     ) -> Checked<crate::lowering::Ceiling> {
-        let typed = self.typed;
-        let Some(owner) = crate::lowering::reach::authored_ceiling_owner(typed, caller, owner)?
+        let Some(sources) =
+            crate::lowering::reach::authored_source_ceiling(self.typed, caller, owner, row)?
         else {
             return Ok(crate::lowering::Ceiling::Inferred);
         };
-        let mut named = Vec::new();
-        for row in typed.authored_service_reach_rows_for(owner) {
-            if row.installation_bound && !requirement {
-                continue;
-            }
-            named.extend(row.targets.iter().map(|target| target.service));
-        }
-        Ok(crate::lowering::Ceiling::Authored(self.named_row(
-            caller,
-            named,
-            crate::lowering::body::Axis::Reach,
-        )?))
+        let mut services = sources
+            .into_iter()
+            .map(|source| self.applied_source_service(caller, source))
+            .collect::<Checked<Vec<_>>>()?;
+        services.sort_unstable();
+        services.dedup();
+        Ok(crate::lowering::Ceiling::Authored(services))
     }
 
     /// Prepare each selected callable and its binder ceiling in the same
@@ -1481,10 +1539,12 @@ impl<'t> Program<'t> {
             let contract = typed
                 .retained_static_machine_contract(binding.parameter)
                 .ok_or_else(|| unserved("a static callback binding has no source requirement"))?;
-            let bound = match self.reach_ceiling(owner, contract.signature().symbol, true)? {
-                crate::lowering::Ceiling::Inferred => None,
-                crate::lowering::Ceiling::Authored(bound) => Some(bound),
-            };
+            let signature = contract.signature();
+            let bound =
+                match self.reach_ceiling(owner, signature.symbol, signature.service_reach_row)? {
+                    crate::lowering::Ceiling::Inferred => None,
+                    crate::lowering::Ceiling::Authored(bound) => Some(bound),
+                };
             let selected = typed
                 .machine_by_symbol(argument.symbol)
                 .or_else(|| {
@@ -1526,10 +1586,25 @@ impl<'t> Program<'t> {
         if rows.is_empty() && !bodyless {
             return Ok(crate::lowering::Ceiling::Inferred);
         }
-        let mut named = Vec::with_capacity(rows.len());
+        let mut entries = Vec::with_capacity(rows.len());
         for row in rows {
             match row.target {
-                Named::Service(requirement) => named.push(requirement),
+                Named::AppliedService(service) => {
+                    entries.push(self.applied_source_service(caller, service)?);
+                }
+                Named::Service(symbol) => {
+                    let source = self
+                        .typed
+                        .service_reaches
+                        .id_for_symbol(symbol)
+                        .ok_or_else(|| {
+                            unavailable(
+                                caller,
+                                "the named effect does not select a boundary service",
+                            )
+                        })?;
+                    entries.push(self.applied_source_service(caller, source)?);
+                }
                 Named::Parameter { ordinal, symbol }
                     if symbol.is_valid()
                         && parameters
@@ -1573,80 +1648,11 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        Ok(crate::lowering::Ceiling::Authored(self.named_row(
-            caller,
-            named,
-            crate::lowering::body::Axis::Entries,
-        )?))
+        entries.sort_unstable();
+        entries.dedup();
+        Ok(crate::lowering::Ceiling::Authored(entries))
     }
 
-    /// The row a clause on `axis` writes by naming `named`: the one reading
-    /// of a written ceiling. Each name must be a boundary trait, whose
-    /// applied declaration is its service identity in the module's catalog.
-    /// A reach row is closed under boundary parents; an entry row is not
-    /// (`invokes_entry_ceiling.md`, "No parent closure").
-    ///
-    /// For reach a name that is not a boundary trait is a mistake of the
-    /// program ("Ordinary traits are not service identities"). For entries
-    /// it may be a valid requirement identity ("Route and direction decide
-    /// what a row may name, not declaration kind"), which the catalog has
-    /// no identity for yet, so it is not served.
-    fn named_row(
-        &mut self,
-        caller: MachineId,
-        named: Vec<symbols::SymbolHandle>,
-        axis: crate::lowering::body::Axis,
-    ) -> Checked<Vec<ServiceId>> {
-        let typed = self.typed;
-        let mut row = Vec::with_capacity(named.len());
-        for service in named {
-            let declaration = typed
-                .trait_definition_by_symbol(service)
-                .filter(|declaration| declaration.is_boundary)
-                .ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        match axis {
-                            crate::lowering::body::Axis::Reach => Unserved::Typing(
-                                "reaches names something that is not a boundary trait",
-                            ),
-                            crate::lowering::body::Axis::Entries => Unserved::Machine(
-                                "invokes naming a requirement that is not a boundary trait",
-                            ),
-                        },
-                    )
-                })?;
-            row.push(self.declared_service(caller, declaration)?);
-        }
-        Ok(match axis {
-            crate::lowering::body::Axis::Reach => self.with_parents(row),
-            crate::lowering::body::Axis::Entries => {
-                row.sort_unstable();
-                row.dedup();
-                row
-            }
-        })
-    }
-
-    /// `services` and every boundary parent of one, strictly increasing.
-    /// effects.md: "parents(R) subset-of normalize(R)".
-    fn with_parents(&self, mut services: Vec<ServiceId>) -> Vec<ServiceId> {
-        let mut next = 0;
-        while let Some(service) = services.get(next).copied() {
-            next += 1;
-            if let Some((_, parents)) = self.services.get(service) {
-                for parent in parents {
-                    if !services.contains(parent) {
-                        services.push(*parent);
-                    }
-                }
-            }
-        }
-        services.sort_unstable();
-        services.dedup();
-        services
-    }
     /// Notes that a Build selection awaits a provider for `service`.
     pub(super) fn awaits(&mut self, service: ServiceId) {
         if !self.readiness.contains(&service) {

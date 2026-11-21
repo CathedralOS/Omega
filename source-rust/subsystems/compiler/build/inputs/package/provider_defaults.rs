@@ -5,12 +5,13 @@
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use diagnostics::Diagnostic;
+use retained_product_selections::{
+    RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
+};
 use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
-use source_compiler::compile_product::provider_declarations::{
-    RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
-};
+use source_symbol_table::source_inputs::SourceMap;
 use std::path::PathBuf;
 
 pub(super) struct CompletedProviderDefaults {
@@ -37,7 +38,7 @@ impl CompletedProviderDefaults {
     pub(crate) fn reached_source_seeds(
         &self,
         inputs: &PackageCompilationInputs,
-        loaded_sources: Option<&source_compiler::representations::source_inputs::SourceMap>,
+        loaded_sources: Option<&SourceMap>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;
         let package_sliced = loaded_sources.is_some_and(|sources| {

@@ -846,6 +846,12 @@ impl ExactFloat {
     }
 
     pub fn add(&self, other: &Self) -> Self {
+        self.add_with_rounding(other, IeeeRounding::NearestTiesToEven)
+    }
+
+    /// The exact magnitude is independent of rounding. IEEE assigns the sign
+    /// of an exact cancellation here, while both input signs are still known.
+    pub fn add_with_rounding(&self, other: &Self, rounding: IeeeRounding) -> Self {
         match (self, other) {
             (Self::NaN, _) | (_, Self::NaN) => Self::NaN,
             (Self::Infinity { negative: left }, Self::Infinity { negative: right })
@@ -859,7 +865,12 @@ impl ExactFloat {
             (Self::Finite(left), Self::Finite(right)) => {
                 let mut result = left.add(right);
                 if result.is_zero() {
-                    result = BigRational::signed_zero(left.is_negative() && right.is_negative());
+                    let negative = if left.is_negative() == right.is_negative() {
+                        left.is_negative()
+                    } else {
+                        rounding == IeeeRounding::TowardNegative
+                    };
+                    result = BigRational::signed_zero(negative);
                 }
                 Self::Finite(result)
             }
@@ -867,7 +878,11 @@ impl ExactFloat {
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        self.add(&other.negate())
+        self.sub_with_rounding(other, IeeeRounding::NearestTiesToEven)
+    }
+
+    pub fn sub_with_rounding(&self, other: &Self, rounding: IeeeRounding) -> Self {
+        self.add_with_rounding(&other.negate(), rounding)
     }
 
     pub fn mul(&self, other: &Self) -> Self {

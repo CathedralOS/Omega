@@ -7,7 +7,7 @@ const REPEATED: &str =
     include_str!("../../tests/fixtures/ownership/fail/inferred_generic_record_reuse/main.omg");
 
 fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let typed = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+    let typed = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[])
         .expect("the actual initializer must reach checked preparation");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

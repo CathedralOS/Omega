@@ -123,20 +123,37 @@ impl NativeStageReplay {
         mut components: Vec<([u8; 32], Box<RetainedPhysicalInputs>)>,
     ) -> Result<Self, diagnostics::Diagnostic> {
         components.sort_unstable_by_key(|(slot, _)| *slot);
-        if components.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err(diagnostics::Diagnostic::error(
-                "duplicate component slot in native stage replay",
-            ));
+        for (index, (slot, original)) in components.iter().enumerate() {
+            if components[..index]
+                .iter()
+                .rev()
+                .take_while(|(other, _)| other == slot)
+                .any(|(_, other)| {
+                    std::sync::Arc::ptr_eq(&original.encoding.encoding, &other.encoding.encoding)
+                })
+            {
+                return Err(diagnostics::Diagnostic::error(
+                    "duplicate component object in native stage replay",
+                ));
+            }
         }
         self.components = components;
         Ok(self)
     }
 
-    pub fn component(&self, slot: &[u8; 32]) -> Option<&RetainedPhysicalInputs> {
-        self.components
-            .binary_search_by_key(slot, |(key, _)| *key)
-            .ok()
-            .map(|index| self.components[index].1.as_ref())
+    /// The same physical export can be reached through two receivers. An audit
+    /// follows the retained encoding from this particular object construction.
+    pub fn component(
+        &self,
+        slot: &[u8; 32],
+        object: &ObjectArtifact,
+    ) -> Option<&RetainedPhysicalInputs> {
+        let start = self.components.partition_point(|(key, _)| key < slot);
+        self.components[start..]
+            .iter()
+            .take_while(|(key, _)| key == slot)
+            .find(|(_, inputs)| inputs.check_object(object).is_ok())
+            .map(|(_, inputs)| inputs.as_ref())
     }
 
     fn check_bodies(
@@ -336,6 +353,8 @@ pub fn verify_retained_target_operations(
     let original = retained_target(replay, "target-operation")?;
     let current = original.target_for_correspondence();
     let optimized = current.optimized();
+    target_lowering::replay::require_lowering_context(optimized, current.lowering_facts(), current.target())
+        .map_err(|error| diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}")))?;
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
     // from the current program, so this check runs here and in the object
@@ -345,33 +364,19 @@ pub fn verify_retained_target_operations(
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     // The validator judges the plan published for this object,
     // not a plan prepared again here.
-    let target = current.working_program_for_validation();
-    let callable_roots = current
-        .lowering_facts()
-        .callable_invocation_roots(target)
-        .map_err(diagnostics::Diagnostic::error)?;
     target_lowering::replay::verify_execution_plan(
         current.execution_plan(),
-        target_lowering::replay::ExecutionPlanReplayInputs {
-            target,
-            abstract_plan: optimized.plan(),
-            unit: optimized.unit(),
-            origins: current.boundary_origins(),
-            installed_interrupts: current.lowering_facts().installed_interrupts(),
-            closed_module: current.lowering_facts().closed_module(),
-            callable_roots: &callable_roots,
-            pre_physical: optimized.pre_physical_manifest().identity,
-        },
-    )
-    .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-    let expected = target_lowering::replay::capture_runtime_borrowed_storage_layouts(
+        current.working_program_for_validation(),
         optimized,
         current.lowering_facts(),
-        current.target(),
     )
-    .map_err(|error| {
-        diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error:?}"))
-    })?;
+    .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
+    let expected = current
+        .lowering_facts()
+        .replay_borrowed_storage_layouts(current.target())
+        .map_err(|error| {
+            diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error}"))
+        })?;
     if expected != current.execution_plan().plan().borrowed_storage_layouts {
         return Err(diagnostics::Diagnostic::error(
             "published borrowed storage geometry differs from admitted declarations",
@@ -421,7 +426,7 @@ pub mod physical {
         validate_optimized_layout_independent_selected_form_encoding,
     };
     use optimization_core::OptimizationExecutionPhase;
-    use relaxation::relaxation::{
+    use placement::relaxation::{
         validate_current_layout_optimization, validate_resolved_layout_optimization,
     };
     use selected_instruction_analyses::SelectedProgramView;
@@ -441,12 +446,12 @@ pub mod physical {
         originals
             .allocation
             .validate_publication()
-            .map_err(|error| refused("stage 08 allocation publication", error))?;
+            .map_err(|error| refused("allocation publication", error))?;
         let program = &layout.program;
         let current = &AllocationOriginals::retain(&originals.allocation);
         current
             .validate_roots()
-            .map_err(|error| refused("stage 08 allocation roots", error))?;
+            .map_err(|error| refused("allocation roots", error))?;
         let selected = &current.selected;
         let environment = &current.environment;
         let physical = environment.physical();
@@ -475,14 +480,14 @@ pub mod physical {
                 artifact: &originals.encoding,
             },
         )
-        .map_err(|error| refused("stage 12 selected-form encoding", error))?;
+        .map_err(|error| refused("selected-form encoding", error))?;
         validate_optimized_resolved_selected_form_layout(ResolvedLayoutValidation {
             physical: instructions,
             replay,
             pre_layout: originals.encoding.encoding.as_ref(),
             artifact: &originals.baseline_layout,
         })
-        .map_err(|error| refused("stage 13 resolved layout", error))?;
+        .map_err(|error| refused("resolved layout", error))?;
         validate_resolved_layout_optimization(
             physical,
             &originals.baseline_layout.layout,
@@ -493,16 +498,16 @@ pub mod physical {
             layout,
             trace,
         )
-        .map_err(|error| refused("stage 14 layout optimization", error))?;
+        .map_err(|error| refused("layout optimization", error))?;
         encoding_admission::layout::validate_current_resolved_layout(program)
-            .map_err(|error| refused("stage 14 resolved layout bytes", error))?;
+            .map_err(|error| refused("resolved layout bytes", error))?;
         validate_current_layout_optimization(layout, trace)
-            .map_err(|error| refused("stage 14 relaxation trace", error))?;
+            .map_err(|error| refused("relaxation trace", error))?;
         let requirements = validate_allocated_callee_saved_requirements(
             current,
             program.context.preservation.plan().clone(),
         )
-        .map_err(|error| refused("stage 08 callee-saved requirements", error))?;
+        .map_err(|error| refused("callee-saved requirements", error))?;
         if encoding_admission::fragment_origins::prepare_fragment_origins(instructions)
             != *program.fragment_origins
         {

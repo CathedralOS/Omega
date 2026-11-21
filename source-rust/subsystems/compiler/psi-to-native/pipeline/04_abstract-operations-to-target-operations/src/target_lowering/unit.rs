@@ -13,10 +13,10 @@ pub(crate) mod argument_roots {
     use crate::target_lowering::structural_layout::structural_shape;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::AbstractFunction;
-    use abstract_operations::control_flow::address_joins::is_address_join;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::PlaceId;
     use std::collections::{BTreeMap, BTreeSet};
+    use structural_storage_queries::address_joins::is_address_join;
     use target_operations::{
         TargetStructuralArgumentSource, TargetStructuralHomeOrigin,
         TargetStructuralHomeRequirement, TargetStructuralParameter,
@@ -956,18 +956,13 @@ pub(crate) mod boundary_call {
                     }
                     let catalog = structural_types.catalog();
                     let descriptor_input =
-                        target_operations::descriptor_input_guard_for_call_with_closed_scalars(
+                        crate::descriptor_input::descriptor_input_guard_for_call_with_closed_scalars(
                             foreign,
                             catalog,
                             &scalar_arguments,
                             &structural_arguments,
                             &target_result,
-                            |buffer| {
-                                crate::target_lowering::borrowed_storage::capture_type(
-                                    buffer,
-                                    structural_types,
-                                )
-                            },
+                            |buffer| structural_types.borrowed_layout(buffer),
                             |scalar| structural_types.closed_scalar(scalar),
                         )
                         .map_err(|reason| {

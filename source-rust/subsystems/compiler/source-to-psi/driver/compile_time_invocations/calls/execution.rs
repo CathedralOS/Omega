@@ -1,9 +1,9 @@
 //! Execute a source-authenticated call using the common Build interpreter and its actual sponsor.
-use checked_program_to_psi::production;
 use super::target::{InvocationTarget, complete_invocation_scalar_applications};
 use super::{PreparedBuildMachineEntry, source_selection};
 use crate::compile_time_invocations::{BuildTimeValue, SourceCompletionAccounting};
-use source_completion_accounting::{RecordedSourceInvocation, SourceInvocationSite};
+use checked_program_to_psi::production;
+use source_completion_accounting::RecordedSourceInvocation;
 use std::sync::Arc;
 
 impl PreparedBuildMachineEntry {
@@ -49,41 +49,41 @@ impl PreparedBuildMachineEntry {
             &mut meter,
             observed_calls,
         );
-        let site = SourceInvocationSite {
-            accepted: &self.accepted,
-            request_source: Arc::clone(&self.source),
-            machine: self.symbol,
-            requester: self.requester,
-            call: self.call_source,
-            arguments: Arc::clone(&self.arguments),
-            inputs: Arc::clone(&self.input_values),
-        };
-        let RecordedSourceInvocation { value, receipt } =
-            RecordedSourceInvocation::record(site, produced, admitted, &meter, run)?;
-        let result = value.and_then(|(value, events)| complete(value, events));
-        accounting.append_invocation(receipt, result.as_ref().err().cloned());
-        result
+        RecordedSourceInvocation::record(
+            self.source_invocation_inputs(),
+            &produced,
+            admitted,
+            &meter,
+            run,
+        )?
+        .finish(accounting, |(value, events)| complete(value, events))
     }
 
     pub fn invoke_recorded_in_targets(
         &self,
         targets: &[(&str, Option<&layout_plans::LayoutTargetFacts>)],
         accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
-    ) -> Result<Vec<crate::compile_time_invocations::BuildTimeValue>, String> {
+    ) -> Result<
+        (
+            Vec<crate::compile_time_invocations::BuildTimeValue>,
+            typed_trees_to_prepared_typed_trees::TargetInputs,
+        ),
+        String,
+    > {
+        use typed_trees_to_prepared_typed_trees::{PreparedTarget, TargetInputs};
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
-        if module.layouts.target_layout_applications.is_empty()
-            && module.scalars.scalar_applications.declarations().is_empty()
-        {
+        if !Self::uses_target_layout(module) {
             let target = InvocationTarget {
                 name: None,
                 layout_target: None,
                 carrier_layout: None,
                 address_model: None,
             };
-            return Ok(vec![
-                self.invoke_produced_recorded(produced, target, accounting)?,
-            ]);
+            return Ok((
+                vec![self.invoke_produced_recorded(produced, target, accounting)?],
+                TargetInputs::None,
+            ));
         }
         if targets.is_empty() {
             return Err(
@@ -92,21 +92,27 @@ impl PreparedBuildMachineEntry {
                     .into(),
             );
         }
-        targets
-            .iter()
-            .map(|(name, facts)| {
-                let facts = facts.ok_or_else(|| {
-                    format!("deployment `{name}` has no complete layout facts for the layout it stores through")
-                })?;
-                let target = InvocationTarget {
-                    name: Some(name),
-                    layout_target: Some(facts),
-                    carrier_layout: None,
-                    address_model: None,
-                };
-                self.invoke_produced_recorded(Arc::clone(&produced), target, accounting)
-            })
-            .collect()
+        let mut values = Vec::with_capacity(targets.len());
+        let mut inputs = Vec::with_capacity(targets.len());
+        for &(name, facts) in targets {
+            let facts = facts.ok_or_else(|| format!("deployment `{name}` has no complete layout facts for the layout it stores through"))?;
+            let target = InvocationTarget {
+                name: Some(name),
+                layout_target: Some(facts),
+                carrier_layout: None,
+                address_model: None,
+            };
+            values.push(self.invoke_produced_recorded(
+                Arc::clone(&produced),
+                target,
+                accounting,
+            )?);
+            inputs.push(PreparedTarget {
+                deployment: name.to_owned(),
+                layout: facts.clone(),
+            });
+        }
+        Ok((values, TargetInputs::Observed(inputs)))
     }
 
     fn admit_invocation(
@@ -142,8 +148,12 @@ impl PreparedBuildMachineEntry {
             product: None,
         };
         match self.purpose {
-            source_provenance::DependencyScope::Build => authorities.build = self.authority.as_deref(),
-            source_provenance::DependencyScope::Product => authorities.product = self.authority.as_deref(),
+            source_provenance::DependencyScope::Build => {
+                authorities.build = self.authority.as_deref().map(|scope| scope as _)
+            }
+            source_provenance::DependencyScope::Product => {
+                authorities.product = self.authority.as_deref().map(|scope| scope as _)
+            }
         }
         produced
             .source_selections()
@@ -214,7 +224,7 @@ impl PreparedBuildMachineEntry {
             root,
             unselected,
             requester,
-            self.authority.as_deref(),
+            self.authority.as_deref().map(|scope| scope as _),
             source_selection
                 .as_ref()
                 .map(|selection| selection as &dyn evaluation_admission::InvocationSourceSelection),

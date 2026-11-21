@@ -47,10 +47,14 @@ fn product<'a>(
     selections: &'a [ProductEntryBinding],
 ) -> Result<StageSource<'a>, Vec<diagnostics::Diagnostic>> {
     Ok(StageSource {
-        parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])?,
+        parsed: Box::new(source_compiler::ParsedStageSources::parse(
+            Arc::new(files),
+            vec![root],
+            vec![],
+        )?),
         product: ProductSourceInputs {
             build_accounting: None,
-            declaration_authority: None,
+            declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
             generated: None,
             targets: &[],
@@ -60,7 +64,6 @@ fn product<'a>(
             policy: Default::default(),
             default_provider_selections: &[],
             native_bindings: Default::default(),
-            layout_selection_authority: None,
             optimizations: Default::default(),
         },
     })
@@ -79,6 +82,202 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     let bytes = program.to_bytes();
     let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn inherited_provider_methods_keep_the_declaring_application_and_result() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Reading<T> {
+            machine read() -> T reaches none crashes none;
+        }
+        public boundary trait OpenChild<T>: Reading<T> {}
+        public boundary trait Narrow: Reading<u32> {}
+        public NarrowSupply satisfies Narrow {
+            machine read() -> u32 reaches none crashes none { 17u32 }
+        }
+        public WideSupply satisfies Reading<u64> {
+            machine read() -> u64 reaches none crashes none { 29u64 }
+        }";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let candidates = &module.interfaces.provider_candidates;
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(
+        candidates[0].source_requirement_identity,
+        candidates[1].source_requirement_identity
+    );
+    assert_ne!(
+        candidates[0].receiving_application,
+        candidates[1].receiving_application
+    );
+    for candidate in candidates {
+        assert_eq!(
+            candidate.declaration_application,
+            candidate.receiving_application
+        );
+        let boundary = module.boundary_machine(candidate.boundary).unwrap();
+        let service = boundary.owning_service.unwrap();
+        let receiver = module
+            .interfaces
+            .services
+            .iter()
+            .find(|row| row.id == service)
+            .unwrap();
+        assert_eq!(receiver.identity, candidate.receiving_application);
+    }
+
+    let wrong = source.replace(
+        "-> u32 reaches none crashes none { 17u32 }",
+        "-> u64 reaches none crashes none { 17u64 }",
+    );
+    let (files, root) = captured(package, &wrong);
+    assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
+fn selected_requirement_reach_keeps_its_receiver_arguments() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Reading<T> {
+            machine read() -> u64 reaches Reading<T> crashes none;
+        }
+        public Narrow satisfies Reading<u32> {
+            machine read() -> u64 reaches none crashes none { 17u64 }
+        }
+        public Wide satisfies Reading<u64> {
+            machine read() -> u64 reaches none crashes none { 29u64 }
+        }";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let candidates = &module.interfaces.provider_candidates;
+    assert_eq!(candidates.len(), 2);
+    let mut applications = Vec::new();
+    for candidate in candidates {
+        let boundary = module.boundary_machine(candidate.boundary).unwrap();
+        let receiver = boundary.owning_service.unwrap();
+        assert_eq!(boundary.published_service_ceiling, [receiver]);
+        assert!(boundary.published_synchronous_entries.is_empty());
+        let selected = module.machine(candidate.candidate).unwrap();
+        assert_eq!(selected.contract.published_service_ceiling, [receiver]);
+        applications.push(receiver);
+    }
+    assert_ne!(applications[0], applications[1]);
+}
+
+#[test]
+fn const_service_terms_are_values_in_the_callers_scope() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Sensor<const Id: u64> {
+            machine read() -> u64 reaches none crashes none;
+        }
+        public boundary trait Reader {
+            machine poll() reaches Sensor<17u64> + Sensor<29u64> invokes Sensor<17u64> crashes none;
+        }
+        public machine published() reaches Sensor<17u64> + Sensor<29u64> invokes Sensor<17u64> crashes none {}";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let published = module
+        .machines
+        .iter()
+        .find(|machine| machine.contract.published_service_ceiling.len() == 2)
+        .unwrap();
+    let reachable = &published.contract.published_service_ceiling;
+    let entries = &published.contract.published_synchronous_entries;
+    assert_eq!(entries.len(), 1);
+    assert!(reachable.contains(&entries[0]));
+    let receiving = module
+        .interfaces
+        .services
+        .iter()
+        .find(|service| service.id == entries[0])
+        .unwrap();
+    let identity = module.identities.text(receiving.identity).unwrap();
+    assert!(identity.contains("arguments(integer(17))"), "{identity}");
+}
+
+#[test]
+fn a_generic_call_forwards_the_callers_const_service_argument() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Sensor<const Id: u64> {
+            machine read() -> u64 reaches Sensor<Id> crashes none;
+        }
+        public machine poll<const K: u64>() -> u64 reaches Sensor<K> crashes none { Sensor::<K>::read() }
+        public machine first() -> u64 reaches Sensor<17u64> crashes none { poll::<17u64>() }
+        public machine second() -> u64 reaches Sensor<29u64> crashes none { poll::<29u64>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace(
+        "second() -> u64 reaches Sensor<29u64>",
+        "second() -> u64 reaches Sensor<17u64>",
+    );
+    let (files, root) = captured(package, &wrong);
+    assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
+fn invocation_ceiling_follows_callable_parameter_aliases() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let check = |ceiling: &str, body: &str| {
+        let source = format!(
+            "data Callback = machine() -> u64 reaches none crashes none;
+             machine forward(selected: Callback) -> u64 invokes selected {{ selected() }}
+             machine probe(other: Callback, selected: Callback) -> u64 {ceiling} {{ {body} }}"
+        );
+        let (files, root) = captured(package, &source);
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    let alias = "let alias: Callback = selected; alias()";
+    let forwarded = "let first: Callback = selected; let second: Callback = first; forward(second)";
+    check("invokes selected", alias).unwrap();
+    let rebound = "let mut slot: Callback = other; slot = selected; forward(slot)";
+    for body in ["selected()", alias, forwarded, rebound] {
+        let artifact = check("", body).unwrap();
+        let module = artifact.semantic_module();
+        let probe = module
+            .machines
+            .iter()
+            .find(|machine| machine.contract.parameter_order.len() == 2)
+            .unwrap();
+        let ceiling = module
+            .execution
+            .callables
+            .machine_envelope(probe.id)
+            .unwrap();
+        assert_eq!(
+            ceiling.invocations,
+            [terminal_psi::TerminalCallableInvocation::Parameter(1)]
+        );
+    }
+    check(
+        "invokes other",
+        "let mut slot: Callback = other; let saved: Callback = slot;
+         slot = selected; forward(saved)",
+    )
+    .unwrap();
+    check("invokes other", "let alias: Callback = selected; 7u64").unwrap();
+    for body in [alias, forwarded] {
+        let errors = check("invokes other", body).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("invokes")
+                    && error.message.contains("parameter 2")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn selected_members_keep_the_callable_type_they_share() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        include_str!("../../../../../samples/cli/facts/dynamic_trait_dispatch/local/main.omg"),
+    );
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
 }
 
 const OMEGA_REQUEST: &str =
@@ -148,7 +347,7 @@ fn complete_omega_request_protocol_publishes_psi() {
         &[package, wire_package],
         [(package, wire_package)],
     );
-    stage.product.declaration_authority = Some(&scope);
+    stage.product.declaration_scope = Some(Arc::new(scope));
     stage.parsed.roots.extend([outcome, protocol, wire]);
     stage
         .parsed
@@ -191,7 +390,7 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
         let mut stage = product(files, root, customer, &[]).unwrap();
         let scope =
             ProductDeclarationScope::from_direct_dependencies(&[customer, psi], [(customer, psi)]);
-        stage.product.declaration_authority = Some(&scope);
+        stage.product.declaration_scope = Some(Arc::new(scope));
         stage.parsed.roots.extend([scalar, layouts]);
         stage
             .parsed
@@ -244,6 +443,82 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
             .contains("retained declaration is absent or changed"),
         "{diagnostics:?}"
     );
+}
+
+fn publish_build(
+    files: SourceMap,
+    entry: SourceSpan,
+    package: PackageKeyIdentity,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let stage = source_compiler::BuildStageSource {
+        parsed: source_compiler::ParsedStageSources::parse(
+            Arc::new(files),
+            vec![entry.source_id],
+            vec![],
+        )?,
+        build_sources: [entry.source_id].into(),
+        pending_imports: vec![],
+        entry,
+    };
+    let typed = stage
+        .prepare(None, &Default::default(), "linux_x86_64", None)?
+        .program;
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(entry))
+        .expect("the parsed Build contains the selected machine");
+    let judged = source_compiler::CheckedBuildInvocation::judge(
+        &typed,
+        machine.symbol,
+        &[Some(package)],
+        None,
+    )
+    .map_err(|failure| failure.diagnostics)?;
+    judged.invocation.prepare_publication()?.publish().map(|_| ())
+}
+
+#[test]
+fn build_and_product_check_the_return_value_before_publication() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    for (returned, satisfies_contract) in [("7u32", true), ("8u32", false)] {
+        let text = format!("machine build() -> u32 ensures result == 7u32 {{ {returned} }}");
+        let (mut files, root) = captured(package, &text);
+        let build = files
+            .add_checked_instance(
+                "project/build.omg".into(),
+                text.as_str(),
+                "project".into(),
+                Some(package),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Build,
+            )
+            .source_id;
+        let start = text.find("build").unwrap();
+        let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
+        let product = compile(product(files.clone(), root, package, &[]).unwrap(), None);
+        let invocation = publish_build(files, entry, package);
+
+        for (source, result) in [(root, product.map(|_| ())), (build, invocation)] {
+            if satisfies_contract {
+                result.unwrap();
+                continue;
+            }
+            let errors = result.expect_err("returning 8 breaks the promise to return 7");
+            let diagnostic = errors
+                .iter()
+                .find(|row| row.message.contains("ensures"))
+                .unwrap_or_else(|| panic!("expected an unproved ensures clause: {errors:?}"));
+            assert_eq!(
+                diagnostic.stage,
+                Some(diagnostics::DiagnosticStage::Checking)
+            );
+            let start = text.rfind(returned).unwrap();
+            let span = Span::new(start, start + returned.len());
+            assert_eq!(diagnostic.source_span, Some(SourceSpan::new(source, span)));
+        }
+    }
 }
 
 #[test]

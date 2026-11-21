@@ -12,14 +12,13 @@ satisfies StepContract::step
     42
 }
 
-machine walk<machine Step>(value: u64) -> u64
-requires machine Step satisfies StepContract::step;
+machine walk<const Step: StepContract::step>(value: u64) -> u64
 {
     Step(value)
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

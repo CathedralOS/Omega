@@ -23,15 +23,16 @@ use compile_product::{
     CompletedProductSource, ProductEntry, ProductSourceInputs, prepare_lower_and_check,
 };
 use diagnostics::Diagnostic;
-use std::sync::Arc;
 
 pub(crate) fn publish_stage(
     source: StageSource<'_>,
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
+    accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
 ) -> Result<(PublishedPsi, CompletedProductSource), Vec<Diagnostic>> {
-    let (product, continuation) = source.resolve()?;
-    let checked = product.judge(continuation, entry)?;
+    let mut timings = CompileTimings::default();
+    let (product, continuation) = source.resolve(&mut timings)?;
+    let checked = product.judge(continuation, entry, accounting, &mut timings)?;
     let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
@@ -42,6 +43,7 @@ pub(crate) fn publish_stage(
 impl<'a> StageSource<'a> {
     pub(crate) fn resolve(
         self,
+        timings: &mut CompileTimings,
     ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
         let primary = self
             .parsed
@@ -52,10 +54,10 @@ impl<'a> StageSource<'a> {
         let mut request = self
             .parsed
             .into_request(self.product.build_host.canonical_name(), primary)?;
-        request.selection_authority = self.product.layout_selection_authority.clone();
+        request.selection_authority = self.product.declaration_scope.clone();
         let continuation = request
             .with_build_entry(self.product.policy.activation)
-            .prepare(&mut CompileTimings::default())?;
+            .prepare(timings)?;
         Ok((self.product, continuation))
     }
 }
@@ -65,25 +67,21 @@ impl ProductSourceInputs<'_> {
         &self,
         continuation: SourceTypingCheckpoint,
         entry: ProductEntry<'_>,
+        accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+        timings: &mut CompileTimings,
     ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
-        prepare_lower_and_check(
-            continuation,
-            self.clone(),
-            entry,
-            &mut CompileTimings::default(),
-        )
+        prepare_lower_and_check(continuation, self.clone(), entry, accounting, timings)
     }
 
     pub(crate) fn publish(
         &self,
         checked: &CompletedProductSource,
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
-        let psi = checked.terminal_publication.publish(
+        checked.terminal_publication.publish(
             &self.optimizations,
-            self.declaration_authority,
+            self.declaration_scope.as_deref().map(|scope| scope as _),
             &mut CompileTimings::default(),
-        )?;
-        Ok(Arc::clone(psi.artifact()))
+        )
     }
 }
 
@@ -103,7 +101,7 @@ pub(crate) fn published_target(
         exclusions: checked.exclusions,
         runtime_declarations: RuntimePermissionDeclarations {
             source: checked.program,
-            has_root_grants: !checked.grants.is_empty(),
+            root_grants: checked.grants.into(),
             has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
         },
     })

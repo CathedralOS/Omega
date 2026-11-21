@@ -12,13 +12,13 @@ use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConstShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) declared_type: PackageReviewTypeIdentity,
-    pub(crate) meaning: PackageReviewConstMeaning,
+    pub identity: PackageReviewNominalIdentity,
+    pub declared_type: PackageReviewTypeIdentity,
+    pub meaning: PackageReviewConstMeaning,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewConstMeaning {
+pub enum PackageReviewConstMeaning {
     Evaluated(String),
     TargetDependent(super::expressions::PackageReviewContractExpression),
 }

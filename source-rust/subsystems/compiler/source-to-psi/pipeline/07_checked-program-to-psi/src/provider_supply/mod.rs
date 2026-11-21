@@ -27,7 +27,8 @@ mod demand;
 mod package_review;
 pub use demand::SourceProviderFacts;
 pub use source_provider_publication::{
-    PublishedTargetProviders, SourceNativeBinding, SourcePackageReviewRequirements, SourceProviderDemand,
+    PublishedTargetProviders, SourceNativeBinding, SourcePackageReviewRequirements,
+    SourceProviderDemand,
 };
 
 pub use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
@@ -136,6 +137,7 @@ pub struct PreparedTargetSupply {
 }
 
 pub struct TargetSupplyRequest<'a> {
+    pub source: &'a crate::source_state::TypedTrees,
     /// The accepted module and the requirements it declares
     /// (`AcceptedTerminalSource::{module, boundary_requirements_declared}`).
     pub module: &'a TerminalModule,
@@ -160,6 +162,7 @@ pub struct TargetSupplyRequest<'a> {
 impl PreparedTargetSupply {
     pub fn prepare(request: TargetSupplyRequest<'_>) -> Result<Self, Vec<Diagnostic>> {
         let TargetSupplyRequest {
+            source,
             module,
             declared,
             roots,
@@ -179,7 +182,8 @@ impl PreparedTargetSupply {
         // but never become provider-selection slots. Their consumer joins the
         // explicit canonical requirement link when it realizes the operation.
         let provider_declarations = module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .filter(|boundary| !is_direct_compiler_primitive(boundary))
             .count();
@@ -198,9 +202,10 @@ impl PreparedTargetSupply {
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
         loop {
-            let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-                .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
-                .map_err(defect)?;
+            let graph =
+                terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
+                    .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
+                    .map_err(defect)?;
             let scalar_roots = graph
                 .scalar_evaluation_roots(&roots, target)
                 .map_err(defect)?;
@@ -270,20 +275,22 @@ impl PreparedTargetSupply {
                         selection: SupplySelection::Checked(selection.clone()),
                     })
                     .collect::<Vec<_>>();
-                supplies.extend(
-                    native_bindings
-                        .iter()
-                        .filter(|supply| {
-                            let selected = &supply.selection;
-                            selected.target.canonical_name() == target
-                                && selected.subject == requirement.slot
-                                && selected.requirement == requirement.requirement
-                        })
-                        .map(|supply| ProviderSupply {
+                for supply in native_bindings.iter().filter(|supply| {
+                    supply.selection.target.canonical_name() == target
+                        && supply.selection.subject == requirement.slot
+                }) {
+                    match supply
+                        .selection
+                        .requirement_identity_for(source, requirement.requirement)
+                    {
+                        Ok(Some(_)) => supplies.push(ProviderSupply {
                             authority: SupplyAuthority::NativeBinding,
                             selection: SupplySelection::Native(supply.clone()),
                         }),
-                );
+                        Ok(None) => {}
+                        Err(reason) => refusals.push(refuse(target, &reason)),
+                    }
+                }
                 if let Err(demand) = unplanned_boundary(module, requirement) {
                     refusals.push(refuse(target, &format!("{demand} `{}`", requirement.name)));
                     continue;
@@ -570,7 +577,10 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
         ),
         (
             !module.interfaces.callback_applications.is_empty()
-                || !module.interfaces.installed_interrupt_registrations.is_empty(),
+                || !module
+                    .interfaces
+                    .installed_interrupt_registrations
+                    .is_empty(),
             "a callback",
         ),
         (
@@ -609,12 +619,15 @@ fn unplanned_boundary(
 
 /// This classification consumes an already checked declaration; it grants no
 /// native execution. Target realization independently rejoins its core link.
-fn is_direct_compiler_primitive(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
+pub(crate) fn is_direct_compiler_primitive(
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> bool {
     boundary.declaration.as_ref().is_some_and(|declaration| {
         matches!(
             declaration.execution,
             terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
                 | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+                | terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
         )
     })
 }

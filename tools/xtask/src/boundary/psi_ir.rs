@@ -4,7 +4,8 @@ use std::{fs, path::Path};
 use serde::Deserialize;
 use syn::{Expr, File, Item, Lit, Meta, Type, Visibility};
 
-const PSI: &str = "source-rust/subsystems/compiler/psi";
+use super::{PSI_CONSUMERS, PSI_RECORDS as PSI};
+
 const GROUPS: &[(&str, &str)] = &[
     ("types", "TypeDeclarations"),
     ("scalars", "ScalarDeclarations"),
@@ -127,7 +128,9 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         let path = entry.path();
         let name = entry.file_name();
         let name = name.to_string_lossy();
+        // Reader crates sit beside the record fields and have their own module roots.
         if path.is_dir()
+            && !PSI_CONSUMERS.iter().any(|owner| path == root.join(owner))
             && !name.starts_with('.')
             && !matches!(name.as_ref(), "tests" | "target")
             && (field_type(&program, &name).is_none()

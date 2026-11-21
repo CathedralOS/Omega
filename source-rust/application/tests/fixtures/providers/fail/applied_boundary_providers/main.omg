@@ -1,12 +1,14 @@
 // Expected exit: 0
+data ProductRole {}
+data Slot<T> {}
 boundary trait Service<T> {
     machine value() -> u64 reaches none crashes none;
 }
 First satisfies Service<u32> { machine value() -> u64 reaches none crashes none { 29u64 } }
-Second satisfies Service<u64> { machine value() -> u64 reaches none crashes none { 37u64 } }
+Second satisfies Service<Slot<ProductRole>> { machine value() -> u64 reaches none crashes none { 37u64 } }
 machine main() crashes Trap {
     let first: u64 = Service::<u32>::value();
-    let second: u64 = Service::<u64>::value();
+    let second: u64 = Service::<Slot<ProductRole>>::value();
     transition first == 29u64 && second == 37u64 {
         true -> done(),
         false -> wrong()

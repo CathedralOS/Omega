@@ -21,3 +21,6 @@
 # image-pe still reports 10 cache hits. Re-enable it only after mbx fixes
 # the defect and a cold `cargo clean && mbx check -p image-pe` succeeds.
 build_script_execution = false
+
+# Under disk pressure, collect idle worker targets before assigned ones.
+prefer_target_while_git_file = "topic"

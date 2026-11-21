@@ -404,7 +404,7 @@ mod tests {
                     owner: requirement,
                     keyword_source_spans: Vec::new(),
                     targets: vec![crate::source_state::signature::AuthoredServiceReachTarget {
-                        service: other,
+                        service: crate::source_state::signature::ReachSubject::Static(other),
                         source_span: source_text::SourceSpan::new(
                             source,
                             source_text::Span::new(0, 4),
@@ -712,12 +712,43 @@ mod tests {
             );
             let mut program = Program::new(&typed, true);
             let caller = program.machine(fixture.caller).unwrap();
-            let values =
-                program.application_arguments(caller, fixture.nested, application, &arguments);
+            let values = program.application_arguments(
+                caller,
+                fixture.caller,
+                fixture.nested,
+                application,
+                &arguments,
+            );
             if valid {
+                let values = values.unwrap();
                 assert!(
-                    values.unwrap().values.is_empty(),
+                    values.values.is_empty(),
                     "record captures are not scalar actuals"
+                );
+                assert_eq!(values.lexical_owner, fixture.caller);
+                let outsider = program.machine(fixture.outsider).unwrap();
+                let inherited = program
+                    .application_arguments(
+                        outsider,
+                        fixture.caller,
+                        fixture.nested,
+                        application,
+                        &arguments,
+                    )
+                    .unwrap();
+                assert_eq!(inherited.lexical_owner, fixture.caller);
+                let refused = program
+                    .application_arguments(
+                        outsider,
+                        fixture.outsider,
+                        fixture.nested,
+                        application,
+                        &arguments,
+                    )
+                    .unwrap_err();
+                assert_eq!(
+                    refused.detail,
+                    "generic application has another source owner or declaration"
                 );
             } else {
                 assert_eq!(
@@ -740,7 +771,13 @@ mod tests {
         let mut program = Program::new(&typed, true);
         let caller = program.machine(fixture.caller).unwrap();
         let refused = program
-            .application_arguments(caller, fixture.nested, application, &captured)
+            .application_arguments(
+                caller,
+                fixture.caller,
+                fixture.nested,
+                application,
+                &captured,
+            )
             .unwrap_err();
         assert_eq!(
             refused.detail,

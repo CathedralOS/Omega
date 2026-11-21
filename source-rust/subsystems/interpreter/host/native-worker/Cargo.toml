@@ -26,4 +26,4 @@ windows-sys = { version = "0.61.2", features = [
 [dev-dependencies]
 native-provider-sponsor = { path = "../native-sponsor", features = ["test-support"] }
 native-compiler = { path = "../../../compiler/psi-to-native", features = ["test-support"] }
-image-emission = { path = "../../../compiler/psi-to-native/pipeline/16_objects-to-image/image-emission" }
+image-emission = { path = "../../../compiler/psi-to-native/pipeline/15_objects-to-image/image-emission" }

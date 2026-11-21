@@ -34,10 +34,44 @@ pub(crate) mod boundary_predicates {
             ))
     }
 
+    enum BoundScalar {
+        Literal(ScalarTerm),
+        UndeterminedNaN(semantic_vocabulary::IeeeFloatFormat),
+    }
+
+    impl BoundScalar {
+        fn new(value: TerminalScalarValue) -> Result<Self, TerminalInterpretError> {
+            if let TerminalScalarValue::UndeterminedNaN(format) = value {
+                return Ok(Self::UndeterminedNaN(format));
+            }
+            let literal = scalar_literal(value)?;
+            literal.validate().map_err(|_| malformed())?;
+            Ok(Self::Literal(literal))
+        }
+    }
+
+    fn bound_meaning(
+        source: &ScalarTerm,
+        arguments: &[BoundScalar],
+    ) -> Option<numerics::float_semantics::FloatMeaning> {
+        let ScalarTerm::Value { id, scalar_type } = source else {
+            return None;
+        };
+        let index = usize::try_from(id.get()).ok()?.checked_sub(1)?;
+        match arguments.get(index)? {
+            BoundScalar::UndeterminedNaN(format)
+                if scalar_type.as_ieee_float() == Some(*format) =>
+            {
+                Some(numerics::float_semantics::FloatMeaning::NaN)
+            }
+            _ => None,
+        }
+    }
+
     fn scalar_bindings(
         boundary: &BoundaryMachineDeclaration,
         arguments: &[TerminalScalarValue],
-    ) -> Result<(Vec<terminal_psi::ValueDeclaration>, Vec<ScalarTerm>), TerminalInterpretError>
+    ) -> Result<(Vec<terminal_psi::ValueDeclaration>, Vec<BoundScalar>), TerminalInterpretError>
     {
         let parameters = boundary
             .scalar_contract_parameters()
@@ -50,20 +84,21 @@ pub(crate) mod boundary_predicates {
         {
             return Err(malformed());
         }
-        let arguments = scalar_literals(arguments)?;
-        if arguments
+        let arguments = arguments
             .iter()
-            .any(|argument| argument.validate().is_err())
-        {
-            return Err(malformed());
-        }
+            .copied()
+            .map(BoundScalar::new)
+            .collect::<Result<_, _>>()?;
         Ok((parameters, arguments))
     }
 
-    fn bind_scalars(predicate: &Proposition, arguments: &[ScalarTerm]) -> Proposition {
+    fn bind_scalars(predicate: &Proposition, arguments: &[BoundScalar]) -> Proposition {
         substitute_proposition_values_with(predicate, &|identity| {
             let index = usize::try_from(identity.get()).ok()?.checked_sub(1)?;
-            arguments.get(index)
+            match arguments.get(index)? {
+                BoundScalar::Literal(literal) => Some(literal),
+                BoundScalar::UndeterminedNaN(_) => None,
+            }
         })
     }
 
@@ -79,13 +114,12 @@ pub(crate) mod boundary_predicates {
             return Ok(());
         }
         let (parameters, arguments) = scalar_bindings(boundary, arguments)?;
-        closed_predicates::check_predicate_evaluation_size(boundary.scalar_requires.iter()).map_err(
-            |_| {
+        closed_predicates::check_predicate_evaluation_size(boundary.scalar_requires.iter())
+            .map_err(|_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary input requirement evaluation exceeds the resource limit",
                 )
-            },
-        )?;
+            })?;
         let context = PropositionContext::from_value_types_and_places(
             parameters
                 .iter()
@@ -112,7 +146,7 @@ pub(crate) mod boundary_predicates {
                 return Err(malformed());
             }
             let requirement = bind_scalars(requirement, &arguments);
-            match observations.evaluate(&requirement, &mut integers)? {
+            match observations.evaluate(&requirement, &arguments, &mut integers)? {
                 Some(true) => {}
                 Some(false) => {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -148,33 +182,18 @@ pub(crate) mod boundary_predicates {
             if value.scalar_type() != result.scalar_type {
                 return Err(malformed());
             }
-            let literal = scalar_literal(*value)?;
-            literal.validate().map_err(|_| malformed())?;
             parameters.push(result);
-            arguments.push(literal);
+            arguments.push(BoundScalar::new(*value)?);
         }
-        closed_predicates::check_predicate_evaluation_size(boundary.scalar_ensures.iter()).map_err(
-            |_| {
+        closed_predicates::check_predicate_evaluation_size(boundary.scalar_ensures.iter())
+            .map_err(|_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary output guarantee evaluation exceeds the resource limit",
                 )
-            },
-        )?;
-        let result_place = if matches!(
-            boundary.result,
-            terminal_psi::BoundaryMachineResult::Structural(_)
-        ) {
-            let ordinal = u64::try_from(boundary.structural_parameters.len())
-                .ok()
-                .and_then(|length| length.checked_add(1))
-                .ok_or_else(malformed)?;
-            Some((
-                PlaceId::new(ordinal).ok_or_else(malformed)?,
-                StructuralPlaceKind::Result,
-            ))
-        } else {
-            None
-        };
+            })?;
+        let result_place = boundary
+            .structural_contract_result()
+            .map(|(place, _)| (place, StructuralPlaceKind::Result));
         let context = PropositionContext::from_value_types_and_places(
             parameters
                 .iter()
@@ -199,7 +218,12 @@ pub(crate) mod boundary_predicates {
                 return Err(malformed());
             }
             let guarantee = bind_scalars(guarantee, &arguments);
-            match closed_guard(&guarantee, &mut integers).map_err(|_| {
+            match closed_predicates::closed_guard_with_float_meanings(
+                &guarantee,
+                &mut integers,
+                &|term| bound_meaning(term, &arguments),
+            )
+            .map_err(|_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary output guarantee evaluation exceeds the resource limit",
                 )
@@ -231,6 +255,7 @@ pub(crate) mod boundary_predicates {
         fn evaluate(
             &self,
             predicate: &Proposition,
+            arguments: &[BoundScalar],
             integers: &mut ClosedIntegerEvaluator,
         ) -> Result<Option<bool>, TerminalInterpretError> {
             // Close each leaf as the shared walk reaches it. A deciding child
@@ -238,7 +263,10 @@ pub(crate) mod boundary_predicates {
             closed_predicates::closed_guard_with(predicate, |leaf| {
                 let mut closed = leaf.clone();
                 self.close_predicate(&mut closed)?;
-                closed_guard(&closed, integers).map_err(|_| {
+                closed_predicates::closed_guard_with_float_meanings(&closed, integers, &|term| {
+                    bound_meaning(term, arguments)
+                })
+                .map_err(|_| {
                     TerminalInterpretError::UnsupportedSemanticVariant(
                         "boundary input requirement evaluation exceeds the resource limit",
                     )
@@ -549,13 +577,13 @@ pub(crate) mod boundary_predicates {
                 Proposition::Conjunction(vec![unknown(), Proposition::Falsehood]);
             assert_eq!(
                 observations
-                    .evaluate(&false_then_unknown, &mut integers)
+                    .evaluate(&false_then_unknown, &[], &mut integers)
                     .unwrap(),
                 Some(false)
             );
             assert_eq!(
                 observations
-                    .evaluate(&unknown_then_false, &mut integers)
+                    .evaluate(&unknown_then_false, &[], &mut integers)
                     .unwrap(),
                 Some(false)
             );
@@ -591,6 +619,48 @@ pub(crate) mod boundary_predicates {
                 )),
             };
             assert_eq!(closed_guard(&mismatched, &mut integers).unwrap(), None);
+        }
+
+        #[test]
+        fn undetermined_nan_closes_meaning_and_ieee_boundary_promises() {
+            use crate::{TerminalEffectResult, TerminalScalarValue};
+            use semantic_vocabulary::{FloatMeaningClause, ScalarType, ValueId};
+
+            let format = IeeeFloatFormat::Binary32;
+            let scalar = ScalarType::IeeeFloat(format);
+            let mut boundary = idle_boundary();
+            boundary.result = terminal_psi::BoundaryMachineResult::Scalar(scalar.into());
+            let returned = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+            let actual = TerminalEffectResult::Scalar(TerminalScalarValue::UndeterminedNaN(format));
+            let ieee = |kind| Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left: returned.clone(),
+                right: returned.clone(),
+            };
+            boundary.scalar_ensures = vec![
+                Proposition::FloatMeaningEqual(
+                    FloatMeaningClause::conversion_roundtrip(
+                        returned.clone(),
+                        IeeeFloatFormat::Binary64,
+                    )
+                    .unwrap(),
+                ),
+                ieee(IeeeFloatComparisonKind::NotEqual),
+            ];
+            super::validate_output_guarantees(&boundary, &[], &actual).unwrap();
+            boundary.scalar_ensures = vec![ieee(IeeeFloatComparisonKind::Equal)];
+            assert!(matches!(
+                super::validate_output_guarantees(&boundary, &[], &actual),
+                Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary output guarantee is false for this invocation"
+                ))
+            ));
+            assert!(
+                TerminalScalarValue::UndeterminedNaN(format)
+                    .literal()
+                    .is_none()
+            );
         }
 
         #[test]
@@ -4114,6 +4184,7 @@ pub enum TerminalEffect {    MemoryFence {
         kind: terminal_psi::MemoryFenceKind,
     },
     BoundaryCall {
+        float_evaluation: crate::float_result_policy::FloatEvaluation,
         site: crate::TerminalEffectWait,
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,

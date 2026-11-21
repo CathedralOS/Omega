@@ -22,15 +22,17 @@ pub struct RuntimeServicePermission {
 }
 
 impl TerminalPermissionAcceptance {
-    pub fn compare_service_permissions(
+    pub fn compare_runtime_permissions(
         &self,
         package: PackageKeyIdentity,
         target: TargetProfile,
         permissions: &[RuntimeServicePermission],
+        assumptions: &[crate::record::PackagePolicyComponentAssumption],
     ) -> Result<(), Vec<Diagnostic>> {
         self.check_subject(package, target)?;
-        let rows = crate::encoding::runtime_service_permission_rows(package, target, permissions)
-            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        let rows =
+            crate::encoding::runtime_permission_rows(package, target, permissions, assumptions)
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
         self.compare_rows(rows)
     }
 
@@ -142,18 +144,18 @@ mod tests {
         };
         assert!(
             acceptance
-                .compare_service_permissions(package, target, &[])
+                .compare_runtime_permissions(package, target, &[], &[])
                 .is_ok()
         );
         let other = PackageKeyIdentity::from_digest([2; 32]).unwrap();
         assert!(
             acceptance
-                .compare_service_permissions(other, target, &[])
+                .compare_runtime_permissions(other, target, &[], &[])
                 .is_err()
         );
         assert!(
             acceptance
-                .compare_service_permissions(package, TargetProfile::WindowsX64, &[])
+                .compare_runtime_permissions(package, TargetProfile::WindowsX64, &[], &[])
                 .is_err()
         );
         let permission = |class| RuntimeServicePermission {
@@ -165,10 +167,10 @@ mod tests {
         let rows = [permission(TerminalAuthorityClass::ProcessOutput)];
         assert!(
             acceptance
-                .compare_service_permissions(package, target, &rows)
+                .compare_runtime_permissions(package, target, &rows, &[])
                 .is_err()
         );
-        acceptance.rows = crate::encoding::runtime_service_permission_rows(package, target, &rows)
+        acceptance.rows = crate::encoding::runtime_permission_rows(package, target, &rows, &[])
             .unwrap()
             .into_iter()
             .map(|row| {
@@ -180,21 +182,86 @@ mod tests {
             .collect();
         assert!(
             acceptance
-                .compare_service_permissions(package, target, &rows)
+                .compare_runtime_permissions(package, target, &rows, &[])
                 .is_ok()
         );
         assert!(
             acceptance
-                .compare_service_permissions(package, target, &[])
+                .compare_runtime_permissions(package, target, &[], &[])
                 .is_err()
         );
         assert!(
             acceptance
-                .compare_service_permissions(
+                .compare_runtime_permissions(
                     package,
                     target,
-                    &[permission(TerminalAuthorityClass::ProcessInput)]
+                    &[permission(TerminalAuthorityClass::ProcessInput)],
+                    &[],
                 )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_component_premise_requires_the_exact_receivers_decision_and_description_rows() {
+        let root = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let donor = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let target = TargetProfile::LinuxX64;
+        let mut premise = crate::record::PackagePolicyComponentAssumption {
+            component: donor,
+            assumption: [3; 32],
+            bound_rows: vec!["physical mechanism 2 port write in verified closure a".into()],
+        };
+        let mut decision = TerminalPermissionAcceptance {
+            schema_version: PACKAGE_POLICY_ROW_VERSION,
+            package: root,
+            target,
+            rows: Vec::new(),
+        };
+        assert!(
+            decision
+                .compare_runtime_permissions(root, target, &[], std::slice::from_ref(&premise))
+                .is_err()
+        );
+        decision.rows = crate::encoding::runtime_permission_rows(
+            root,
+            target,
+            &[],
+            std::slice::from_ref(&premise),
+        )
+        .unwrap()
+        .into_iter()
+        .map(|row| {
+            (
+                ::wire::digest_encoder::content_identity(row.key_bytes()),
+                row.into_canonical_text(),
+            )
+        })
+        .collect();
+        assert!(
+            decision
+                .compare_runtime_permissions(root, target, &[], std::slice::from_ref(&premise))
+                .is_ok()
+        );
+        assert!(
+            decision
+                .compare_runtime_permissions(donor, target, &[], std::slice::from_ref(&premise))
+                .is_err()
+        );
+        assert!(
+            decision
+                .compare_runtime_permissions(
+                    root,
+                    TargetProfile::WindowsX64,
+                    &[],
+                    std::slice::from_ref(&premise)
+                )
+                .is_err()
+        );
+        premise.bound_rows = vec!["physical mechanism 2 port write in verified closure b".into()];
+        assert!(
+            decision
+                .compare_runtime_permissions(root, target, &[], &[premise])
                 .is_err()
         );
     }

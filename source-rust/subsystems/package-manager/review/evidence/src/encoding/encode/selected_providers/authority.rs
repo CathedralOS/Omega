@@ -2,6 +2,7 @@
 
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyServiceAuthority;
 use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
@@ -9,7 +10,7 @@ pub(super) fn authority(
     encoder: &mut Encoder,
     authority: &PackagePolicyServiceAuthority,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.sequence_field("service_reach", &authority.service_reach, encode_nominal)?;
+    encoder.sequence_field("service_reach", &authority.service_reach, encode_service)?;
     encoder.field("synchronous_invocations", |encoder| {
         encoder.sequence(
             &authority.synchronous_invocations,

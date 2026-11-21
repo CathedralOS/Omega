@@ -267,12 +267,7 @@ pub fn collect_product_provider_selections(
                 "executed provider choice names a helper parameter with no value",
             )
         })?;
-        selection.target = Some(event.target.ok_or_else(|| {
-            refusal(
-                request,
-                "executed provider choice lost its evaluated target",
-            )
-        })?);
+        selection.target = event.target;
         selection.composition_mode = event.composition.ok_or_else(|| {
             refusal(
                 request,

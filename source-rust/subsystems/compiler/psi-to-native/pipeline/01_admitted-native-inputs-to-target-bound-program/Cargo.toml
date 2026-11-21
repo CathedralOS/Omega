@@ -8,6 +8,9 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+service-surface = { path = "../../../psi/interfaces/service-surface" }
+component-description = { path = "../../verification/component-description" }
+target-bound-program = { path = "../../representations/target-bound-program" }
 behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
 optimization-core = { path = "../../representations/optimization-records" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
@@ -23,8 +26,8 @@ target-provider-admission = { path = "../../verification/target-providers" }
 provider-plans = { path = "../../../build/providers/plans" }
 evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
-psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
-psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
+psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }
 provider-demand = { path = "../00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "../00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-to-admitted-native-inputs" }
@@ -39,19 +42,23 @@ evaluation-contracts = { path = "../../../build/evaluation/accounting/contracts"
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
-optimization = { path = "../../../psi-artifact/optimization-selections" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
+optimization = { path = "../../../psi/artifact/optimization-selections" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 program-entry-contracts = { path = "../../representations/program-entry-contracts" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 runtime-abi = { path = "../../targets/runtime-abi" }
-psi-scalar-applications = { path = "../../../psi-execution-inputs/scalar-applications" }
+psi-scalar-applications = { path = "../../../psi/execution-inputs/scalar-applications" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
-psi-authorization = { path = "../../../psi-artifact/authorization" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
+psi-authorization = { path = "../../../psi/artifact/authorization" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-work = { path = "../../../psi/semantics/work" }
 wire = { path = "../../../../../foundation/wire" }
+
+[dev-dependencies]
+native-scalar-inputs = { path = "../00_psi-to-admitted-native-inputs/scalar-applications" }

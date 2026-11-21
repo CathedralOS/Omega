@@ -14,14 +14,14 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyPhysicalCallingContract {
-    pub(crate) policy: PackageReviewBoundaryCallingPolicy,
-    pub(crate) parameters: Vec<PackageReviewBoundaryValuePlacement>,
-    pub(crate) result: Option<PackageReviewBoundaryValuePlacement>,
-    pub(crate) ordinary_clobbers: Vec<PackageReviewMachineRegister>,
-    pub(crate) stack_alignment: u16,
-    pub(crate) shadow_bytes: u16,
-    pub(crate) entry_control: PackagePolicyEntryControl,
-    pub(crate) state: PackagePolicyStatePlan,
+    pub policy: PackageReviewBoundaryCallingPolicy,
+    pub parameters: Vec<PackageReviewBoundaryValuePlacement>,
+    pub result: Option<PackageReviewBoundaryValuePlacement>,
+    pub ordinary_clobbers: Vec<PackageReviewMachineRegister>,
+    pub stack_alignment: u16,
+    pub shadow_bytes: u16,
+    pub entry_control: PackagePolicyEntryControl,
+    pub state: PackagePolicyStatePlan,
 }
 
 impl PackagePolicyPhysicalCallingContract {
@@ -100,13 +100,13 @@ pub type PackagePolicyPreemption = calling_conventions::Preemption;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyStatePlan {
-    pub(crate) initial_regime: PackagePolicyMachineRegime,
-    pub(crate) interrupted_state: PackagePolicyMachineStateSet,
-    pub(crate) saved_state: PackagePolicyMachineStateSet,
-    pub(crate) restored_state: PackagePolicyMachineStateSet,
-    pub(crate) permitted_transitive_use: PackagePolicyMachineStateSet,
-    pub(crate) stack: PackagePolicyEntryStack,
-    pub(crate) preemption: PackagePolicyPreemption,
+    pub initial_regime: PackagePolicyMachineRegime,
+    pub interrupted_state: PackagePolicyMachineStateSet,
+    pub saved_state: PackagePolicyMachineStateSet,
+    pub restored_state: PackagePolicyMachineStateSet,
+    pub permitted_transitive_use: PackagePolicyMachineStateSet,
+    pub stack: PackagePolicyEntryStack,
+    pub preemption: PackagePolicyPreemption,
 }
 
 impl PackagePolicyStatePlan {

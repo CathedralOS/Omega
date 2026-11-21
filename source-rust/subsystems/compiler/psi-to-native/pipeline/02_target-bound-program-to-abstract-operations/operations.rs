@@ -23,11 +23,10 @@ mod error {
             operation: semantic_vocabulary::OperationId,
             application: semantic_vocabulary::ScalarApplicationId,
         },
-        /// A build-time application returned a host address, which names
-        /// storage in the evaluating process and means nothing in the program.
-        HostAddressScalarApplication {
+        UnmaterializableScalarApplication {
             operation: semantic_vocabulary::OperationId,
             application: semantic_vocabulary::ScalarApplicationId,
+            reason: &'static str,
         },
         InvalidActivationStorage(semantic_vocabulary::OperationId),
         UnsupportedReferenceCustody(semantic_vocabulary::OperationId),
@@ -788,10 +787,14 @@ mod machine {
                     | OperationKind::SelectMachine { .. }
                     | OperationKind::CallDynamic { .. }
                     | OperationKind::CallMachine { .. } => calls::lower(operation, machine),
-                    OperationKind::StorageAddress { source } => {
-                        let result = operation.result.scalar()
-                .filter(|result| matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
-                .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                    OperationKind::StorageAddress { source } | OperationKind::StorageAlignment { source } => {
+                        let query = if matches!(operation.kind, OperationKind::StorageAddress { .. }) {
+                            terminal_psi::StorageLocationQuery::Address
+                        } else {
+                            terminal_psi::StorageLocationQuery::Alignment
+                        };
+                        let result = operation.result.scalar().filter(|result| query.admits_result(result.scalar_type))
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
                         if source.access != terminal_psi::StructuralAccess::SharedBorrow {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
                         }
@@ -819,7 +822,8 @@ mod machine {
                         {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
                         }
-                        Ok(AbstractOperation::StorageAddress {
+                        Ok(AbstractOperation::ObserveStorageLocation {
+                            query,
                             psi_operation: operation.id,
                             result: result.into(),
                             source: source.place,
@@ -1848,7 +1852,7 @@ pub(crate) fn lower_selected_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
-    scope: Option<&crate::NativeExecutionScope>,
+    scope: Option<&target_bound_program::TargetBoundReach>,
     scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
@@ -1894,7 +1898,7 @@ pub(crate) fn lower_selected_module(
     }
     let owned_sequence_bounds = match scope {
         Some(scope) => scope.owned_sequence_bounds().to_vec(),
-        None => crate::NativeExecutionScope::full_module_owned_sequence_bounds(
+        None => target_bound_program::TargetBoundReach::full_module_owned_sequence_bounds(
             module,
         )
         .map_err(|reason| {

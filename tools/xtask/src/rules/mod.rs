@@ -36,6 +36,8 @@ use self::ratchets::{
     ratchet_violations, read_baseline, semantic_id_names,
 };
 
+const COMPILER_GUIDE: &str = "source-rust/subsystems/compiler/README.md";
+
 pub(super) const FACTS_ROOT: &str = "samples/cli/facts/";
 
 pub(super) fn git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -82,24 +84,49 @@ pub(super) fn is_ident_byte(b: u8) -> bool {
 
 // --- File walking helpers ---
 
-pub(super) fn collect_files_with_ext(dir: &Path, root: &Path, ext: &str, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
+pub(super) fn collect_files_with_ext(
+    dir: &Path,
+    root: &Path,
+    ext: &str,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let read_error = |error| {
+        format!(
+            "{}: cannot read directory: {error}",
+            dir.strip_prefix(root).unwrap_or(dir).display()
+        )
     };
-    let mut sorted: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
-    sorted.sort();
-    for path in sorted {
-        if let Ok(rel) = path.strip_prefix(root)
-            && rel.components().any(|c| c.as_os_str() == "target")
-        {
+    let mut paths = fs::read_dir(dir)
+        .map_err(read_error)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(read_error)?;
+    paths.sort();
+    for path in paths {
+        if path.file_name().is_some_and(|name| name == "target") {
             continue;
         }
         if path.is_dir() {
-            collect_files_with_ext(&path, root, ext, out);
+            collect_files_with_ext(&path, root, ext, out)?;
         } else if path.extension().and_then(|e| e.to_str()) == Some(ext) {
             out.push(path);
         }
     }
+    Ok(())
+}
+
+fn report_error(error: String) -> u8 {
+    eprintln!("check_rules: {error}");
+    1
+}
+
+fn read_rule_file(root: &Path, file: &str) -> Result<String, u8> {
+    fs::read_to_string(root.join(file)).map_err(|error| report_error(format!("{file}: {error}")))
+}
+
+fn write_baseline(root: &Path, file: &str, contents: &str) -> Result<(), u8> {
+    fs::write(root.join(file), contents)
+        .map_err(|error| report_error(format!("{file}: cannot write baseline: {error}")))
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -147,17 +174,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     }
 
     let root = repo_root()?;
-    let semantic_ids = semantic_id_names(&root).map_err(|error| {
-        eprintln!("check_rules: {error}");
-        1u8
-    })?;
+    let semantic_ids = semantic_id_names(&root).map_err(report_error)?;
 
     if !update_flags.is_empty() {
         for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
             if update_flags.contains(spec.flag) {
-                let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
+                let counts =
+                    compute_ratchet_counts(&root, idx, &semantic_ids).map_err(report_error)?;
                 let text = format_ratchet_file(spec, &counts);
-                let _ = fs::write(root.join(spec.baseline), text);
+                write_baseline(&root, spec.baseline, &text)?;
                 println!(
                     "check_rules: wrote {} files to {}",
                     counts.len(),
@@ -170,9 +195,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let boards: Vec<String> = TASK_BOARDS
         .iter()
-        .map(|b| fs::read_to_string(root.join(b)).unwrap_or_default())
-        .collect();
-    let dangling = dangling_task_ids(&citing_documents(&root), &board_task_ids(&boards));
+        .map(|board| read_rule_file(&root, board))
+        .collect::<Result<_, _>>()?;
+    let dangling = dangling_task_ids(
+        &citing_documents(&root).map_err(report_error)?,
+        &board_task_ids(&boards),
+    );
     if update_dangling {
         let mut lines = vec![
             "# Task IDs cited by samples/cli/facts READMEs that no board holds.".to_owned(),
@@ -186,7 +214,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             }
         }
         let text = lines.join("\n") + "\n";
-        let _ = fs::write(root.join(DANGLING_BASELINE), &text);
+        write_baseline(&root, DANGLING_BASELINE, &text)?;
         println!(
             "check_rules: wrote {} citations to {DANGLING_BASELINE}",
             read_dangling_baseline(&text).len()
@@ -196,16 +224,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let mut violations = Vec::new();
     for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
-        let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
-        let baseline_text = fs::read_to_string(root.join(spec.baseline)).unwrap_or_default();
+        let counts = compute_ratchet_counts(&root, idx, &semantic_ids).map_err(report_error)?;
+        let baseline_text = read_rule_file(&root, spec.baseline)?;
         let baseline = read_baseline(&baseline_text);
         violations.extend(ratchet_violations(spec, &counts, &baseline));
     }
 
     violations.extend(checking_interior_state_violations(&root));
 
-    let dangling_baseline_text =
-        fs::read_to_string(root.join(DANGLING_BASELINE)).unwrap_or_default();
+    let dangling_baseline_text = read_rule_file(&root, DANGLING_BASELINE)?;
     violations.extend(dangling_task_violations(
         &dangling,
         &read_dangling_baseline(&dangling_baseline_text),

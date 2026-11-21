@@ -5,18 +5,18 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-bound-program = { path = "../../representations/target-bound-program" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
 terminal-authority-receipts = { path = "authority" }
 numeric-intrinsic-admission = { path = "../numeric-intrinsics" }
 native-binding-admission = { path = "../native-bindings" }
-direct-boundary-bindings = { path = "../provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }
-psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
-psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
-psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
+psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 application-identity = { path = "../../../psi/identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
@@ -39,11 +39,11 @@ operation-evidence = { path = "../../representations/operation-evidence" }
 bound-installations = { path = "../installation-admission/bound-installations" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
+terminal-semantics = { path = "../../../psi/semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-work = { path = "../../../psi/semantics/work" }

@@ -8,13 +8,13 @@ version.workspace = true
 path = "execution.rs"
 
 [dependencies]
-native-artifact = { path = "../../../compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact" }
+native-artifact = { path = "../../../compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }
 terminal-interpreter = { path = "../.." }
 terminal-runtime = { path = ".." }
 
 [dev-dependencies]
 compiler = { path = "../../../compiler" }
-psi-authorization = { path = "../../../compiler/psi-artifact/authorization" }
-terminal-codec = { path = "../../../compiler/psi-artifact/codec" }
+psi-authorization = { path = "../../../compiler/psi/artifact/authorization" }
+terminal-codec = { path = "../../../compiler/psi/artifact/codec" }
 terminal-psi = { path = "../../../compiler/psi" }

@@ -507,6 +507,17 @@ pub const fn element_view_length_offset(shape: &StructuralTypeShape) -> Option<u
 /// Psi's owned sequence is a logical descriptor, but its native storage is an
 /// aggregate carrying the elements. Only actual view descriptors use the
 /// descriptor-specific native return and forwarding paths.
+/// Borrowing a boundary-opaque value transports the address alone. The shape
+/// describes the pointer word and supplies no size or alignment for its pointee.
+pub fn opaque_borrow_transport(
+    shape: &StructuralTypeShape,
+    access: terminal_psi::StructuralAccess,
+) -> Option<ValueShape> {
+    (access != terminal_psi::StructuralAccess::Owned
+        && matches!(shape, StructuralTypeShape::Opaque))
+    .then_some(ValueShape::integer(8, 8))
+}
+
 pub fn is_native_view_descriptor(shape: &StructuralTypeShape) -> bool {
     shape.is_view_descriptor()
         && !matches!(shape, StructuralTypeShape::ElementView { access: None, .. })

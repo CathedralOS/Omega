@@ -1,7 +1,9 @@
 //! Bind a reference executor's numeric imports to checked provider rows and exact published Psi.
 #![forbid(unsafe_code)]
 mod catalog;
+mod direct;
 pub use catalog::catalog_realization;
+pub use direct::direct_numeric_target;
 pub mod selection;
 pub mod signature;
 use diagnostics::Diagnostic;
@@ -54,7 +56,7 @@ pub fn admit_terminal_intrinsics<'selection>(
     validate_external_provider_owners(module, selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut operations = Vec::new();
-    selection::visit_selected_intrinsics(
+    provider_correspondence::intrinsic_selection::visit_selected_intrinsics(
         selected,
         provenance,
         demanded,

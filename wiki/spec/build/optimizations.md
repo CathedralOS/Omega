@@ -108,8 +108,7 @@ Psi-versus-native agreement do that work, in the corpus runner and the tests,
 not on the default compile path
 ([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
 
-A nonempty Psi selection still fails closed. Publication refuses with
-`no product route yet: selected Psi optimizations have no second lowered-form check`.
+A producer that cannot execute an exact selected pass refuses the selection before publication. The execution record names every selected pass even when its input contains no eligible rewrite.
 
 A target-constrained build companion may carry pending post-Terminal
 selections, excluding earlier phases and bound to the complete build selection.

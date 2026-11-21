@@ -13,7 +13,7 @@ fn program_from_typed(
     typed: crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = crate::prepare_fixture(typed);
-    let entry = super::build_purpose::symbol(&typed, "main");
+    let entry = super::build_purpose::symbol(typed.trees(), "main");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

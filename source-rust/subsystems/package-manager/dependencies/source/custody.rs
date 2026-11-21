@@ -169,6 +169,14 @@ impl PackageSourceCustody {
         &self.navigation
     }
 
+    pub(super) fn with_selection_evidence(
+        mut self,
+        selection: PackageSourceSelectionEvidence,
+    ) -> Self {
+        self.selection_evidence = selection;
+        self
+    }
+
     pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
         &self.selection_evidence
     }

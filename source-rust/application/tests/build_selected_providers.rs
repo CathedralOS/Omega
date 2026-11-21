@@ -17,7 +17,9 @@ entry's own check rather than being refused before execution.
 
 */
 
-use std::process::Command;
+mod support;
+
+use std::process::{Command, ExitStatus};
 
 const REQUIREMENT: &str = "\
 boundary trait Service {
@@ -59,7 +61,7 @@ Native satisfies Service {{
     )
 }
 
-fn run_both(name: &str, product: &str) -> String {
+fn run_both(name: &str, product: &str, build: &str) -> (ExitStatus, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-selected-provider-{name}-{}",
         std::process::id()
@@ -67,29 +69,39 @@ fn run_both(name: &str, product: &str) -> String {
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("staged project");
     std::fs::write(root.join("main.omg"), product).expect("staged program");
-    std::fs::write(root.join("build.omg"), BUILD).expect("staged Build");
+    std::fs::write(root.join("build.omg"), build).expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
+        .args([
+            "run",
+            "--both",
+            "build.omg",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+        ])
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()
         .expect("omega runs");
     let _ = std::fs::remove_dir_all(&root);
-    format!(
+    let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
-    )
+    );
+    (output.status, report)
 }
 
-fn assert_agreed_exit_zero(report: &str) {
+fn assert_agreed_exit_zero((status, report): (ExitStatus, String)) {
+    assert!(status.success(), "{report}");
     assert!(report.contains("native exit 0"), "{report}");
     assert!(report.contains("interp exit: 0"), "{report}");
 }
 
 #[test]
 fn a_selected_referenced_provider_runs_on_both_engines() {
-    assert_agreed_exit_zero(&run_both("referenced", &referenced("value + 1")));
+    assert_agreed_exit_zero(run_both("referenced", &referenced("value + 1"), BUILD));
 }
 
 #[test]
@@ -100,13 +112,23 @@ fn a_selected_inline_provider_runs_on_both_engines() {
 }}
 {ENTRY}"
     );
-    assert_agreed_exit_zero(&run_both("inline", &inline));
+    assert_agreed_exit_zero(run_both("inline", &inline, BUILD));
 }
 
 #[test]
 fn a_selected_provider_with_another_answer_traps_at_the_entry_check() {
-    let report = run_both("wrong-answer", &referenced("value"));
+    let (status, report) = run_both("wrong-answer", &referenced("value"), BUILD);
+    assert!(!status.success(), "{report}");
     assert!(!report.contains("no product route yet"), "{report}");
     assert!(report.contains("interp crash: Trap"), "{report}");
     assert!(!report.contains("native exit 0"), "{report}");
+}
+
+#[test]
+fn a_checked_provider_calls_each_callback_with_its_original_arguments() {
+    let sample =
+        support::repository_root().join("samples/cli/facts/dynamic_trait_dispatch/target_body");
+    let program = std::fs::read_to_string(sample.join("main.omg")).unwrap();
+    let build = std::fs::read_to_string(sample.join("build.omg")).unwrap();
+    assert_agreed_exit_zero(run_both("callback-arguments", &program, &build));
 }

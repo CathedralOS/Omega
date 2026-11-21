@@ -150,7 +150,7 @@ impl SourceCompilationRoster {
         self,
         typed: crate::lowering::PreparedTypedTrees,
     ) -> Result<crate::lowering::LoweredSourcePublication, Vec<Diagnostic>> {
-        let calling = self.normalization.calling.borrow(&typed);
+        let calling = self.normalization.calling.borrow(typed.trees());
         let mut prepared = crate::lowering::LoweredSourcePublication::prepare(
             typed.clone(),
             crate::lowering::Compilation {
@@ -162,7 +162,7 @@ impl SourceCompilationRoster {
                 bindings: &self.bindings,
                 supplies: &self.supplies,
                 calling: calling.selection(),
-                providers: self.normalization.providers(&typed),
+                providers: self.normalization.providers(typed.trees()),
             },
             terminal_codec::TerminalPublication::Portable,
         )?;

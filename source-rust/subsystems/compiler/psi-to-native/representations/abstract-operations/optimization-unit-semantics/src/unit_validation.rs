@@ -1415,12 +1415,12 @@ mod catalogs {
     use crate::unit_validation::structural_catalog::resolve_structural_path;
     use optimization_unit::SourceCheckedScalarReceiving;
     use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use psi_declaration_encoding::terms::proposition::canonical_proposition_order_key;
     use semantic_vocabulary::ObligationId;
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
-    use terminal_codec::canonical_proposition_order_key;
     use terminal_psi::StructuralFieldType;
     use terminal_psi::StructuralTypeDeclaration;
     use terminal_psi::find_structural_case;
@@ -1928,8 +1928,8 @@ mod catalogs {
                         terminal_semantics::whole_representation_count_goal(*source_length, factor)
                             .ok_or_else(|| invalid.clone())?;
                     require_operation!(psi_operation, obligation, &goal);
-                    let expected = terminal_codec::canonical_proposition_order_key(&goal)
-                        .map_err(|_| invalid.clone())?;
+                    let expected =
+                        canonical_proposition_order_key(&goal).map_err(|_| invalid.clone())?;
                     if unit
                         .accepted_obligation_fact(
                             function.machine,
@@ -4620,7 +4620,7 @@ pub(crate) mod function_structure {
                     if !matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
-            ) && !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+            ) && !structural_storage_queries::owner_loans::is_owned_bounded_byte_parameter(
                 parameter,
                 |identity| {
                     catalogs
@@ -6442,7 +6442,7 @@ pub(crate) mod function_structure {
                     exclusive_access(parameter.access)
                         && types.get(&parameter.structural_type).is_some_and(|row| {
                             shared_view_declaration(row) || {
-                                abstract_operations::control_flow::address_joins::is_address_join(
+                                structural_storage_queries::address_joins::is_address_join(
                                     parameter,
                                     |identity| types.get(&identity).copied(),
                                 )
@@ -9500,7 +9500,7 @@ pub(crate) mod function_structure {
                                     });
                             forwarded || copied || projected || owned_result
                         } else if borrowed_address {
-                            abstract_operations::control_flow::address_joins::is_address_projection(
+                            structural_storage_queries::address_joins::is_address_projection(
                         &binding.argument.path,
                     ) && structural_source_contract(
                         function, binding.argument.place,
@@ -9527,7 +9527,7 @@ pub(crate) mod function_structure {
                                 access, &binding.argument.path, parameter.access,
                             )
                             && source.borrowed_qualifications_match(&binding.argument.path, parameter)
-                            && abstract_operations::control_flow::address_joins::borrowed_referent_type(
+                            && structural_storage_queries::address_joins::borrowed_referent_type(
                                 types.values().copied(),
                                 source.structural_type,
                                 &binding.argument.path,
@@ -9553,7 +9553,7 @@ pub(crate) mod function_structure {
                             source.is_some_and(|(root_type, access, multiplicity)| {
                         multiplicity != StructuralMultiplicity::Linear
                             && super::super::operation_contracts::structural_access_can_supply(access, parameter.access)
-                            && abstract_operations::control_flow::address_joins::borrowed_referent_type(
+                            && structural_storage_queries::address_joins::borrowed_referent_type(
                                 types.values().copied(),
                                 root_type,
                                 &binding.argument.path,
@@ -9701,7 +9701,7 @@ pub(crate) mod function_structure {
             parameter: &StructuralParameterDeclaration,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
         ) -> bool {
-            abstract_operations::control_flow::address_joins::is_address_join(
+            structural_storage_queries::address_joins::is_address_join(
                 parameter,
                 |identity| types.get(&identity).copied(),
             )
@@ -9711,7 +9711,7 @@ pub(crate) mod function_structure {
             parameter: &StructuralParameterDeclaration,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
         ) -> bool {
-            abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
+            structural_storage_queries::owner_loans::is_bounded_owner_loan(
                 parameter,
                 |identity| types.get(&identity).copied(),
             )
@@ -9721,7 +9721,7 @@ pub(crate) mod function_structure {
             parameter: &StructuralParameterDeclaration,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
         ) -> bool {
-            abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
+            structural_storage_queries::owner_loans::is_shared_view_carrier_loan(
                 parameter,
                 |identity| types.get(&identity).copied(),
                 &types.values().map(|row| (*row).clone()).collect::<Vec<_>>(),
@@ -9733,7 +9733,7 @@ pub(crate) mod function_structure {
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
         ) -> bool {
             !parameter.qualifications.is_empty()
-                && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+                && structural_storage_queries::owner_loans::is_owned_bounded_byte_parameter(
                     parameter,
                     |identity| types.get(&identity).copied(),
                 )
@@ -9744,7 +9744,7 @@ pub(crate) mod function_structure {
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
         ) -> bool {
             !parameter.qualifications.is_empty()
-                && abstract_operations::control_flow::owner_loans::is_shared_byte_view(
+                && structural_storage_queries::owner_loans::is_shared_byte_view(
                     parameter,
                     |identity| types.get(&identity).copied(),
                 )
@@ -12158,8 +12158,8 @@ pub(crate) mod operation_contracts {
                     matches!(scalar(*committed), Some(ScalarType::Integer(integer)) if fixed(integer) && integer.bits() == Some(64) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                 }
                 O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => true,
-                O::StorageAddress { result, .. } => {
-                    matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                O::ObserveStorageLocation { query, result, .. } => {
+                    query.admits_result(result.scalar_type)
                         && scalar(result.value) == Some(result.scalar_type)
                 }
                 O::ActivateTaskRegister {
@@ -13643,7 +13643,7 @@ pub(crate) mod operation_contracts {
             && (((source.access != StructuralAccess::Owned
                 || !argument.path.is_empty()
                 || caller.arrival_parameter(argument.place).is_some_and(|arrival| {
-                    abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+                    structural_storage_queries::owner_loans::is_owned_bounded_byte_parameter(
                         arrival,
                         |identity| types.get(&identity).copied(),
                     )
@@ -17639,8 +17639,8 @@ pub(crate) mod structural_catalog {
             )
         }
 
-        use structural_storage::storage_projection::resolve_path;
-        pub(crate) use structural_storage::storage_projection::structural_projection_type;
+        use structural_storage_queries::storage_projection::resolve_path;
+        pub(crate) use structural_storage_queries::storage_projection::structural_projection_type;
 
         pub(crate) fn byte_carrier_leaf_window(
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -17733,7 +17733,7 @@ pub(crate) mod structural_catalog {
         }
     }
     mod storage_projection {
-        pub use structural_storage::storage_projection::{
+        pub use structural_storage_queries::storage_projection::{
             StructuralStorageProjection, shared_view_declaration,
             structural_borrowed_storage_projection, structural_storage_projection,
         };

@@ -1,49 +1,40 @@
 // Initial `Build` value construction under its admitted vocabulary and filesystem scope.
 //
 // Populates the interpreter's starting `Build` struct with baseline defaults
-// (`x86_deployment_features = Baseline`, `subsystem = Console`, `freestanding = false`),
+// (`x86_deployment_features = Baseline`, `subsystem = Console`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
 // an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
 // profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
 
-use super::vocabulary::has_exact_toolchain_build_facet;
-use super::{BuildValueAdmission, vocabulary};
+use super::BuildValueAdmission;
 use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use filesystem_authority::FilesystemGrantRootIdentity;
 use build_time_values::BuildTimeValue;
-use source_compiler::representations::source_state::TypedTrees;
+use filesystem_authority::FilesystemGrantRootIdentity;
 
 pub(super) fn initial_value(
     admission: &BuildValueAdmission,
-    typed: &TypedTrees,
-    machine: &source_compiler::representations::source_state::machine::Machine,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> BuildTimeValue {
-    let mut build_fields = Vec::new();
-    if admission.has_toolchain_build_activation {
-        // The seal the toolchain establishes for the `Build` it lends
-        // (`BuildSeal in Issued`). It has no contents: source cannot make
-        // one, and the admitted vocabulary says so.
-        build_fields.push((
+    // Source cannot construct the issued seal in the Build borrowed from the host.
+    let mut build_fields = vec![
+        (
             "seal".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildSeal".to_owned(),
                 fields: Vec::new(),
             },
-        ));
-        build_fields.push((
+        ),
+        (
             "x86_deployment_features".to_owned(),
             BuildTimeValue::Case {
                 variant: "Baseline".to_owned(),
                 payload: Vec::new(),
             },
-        ));
-    }
-    build_fields.extend([
+        ),
         (
             "subsystem".to_owned(),
             BuildTimeValue::Case {
@@ -51,15 +42,15 @@ pub(super) fn initial_value(
                 payload: Vec::new(),
             },
         ),
-        ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
-    ]);
-    if vocabulary::build_machine_declares_identifier_field(typed, machine) {
+    ];
+    if admission.identifier {
         build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));
     }
-    if let Some(field) = admission.optimization.zero_build_field() {
-        build_fields.push(field);
-    }
-    if has_exact_toolchain_build_facet(typed, "BuildLog") {
+    build_fields.push((
+        "optimizations".to_owned(),
+        super::optimization::initial_value(),
+    ));
+    if admission.log {
         build_fields.push((
             "log".to_owned(),
             BuildTimeValue::Struct {
@@ -68,7 +59,7 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "BuildProduct") {
+    if admission.product {
         build_fields.push((
             "product".to_owned(),
             BuildTimeValue::Struct {
@@ -77,7 +68,7 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "ElfInterpreterSelection") {
+    if admission.elf_interpreter {
         build_fields.push((
             "elf_interpreter".to_owned(),
             BuildTimeValue::Struct {
@@ -96,7 +87,7 @@ pub(super) fn initial_value(
     }
     // Testing starts enabled: a zero-initialized `tests` facet never silently
     // disables registered groups (wiki/spec/build/testing.md).
-    if has_exact_toolchain_build_facet(typed, "BuildTests") {
+    if admission.tests {
         build_fields.push((
             "tests".to_owned(),
             BuildTimeValue::Struct {
@@ -105,18 +96,15 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "BuildSource")
-        && has_exact_toolchain_build_facet(typed, "BuildOutput")
-    {
-        let root_facet = |type_name: &str, root: FilesystemGrantRootIdentity| {
-            BuildTimeValue::Struct {
+    if admission.filesystem_roots {
+        let root_facet =
+            |type_name: &str, root: FilesystemGrantRootIdentity| BuildTimeValue::Struct {
                 type_name: type_name.to_owned(),
                 fields: vec![(
                     "root".to_owned(),
                     BuildTimeValue::Int(i64::from(root.get())),
                 )],
-            }
-        };
+            };
         build_fields.extend([
             (
                 "source".to_owned(),
@@ -128,7 +116,7 @@ pub(super) fn initial_value(
             ),
         ]);
     }
-    if has_exact_toolchain_build_facet(typed, "BuildInputs") {
+    if admission.inputs {
         build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {

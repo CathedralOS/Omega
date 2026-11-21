@@ -1,0 +1,581 @@
+//! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
+mod services;
+#[cfg(all(test, unix))]
+mod workspace_tests;
+
+use crate::resolution::source::{
+    AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
+    DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
+    WorkspaceMemberObservation,
+};
+use crate::{PackageBuildSession, PackageCommandError};
+use artifacts::compile_timings::CompileTimings;
+use build_declarations::DependencyPurpose;
+use diagnostics::Diagnostic;
+use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
+use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
+use target::TargetProfile;
+
+/// The original root Build has joined its own requests to this graph. Ordinary
+/// compilation can now admit the graph against the project lock and open its Product.
+struct ResolvedProject {
+    sources: ResolvedBuildSources,
+    root: ReturnedPlanningStage,
+    inputs: PackageCompilationInputs,
+}
+
+/// Settled Build executions from one package transaction. Each Product opens
+/// against the exact source graph its Build acquired, with its occurrence's
+/// target handoffs and semantic bindings.
+pub(crate) struct PackageReviewBuilds(Vec<project_build::SettledDependency>);
+
+/// A resolved package graph and the original Build returns that produced it.
+pub struct ResolvedPackageProject {
+    pub(crate) sources: ResolvedBuildSources,
+    pub(crate) builds: PackageReviewBuilds,
+}
+
+impl PackageReviewBuilds {
+    pub(crate) fn product(
+        &self,
+        inputs: &PackageCompilationInputs,
+    ) -> Result<project_build::PlannedProduct, build_evaluation_result::CompileFailure> {
+        let source = inputs.source_inputs();
+        let mut matching = self.0.iter().filter(|settled| {
+            settled.inputs().root() == inputs.root() && settled.inputs().source_inputs() == source
+        });
+        let build = matching.next().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review has no settled Build for its exact acquired sources",
+            )]
+        })?;
+        if matching.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "package review has multiple Build executions for the same source occurrence",
+            )]
+            .into());
+        }
+        build.open_product(inputs.clone())
+    }
+}
+
+/// Execute a package transaction's root Build and settle the dependency graph it requested.
+pub fn resolve_build_sources(
+    session: &mut PackageBuildSession,
+    acquired: AcquiredBuildSource,
+    acquisitions: &mut BuildSourceAcquisitions<'_>,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Result<ResolvedPackageProject, PackageCommandError> {
+    let profile = TargetProfile::host_if_supported()
+        .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
+    let acquired = acquisitions.retain_root(acquired)?;
+    let mut host = SourceHost {
+        session,
+        acquisitions,
+        profile,
+        timings: false,
+        observed: Vec::new(),
+        active: Vec::new(),
+        settled: Vec::new(),
+    };
+    let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
+    if let Err(error) = &result {
+        host.session
+            .record_source_completion(error.source_completion_accounting().clone());
+    }
+    let project = result.map_err(|error| {
+        error.with_source_completion_accounting(host.session.source_completion_accounting().clone())
+    })?;
+    let root = project
+        .root
+        .settle_dependency(project.inputs)
+        .map_err(|failure| {
+            let error = PackageCommandError::from(failure);
+            host.session
+                .record_source_completion(error.source_completion_accounting().clone());
+            error.with_source_completion_accounting(
+                host.session.source_completion_accounting().clone(),
+            )
+        })?;
+    host.session
+        .record_source_completion(root.evaluated().source_completion_accounting.clone());
+    let mut builds: Vec<_> = host
+        .settled
+        .into_iter()
+        .map(|dependency| dependency.build)
+        .collect();
+    builds.push(root);
+    Ok(ResolvedPackageProject {
+        sources: project.sources,
+        builds: PackageReviewBuilds(builds),
+    })
+}
+
+struct SettledSource {
+    source: AcquiredBuildSource,
+    declaration: DeclaredBuildSource,
+    build: project_build::SettledDependency,
+    graph: ResolvedBuildSources,
+}
+
+struct PreparedRequest {
+    settled: usize,
+    acquisition: AcquiredBuildSource,
+}
+
+struct ExecutedBuild {
+    stage: ReturnedPlanningStage,
+    /// Each issued request uses a purpose-local ordinal. Alias lookup can inspect
+    /// several candidates before the Build actually selects one.
+    requests: BTreeMap<(DependencyPurpose, usize), PreparedRequest>,
+}
+
+impl ExecutedBuild {
+    fn observe(
+        &mut self,
+        source: &AcquiredBuildSource,
+        settled: &[SettledSource],
+    ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
+        let declaration = self.stage.observe_source_declaration()?;
+        let result = self.stage.source_result()?;
+        let mut graphs = Vec::with_capacity(result.demanded_sources().len());
+        for demand in result.demanded_sources() {
+            let request = self
+                .requests
+                .get(&(demand.purpose, demand.request_ordinal))
+                .ok_or_else(|| {
+                    "workspace member demanded a dependency that was never prepared".to_owned()
+                })?;
+            let provider = &settled[request.settled];
+            graphs.push(Arc::new(
+                provider
+                    .graph
+                    .rooted_at(&provider.declaration, &request.acquisition)?,
+            ));
+        }
+        Ok(WorkspaceMemberObservation::new(
+            source,
+            declaration,
+            &result,
+            graphs,
+        )?)
+    }
+}
+
+struct SourceHost<'session, 'policy> {
+    session: &'session mut PackageBuildSession,
+    acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
+    profile: TargetProfile,
+    timings: bool,
+    // Workspace members are executed to read their names. Retain their actual returns
+    // so selection can settle those same invocations without charging for a second run.
+    observed: Vec<(AcquiredBuildSource, ExecutedBuild)>,
+    active: Vec<AcquiredBuildSource>,
+    settled: Vec<SettledSource>,
+}
+
+impl SourceHost<'_, '_> {
+    fn execute(
+        &mut self,
+        entry: &Path,
+        acquired: &AcquiredBuildSource,
+        snapshot: Option<BuildSnapshotRequest>,
+        dependency: bool,
+    ) -> Result<ExecutedBuild, PackageCommandError> {
+        self.acquisitions
+            .admit_build_descent(&self.active, acquired)?;
+        self.acquisitions.admit_locked_activation(acquired)?;
+        let execution = self
+            .session
+            .source_build_inputs(self.profile, snapshot, dependency)?;
+        let stage = project_build::prepare(
+            PlanningRequest {
+                root: entry,
+                sources: PlanningSources::Captured(acquired.source_capture()),
+                execution,
+                artifact_only: false,
+            },
+            Default::default(),
+            planning_timings(self.timings),
+        )?;
+        self.active.push(acquired.clone());
+        let mut requests = BTreeMap::new();
+        let result = project_build::interpret(
+            stage,
+            &mut services::SourceServices {
+                host: self,
+                acquired,
+                requests: &mut requests,
+            },
+        );
+        self.active.pop();
+        let stage = result?;
+        self.session
+            .record_source_completion(stage.source_completion_accounting().clone());
+        Ok(ExecutedBuild { stage, requests })
+    }
+
+    fn resolve(
+        &mut self,
+        entry: &Path,
+        acquired: AcquiredBuildSource,
+        snapshot: Option<BuildSnapshotRequest>,
+    ) -> Result<ResolvedProject, PackageCommandError> {
+        let root = self.execute(entry, &acquired, snapshot, false)?;
+        self.join(acquired, root.stage)
+    }
+
+    fn join(
+        &mut self,
+        acquired: AcquiredBuildSource,
+        mut root: ReturnedPlanningStage,
+    ) -> Result<ResolvedProject, PackageCommandError> {
+        let declaration = acquired.declare_build(root.returned())?;
+        let root_identity = declaration.identity();
+        let mut returns = Vec::<(
+            AcquiredBuildSource,
+            DeclaredBuildSource,
+            ReturnedPlanningStage,
+        )>::new();
+        let mut reused = Vec::<usize>::new();
+        let mut next = declaration.resolve()?;
+        loop {
+            let pending = match next {
+                ExecutedSourceResolution::Complete(graph) => {
+                    for (acquired, declaration, mut stage) in returns {
+                        let inputs = graph.join_source_result(
+                            declaration.identity(),
+                            &mut stage.source_result()?,
+                        )?;
+                        let settled = stage.settle_dependency(inputs)?;
+                        self.session.record_source_completion(
+                            settled.evaluated().source_completion_accounting.clone(),
+                        );
+                        self.settled.push(SettledSource {
+                            source: acquired,
+                            declaration,
+                            build: settled,
+                            graph: graph.clone(),
+                        });
+                    }
+                    for i in reused {
+                        let settled = &self.settled[i];
+                        let current = graph.compilation_inputs(settled.declaration.identity())?;
+                        if current.source_inputs() != settled.build.inputs().source_inputs() {
+                            return Err("settled helper Build differs from the final source graph"
+                                .to_owned()
+                                .into());
+                        }
+                    }
+                    let inputs =
+                        graph.join_source_result(root_identity, &mut root.source_result()?)?;
+                    return Ok(ResolvedProject {
+                        sources: graph,
+                        root,
+                        inputs,
+                    });
+                }
+                ExecutedSourceResolution::Request(pending) => pending,
+            };
+            let mut acquisition = self.acquisitions.acquire(pending)?;
+            next = loop {
+                match acquisition {
+                    BuildSourceAcquisition::Reused(next) => break next,
+                    BuildSourceAcquisition::Workspace { pending, workspace } => {
+                        let selected = self.select_workspace(workspace)?;
+                        acquisition = pending.select(selected)?;
+                    }
+                    BuildSourceAcquisition::Execute(dependency) => {
+                        let acquired = dependency.acquired_source();
+                        if let Some(i) = self
+                            .settled
+                            .iter()
+                            .position(|settled| settled.source.same_source(acquired))
+                        {
+                            let settled = &self.settled[i];
+                            acquired.verify_reused_capture(&settled.source)?;
+                            let (_, next) = dependency.complete_declared(&settled.declaration)?;
+                            reused.push(i);
+                            break next;
+                        }
+                        let acquired = acquired.clone();
+                        let stage = self.member_or_execute(&acquired)?.stage;
+                        let declaration = acquired.declare_build(stage.returned())?;
+                        let (_, next) = dependency.complete_declared(&declaration)?;
+                        returns.push((acquired, declaration, stage));
+                        break next;
+                    }
+                }
+            };
+        }
+    }
+
+    fn member_or_execute(
+        &mut self,
+        acquired: &AcquiredBuildSource,
+    ) -> Result<ExecutedBuild, PackageCommandError> {
+        if let Some(i) = self
+            .observed
+            .iter()
+            .position(|(source, _)| source.same_source(acquired))
+        {
+            let (source, stage) = self.observed.swap_remove(i);
+            acquired.verify_reused_capture(&source)?;
+            Ok(stage)
+        } else {
+            self.execute(&acquired.entry_path(), acquired, None, true)
+        }
+    }
+
+    fn select_workspace(
+        &mut self,
+        workspace: AcquiredWorkspaceBuild,
+    ) -> Result<AcquiredBuildSource, PackageCommandError> {
+        let root = self.execute(
+            &workspace.entry_path(),
+            workspace.acquired_source(),
+            None,
+            true,
+        )?;
+        let declaration = root.stage.settle_workspace_declaration()?;
+        let members = self
+            .acquisitions
+            .workspace_members(workspace, declaration)?;
+        let mut observations = Vec::new();
+        for source in members.sources() {
+            let mut member = self.member_or_execute(source)?;
+            observations.push(member.observe(source, &self.settled)?);
+            self.observed.push((source.clone(), member));
+        }
+        Ok(self
+            .acquisitions
+            .complete_workspace(members, observations)?)
+    }
+}
+
+type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
+
+/// The Product prepared for each requested deployment target.
+pub struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
+
+impl ProjectProducts {
+    fn shared(profiles: &[TargetProfile], planned: project_build::PlannedProduct) -> Self {
+        let planned = Rc::new(planned);
+        Self(
+            profiles
+                .iter()
+                .map(|&target| (target, Ok(Rc::clone(&planned))))
+                .collect(),
+        )
+    }
+
+    pub fn select(
+        &self,
+        target: TargetProfile,
+    ) -> Result<&project_build::PlannedProduct, Vec<Diagnostic>> {
+        self.0
+            .iter()
+            .find(|(profile, _)| *profile == target)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "project did not prepare target {}",
+                    target.target_name()
+                ))]
+            })?
+            .1
+            .as_deref()
+            .map_err(Clone::clone)
+    }
+}
+
+fn planning_timings(enabled: bool) -> CompileTimings {
+    if enabled {
+        CompileTimings::enabled()
+    } else {
+        CompileTimings::default()
+    }
+}
+
+/// A package check can name its conventional main file to select that existing package.
+pub enum ProjectInput<'a> {
+    File(&'a Path),
+    PackageCheck(&'a Path),
+}
+
+impl ProjectInput<'_> {
+    fn path(&self) -> &Path {
+        match self {
+            Self::File(path) | Self::PackageCheck(path) => path,
+        }
+    }
+}
+
+/// Prepare a project for a single deployment target.
+pub fn open_product(
+    root: &Path,
+    profile: TargetProfile,
+    offline: bool,
+    build_directory: &Path,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Deployment {
+    open_products(
+        ProjectInput::File(root),
+        &[profile],
+        offline,
+        false,
+        build_directory,
+        snapshot,
+    )?
+    .0
+    .into_iter()
+    .next()
+    .expect("one deployment was requested")
+    .1
+}
+
+/// Resolve and execute the authored Build once for the entire deployment set.
+/// The returned Product keeps the same source capture, grant joins and Build return.
+pub fn open_products(
+    input: ProjectInput<'_>,
+    profiles: &[TargetProfile],
+    offline: bool,
+    timings: bool,
+    build_directory: &Path,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
+    use crate::operations::begin_local_project_preparation;
+    use package_compilation::build_execution::BuildSnapshotCapture;
+    let error = |error: PackageCommandError| {
+        error
+            .compilation_failure()
+            .cloned()
+            .map(|failure| failure.into_diagnostics())
+            .unwrap_or_else(|| vec![diagnostics::Diagnostic::error(error.to_string())])
+    };
+    let profile = TargetProfile::host_if_supported().ok_or_else(|| {
+        vec![diagnostics::Diagnostic::error(
+            "project Build execution needs a supported host",
+        )]
+    })?;
+    let root = input.path();
+    let preparation =
+        begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
+    let mut session = PackageBuildSession::create(&build_directory.join("package-manager"))
+        .map_err(|e| error(e.into()))?;
+    let result = (|| -> Result<_, PackageCommandError> {
+        let rejected: Vec<_> = preparation
+            .requested_target_errors()
+            .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
+            .collect();
+        if rejected.len() == profiles.len() {
+            return Ok(ProjectProducts(rejected));
+        }
+        let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
+            Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
+            _ => None,
+        };
+        let acquired = match selected {
+            Some(selection) => preparation.acquire_selected_root(selection)?,
+            None => preparation.acquire_root()?,
+        };
+        let mut acquisitions = preparation.source_acquisitions()?;
+        let acquired = acquisitions.retain_root(acquired)?;
+        let mut host = SourceHost {
+            session: &mut session,
+            acquisitions: &mut acquisitions,
+            profile,
+            timings,
+            observed: Vec::new(),
+            active: Vec::new(),
+            settled: Vec::new(),
+        };
+        let entry = match input {
+            ProjectInput::PackageCheck(path)
+                if path.file_name().is_some_and(|name| name == "main.omg") =>
+            {
+                acquired.entry_path()
+            }
+            _ => preparation.entry_path(),
+        };
+        let returned = host.execute(&entry, &acquired, snapshot, false)?.stage;
+        if returned.returned().declaration().is_none() {
+            preparation.require_unlocked_anonymous()?;
+            return Ok(ProjectProducts::shared(
+                profiles,
+                returned.open_product(None)?,
+            ));
+        }
+        let resolved = host.join(acquired, returned)?;
+        let settled = host.settled;
+        let project = preparation.complete_source_resolution(resolved.sources)?;
+        // Source acquisition uses the lock's exact pins. Both ordinary checking and
+        // --check --verify start from captured source, without installing recorded trust
+        // admissions or a restricted-Build checkpoint. Runtime consent is a separate decision.
+        let decisions: Vec<_> = profiles
+            .iter()
+            .copied()
+            .map(|target| {
+                (
+                    target,
+                    project
+                        .accepted_deployment(target)
+                        .map_err(|reason| vec![Diagnostic::error(reason)]),
+                )
+            })
+            .collect();
+        if resolved
+            .inputs
+            .required_dependency_source_instances()
+            .is_empty()
+            && decisions
+                .iter()
+                .all(|(_, policy)| matches!(policy, Ok(None)))
+        {
+            return Ok(ProjectProducts::shared(
+                profiles,
+                resolved.root.open_product(Some(&resolved.inputs))?,
+            ));
+        }
+        let root = resolved.root.settle_dependency(resolved.inputs)?;
+        Ok(ProjectProducts(
+            decisions
+                .into_iter()
+                .map(|(target, decision)| {
+                    let product = decision.and_then(|accepted| {
+                        let sources = services::HandoffSources {
+                            profile,
+                            settled: &settled,
+                            accepted,
+                        };
+                        // A Build-host occurrence can carry different accepted bindings in different
+                        // deployment sections even when its target and host are the same.
+                        let mut dependencies = sources.deployment_products(&root, target);
+                        let consent = accepted
+                            .map(|policy| policy.root_permissions())
+                            .transpose()
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                        let planned = sources
+                            .dependency_product(
+                                &root,
+                                build_declarations::DependencyPurpose::Product,
+                                target,
+                                &mut dependencies,
+                            )
+                            .map_err(|failure| error(failure.into()))?;
+                        let planned = planned.with_component_suppliers(dependencies.into_suppliers());
+                        Ok(Rc::new(match consent {
+                            Some(consent) => planned.with_runtime_consents(vec![consent]),
+                            None => planned,
+                        }))
+                    });
+                    (target, product)
+                })
+                .collect(),
+        ))
+    })();
+    session.dispose(result).map_err(error)
+}

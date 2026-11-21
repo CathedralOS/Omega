@@ -7568,7 +7568,7 @@ pub(crate) fn select_function(
                     LegalizedScalarInstructionKind::FloatResultPolicy { .. } => {
                         float_result_policy::emit(operation, &mut builder)?
                     }
-                    LegalizedScalarInstructionKind::StorageAddress { .. } => {
+                    LegalizedScalarInstructionKind::ObserveStorageLocation { .. } => {
                         structural::storage_address(source, &mut builder, operation)?
                     }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {

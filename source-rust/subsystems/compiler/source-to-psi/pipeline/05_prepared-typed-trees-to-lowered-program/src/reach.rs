@@ -273,6 +273,7 @@ pub(crate) fn source_closure(
     let mut active = Vec::new();
     let mut completed = Vec::new();
     while let Some((id, exiting)) = pending.pop() {
+        let id = typed.service_reaches.canonical_id(id);
         let definition = typed
             .service_reaches
             .definition(id)
@@ -362,12 +363,22 @@ pub(crate) fn written_ceiling(
     let machine = typed
         .machine_by_symbol(symbol)
         .ok_or_else(|| unavailable(context, "reach header has no exact machine declaration"))?;
-    let written = has_authored_ceiling(typed, context, symbol)?;
-    if !written {
+    authored_source_ceiling(typed, context, symbol, machine.service_reach_row)
+}
+
+/// Source provenance distinguishes omission from an explicitly empty row.
+/// Members belong to the prepared application, whose receiver and method
+/// arguments have already been substituted into this row.
+pub(crate) fn authored_source_ceiling(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+    row: semantic_vocabulary::ServiceReachRowId,
+) -> Checked<Option<Vec<ServiceReachId>>> {
+    if !has_authored_ceiling(typed, context, symbol)? {
         return Ok(None);
     }
-    crate::lowering::read::services::finite_reach(typed, context, machine.service_reach_row)
-        .map(Some)
+    crate::lowering::read::services::finite_reach(typed, context, row).map(Some)
 }
 
 /// State canonical rows from actual lowered direct, callable and boundary calls.

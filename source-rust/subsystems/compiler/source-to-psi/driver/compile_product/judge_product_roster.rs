@@ -67,38 +67,7 @@ pub(super) fn prepare_and_judge(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
     }
-    let mut layout_scopes = layout_scopes;
     let subject = pass.inputs.subject;
-    if root_bindings.is_empty() {
-        // An entryless Check judges every machine its subject declares, so
-        // each one demands the layouts its signature and body name
-        // (wiki/spec/layouts/plans.md#layout-demand-and-validation). They
-        // are layout roots only: the roster still selects nothing extra.
-        // A generated machine with no source file is no subject's declaration;
-        // leaving it out can only leave a layout unrequested, which refuses.
-        let subject_machines = typed
-            .machines()
-            .iter()
-            .map(|machine| machine.symbol)
-            .filter(|&machine| {
-                crate::source_state::source_subjects::contains(
-                    &typed,
-                    machine,
-                    &[subject],
-                    source_provenance::DependencyScope::Product,
-                )
-                .unwrap_or(false)
-            })
-            .collect::<Vec<_>>();
-        // A scope's own roots here are only its claimed native bindings.
-        for scope in &mut layout_scopes {
-            for machine in &subject_machines {
-                if !scope.entry_declarations.contains(machine) {
-                    scope.entry_declarations.push(*machine);
-                }
-            }
-        }
-    }
     selected.extend(
         claimed
             .iter()
@@ -112,7 +81,7 @@ pub(super) fn prepare_and_judge(
         // source-checking admission or projection.
         external_roots: &[],
         layout_scopes: &layout_scopes,
-        layout_selection_authority: build.layout_selection_authority.clone(),
+        layout_selection_authority: build.declaration_scope.clone(),
         representations: prepare_typed_source::ProductRepresentationInput {
             activation: pass.activation,
             declared: build.policy.declared,
@@ -125,7 +94,9 @@ pub(super) fn prepare_and_judge(
 
     let inspection_root = match pass.entry {
         ProductEntry::Inspection(name) => Some(inspection_root(&typed, subject, name)?),
-        ProductEntry::BuildBindings | ProductEntry::RegisteredTest { .. } => None,
+        ProductEntry::BuildBindings
+        | ProductEntry::PackageReview
+        | ProductEntry::RegisteredTest { .. } => None,
     };
     // Entry policies are executable dependencies of the selected targets.
     // Inactive bindings still identify real slots but need no physical contract.
@@ -191,18 +162,19 @@ pub(super) fn prepare_and_judge(
             }
             .prepare()
         });
-    let program = match source {
+    let prepared = match source {
         Ok(source) => {
-            *pass.accounting = source.accounting;
+            pass.accounting.append(source.accounting);
             source.program
         }
         Err(failure) => {
-            *pass.accounting = failure.accounting;
+            pass.accounting.append(failure.accounting);
             return Err(failure.diagnostics);
         }
     };
+    let program = prepared.trees();
     let mut provider_defaults = crate::compile_product::provider_choices::retain_provider_defaults(
-        ProviderPlanningContext::new(&program, source_provenance::DependencyScope::Product),
+        ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
     )?;
     // Keep every available default for settlement. Only actual target choices
     // become normalized provider records and concrete body judgments here;
@@ -230,7 +202,7 @@ pub(super) fn prepare_and_judge(
         declaration_roots,
         calling_applications,
     } = crate::compile_product::provider_choices::prepare_with_source_defaults(
-        &program,
+        program,
         build.calling_targets,
         &pass.explicit_providers,
         &[],
@@ -257,10 +229,10 @@ pub(super) fn prepare_and_judge(
         // in its numbering. Only selected rows have projected calling shapes.
         let implementation = root_bindings[selected].implementation_symbol;
         let nomination = crate::compile_product::entry_contracts::select_program_entry_contract(
-            &program, profile,
+            program, profile,
         )?;
         nomination
-            .require_owner(&program)
+            .require_owner(program)
             .map_err(|diagnostic| vec![diagnostic])?;
         let sources = program.symbols.source_map().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -305,12 +277,13 @@ pub(super) fn prepare_and_judge(
     });
 
     let publication = judge_lowered_source::SourcePublication::judge(
-        program.clone(),
+        prepared.clone(),
         roster,
         build.optimizations.clone(),
+        pass.timings,
     )?;
     Ok(JudgedSource {
-        program: Arc::clone(&program),
+        program: Arc::clone(program),
         publication: Arc::new(publication),
         provider_defaults,
     })

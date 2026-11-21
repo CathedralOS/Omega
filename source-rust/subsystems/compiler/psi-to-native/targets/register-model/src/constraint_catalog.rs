@@ -147,6 +147,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub bits_to_float64: Option<RegisterConstraintKey>,
     pub ieee_float_arithmetic: Option<RegisterConstraintKey>, // Nearest-even IEEE arithmetic on general-register payloads.
     pub ieee_float_directed_binary: Option<RegisterConstraintKey>, // Explicit binary rounding with local control preservation.
+    pub ieee_float_directed_ternary: Option<RegisterConstraintKey>,
     pub ieee_float_directed_unary: Option<RegisterConstraintKey>, // Explicit unary rounding with local control preservation.
     pub ieee_float_unary: Option<RegisterConstraintKey>, // Unary IEEE forms with one general-register input and one result.
     pub ieee_float_conversion_control: Option<RegisterConstraintKey>, // Unary IEEE integer conversions that clobber control state.

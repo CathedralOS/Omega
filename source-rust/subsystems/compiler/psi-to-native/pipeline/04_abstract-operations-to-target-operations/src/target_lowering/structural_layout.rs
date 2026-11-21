@@ -560,26 +560,6 @@ pub(crate) use scalar_fields::{
     static_field_geometry,
 };
 
-pub(crate) fn root_array_projection_metadata(
-    root: StructuralTypeId,
-    declarations: &StructuralLayouts<'_>,
-) -> Result<(Option<u64>, Option<u32>), LoweringError> {
-    let declaration = declarations
-        .get(root)
-        .ok_or(LoweringError::UnknownStructuralType(root))?;
-    let StructuralTypeShape::FixedArray {
-        element,
-        length: terminal_psi::ArrayExtent::Literal(length),
-    } = declaration.shape
-    else {
-        return Ok((None, None));
-    };
-    let shape = structural_shape(element, declarations)?;
-    let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
-        .ok_or(LoweringError::StructuralTypeTooLarge(root))?;
-    Ok((Some(length), Some(stride)))
-}
-
 pub(crate) fn structural_shape(
     structural_type: StructuralTypeId,
     declarations: &StructuralLayouts<'_>,
@@ -754,20 +734,6 @@ pub(crate) fn bounded_byte_field_geometry(
             }
             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => None,
-        })
-    })
-}
-
-pub(crate) fn borrowed_view_field_offset(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &StructuralLayouts<'_>,
-) -> Result<Option<u32>, LoweringError> {
-    byte_sequence_field_geometry(structural_type, path, declarations).map(|geometry| {
-        geometry.and_then(|(offset, carrier)| match carrier {
-            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => Some(offset),
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
         })
     })
 }
@@ -1206,14 +1172,6 @@ fn runtime_projection_with_leaf_type(
         return Ok((endpoint, shape, byte_offset, indices));
     }
     storage_projection_path(structural_type, path, declarations, expected, leaf_type)
-}
-
-pub(crate) fn byte_sequence_shape(
-    carrier: terminal_psi::ByteSequenceCarrier,
-    structural_type: StructuralTypeId,
-) -> Result<ValueShape, LoweringError> {
-    calling_conventions::terminal_layout::byte_sequence_shape(carrier, structural_type)
-        .map_err(geometry_error)
 }
 
 pub(crate) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {

@@ -15,6 +15,13 @@ Nonempty stage 04 preparation and other unserved authority requests still
 refuse with `no product route yet`. Publishing a separately served typed
 frontier gives no default-Build or native capability beyond that product.
 
+A Product can select `SparseConditionalConstantPropagation` through its ordinary
+Build. The pass joins constants at executable predecessors and folds pure
+Boolean negations and Boolean/integer comparisons. The lowered-form checker
+judges the original whole program and the transformed one independently.
+The portable artifact names the executed selection and both semantic identities.
+An unimplemented selection refuses publication.
+
 The old checked-source and Build-provider production request interfaces and the
 checked-provider inventory reexport are removed, as are their lowering stage
 and the Lowered Psi, optimization and publication wrappers. Missing
@@ -26,8 +33,8 @@ fallback artifact.
 correspondence for portable reuse and invocation-local production.
 Companion records are in [build_bindings.rs](src/build_bindings.rs). For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
-The [entry receipt](../../../psi-artifact/codec/src/entry_receipt.rs) binds the selected
+The [entry receipt](../../../psi/artifact/codec/src/entry_receipt.rs) binds the selected
 Unit declaration to the canonical artifact. Both source publication and native
-preparation [attach application roots](../../../psi-artifact/codec/src/entry_receipt/application.rs)
+preparation [attach application roots](../../../psi/artifact/codec/src/entry_receipt/application.rs)
 to the current execution view. [Source publication](src/application.rs) records
 the receipt check as a separate compilation stage when an entry was requested.

@@ -1,9 +1,9 @@
 //! Close the package's source coordinates before target planning. The review
 //! inventory includes every Build binding for this deployment, including rows
 //! absent from a runnable entry's call graph.
+use super::SourcePackageReviewRequirements;
 use crate::{AcceptedTerminalSource, DeclaredBoundaryRequirement};
 use diagnostics::Diagnostic;
-use super::SourcePackageReviewRequirements;
 use semantic_vocabulary::MachineId;
 
 impl AcceptedTerminalSource {
@@ -48,26 +48,27 @@ impl AcceptedTerminalSource {
                     "one accepted declaration for a native requirement",
                 ));
             }
-            supplies
-                .map(|supply| {
-                    let slot = supply.selection.subject;
-                    let requirement = supply.selection.requirement;
-                    let index = declared
-                        .binary_search_by_key(
-                            &(
-                                slot.arena_index(),
-                                slot.generation(),
-                                requirement.arena_index(),
-                                requirement.generation(),
-                            ),
-                            key,
-                        )
-                        .map_err(|_| {
-                            unavailable("the native binding's exact accepted requirement")
-                        })?;
-                    Ok((declared[index].boundary, supply.materialization()))
-                })
-                .collect()
+            let mut bindings = Vec::new();
+            for supply in supplies {
+                let before = bindings.len();
+                for row in declared
+                    .iter()
+                    .filter(|row| row.slot == supply.selection.subject)
+                {
+                    let binding = supply
+                        .materialization_for(self.source(), row.requirement)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    if let Some(binding) = binding {
+                        bindings.push((row.boundary, binding));
+                    }
+                }
+                if bindings.len() == before {
+                    return Err(unavailable(
+                        "the native binding's exact accepted requirement",
+                    ));
+                }
+            }
+            Ok(bindings)
         })();
         SourcePackageReviewRequirements { numeric, bindings }
     }

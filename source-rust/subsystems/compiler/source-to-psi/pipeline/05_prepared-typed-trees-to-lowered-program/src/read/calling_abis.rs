@@ -39,8 +39,7 @@ struct PreparedStorage {
 fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         reason: RefusalReason::Unsupported,
-        machine: entry,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
         source_span: None,
         detail: detail.into(),
     }
@@ -1072,9 +1071,9 @@ mod tests {
         PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
     };
     use crate::source_symbols::SymbolTableBuilder;
-    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
+    use source_provenance::DependencyScope;
     use source_text::{SourceSpan, Span};
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 

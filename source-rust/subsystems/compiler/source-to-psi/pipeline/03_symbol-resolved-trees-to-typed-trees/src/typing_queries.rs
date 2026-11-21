@@ -241,6 +241,44 @@ pub(crate) fn declared_place_type(
     })
 }
 
+/// A value parameter has the carrier declared by its enclosing
+/// telescope. A sibling declaration's parameter cannot type this operand.
+fn generic_value_type(
+    program: &TypedTrees,
+    mut scope: SymbolHandle,
+    binder: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    use crate::source_state::data::TypeParameterKind;
+
+    let nodes = program.symbols.symbols().nodes();
+    if !nodes.is_valid(binder) || program.symbols.get(binder).kind != SymbolKind::TypeParameter {
+        return None;
+    }
+    for _ in 0..nodes.len() {
+        if !nodes.is_valid(scope) {
+            break;
+        }
+        let parameters = program.declaration_type_parameters(scope);
+        let mut matches = parameters
+            .iter()
+            .filter(|parameter| parameter.symbol == binder);
+        if let Some(parameter) = matches.next() {
+            let (TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                return None;
+            };
+            return (matches.next().is_none()
+                && program
+                    .type_reference_table
+                    .contains_type_reference(type_reference))
+            .then_some(type_reference);
+        }
+        scope = program.symbols.get(scope).parent;
+    }
+    None
+}
+
 /// Read the declared type of a value in its exact callable context. A
 /// contract's reserved result is a value of its declared return type, never
 /// writable storage or a name resolved again by spelling.
@@ -323,6 +361,14 @@ pub(crate) fn declared_callable_value_type(
         };
         target = *argument;
     }
+    if table.expression_is_valid(target)
+        && let ExpressionNode::Name(path) = table.expression(target)
+        && let Some(constant) = program.named_const_declaration(path)
+    {
+        return program.type_reference_table.contains_type_reference(constant.declared_type)
+            .then_some(constant.declared_type)
+            .ok_or_else(|| crate::typing::unavailable_judgment("constant's declared type"));
+    }
     let states = program
         .machine_by_symbol(owner)
         .map(|machine| program.machine_states(machine));
@@ -342,6 +388,12 @@ pub(crate) fn declared_callable_value_type(
         return declared_projection_type(program, target, |path| {
             if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
                 return Err(crate::typing::unavailable_judgment("data clause value"));
+            }
+            if let Some(reference) = path
+                .resolved_symbol()
+                .and_then(|binder| generic_value_type(program, owner, binder))
+            {
+                return Ok(reference);
             }
             let field = path
                 .resolved_symbol()
@@ -412,6 +464,7 @@ pub(crate) fn declared_callable_value_type(
                 .flatten()
                 .chain(state)
                 .filter_map(|state| program.declared_binding_type_by_symbol(state, binder))
+                .chain(generic_value_type(program, owner, binder))
                 .chain(signature.into_iter().flat_map(|signature| {
                     program
                         .state_signature_parameters(signature)
@@ -480,10 +533,18 @@ fn declared_projection_type(
                 }
                 for expression in spine.into_iter().rev() {
                     reference = match table.expression(expression) {
-                        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
-                            let base = program.type_reference_table.unconstrained_type_reference(reference);
-                            let TypeReferenceNode::Reference { referee, .. } = program.type_reference_table.type_reference(base) else {
-                                return Err(crate::typing::unavailable_judgment("dereference of non-reference storage"));
+                        ExpressionNode::Unary(unary)
+                            if unary.operator == UnaryOperator::Dereference =>
+                        {
+                            let base = program
+                                .type_reference_table
+                                .unconstrained_type_reference(reference);
+                            let TypeReferenceNode::Reference { referee, .. } =
+                                program.type_reference_table.type_reference(base)
+                            else {
+                                return Err(crate::typing::unavailable_judgment(
+                                    "dereference of non-reference storage",
+                                ));
                             };
                             *referee
                         }
@@ -1593,6 +1654,22 @@ impl DeclaredExpressionTypes {
         {
             return Some(retained);
         }
+        // A requirement's namespace receiver is not a value argument. Read its
+        // exact public signature before a surrounding cast accounts for the
+        // result's domains; the receiving type cannot supply that information.
+        if let ExpressionNode::Call(call) = table.expression(expression)
+            && call.selects_only_nominal_route()
+            && table.expression_is_valid(call.receiver)
+            && let Ok(signature) = program.source_call_requirement_signature(
+                owner,
+                crate::source_state::references::StaticArgumentCall::Expression(expression, call),
+            )
+        {
+            return program
+                .type_reference_table
+                .contains_type_reference(signature.return_type)
+                .then_some(signature.return_type);
+        }
         if let ExpressionNode::Call(call) = table.expression(expression)
             && call.selects_only_nominal_route()
             && !call.receiver.is_valid()
@@ -1799,6 +1876,39 @@ fn core_integer_result(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_computed_array_index_keeps_the_const_parameters_integer_type() {
+        use crate::source_state::{expression::ExpressionNode, statement::StatementNode};
+        let resolved = crate::resolve_fixture(
+            "machine last<const Count: u64>(bytes: @[u8; Count]) -> u8 requires Count > 0 { bytes[Count - 1] }",
+        );
+        let program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let indices = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.is_operand_capture
+                    && matches!(
+                        program.expression_table.expression(local.initial_value),
+                        ExpressionNode::Binary(_)
+                    ))
+                .then_some(local.type_reference)
+            })
+            .collect::<Vec<_>>();
+        let [reference] = indices.as_slice() else {
+            panic!("expected one computed index")
+        };
+        assert_eq!(
+            program.primitive_type_reference(*reference),
+            Some(crate::source_state::types::PrimitiveType::U64)
+        );
+    }
+
     #[test]
     fn exact_constructor_fields_keep_case_and_constructor_owners() {
         use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVariant};
@@ -2763,10 +2873,9 @@ mod tests {
             panic!("call expression")
         };
         node.target = crate::source_state::name::Identifier::generated("size_of");
-        node.layout_query = Some(crate::source_state::expression::DataLayoutQueryRequest {
+        node.layout_query = Some(crate::source_state::expression::DataLayoutQueryRequest::Type {
             kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
             operand: Default::default(),
-            nonempty_view: ExpressionHandle::invalid(),
         });
         assert_eq!(deferred(&program).unwrap(), Vec::new());
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {

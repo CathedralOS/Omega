@@ -27,6 +27,9 @@ public data TypeRole [copy] {
     case Type;
     case Trait;
     case StaticArgument;
+    // The type of a trait's static parameter may be a value type or a trait
+    // describing an explicitly selected implementation.
+    case StaticParameter;
 }
 
 // What a bound row names, for its position's admission.
@@ -234,7 +237,8 @@ crashes Trap
     ) {
         let trait_root: bool = is_root && role == TypeRole::Trait;
         transition kind {
-            BoundKind::Trait -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding, trait_root, ResolveDiagnosticCode::NotAType),
+            BoundKind::Trait -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding,
+                trait_name_admitted(role, is_root), ResolveDiagnosticCode::NotAType),
             BoundKind::Conformance -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding,
                 !is_root || role == TypeRole::StaticArgument, ResolveDiagnosticCode::NotAType),
             BoundKind::Type -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding, !trait_root, ResolveDiagnosticCode::NotATrait)
@@ -692,4 +696,10 @@ crashes Trap
     machine absent() -> TypeBinding {
         TypeBinding::Unresolved
     }
+}
+
+// A trait is a contract at a parent or satisfaction edge and at the root of
+// a typed static parameter. A field or the element of a reference needs a type.
+machine trait_name_admitted(role: TypeRole, is_root: bool) -> bool {
+    is_root && (role == TypeRole::Trait || role == TypeRole::StaticParameter)
 }

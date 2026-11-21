@@ -7,16 +7,19 @@ use representations\symbol_resolved_trees\ResolveDiagnosticCode;
 use representations\symbol_resolved_trees\TypeBinding;
 use representations\symbol_resolved_trees\TypeScope;
 use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\domain_binding_at;
 use representations\symbol_resolved_trees\machine_owner;
+use representations\symbol_resolved_trees\name_resolution_domain_item;
 use representations\symbol_resolved_trees\name_resolution_reject;
+use representations\symbol_resolved_trees\type_binding_at;
 use representations\syntax_trees\GenericParameter;
 use representations\syntax_trees\IdentifierSpan;
 use representations\syntax_trees\MachineItem;
 use representations\syntax_trees\Parameter;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\TypeReferenceKind;
 use representations\syntax_trees\machine_item;
+use representations\syntax_trees\same_type_form;
 use representations\syntax_trees\syntax_trees_generic_parameter;
 use representations\syntax_trees\syntax_trees_parameter;
 use representations\syntax_trees\syntax_trees_type_reference;
@@ -254,7 +257,7 @@ crashes Trap
         left: MachineItem,
         right: MachineItem
     ) -> bool {
-        let same: bool = same_parameters(resolver, sources, syntax, left_handle, right_handle);
+        let same: bool = same_parameters(resolver, syntax, left_handle, right_handle);
         transition same {
             true -> targets(sources, left, right),
             _ -> different()
@@ -285,7 +288,6 @@ crashes Trap
 // other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` match.
 public machine same_parameters(
     resolver: @Resolver,
-    sources: @SourceSet,
     syntax: @SyntaxTrees,
     left_handle: u64 in Trapping,
     right_handle: u64 in Trapping
@@ -295,13 +297,12 @@ crashes Trap
     let left: MachineItem = machine_item(syntax, left_handle);
     let right: MachineItem = machine_item(syntax, right_handle);
     transition left.parameter_count == right.parameter_count && left.generic_parameter_count == right.generic_parameter_count {
-        true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, 0),
+        true -> generic(resolver, syntax, left_handle, right_handle, left, right, 0),
         _ -> different()
     }
 
     machine generic(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
@@ -310,14 +311,13 @@ crashes Trap
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.generic_parameter_count {
-            true -> generic_kind(resolver, sources, syntax, left_handle, right_handle, left, right, offset),
-            _ -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, 0)
+            true -> generic_kind(resolver, syntax, left_handle, right_handle, left, right, offset),
+            _ -> parameter(resolver, syntax, left_handle, right_handle, left, right, 0)
         }
     }
 
     machine generic_kind(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
@@ -328,14 +328,13 @@ crashes Trap
         let left_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, left.first_generic_parameter + offset);
         let right_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, right.first_generic_parameter + offset);
         transition left_parameter.kind == right_parameter.kind {
-            true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1),
+            true -> generic(resolver, syntax, left_handle, right_handle, left, right, offset + 1),
             _ -> different()
         }
     }
 
     machine parameter(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
@@ -344,14 +343,13 @@ crashes Trap
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.parameter_count {
-            true -> compare(resolver, sources, syntax, left_handle, right_handle, left, right, offset),
+            true -> compare(resolver, syntax, left_handle, right_handle, left, right, offset),
             _ -> same()
         }
     }
 
     machine compare(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
@@ -363,11 +361,11 @@ crashes Trap
         let right_parameter: Parameter = syntax_trees_parameter(syntax, right.first_parameter + offset);
         let left_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, left_handle);
         let right_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, right_handle);
-        let equal: bool = same_type(resolver, sources, syntax, left_scope, left_parameter.type_reference,
+        let equal: bool = same_type(resolver, syntax, left_scope, left_parameter.type_reference,
             right_scope, right_parameter.type_reference
         );
         transition equal {
-            true -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1),
+            true -> parameter(resolver, syntax, left_handle, right_handle, left, right, offset + 1),
             _ -> different()
         }
     }
@@ -386,10 +384,9 @@ crashes Trap
 // child count, so two runs denote the same type exactly when they have the
 // same length and agree row by row in form, access, argument count, binding
 // and domain. Generic parameters agree by position in their scopes. Integer
-// rows compare by spelling until static evaluation lands.
+// rows agree when both denote the same static integer.
 public machine same_type(
     resolver: @Resolver,
-    sources: @SourceSet,
     syntax: @SyntaxTrees,
     left_scope: TypeScope,
     left: u64 in Trapping,
@@ -401,13 +398,12 @@ crashes Trap
     let left_root: TypeReference = syntax_trees_type_reference(syntax, left);
     let right_root: TypeReference = syntax_trees_type_reference(syntax, right);
     transition left - left_root.first_row == right - right_root.first_row {
-        true -> rows(resolver, sources, syntax, left_scope, left_root.first_row, right_scope, right_root.first_row, left),
+        true -> rows(resolver, syntax, left_scope, left_root.first_row, right_scope, right_root.first_row, left),
         _ -> different()
     }
 
     machine rows(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_scope: TypeScope,
         left_row: u64 in Trapping,
@@ -416,14 +412,13 @@ crashes Trap
         left_root: u64 in Trapping
     ) -> bool {
         transition left_row <= left_root {
-            true -> row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row, left_root),
+            true -> row(resolver, syntax, left_scope, left_row, right_scope, right_row, left_root),
             _ -> equal()
         }
     }
 
     machine row(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_scope: TypeScope,
         left_row: u64 in Trapping,
@@ -431,9 +426,9 @@ crashes Trap
         right_row: u64 in Trapping,
         left_root: u64 in Trapping
     ) -> bool {
-        let same: bool = same_type_row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row);
+        let same: bool = same_type_row(resolver, syntax, left_scope, left_row, right_scope, right_row);
         transition same {
-            true -> rows(resolver, sources, syntax, left_scope, left_row + 1, right_scope, right_row + 1, left_root),
+            true -> rows(resolver, syntax, left_scope, left_row + 1, right_scope, right_row + 1, left_root),
             _ -> different()
         }
     }
@@ -449,7 +444,6 @@ crashes Trap
 
 machine same_type_row(
     resolver: @Resolver,
-    sources: @SourceSet,
     syntax: @SyntaxTrees,
     left_scope: TypeScope,
     left: u64 in Trapping,
@@ -460,61 +454,25 @@ crashes Trap
 {
     let left_row: TypeReference = syntax_trees_type_reference(syntax, left);
     let right_row: TypeReference = syntax_trees_type_reference(syntax, right);
-    transition left_row.kind == right_row.kind && left_row.access == right_row.access
-        && left_row.argument_count == right_row.argument_count {
-        true -> spelling(resolver, sources, left_scope, left, right_scope, right, left_row, right_row),
+    transition same_type_form(syntax, left_row, right_row) {
+        true -> bounded(resolver, left_scope, left, right_scope, right),
         _ -> different()
     }
 
-    machine spelling(
-        resolver: @Resolver,
-        sources: @SourceSet,
-        left_scope: TypeScope,
-        left: u64 in Trapping,
-        right_scope: TypeScope,
-        right: u64 in Trapping,
-        left_row: TypeReference,
-        right_row: TypeReference
-    ) -> bool {
-        transition left_row.kind {
-            TypeReferenceKind::Literal -> literal(resolver, sources, left_scope, left, right_scope, right, left_row, right_row),
-            _ -> bounded(resolver, left_scope, left, right_scope, right)
-        }
-    }
-
-    machine literal(
-        resolver: @Resolver,
-        sources: @SourceSet,
-        left_scope: TypeScope,
-        left: u64 in Trapping,
-        right_scope: TypeScope,
-        right: u64 in Trapping,
-        left_row: TypeReference,
-        right_row: TypeReference
-    ) -> bool {
-        let same: bool = spans_equal(sources, left_row.name.source_span,
-            right_row.name.source_span
-        );
-        transition same {
-            true -> bounded(resolver, left_scope, left, right_scope, right),
-            _ -> different()
-        }
-    }
-
     machine bounded(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
-        transition left < 65536 && right < 65536 {
+        transition left < resolver.output.binding_count && right < resolver.output.binding_count {
             true -> compare(resolver, left_scope, left, right_scope, right),
             _ -> different()
         }
     }
 
     machine compare(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
-        let left_domain: DomainBinding = resolver.output.domain_bindings[left];
-        let right_domain: DomainBinding = resolver.output.domain_bindings[right];
-        let left_item: u64 = resolver.output.domain_items[left];
-        let right_item: u64 = resolver.output.domain_items[right];
+        let left_domain: DomainBinding = domain_binding_at(@resolver.output, left);
+        let right_domain: DomainBinding = domain_binding_at(@resolver.output, right);
+        let left_item: u64 in Trapping = name_resolution_domain_item(@resolver.output, left);
+        let right_item: u64 in Trapping = name_resolution_domain_item(@resolver.output, right);
         transition left_domain == right_domain && left_item == right_item {
-            true -> same_binding(left_scope, resolver.output.type_bindings[left], right_scope, resolver.output.type_bindings[right]),
+            true -> same_binding(left_scope, type_binding_at(@resolver.output, left), right_scope, type_binding_at(@resolver.output, right)),
             _ -> different()
         }
     }

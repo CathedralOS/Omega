@@ -156,13 +156,21 @@ impl<'program> ResolvedSignatureInputs<'program> {
         {
             self.unresolved = true;
         }
-        // Invocation names do not yet carry selected targets in resolved trees.
-        // Keep those inputs visible and defer closure instead of guessing a
-        // declaration from its spelling.
-        let invocations = program.signature_invokes(signature.invokes);
-        self.invocations
-            .extend(invocations.iter().map(|invocation| (scope, invocation)));
-        self.unresolved |= !invocations.is_empty();
+        // A bound service contributes its declaration and actual arguments.
+        // Unselected callback names retain their lexical input for later typing.
+        for invocation in program.signature_invokes(signature.invokes) {
+            match invocation {
+                crate::source_resolved::signature::InvocationReference::Service {
+                    service, ..
+                } => {
+                    self.service(program, scope, *service);
+                }
+                crate::source_resolved::signature::InvocationReference::Name(reference) => {
+                    self.invocations.push((scope, &reference.name));
+                    self.unresolved = true;
+                }
+            }
+        }
         self.types.extend(
             arguments
                 .iter()
@@ -266,10 +274,28 @@ impl<'program> ResolvedSignatureInputs<'program> {
             .service_reach_rows
             .services(signature.service_reach_row)
         {
-            match program.service_reaches.definition(*service) {
-                Some(definition) => self.symbol(scope, definition.symbol),
-                None => self.unresolved = true,
-            }
+            self.service(program, scope, *service);
+        }
+    }
+
+    fn service(
+        &mut self,
+        program: &'program crate::source_resolved::SymbolResolvedTrees,
+        scope: usize,
+        id: semantic_vocabulary::ServiceReachId,
+    ) {
+        let Some(row) = program.service_reaches.definition(id) else {
+            self.unresolved = true;
+            return;
+        };
+        self.symbol(scope, row.symbol);
+        if let Some(application) = &row.application {
+            self.types.extend(
+                program
+                    .child_type_references(application.arguments.arguments)
+                    .iter()
+                    .map(|argument| (scope, argument)),
+            );
         }
     }
 

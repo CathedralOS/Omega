@@ -1235,6 +1235,7 @@ pub(crate) mod component_arguments {
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ComponentCallScope {
+        pub(crate) float_evaluation: crate::float_result_policy::FloatEvaluation,
         pub(crate) namespace: Option<u64>,
         machine: MachineId,
         block: BlockId,
@@ -1244,6 +1245,7 @@ pub(crate) mod component_arguments {
     impl<'artifact> TerminalExecution<'artifact> {
         pub(crate) fn component_call_scope(&self) -> ComponentCallScope {
             ComponentCallScope {
+                float_evaluation: self.float_evaluation,
                 namespace: self.local_structural_identities.exposure_namespace,
                 machine: self.current_machine,
                 block: self.current,
@@ -3382,7 +3384,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                 reason: "opaque host provider requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt",
             });
         }
-        let requirements = handler.storage_requirements(boundary, &scalar_arguments);
+        // The evaluator owns an issued snapshot. Its shared argument requires
+        // no host storage, readiness, or externally visible effect.
+        let layout_snapshot =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|declaration| {
+                    declaration.execution
+                        == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+                });
+        let requirements = if layout_snapshot {
+            Default::default()
+        } else {
+            handler.storage_requirements(boundary, &scalar_arguments)
+        };
         let original_storage = requirements.original;
         let mut boundary_arguments = self
             .resolve_boundary_arguments(
@@ -3464,6 +3480,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary,
         };
         let effect = TerminalEffect::BoundaryCall {
+            float_evaluation: self.float_evaluation,
             site: site.clone(),
             arguments: scalar_arguments,
             structural_arguments: exported_values,
@@ -3478,6 +3495,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             remaining_claims,
             effect,
         };
+        if layout_snapshot {
+            return self.complete_boundary_effect(operation, handler, pending);
+        }
         if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
             pending.awaiting_provider_readiness =
                 matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
@@ -3551,16 +3571,33 @@ impl<'artifact> TerminalExecution<'artifact> {
         } = pending;
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(boundary)?;
-        let returned = handler
-            .handle_effect_with_buffers(
-                &effect,
-                &mut boundary_arguments.buffers,
-                &mut boundary_arguments.storage_inputs.buffers,
-            )
-            .map_err(|rejection| TerminalInterpretError::EffectRejected {
-                operation: operation.id,
-                rejection,
-            })?;
+        let layout_snapshot =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|declaration| {
+                    declaration.execution
+                        == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+                });
+        let returned = if layout_snapshot {
+            self.issued_layout_target
+                .as_ref()
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "layout target facts require an issued compiler invocation argument",
+                ))?
+                .snapshot(&program.catalogs, boundary_declaration, &effect)?
+        } else {
+            handler
+                .handle_effect_with_buffers(
+                    &effect,
+                    &mut boundary_arguments.buffers,
+                    &mut boundary_arguments.storage_inputs.buffers,
+                )
+                .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                    operation: operation.id,
+                    rejection,
+                })?
+        };
         if let TerminalEffectResult::Crash(cause) = returned {
             let crash = self.admit_boundary_crash(boundary_declaration, &effect, cause)?;
             self.effects.push(effect);
@@ -3672,7 +3709,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             .map_err(|error| error.in_argument_preparation("commit captured host storage"))?;
         let loan_completions = self.loan_completions_for_operation(operation.id)?;
         self.complete_loan_custody(&loan_completions)?;
-        self.effects.push(effect);
+        if !layout_snapshot {
+            self.effects.push(effect);
+        }
         Ok(OperationFlow::Advance)
     }
 

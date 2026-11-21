@@ -20,11 +20,13 @@ use semantic_vocabulary::{
     ClosedScalarType, ScalarApplicationId, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use target::NativeTarget;
+use terminal_psi::layouts::record_storage::{
+    StorageGeometryError, foreign_opaque_carrier, foreign_record_storage,
+};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
     TerminalModule,
 };
-use terminal_semantics::StorageGeometryError;
 
 pub const BOUNDARY_VALUE_SHAPE_CAPACITY: usize = 256;
 pub const BOUNDARY_VALUE_FIELD_CAPACITY: usize = 256;
@@ -483,7 +485,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             .structural_type(structural_type)
             .ok_or("boundary value has no canonical storage declaration")?;
         if let Some((selection_ordinal, selected)) =
-            terminal_semantics::foreign_opaque_carrier(self.module, declaration)?
+            foreign_opaque_carrier(self.module, declaration)?
         {
             let carrier = self.value(selected.carrier)?;
             return Ok(self.recipes.values.insert(BoundaryValueRecipe::Opaque {
@@ -550,8 +552,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
         fields: &[StructuralFieldDeclaration],
         storage: StructuralRecordStorage,
     ) -> Result<BoundaryValueRecipe, String> {
-        let selected =
-            terminal_semantics::foreign_record_storage(self.module, record, storage, self.target)?;
+        let selected = foreign_record_storage(self.module, record, storage, self.target)?;
         let mut recipes = Vec::new();
         for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
             let storage = selected.field(field)?;
@@ -625,13 +626,13 @@ mod tests {
         IeeeFloatFormat, IntegerSign, IntegerType, ScalarApplicationId, ScalarType,
         StructuralFieldId, StructuralTypeId,
     };
+    use terminal_psi::layouts::record_storage::StorageGeometryError;
     use terminal_psi::{
         ArrayExtent, BindingRelevance, ByteSequenceCarrier, StructuralAccess,
         StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
         StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityTableBuilder,
         TerminalModule,
     };
-    use terminal_semantics::StorageGeometryError;
 
     #[test]
     fn scalar_recipes_require_the_exact_closed_projection() {
@@ -640,11 +641,7 @@ mod tests {
             ValueId, WidthParameter,
         };
         let module = terminal_psi::TerminalModule::declarations();
-        let extents = |id| {
-            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                id,
-            ))
-        };
+        let extents = |id| Err(StorageGeometryError::UnresolvedExtent(id));
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 24).unwrap());
         let closed = ClosedScalarType::try_from(scalar).unwrap();
         let project = |requested| (requested == scalar).then_some(closed);
@@ -749,9 +746,7 @@ mod tests {
             assert_eq!(shape.alignment, 1);
         }
         let mut pending = TerminalBoundaryRecipes::new(&module, "macos_arm64", &|requested| {
-            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                requested,
-            ))
+            Err(StorageGeometryError::UnresolvedExtent(requested))
         });
         assert!(
             pending
@@ -776,9 +771,7 @@ mod tests {
                 });
             let mut recipes =
                 TerminalBoundaryRecipes::new(&module, "macos_arm64", &|application| {
-                    Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                        application,
-                    ))
+                    Err(StorageGeometryError::UnresolvedExtent(application))
                 });
             let recipe = recipes
                 .reference(referent)

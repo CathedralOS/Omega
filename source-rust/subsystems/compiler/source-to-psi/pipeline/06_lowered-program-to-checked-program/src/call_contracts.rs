@@ -114,13 +114,23 @@ impl ScalarParameters<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum ResultFormal {
+    Unit,
+    Scalar(ValueId),
+    Structural(
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::StructuralTypeId,
+    ),
+}
+
 pub(crate) struct PublicContract<'a> {
     pub requires: &'a [Proposition],
     pub ensures: Guarantees<'a>,
     pub structural_parameters: &'a [StructuralParameterDeclaration],
     pub scalar_parameters: ScalarParameters<'a>,
     pub parameter_order: &'a [BoundaryParameterKind],
-    pub result: Option<&'a terminal_psi::TerminalMachineResult>,
+    pub result: ResultFormal,
     pub crash_routes: &'a [CrashRouteBucket],
     pub erased_scalar_formals: &'a [ValueDeclaration],
     pub erased_proof_formals: &'a [ErasedProofFormal],
@@ -142,7 +152,15 @@ impl<'a> PublicContract<'a> {
             structural_parameters,
             scalar_parameters: ScalarParameters::Values(scalar_parameters),
             parameter_order,
-            result: Some(result),
+            result: match result {
+                terminal_psi::TerminalMachineResult::Unit => ResultFormal::Unit,
+                terminal_psi::TerminalMachineResult::Scalar(value) => {
+                    ResultFormal::Scalar(value.id)
+                }
+                terminal_psi::TerminalMachineResult::Structural(result) => {
+                    ResultFormal::Structural(result.place, result.structural_type)
+                }
+            },
             crash_routes: &contract.crash_routes,
             erased_scalar_formals: &contract.erased_scalar_formals,
             erased_proof_formals: &contract.erased_proof_formals,
@@ -153,6 +171,26 @@ impl<'a> PublicContract<'a> {
 pub(crate) struct Invocation<'a> {
     pub inputs: Inputs<'a>,
     pub contract: PublicContract<'a>,
+}
+
+impl<'a> Invocation<'a> {
+    pub(crate) fn structural_inputs(
+        &self,
+    ) -> (
+        &'a [StructuralParameterDeclaration],
+        Option<semantic_vocabulary::MachineId>,
+    ) {
+        // Dependent extents belong to the machine that supplied the public
+        // header. A descriptor or separate selected requirement supplies its
+        // own contract; the implementation's inputs cannot justify its shape.
+        let owner = match (self.inputs.callee, self.inputs.required_contract) {
+            (Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id)), None) => {
+                Some(id)
+            }
+            _ => None,
+        };
+        (self.contract.structural_parameters, owner)
+    }
 }
 
 /// A frame-reusing jump keeps both actual lanes and its complete callable
@@ -539,7 +577,22 @@ pub(crate) fn invocation<'a>(
                 structural_parameters: &boundary.structural_parameters,
                 scalar_parameters: ScalarParameters::Types(&boundary.scalar_parameters),
                 parameter_order: &boundary.parameter_order,
-                result: None,
+                result: match &boundary.result {
+                    terminal_psi::BoundaryMachineResult::Unit => ResultFormal::Unit,
+                    terminal_psi::BoundaryMachineResult::Scalar(_) => {
+                        let result = boundary.scalar_contract_result().ok_or_else(|| {
+                            refuse("boundary scalar result has no contract coordinate")
+                        })?;
+                        ResultFormal::Scalar(result.id)
+                    }
+                    terminal_psi::BoundaryMachineResult::Structural(_) => {
+                        let (place, ty) =
+                            boundary.structural_contract_result().ok_or_else(|| {
+                                refuse("boundary structural result has no contract coordinate")
+                            })?;
+                        ResultFormal::Structural(place, ty)
+                    }
+                },
                 crash_routes: &boundary.crash_routes,
                 erased_scalar_formals: &[],
                 erased_proof_formals: &[],

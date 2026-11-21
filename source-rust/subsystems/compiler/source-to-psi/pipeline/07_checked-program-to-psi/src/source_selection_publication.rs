@@ -9,6 +9,7 @@ use crate::lowering::selection_questions::{
     RawSelectionRole, RawSelectionTarget,
 };
 use crate::source_state::TypedTrees;
+use application_identity::type_identity::encoding::callable_declaration_path;
 use crate::source_state::callable_values::RuntimeCallableContractHandle;
 use crate::source_state::references::StaticArgumentRole;
 use record_storage::Record;
@@ -1430,6 +1431,7 @@ struct Declarations<'source> {
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<DeclarationIdentity>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
+    callable_declarations: HashMap<(SelectionPurpose, String), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
@@ -1535,6 +1537,7 @@ impl<'source> Declarations<'source> {
             ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
+            callable_declarations: HashMap::new(),
             sources: Vec::new(),
             core_operators: BTreeMap::new(),
         })
@@ -1695,6 +1698,27 @@ impl<'source> Declarations<'source> {
         }
     }
 
+    fn written_callable(&self, mut symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
+        // Applying a signature creates fresh binders and a fresh contract
+        // symbol. Its derivation points at the exact declaration it copied.
+        loop {
+            let origin = self.typed.symbols.get(symbol).generated_from;
+            if !origin.is_valid() {
+                return Ok(symbol);
+            }
+            self.valid(origin, "applied callable origin")?;
+            if origin.arena_index() >= symbol.arena_index() {
+                return Err(refused(
+                    "applied callable has no earlier declaration origin",
+                ));
+            }
+            if self.typed.symbols.get(origin).kind != SymbolKind::CallableContract {
+                return Ok(symbol);
+            }
+            symbol = origin;
+        }
+    }
+
     fn declaration(
         &mut self,
         output: &mut SelectionQuestions,
@@ -1704,8 +1728,17 @@ impl<'source> Declarations<'source> {
         if let Some(id) = self.ids.get(&symbol) {
             return Ok(*id);
         }
-        let identity = self.identity(symbol)?;
         let callable_identity = self.callable_identity(symbol)?;
+        let written = if callable_identity.is_some() {
+            self.written_callable(symbol)?
+        } else {
+            symbol
+        };
+        let occurrence = self.identity(written)?;
+        let identity = match &callable_identity {
+            Some(meaning) => callable_declaration_path(&occurrence, meaning),
+            None => occurrence,
+        };
         let custody = crate::lowering::selection_questions::declaration_custody(self.typed, symbol)
             .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
@@ -1714,13 +1747,39 @@ impl<'source> Declarations<'source> {
             .symbols
             .symbol_provenance_source_span(symbol)
             .ok_or_else(|| refused("selected declaration has no retained source span"))?;
-        let id = output.declarations.push(SelectionDeclaration {
+        let declaration = SelectionDeclaration {
             identity,
-            name: self.typed.symbols.display_path(symbol, "::"),
+            name: self.typed.symbols.display_path(written, "::"),
             custody,
             purpose,
             callable_identity,
-        });
+        };
+        // Use the written declaration and its applied meaning. Equal copies
+        // share a row; a different occurrence or contract needs its own row.
+        let id = if declaration.callable_identity.is_some() {
+            match self
+                .callable_declarations
+                .entry((purpose, declaration.identity.clone()))
+            {
+                std::collections::hash_map::Entry::Occupied(entry) => {
+                    let id = *entry.get();
+                    if output.declarations.get(id) != Some(&declaration)
+                        || self.source_span(id)? != span
+                    {
+                        return Err(refused(
+                            "one callable declaration identity has competing source evidence",
+                        ));
+                    }
+                    self.ids.insert(symbol, id)?;
+                    return Ok(id);
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    *entry.insert(output.declarations.push(declaration))
+                }
+            }
+        } else {
+            output.declarations.push(declaration)
+        };
         self.sources.push((id, span));
         self.ids.insert(symbol, id)?;
         Ok(id)
@@ -1795,7 +1854,26 @@ impl<'source> Declarations<'source> {
                 {
                     return Ok(true);
                 }
-                scope = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                scope = if self.typed.symbols.get(scope).kind == SymbolKind::CallableContract {
+                    // The anonymous signature symbol belongs to the symbol-table root.
+                    // Its exact contract occurrence records the source scope it captures.
+                    let mut parents = self
+                        .contracts
+                        .get(&scope)
+                        .into_iter()
+                        .flatten()
+                        .map(|&handle| self.typed.runtime_callable_contract(handle).lexical_owner);
+                    let parent = parents
+                        .next()
+                        .ok_or_else(|| refused("callable scope has no retained contract"))?;
+                    self.valid(parent, "callable's enclosing source declaration")?;
+                    if parents.any(|other| other != parent) {
+                        return Err(refused(
+                            "callable scope has ambiguous retained lexical parents",
+                        ));
+                    }
+                    parent
+                } else if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
                     owner.symbol
                 } else if !follow_copied_parents
                     && let Some(template) = self
@@ -1942,6 +2020,7 @@ mod symbol_rows_tests {
         };
         let count = typed.symbols.symbols().nodes().len();
         let mut declarations = Declarations {
+            callable_declarations: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(count),
@@ -2166,7 +2245,7 @@ machine entry() -> u64 crashes none {
                     .map(|signature| signature.symbol),
             );
         }
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         crate::judge_fixture(
             frozen,
             crate::lowering::Compilation {
@@ -2315,15 +2394,23 @@ machine entry() -> u32 crashes none {{
                 .lexical_owner,
             author
         );
-        let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+        let program = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
         (program, application)
     }
 
     fn accept_formation_program(
         program: crate::lowering::PreparedTypedTrees,
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-        let entry = program.realized_machine_named("entry").unwrap().symbol;
-        let package = program.symbols.symbol_package_identity(entry).unwrap();
+        let entry = program
+            .trees()
+            .realized_machine_named("entry")
+            .unwrap()
+            .symbol;
+        let package = program
+            .trees()
+            .symbols
+            .symbol_package_identity(entry)
+            .unwrap();
         crate::judge_fixture(
             program,
             crate::lowering::Compilation {
@@ -2374,7 +2461,7 @@ machine entry() -> u32 crashes none {{
 
         // A written call still owes visibility before it reaches admission.
         let (program, _) = closed_requirement_formed_in_build(true);
-        let sources = program.symbols.source_map().unwrap();
+        let sources = program.trees().symbols.source_map().unwrap();
         let errors = accept_formation_program(program).err().unwrap();
         assert_eq!(errors.len(), 1, "{errors:?}");
         let refused = &errors[0];
@@ -2396,7 +2483,7 @@ machine entry() -> u32 crashes none {{
                 .expression_table
                 .static_machine_application_mut(application)
                 .lexical_owner = owner;
-            let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+            let prepared = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
             let refusal = accept_formation_program(prepared).err().unwrap();
             assert!(
                 format!("{refusal:?}")
@@ -2620,6 +2707,65 @@ machine entry() { repeat(0); }
     }
 
     #[test]
+    fn specialized_callbacks_publish_the_written_declaration_with_its_applied_meaning() {
+        let source = accepted_source(
+            r#"
+public data Observe = machine(value: u64) -> u64 reaches none crashes none;
+machine prepare() reaches none crashes none {}
+machine read(value: u64) -> u64 reaches none crashes none { value }
+public machine choose<machine Prepare>(operation: Observe, value: u64) -> u64
+requires machine Prepare() crashes none;
+{ Prepare(); operation(value) }
+machine entry() -> u64 crashes none { choose::<prepare>(read, 47u64) }
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        psi_authorization::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+
+        let typed = source.source();
+        let mut reapplied = 0;
+        for (handle, contract) in typed.runtime_callable_contracts.iter() {
+            let symbol = contract.signature.symbol;
+            let origin = typed.symbols.get(symbol).generated_from;
+            if !origin.is_valid()
+                || typed.symbols.get(origin).kind != SymbolKind::CallableContract
+                || typed.symbols.get(origin).generated_from.is_valid()
+            {
+                continue;
+            }
+            let meaning = typed
+                .runtime_callable_contract_identity(handle, &[])
+                .unwrap();
+            let original = typed.normalized_hermetic_symbol_identity(origin).unwrap();
+            let applied = typed.normalized_hermetic_symbol_identity(symbol).unwrap();
+            let written = callable_declaration_path(&original, &meaning);
+            let generated = callable_declaration_path(&applied, &meaning);
+            assert_ne!(
+                written, generated,
+                "the fixture must distinguish the fresh symbol"
+            );
+            let rows = &prepared.questions.declarations;
+            if rows.iter().any(|(_, row)| row.identity == written) {
+                assert!(
+                    !rows.iter().any(|(_, row)| row.identity == generated),
+                    "the compiler-created binder must not become a second authored declaration"
+                );
+                reapplied += 1;
+            }
+        }
+        assert!(
+            reapplied > 0,
+            "the concrete invocation must retain an applied callable"
+        );
+    }
+
+    #[test]
     fn anonymous_callable_occurrences_keep_distinct_source_identity() {
         const TEXT: &str = r#"
 trait Pick {
@@ -2742,7 +2888,8 @@ machine entry() -> u64 reaches none crashes none {
             &prepared.questions,
         )
         .unwrap();
-        let rows = identities.each_ref().map(|identity| {
+        let rows = [0, 1].map(|index| {
+            let identity = callable_declaration_path(&identities[index], &meanings[index]);
             let rows = prepared
                 .questions
                 .declarations
@@ -2756,7 +2903,7 @@ machine entry() -> u64 reaches none crashes none {
         assert_eq!(rows[0].1.callable_identity.as_ref(), Some(&meanings[0]));
         assert_eq!(rows[1].1.callable_identity.as_ref(), Some(&meanings[1]));
         let mut duplicate = prepared.questions.clone();
-        duplicate.declarations.get_mut(rows[1].0).unwrap().identity = identities[0].clone();
+        duplicate.declarations.get_mut(rows[1].0).unwrap().identity = rows[0].1.identity.clone();
         assert!(
             psi_authorization::selection_questions::validate_selection_questions(
                 module, &duplicate,
@@ -2993,6 +3140,87 @@ machine entry() reaches Input {}
                 formal,
                 StaticArgumentRole::ValueDependency,
             )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn callable_alias_capture_keeps_distinct_concrete_applications() {
+        let source = accepted_source(
+            "public data KeyHash<K> = machine(key: @K) -> u64 reaches none crashes none;
+             machine read_small(value: @u32) -> u64 reaches none crashes none { 5u64 }
+             machine read_large(value: @u64) -> u64 reaches none crashes none { $value }
+             machine small(f: KeyHash<u32>, value: @u32) -> u64 reaches none crashes none { f(value) }
+             machine large(f: KeyHash<u64>, value: @u64) -> u64 reaches none crashes none { f(value) }
+             machine entry() -> u64 reaches none crashes none {
+                 let a: u32 = 11u32;
+                 let b: u64 = 47u64;
+                 small(read_small, @a) | large(read_large, @b)
+             }",
+            &[],
+        );
+        let prepared = prepare(&source, source.module(), None).unwrap();
+        psi_authorization::selection_questions::validate_selection_questions(
+            source.module(),
+            &prepared.questions,
+        )
+        .unwrap();
+        let meanings = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter_map(|(_, declaration)| {
+                (declaration.name == "KeyHash")
+                    .then_some(declaration.callable_identity.as_deref())
+                    .flatten()
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(
+            meanings.len() >= 2,
+            "the two selected callable applications must survive publication: {meanings:?}"
+        );
+    }
+
+    #[test]
+    fn callable_alias_capture_can_select_only_its_enclosing_type_binder() {
+        let source = accepted_source(
+            "public data KeyHash<K> = machine(key: @K) -> u64;
+             public data Sibling<K> = machine(value: @K) -> bool;
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let alias = |name| {
+            typed
+                .type_aliases()
+                .iter()
+                .find(|row| row.name.as_str() == name)
+                .unwrap()
+        };
+        let owner = alias("KeyHash");
+        let sibling = alias("Sibling");
+        let binder = |row: &crate::source_state::type_aliases::TypeAliasDefinition| {
+            typed
+                .data_type_parameters
+                .span_or_empty(row.type_parameters)[0]
+                .symbol
+        };
+        let crate::source_state::types::TypeReferenceNode::Callable { contract } =
+            typed.type_reference_table.type_reference(owner.expansion)
+        else {
+            panic!("KeyHash must retain its source callable");
+        };
+        let scope = typed.runtime_callable_contract(*contract).signature.symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        declarations
+            .local_binding(&mut questions, scope, binder(owner), owner.symbol)
+            .unwrap();
+        let error = declarations
+            .local_binding(&mut questions, scope, binder(sibling), sibling.symbol)
             .unwrap_err();
         assert!(
             error.message.contains("outside its actual lexical context"),
@@ -3345,6 +3573,7 @@ mod core_catalog_tests {
     fn core_operator_declarations_keep_their_actual_applied_signatures() {
         let typed = TypedTrees::default();
         let mut declarations = Declarations {
+            callable_declarations: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(0),

@@ -1,8 +1,8 @@
 //! Native provider intent becomes a checked conformance only after the same
 //! signature, permission and kernel refinement judgments as ordinary code.
 
-use semantic_vocabulary::{MachineId, ObligationId};
-use terminal_check_tables::{Checked, Construct, RefusalReason};
+use semantic_vocabulary::ObligationId;
+use terminal_check_tables::{Checked, Refusal, RefusalReason, RefusalSite};
 use terminal_check_tables::{
     contracts::CallableHeader as ProviderContractHeader, program::Elaboration,
 };
@@ -33,6 +33,8 @@ fn header_matches_boundary(
             .map(|formal| formal.scalar_type)
             .eq(boundary.scalar_parameters.iter().copied())
         && header.structural_parameters == boundary.structural_parameters
+        && terminal_psi::StructuralDomainRequirement::declared_roots(&header.structural_parameters)
+            .eq(boundary.requires.iter().cloned())
         && boundary.result.matches_machine_result(&header.result)
         && header.proof.requires == boundary.scalar_requires
         && header
@@ -54,36 +56,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     {
         return Ok(());
     }
-    let context = elaboration
-        .module
-        .entry
-        .and_then(|entry| match entry {
-            terminal_psi::TargetMachineCallable::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .or_else(|| {
-            elaboration
-                .module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-        })
-        .ok_or_else(|| {
-            crate::checking::refusal(
-                RefusalReason::ForeignIdentity,
-                MachineId::new(1).expect("one is nonzero"),
-                Construct::Machine,
-                "provider conformance has no real diagnostic context",
-            )
-        })?;
-    let refuse = |detail| {
-        crate::checking::refusal(
-            RefusalReason::ForeignIdentity,
-            context,
-            Construct::Machine,
-            detail,
-        )
-    };
+    let refuse = |detail| Refusal::at(RefusalReason::ForeignIdentity, RefusalSite::Program, detail);
     if !elaboration.module.interfaces.external_providers.is_empty() {
         return Err(refuse("checked native conformances were already published"));
     }
@@ -122,18 +95,16 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 "native conformance changed its required public header",
             ));
         }
-        if !required.requires.is_empty()
-            || !required.normal_qualifications.is_empty()
+        if !required.normal_qualifications.is_empty()
             || !required.scalar_domain_requirements.is_empty()
             || !required.reference_outputs.is_empty()
             || !required.content_guarantees.is_empty()
             || !required.result_reference_regions.is_empty()
             || !required.program_local_root_introductions.is_empty()
         {
-            return Err(crate::checking::refusal(
+            return Err(Refusal::at(
                 RefusalReason::Unsupported,
-                context,
-                Construct::Machine,
+                RefusalSite::Program,
                 "native conformance needs the complete retained structural boundary contract",
             ));
         }
@@ -154,9 +125,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             &candidate.required_envelope,
             &candidate.supplied_envelope,
         )
-        .map_err(|detail| {
-            crate::checking::refusal(RefusalReason::Conflict, context, Construct::Machine, detail)
-        })?;
+        .map_err(|detail| Refusal::at(RefusalReason::Conflict, RefusalSite::Program, detail))?;
         if candidate.conformance.realization.published_may_suspend
             != candidate.supplied_envelope.suspends
             || candidate.conformance.realization.published_may_block
@@ -224,10 +193,9 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 &mut Default::default(),
             )
             .map_err(|detail| {
-                crate::checking::refusal(
+                Refusal::at(
                     RefusalReason::Unproved(terminal_check_tables::UnprovedCause::NoDerivation),
-                    context,
-                    Construct::Machine,
+                    RefusalSite::Program,
                     detail,
                 )
             })?;

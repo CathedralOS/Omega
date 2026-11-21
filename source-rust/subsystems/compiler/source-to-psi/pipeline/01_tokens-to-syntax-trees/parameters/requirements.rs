@@ -1,4 +1,3 @@
-use crate::contracts::conformance::parse_optional_satisfies_type_arguments;
 use crate::contracts::signatures::parse_signature_clauses;
 use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
 use crate::parameters::generics::GenericParameterSyntax;
@@ -48,9 +47,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             syntax_trees::item::TypeParameterKind::Machine {
                 contract: None | Some(MachineParameterContract::RequirementIdentity),
             } => {}
-            syntax_trees::item::TypeParameterKind::Type
-                if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
-                    == syntax_trees::item::DataProperties::default() => {}
             syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "machine parameter `{}` already has a `requires machine` contract",
@@ -59,44 +55,17 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             }
             _ => {
                 return Err(after_name.error_here(format!(
-                    "`{}` is not a machine parameter; its declared kind or property bounds conflict with `requires machine {}`",
-                    name.as_str(syntax_trees),
+                    "`{}` is not a machine parameter; declare a callable with a typed static parameter",
                     name.as_str(syntax_trees)
                 )));
             }
         }
 
         if after_name.at_contextual("satisfies") {
-            let after_satisfies = after_name.take_contextual("satisfies")?;
-            let (requirement, trait_arguments, after_requirement) =
-                parse_nominal_requirement_path(syntax_trees, after_satisfies)?;
-            if requirement.len() < 2 {
-                return Err(after_requirement.error_here(format!(
-                    "nominal machine parameter `{}` must name an exact `Trait::requirement`; bare `satisfies Trait` is not a callable contract",
-                    name.as_str(syntax_trees)
-                )));
-            }
-            if after_requirement.at_contextual("as") {
-                return Err(after_requirement.error_here(
-                    "nominal machine parameter requirements do not accept `as Name`; `Trait::requirement` must resolve uniquely",
-                ));
-            }
-            if after_requirement.at_contextual("via") {
-                return Err(after_requirement.error_here(
-                    "a `requires machine` nominal requirement cannot use `via`; native bindings belong to the owning Build",
-                ));
-            }
-            let rest = take_machine_contract_terminator(after_requirement)?;
-            let parameter =
-                &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
-            parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
-                contract: Some(MachineParameterContract::Nominal {
-                    requirement,
-                    trait_arguments,
-                }),
-            };
-            input = rest;
-            continue;
+            return Err(after_name.error_here(format!(
+                "declare this nominal callable in the parameter list as `const {}: Trait::requirement`",
+                name.as_str(syntax_trees)
+            )));
         }
 
         let (contract, rest) = parse_structural_machine_contract(syntax_trees, name, after_name)?;
@@ -172,8 +141,7 @@ pub(crate) fn validate_machine_parameter_contracts(
         })
     {
         return Err(input.error_here(format!(
-            "machine parameter `{}` requires an authored declaration-site contract: write `requires machine {}(...) -> Result;` or `requires machine {} satisfies Trait::requirement;`",
-            missing.name.as_str(syntax_trees),
+            "machine parameter `{}` requires an authored declaration-site contract: use a typed static parameter such as `const {}: Callback`",
             missing.name.as_str(syntax_trees),
             missing.name.as_str(syntax_trees),
         )));
@@ -186,51 +154,4 @@ fn take_machine_contract_terminator<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Input<'tokens, 'source>, crate::errors::parse_error::ParseError> {
     input.take_punctuation(PunctuationKind::Semicolon, ";")
-}
-
-fn parse_nominal_requirement_path<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> Result<
-    (
-        HandleSpan<syntax_trees::identifier::Identifier>,
-        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
-        Input<'tokens, 'source>,
-    ),
-    crate::errors::parse_error::ParseError,
-> {
-    let (first, mut rest) = input.take_identifier()?;
-    let mut members = vec![first];
-    let mut trait_arguments = HandleSpan::empty();
-    loop {
-        if rest.at_punctuation(PunctuationKind::Less) {
-            if !trait_arguments.is_empty() {
-                return Err(rest
-                    .error_here("a nominal machine parameter requirement applies its trait once"));
-            }
-            let (arguments, next) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
-            trait_arguments = arguments;
-            rest = next;
-            if !rest.at_punctuation(PunctuationKind::ColonColon) {
-                return Err(rest.error_here(
-                    "a trait application in a nominal machine parameter requirement must be followed by `::requirement`",
-                ));
-            }
-        }
-        if !rest.at_path_member() {
-            break;
-        }
-        rest = rest.take_path_separator()?;
-        let (member, next) = rest.take_identifier()?;
-        members.push(member);
-        rest = next;
-        if !trait_arguments.is_empty() {
-            break;
-        }
-    }
-    let mut path = arena::HandleSpan::empty();
-    for member in members {
-        path.push_contiguous(syntax_trees.items.append_identifier_path_member(member));
-    }
-    Ok((path, trait_arguments, rest))
 }

@@ -76,7 +76,10 @@ fn a_structural_successor_owes_its_arrival_even_without_scalar_arguments() {
     input.sources.get_mut(id(1)).unwrap().obligations = IdTable::default();
     let refusal = judge(Ok(input)).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
-    assert_eq!(refusal.concerns, Construct::Block(id(1)));
+    assert_eq!(
+        refusal.site.in_machine().unwrap().1,
+        Construct::Block(id(1))
+    );
     assert_eq!(refusal.detail, "a site owes an obligation with no row");
 }
 
@@ -381,6 +384,7 @@ machine main() crashes Trap {
     let prepare = |text: &str| {
         let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
         let main = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "main")
@@ -594,8 +598,11 @@ machine main() crashes Trap {
         .loans(&mut references, module, tables, None)
         .expect_err("cleanup cannot destroy a newly captured borrow's owner");
     assert_eq!(refusal.reason, RefusalReason::Conflict);
-    assert_eq!(refusal.machine, identity);
-    assert_eq!(refusal.concerns, Construct::Edge(selected));
+    assert_eq!(refusal.site.in_machine().unwrap().0, identity);
+    assert_eq!(
+        refusal.site.in_machine().unwrap().1,
+        Construct::Edge(selected)
+    );
     assert_eq!(
         refusal.detail,
         "successor cleanup changes the backing of a captured borrow"
@@ -662,6 +669,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     ));
     let typed = crate::prepare_fixture(super::rankings::typed_with_ranking_catalog(program));
     let checksum = typed
+        .trees()
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "checksum")
@@ -761,7 +769,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
 
 fn permission_inputs(text: &str) -> crate::lowering::Elaboration {
     let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     let program = crate::lowering::prepare_compilation(
         &typed,
         crate::lowering::Compilation {

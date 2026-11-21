@@ -288,7 +288,7 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
     for (callee, allowed) in [("needs_range", true), ("needs_seven", false)] {
         let (compiled, report) = check(
             callee,
-            "    let amount: i32 = choose_amount(builder.freestanding);",
+            "    let amount: i32 = choose_amount(builder.optimizations.human_report != 0u8);",
             &format!(
                 r#"    let seven: i32 = kit\v();
     {callee}(amount);
@@ -449,12 +449,12 @@ requires a == b && a < larger && flag == second && enabled { }";
         ("copied-local", "amount", true),
         (
             "independent-local",
-            "choose_amount(builder.freestanding)",
+            "choose_amount(builder.optimizations.human_report != 0u8)",
             false,
         ),
     ] {
         let before = format!(
-            "    let flag: bool = builder.freestanding;
+            "    let flag: bool = builder.optimizations.human_report != 0u8;
     let second: bool = flag;
     let enabled: bool = true;
     let amount: i32 = choose_amount(!builder.tests.disabled);
@@ -590,6 +590,40 @@ fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
 }
 
 #[test]
+fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+machine middle(bytes: @[u8]) -> u8 requires bytes.len == 3 { bytes[1] }
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "staged_byte_read");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let byte: u8 = middle("kit");
+    suspend Build::prepare_dependency(builder, registered);
+    let seven: i32 = kit\v();
+    transition byte == 105u8 && seven == 7 {
+        true -> done(builder),
+        _ -> wrong(builder)
+    }
+    machine done(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "wrong_byte"); }
+}
+"#.replace("HOST", target.target_name());
+    let (ran, report) = check_project(
+        "byte-before-wait",
+        &build,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_field_borrow_survives_a_newly_visible_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
@@ -660,6 +694,53 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
         &["--check", "main.omg"],
     );
     assert!(!ok && report.contains("project role"), "{report}");
+}
+
+#[test]
+fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "ready_subject");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    SUBJECT {
+        true -> finish(builder),
+        _ -> wrong(builder)
+    }
+    machine finish(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "wrong_dependency_value"); }
+}
+machine ready(builder: @mut Build, item: DependencyRegistration) -> bool suspends {
+    suspend Build::prepare_dependency(builder, item);
+    kit\v() == 7
+}
+"#.replace("HOST", target.target_name());
+    let call = "suspend ready(builder, registered)";
+    let direct = build.replace("SUBJECT", &format!("transition {call}"));
+    let bound = build.replace(
+        "SUBJECT",
+        &format!("let ready_now: bool = {call};\n    transition ready_now"),
+    );
+    // The second subject can only be evaluated after the first one returns.
+    let pair = build
+        .replace("SUBJECT", &format!(r"transition ({call}, kit\v())"))
+        .replace("true ->", "(_, 7) ->")
+        .replace("_ ->", "(_, _) ->");
+    for (name, source) in [
+        ("bound-subject", &bound),
+        ("direct-subject", &direct),
+        ("subsequent-subject", &pair),
+    ] {
+        let (ran, report) = check_project(name, source, 7, "", &["run", "--both", "build.omg"]);
+        assert!(
+            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            "{report}"
+        );
+    }
+    let (ran, report) = check_project("false-subject", &direct, 8, "", &["--check", "main.omg"]);
+    assert!(!ran && report.contains("project role"), "{report}");
 }
 
 #[test]
@@ -858,7 +939,7 @@ machine build(builder: @mut Build) suspends {
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
     let start: i32 = pick(builder.tests.disabled);
     let after: i32 = increment(start);
-    let measured: f64 = reading(builder.freestanding);
+    let measured: f64 = reading(builder.optimizations.human_report != 0u8);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = kit\v();
     require_step(start, after);
@@ -882,12 +963,12 @@ machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
         (
             "staged-proof-arithmetic",
             "increment(start)",
-            "increment(pick(builder.freestanding))",
+            "increment(pick(builder.optimizations.human_report != 0u8))",
             "require_step",
         ),
         (
             "staged-proof-float",
-            "reading(builder.freestanding)",
+            "reading(builder.optimizations.human_report != 0u8)",
             "0.75",
             "require_small",
         ),

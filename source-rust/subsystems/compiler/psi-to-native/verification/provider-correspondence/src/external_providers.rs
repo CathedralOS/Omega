@@ -219,7 +219,7 @@ fn sealed_native_execution(
             }
         }
         TerminalSealedNativeIntrinsic::FixedImage(operation) => {
-            if target != "uefi_x86_64" {
+            if target != FixedImageOperation::TARGET {
                 return Err("fixed-image intrinsic belongs to another target".into());
             }
             match operation {
@@ -243,7 +243,7 @@ pub(super) fn reconcile_sealed_execution(
     Ok(expected)
 }
 
-pub(super) fn selected_sealed_native_provider<'a>(
+pub fn selected_sealed_native_provider<'a>(
     providers: &'a [ExternalProviderConformance],
     identities: &TerminalIdentityTable,
     required_or_realized_declaration: &str,
@@ -310,20 +310,32 @@ mod sealed_execution_tests {
             sealed_native_execution(Meaning::Hosted(HostedOperation::ProcessExit), "uefi_x86_64")
                 .is_err()
         );
-        assert!(
-            sealed_native_execution(
-                Meaning::FixedImage(FixedImageOperation::ProgramStorageEntry),
-                "macos_arm64"
-            )
-            .is_err()
-        );
-        assert_eq!(
-            sealed_native_execution(
-                Meaning::FixedImage(FixedImageOperation::ProgramStorageEntry),
-                "uefi_x86_64"
-            )
-            .unwrap(),
-            Execution::ProgramStorageEntry
-        );
+        for (operation, execution) in [
+            (
+                FixedImageOperation::ProgramStorageEntry,
+                Execution::ProgramStorageEntry,
+            ),
+            (
+                FixedImageOperation::ProgramImageRetainedSuffixStart,
+                Execution::ProgramImageRetainedSuffixStart,
+            ),
+        ] {
+            let meaning = Meaning::FixedImage(operation);
+            assert_eq!(
+                sealed_native_execution(meaning, "uefi_x86_64").unwrap(),
+                execution
+            );
+            for hosted in [
+                "linux_x86_64",
+                "linux_arm64",
+                "macos_arm64",
+                "windows_x86_64",
+            ] {
+                assert!(
+                    sealed_native_execution(meaning, hosted).is_err(),
+                    "{hosted}"
+                );
+            }
+        }
     }
 }

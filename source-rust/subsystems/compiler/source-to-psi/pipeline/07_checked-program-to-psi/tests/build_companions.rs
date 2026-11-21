@@ -215,10 +215,11 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let frozen = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[])?;
-    source_compiler::test_support::judge_terminal_source(
-        frozen,
-        source_compiler::test_support::lowering::Compilation {
+    source_compiler::test_support::SourcePreparationRequest {
+        program: typed,
+        accounting: Default::default(),
+        admission: Default::default(),
+        compilation: source_compiler::test_support::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects,
@@ -229,8 +230,10 @@ fn accepted_frontier_with_subjects(
             bindings: &[],
             supplies: &[],
         },
-        publication,
-    )
+    }
+    .judge(publication)
+    .map(|judged| judged.accepted)
+    .map_err(|failure| failure.diagnostics)
 }
 
 fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Diagnostic>> {
@@ -240,6 +243,73 @@ fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Dia
             TerminalProductionCustody::default(),
             &mut CompileTimings::default(),
         )
+}
+
+fn selected_entry(source: &AcceptedTerminalSource) -> symbols::SymbolHandle {
+    *source
+        .closure()
+        .elaboration()
+        .machines
+        .get(source.entry().unwrap())
+        .unwrap()
+}
+
+#[test]
+fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
+    let build = "machine build(builder: @mut Build) {}";
+    let (receiver, code) = {
+        let source = accepted(build).unwrap();
+        let receiver = source.build_receiver(selected_entry(&source)).unwrap();
+        let published = source
+            .produce(
+                TerminalProductionCustody::default(),
+                &mut CompileTimings::default(),
+            )
+            .unwrap();
+        (receiver, published.retain_code())
+    };
+    let parameter = receiver.parameter_for(code.view().module()).unwrap();
+    assert_eq!(parameter.position, 0);
+    assert_eq!(
+        parameter.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
+    let other = produced(build).unwrap();
+    assert_eq!(
+        receiver.parameter_for(other.view().module()).unwrap_err(),
+        "Build receiver belongs to a different accepted invocation"
+    );
+}
+
+#[test]
+fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
+    let text = "data BuildProduct {}
+                data Build { marker: u64; product: BuildProduct; }
+                machine build(builder: @mut Build) {}";
+    let mut files = source_compiler::representations::source_inputs::SourceMap::default();
+    let id = files
+        .add_checked_instance(
+            "package/build.omg".into(),
+            text,
+            "package".into(),
+            Some(package()),
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
+    let syntax = frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
+    request.sources = Some(Arc::new(files));
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+    let typed =
+        source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let source = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation).unwrap();
+    assert_eq!(
+        source.build_receiver(selected_entry(&source)).unwrap_err(),
+        "Build entry receiver must name the exact toolchain Build type"
+    );
 }
 
 /// Every boundary call the published artifact makes, as the site a host
@@ -296,7 +366,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
         // the selecting machine's own scope.
         assert_eq!(call.selecting_machine, None);
         assert!(call.static_environment.is_none());
-        assert!(call.native_locator.is_none());
+        assert!(call.operand.is_none());
     }
     // The two calls of one selection are different operations.
     assert_ne!(calls[0].site, calls[1].site);
@@ -492,15 +562,12 @@ machine watch() {{
         ))
         .unwrap()
     };
-    let unreached = program("");
-    assert!(!unreached.build_protocol_use().unwrap().reaches_outside);
+    let unreached = program("").prepare_publication(None).unwrap();
+    assert!(!unreached.build_protocol_use().reaches_outside);
     // The helper is still part of the program: its call has no host row,
     // and the entry's and the called helper's requests have theirs.
     let produced = unreached
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut CompileTimings::default(),
-        )
+        .publish(&[], &mut CompileTimings::default())
         .unwrap();
     assert_eq!(
         produced
@@ -514,8 +581,9 @@ machine watch() {{
     for reached in ["watch();", "watch()"] {
         assert!(
             program(reached)
-                .build_protocol_use()
+                .prepare_publication(None)
                 .unwrap()
+                .build_protocol_use()
                 .reaches_outside,
             "{reached}"
         );
@@ -529,8 +597,11 @@ machine watch() {{
 /// protocol is one of the four the toolchain names, not anything it ships.
 #[test]
 fn a_boundary_outside_the_build_protocols_is_reported_and_given_no_row() {
-    let inside = accepted(ONE_BINDING).unwrap();
-    let asked = inside.build_protocol_use().unwrap();
+    let inside = accepted(ONE_BINDING)
+        .unwrap()
+        .prepare_publication(None)
+        .unwrap();
+    let asked = inside.build_protocol_use();
     assert!(!asked.reaches_outside);
     assert!(!asked.filesystem);
 
@@ -542,13 +613,12 @@ machine build(builder: @mut Build) {
 }
 "#,
     )
+    .unwrap()
+    .prepare_publication(None)
     .unwrap();
-    assert!(outside.build_protocol_use().unwrap().reaches_outside);
+    assert!(outside.build_protocol_use().reaches_outside);
     let program = outside
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut CompileTimings::default(),
-        )
+        .publish(&[], &mut CompileTimings::default())
         .unwrap();
     assert_eq!(published_boundary_calls(&program).len(), 2);
     assert_eq!(
@@ -598,7 +668,7 @@ use checked_program_to_psi::production::{TerminalBuildQueryCall, TerminalBuildRe
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            u64::from_le_bytes(*b"OMGBLD02").write(output)?;
+            u64::from_le_bytes(*b"OMGBLD03").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[checked_program_to_psi::production::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
@@ -723,7 +793,7 @@ fn native_binding_prelude() -> String {
     );
     for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!(
-            "BuildTarget::{} -> {}u64\n",
+            "BuildTarget::{} -> {}u64,\n",
             target.source_case(),
             target.code()
         ));
@@ -754,16 +824,20 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
 fn published_native_locator(
     program: &ProducedTerminalProgram,
 ) -> &checked_program_to_psi::production::TerminalBuildNativeLocator {
-    program
+    let call = program
         .build_bindings()
         .calls_for(program.view())
         .unwrap()
         .iter()
         .find(|call| call.action == TerminalBuildBindingOperation::BindNative)
-        .expect("the published native call keeps its source-issued row")
-        .native_locator
-        .as_ref()
-        .expect("the host needs the exact locator shape")
+        .expect("the published native call keeps its source-issued row");
+    let Some(checked_program_to_psi::production::TerminalBuildBindingOperand::NativeLocator(
+        locator,
+    )) = &call.operand
+    else {
+        panic!("the host needs the exact locator shape");
+    };
+    locator
 }
 
 #[test]
@@ -1238,12 +1312,16 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     );
 }
 
+fn provider_selection_prelude() -> String {
+    native_binding_prelude().replace(
+        "machine bind(activation: u64) reaches none crashes none;",
+        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;\n    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;",
+    )
+}
+
 #[test]
 fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
-    let prelude = native_binding_prelude().replace(
-        "machine bind(activation: u64) reaches none crashes none;",
-        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
-    );
+    let prelude = provider_selection_prelude();
     let typed = typed_with_prelude(
         "machine build(builder: @mut Build) { Build::select_provider::<Probe, Candidate>(builder, linux_x86_64); }",
         &prelude,
@@ -1294,7 +1372,7 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
             .calls_for(program.view())
             .unwrap()
             .iter()
-            .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+            .any(|call| call.action == TerminalBuildBindingOperation::SelectProviderOption)
     );
     use semantic_vocabulary::source_selections::{
         SelectionNode, SelectionPurpose, SelectionReference, SelectionRole,
@@ -1474,3 +1552,56 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
 
 #[path = "../../../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
+
+#[test]
+fn public_requirement_borrows_keep_their_source_parameter_positions() {
+    let source = typed(
+        r#"
+public trait ReadValues {
+    machine pick<'a, 'b>(count: u64, first: @'a u64, flag: bool, second: @'b u64) -> @'b u64;
+}
+machine build() {}
+"#,
+    );
+    let owner = source
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "ReadValues")
+        .unwrap();
+    let declaration = source.trait_machine_signatures(owner)[0].symbol;
+    let accepted = accepted_frontier(source, terminal_codec::TerminalPublication::Portable)
+        .expect("compile the public trait");
+    let review = accepted
+        .requirement_review(declaration)
+        .expect("read its checked requirement");
+    assert_eq!(review.structural_parameter_positions, [1, 3]);
+    assert_eq!(review.returned_parameters, [1]);
+}
+
+#[test]
+fn a_plain_integer_and_a_lookalike_enum_cannot_select_a_provider() {
+    let prelude = provider_selection_prelude();
+    for operand in ["7u64", "CustomMode::Independent"] {
+        let source = format!(
+            "data CustomMode [copy] {{ case Independent; }}
+             machine build(builder: @mut Build) {{
+                 Build::select_provider::<Probe, Candidate>(builder, {operand});
+             }}"
+        );
+        let typed = typed_with_prelude(&source, &prelude);
+        let refused = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+            .and_then(|checked| {
+                checked.produce(
+                    TerminalProductionCustody::default(),
+                    &mut CompileTimings::default(),
+                )
+            })
+            .expect_err("only the exact Build vocabulary can choose a target or composition mode");
+        assert!(
+            refused.iter().any(|diagnostic| diagnostic
+                .to_string()
+                .contains("BuildTarget or CompositionMode")),
+            "{operand}: {refused:?}"
+        );
+    }
+}

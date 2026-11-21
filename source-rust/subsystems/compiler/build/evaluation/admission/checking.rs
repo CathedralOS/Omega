@@ -309,33 +309,45 @@ mod tests {
             );
             let first = prepare(source(&text)).unwrap();
             let next = prepare(source(&text)).unwrap();
-            assert_ne!(first.program.identity.get(), next.program.identity.get());
+            let first_constants =
+                source_compiler::publication::ConstantRead::from_preparation(&first.program);
+            let next_constants =
+                source_compiler::publication::ConstantRead::from_preparation(&next.program);
+            assert_ne!(
+                first.program.trees().identity.get(),
+                next.program.trees().identity.get()
+            );
             assert_eq!(
-                first.constants.len(),
+                first_constants.len(),
                 1,
                 "the actual demand survives literal substitution"
             );
-            assert_eq!(first.constants[0].name, "VALUE");
+            assert_eq!(first_constants[0].name, "VALUE");
             let old = BuildConstants {
                 folded_under_providers: false,
-                read: first.constants.clone(),
+                read: first_constants.clone(),
             };
             let current = BuildConstants {
                 folded_under_providers: false,
-                read: next.constants.clone(),
+                read: next_constants.clone(),
             };
-            super::compare_rejoined_constants(&old, &current, &next.program).unwrap();
+            super::compare_rejoined_constants(&old, &current, next.program.trees()).unwrap();
             let missing = BuildConstants::default();
-            assert!(super::compare_rejoined_constants(&old, &missing, &next.program).is_err());
+            assert!(
+                super::compare_rejoined_constants(&old, &missing, next.program.trees()).is_err()
+            );
             let other = next
                 .program
+                .trees()
                 .const_declarations()
                 .iter()
-                .find(|declaration| next.program.symbols.name(declaration.symbol) == "OTHER")
+                .find(|declaration| {
+                    next.program.trees().symbols.name(declaration.symbol) == "OTHER"
+                })
                 .unwrap();
             let mut wrong = current.clone();
             wrong.read[0].value = other.evaluated_value.clone();
-            assert!(super::compare_rejoined_constants(&old, &wrong, &next.program).is_err());
+            assert!(super::compare_rejoined_constants(&old, &wrong, next.program.trees()).is_err());
             assert_eq!(first.accounting.receipts().len(), executions);
             let mut joined = first.accounting.clone();
             joined.append(first.accounting.clone());

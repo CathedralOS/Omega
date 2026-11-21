@@ -167,7 +167,6 @@ use crate::resolution::lowering::statement::lower_statement_handle;
 use crate::resolution::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::tables::syntax_items;
 use crate::source_resolved::data::DataMember;
-use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::signature::{
     CrashCause, NativeCallbackParameter, SignatureContract, SignatureContractKind, StateParameter,
     StateSignature, StateSignatureStorage,
@@ -373,8 +372,8 @@ pub(crate) struct StateSignatureParts<'a> {
     pub(crate) is_default: bool,
     pub(crate) service_reach_is_installation_bound: bool,
     pub(crate) service_reach_keyword_source_spans: &'a [source_text::SourceSpan],
-    pub(crate) service_reaches: HandleSpan<Identifier>,
-    pub(crate) invokes: HandleSpan<Identifier>,
+    pub(crate) service_reaches: HandleSpan<syntax::types::TypeReferenceHandle>,
+    pub(crate) invokes: HandleSpan<syntax::types::TypeReferenceHandle>,
     pub(crate) suspends_keyword_source_spans: &'a [source_text::SourceSpan],
     pub(crate) blocks_keyword_source_spans: &'a [source_text::SourceSpan],
     pub(crate) suspends: bool,
@@ -439,8 +438,8 @@ fn lower_state_signature_contents(
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
-    let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
-    let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
+    let service_reaches = lower_effect_references(lowerer, syntax_trees, service_reaches)?;
+    let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes)?;
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
     Ok(LoweredStateSignature {
@@ -492,33 +491,42 @@ pub(crate) struct LoweredStateSignature {
         crate::resolution::names::runtime_callable_scopes::CallableScopeHandle,
     pub(crate) signature: StateSignature,
     pub(crate) service_reach_keyword_source_spans: Vec<source_text::SourceSpan>,
-    pub(crate) service_reaches: Vec<DiagnosticName>,
+    pub(crate) service_reaches: Vec<crate::source_resolved::trait_definition::TraitRequirement>,
 }
 
 pub(crate) fn lower_signature_invokes(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    invokes: HandleSpan<Identifier>,
-) -> HandleSpan<DiagnosticName> {
-    crate::resolution::lowering::name::lower_name_members(
-        syntax_trees,
-        invokes,
-        &mut lowerer
+    invokes: HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<HandleSpan<crate::source_resolved::signature::InvocationReference>, Diagnostic> {
+    let mut span = HandleSpan::empty();
+    for reference in lower_effect_references(lowerer, syntax_trees, invokes)? {
+        lowerer
             .symbol_resolved_trees
             .tables
             .declarations
-            .signature_invokes,
-    )
+            .signature_invokes
+            .append_to_span(
+                &mut span,
+                crate::source_resolved::signature::InvocationReference::Name(reference),
+            );
+    }
+    Ok(span)
 }
 
-pub(crate) fn lower_service_reach_names(
+pub(crate) fn lower_effect_references(
+    lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    service_reaches: HandleSpan<Identifier>,
-) -> Vec<DiagnosticName> {
-    lower_names(
-        syntax_trees,
-        syntax_trees.items.identifier_path_members(service_reaches),
-    )
+    members: HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<Vec<crate::source_resolved::trait_definition::TraitRequirement>, Diagnostic> {
+    syntax_trees
+        .type_references
+        .type_reference_handles(members)
+        .iter()
+        .map(|&member| {
+            super::trait_definition::lower_trait_requirement_node(lowerer, syntax_trees, member)
+        })
+        .collect()
 }
 
 pub(crate) fn lower_signature_contracts(

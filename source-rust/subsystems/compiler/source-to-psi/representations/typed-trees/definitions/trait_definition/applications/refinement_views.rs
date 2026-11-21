@@ -34,7 +34,7 @@ impl<'program> AppliedTraitScope<'program> {
             .collect()
     }
 
-    pub(crate) fn callable_contract_key(
+    pub fn callable_contract_key(
         &self,
         program: &TypedTrees,
     ) -> Option<(
@@ -85,6 +85,134 @@ impl<'program> AppliedTraitScope<'program> {
 }
 
 impl TypedTrees {
+    /// Subset checks use the base requirement in the refining trait's scope,
+    /// so a renamed binder and an inherited fixed parent keep their meanings.
+    pub fn check_refined_service_ceilings(&self) -> Result<(), String> {
+        for declaration in self
+            .traits()
+            .iter()
+            .filter(|declaration| !declaration.refinement_clauses.is_empty())
+        {
+            let scope = AppliedTraitScope::abstract_scope(declaration);
+            let base = scope.parent_scope(
+                self,
+                declaration
+                    .refines
+                    .as_ref()
+                    .ok_or("refinement lost its base")?,
+            )?;
+            for clause in &declaration.refinement_clauses {
+                let TraitRefinementReach::Concrete(narrowed) = clause.service_reach else {
+                    continue;
+                };
+                let narrowed = self.refinement_service_keys(&scope, narrowed)?;
+                for requirement in self
+                    .trait_machine_signatures(base.declaration)
+                    .iter()
+                    .filter(|requirement| {
+                        clause
+                            .requirement
+                            .as_ref()
+                            .is_none_or(|name| name == &requirement.name)
+                    })
+                {
+                    let wider =
+                        self.refinement_service_keys(&base, requirement.service_reach_row)?;
+                    if !narrowed.is_subset(&wider) {
+                        return Err(format!(
+                            "refinement clause adds a service outside the declared ceiling of `{}::{}`",
+                            base.declaration.name, requirement.name
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn refinement_service_keys(
+        &self,
+        scope: &AppliedTraitScope<'_>,
+        row: semantic_vocabulary::ServiceReachRowId,
+    ) -> Result<std::collections::BTreeSet<String>, &'static str> {
+        let mut services = std::collections::BTreeSet::new();
+        for &id in self.service_reach_rows.services(row) {
+            let member = self
+                .service_reach_scope(id)
+                .ok_or("refined service lacks its complete declared application")?
+                .preceded_by(scope);
+            member.try_visit(self, &mut |parent| {
+                if parent.declaration.is_boundary {
+                    let identity = parent
+                        .portable_application_identity(self)
+                        .and_then(|identity| self.type_identity_text(identity))
+                        .ok_or("refined service has no checked application identity")?;
+                    services.insert(identity);
+                }
+                Ok(())
+            })?;
+        }
+        Ok(services)
+    }
+
+    fn applied_refinement_row(
+        &mut self,
+        environment: &super::TraitApplicationEnvironment,
+        row: semantic_vocabulary::ServiceReachRowId,
+        from_base: bool,
+    ) -> Result<semantic_vocabulary::ServiceReachRowId, &'static str> {
+        let scope = environment
+            .scope(self)
+            .ok_or("refinement lost its applied trait")?;
+        let scope = if from_base {
+            scope.parent_scope(
+                self,
+                scope
+                    .declaration
+                    .refines
+                    .as_ref()
+                    .ok_or("refinement lost its base trait")?,
+            )?
+        } else {
+            scope
+        };
+        let mut members = Vec::new();
+        for &id in self.service_reach_rows.services(row) {
+            if self
+                .service_reaches
+                .definition(id)
+                .is_some_and(|row| row.application.is_none())
+            {
+                members.push((id, None));
+                continue;
+            }
+            let applied = self
+                .service_reach_scope(id)
+                .ok_or("refinement lost an applied service")?
+                .preceded_by(&scope);
+            applied.try_visit(self, &mut |parent| {
+                if parent.declaration.is_boundary {
+                    members.push((id, Some(parent.environment())));
+                }
+                Ok(())
+            })?;
+        }
+        let mut ids = Vec::new();
+        for (original, applied) in members {
+            let id = match applied {
+                Some(environment) => self.intern_service_reach_environment(&environment)?,
+                None => self.service_reaches.canonical_id(original),
+            };
+            self.service_reaches.extend_closure(id, &mut ids);
+        }
+        let bound = self.service_reach_rows.intern(ids);
+        Ok(if self.service_reach_rows.is_abstract(row) {
+            self.service_reach_rows.intern_abstract(bound)
+        } else {
+            bound
+        })
+    }
+
     pub(crate) fn apply_callable_refinements(
         &mut self,
         signature: &mut StateSignature,
@@ -129,6 +257,9 @@ impl TypedTrees {
             if row == semantic_vocabulary::ServiceReachRowId::NULL {
                 return Err("refinement callable view lost its authored reach row");
             }
+            let row = self.applied_refinement_row(
+                environment, row, matches!(clause.service_reach, TraitRefinementReach::IndependentBounded(_)),
+            )?;
             if signature.service_reach_is_installation_bound {
                 signature.service_reach_row = row;
             } else {

@@ -3,7 +3,7 @@
 use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
     PackagePolicyCallableRole, PackagePolicyCallables, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewCheckedServiceReach, PackageReviewNominalOwner,
 };
 mod behavior;
 pub(in crate::record) mod signature;
@@ -114,8 +114,8 @@ impl PackagePolicyCallables {
     }
 }
 
-pub(in crate::record) fn nominal_set(
-    values: &[PackageReviewNominalIdentity],
+pub(in crate::record) fn service_set(
+    values: &[crate::record::PackageReviewServiceIdentity],
 ) -> Result<(), &'static str> {
     ordered(values)?;
     for value in values {

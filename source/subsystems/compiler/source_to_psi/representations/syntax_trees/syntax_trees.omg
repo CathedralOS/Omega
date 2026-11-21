@@ -83,6 +83,32 @@ public data IntegerLiteral [copy] {
     suffix: IntegerSuffix;
 }
 
+// Type arguments and array lengths require an exact, unsuffixed integer.
+public machine static_integer_is_valid(value: IntegerLiteral) -> bool {
+    value.exact && !value.empty_digits && value.suffix == IntegerSuffix::None
+}
+
+// Compare the syntax of one type row. The resolver compares the declarations
+// and domains separately. Integer arguments denote the value the lexer decoded.
+public machine same_type_form(syntax: @SyntaxTrees, left: TypeReference, right: TypeReference) -> bool
+crashes Trap
+{
+    transition {
+        left.kind != right.kind || left.access != right.access || left.argument_count != right.argument_count -> different(),
+        left.kind == TypeReferenceKind::Literal -> integers(syntax, left, right),
+        _ -> equal()
+    }
+
+    machine integers(syntax: @SyntaxTrees, left: TypeReference, right: TypeReference) -> bool {
+        let a: IntegerLiteral = syntax_trees_integer_literal(syntax, left.literal);
+        let b: IntegerLiteral = syntax_trees_integer_literal(syntax, right.literal);
+        static_integer_is_valid(a) && static_integer_is_valid(b) && a.magnitude == b.magnitude
+    }
+
+    machine different() -> bool { false }
+    machine equal() -> bool { true }
+}
+
 // A field or case may carry a stable schema identity `#N`
 // (wiki/spec/layouts/plans.md): `has_identity`, the integer literal's span
 // in `identity` and its decoded value at `identity_literal` in

@@ -2355,6 +2355,21 @@ pub(crate) mod declaration_tables {
                 .finalize_intrinsic(occurrence, binding, intrinsic)
         }
 
+        /// A qualified value name selects its constant at the leaf. Its head
+        /// can instead denote the module that owns that declaration.
+        pub fn named_const_declaration(
+            &self,
+            path: &crate::source_state::expression::TableNamePath,
+        ) -> Option<&crate::source_state::constant::ConstDeclaration> {
+            if path.static_application.is_valid() || path.reserved_result_of.is_valid()
+                || !self.symbols.symbols().nodes().is_valid(path.symbol)
+                || self.symbols.get(path.symbol).kind != symbols::SymbolKind::Const
+            {
+                return None;
+            }
+            self.const_declaration_by_symbol(path.symbol)
+        }
+
         pub fn const_declaration_by_symbol(
             &self,
             symbol: symbols::SymbolHandle,
@@ -2385,13 +2400,17 @@ pub(crate) mod declaration_tables {
         pub fn expression_const_declaration(
             &self,
             expression: crate::source_state::expression::ExpressionHandle,
-        ) -> Option<&crate::source_state::constant::ConstDeclaration> {
+        ) -> Result<Option<&crate::source_state::constant::ConstDeclaration>, &'static str>
+        {
             let mut declaration: Option<&crate::source_state::constant::ConstDeclaration> = None;
             for occurrence in self
                 .expression_table
                 .authored_selection_occurrences(expression)
             {
-                let selection = self.authored_declaration_selections().get(occurrence)?;
+                let selection = self
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or("constant use has a missing declaration selection")?;
                 if selection.source_span() != self.expression_table.source_span(expression) {
                     continue;
                 }
@@ -2404,11 +2423,11 @@ pub(crate) mod declaration_tables {
                     continue;
                 };
                 if declaration.is_some_and(|previous| previous.symbol != current.symbol) {
-                    return None;
+                    return Err("constant use selects multiple declarations");
                 }
                 declaration = Some(current);
             }
-            declaration
+            Ok(declaration)
         }
 
         pub fn record_late_bound_authored_declaration_selection(
@@ -5324,9 +5343,29 @@ pub(crate) mod type_reference_queries {
                     .is_some_and(|(expected, actual)| expected == actual)
                 }
                 (
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                    TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference },
                     StaticMachineBindingValue::Const(actual),
                 ) => {
+                    // Inference may carry the same scalar as a typed operand, while
+                    // the binding retains its landed literal. Compare their values at
+                    // the declared carrier before considering symbolic operands.
+                    if let Some(primitive) = self.primitive_type_reference(*type_reference)
+                        && (primitive.landed_landing_fixed().is_some()
+                            || primitive == types::PrimitiveType::Bool)
+                    {
+                        let Ok(bound_operand) = self.static_operand_from_type_reference(*actual)
+                        else {
+                            return false;
+                        };
+                        let supplied = self.callable_scalar_value(primitive, argument);
+                        let bound = self.callable_scalar_value(primitive, &bound_operand);
+                        match (supplied, bound) {
+                            (Ok(supplied), Ok(bound)) => return supplied == bound,
+                            (Err(_), Err(_)) if static_const_argument_value(self, &bound_operand).is_none()
+                                && static_const_argument_value(self, argument).is_none() => {}
+                            _ => return false,
+                        }
+                    }
                     if let Some((expected, actual)) = self
                         .static_const_argument_identity(argument)
                         .zip(self.static_const_type_reference_identity(*actual))

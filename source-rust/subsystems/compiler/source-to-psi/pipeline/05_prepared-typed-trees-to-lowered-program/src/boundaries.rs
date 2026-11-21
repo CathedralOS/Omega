@@ -75,8 +75,7 @@ impl BoundaryNamespace {
         declarations: Option<&crate::lowering::read::Program<'_>>,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
-            machine: context,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(context, Construct::Machine),
             reason: RefusalReason::Unsupported,
             source_span: None,
             detail: detail.to_owned(),
@@ -151,22 +150,13 @@ impl BoundaryNamespace {
                     });
                 }
             }
-            let requires = header
-                .structural_parameters
-                .iter()
-                .flat_map(|parameter| {
-                    parameter
-                        .qualifications
-                        .iter()
-                        .map(move |domain| StructuralDomainRequirement {
-                            argument_index: parameter.position,
-                            path: Vec::new(),
-                            domain: *domain,
-                        })
-                })
+            let requires = StructuralDomainRequirement::declared_roots(&header.structural_parameters)
                 .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
             let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts) => {
+                    CheckedBoundaryExecution::LayoutTargetFacts
+                }
                 Some(
                     language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
                 ) => CheckedBoundaryExecution::NumericPrimitive,

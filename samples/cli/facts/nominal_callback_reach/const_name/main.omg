@@ -19,8 +19,7 @@ satisfies StepContract::step
     machine miss() -> u64 { 0 }
 }
 
-machine walk<machine Step>(value: u64) -> u64
-requires machine Step satisfies StepContract::step;
+machine walk<const Step: StepContract::step>(value: u64) -> u64
 {
     Step(value)
 }

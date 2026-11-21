@@ -41,6 +41,55 @@ fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
 }
 
 #[test]
+fn a_domain_cast_reads_a_named_requirements_declared_result() {
+    let (_, typed) = source(
+        r#"
+boundary trait Offset {
+    machine value() -> u64 reaches none crashes none;
+}
+machine read() -> u64 in Wrapping {
+    Offset::value() as u64 +Wrapping
+}
+"#,
+    );
+    assert!(
+        typed.deferred_refusals.is_empty(),
+        "{:?}",
+        typed.deferred_refusals
+    );
+    assert!(
+        typed
+            .expression_table
+            .expression_entries()
+            .any(|(_, node)| {
+                matches!(node, ExpressionNode::Cast(cast) if cast.form.entry().is_some()
+            && cast.result_type.is_valid())
+            })
+    );
+}
+
+#[test]
+fn a_carrier_cast_cannot_drop_a_named_requirements_result_domain() {
+    let (_, result) = source_result(
+        r#"
+domain u64::Tagged;
+boundary trait Offset {
+    machine value() -> u64 in Tagged reaches none crashes none;
+}
+machine read() -> u64 in Wrapping {
+    Offset::value() as u64 +Wrapping
+}
+"#,
+    );
+    let error = result.expect_err("the carrier cast must account for Tagged");
+    assert!(
+        error.message.contains("carrier cast") && error.message.contains("Tagged"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn a_borrowed_collection_cast_keeps_its_declared_field_type() {
     let (_, typed) = source(
         r#"
@@ -327,7 +376,12 @@ machine remove(value: i64 in Marked<u32>) -> i64 { value as -Marked<u32> }
         };
         assert!(cast.result_type.is_valid());
         assert!(cast.semantic_domain_symbol.is_valid());
-        assert_eq!(typed.expression_table.name_path_string(cast.semantic_domain), "Marked");
+        assert_eq!(
+            typed
+                .expression_table
+                .name_path_string(cast.semantic_domain),
+            "Marked"
+        );
         let arguments = typed
             .type_reference_table
             .type_reference_handles(cast.semantic_domain_arguments);
@@ -574,4 +628,72 @@ machine update(packet: @mut Packet) {
         }
     }
     assert_eq!(captures, 1);
+}
+
+#[test]
+fn a_static_value_types_the_captured_selector_only_in_its_own_scope() {
+    let (_, typed) = source(
+        "machine take<const Count: u64>(bytes: @[u8; Count]) -> u8
+             requires Count > 0u64 { bytes[Count - 1u64] }
+         machine other<Count: u32>() -> u32 { Count }",
+    );
+    let take = typed.machine_by_symbol(machine(&typed, "take")).unwrap();
+    let parameters = typed.machine_type_parameters(take);
+    assert_eq!(parameters.len(), 1);
+    let parameter = &parameters[0];
+    let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+    else {
+        panic!("Count must keep its declared integer carrier");
+    };
+    let (use_of_count, _) = typed
+        .expression_table
+        .iter_backing_expressions()
+        .find(|(_, node)| {
+            matches!(node, ExpressionNode::Name(path)
+            if path.resolved_symbol() == Some(parameter.symbol))
+        })
+        .expect("the body uses its own Count");
+    let state = &typed.machine_states(take)[0];
+    for owner in [take.symbol, state.symbol] {
+        assert_eq!(
+            declared_callable_value_type(&typed, owner, use_of_count).unwrap(),
+            type_reference
+        );
+    }
+    assert!(declared_callable_value_type(&typed, machine(&typed, "other"), use_of_count).is_err());
+    let other = machine(&typed, "other");
+    let other_binders = typed.declaration_type_parameters(other);
+    let runtime_count = &other_binders[0];
+    let crate::source_state::data::TypeParameterKind::Value {
+        type_reference: runtime_type,
+    } = runtime_count.kind
+    else {
+        panic!("the second Count is a runtime-capable value binder");
+    };
+    let (value, _) = typed
+        .expression_table
+        .iter_backing_expressions()
+        .find(|(_, node)| {
+            matches!(node, ExpressionNode::Name(path)
+            if path.resolved_symbol() == Some(runtime_count.symbol))
+        })
+        .expect("other uses its own Count");
+    assert_eq!(
+        declared_callable_value_type(&typed, other, value).unwrap(),
+        runtime_type
+    );
+    let captures: Vec<_> = typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| statement.as_local_data())
+        .filter(|local| local.is_operand_capture)
+        .collect();
+    let [capture] = captures.as_slice() else {
+        panic!("the selector must be evaluated once");
+    };
+    assert_eq!(
+        typed.normalized_type_identity(capture.type_reference),
+        typed.normalized_type_identity(type_reference),
+    );
 }

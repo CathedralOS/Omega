@@ -2,9 +2,8 @@
 
 Loose ends of the package-build surface that all reject legibly at
 closure resolution or build evaluation — plus one quiet positive:
-builder configuration fields (`subsystem`, `identifier`,
-`freestanding`) write cleanly on a `package` kind, composing inertly
-when the declared kind is not an application.
+a package can set `subsystem` and `identifier`. Those settings apply when
+Build declares an application.
 
 Controls:
 

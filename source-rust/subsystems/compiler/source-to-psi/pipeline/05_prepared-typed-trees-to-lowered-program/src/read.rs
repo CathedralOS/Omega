@@ -42,6 +42,7 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
+mod float_meaning;
 mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
@@ -50,6 +51,7 @@ mod nominal_applications;
 mod numeric_contracts;
 mod places;
 mod predicates;
+mod provider_methods;
 mod provider_selections;
 mod providers;
 mod rankings;
@@ -1164,6 +1166,17 @@ mod tests {
                 refusal.detail,
                 "declaration holding a call selected by its receiver's type, which no pass serves yet \
                  while reading the signature of `holder`"
+            );
+            let in_clause = program
+                .unfold_definition(machine(), holder, holder, |_, _, _| Ok(()))
+                .err()
+                .expect("a clause still demands its callee");
+            assert_eq!(in_clause.reason, refusal.reason);
+            assert_eq!(in_clause.source_span, source_span);
+            assert!(
+                in_clause
+                    .detail
+                    .contains("declaration holding a call selected by its receiver's type")
             );
             typed.deferred_refusals.clear();
         }
@@ -2324,11 +2337,13 @@ mod tests {
         use semantic_vocabulary::StructuralTypeId;
         let mut typed = TypedTrees::default();
         let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let capture = typed.expression_table.insert_match_subject(truth);
         let scalar_match =
             typed
                 .expression_table
                 .insert(ExpressionNode::Match(TableMatchExpression {
                     subject: truth,
+                    capture,
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);

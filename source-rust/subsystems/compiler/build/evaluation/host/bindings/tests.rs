@@ -84,7 +84,7 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let prepared = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let prepared = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
     let accepted = source_compiler::test_support::judge_terminal_source(
         prepared,
         source_compiler::test_support::TerminalSourceCompilation {
@@ -136,6 +136,7 @@ fn effect(
         .expect("the actual emitted call's block")
         .id;
     TerminalEffect::BoundaryCall {
+        float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
         site: TerminalEffectWait {
             program: program.view().custody_identity(),
             machine: call.site.machine,

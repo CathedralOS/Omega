@@ -10,13 +10,10 @@
 // owes nothing before it is stated. A caller owes it over its own actuals:
 // each embedded formal becomes the actual embedded, in the actual's carrier.
 //
-// What the prover can do with the stated goal is narrower than what a clause
-// can say. The kernel evaluates it when every actual is a constant. One
-// operation over values of one carrier is bounded from their intervals, the
-// rule an exact operation's representability goal already uses. A deeper
-// term over values that are not constants has no bound rule. An equality of
-// identical open terms is reflexive, including when checked exact result
-// equations expose those terms through value-equality transport.
+// The kernel evaluates closed comparisons directly. For open values the
+// checker can combine operand bounds, including the product inside the sum
+// above. Equal open terms can also be proved equal by reflexivity after
+// substituting the definitions of exact operation results.
 
 use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
 use terminal_psi::ProofRule;
@@ -182,31 +179,32 @@ fn a_caller_that_requires_the_same_clause_passes_it_on() {
 }
 
 #[test]
-fn a_deeper_term_over_open_values_has_no_rule_and_is_not_a_rejection() {
-    // Shows the limit: with `a <= 9` and `b <= 9` the clause holds (at most
-    // 99), but bounding a sum whose operand is a product is more than one
-    // operation, and the prover has no rule for it. The route does not
-    // accept, and does not call the program wrong either:
-    // `NoRuleForGoalForm`, published `Incomplete`.
-    let machines = || {
+fn a_sum_of_bounded_terms_proves_the_packed_call_requirement() {
+    let machines = |max_count| {
         let (rest, count) = formals();
         calling(
-            vec![at_most(1, 9), at_most(2, 9)],
+            vec![at_most(1, 9), at_most(2, max_count)],
             packed_clause(),
             rest,
             count,
         )
     };
-    let (elaboration, result) = requirement_of(machines());
+    let (elaboration, result) = requirement_of(machines(9));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    let evidence = certificate(verdict);
+    assert_eq!(evidence.goal, packed_clause());
+    assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+
+    // If count can reach 10, the caller permits 9 + 10 * 10 = 109.
+    // Failure to bound this compound expression is reported as incomplete.
+    let (elaboration, result) = requirement_of(machines(10));
     let verdict = verdicts(&elaboration, &result, 1, requirement)[0].1;
     assert_eq!(cause_of(verdict), UnprovedCause::NoRuleForGoalForm);
-    match judge(lower(machines())).unwrap() {
-        RouteVerdict::Incomplete(unproved) => {
-            assert_eq!(unproved.len(), 1);
-            assert!(requirement(&unproved[0].kind));
-        }
-        verdict => panic!("neither accepted nor rejected: {verdict:?}"),
-    }
+    let RouteVerdict::Incomplete(unproved) = judge(lower(machines(10))).unwrap() else {
+        panic!("the caller's bounds do not establish the packed requirement");
+    };
+    assert_eq!(unproved.len(), 1);
+    assert!(requirement(&unproved[0].kind));
 }
 
 #[test]
@@ -305,11 +303,8 @@ fn a_mathematical_update_guarantee_supplies_the_callers_scalar_bound() {
 
 #[test]
 fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
-    // Shows which mathematical goals a failure counts against the program
-    // for. A comparison of two closed terms, whatever its relation, is
-    // evaluated. An order of one operation over values of one carrier
-    // against a literal is bounded. A deeper term, operands of two carriers,
-    // and an equality or strict order over values are not.
+    // The failure category depends on the goal's form. A certificate can
+    // still establish a compound goal using bounds from the caller.
     let closed = sum(integer(9), integer(90));
     assert!(crate::checking::has_rules_for(&within(closed.clone(), 99)));
     assert!(crate::checking::has_rules_for(
@@ -335,10 +330,12 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
         value: id(2),
     };
-    assert!(!crate::checking::has_rules_for(&within(
-        sum(embedded(1), narrow),
+    assert!(crate::checking::has_rules_for(&within(
+        sum(embedded(1), narrow.clone()),
         300
     )));
+    let mixed_product = IntegerMathTerm::Multiply(Box::new(embedded(1)), Box::new(narrow));
+    assert!(!crate::checking::has_rules_for(&within(mixed_product, 300)));
     assert!(!crate::checking::has_rules_for(
         &Proposition::IntegerMathEqual(embedded(1), integer(7))
     ));

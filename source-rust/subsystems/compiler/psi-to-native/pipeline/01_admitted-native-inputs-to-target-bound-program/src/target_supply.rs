@@ -9,8 +9,8 @@ mod plan_realization;
 mod realized_supply;
 
 pub use plan_realization::{
-    TargetSupplyExecutionInputs, TargetSupplyRealizationError, TargetSupplyRealizationRequest,
-    realize_target_supply,
+    PublishedComponentSuppliers, TargetSupplyExecutionInputs, TargetSupplyRealizationError,
+    TargetSupplyRealizationRequest, realize_target_supply,
 };
 pub use realized_supply::{
     ProviderPlanRealizationInput, RealizedTargetSupply, SelectedProviderRealization,

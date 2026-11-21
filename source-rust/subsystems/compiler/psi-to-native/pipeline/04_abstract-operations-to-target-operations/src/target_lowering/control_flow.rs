@@ -1266,7 +1266,7 @@ mod terminator {
                 return None;
             }
             let parameter = function.arrival_parameter(place)?;
-            if !abstract_operations::control_flow::address_joins::is_descriptor_join(
+            if !structural_storage_queries::address_joins::is_descriptor_join(
                 parameter,
                 |identity| types.get(identity).copied(),
             ) {
@@ -2149,10 +2149,10 @@ mod transfers {
     use super::{KnownUnitInteger, LiveDefinitions, references};
     use crate::target_lowering::LoweringError;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
-    use abstract_operations::control_flow::address_joins::is_static_projection;
     use abstract_operations::{AbstractBlock, AbstractFunction, AbstractOperation, ValueBinding};
     use semantic_vocabulary::{BlockId, ScalarType, ValueId};
     use std::collections::BTreeSet;
+    use structural_storage_queries::address_joins::is_static_projection;
     use target_operations::TargetScalarBlockValue;
     use terminal_semantics::descriptor_results::result_access;
 
@@ -2308,7 +2308,7 @@ mod transfers {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> bool {
-        abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
+        structural_storage_queries::address_joins::is_address_join(parameter, |identity| {
             structural_types.get(identity).copied()
         })
     }
@@ -2333,7 +2333,7 @@ mod transfers {
     ) -> bool {
         let argument = &binding.argument;
         if argument.access != parameter.access
-            || !abstract_operations::control_flow::address_joins::is_address_projection(
+            || !structural_storage_queries::address_joins::is_address_projection(
                 &argument.path,
             )
         {
@@ -2356,7 +2356,7 @@ mod transfers {
                 && accessible(home.structural_type(), home.multiplicity(), home.access()))
             .then(|| home.structural_type())
         } else if let Some(source) = function.structural_parameter(argument.place) {
-            (abstract_operations::control_flow::address_joins::loan_access_permitted(
+            (structural_storage_queries::address_joins::loan_access_permitted(
                 structural_types.values().copied(),
                 source.structural_type,
                 &argument.path,
@@ -2370,7 +2370,7 @@ mod transfers {
             function
                 .block_structural_parameter(argument.place)
                 .filter(|source| {
-                    abstract_operations::control_flow::address_joins::loan_access_permitted(
+                    structural_storage_queries::address_joins::loan_access_permitted(
                         structural_types.values().copied(),
                         source.structural_type,
                         &argument.path,
@@ -2395,7 +2395,7 @@ mod transfers {
                 })
         };
         root_type.and_then(|root| {
-            abstract_operations::control_flow::address_joins::borrowed_referent_type(
+            structural_storage_queries::address_joins::borrowed_referent_type(
                 structural_types.values().copied(),
                 root,
                 &argument.path,
@@ -2453,7 +2453,7 @@ mod transfers {
                         }
                         continue;
                     }
-                    if abstract_operations::control_flow::address_joins::is_descriptor_join(
+                    if structural_storage_queries::address_joins::is_descriptor_join(
                         parameter,
                         |identity| structural_types.get(identity).copied(),
                     ) {
@@ -2886,7 +2886,7 @@ pub(crate) fn lower(
             | AbstractOperation::Call { result, .. } => Some(*result),
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
-            | AbstractOperation::StorageAddress { result, .. }
+            | AbstractOperation::ObserveStorageLocation { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::StructuralScalarFieldRead { result, .. }
             | abstract_operations::byte_len_or_field_read_pattern!(result, ..)
@@ -2921,13 +2921,13 @@ pub(crate) fn lower(
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                     && !is_immutable_byte_carrier_parameter(parameter, structural_types)
                     && !is_element_view_parameter(parameter, structural_types)
-                    && !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                    && !structural_storage_queries::address_joins::is_descriptor_join(
                         parameter,
                         |identity| structural_types.get(identity).copied(),
                     )
                     && !transfers::is_address_join(parameter, structural_types)
                     && !is_owned_byte_parameter(parameter, structural_types)
-                    && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
+                    && !structural_storage_queries::owner_loans::is_shared_view_carrier_loan(
                         parameter,
                         |identity| structural_types.get(identity).copied(),
                         &structural_types

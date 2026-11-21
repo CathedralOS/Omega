@@ -10,8 +10,15 @@ pub(super) fn signature(
     encoder: &mut Encoder,
     signature: &PackagePolicyServiceSignature,
 ) -> Result<(), PackageReviewEncodingError> {
+    let lifetime_count = signature
+        .schema_lifetime_parameter_count
+        .checked_add(signature.application_lifetime_parameter_count)
+        .and_then(|count| count.checked_add(signature.requirement_lifetime_parameter_count))
+        .ok_or_else(|| {
+            PackageReviewEncodingError::new("selected service lifetime scope overflows")
+        })? as usize;
     encoder.field("schema_arguments", |encoder| {
-        encoder.sequence(&signature.schema_arguments, encode_type_identity)
+        encoder.sequence(&signature.schema_arguments, Encoder::static_argument)
     })?;
     encoder.u32_field(
         "schema_lifetime_parameter_count",
@@ -28,7 +35,7 @@ pub(super) fn signature(
         signature.application_lifetime_parameter_count,
     )?;
     encoder.field("requirement_arguments", |encoder| {
-        encoder.sequence(&signature.requirement_arguments, encode_type_identity)
+        encoder.sequence(&signature.requirement_arguments, Encoder::static_argument)
     })?;
     encoder.field("requirement_lifetime_arguments", |encoder| {
         encoder.sequence(
@@ -54,8 +61,11 @@ pub(super) fn signature(
                 &parameter.type_identity,
                 parameter.is_const,
                 parameter.is_mutable,
+                lifetime_count,
             )
         })
     })?;
-    encoder.option_field("result", signature.result.as_ref(), encode_type_identity)
+    encoder.option_field("result", signature.result.as_ref(), |encoder, identity| {
+        super::super::type_identity_in_scope(encoder, identity, Some(lifetime_count))
+    })
 }

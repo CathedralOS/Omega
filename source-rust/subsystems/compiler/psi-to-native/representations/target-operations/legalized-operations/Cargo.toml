@@ -22,7 +22,7 @@ optimization-core = { path = "../../optimization-records" }
 target = { path = "../../../targets/target" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
-terminal-wire = { path = "../../../../psi-artifact/wire" }
+terminal-wire = { path = "../../../../psi/artifact/wire" }
 sha2 = "0.10.9"

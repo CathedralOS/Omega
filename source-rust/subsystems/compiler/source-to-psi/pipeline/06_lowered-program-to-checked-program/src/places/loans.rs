@@ -123,6 +123,8 @@ struct Formed {
     /// The exact formation occurrence and its transported descriptor lifetime.
     /// A call-duration argument has no retained descriptor after its call.
     at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    /// An edge loan comes into existence only on its selected successor.
+    formed_in: semantic_vocabulary::BlockId,
     lifetime: Option<terminal_semantics::descriptor_lifetimes::DescriptorLifetime>,
     /// For the narrower region a returned reference retains, the call that
     /// formed it. That call's own argument loans cover it only for the call.
@@ -184,7 +186,7 @@ struct PayloadCapture {
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
-            (Self::Storage(child), Self::Storage(parent)) => parent.definitely_contains(child),
+            (Self::Storage(child), Self::Storage(parent)) => parent.contains_reborrow(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
             (Self::Provider, Self::Provider) => true,
@@ -951,6 +953,7 @@ impl<'a> Storage<'a> {
                 from,
                 permitted,
                 at: self.loan_position(before, concerns)?,
+                formed_in: cut.0,
                 lifetime,
                 returned_by: None,
             });
@@ -1016,6 +1019,7 @@ impl<'a> Storage<'a> {
                     from,
                     permitted,
                     at: self.loan_position(before, concerns)?,
+                    formed_in: cut.0,
                     lifetime: Some(narrower.lifetime),
                     returned_by: Some(invocation),
                 });
@@ -1266,6 +1270,7 @@ impl<'a> Storage<'a> {
             from,
             permitted,
             at,
+            formed_in: at.0,
             lifetime: Some(lifetime),
             returned_by: None,
         });
@@ -2607,6 +2612,7 @@ impl<'a> Storage<'a> {
                         from,
                         permitted,
                         at,
+                        formed_in: target,
                         lifetime: Some(lifetime),
                         returned_by: None,
                     });
@@ -2856,8 +2862,19 @@ impl<'a> Storage<'a> {
                 // ordinary loan and affine cleanup own the local remainder.
                 continue;
             }
+            // Only a formation on a path to this return can have a descriptor
+            // to dispose here. Keep ancestors that did execute even when all
+            // their local names were lost before the return.
+            let mut arriving = arena::IdSet::new();
+            let mut pending = vec![block.id];
+            while let Some(source) = pending.pop() {
+                if arriving.insert(source) {
+                    pending.extend_from_slice(self.graph.predecessors(source)?);
+                }
+            }
             let occurrences = formed
                 .iter()
+                .filter(|loan| arriving.contains(loan.formed_in))
                 .map(|loan| {
                     let is_returned = returned.contains(&loan.obligation);
                     let disposed = if is_returned {
@@ -3076,8 +3093,9 @@ impl<'a> Storage<'a> {
                     });
                     Err(Refusal {
                         reason: RefusalReason::Conflict,
-                        machine: self.machine,
-                        concerns: Construct::Obligation(loan.obligation),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            self.machine, Construct::Obligation(loan.obligation),
+                        ),
                         source_span: None,
                         detail: String::from(match conflict {
                             LoanConflict::TwiceExclusive => {

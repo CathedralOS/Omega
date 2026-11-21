@@ -17,7 +17,7 @@ public boundary trait Measure {
 public data Pair [copy] { lo: u64; hi: u64; }
 
 PairLayout satisfies FixedLayout<Pair> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
@@ -28,7 +28,7 @@ PairLayout satisfies FixedLayout<Pair> {
 public data Overlapping [copy] { lo: u64; hi: u64; }
 
 OverlappingLayout satisfies FixedLayout<Overlapping> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };

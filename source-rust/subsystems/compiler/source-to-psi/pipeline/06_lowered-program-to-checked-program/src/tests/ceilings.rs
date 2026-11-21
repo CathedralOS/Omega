@@ -942,3 +942,38 @@ machine entry<const Left: Operations, const Right: Operations>(counter: @mut Cou
         );
     }
 }
+
+#[test]
+fn a_bodyless_requirement_keeps_its_own_envelope_when_a_parameter_is_callable() {
+    let source = typed(
+        "public data Recognize = machine(value: u64) -> bool reaches none crashes none;
+         public trait Hooks {
+             machine attach<'region>(storage: @'region u64, callback: Recognize)
+             reaches none crashes none;
+         }",
+    );
+    let hooks = source
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "Hooks")
+        .unwrap();
+    let requirements = source.trait_machine_signatures(hooks);
+    let [attach] = requirements.as_array().expect("one authored requirement");
+    let mut forms = crate::lowering::elaborate_generic_forms(&source, &[attach.symbol]).unwrap();
+    let [form] = forms.as_mut_slice() else {
+        panic!("one standalone requirement form");
+    };
+    let [requirement] = form.requirements.as_slice() else {
+        panic!("one bodyless machine");
+    };
+    let requirement = *requirement;
+    assert!(!form.module.execution.callables.contracts.is_empty());
+    assert!(form.module.execution.callables.machine_envelope(requirement).is_none());
+    assert!(crate::checking::ceilings::judge(form).unwrap().is_empty());
+
+    // The structural callback's own contract cannot supply the lost requirement row.
+    form.requirement_ceilings.get_mut(requirement).unwrap().envelope = None;
+    let error = crate::checking::ceilings::judge(form).unwrap_err();
+    assert_eq!(error.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(error.detail, "abstract requirement lost its declared operational row");
+}

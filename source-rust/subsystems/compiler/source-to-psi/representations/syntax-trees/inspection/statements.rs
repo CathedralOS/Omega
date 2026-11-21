@@ -2,7 +2,7 @@ use crate::SyntaxTrees;
 use crate::item::{CrashCause, State, StateParameterHandle, StateParameterNode, StateSignature};
 use crate::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_item_identifier_path, snapshot_static_argument, snapshot_type_reference_handle,
+    snapshot_static_argument, snapshot_type_reference_handle, snapshot_type_references,
 };
 use crate::snapshot::item_snapshots::{
     snapshot_capability_contract, snapshot_capability_contracts,
@@ -44,8 +44,8 @@ pub struct StateSignatureSnapshot {
     pub native_callback_parameters: Vec<NativeCallbackParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub service_reach_is_installation_bound: bool,
-    pub service_reaches: Vec<IdentifierSnapshot>,
-    pub invokes: Vec<IdentifierSnapshot>,
+    pub service_reaches: Vec<TypeReferenceSnapshot>,
+    pub invokes: Vec<TypeReferenceSnapshot>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
@@ -268,11 +268,8 @@ macro_rules! state_signature_snapshot {
                 .collect(),
             return_type: snapshot_type_reference_handle($syntax_trees, $signature.return_type),
             service_reach_is_installation_bound: $signature.service_reach_is_installation_bound,
-            service_reaches: snapshot_item_identifier_path(
-                $syntax_trees,
-                $signature.service_reaches,
-            ),
-            invokes: snapshot_item_identifier_path($syntax_trees, $signature.invokes),
+            service_reaches: snapshot_type_references($syntax_trees, $signature.service_reaches),
+            invokes: snapshot_type_references($syntax_trees, $signature.invokes),
             suspends: $signature.suspends,
             blocks: $signature.blocks,
             contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),

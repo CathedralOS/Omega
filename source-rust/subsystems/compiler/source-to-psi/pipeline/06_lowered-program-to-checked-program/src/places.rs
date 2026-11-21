@@ -661,12 +661,19 @@ enum Observations {
     All,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Initialization {
+    NotAsked,
+    Leaf,
+    WholeArray,
+}
+
 pub(super) struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
     fallbacks: Vec<EntryFallback>,
     boundary: BoundaryDepth,
-    initialization_only: bool,
+    initialization: Initialization,
     observations: Observations,
     /// Only an actual selected dispatch payload may condition type provenance.
     /// Ordinary reads, value equations and initialization leave this absent.
@@ -699,22 +706,27 @@ impl Reaching {
             Supply::Direct(reached) => {
                 let boundary = match reached {
                     Reached::Cycle => BoundaryDepth::Cycle,
-                    Reached::Established(depth) if !self.initialization_only => {
+                    Reached::Established(depth)
+                        if self.initialization == Initialization::NotAsked =>
+                    {
                         BoundaryDepth::Established(depth)
                     }
                     _ => BoundaryDepth::Local,
                 };
                 let equation = &mut self.equations[destination];
-                equation.seed = equation.seed.merge(if self.initialization_only {
-                    reached.without_identity()
-                } else {
-                    reached
-                });
+                equation.seed =
+                    equation
+                        .seed
+                        .merge(if self.initialization != Initialization::NotAsked {
+                            reached.without_identity()
+                        } else {
+                            reached
+                        });
                 equation.seed_boundary = equation.seed_boundary.merge(boundary);
             }
             Supply::Boundary { value, depth } => {
                 let equation = &mut self.equations[destination];
-                if self.initialization_only {
+                if self.initialization != Initialization::NotAsked {
                     equation.seed = equation.seed.merge(Reached::Unknown);
                     equation.seed_boundary = equation.seed_boundary.merge(BoundaryDepth::Local);
                 } else {
@@ -1148,7 +1160,7 @@ impl<'a> Storage<'a> {
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
-        storage.log = storage.stores(references, value_types, tables)?;
+        storage.log = storage.stores(references, value_types)?;
         storage.cleanup_writes =
             crate::checking::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
@@ -1184,6 +1196,13 @@ impl<'a> Storage<'a> {
                     continue;
                 };
                 let concerns = Construct::Operation(operation.id);
+                // A read through a provider's shared reference yields a fresh scalar.
+                // Its public permission identifies no address for a later read to observe.
+                if let Some(at) = storage.descriptor_position((block.id, before))
+                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
+                {
+                    continue;
+                }
                 let leaf = storage.backing(references, &leaf, block.id, before, concerns)?;
                 let value = operation
                     .result
@@ -1444,7 +1463,10 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+        (callee_formals, extent_owner): (
+            &'s [terminal_psi::StructuralParameterDeclaration],
+            Option<MachineId>,
+        ),
         site: InvocationSite,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
@@ -1480,6 +1502,7 @@ impl<'a> Storage<'a> {
             scalars: crate::checking::scalar_actuals(actuals),
             places,
             callee_formals,
+            extent_owner,
             block,
             up_to: before,
             concerns,
@@ -1551,6 +1574,7 @@ impl<'a> Storage<'a> {
                 scalars: Vec::new(),
                 places,
                 callee_formals: formals,
+                extent_owner: None,
                 block,
                 up_to,
                 concerns,
@@ -1567,10 +1591,7 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        (formals, result): (
-            &'s [terminal_psi::StructuralParameterDeclaration],
-            Option<&TerminalMachineResult>,
-        ),
+        call: &crate::checking::call_contracts::Invocation<'s>,
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
@@ -1578,40 +1599,36 @@ impl<'a> Storage<'a> {
             references,
             tables,
             actuals,
-            formals,
+            call.structural_inputs(),
             InvocationSite::Operation(site),
             concerns,
         )?;
+        let result = call.contract.result;
         let operation = self.operation(site, concerns)?;
-        let structural = match (result, operation.result.as_structural()) {
-            (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
-                if declared.structural_type != actual.structural_type {
-                    return Err(self.foreign(
-                        concerns,
-                        "call result has another structural type than its contract",
-                    ));
-                }
+        use crate::checking::call_contracts::ResultFormal;
+        let (structural, scalar) = match (result, &operation.result) {
+            (ResultFormal::Unit, terminal_psi::OperationResult::Unit) => (None, None),
+            (ResultFormal::Scalar(formal), terminal_psi::OperationResult::Scalar(actual)) => {
+                (None, Some((formal, actual.id)))
+            }
+            (
+                ResultFormal::Structural(formal, ty),
+                terminal_psi::OperationResult::Structural(actual),
+            ) if ty == actual.structural_type => (
                 Some((
-                    declared.place,
+                    formal,
                     Lineage {
                         root: actual.place,
                         segments: Vec::new(),
                     },
-                ))
-            }
-            _ => None,
+                )),
+                None,
+            ),
+            _ => return Err(self.foreign(concerns, "call result differs from its public contract")),
         };
-        let scalar = operation.result.as_scalar().map(|actual| {
-            let formal = match result {
-                Some(TerminalMachineResult::Scalar(declared)) => declared.id,
-                _ => ValueId::new(inputs.scalars.len() as u64 + 1)
-                    .expect("a scalar result follows its formals"),
-            };
-            (formal, actual.id)
-        });
         Ok(Returned {
             inputs,
-            input_formals: formals,
+            input_formals: call.contract.structural_parameters,
             storage: self,
             tables,
             structural,
@@ -1754,8 +1771,11 @@ impl<'a> Storage<'a> {
             up_to,
             concerns,
         };
-        crate::checking::sufficient_goal(&self.clause(owner, concerns)?, &mut bindings)
-            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+        terminal_semantics::substitution::clauses::substitute_sufficient_clause(
+            &self.clause(owner, concerns)?,
+            &mut bindings,
+        )
+        .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
     /// The goal of one `DataDomain` obligation: the clause with `self`
@@ -2246,17 +2266,32 @@ impl<'a> Storage<'a> {
 
     /// Every leaf at or beneath `place`, as lineages: each scalar, and each
     /// sum itself, whose discriminator is contents like any other.
-    fn leaves(&self, place: &Lineage, concerns: Construct) -> Checked<Vec<Lineage>> {
+    fn leaves(
+        &self,
+        place: &Lineage,
+        concerns: Construct,
+        mut established_array: impl FnMut(&Lineage) -> bool,
+    ) -> Checked<Vec<Lineage>> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
             Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
             Shape::Typed(structural_type) => {
-                self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
+                self.leaves_of(
+                    structural_type,
+                    &mut at,
+                    &mut found,
+                    concerns,
+                    &mut established_array,
+                )?;
             }
-            Shape::Payload(case) => {
-                self.field_leaves(&case.fields, &mut at, &mut found, concerns)?
-            }
+            Shape::Payload(case) => self.field_leaves(
+                &case.fields,
+                &mut at,
+                &mut found,
+                concerns,
+                &mut established_array,
+            )?,
         }
         Ok(found)
     }
@@ -2267,6 +2302,7 @@ impl<'a> Storage<'a> {
         at: &mut Lineage,
         found: &mut Vec<Lineage>,
         concerns: Construct,
+        established_array: &mut impl FnMut(&Lineage) -> bool,
     ) -> Checked<()> {
         for field in fields {
             at.segments.push(Segment::Field(field.id));
@@ -2275,7 +2311,7 @@ impl<'a> Storage<'a> {
                 | StructuralFieldType::AtomicBoundedInteger(_)
                 | StructuralFieldType::Scalar(_) => found.push(at.clone()),
                 StructuralFieldType::Structural(nested) => {
-                    self.leaves_of(nested, at, found, concerns)?;
+                    self.leaves_of(nested, at, found, concerns, established_array)?;
                 }
                 ref stored if is_stored_view(stored) => found.push(at.clone()),
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
@@ -2291,6 +2327,7 @@ impl<'a> Storage<'a> {
         at: &mut Lineage,
         found: &mut Vec<Lineage>,
         concerns: Construct,
+        established_array: &mut impl FnMut(&Lineage) -> bool,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             // References and opaque values each occupy one established
@@ -2318,14 +2355,25 @@ impl<'a> Storage<'a> {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
+                // Each element is inline and has no independent access or
+                // descriptor to resolve. One whole supply establishes them all.
+                if *length > 1
+                    && matches!(
+                        self.declaration(*element, concerns)?.shape,
+                        StructuralTypeShape::PrimitiveScalar(_)
+                    )
+                    && established_array(at)
+                {
+                    return Ok(());
+                }
                 for index in 0..*length {
                     at.segments.push(Segment::FixedIndex(index));
-                    self.leaves_of(*element, at, found, concerns)?;
+                    self.leaves_of(*element, at, found, concerns, established_array)?;
                     at.segments.pop();
                 }
             }
             StructuralTypeShape::Record { fields, .. } => {
-                self.field_leaves(fields, at, found, concerns)?;
+                self.field_leaves(fields, at, found, concerns, established_array)?;
             }
             // A sum is established when something was stored into it whole,
             // whatever its case: the sum's own place stands for its
@@ -2335,7 +2383,7 @@ impl<'a> Storage<'a> {
                 found.push(at.clone());
                 for case in cases {
                     at.segments.push(Segment::Case(case.id));
-                    self.field_leaves(&case.fields, at, found, concerns)?;
+                    self.field_leaves(&case.fields, at, found, concerns, established_array)?;
                     at.segments.pop();
                 }
             }
@@ -2847,6 +2895,19 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if budget.initialization == Initialization::WholeArray {
+                // A partial transfer can introduce an unavailable element;
+                // a vacancy, unknown alias effect or non-array producer has
+                // no whole-array proof. Let the caller judge individual cells.
+                if !row.backing.definitely_contains(watched)
+                    || !matches!(
+                        row.stored,
+                        Stored::Moved(_) | Stored::Zeroed | Stored::Established
+                    )
+                {
+                    return Ok(Supply::Direct(Reached::Unestablished));
+                }
+            }
             if matches!(row.stored, Stored::UnknownPayloadWrite { .. }) {
                 return Ok(Supply::Direct(Reached::Unknown));
             }
@@ -3744,6 +3805,11 @@ impl<'a> Storage<'a> {
             return Ok(Supply::transfer(address).within(projection));
         }
         let address = budget.add_equation();
+        if budget.initialization == Initialization::WholeArray && resolved.single_place().is_none()
+        {
+            budget.add_supply(address, Supply::Direct(Reached::Unestablished));
+            return Ok(Supply::transfer(address));
+        }
         if let Some(key) = key {
             budget.keys.insert(key, address);
         }
@@ -3796,6 +3862,13 @@ impl<'a> Storage<'a> {
                     }
                     if row.position > up_to
                         || !asked.ended_by(resolved, row, &budget.crossed_entries)
+                        // Installing a scalar, zero or established value in
+                        // part of an already live array preserves initialization
+                        // of every other element. Such a write cannot prove
+                        // the whole; keep looking for an independent origin.
+                        || budget.initialization == Initialization::WholeArray
+                            && matches!(row.stored, Stored::Value(_) | Stored::Zeroed | Stored::Established)
+                            && !row.backing.definitely_contains(resolved)
                         || self.call_preserves_extent(references, asked, row, concerns)?
                     {
                         continue;
@@ -3804,7 +3877,7 @@ impl<'a> Storage<'a> {
                         last = Some((index, row));
                     }
                 }
-                if !budget.initialization_only
+                if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && let Some(observations) = self.observations[index(block.get())].get(leaf)
@@ -3835,7 +3908,7 @@ impl<'a> Storage<'a> {
                     budget.add_supply(destination, supply);
                     continue;
                 }
-                if !budget.initialization_only
+                if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && !budget.crossed_entries[index(block.get())]
@@ -4065,7 +4138,7 @@ impl<'a> Storage<'a> {
             equations: Vec::new(),
             fallbacks: Vec::new(),
             boundary: BoundaryDepth::Cycle,
-            initialization_only: false,
+            initialization: Initialization::NotAsked,
             observations: Observations::None,
             selected_payload_case: None,
             remaining: self.reaching_budget,
@@ -4095,7 +4168,7 @@ impl<'a> Storage<'a> {
         // Reads supply snapshots rather than initialize storage. Suppress
         // their observations and project away identity from the same solver.
         Reaching {
-            initialization_only: true,
+            initialization: Initialization::Leaf,
             ..self.budget()
         }
     }
@@ -4851,7 +4924,26 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
-            for leaf in self.leaves(place, concerns)? {
+            let leaves = self.leaves(place, concerns, |array| {
+                // Cleanup can vacate a projected region independently of the
+                // operation log. Its precise per-cell judgment remains valid.
+                if !self.cleanup_writes.is_empty() {
+                    return false;
+                }
+                let mut budget = self.initialization_budget();
+                budget.initialization = Initialization::WholeArray;
+                budget.used = Some(point);
+                self.reaching(
+                    references,
+                    tables,
+                    Asked::Contents(array),
+                    (block, up_to),
+                    &mut budget,
+                    concerns,
+                )
+                .is_ok_and(|reached| reached != Reached::Unestablished)
+            })?;
+            for leaf in leaves {
                 let mut budget = self.initialization_budget();
                 budget.used = Some(point);
                 if self.reaching(
@@ -5992,7 +6084,7 @@ impl<'a> Storage<'a> {
             if !overlap(used, watched) {
                 continue;
             }
-            for leaf in self.leaves(raw, touch.at)? {
+            for leaf in self.leaves(raw, touch.at, |_| false)? {
                 let leaf = self.backing_for_touch(references, &leaf, touch)?;
                 if overlap(&leaf, watched)
                     && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
@@ -6133,6 +6225,100 @@ fn extended(
         });
     }
     Ok(place)
+}
+
+/// Select a scalar in the receiving machine's storage. A runtime selector
+/// keeps its own SSA identity. An unevaluated logical expression cannot stand
+/// in for the selector captured by a storage operation.
+fn indexed_place(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    mut actual: Lineage,
+    path: &[semantic_vocabulary::ScalarReadProjection],
+) -> Result<Lineage, crate::checking::Unbound> {
+    use semantic_vocabulary::ScalarReadProjection;
+    for step in path {
+        let segment = match step {
+            ScalarReadProjection::Static(segment) => {
+                actual = extended(actual, std::slice::from_ref(segment))?;
+                continue;
+            }
+            ScalarReadProjection::Referent => Segment::Referent,
+            ScalarReadProjection::Extent => Segment::Extent,
+            ScalarReadProjection::Index(term) => index_segment(storage, tables, &actual, term)?,
+        };
+        actual.segments.push(segment);
+    }
+    Ok(actual)
+}
+
+fn index_segment(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    parent: &Lineage,
+    term: &ScalarTerm,
+) -> Result<Segment, crate::checking::Unbound> {
+    use crate::checking::Unbound;
+    use semantic_vocabulary::IntegerValue;
+    let value = match term {
+        ScalarTerm::Value { id, .. } => Some(*id),
+        _ => None,
+    };
+    let literal = term.integer_value().or_else(|| {
+        let value = value?;
+        let row = tables.values.get(value)?;
+        let ValueOrigin::Operation(id) = row.origin else {
+            return None;
+        };
+        let op = storage.lowered.operation(id)?;
+        let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
+        Some((ty.as_integer()?, literal))
+    });
+    Ok(if let Some((_, literal)) = literal {
+        let position = match literal {
+            IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+            IntegerValue::Signed(value) => u64::try_from(value).ok(),
+        }
+        .ok_or(Unbound::Unproved(
+            "contract selector is outside the collection index range",
+        ))?;
+        let extent = match storage.projection_type(parent, Construct::Machine) {
+            Some(owner) => match storage
+                .declaration(owner, Construct::Machine)
+                .map_err(Unbound::Refused)?
+                .shape
+            {
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } => Some(length),
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) => Some(capacity),
+                _ => None,
+            },
+            None => None,
+        };
+        match extent {
+            Some(length) if position < length => Segment::FixedIndex(position),
+            Some(_) => {
+                return Err(Unbound::Unproved(
+                    "contract selector is outside the actual collection extent",
+                ));
+            }
+            None => Segment::RuntimeIndex {
+                selector: value.ok_or(Unbound::Unproved(
+                    "the view has no captured selector for the contract index",
+                ))?,
+            },
+        }
+    } else if let Some(selector) = value {
+        Segment::RuntimeIndex { selector }
+    } else {
+        return Err(Unbound::Unproved(
+            "no captured storage selector names the indexed contract expression",
+        ));
+    })
 }
 
 impl<'a> Held<'_, 'a> {
@@ -6496,6 +6682,12 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+
+    /// Entry propositions can name only projections whose scalar sources
+    /// belong to this machine. Rejoin them at the same owner as call imports.
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -6512,6 +6704,31 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::checking::Unbound> {
         self.observation(self.input_place(root, path)?, scalar_type)
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let actual = indexed_place(
+            self.storage,
+            self.tables,
+            self.input_place(root, &[])?,
+            path,
+        )?;
+        if self
+            .storage
+            .interned(self.tables, &actual, Construct::Machine)
+            .map_err(crate::checking::Unbound::Refused)?
+            .is_none()
+        {
+            return Err(crate::checking::Unbound::Unproved(
+                "no operation captures this indexed input at entry",
+            ));
+        }
+        self.observation(actual, ty)
     }
 
     fn extent(
@@ -6603,6 +6820,7 @@ pub(crate) struct AtCall<'s, 'a> {
     /// The record actuals, in the callee's structural lane order.
     places: Vec<Lineage>,
     callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+    extent_owner: Option<MachineId>,
     block: BlockId,
     up_to: usize,
     concerns: Construct,
@@ -6682,6 +6900,56 @@ impl<'a> AtCall<'_, 'a> {
             projections: None,
             terms: Vec::new(),
         }
+    }
+
+    /// An inline cell of a shared caller input retains its entry contents.
+    /// A clause may name that cell even if no operation captures its index.
+    fn shared_input_read(
+        &self,
+        actual: &Lineage,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Option<ScalarTerm> {
+        use semantic_vocabulary::ScalarReadProjection as Projection;
+        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.storage.lowered.structural_parameters,
+            actual.root,
+        )?;
+        if input.access != StructuralAccess::SharedBorrow
+            || path
+                .iter()
+                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
+        {
+            return None;
+        }
+        let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
+        for segment in &actual.segments {
+            rebased.push(match *segment {
+                Segment::Field(field) => {
+                    Projection::from(CanonicalStructuralPathSegment::Field(field))
+                }
+                Segment::Case(case) => Projection::from(CanonicalStructuralPathSegment::Case(case)),
+                Segment::FixedIndex(index) => {
+                    Projection::from(CanonicalStructuralPathSegment::FixedIndex(index))
+                }
+                Segment::RuntimeIndex { selector } => Projection::Index(Box::new(
+                    ScalarTerm::value(selector, self.tables.values.get(selector)?.scalar_type),
+                )),
+                _ => return None,
+            });
+        }
+        rebased.extend_from_slice(path);
+        let mut fixed_storage = true;
+        let actual_type = terminal_semantics::structural_read_type_with_extents(
+            self.storage.types.iter(),
+            input.structural_type,
+            &rebased,
+            |_, extent| fixed_storage &= extent.is_some(),
+        )?;
+        if actual_type != ty || !fixed_storage {
+            return None;
+        }
+        ScalarTerm::structural_read(actual.root, rebased, ty).ok()
     }
 
     /// Find the source named by the operation that established this actual.
@@ -7163,6 +7431,49 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         self.held_at(&actual).observation(&actual, scalar_type)
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let formal =
+            terminal_psi::StructuralParameterDeclaration::find_by_place(self.callee_formals, root)
+                .ok_or(crate::checking::Unbound::Unsupported(
+                    "indexed contract has no structural formal",
+                ))?;
+        let actual = self.readable_actual(formal)?.clone();
+        let actual_type = self.storage.projection_type(&actual, self.concerns);
+        if actual_type != Some(formal.structural_type)
+            && !actual_type
+                .zip(self.extent_owner)
+                .is_some_and(|(actual_type, owner)| {
+                    self.storage.module.machine(owner).is_some_and(|callee| {
+                        terminal_semantics::calls::const_array_argument_matches(
+                            self.storage.module,
+                            self.storage.lowered,
+                            callee,
+                            &self.scalars,
+                            actual_type,
+                            formal.structural_type,
+                        )
+                    })
+                })
+        {
+            return Err(crate::checking::Unbound::Unproved(
+                "indexed contract formal and actual need corresponding element projections",
+            ));
+        }
+        let observed = indexed_place(self.storage, self.tables, actual.clone(), path)
+            .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
+        match observed {
+            Err(error @ crate::checking::Unbound::Unproved(_)) => {
+                self.shared_input_read(&actual, path, ty).ok_or(error)
+            }
+            other => other,
+        }
+    }
+
     fn field_alternatives(
         &mut self,
         _: semantic_vocabulary::ContentPlaceVersion,
@@ -7221,6 +7532,65 @@ pub(crate) struct AtJoin<'s, 'a> {
 }
 
 impl<'a> AtJoin<'_, 'a> {
+    /// Rebind the root and each index of the destination snapshot together.
+    fn incoming_snapshot(
+        &self,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+        path: &[Segment],
+    ) -> Result<Lineage, crate::checking::Unbound> {
+        let mut leaf = self.inputs.readable_actual(formal)?.clone();
+        for &step in path {
+            let segment = if let Segment::RuntimeIndex { selector } = step {
+                let actual = self
+                    .renaming
+                    .iter()
+                    .find(|(from, _)| *from == selector)
+                    .map_or(selector, |(_, to)| *to);
+                let row = self.inputs.tables.values.get(actual).ok_or(
+                    crate::checking::Unbound::Unsupported(
+                        "an incoming snapshot has no index value",
+                    ),
+                )?;
+                index_segment(
+                    self.inputs.storage,
+                    self.inputs.tables,
+                    &leaf,
+                    &ScalarTerm::value(actual, row.scalar_type),
+                )?
+            } else {
+                step
+            };
+            leaf.segments.push(segment);
+        }
+        Ok(leaf)
+    }
+
+    /// A direct arrival from machine entry may carry its original storage
+    /// snapshots unchanged. Check the operations and cleanup on this actual
+    /// edge before using an entry requirement as a current storage fact.
+    pub(crate) fn preserves_entry_storage(&self, edge: EdgeId) -> Checked<bool> {
+        let storage = self.inputs.storage;
+        let block = self.inputs.block;
+        if block != storage.lowered.entry
+            || !storage.graph.predecessors(block)?.is_empty()
+            || storage
+                .cleanup_writes
+                .iter()
+                .any(|write| write.edge == edge)
+        {
+            return Ok(false);
+        }
+        let entry = storage.lowered.block(&block).ok_or_else(|| {
+            storage.foreign(self.inputs.concerns, "the arrival has no entry block")
+        })?;
+        for operation in &entry.operations {
+            if !storage.operation_changes(operation)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
         self.inputs.observations()
     }
@@ -7269,14 +7639,13 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
                 // Each incoming edge proves the destination predicate about
                 // its own actual. It may not use the destination's snapshot
                 // as if that binding already existed on the edge.
-                let mut leaf = self.inputs.readable_actual(formal)?.clone();
                 if let Some((Segment::Extent, parent)) = observed.segments.split_last()
                     && let ScalarType::Integer(integer) = scalar_type
                 {
-                    leaf.segments.extend_from_slice(parent);
+                    let leaf = self.incoming_snapshot(formal, parent)?;
                     return self.inputs.held_at(&leaf).extent_of(&leaf, integer);
                 }
-                leaf.segments.extend_from_slice(&observed.segments);
+                let leaf = self.incoming_snapshot(formal, &observed.segments)?;
                 return self.inputs.held_at(&leaf).observation(&leaf, scalar_type);
             }
         }
@@ -7323,8 +7692,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         .ok_or(crate::checking::Unbound::Unproved(
             "the join snapshot names no destination formal",
         ))?;
-        let mut leaf = self.inputs.readable_actual(formal)?.clone();
-        leaf.segments.extend_from_slice(&observed.segments);
+        let leaf = self.incoming_snapshot(formal, &observed.segments)?;
         self.inputs
             .held_at(&leaf)
             .observation_alternatives(&leaf, scalar_type)
@@ -7376,6 +7744,24 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
                 ));
             }
         })
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if terminal_psi::StructuralParameterDeclaration::find_by_place(
+            self.inputs.callee_formals,
+            root,
+        )
+        .is_some()
+        {
+            self.inputs.structural_read(root, path, ty)
+        } else {
+            terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty)
+        }
     }
 
     fn field_alternatives(
@@ -7963,19 +8349,11 @@ mod observation_tests {
         );
     }
 
-    #[test]
-    fn indexed_store_correspondence_expires_with_its_selector_entry() {
-        let source = r#"
-data Placement requires count <= 16 { count: u64; }
-data Plan { placements: [Placement; 2]; }
-machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
-    let selected: u64 = index + 0;
-    plan.placements[selected].count = 1;
-    plan.placements[selected].count
-}
-"#;
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
+    fn storage_fixture(source: &str) -> crate::lowering::Elaboration {
+        let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(source);
+        let typed = crate::prepare_fixture(typed);
         let root = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "entry")
@@ -7996,15 +8374,137 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             },
             terminal_codec::TerminalPublication::Invocation,
         )
-        .expect("fixture must lower to checker input")
+        .expect("lower the storage fixture")
         .program;
         let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
         else {
-            panic!("the indexed storage program must prepare");
+            panic!("prepare the storage fixture");
         };
-        let input = prepared
+        prepared
             .closure
-            .unwrap_or_else(|refusal| panic!("{}", refusal.detail));
+            .unwrap_or_else(|refusal| panic!("{}", refusal.detail))
+    }
+
+    #[test]
+    fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
+        let input = storage_fixture(
+            "machine entry(cells: @mut [u64; 4], index: u64) -> u64 requires index < 4 {
+                cells[1] = 5;
+                cells[index] = 7;
+                cells[2]
+            }",
+        );
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                !machine.structural_parameters.is_empty()
+                    && machine.operations().any(|operation| {
+                        operation
+                            .kind
+                            .structural_projections()
+                            .iter()
+                            .any(|projection| {
+                                projection
+                                    .path
+                                    .iter()
+                                    .any(|step| step.runtime_index().is_some())
+                            })
+                    })
+            })
+            .expect("the array writer");
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let descriptors = reference_graph(module, machine.id).unwrap();
+        let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.types.structural_types,
+            &descriptors,
+        );
+        let mut storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &mut references,
+        )
+        .unwrap();
+
+        let array = Lineage {
+            root: machine.structural_parameters[0].place,
+            segments: Vec::new(),
+        };
+        let stores: Vec<_> = storage
+            .log
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                (row.destination.root == array.root
+                    && row.destination.segments.len() == 1
+                    && matches!(row.stored, Stored::Value(_)))
+                .then_some(index)
+            })
+            .collect();
+        let [first, second] = stores.as_slice() else {
+            panic!("expected both indexed stores")
+        };
+        let point = ProgramPoint::AfterOperation(storage.log[*second].operation);
+        fn available<'a>(
+            storage: &Storage<'a>,
+            references: &mut DescriptorAnalysis<'a>,
+            tables: &MachineTables,
+            array: &Lineage,
+            point: ProgramPoint,
+        ) -> Checked<()> {
+            let at = storage.graph.locate(point).unwrap();
+            storage
+                .judged(
+                    references,
+                    tables,
+                    std::slice::from_ref(array),
+                    &[],
+                    at,
+                    point,
+                    Construct::Machine,
+                )
+                .unwrap()
+        }
+        assert!(available(&storage, &mut references, tables, &array, point).is_ok());
+
+        // One cell is moved out. A write through another evaluated index
+        // cannot re-establish all cells of the array unless it names that cell.
+        let moved = Lineage {
+            root: array.root,
+            segments: vec![Segment::FixedIndex(1)],
+        };
+        storage.log[*first].backing = Backing::direct(moved.clone());
+        storage.log[*first].destination = moved.clone();
+        storage.log[*first].stored = Stored::Vacated;
+        let refused = available(&storage, &mut references, tables, &array, point).unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unestablished);
+
+        // Exact restoration can succeed via the ordinary per-element walk.
+        storage.log[*second].backing = Backing::direct(moved.clone());
+        storage.log[*second].destination = moved;
+        assert!(available(&storage, &mut references, tables, &array, point).is_ok());
+    }
+
+    #[test]
+    fn indexed_store_correspondence_expires_with_its_selector_entry() {
+        let source = r#"
+data Placement requires count <= 16 { count: u64; }
+data Plan { placements: [Placement; 2]; }
+machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
+    let selected: u64 = index + 0;
+    plan.placements[selected].count = 1;
+    plan.placements[selected].count
+}
+"#;
+        let input = storage_fixture(source);
         let module = &input.module;
         let machine = module
             .machines
@@ -8165,6 +8665,80 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
     }
 
     #[test]
+    fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
+        let input = storage_fixture(
+            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
+        );
+        let module = &input.module;
+        let mut compared = false;
+        for machine in &module.machines {
+            let tables = input.tables.machines.get(machine.id).unwrap();
+            let graph = Graph::new(machine.id, machine, tables).unwrap();
+            let types = tables.values.map(|_, row| row.scalar_type);
+            let descriptor_graph = reference_graph(module, machine.id).unwrap();
+            let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.types.structural_types,
+                &descriptor_graph,
+            );
+            let storage = Storage::new(
+                machine.id,
+                machine,
+                module,
+                &input.domains,
+                &graph,
+                tables,
+                &types,
+                &mut references,
+            )
+            .unwrap();
+            for block in &machine.blocks {
+                let mut reads = Vec::new();
+                for (before, operation) in block.operations.iter().enumerate() {
+                    let Some(leaf) = storage.read_leaf(operation).unwrap() else {
+                        continue;
+                    };
+                    let address = storage
+                        .backing(
+                            &mut references,
+                            &leaf,
+                            block.id,
+                            before,
+                            Construct::Operation(operation.id),
+                        )
+                        .unwrap();
+                    if address.possible_regions().any(|r| {
+                        r.segments
+                            .iter()
+                            .any(|s| matches!(s, Segment::RuntimeIndex { .. }))
+                    }) {
+                        reads.push(address);
+                    }
+                }
+                if let [saved, fresh] = reads.as_slice() {
+                    for old in saved.captured_regions().filter(|p| p.place == fresh.place) {
+                        compared = true;
+                        assert!(
+                            !old.same_single_region(fresh),
+                            "a new iteration selected another cell"
+                        );
+                        assert!(
+                            overlap(&old, fresh),
+                            "both captures can still reach the array"
+                        );
+                        let crossed = vec![false; graph.block_count()];
+                        assert_eq!(old.relative_suffix(fresh, &crossed), None);
+                        assert_eq!(fresh.relative_suffix(fresh, &crossed), Some(&[][..]));
+                    }
+                }
+            }
+        }
+        assert!(
+            compared,
+            "the saved and fresh reads must reach the recurring capture"
+        );
+    }
+
+    #[test]
     fn a_runtime_index_can_name_an_actual_but_cannot_enter_a_formal_path() {
         let root = PlaceId::new(1).unwrap();
         let selector = ValueId::new(1).unwrap();
@@ -8201,8 +8775,11 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             ));
         }
         source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x, false -> hop0(p, choose) }} }}\n"));
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(&source));
+        let typed = crate::prepare_fixture(
+            crate::checking::tests::rankings::typed_with_ranking_catalog(&source),
+        );
         let entry = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "hop0")
@@ -8442,37 +9019,7 @@ machine entry() {
     walk(@bytes[..], @bytes[..], 3, true);
 }
 "#;
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
-        let entry = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "entry")
-            .unwrap()
-            .symbol;
-        let prepared = crate::lowering::prepare_compilation(
-            &typed,
-            crate::lowering::Compilation {
-                calling: None,
-                providers: None,
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .expect("fixture must lower to checker input")
-        .program;
-        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
-        else {
-            panic!("the saved-slice program must prepare");
-        };
-        let input = prepared
-            .closure
-            .unwrap_or_else(|refusal| panic!("saved-slice preparation: {}", refusal.detail));
+        let input = storage_fixture(source);
         let module = &input.module;
         let machine = module
             .machines
@@ -8586,8 +9133,11 @@ machine entry() {
     #[test]
     fn block_entry_snapshots_keep_arrivals_sound_across_vacated_single_and_merged_paths() {
         let prepare_storage = |source: &str| {
-            let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
+            let typed = crate::prepare_fixture(
+                crate::checking::tests::rankings::typed_with_ranking_catalog(source),
+            );
             let root = typed
+                .trees()
                 .machines()
                 .iter()
                 .find(|machine| machine.name.as_str() == "entry")

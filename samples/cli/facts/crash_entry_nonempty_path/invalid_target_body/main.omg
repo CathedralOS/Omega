@@ -9,7 +9,7 @@ public data Leaf { bits: u64; marker: u64; }
 public data Packet { leaf: Leaf; tag: u64; }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
@@ -26,7 +26,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedForward {
-    machine forward(value: u64) -> u64 reaches crashes Trap value == 0;
+    machine forward(value: u64) -> u64 reaches none crashes Trap value == 0;
 }
 X86Forward satisfies SelectedForward {
     machine forward(value: u64) -> u64

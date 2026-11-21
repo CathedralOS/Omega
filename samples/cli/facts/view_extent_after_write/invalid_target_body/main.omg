@@ -2,7 +2,7 @@
 // Invalid control: the 1024-byte lower bound is not established.
 machine write_first(first: @mut u8) { $first = 41; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

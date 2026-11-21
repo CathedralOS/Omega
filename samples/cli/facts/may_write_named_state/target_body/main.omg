@@ -30,12 +30,12 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
 
 boundary trait SelectedProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-        reaches requires chosen < 4 && other < 4 crashes none;
+        reaches none requires chosen < 4 && other < 4 crashes none;
 }
 
 NestedStateProbe satisfies SelectedProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-    reaches requires $chosen < 4 && $other < 4
+    reaches none requires $chosen < 4 && $other < 4
     {
         let zero: u64 in Wrapping = 0;
         let marker: u64 in Wrapping = add(overwrite(relay(chosen, other, true)), zero);

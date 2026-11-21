@@ -53,6 +53,8 @@ fn format_bearing_builtin(
         |operation, rounding, format| nearest_directed_binary(operation, rounding, format);
     let square_root = |rounding, format| nearest_directed_square_root(rounding, format);
     let arithmetic = |operation, format| nearest_arithmetic(operation, format);
+    let directed_fma =
+        |rounding, format| arithmetic(Arithmetic::DirectedFusedMultiplyAdd { rounding }, format);
     Some(match function {
         Function::FloatClassifyF32 => arithmetic(classify, Binary32),
         Function::FloatClassifyF64 => arithmetic(classify, Binary64),
@@ -130,6 +132,24 @@ fn format_bearing_builtin(
         Function::FloatSqrtTowardPositiveF64 => square_root(Rounding::TowardPositive, Binary64),
         Function::FloatSqrtTowardNegativeF32 => square_root(Rounding::TowardNegative, Binary32),
         Function::FloatSqrtTowardNegativeF64 => square_root(Rounding::TowardNegative, Binary64),
+        Function::FloatFusedMultiplyAddTowardZeroF32 => {
+            directed_fma(Rounding::TowardZero, Binary32)
+        }
+        Function::FloatFusedMultiplyAddTowardZeroF64 => {
+            directed_fma(Rounding::TowardZero, Binary64)
+        }
+        Function::FloatFusedMultiplyAddTowardPositiveF32 => {
+            directed_fma(Rounding::TowardPositive, Binary32)
+        }
+        Function::FloatFusedMultiplyAddTowardPositiveF64 => {
+            directed_fma(Rounding::TowardPositive, Binary64)
+        }
+        Function::FloatFusedMultiplyAddTowardNegativeF32 => {
+            directed_fma(Rounding::TowardNegative, Binary32)
+        }
+        Function::FloatFusedMultiplyAddTowardNegativeF64 => {
+            directed_fma(Rounding::TowardNegative, Binary64)
+        }
         Function::FloatFusedMultiplyAddF32 => arithmetic(fused, Binary32),
         Function::FloatFusedMultiplyAddF64 => arithmetic(fused, Binary64),
         Function::FloatMultiplyThenAddF32 => arithmetic(multiply_add, Binary32),

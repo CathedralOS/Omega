@@ -2,6 +2,7 @@
 
 use super::super::identity::nominal;
 use super::Error;
+use crate::encoding::recovery::policy::identity::service;
 use crate::encoding::recovery::policy::reader::Reader;
 use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicySemanticDependencyConsumer;
@@ -16,7 +17,7 @@ pub(in crate::encoding::recovery) fn dangerous_authority(
 ) -> Result<PackageReviewDangerousAuthority, Error> {
     Ok(PackageReviewDangerousAuthority {
         class: authority_class(reader)?,
-        service: nominal(reader)?,
+        service: service(reader)?,
     })
 }
 
@@ -26,18 +27,31 @@ pub(in crate::encoding::recovery) fn slack(
     Ok(PackageReviewDangerousAuthoritySlack {
         class: authority_class(reader)?,
         callable: nominal(reader)?,
-        service: nominal(reader)?,
+        service: service(reader)?,
     })
 }
 
 pub(in crate::encoding::recovery) fn semantic_dependency(
     reader: &mut Reader<'_>,
+    schema_version: u16,
 ) -> Result<PackagePolicySemanticDependency, Error> {
-    Ok(PackagePolicySemanticDependency {
-        consumer: super::super::tag!(reader => {
-            0 => PackagePolicySemanticDependencyConsumer::Callable(nominal(reader)?),
-            1 => PackagePolicySemanticDependencyConsumer::PackageImplementation,
-        }),
+    let consumer = match reader.byte()? {
+        0 => PackagePolicySemanticDependencyConsumer::Callable(nominal(reader)?),
+        1 => PackagePolicySemanticDependencyConsumer::PackageImplementation,
+        2 if schema_version >= crate::encoding::BASELINE_WITH_CARRIED_TYPES => {
+            return Ok(PackagePolicySemanticDependency::CarriedType {
+                dependency: nominal(reader)?,
+                supplier_sources:
+                    source_provenance::PackageSourceConsumptionCommitment::from_retained_digest(
+                        reader.digest()?,
+                    ),
+                exposure: exposure(reader)?,
+            });
+        }
+        _ => return Err(Error::InvalidTag),
+    };
+    Ok(PackagePolicySemanticDependency::Declaration {
+        consumer,
         dependency: nominal(reader)?,
         kind: super::super::tag!(reader => {
             0 => PackageReviewSemanticDependencyKind::NominalIdentity,
@@ -46,11 +60,15 @@ pub(in crate::encoding::recovery) fn semantic_dependency(
             3 => PackageReviewSemanticDependencyKind::AutomaticCleanup,
             4 => PackageReviewSemanticDependencyKind::AutomaticCleanupMachine,
         }),
-        exposure: super::super::tag!(reader => {
-            0 => PackageReviewSemanticDependencyExposure::PrivateImplementation,
-            1 => PackageReviewSemanticDependencyExposure::PublicInterface,
-        }),
+        exposure: exposure(reader)?,
     })
+}
+
+fn exposure(reader: &mut Reader<'_>) -> Result<PackageReviewSemanticDependencyExposure, Error> {
+    Ok(super::super::tag!(reader => {
+        0 => PackageReviewSemanticDependencyExposure::PrivateImplementation,
+        1 => PackageReviewSemanticDependencyExposure::PublicInterface,
+    }))
 }
 
 pub(in crate::encoding::recovery) fn authority_class(

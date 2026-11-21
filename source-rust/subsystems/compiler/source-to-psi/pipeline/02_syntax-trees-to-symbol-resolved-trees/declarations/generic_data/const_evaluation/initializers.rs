@@ -729,7 +729,7 @@ mod tests {
     use numeric_literals::EvaluatedConstant;
     use std::sync::Arc;
 
-    /* Resolve files that each belong to the package their directory names. */
+    /* The first path component names the package. Subsequent directories name modules. */
     fn resolve_files(
         units: &[(&str, &str)],
         base: Option<(Arc<SymbolResolvedTrees>, crate::source_inputs::SourceMap)>,
@@ -742,7 +742,7 @@ mod tests {
         let mut syntax = syntax_trees::SyntaxTrees::default();
         for (path, text) in units {
             let path = std::path::PathBuf::from(path);
-            let root = path.parent().unwrap().to_path_buf();
+            let root = std::path::PathBuf::from(path.iter().next().unwrap());
             let source = sources
                 .add_checked_instance(
                     path,
@@ -810,6 +810,45 @@ mod tests {
             .expect("the refusal names its source");
         assert_eq!(&text[span.span.start..span.span.end], name);
         diagnostic.message.clone()
+    }
+
+    #[test]
+    fn computed_module_constants_keep_their_authored_initializers() {
+        let (program, _) = resolve_files(
+            &[
+                (
+                    "app/main.omg",
+                    "machine reading() -> f64 { 9.5f64 } public const ROOT: f64 = reading();",
+                ),
+                (
+                    "app/readings/values.omg",
+                    "machine reading() -> f64 { 1.25f64 } public const SAMPLE: f64 = reading();",
+                ),
+            ],
+            None,
+        )
+        .unwrap();
+        assert_eq!(program.const_declarations.len(), 2);
+        for declaration in program.const_declarations.iter() {
+            assert!(declaration.evaluated_value.is_none());
+            let crate::source_resolved::expression::ExpressionNode::Call(call) = program
+                .tables
+                .bodies
+                .expressions
+                .expression(declaration.initializer)
+            else {
+                panic!("the declaration must retain its executable initializer");
+            };
+            let selected_machine = program.symbols.get(call.target_symbol).parent;
+            assert_eq!(program.symbols.name(selected_machine), "reading");
+            assert_eq!(
+                program.symbols.get(selected_machine).parent,
+                program.symbols.get(declaration.symbol).parent,
+            );
+        }
+        for path in ["app/invalid.omg", "app/readings/invalid.omg"] {
+            assert!(resolve_files(&[(path, "const BAD: [u8; 2] = [1u8];")], None).is_err());
+        }
     }
 
     #[test]

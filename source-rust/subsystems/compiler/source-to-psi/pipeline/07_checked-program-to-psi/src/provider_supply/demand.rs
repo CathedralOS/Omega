@@ -1,11 +1,9 @@
 //! Finish one product target's source choices while the accepted source owns its declarations.
-use super::{
-    ClosedLogicalProviderReach, explicit_build_requirements,
-};
+use super::{ClosedLogicalProviderReach, explicit_build_requirements};
+use crate::provider_choice_inputs::NativeBuildSupply;
 use crate::provider_choice_inputs::ProviderSelection;
 use crate::{AcceptedTerminalSource, SourcePublication};
 use diagnostics::Diagnostic;
-use crate::provider_choice_inputs::NativeBuildSupply;
 use semantic_vocabulary::BoundaryMachineId;
 use std::sync::{Arc, Weak};
 
@@ -72,9 +70,9 @@ impl SourceProviderFacts<SourceProviderDemand> {
         target: &str,
     ) -> Result<super::PublishedTargetProviders, Vec<Diagnostic>> {
         let demand = self.receive(publication, Some(target))?;
-        let program = publication.require_published(publication.optimizations())?;
+        let artifact = publication.require_published()?;
         Ok(source_provider_publication::issue_target_provider_demand(
-            program.artifact(), target, demand,
+            artifact, target, demand,
         ))
     }
 
@@ -208,36 +206,39 @@ impl AcceptedTerminalSource {
             .iter()
             .filter(|supply| supply.selection.target.canonical_name() == target)
         {
-            let mut actuals =
-                self.closure()
-                    .elaboration()
-                    .boundaries
-                    .iter()
-                    .filter(|(boundary, source)| {
-                        **source == supply.selection.requirement && reached.contains(boundary)
-                    });
-            let Some((boundary, _)) = actuals.next() else {
-                continue;
-            };
-            let row = if actuals.next().is_some() {
-                Err("Build native binding has competing exact boundary occurrences".to_owned())
-            } else {
-                crate::provider_choice_inputs::require_canonical_requirement(
-                    &supply.selection,
-                    self.source(),
-                )
-                .and_then(|()| {
-                    let module = self.module();
-                    let callable = module
-                        .boundary_machine(boundary)
-                        .and_then(|row| module.identities.text(row.identity));
-                    if callable != Some(supply.selection.requirement_identity.as_str()) {
-                        return Err("native binding lost its checked requirement identity".into());
+            let mut supplied = Vec::new();
+            for (boundary, source) in self
+                .closure()
+                .elaboration()
+                .boundaries
+                .iter()
+                .filter(|(boundary, _)| reached.contains(boundary))
+            {
+                let row = match supply.materialization_for(self.source(), *source) {
+                    Ok(Some(row)) => row,
+                    Ok(None) => continue,
+                    Err(reason) => {
+                        bindings.push(Err(reason));
+                        continue;
                     }
-                    Ok(supply.materialization())
-                })
-            };
-            bindings.push(row);
+                };
+                if supplied.contains(source) {
+                    bindings.push(Err(
+                        "Build native binding has competing exact boundary occurrences".into(),
+                    ));
+                    continue;
+                }
+                supplied.push(*source);
+                let callable = self
+                    .module()
+                    .boundary_machine(boundary)
+                    .and_then(|row| self.module().identities.text(row.identity));
+                bindings.push(if callable == Some(row.requirement_identity.as_str()) {
+                    Ok(row)
+                } else {
+                    Err("native binding lost its checked requirement identity".into())
+                });
+            }
         }
         bindings
     }

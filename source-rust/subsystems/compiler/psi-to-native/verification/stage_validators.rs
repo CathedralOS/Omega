@@ -76,7 +76,7 @@ impl StageValidator {
             let component = product.image();
             let originals = || {
                 replay
-                    .component(component.slot_commitment())
+                    .component(component.slot_commitment(), component.body())
                     .ok_or_else(|| {
                         Diagnostic::error(
                             "component audit requires retained originals (ReplayUnavailable)",

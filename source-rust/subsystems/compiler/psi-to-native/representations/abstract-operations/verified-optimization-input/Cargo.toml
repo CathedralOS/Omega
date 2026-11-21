@@ -9,7 +9,9 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
-psi-publication-records = { path = "../../../../psi-artifact/publication" }
+target-bound-program = { path = "../../target-bound-program" }
+native-execution-reach = { path = "../../target-bound-program/execution-reach" }
+psi-publication-records = { path = "../../../../psi/artifact/publication" }
 native-behavior-exclusions = { path = "../../../verification/behavior-exclusions" }
 provider-acceptance = { path = "../../../../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../../../../build/settings/behavior-exclusions" }
@@ -19,10 +21,10 @@ native-intrinsics = { path = "../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 provider-plans = { path = "../../../../build/providers/plans" }
-psi-scalar-applications = { path = "../../../../psi-execution-inputs/scalar-applications" }
-psi-provider-selections = { path = "../../../../psi-execution-inputs/providers" }
-psi-entry-memory = { path = "../../../../psi-execution-inputs/entry-memory" }
-psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }
+psi-scalar-applications = { path = "../../../../psi/execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
+psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
 operation-operands = { path = "../../operation-operands" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 legalized-operations = { path = "../../target-operations/legalized-operations" }
@@ -36,12 +38,12 @@ operation-evidence = { path = "../../operation-evidence" }
 provider-admission = { path = "../../../verification/provider-admission" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 arena = { path = "../../../../../../foundation/arena" }
-terminal-codec = { path = "../../../../psi-artifact/codec" }
-psi-authorization = { path = "../../../../psi-artifact/authorization" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }
+psi-authorization = { path = "../../../../psi/artifact/authorization" }
 terminal-psi = { path = "../../../../psi" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 target = { path = "../../../targets/target" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 program-entry-contracts = { path = "../../program-entry-contracts" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../operation-evidence/boundary-applications" }

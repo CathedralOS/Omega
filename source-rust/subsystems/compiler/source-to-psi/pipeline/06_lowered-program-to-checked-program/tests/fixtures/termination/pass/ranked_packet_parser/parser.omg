@@ -1,0 +1,18 @@
+// Each header hands its unread slice to a payload at cursor zero.
+// Only taking the suffix after that cursor consumes a byte.
+machine header(unread: @[u8], checksum: u8) -> u8
+terminates
+terminates by unread -> Slice::Length {
+    transition unread.len > 0 {
+        true -> payload(unread, 0, unread.len, checksum),
+        false -> checksum
+    }
+}
+
+machine payload(bytes: @[u8], cursor: u64, end: u64, checksum: u8) -> u8
+requires cursor < end && end == bytes.len
+terminates
+terminates by (cursor, end) -> Nat::BoundedDistance {
+    let byte: u8 = bytes[cursor];
+    transition { _ -> header(bytes[cursor + 1..], checksum ^ byte) }
+}

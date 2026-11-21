@@ -1,17 +1,16 @@
 //! Check provider admission against the selected abstract program and its authorized Psi.
-use provider_admission::{
-    AdmittedNativeProviders, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    PreparedSourceEvaluatedBindings, ProviderAdmissionRequest,
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, admit_native_providers,
-    prepare_source_evaluated_bindings, realization_error,
-};
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
+use provider_admission::{
+    AdmittedNativeProviders, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
+    ProviderAdmissionRequest, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
+    admit_native_providers, prepare_source_evaluated_bindings, realization_error,
+};
+use provider_realization::native_execution::PreparedNativeExecution;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeSet;
 use terminal_codec::CanonicalTerminalArtifact;
-use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::TerminalNativeRealizationProposal;
 
 pub struct RetainedNativeProviderInputs<'input> {
@@ -26,7 +25,6 @@ pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     bindings: PreparedSourceEvaluatedBindings<'input>,
     callbacks: &'input [crate::NativeCallbackArgumentProposal],
-    compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
 }
 
 impl PreparedRetainedNativeProviders<'_> {
@@ -54,20 +52,20 @@ impl PreparedRetainedNativeProviders<'_> {
         crate::NativeAdmissionRequest {
             private_entry_ram: &[],
             entry: terminal_psi::TargetMachineCallable::Machine(
-                proposal.program_entry().checked_entry().terminal_entry(),
+                proposal.scope_source().root().semantic_entry(),
             ),
             boundary_application_coverage: Some(self.execution.boundary_application_coverage()),
             behavior_exclusions: proposal.behavior_exclusions(),
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
-                bootstrap_entry: proposal.program_entry().checked_entry().terminal_entry(),
+                bootstrap_entry: proposal.scope_source().root().semantic_entry(),
                 program_provider_context: None,
                 installation_assumptions,
                 selected_provider_plans: self.execution.selection(),
                 checked_adapters: self.execution.local_adapters(),
                 external_binding_rows: self.execution.external_bindings(),
                 settlements,
-                compiler_builtins: &self.compiler_builtins,
+                compiler_builtins: self.execution.compiler_builtins(),
                 native_bindings: &proposal.providers().native_bindings,
                 native_callbacks: self.callbacks,
                 installed_interrupts: &proposal.occurrences().installed_interrupts,
@@ -79,6 +77,29 @@ impl PreparedRetainedNativeProviders<'_> {
             },
         }
     }
+}
+
+/// Lower a native compilation root and prepare the providers from that same selected execution.
+pub fn lower_native_root<'input>(
+    proposal: &'input TerminalNativeRealizationProposal,
+    inputs: RetainedNativeProviderInputs<'input>,
+    private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+    scalars: Option<crate::NativeScalarApplications<'_>>,
+) -> Result<
+    (
+        VerifiedNativeArtifactInput,
+        PreparedRetainedNativeProviders<'input>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let root = crate::selected_execution::lower_native_execution(
+        proposal,
+        inputs.execution,
+        private_entry_ram,
+        scalars,
+    )?;
+    let providers = prepare_native_providers(proposal, inputs)?;
+    Ok((root, providers))
 }
 
 pub fn prepare_native_providers<'input>(
@@ -113,17 +134,11 @@ pub fn prepare_native_providers<'input>(
         inputs.execution.selection().identities(),
     )?;
 
-    let compiler_builtins = provider_admission::prepare_retained_compiler_builtins(
-        inputs.execution.compiler_builtins(),
-        inputs.execution.selection().plans(),
-    )?;
-
     Ok(PreparedRetainedNativeProviders {
         execution: inputs.execution,
         proposal,
         bindings,
         callbacks,
-        compiler_builtins,
     })
 }
 
@@ -158,13 +173,6 @@ pub fn admit_prepared_native_realization<'execution>(
         .iter()
         .map(|boundary| boundary.id)
         .collect();
-    let module_boundaries: BTreeSet<BoundaryMachineId> = input
-        .context()
-        .module()
-        .interfaces.boundary_machines
-        .iter()
-        .map(|boundary| boundary.id)
-        .collect();
     let settlements = request
         .providers
         .settlements
@@ -196,16 +204,6 @@ pub fn admit_prepared_native_realization<'execution>(
                 .peekable();
             matching.peek().is_none()
                 || matching.any(|boundary| executed_boundaries.contains(&boundary.id))
-        })
-        .collect::<Vec<_>>();
-    let compiler_builtins = request
-        .providers
-        .compiler_builtins
-        .iter()
-        .copied()
-        .filter(|proposal| {
-            executed_boundaries.contains(&proposal.boundary)
-                || !module_boundaries.contains(&proposal.boundary)
         })
         .collect::<Vec<_>>();
     let (native_callbacks, installed_interrupts) = if request
@@ -307,7 +305,7 @@ pub fn admit_prepared_native_realization<'execution>(
         checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,
         settlements: &settlements,
-        compiler_builtins: &compiler_builtins,
+        compiler_builtins: request.providers.compiler_builtins,
         native_bindings: request.providers.native_bindings,
         native_callbacks: &native_callbacks,
         installed_interrupts: &installed_interrupts,

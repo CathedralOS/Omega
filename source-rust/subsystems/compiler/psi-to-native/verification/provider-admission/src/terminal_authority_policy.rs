@@ -12,21 +12,19 @@ duplicate physical identities reject, and empty implementation or checked
 argument contracts are never valid policy keys.
 */
 
-/*
-Cohort tables (`host_cohorts`) decide membership and disposition for canonical
-settled host boundaries (`FilesystemHost`, `TimeHost`, `Console`, `ProcessExit`,
-`DarwinClock`) in one place so settlement sites do not re-list those tables.
-Minting a policy row is not admission: the caller still binds the mechanism the
-leaf computed, and ordinary-release cohorts mint nothing without an
-occurrence-specific release contract.
-*/
+// A checked service names the operations its package may request. Native
+// mechanism rows describe what the target will do for a particular binding.
 
 #[path = "terminal_authority_policy/classification.rs"]
 mod classification;
+#[path = "terminal_authority_policy/darwin_poll.rs"]
+pub(crate) mod darwin_poll;
 #[path = "terminal_authority_policy/external_mechanisms.rs"]
 mod external_mechanisms;
 #[path = "terminal_authority_policy/host_cohorts.rs"]
 mod host_cohorts;
+#[path = "terminal_authority_policy/posix_operations.rs"]
+mod posix_operations;
 #[path = "terminal_authority_policy/windows_imports.rs"]
 mod windows_imports;
 
@@ -46,12 +44,12 @@ use terminal_authority_receipts::{
     terminal_mechanism_identity_bytes,
 };
 use native_intrinsics::{CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity};
-use provider_plans::{ServiceMethod, ServiceSchema};
 
 pub(crate) use external_mechanisms::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
+pub(crate) use host_cohorts::darwin_clock_mechanism_row;
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
 pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 12;
@@ -112,6 +110,33 @@ impl TerminalAuthorityPolicy {
 
     pub(crate) fn explicit_rows(&self) -> &[TerminalAuthorityPolicyRow] {
         &self.explicit_rows
+    }
+
+    /// The receiver's own rows take precedence. Both provider selections and
+    /// direct Build bindings contribute the mechanisms reached by this program.
+    pub(crate) fn with_reviewed_operations(
+        &self,
+        selected: Vec<TerminalAuthorityPolicyRow>,
+        reached: impl IntoIterator<Item = TerminalMechanismIdentity>,
+    ) -> Result<Option<Self>, TerminalAuthorityPolicyBuildError> {
+        let reviewed = selected
+            .into_iter()
+            .chain(reached.into_iter().filter_map(reviewed_host_operation));
+        let mut effective: Option<Vec<TerminalAuthorityPolicyRow>> = None;
+        for row in reviewed {
+            let rows = effective.as_deref().unwrap_or(&self.explicit_rows);
+            if !rows
+                .iter()
+                .any(|existing| existing.mechanism() == row.mechanism())
+            {
+                effective
+                    .get_or_insert_with(|| self.explicit_rows.clone())
+                    .push(row);
+            }
+        }
+        effective
+            .map(terminal_authority_policy_with_rows)
+            .transpose()
     }
 
     pub fn classify(
@@ -254,32 +279,19 @@ pub fn terminal_authority_policy_with_rows(
     Ok(TerminalAuthorityPolicy::new(identity, explicit_rows))
 }
 
-pub(crate) fn reviewed_windows_import(
+pub(crate) fn reviewed_host_operation(
     mechanism: TerminalMechanismIdentity,
-) -> Option<TerminalAuthorityDisposition> {
-    let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism else {
-        return None;
-    };
-    windows_imports::mechanism_row(foreign).map(|row| row.disposition)
-}
-
-pub(crate) fn cohort_mechanism_row(
-    mechanism: TerminalMechanismIdentity,
-    schema: &ServiceSchema,
-    method: &ServiceMethod,
 ) -> Option<TerminalAuthorityPolicyRow> {
-    // Windows foreign imports have their own reviewed physical meanings.
-    // A readable portable/Console/Time method name cannot classify an unknown
-    // export or replace an import's complete admitted argument contract.
-    if let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism
-        && foreign.target() == target::TargetProfile::WindowsX64
-    {
-        return windows_imports::mechanism_row(foreign);
+    match mechanism {
+        TerminalMechanismIdentity::NormalizedForeign(import)
+            if import.target() == target::TargetProfile::WindowsX64 =>
+        {
+            windows_imports::mechanism_row(import)
+        }
+        // Darwin poll gains its wait classification from checked call arguments.
+        TerminalMechanismIdentity::NormalizedForeign(import) if darwin_poll::is_poll(import) => None,
+        _ => posix_operations::mechanism_row(mechanism),
     }
-    host_cohorts::filesystem_mechanism_row(mechanism, method)
-        .or_else(|| host_cohorts::time_host_mechanism_row(mechanism, method))
-        .or_else(|| host_cohorts::console_mechanism_row(mechanism, method))
-        .or_else(|| host_cohorts::darwin_clock_mechanism_row(mechanism, schema, method))
 }
 
 pub fn current_terminal_authority_policy() -> TerminalAuthorityPolicy {

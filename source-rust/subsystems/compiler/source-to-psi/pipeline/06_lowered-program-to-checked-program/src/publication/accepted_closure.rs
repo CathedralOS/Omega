@@ -9,6 +9,7 @@ pub struct AcceptedClosure {
     pub(crate) elaboration: Elaboration,
     pub(crate) discharge: Discharge,
     pub(crate) seals: Vec<ObligationEvidenceSeal>,
+    pub(crate) optimization: Option<terminal_codec::PsiOptimizationExecutionRecord>,
 }
 
 impl AcceptedClosure {
@@ -18,6 +19,10 @@ impl AcceptedClosure {
 
     pub fn discharge(&self) -> &Discharge {
         &self.discharge
+    }
+
+    pub fn optimization(&self) -> Option<&terminal_codec::PsiOptimizationExecutionRecord> {
+        self.optimization.as_ref()
     }
 
     pub fn seals(&self) -> &[ObligationEvidenceSeal] {

@@ -10,14 +10,14 @@
 // to bind AArch64 targets alongside x86 targets without conflict.
 
 use super::optimization;
-use normalized_build_settings::{ElfInterpreterSelections, EvaluatedBuildSettings, X86DeploymentClaim};
 use build_time_values::BuildTimeValue;
+use normalized_build_settings::{
+    ElfInterpreterSelections, EvaluatedBuildSettings, X86DeploymentClaim,
+};
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 pub(crate) fn extract_build_settings(
     build: &BuildTimeValue,
-    optimization_admission: optimization::BuildOptimizationAdmission,
-    has_activation_vocabulary: bool,
 ) -> Result<
     (
         EvaluatedBuildSettings,
@@ -36,7 +36,7 @@ pub(crate) fn extract_build_settings(
             .ok_or_else(|| format!("the Build carries no `{name}` field"))
     };
 
-    let x86_deployment_claim = if has_activation_vocabulary {
+    let x86_deployment_claim = {
         let BuildTimeValue::Case { variant, payload } = field("x86_deployment_features")? else {
             return Err(
                 "Build.x86_deployment_features is not an X86DeploymentFeatures case".to_owned(),
@@ -56,8 +56,6 @@ pub(crate) fn extract_build_settings(
                 ));
             }
         }
-    } else {
-        X86DeploymentClaim::Baseline
     };
 
     let (application_intent, subsystem) = match field("subsystem")? {
@@ -103,13 +101,6 @@ pub(crate) fn extract_build_settings(
         Err(_) => None,
     };
 
-    // Keep validating the authored legacy field until its declaration is retired.
-    // It supplies no normalized output choice or per-output hardware authority.
-    match field("freestanding")? {
-        BuildTimeValue::Bool(_) => {}
-        other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
-    }
-
     let elf_interpreters = match field("elf_interpreter") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
             ElfInterpreterSelections::from_build_rows(fields)?
@@ -138,7 +129,7 @@ pub(crate) fn extract_build_settings(
         Err(_) => false,
     };
 
-    let (optimizations, optimization_report) = optimization_admission.extract(build)?;
+    let (optimizations, optimization_report) = optimization::extract(field("optimizations")?)?;
 
     Ok((
         EvaluatedBuildSettings {
@@ -164,7 +155,7 @@ mod tests {
     // declaration or unchecked constructor stands in for Build admission.
     fn admitted_build() -> (BuildValueAdmission, BuildTimeValue) {
         let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-            "build-legacy-setting",
+            "build-settings",
             false,
         )
         .expect("create an owned Build fixture directory");
@@ -177,7 +168,8 @@ mod tests {
         )
         .expect("stage the ordinary Build entry");
         let mut timings = artifacts::compile_timings::CompileTimings::default();
-        let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
+        let mut catalogue =
+            source_compiler::representations::source_inputs::SourceCatalogue::default();
         let checkpoint = crate::source_assembly::ImmutableSourceParseCheckpoint::prepare(
             &root.join("build.omg"),
             None,
@@ -189,7 +181,6 @@ mod tests {
         let (_, syntax) = checkpoint
             .assemble(None, &mut timings, &mut catalogue)
             .expect("assemble the real Build vocabulary");
-        let build_source = syntax.build_source.expect("production Build selection");
         let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
         let interval = syntax
             .build_stage_source()
@@ -197,15 +188,14 @@ mod tests {
             .prepare(None, &Default::default(), profile.target_name(), None)
             .unwrap();
         let typed = interval.program.as_ref();
-        let machine = crate::build_execution::select_build_machine(typed, build_source)
-            .expect("the authored Build entry");
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");
+        drop(interval);
         let scope = crate::build_execution::BuildMachineFilesystemScope::for_root(
             &main,
             root.join("output"),
             None,
         );
-        let value = admission.initial_value(typed, machine, &scope);
+        let value = admission.initial_value(&scope);
         (admission, value)
     }
 
@@ -225,17 +215,56 @@ mod tests {
     }
 
     #[test]
-    fn legacy_freestanding_is_validated_without_becoming_a_choice() {
+    fn initial_build_contains_only_current_settings() {
         let (admission, mut original) = admitted_build();
         assert!(
             !fields(&mut original)
                 .iter()
-                .any(|(name, _)| name == "privileged_services")
+                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding"))
+        );
+        assert!(
+            fields(&mut original)
+                .iter()
+                .any(|(name, value)| name == "identifier"
+                    && matches!(value, BuildTimeValue::Text(bytes) if bytes.is_empty()))
         );
         let baseline = admission
             .extract(&original)
             .expect("decode the real initial Build");
         assert_eq!(baseline.0, EvaluatedBuildSettings::default());
+
+        assert_eq!(
+            baseline.1,
+            optimization_requests::OptimizationReportRequest::Suppressed
+        );
+
+        let mut requested = original.clone();
+        let (_, options) = fields(&mut requested)
+            .iter_mut()
+            .find(|(name, _)| name == "optimizations")
+            .unwrap();
+        let option = optimization_selections::Optimization::CopyPropagation;
+        let mut counters =
+            vec![BuildTimeValue::Int(0); optimization_selections::Optimization::ALL.len()];
+        let slot = optimization_selections::Optimization::ALL
+            .iter()
+            .position(|candidate| *candidate == option)
+            .unwrap();
+        counters[slot] = BuildTimeValue::Int(1);
+        set(options, "selected", BuildTimeValue::Array(counters));
+        set(options, "human_report", BuildTimeValue::Int(1));
+        let (settings, report) = admission.extract(&requested).unwrap();
+        assert_eq!(settings.optimizations.as_slice(), &[option]);
+        assert_eq!(
+            report,
+            optimization_requests::OptimizationReportRequest::EmitHumanText
+        );
+
+        fields(&mut requested).retain(|(name, _)| name != "optimizations");
+        assert_eq!(
+            admission.extract(&requested).unwrap_err(),
+            "the Build carries no `optimizations` field"
+        );
 
         let mut changed = original.clone();
         set(
@@ -256,40 +285,11 @@ mod tests {
         assert_eq!(gui.0.subsystem, 2);
         assert_eq!(gui.1, baseline.1);
 
-        let mut missing = original.clone();
-        fields(&mut missing).retain(|(name, _)| name != "freestanding");
-        assert_eq!(
-            admission.extract(&missing).unwrap_err(),
-            "the Build carries no `freestanding` field"
-        );
-        for wrong in [
-            BuildTimeValue::Unit,
-            BuildTimeValue::Int(1),
-            BuildTimeValue::Text(b"yes".to_vec()),
-        ] {
-            let mut malformed = original.clone();
-            let expected = format!("Build.freestanding is not a bool: {wrong:?}");
-            set(&mut malformed, "freestanding", wrong);
-            // The later invalid setting must not hide this first refusal.
-            set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
-            assert_eq!(admission.extract(&malformed).unwrap_err(), expected);
-        }
-
         let mut malformed = original.clone();
         set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
         assert_eq!(
             admission.extract(&malformed).unwrap_err(),
             "Build.elf_interpreter is not an ElfInterpreterSelection struct: Unit"
-        );
-
-        let mut changed = original.clone();
-        set(&mut changed, "freestanding", BuildTimeValue::Bool(true));
-        assert_eq!(
-            admission
-                .extract(&changed)
-                .expect("accept the legacy Boolean"),
-            baseline,
-            "the legacy Boolean must not distinguish normalized Build choices"
         );
     }
 }

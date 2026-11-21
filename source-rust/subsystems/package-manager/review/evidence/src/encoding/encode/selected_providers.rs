@@ -1,5 +1,6 @@
 // Full inert selected-provider policy encoding sharing one bounded writer.
 
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
@@ -14,7 +15,7 @@ pub(super) use service::method as encode_service_method;
 
 use super::values::external_policy::encode_producer;
 use super::{
-    encoder::{Encoder, encode_canonical_component},
+    encoder::Encoder,
     values::{identity::encode_nominal, providers::encode_compiler_intrinsic_execution},
 };
 use crate::encoding::{
@@ -23,11 +24,20 @@ use crate::encoding::{
 };
 
 impl PackagePolicySelectedProviders {
-    encode_canonical_component!(
-        SELECTED_PROVIDER_POLICY_MAGIC,
-        PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
-        policy,
-    );
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        let version = if self.has_application_grants() {
+            crate::encoding::PROVIDER_POLICY_WITH_APPLICATION_GRANTS
+        } else {
+            crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
+        };
+        Encoder::versioned_policy_bytes(
+            SELECTED_PROVIDER_POLICY_MAGIC,
+            version,
+            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
+            self,
+            policy,
+        )
+    }
 }
 
 pub(super) fn policy(
@@ -46,11 +56,13 @@ fn plan(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("plan_name", |encoder| encoder.string(&plan.plan_name))?;
     encoder.optional_package_identity_field("realizing_package", plan.realizing_package)?;
-    encoder.field_by(
-        "schema_declaration",
-        &plan.schema_declaration,
-        encode_nominal,
-    )?;
+    encoder.field("schema_declaration", |encoder| {
+        super::values::identity::encode_service_receiver(
+            encoder,
+            &plan.schema_declaration,
+            plan.schema_application.as_ref(),
+        )
+    })?;
     encoder.string_field("provider_type", &plan.provider_type)?;
     encoder.option_field(
         "provider_type_declaration",
@@ -67,6 +79,14 @@ fn plan(
                     PackageReviewProviderGrantSelectorKind::PlanName => encoder.tag("plan_name", 0),
                     PackageReviewProviderGrantSelectorKind::ProviderSlot => {
                         encoder.tag("provider_slot", 1)
+                    }
+                    PackageReviewProviderGrantSelectorKind::ProviderApplication(application) => {
+                        encoder.tag("provider_application", 2);
+                        encoder.option_field(
+                            "application",
+                            application.as_ref(),
+                            |encoder, value| encoder.string(value),
+                        )?;
                     }
                 };
                 Ok(())
@@ -103,8 +123,8 @@ fn row(
     )?;
     encoder.field("installation_reach", |encoder| {
         encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
-            encoder.sequence_field("upper_bound", &reach.upper_bound, encode_nominal)?;
-            encoder.sequence_field("resolved", &reach.resolved, encode_nominal)
+            encoder.sequence_field("upper_bound", &reach.upper_bound, encode_service)?;
+            encoder.sequence_field("resolved", &reach.resolved, encode_service)
         })
     })?;
     encoder.u64_field("admitted_same_stack_bytes", row.admitted_same_stack_bytes)

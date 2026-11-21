@@ -2,21 +2,19 @@
 //! the root execution. Entry memory, requested installation assumptions
 //! and completed scalar values are checked against the retained publication and target.
 
+pub(crate) mod components;
 pub(crate) mod published_application;
-mod scalars;
+pub(crate) mod scalars;
 
 use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use super::request::NativeCompileRequest;
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
-use psi_target_layouts::admit_target_layouts;
-use target::ExecutableImageEmissionRequest;
 
 pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
     pub(crate) request: NativeCompileRequest<'input>,
-    pub(crate) recovery: ExecutableImageEmissionRequest,
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
     pub(crate) scalars: Option<psi_scalar_applications::AdmittedScalarApplications>,
@@ -24,75 +22,57 @@ pub(crate) struct PreparedNativeCompilation<'input> {
 
 pub(crate) fn prepare<'input>(
     retained: &'input RetainedTerminalArtifact,
-    mut request: NativeCompileRequest<'input>,
-) -> Result<PreparedNativeCompilation<'input>, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
-    let recovery = request.image_request.clone();
-    let result = (|| {
-        let (artifact, proposal) = request.prepare_terminal(retained)?;
-        validate_installation_environment_inputs(
-            artifact,
-            proposal,
-            request.installation_assumptions,
-        )?;
-        let selections = psi_target_layouts::terminal_target_context(
-            artifact.view(),
-            proposal.target_profile().target_name(),
-        );
-        let target_facts = proposal
-            .target_profile()
-            .layout_target_facts()
+    request: NativeCompileRequest<'input>,
+) -> Result<PreparedNativeCompilation<'input>, Vec<Diagnostic>> {
+    let artifact = retained.shared_artifact();
+    let proposal = retained.native_realization_proposal();
+    validate_installation_environment_inputs(
+        artifact,
+        proposal,
+        request.installation_assumptions,
+    )?;
+    let execution = provider_realization::native_execution::prepare_program(
+        proposal,
+        retained.authorization(),
+    )?;
+    let entry = proposal.scope_source().root().semantic_entry();
+    let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
+    for initializer in request.private_entry_ram {
+        let row = artifact
+            .semantic_module()
+            .access.access_view_inputs
+            .iter()
+            .find(|row| row.machine == entry && row.position == initializer.position)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
-                    "entry RAM target has no representation facts",
+                    "private entry RAM initializer answers no declared entry position",
                 )]
             })?;
-        let layouts = admit_target_layouts(artifact.view(), &selections, &target_facts)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
-        let entry = proposal.program_entry().checked_entry().terminal_entry();
-        let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
-        for initializer in request.private_entry_ram {
-            let row = artifact
-                .semantic_module()
-                .access.access_view_inputs
-                .iter()
-                .find(|row| row.machine == entry && row.position == initializer.position)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "private entry RAM initializer answers no declared entry position",
-                    )]
-                })?;
-            let recipe = psi_entry_memory::admit_private_entry_ram(
-                artifact.view(),
-                &layouts,
-                entry,
-                &psi_entry_memory::PrivateEntryRamRecipe {
-                    input: row.clone(),
-                    contents: initializer.contents.clone(),
-                },
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            recipes.push(recipe);
-        }
-        let execution = provider_realization::native_execution::prepare_program(
-            proposal,
-            retained.authorization(),
-        )?
-        .with_operation_evidence(artifact, retained.evidence().cloned())?;
-        let demand = execution.scalar_application_demand(proposal.target_profile())?;
-        let scalars = scalars::complete(artifact, proposal, &demand, request.scalar_receipts)?;
-        Ok((execution, recipes, scalars))
-    })();
-    match result {
-        Ok((execution, private_entry_ram, scalars)) => Ok(PreparedNativeCompilation {
-            retained,
-            request,
-            recovery,
-            execution,
-            private_entry_ram,
-            scalars,
-        }),
-        Err(diagnostics) => Err((recovery, diagnostics)),
+        let recipe = psi_entry_memory::admit_private_entry_ram(
+            artifact.view(),
+            execution.scope().reach().layouts(),
+            entry,
+            &psi_entry_memory::PrivateEntryRamRecipe {
+                input: row.clone(),
+                contents: initializer.contents.clone(),
+            },
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        recipes.push(recipe);
     }
+    let scalars = scalars::complete(
+        artifact,
+        proposal,
+        execution.scope().reach().scalar_application_demand(),
+        request.scalar_receipts,
+    )?;
+    Ok(PreparedNativeCompilation {
+        retained,
+        request,
+        execution,
+        private_entry_ram: recipes,
+        scalars,
+    })
 }
 
 fn validate_installation_environment_inputs(
@@ -115,7 +95,7 @@ fn validate_installation_environment_inputs(
         {
             return Err(fail("program or target differs from the reviewed interval"));
         }
-        let entry = proposal.program_entry().checked_entry().terminal_entry();
+        let entry = proposal.scope_source().root().semantic_entry();
         if assumption.entry() != entry
             && !proposal
                 .occurrences()

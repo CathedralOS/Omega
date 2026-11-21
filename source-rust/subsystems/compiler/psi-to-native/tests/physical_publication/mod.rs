@@ -193,7 +193,7 @@ fn emit_body_inspecting_physical<'execution>(
     assert_eq!(
         original.upgrade().is_some(),
         retain_native_stage_inputs,
-        "ordinary object publication releases the stage 12 instruction program"
+        "ordinary object publication releases the encoded instruction program"
     );
     if let Some(frame) = audit_frame {
         let encoding = &projection.originals.as_ref().unwrap().encoding;
@@ -307,24 +307,12 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
         .original_for_audit()
         .unwrap()
         .target_for_correspondence();
-    let optimized = target.optimized();
     let verify = |prepared: &PreparedExecutionPlan| {
-        let callable_roots = target
-            .lowering_facts()
-            .callable_invocation_roots(target.working_program_for_validation())
-            .unwrap();
         target_lowering::replay::verify_execution_plan(
             prepared,
-            target_lowering::replay::ExecutionPlanReplayInputs {
-                target: target.working_program_for_validation(),
-                abstract_plan: optimized.plan(),
-                unit: optimized.unit(),
-                origins: target.boundary_origins(),
-                installed_interrupts: target.lowering_facts().installed_interrupts(),
-                closed_module: target.lowering_facts().closed_module(),
-                callable_roots: &callable_roots,
-                pre_physical: optimized.pre_physical_manifest().identity,
-            },
+            target.working_program_for_validation(),
+            target.optimized(),
+            target.lowering_facts(),
         )
     };
     let published = target.execution_plan();
@@ -811,7 +799,7 @@ fn object_publication_rejects_placed_code_from_a_different_program() {
         .source()
         .relaxed_layout();
     let mut emitted =
-        image_emission::build_function_fragment_object_artifact(object.publication()).unwrap();
+        image_emission::prepare_object_for_image(object.published_object()).unwrap();
     assert!(emitted.fragment_replay().is_none());
     let wrong = boundary.clone().attach_to(&mut emitted).unwrap_err();
     assert!(
@@ -849,8 +837,8 @@ fn physical_publication_rejoins_emitted_object_and_receiver() {
             let (again, second, second_archive) = check_publication(through_boundary, true);
             let second = second.expect("separately retained target");
             assert_eq!(again, audited);
-            let mut emitted = image_emission::build_function_fragment_object_artifact(
-                first.fragment_source().publication(),
+            let mut emitted = image_emission::prepare_object_for_image(
+                first.fragment_source().published_object(),
             )
             .unwrap();
             assert!(second.clone().attach_to(&mut emitted).is_err());
@@ -1087,6 +1075,7 @@ fn check_canonical_publication(
         native_artifact::NativeImageProviders::from_admission(providers, &selected)
             .expect("retain provider evidence for the admitted root");
     let requested = native_artifact::ProgramImageInput {
+        components: Vec::new(),
         terminal: artifact,
         published,
         image: image_emission::ExecutableImageEmissionRequest::direct(3),
@@ -1111,15 +1100,6 @@ fn check_canonical_publication(
     assert_eq!(
         native.physical_evidence().unwrap().children().len(),
         usize::from(through_boundary)
-    );
-    assert!(
-        native.image().output().compiler_text_validation.is_none()
-            && native
-                .image()
-                .output()
-                .compiler_function_validation
-                .is_none(),
-        "ordinary emission does not replay the final image"
     );
     let receipt = native_artifact::PreparedExecutablePublication::new(&native)
         .expect("fresh emission can be published without replay reports")

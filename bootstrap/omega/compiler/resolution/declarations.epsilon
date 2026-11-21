@@ -775,7 +775,7 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
     state parameter(index: i32, state_index: i32, offset: i32) {
         transition offset < self.state_parameter_count(state_index) {
             true -> parameter_type(index, state_index, offset,
-                self.parser.machine_parameters[self.state_first_parameter(state_index) + offset])
+                self.parser.machine_parameters[self.parameter_syntax_row(self.state_first_parameter(state_index) + offset)])
             _ -> machine_item(index + 1)
         }
     }
@@ -786,4 +786,135 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
         }
     }
     state fail(offset: i32) { self.record_reject(-1, 4, offset); return 0; }
+}
+
+// Explicit field lifetimes belong to the declaring data, including those in
+// sum payloads. Match the target's arity separately from each tag's owner.
+machine OmegaScalarCompiler::check_data_lifetimes(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> item(0) }
+    state item(index: i32) {
+        transition index < self.parser.data_count {
+            true -> direct(index, self.parser.data_items[index], 0)
+            _ -> return 1
+        }
+    }
+    state direct(index: i32, owner: OmegaDataSyntax, offset: i32) {
+        transition offset < owner.field_count {
+            true -> direct_type(index, owner, offset)
+            _ -> cases(index, owner, 0)
+        }
+    }
+    state direct_type(index: i32, owner: OmegaDataSyntax, offset: i32) {
+        transition self.check_field_lifetimes(source, owner, self.parser.data_fields[owner.first_field + offset].type_reference) {
+            1 -> direct(index, owner, offset + 1)
+            _ -> return 0
+        }
+    }
+    state cases(index: i32, owner: OmegaDataSyntax, offset: i32) {
+        transition offset < owner.case_count {
+            true -> payload(index, owner, offset, self.parser.data_cases[owner.first_case + offset], 0)
+            _ -> item(index + 1)
+        }
+    }
+    state payload(index: i32, owner: OmegaDataSyntax, offset: i32, row: OmegaDataCaseSyntax, field: i32) {
+        transition field < row.payload_field_count {
+            true -> payload_type(index, owner, offset, row, field)
+            _ -> cases(index, owner, offset + 1)
+        }
+    }
+    state payload_type(index: i32, owner: OmegaDataSyntax, offset: i32, row: OmegaDataCaseSyntax, field: i32) {
+        transition self.check_field_lifetimes(source, owner, self.parser.data_payload_fields[row.first_payload_field + field].type_reference) {
+            1 -> payload(index, owner, offset, row, field + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::check_field_lifetimes(
+    &mut self, source: &[u8], owner: OmegaDataSyntax, type_index: i32
+) -> i32 {
+    transition true { true -> visit(self.parser.type_references[type_index]) }
+    state visit(row: OmegaTypeReferenceSyntax) {
+        transition row.kind {
+            OmegaTypeReferenceKind::NamedWithLifetimes -> arguments(row, 0)
+            OmegaTypeReferenceKind::Named -> named(row, 0)
+            OmegaTypeReferenceKind::Constrained -> inner(row)
+            OmegaTypeReferenceKind::FixedArray -> inner(row)
+            OmegaTypeReferenceKind::Slice -> inner(row)
+            OmegaTypeReferenceKind::Reference -> reference(row)
+            _ -> return 1
+        }
+    }
+    state inner(row: OmegaTypeReferenceSyntax) {
+        transition true { true -> visit(self.parser.type_references[row.payload0]) }
+    }
+    state reference(row: OmegaTypeReferenceSyntax) {
+        transition row.payload2 {
+            1 -> reference_name(row)
+            _ -> inner(row)
+        }
+    }
+    state reference_name(row: OmegaTypeReferenceSyntax) {
+        transition self.field_lifetime_bound(source, owner, row.payload3, row.payload4) {
+            1 -> inner(row)
+            _ -> return 0
+        }
+    }
+    state arguments(row: OmegaTypeReferenceSyntax, offset: i32) {
+        transition offset < row.payload3 {
+            true -> argument(row, offset, self.parser.members[row.payload2 + offset])
+            _ -> named(row, row.payload3)
+        }
+    }
+    state argument(row: OmegaTypeReferenceSyntax, offset: i32, name: OmegaRelativeSpan) {
+        transition self.field_lifetime_bound(source, owner, name.start, name.end) {
+            1 -> arguments(row, offset + 1)
+            _ -> return 0
+        }
+    }
+    state named(row: OmegaTypeReferenceSyntax, arity: i32) {
+        transition self.scalar_name(source, row.payload0, row.payload1) > 0 {
+            true -> declared_arity(row, arity, 0)
+            _ -> target(row, arity, self.resolve_data(source, row.payload0, row.payload1))
+        }
+    }
+    state target(row: OmegaTypeReferenceSyntax, arity: i32, index: i32) {
+        transition index >= 0 {
+            true -> declared_arity(row, arity, self.parser.data_items[index].lifetime_count)
+            _ -> unknown(row, arity)
+        }
+    }
+    state unknown(row: OmegaTypeReferenceSyntax, arity: i32) {
+        transition arity == 0 {
+            true -> return 1
+            _ -> unsupported(row.payload0)
+        }
+    }
+    state declared_arity(row: OmegaTypeReferenceSyntax, arity: i32, expected: i32) {
+        transition arity == expected {
+            true -> return 1
+            _ -> invalid(row.payload0)
+        }
+    }
+    state invalid(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+}
+
+machine OmegaScalarCompiler::field_lifetime_bound(
+    &mut self, source: &[u8], owner: OmegaDataSyntax, start: i32, end: i32
+) -> i32 {
+    transition true { true -> binder(0) }
+    state binder(offset: i32) {
+        transition offset < owner.lifetime_count {
+            true -> compare(offset, self.parser.members[owner.first_lifetime + offset])
+            _ -> invalid()
+        }
+    }
+    state compare(offset: i32, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, start, end, source[name.start..name.end]) {
+            1 -> return 1
+            _ -> binder(offset + 1)
+        }
+    }
+    state invalid() { self.record_reject(-1, 4, start); return 0; }
 }

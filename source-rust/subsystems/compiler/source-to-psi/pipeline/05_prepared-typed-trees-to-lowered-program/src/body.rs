@@ -590,7 +590,29 @@ pub struct Signature {
     pub termination: Termination,
     /// The body's private decreasing measure. A conforming public signature
     /// cannot replace this witness or publish it as a caller guarantee.
-    pub ranking: Option<Vec<Expression>>,
+    pub ranking: Option<Ranking>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ranking {
+    pub measures: Vec<Expression>,
+    pub range: Option<Box<RankRange>>,
+}
+
+impl Ranking {
+    pub fn without_range(measures: Vec<Expression>) -> Self {
+        Self {
+            measures,
+            range: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RankRange {
+    pub lower: Expression,
+    pub upper: Expression,
+    pub upper_inclusive: bool,
 }
 
 /// Borrow the one signature representation across the two actual declaration
@@ -1065,8 +1087,7 @@ impl AtomicOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionKind {
-    /// Operand indices refer to the event's source evaluation order.
+pub enum ExpressionKind {    /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
@@ -1085,6 +1106,13 @@ pub enum ExpressionKind {
     },
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
+    /// Observe the selected location once, preserving its actual borrow and projection.
+    StorageLocation {
+        query: terminal_psi::StorageLocationQuery,
+        place: Box<Expression>,
+        home: Option<String>,
+        first_element: Option<StructuralTypeId>,
+    },
     /// The selected builtin observation, after evaluating its actual base.
     /// Even a statically known extent cannot erase that evaluation or its
     /// storage use. The observation itself neither moves nor lends backing.
@@ -1240,7 +1268,7 @@ pub enum ExpressionKind {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,
         /// The condition the cast must establish, for a diagnostic.
-        stated: terminal_check_tables::program::CastCondition,
+        stated: terminal_check_tables::program::EstablishedCondition,
     },
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.

@@ -10,27 +10,30 @@ mod physical_publication_tests;
 #[path = "verification/stage_validators.rs"]
 pub mod stage_validators;
 
-pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
-pub use provider_realization::published_application::NativeApplicationSettings;
-pub use native_artifact::AdmittedRuntimeProgram;
+pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
-    SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
-    prepare_source_program,
+    SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
+    review_source_providers,
+};
+pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
+pub use native_artifact::AdmittedRuntimeProgram;
+pub use provider_realization::{
+    SelectedProviderResult, published_application::NativeApplicationSettings,
 };
 
 use diagnostics::Diagnostic;
+use driver::request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_entry_memory::PrivateEntryRamInitialization;
-use driver::request::NativeCompileRequest;
 use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Observe compiler stages and exercise foreign ABI adapter emission in integration tests.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
     pub use crate::driver::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
+    pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
 }
 
 /// The emitted image and the checks requested against its stage inputs.
@@ -43,8 +46,8 @@ pub struct NativeEmission {
 /// program. Its reviewed assumptions travel to the same entry and installation checks.
 pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
+    suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
-    subsystem: u16,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
@@ -52,10 +55,22 @@ impl NativeProgram {
     /// The settled permissions and binding selections used by both execution paths.
     pub fn native_realization_proposal(
         &self,
-    ) -> Result<&verified_optimization_input::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-        self.terminal.native_realization_proposal().ok_or_else(|| {
-            vec![Diagnostic::error("prepared Psi compilation lost its native proposal")]
-        })
+    ) -> &verified_optimization_input::TerminalNativeRealizationProposal {
+        self.terminal.native_realization_proposal()
+    }
+
+    /// Portable supplier descriptions proposed to the receiving source Product.
+    pub fn component_descriptions(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            semantic_vocabulary::PackageKeyIdentity,
+            &component_description::VerifiedComponent,
+        ),
+    > {
+        self.suppliers
+            .iter()
+            .map(|(&package, supplier)| (package, supplier.component.as_ref()))
     }
 
     pub fn emit(
@@ -63,7 +78,7 @@ impl NativeProgram {
         entry_memory: &[PrivateEntryRamInitialization],
         validators: &stage_validators::StageValidatorRequest,
     ) -> Result<NativeEmission, stage_validators::NativeValidationError> {
-        let profile = self.native_realization_proposal()?.target_profile();
+        let profile = self.native_realization_proposal().target_profile();
         let (image, originals) = self.finish(
             entry_memory,
             &mut Vec::new(),
@@ -90,36 +105,28 @@ impl NativeProgram {
         finish: impl FnOnce(
             RetainedTerminalArtifact,
             NativeCompileRequest<'_>,
-        )
-            -> Result<T, (target::ExecutableImageEmissionRequest, Vec<Diagnostic>)>,
+        ) -> Result<T, Vec<Diagnostic>>,
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
+            suppliers,
             permissions,
-            subsystem,
             installation_assumptions,
-            ..
         } = self;
-        let proposal = terminal.native_realization_proposal().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "prepared Psi compilation lost its native proposal",
-            )]
-        })?;
         let mut receipts = Vec::new();
-        let optimizations = proposal.post_terminal_optimizations().selections().clone();
         let request = NativeCompileRequest {
+            suppliers: &suppliers,
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,
             private_entry_ram,
-            optimization_selections: &optimizations,
             terminal_authority_policy: current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
-            image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
+            image_request: driver::request::image_request(terminal.native_realization_proposal())?,
             scalar_receipts: &mut receipts,
         };
         let product = finish(terminal, request);
         accounting.extend(receipts);
-        product.map_err(|(_, diagnostics)| diagnostics)
+        product
     }
 }

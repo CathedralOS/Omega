@@ -57,9 +57,7 @@ impl ReviewedHostPackages {
             .filter(|row| row.context().purpose().is_product())
         {
             let package = occurrence.acceptance().package();
-            let compilation = occurrence
-                .compilation()
-                .ok_or_else(|| PackageLockError::MissingCompilationInputs.to_string())?;
+            let compilation = occurrence.compilation();
             packages.push(package);
             bindings.extend(compilation.native_bindings().iter().cloned());
             if package == root {

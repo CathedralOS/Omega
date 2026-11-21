@@ -4,6 +4,13 @@ use language_core::bundled_files::{BundledFile, core_revision};
 #[test]
 fn saved_program_owners_match_the_producers_canonical_revisions() {
     for (file, name, expected) in [
+        (BundledFile::CoreExtent, "extent.omg", core_revision::EXTENT),
+        (BundledFile::CoreLayout, "layout.omg", core_revision::LAYOUT),
+        (
+            BundledFile::CoreProgramImage,
+            "program_image.omg",
+            core_revision::PROGRAM_IMAGE,
+        ),
         (
             BundledFile::CoreFilesystemAuthority,
             "filesystem_authority.omg",

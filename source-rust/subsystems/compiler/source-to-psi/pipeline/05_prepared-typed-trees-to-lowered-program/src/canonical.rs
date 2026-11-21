@@ -10,8 +10,7 @@ fn refusal(id: MachineId, detail: String) -> Refusal {
     Refusal {
         source_span: None,
         reason: RefusalReason::Unsupported,
-        machine: id,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
         detail: format!("contract {detail}"),
     }
 }
@@ -229,6 +228,22 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         })
     }
 
+    fn structural_read(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        // Substitution already renamed each selector into the header's scope.
+        // Restating a requirement names an observation; the incoming edge
+        // supplies the storage and proves it at that selector.
+        Ok(ScalarTerm::StructuralRead {
+            root: self.place(root)?,
+            path: path.to_vec(),
+            scalar_type,
+        })
+    }
+
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         use terminal_check_tables::values::ValueOrigin;
         match source {
@@ -345,6 +360,32 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn restated_indexed_contract_renames_the_storage_and_the_selector() {
+        use semantic_vocabulary::{PlaceId, ScalarReadProjection};
+        let ty = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let clause = |root, selector| {
+            let index = ScalarTerm::value(ValueId::new(selector).unwrap(), ty);
+            Proposition::Equal(
+                ScalarTerm::StructuralRead {
+                    root: PlaceId::new(root).unwrap(),
+                    path: vec![ScalarReadProjection::Index(Box::new(index.clone()))],
+                    scalar_type: ty,
+                },
+                index,
+            )
+        };
+        let machine = MachineId::new(1).unwrap();
+        let actuals = [ValueId::new(3).unwrap()];
+        let places = [PlaceId::new(4).unwrap()];
+        let cells = values(ty);
+        assert_eq!(
+            substitute_parameters(&clause(1, 1), &actuals, &places, &cells, machine).unwrap(),
+            canonical_clause(clause(4, 3), machine).unwrap(),
+        );
+        assert!(substitute_parameters(&clause(2, 1), &actuals, &places, &cells, machine).is_err());
     }
 
     #[test]

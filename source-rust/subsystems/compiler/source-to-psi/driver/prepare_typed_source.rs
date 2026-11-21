@@ -46,9 +46,8 @@ pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [crate::compile_time_invocations::FixedLayoutTargetScope],
-    pub layout_selection_authority:
-        Option<Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
-    pub wire_demands: &'request [typed_trees_to_prepared_typed_trees::WireCompatibilityDemand],
+    pub layout_selection_authority: Option<Arc<declaration_scope::PackageDeclarationScope>>,
+    pub wire_demands: &'request [crate::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn declaration_scope::DeclarationSelectionAuthority>,
 }
 
@@ -103,7 +102,7 @@ impl<'request> SourcePreparationRequest<'request> {
         self.settle()?.freeze()
     }
 
-    fn settle(self) -> Result<SettledSource<'request>, SourcePreparationFailure> {
+    fn settle(self) -> Result<SettledSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
             // Opaque property receipts came from the deleted checker. Supplying one
@@ -112,6 +111,9 @@ impl<'request> SourcePreparationRequest<'request> {
                 return Err(vec![Diagnostic::error(
                     "no product route yet: source selection authority admission",
                 )]);
+            }
+            if !self.admission.wire_demands.is_empty() {
+                return Err(diagnostics::DiagnosticStage::Preparation.attribute(vec![Diagnostic::error("no product route yet: typed preparation: requested work: wire compatibility demands")]));
             }
             let mut program = self.program;
             program.opaque_representation_selections =
@@ -137,7 +139,7 @@ impl<'request> SourcePreparationRequest<'request> {
             // `Buffer<capacity()>`: a const argument written as a call gets
             // its value first, because a constant below may be computed
             // through a type that is applied at one.
-            crate::compile_time_invocations::evaluate_const_arguments(
+            let mut values = crate::compile_time_invocations::evaluate_const_arguments(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),
@@ -159,14 +161,22 @@ impl<'request> SourcePreparationRequest<'request> {
                     "constant materialization receipt join: {reason}"
                 ))]
             })?;
-            Ok((program, constants))
+            values.extend(constants);
+            Ok((program, values))
         })();
+        accounting.release_constant_inputs();
         match result {
-            Ok((program, demanded_constants)) => Ok(SettledSource {
+            Ok((program, values)) => Ok(SettledSource {
                 program,
                 accounting,
-                demanded_constants,
-                wire_demands: self.admission.wire_demands,
+                selected_providers: self
+                    .admission
+                    .layout_scopes
+                    .iter()
+                    .flat_map(|scope| scope.provider_declarations.iter())
+                    .map(|selection| selection.provider_type.symbol)
+                    .collect(),
+                values,
             }),
             Err(diagnostics) => Err(SourcePreparationFailure {
                 diagnostics,
@@ -200,7 +210,48 @@ mod tests {
         }
         .prepare()
         .expect("empty typed source requires no legacy evidence");
-        assert!(prepared.program.machines().is_empty());
+        assert!(prepared.program.trees().machines().is_empty());
+    }
+
+    #[test]
+    fn an_unserved_wire_schema_edge_is_refused_before_freezing() {
+        let demand = crate::WireCompatibilityDemand {
+            edge: "request".into(),
+            lineage: "protocol".into(),
+            local_schema: "v2".into(),
+            peer_schema: "v1".into(),
+            require_readable: true,
+            require_writable: false,
+            require_unknown_preservation: false,
+            require_canonical: false,
+            require_complete_migration: false,
+        };
+        let result = SourcePreparationRequest {
+            admission: SourceAdmission {
+                wire_demands: &[demand],
+                ..Default::default()
+            },
+            program: Default::default(),
+            accounting: Default::default(),
+            compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+                entries: &[],
+                subjects: &[],
+                purpose: source_provenance::DependencyScope::Product,
+                declaration_metadata: &[],
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+                calling: None,
+                providers: None,
+            },
+        }
+        .prepare();
+        let failure = result.err().expect("an unsupported wire edge must refuse");
+        assert!(
+            failure.diagnostics[0]
+                .message
+                .contains("wire compatibility demands")
+        );
     }
 
     #[test]

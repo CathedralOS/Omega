@@ -16,7 +16,7 @@ native-compiler = { path = "../../../compiler/psi-to-native", optional = true }
 target = { path = "../../../compiler/psi-to-native/targets/target", optional = true }
 bounded-process = { path = "../../../../foundation/bounded-process" }
 calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-conventions" }
-image-emission = { path = "../../../compiler/psi-to-native/pipeline/16_objects-to-image/image-emission" }
+image-emission = { path = "../../../compiler/psi-to-native/pipeline/15_objects-to-image/image-emission" }
 native-provider-runtime = { path = "../native-worker" }
 
 [dev-dependencies]

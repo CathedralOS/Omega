@@ -3,6 +3,63 @@
 use super::*;
 
 #[test]
+fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
+    let program = "data Cell { word: u64; }
+        machine main(cell: @mut Cell) -> bool {
+            let first: addr = address_of(@mut cell.word);
+            cell.word = 11u64;
+            let alias: @u64 = @cell.word;
+            address_of(alias) == first
+        }";
+    let typed = super::boundary_calls::typed(program);
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("both references denote the same live field: {verdict:?}");
+    };
+    let addresses = accepted.elaboration.module.machines.iter()
+        .flat_map(|machine| machine.operations())
+        .filter(|operation| matches!(operation.kind, terminal_psi::OperationKind::StorageAddress { .. }))
+        .count();
+    assert_eq!(addresses, 2);
+    accepted.publish_invocation().unwrap();
+
+    let typed = super::boundary_calls::typed(
+        "machine main(value: u64) -> addr { address_of(value) }",
+    );
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an owned scalar cannot expose a referent: {verdict:?}");
+    };
+    assert!(violations.iter().any(|rule| rule.statement.contains("address_of needs an ordinary reference")));
+}
+
+#[test]
+fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
+    let program = "data Slots { tag: u8; value: u64; }
+        machine main() -> u64 {
+            let slots: Slots = Slots { tag: 1u8, value: 9u64 };
+            align_of(slots.FIELD) - 8u64
+        }";
+    for (field, accepted) in [("value", true), ("tag", false)] {
+        let typed = super::boundary_calls::typed(&program.replace("FIELD", field));
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[])
+            .expect("both fields denote accessible storage");
+        let result = super::entryless::judged_typed_result(prepared.trees(), false)
+            .expect("both observations lower");
+        match result {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => {
+                assert!(
+                    !unproved.is_empty(),
+                    "the subtraction needs its own lower bound"
+                );
+            }
+            other => panic!("alignment of {field}: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn primitive_layout_queries_keep_their_carrier_and_contract_obligations() {
     let positive = r#"// Expected exit: 0
 // A layout observation keeps the same physical type in contracts and execution.
@@ -39,9 +96,9 @@ machine main() crashes Trap {
     );
     let observed = [positive, negative.as_str(), reversed.as_str()].map(|text| {
         let source = super::boundary_calls::typed(text);
-        let source = crate::preparation::prepare_typed_trees(source, &[])
+        let source = crate::preparation::prepare_typed_trees(source, &[], &[])
             .expect("the query keeps its actual type operand");
-        super::entryless::judged_typed_result(&source, false)
+        super::entryless::judged_typed_result(source.trees(), false)
     });
     for (name, result) in [
         "matching layout",
@@ -97,21 +154,32 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
         else {
             return None;
         };
-        if !matches!(module.structural_type(*subject)?.shape,
-            StructuralTypeShape::PrimitiveScalar(carrier) if carrier == u32_carrier)
-        {
-            return None;
-        }
+        // The call is guarded by the complete source transition. Supply the
+        // other observations in that transition for this 64-bit test target.
+        let shape = &module.structural_type(*subject)?.shape;
+        let (bytes, alignment) = match shape {
+            StructuralTypeShape::PrimitiveScalar(carrier) if *carrier == u32_carrier => (size, 4),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64,
+            )) => (8, 8),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if integer.is_address() => (8, 8),
+            StructuralTypeShape::Record { fields, .. }
+                if fields.len() == 1 && fields[0].field_type == terminal_psi::StructuralFieldType::Scalar(u32_carrier) =>
+            {
+                (size, 4)
+            }
+            _ => panic!("unexpected layout observation in the source transition: {shape:?}"),
+        };
         let bytes = match measurement {
-            LayoutMeasurement::Size => size,
-            LayoutMeasurement::Alignment => 4,
+            LayoutMeasurement::Size => bytes,
+            LayoutMeasurement::Alignment => alignment,
         };
         Some(ScalarValue::Integer(bignum::BigInt::from_u64(bytes)))
     };
     let mut pending = 0;
     let mut false_at_four = 0;
     for machine in &module.machines {
-        for (obligation, condition) in module.layout_call_conditions(machine).unwrap() {
+        for (obligation, condition) in terminal_semantics::layout_call_conditions(module, machine).unwrap() {
             let verdict = closure
                 .discharge
                 .machines
@@ -155,4 +223,131 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
         false_at_four, 1,
         "the changed size-8 requirement refuses the size-4 observation"
     );
+}
+
+#[test]
+fn layout_call_requirements_apply_only_on_their_incoming_path() {
+    use numerics::scalar_predicates::ScalarValue;
+    use terminal_psi::ScalarRangeObservation;
+
+    let source = r#"
+machine use_layout() requires size_of::<u32>() == 8u64 {}
+machine main() {
+    transition SELECT {
+        true -> done(),
+        false -> use_layout()
+    }
+    machine done() requires true {}
+}
+"#;
+    for (guard, permitted) in [
+        ("size_of::<u32>() == 4u64", [true, true, false, false]),
+        ("size_of::<u32>() <= 16u64 && size_of::<u32>() != 16u64", [true, true, false, false]),
+        ("size_of::<u32>() == 4u64 || size_of::<u32>() == 16u64", [true, true, true, false]),
+    ] {
+        let typed = super::boundary_calls::typed(&source.replace("SELECT", guard));
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let Ok(RouteVerdict::Accepted(closure)) =
+            super::entryless::judged_typed_result(prepared.trees(), false)
+        else {
+            panic!("the portable call must preserve its deployment prerequisite");
+        };
+        let module = &closure.elaboration.module;
+        let conditions = module
+            .machines
+            .iter()
+            .flat_map(|machine| terminal_semantics::layout_call_conditions(module, machine).unwrap())
+            .map(|(_, condition)| condition)
+            .collect::<Vec<_>>();
+        assert_eq!(conditions.len(), 1, "the called machine has one target prerequisite");
+        for (size, permitted) in [4, 8, 16, 32].into_iter().zip(permitted) {
+            let checked = conditions[0].evaluate(&mut |value| {
+                matches!(value, ScalarRangeObservation::Application(_))
+                    .then(|| ScalarValue::Integer(bignum::BigInt::from_u64(size)))
+            });
+            assert_eq!(checked, Some(ScalarValue::Boolean(permitted)), "{guard} at size {size}");
+        }
+    }
+}
+
+#[test]
+fn exact_arithmetic_keeps_the_selected_layout_as_a_target_prerequisite() {
+    let source = "data Row { tag: u8; count: u64; }
+        machine extent() -> u64 { size_of::<Row>() + align_of::<Row>() }";
+    let typed = super::boundary_calls::typed(source);
+    let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let verdict = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("portable arithmetic should retain a range for the selected layout: {verdict:?}");
+    };
+    let conditions = &closure
+        .elaboration
+        .module
+        .scalars
+        .scalar_applications
+        .conditions;
+    let [range] = conditions.ranges() else {
+        panic!("expected a single pending arithmetic condition");
+    };
+    use numerics::integer_bounds::IntegerBoundStep::{Add, Observation};
+    use terminal_psi::ScalarRangeObservation::Application;
+    assert!(matches!(conditions.steps(range).unwrap(),
+        [Observation(Application(size)), Observation(Application(align)), Add] if size != align));
+}
+
+#[test]
+fn record_geometry_carries_layout_values_through_copies_calls_and_arrivals() {
+    let source =
+        include_str!("../../../../../../../../samples/cli/probes/record_geometry/main.omg");
+    let typed = super::boundary_calls::typed(source);
+    let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let result = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
+
+#[test]
+fn conditional_target_arithmetic_owes_the_range_on_its_own_branch() {
+    use bignum::BigInt;
+    use terminal_psi::ScalarRangeObservation;
+
+    for (guard, expected) in [("==", 0u128), (">", u128::from(u64::MAX) + 16)] {
+        let source = format!(
+            "data Row {{ tag: u8; count: u64; }}
+            machine guarded() -> u64 {{
+                let bytes: u64 = size_of::<Row>();
+                match bytes {guard} 0u64 {{
+                    true -> bytes + 18446744073709551615u64, _ -> 0u64
+                }}
+            }}"
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let verdict = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
+        let RouteVerdict::Accepted(closure) = verdict else {
+            panic!("expected a portable conditional arithmetic check: {verdict:?}");
+        };
+        let conditions = &closure
+            .elaboration
+            .module
+            .scalars
+            .scalar_applications
+            .conditions;
+        let [range] = conditions.ranges() else {
+            panic!("expected a single arithmetic range")
+        };
+        let actual = numerics::integer_bounds::evaluate(
+            conditions.steps(range).unwrap(),
+            &mut |observation| match observation {
+                ScalarRangeObservation::Literal(value) => Ok(value.clone()),
+                ScalarRangeObservation::Application(_) => Ok(BigInt::from_u64(16)),
+                _ => Err("unknown observation in a closed layout condition".to_owned()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            actual,
+            (BigInt::from_u128(expected), BigInt::from_u128(expected)),
+            "{guard}"
+        );
+    }
 }

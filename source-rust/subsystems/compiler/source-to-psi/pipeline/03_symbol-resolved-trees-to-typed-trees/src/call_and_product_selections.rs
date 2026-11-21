@@ -162,14 +162,20 @@ pub(crate) mod build_selections {
             {
                 Protocol::BindDescription
             }
+            (BuildSelectionRequest::Declaration(binding), 1)
+                if binding.operation == BuildOperation::ProviderSelection =>
+            {
+                Protocol::Select
+            }
+            (BuildSelectionRequest::Declaration(binding), 2)
+                if binding.operation == BuildOperation::ProviderSelection =>
+            {
+                Protocol::SelectProviderOption
+            }
             (BuildSelectionRequest::Declaration(binding), count) => binding
                 .operation
                 .product_recording_operation()
-                .filter(|(_, arity)| {
-                    count == *arity
-                        || (binding.operation == BuildOperation::ProviderSelection
-                            && count.checked_add(1) == Some(*arity))
-                })
+                .filter(|(_, arity)| count == *arity)
                 .map(|(operation, _)| operation)
                 .ok_or_else(|| {
                     Diagnostic::error("Build selection has unexpected ordinary operands")
@@ -235,11 +241,10 @@ pub(crate) mod build_selections {
             }
             (_, Protocol::BindNative) => vec![(1, "build_selection_target")],
             (_, Protocol::SelectProvider) => {
-                let mut helpers = vec![(1, "build_selection_target")];
-                if arguments.len() == 3 {
-                    helpers.push((2, "build_selection_independent"));
-                }
-                helpers
+                vec![
+                    (1, "build_selection_target"),
+                    (2, "build_selection_independent"),
+                ]
             }
             _ => Vec::new(),
         };
@@ -271,9 +276,6 @@ pub(crate) mod build_selections {
         });
         let committed_selection =
             table.insert_build_selection_call(BuildSelectionCall { request, operation });
-        if operation == Protocol::SelectProvider && arguments.len() == 2 {
-            arguments.push(table.insert(ExpressionNode::Boolean(false)));
-        }
         let mut emit = |symbol,
                         name: crate::source_state::name::Identifier,
                         receiver,
@@ -1403,6 +1405,7 @@ pub(crate) mod construction_destinations {
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
         let mut result_calls = Vec::new();
+        let mut inferred_locals = Vec::new();
         let mut unlanded = Vec::new();
         let mut pending_destinations = Vec::new();
         // Values this pass cannot land, each with the request its holder
@@ -1482,6 +1485,17 @@ pub(crate) mod construction_destinations {
                                 machine.symbol,
                             ));
                         }
+                        StatementNode::LocalData(local)
+                            if local.type_is_inferred
+                                && local.initial_value.is_valid()
+                                && local.role.has_ordinary_initializer() =>
+                        {
+                            inferred_locals.push((
+                                state.statement_nodes.handle_at(statement_index as u32),
+                                state.symbol,
+                                local.initial_value,
+                            ));
+                        }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
                                 // One declared-place query supplies the exact
@@ -1551,6 +1565,19 @@ pub(crate) mod construction_destinations {
                         | StatementNode::LocalData(_) => {}
                     }
                 }
+            }
+        }
+
+        // Operator selection can supply an initializer's type only after all
+        // declarations are available. Publish each result in statement order
+        // so later locals can read the type of an earlier operand.
+        for (handle, owner, initializer) in inferred_locals {
+            if let Some(reference) =
+                crate::typing::typing_queries::declared_expression_type(program, owner, initializer)
+                && let StatementNode::LocalData(local) =
+                    program.statement_table.statement_mut(handle)
+            {
+                local.type_reference = reference;
             }
         }
 
@@ -3814,7 +3841,7 @@ pub(crate) mod product_selections {
             || if operation == BuildOperation::NativeBinding {
                 ordinary_count != 3
             } else if operation == BuildOperation::ProviderSelection {
-                !(2..=3).contains(&ordinary_count)
+                !(1..=3).contains(&ordinary_count)
             } else {
                 ordinary_count != 1
             }
@@ -3837,7 +3864,7 @@ pub(crate) mod product_selections {
             if operation == BuildOperation::NativeBinding {
                 "its explicit mutable Build, catalog target and owned native locator arguments"
             } else if operation == BuildOperation::ProviderSelection {
-                "its explicit mutable Build and catalog target arguments (plus an optional composition mode)"
+                "its mutable Build and optional catalog target and composition mode"
             } else {
                 "its explicit mutable Build argument"
             },

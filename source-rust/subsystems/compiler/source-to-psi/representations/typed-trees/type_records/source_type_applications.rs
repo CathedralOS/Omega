@@ -178,7 +178,7 @@ impl SourceTypeScope {
     ) -> bool {
         self.admits_argument(typed, reference)
             && self.with_substitutions(|substitutions, starts, _| {
-                crate::source_state::type_identity::scoped_integer_argument_matches(
+                crate::source_state::type_identity::scoped_scalar_argument_matches(
                     typed,
                     reference,
                     expected,

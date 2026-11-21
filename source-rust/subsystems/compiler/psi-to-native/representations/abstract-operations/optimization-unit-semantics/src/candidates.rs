@@ -2542,7 +2542,7 @@ pub(crate) mod dead_scalar_elimination {
                 O::IntegerArithmetic { arithmetic, .. } => {
                     Some(obligation_family(arithmetic.obligation()))
                 }
-                O::StorageAddress { .. }
+                O::ObserveStorageLocation { .. }
                 | O::SelectImplementation { .. }
                 | O::SelectMachine { .. }
                 | O::EstablishPrimitiveLocal { .. }
@@ -10416,7 +10416,7 @@ mod value_operand_rewrites {
             | O::SelectImplementation { .. }
             | O::SelectMachine { .. }
             | abstract_operations::constant_value_triple_pattern!(..)
-            | O::StorageAddress { .. }
+            | O::ObserveStorageLocation { .. }
             | abstract_operations::primitive_storage_observation_pattern!(..)
             | abstract_operations::byte_read_predicate_equal_pattern!(..)
             | O::ByteSequenceWrite { .. }

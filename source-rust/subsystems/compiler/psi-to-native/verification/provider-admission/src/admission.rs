@@ -19,12 +19,13 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
+use crate::terminal_authority_policy::darwin_poll;
 use crate::terminal_authority_review::reachability::AuthorityGraph;
 use crate::{
     AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
     AdmittedProgramProviderContext, AdmittedProviderInstallation, ProviderAdmissionRequest,
     access_lifecycles, callback_entries, compiler_builtins, settlements, static_interrupts,
-    terminal_authority_policy, terminal_authority_review,
+    terminal_authority_review,
 };
 use ::diagnostics::Diagnostic;
 use application_identity::type_identity::callable_display_path as requirement_path;
@@ -180,8 +181,9 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
+    let compiler_builtins = compiler_builtins::reached_builtins(input, artifact, request)?;
     let (native_settlements, native_mechanisms) =
-        crate::native_binding_settlements::settle(input, request)?;
+        crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
     require_reached_providers(
         input,
         request.profile,
@@ -196,13 +198,13 @@ pub fn admit_native_providers<'request>(
             installation.as_ref(),
             request.terminal_authority_policy,
         )?;
-    let (settlements, executions, mut mechanisms, cohort_rows) =
+    let (settlements, executions, mut mechanisms, mut cohort_rows) =
         settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
     settlements.extend(interrupt_settlements);
     mechanisms.extend(interrupt_mechanisms);
     let (builtin_settlements, builtin_mechanisms) =
-        compiler_builtins::settle_compiler_builtins(input, request)?;
+        compiler_builtins::settle_compiler_builtins(input, request, &compiler_builtins)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
     settlements.extend(native_settlements);
@@ -253,28 +255,24 @@ pub fn admit_native_providers<'request>(
         access_lifecycles::settle_empty_releases(input, request.terminal_authority_policy)?;
     settlements.extend(run_settlements);
     mechanisms.extend(run_mechanisms);
-    let effective_policy = if cohort_rows.is_empty() {
-        None
-    } else {
-        let mut rows = request.terminal_authority_policy.explicit_rows().to_vec();
-        for row in cohort_rows {
-            if !rows
-                .iter()
-                .any(|supplied| supplied.mechanism() == row.mechanism())
-            {
-                rows.push(row);
-            }
-        }
-        Some(
-            terminal_authority_policy::terminal_authority_policy_with_rows(rows).map_err(
-                |error| {
-                    vec![Diagnostic::error(format!(
-                        "settled filesystem cohort mechanism rows do not construct the effective receiving terminal-authority policy: {error:?}"
-                    ))]
-                },
-            )?,
-        )
-    };
+    if request.profile == target::TargetProfile::MacosArm64 {
+        darwin_poll::classify_checked_waits(
+            artifact,
+            input.plan(),
+            &settlements,
+            &mut mechanisms,
+            request.terminal_authority_policy,
+            &mut cohort_rows,
+        );
+    }
+    let effective_policy = request
+        .terminal_authority_policy
+        .with_reviewed_operations(cohort_rows, mechanisms.iter().map(|leaf| leaf.mechanism))
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "could not construct the receiving policy from the reviewed native operations ({error:?})"
+            ))]
+        })?;
     let effective_policy = effective_policy
         .as_ref()
         .unwrap_or(request.terminal_authority_policy);

@@ -1993,8 +1993,8 @@ pub(crate) mod element_view {
         element_leaf_geometry, projected_collection, typed_collection_layout_matches,
     };
     use abstract_operations::AbstractOperation;
-    use abstract_operations::control_flow::address_joins::is_address_join_in;
     use semantic_vocabulary::{PlaceId, ValueId};
+    use structural_storage_queries::address_joins::is_address_join_in;
     use target_operations::{TargetElementView, TargetStructuralArgumentSource};
     use terminal_psi::StructuralTypeShape;
 
@@ -2353,7 +2353,7 @@ pub(crate) mod element_view {
                 return false;
             };
             let descriptor_carrier =
-                abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                structural_storage_queries::address_joins::is_descriptor_join_in(
                     parameter, self.types,
                 );
             let backing = parameter.access == terminal_psi::StructuralAccess::Owned
@@ -3311,6 +3311,7 @@ pub(crate) mod hosted_scalar {
 }
 pub(crate) mod normalized_foreign {
     use super::{PsiOptimizationFunction, TargetUnitOperation};
+    use crate::descriptor_input::descriptor_input_guard_for_call_with_closed_scalars;
     use crate::preparation::LegalizationError;
     use crate::preparation::legalization::scalar_graph_input::normalized_foreign::{
         native_callbacks_at, result_at, structural_argument_at,
@@ -3356,7 +3357,7 @@ pub(crate) mod normalized_foreign {
         else {
             return Err(LegalizationError::custody());
         };
-        let required = target_operations::descriptor_input_guard_for_call_with_closed_scalars(
+        let required = descriptor_input_guard_for_call_with_closed_scalars(
             binding,
             plan.geometry(),
             scalar_arguments,
@@ -6824,20 +6825,22 @@ pub(crate) mod unit {
                 && operation == expected_kind
                 && source == expected_source => {}
             (
-                TargetUnitOperation::StorageAddress {
+                TargetUnitOperation::ObserveStorageLocation {
+                    query,
                     psi_operation,
                     result,
                     source,
                     path,
                     indices,
                 },
-                AbstractOperation::StorageAddress {
+                AbstractOperation::ObserveStorageLocation {
+                    query: expected_query,
                     psi_operation: expected_operation,
                     result: expected,
                     source: expected_source,
                     path: expected_path,
                 },
-            ) if psi_operation == expected_operation
+            ) if query == expected_query && psi_operation == expected_operation
                 && result == expected
                 && source == expected_source
                 && path == expected_path =>
@@ -6850,7 +6853,7 @@ pub(crate) mod unit {
                     .ok_or(LegalizationError::custody())?;
                 let geometry = storage_address_geometry(root, path, unit.geometry())
                     .ok_or(LegalizationError::custody())?;
-                if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                if !query.admits_result(result.scalar_type)
                     || !runtime_indices_rejoin(indices, &geometry.elements, sources)
                 {
                     return Err(LegalizationError::custody());
