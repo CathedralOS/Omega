@@ -81,6 +81,7 @@ pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 pub(crate) mod invocation;
 pub use invocation::selected_stored_effects_row;
 mod private_parameters;
+pub use private_parameters::PrivateObservationInputs;
 pub(crate) mod provider_invocation;
 pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
 pub(crate) mod terminal_flow;
@@ -476,7 +477,7 @@ pub struct DescriptorMachine {
     pub payload_invalidations:
         BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
     /// Owned input occurrences whose concrete bytes and claims a closed boundary cannot reach.
-    pub private_observation_inputs: BTreeMap<DescriptorPosition, std::sync::Arc<BTreeSet<PlaceId>>>,
+    pub private_observation_inputs: PrivateObservationInputs,
     pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
     pub storage_derivations:
         BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
