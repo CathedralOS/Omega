@@ -100,7 +100,7 @@ pub(crate) fn prepare<'a>(
             .iter()
             .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
             .collect::<Vec<_>>();
-        let predicate = crate::checking::substitute(
+        let premises = crate::checking::observable_conjuncts(
             &invariant.predicate,
             &mut storage.at_join(
                 references,
@@ -113,6 +113,7 @@ pub(crate) fn prepare<'a>(
             )?,
         )
         .map_err(|error| error.refusal(id, Construct::Block(header.id)))?;
+        let predicate = connective(premises, true);
         push_knowledge(
             tables,
             predicate.clone(),

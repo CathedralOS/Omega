@@ -1158,26 +1158,9 @@ fn fill_knowledge<'a>(
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
-        // A clause over a field of a record formal is about what that field
-        // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here. Each
-        // conjunct of a clause holds on its own, so only the conjuncts that
-        // name such a field are dropped: an inferred input condition joins
-        // facts about every field the caller knew, and one about a field this
-        // body never reads must not discard the bound it does need. A
-        // disjunction stays whole, since dropping one of its alternatives
-        // would assume more than the clause says.
-        let mut conjuncts = vec![proposition];
-        while let Some(conjunct) = conjuncts.pop() {
-            if let Proposition::Conjunction(parts) = conjunct {
-                conjuncts.extend(parts);
-                continue;
-            }
-            let stated = match substitute(conjunct, &mut storage.at_entry(references, tables)) {
-                Ok(stated) => stated,
-                Err(Unbound::Unproved(_)) => continue,
-                Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-            };
+        let premises = observable_conjuncts(proposition, &mut storage.at_entry(references, tables))
+            .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        for stated in premises {
             push_knowledge(
                 tables,
                 stated,
@@ -1760,6 +1743,30 @@ use terminal_semantics::substitution::clauses::substitute_sufficient_clause;
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
 };
+
+/// The parts of a proved input contract that this body can name. A storage
+/// field may have no entry snapshot when the body never reads it. Forgetting
+/// a conjunct weakens a premise. A disjunction must stay whole. Every arrival
+/// still owes the original contract, including the parts the body never uses.
+fn observable_conjuncts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Vec<Proposition>, Unbound> {
+    let mut pending = vec![clause];
+    let mut stated = Vec::new();
+    while let Some(part) = pending.pop() {
+        if let Proposition::Conjunction(parts) = part {
+            pending.extend(parts);
+            continue;
+        }
+        match substitute(part, bindings) {
+            Ok(part) => stated.push(part),
+            Err(Unbound::Unproved(_)) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(stated)
+}
 
 /// States a clause the checker must prove: a goal, never a premise.
 ///
