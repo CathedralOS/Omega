@@ -660,6 +660,42 @@ fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>)
 }
 
 #[test]
+fn forwarding_an_extent_to_a_boundary_checks_the_declared_contract() {
+    let source = r#"
+boundary trait Text {
+    machine send<const Count: u64>(bytes: @[u8; Count]) -> u64
+    requires Count > 0u64
+    requires bytes[Count - 1u64] == 0u8
+    reaches none
+    crashes none;
+}
+machine entry<const Size: u64>(bytes: @[u8; Size]) -> u64
+requires Size > 0u64
+requires bytes[Size - 1u64] == 0u8
+reaches none
+crashes none
+{ Text::send::<Size>(bytes) }
+"#;
+    let check = |source: &str| judge(Ok(rigid_array_form(source))).unwrap();
+    let valid = check(source);
+    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
+    // The selected provider can promise an entry of its own. An explicitly
+    // closed caller must still account for it when forwarding the extent.
+    let both_invoke = source.replace("reaches none", "reaches none\ninvokes Text");
+    let allowed = check(&both_invoke);
+    assert!(matches!(allowed, RouteVerdict::Accepted(_)), "{allowed:?}");
+    let missing = check(&both_invoke.replace(
+        "0u8\nreaches none\ninvokes Text\ncrashes none\n{", "0u8\nreaches none\ninvokes none\ncrashes none\n{",
+    ));
+    assert!(matches!(missing, RouteVerdict::Rejected { .. }), "{missing:?}");
+    let wrong_byte = check(&source.replace("Size - 1u64] == 0u8", "Size - 1u64] == 7u8"));
+    assert!(
+        matches!(wrong_byte, RouteVerdict::Rejected { .. }),
+        "{wrong_byte:?}"
+    );
+}
+
+#[test]
 fn a_size_generic_requirement_is_checked_once_for_every_size() {
     // At the call, `Count` is 4 and both contracts are formed. The template
     // is judged for every `Count`: `Count - 1` underflows at zero unless the
