@@ -720,15 +720,15 @@ impl Program<'_> {
                 if field.relevance != language_core::BindingRelevance::Relevant {
                     return Err(unserved("generic data with an erased member"));
                 }
-                self.template_member_type(entry, parameters, field.type_reference, 0)?;
+                self.template_type(entry, parameters, field.type_reference, 0)?;
             }
         }
         Ok(())
     }
 
-    /// One member type of a generic data declaration, or an argument inside
-    /// one, as `subject_data_template` reads it.
-    fn template_member_type(
+    /// Form an open type in the declaration that owns its binders. A field
+    /// and an alias expansion can name the same type before it has storage.
+    fn template_type(
         &mut self,
         entry: MachineId,
         parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
@@ -742,7 +742,7 @@ impl Program<'_> {
             refuse(
                 entry,
                 Construct::Machine,
-                Unserved::Type("generic data with a member type that is not read as written"),
+                Unserved::Type("type that cannot be formed under its declared generic binders"),
             )
         };
         // A source type nests far less deeply than this; a graph that does
@@ -782,7 +782,7 @@ impl Program<'_> {
                     FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
                     _ => return Err(unserved()),
                 }
-                self.template_member_type(entry, parameters, *element_type, depth + 1)
+                self.template_type(entry, parameters, *element_type, depth + 1)
             }
             TypeReferenceNode::Constrained { .. } => {
                 // Keep the qualification's formation checks. Reading only its
@@ -817,7 +817,7 @@ impl Program<'_> {
                 for (formal, argument) in formals.iter().zip(arguments) {
                     match formal.kind {
                         TypeParameterKind::Type => {
-                            self.template_member_type(entry, parameters, *argument, depth + 1)?;
+                            self.template_type(entry, parameters, *argument, depth + 1)?;
                         }
                         TypeParameterKind::Const { .. } => {
                             let named_constant = matches!(
@@ -942,6 +942,10 @@ impl Program<'_> {
                 // A declaration may describe an open callable. Reading that
                 // contract as a stored value would require an extra ceiling.
                 self.callable_alias_declaration(site, *contract)
+            }
+            _ if !alias.type_parameters.is_empty() => {
+                let parameters = self.typed.data_type_parameters.span_or_empty(alias.type_parameters);
+                self.template_type(site, parameters, alias.expansion, 0)
             }
             _ => self.value_type(site, alias.expansion).map(|_| ()),
         }
