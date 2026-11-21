@@ -2324,11 +2324,13 @@ mod tests {
         use semantic_vocabulary::StructuralTypeId;
         let mut typed = TypedTrees::default();
         let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let capture = typed.expression_table.insert_match_subject(truth);
         let scalar_match =
             typed
                 .expression_table
                 .insert(ExpressionNode::Match(TableMatchExpression {
                     subject: truth,
+                    capture,
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);
