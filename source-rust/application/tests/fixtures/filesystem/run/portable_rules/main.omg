@@ -1,12 +1,9 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Five portable filesystem calls must mean the same thing on every target.
 // Each check exits with its own number when the call misbehaves, so a failure
 // names the rule it broke; exit 42 means every rule held.
 //
-// Pending: the lowered-form checker refuses its first FilesystemService call
-// (TASKS.md, LOWERED-FORM-CHECKER). To run it, start in an empty directory
-// holding omega_fs_rules_wide/ with 4200 files and pass this file's path to
-// `omega run --both`.
+// The test gives each engine a separate directory containing all 4200 files.
 //
 //  3, 4  open_with refuses truncate without write access, and truncate with
 //        append, instead of emptying the file.
@@ -19,19 +16,19 @@ use omega::language::core::ProcessExit;
 // 12     remove_dir_all removes a tree 21 directories deep.
 // 13     remove_dir_all removes a directory of more than 4096 entries.
 
-use omega_language_std::ErrorKind;
-use omega_language_std::File;
-use omega_language_std::IoResult;
-use omega_language_std::Metadata;
-use omega_language_std::MetadataResult;
-use omega_language_std::OpenOptions;
-use omega_language_std::OpenResult;
-use omega_language_std::Permissions;
-use omega_language_std::PosixMetadataResult;
-use omega_language_std::UnitResult;
+use omega_language_std\ErrorKind;
+use omega_language_std\File;
+use omega_language_std\IoResult;
+use omega_language_std\Metadata;
+use omega_language_std\MetadataResult;
+use omega_language_std\OpenOptions;
+use omega_language_std\OpenResult;
+use omega_language_std\Permissions;
+use omega_language_std\PosixMetadataResult;
+use omega_language_std\UnitResult;
 use omega_language_std;
 
-use omega_language_std::FilesystemService;
+use omega_language_std\FilesystemService;
 
 data Main {
 }
@@ -148,9 +145,6 @@ machine main(context: @mut Main) reaches ProcessExit + DirectoryEnumeration + Fi
         let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/deep/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d" as +Path);
         transition made { UnitResult::Ok -> block wide(context), _ -> done(12) }
     }
-    // The test harness links omega_fs_rules_scratch to a temporary directory and
-    // fills its `wide` directory with 4200 files before each
-    // run; a program can only name paths from string literals.
     machine wide(context: @mut Main) {
         let removed: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules_wide" as +Path);
         let present: bool = block FilesystemService::exists("omega_fs_rules_wide" as +Path);

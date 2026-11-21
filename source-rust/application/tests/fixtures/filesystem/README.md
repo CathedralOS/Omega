@@ -12,5 +12,8 @@ checking bytes beside each borrowed buffer. It also enumerates a private
 directory containing one 255-byte name, so it needs no enumeration-order
 promise.
 
-The test creates a fresh project and supplies its source files explicitly.
-Each positive requires native exit 0 and Psi exit 0.
+`run/portable_rules/build.omg` calls the public filesystem service on a POSIX
+host. It checks truncate refusal, oversized reads and copy, permission changes,
+long path prefixes, and recursive removal. The test starts native and Psi in
+separate working directories, each with 4,200 files. Each must exit 42 and
+remove both its wide and deep directory trees.
