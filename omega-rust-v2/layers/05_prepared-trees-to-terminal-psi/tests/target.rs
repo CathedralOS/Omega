@@ -89,6 +89,8 @@ fn folded_extent_keeps_the_exact_target_plan_and_origin() {
     };
     let length = |package: &LoweredPackage| psi_handoff_consumer::array_parameter_length(package, "copy").unwrap();
     assert_eq!(length(&lowered), 8);
+    let copy = lowered.machines.iter().find(|machine| machine.declaration.path == "copy").unwrap();
+    assert_eq!(copy.result_type, Some(copy.parameter_types[0]), "both sides of copy use [u8; ALIAS]");
     let closure = lowered.target_closure.as_ref().unwrap();
     assert_eq!(closure.target(), selected.identity());
     let [
@@ -113,13 +115,11 @@ fn folded_extent_keeps_the_exact_target_plan_and_origin() {
     assert_eq!(origin.site.file, "extent.omg");
     assert_eq!(origin.site.span.slice(FOLDED.as_bytes()), Some(b"core\\size_of::<u64>()".as_slice()),);
     assert_eq!(origin.observations, [0]);
-    assert_eq!(constant("ALIAS").constants[0].path, "EXTENT");
-    assert!(
-        closure
-            .inputs()
-            .iter()
-            .any(|input| { matches!(&input.origin, FoldedValueOrigin::StaticIndex { .. }) && input.constants.iter().any(|id| id.path == "ALIAS") })
-    );
+    let alias = constant("ALIAS");
+    assert_eq!(alias.constants[0].path, "EXTENT");
+    assert_eq!(alias.site.file, "extent.omg");
+    assert_eq!(alias.site.span.slice(FOLDED.as_bytes()), Some(b"EXTENT".as_slice()), "ALIAS keeps its own initializer site");
+    assert_both_extents_read_alias(closure, FOLDED);
 
     assert_eq!(replay_u64(closure, "test-target", 1), Ok(()));
     let competing_plan = capsule("test-target", 2, 8);
@@ -135,6 +135,29 @@ fn folded_extent_keeps_the_exact_target_plan_and_origin() {
     let literal = lower("machine copy(arr:[u8; 8])->[u8; 8]{arr}", &selected);
     assert_eq!(length(&literal), 8);
     assert_eq!(literal.target_closure, None);
+}
+
+fn assert_both_extents_read_alias(closure: &omega_psi::FoldedTargetClosure, source: &str) {
+    let alias = closure
+        .inputs()
+        .iter()
+        .find_map(|input| match &input.origin {
+            FoldedValueOrigin::Constant(id) if id.path == "ALIAS" => Some(id),
+            _ => None,
+        })
+        .expect("declared ALIAS");
+    let expected: Vec<_> = source.match_indices("ALIAS]").map(|(offset, _)| offset).collect();
+    assert_eq!(expected.len(), 2, "fixture has ALIAS in both parameter and result extents");
+    let mut observed = Vec::new();
+    let indices = closure.inputs().iter().filter(|input| matches!(input.origin, FoldedValueOrigin::StaticIndex { .. }));
+    for input in indices {
+        assert_eq!((input.site.package.as_str(), input.site.file.as_str()), ("app", "extent.omg"));
+        assert_eq!(input.site.span.slice(source.as_bytes()), Some(b"ALIAS".as_slice()));
+        assert_eq!(input.constants.as_slice(), std::slice::from_ref(alias), "direct constant read at {:?}", input.site);
+        observed.push(input.site.span.get_start_offset());
+    }
+    observed.sort_unstable();
+    assert_eq!(observed, expected, "each extent must carry its own dependency");
 }
 
 /// The constants each folded constant consumed, by path. A constant with no
@@ -176,12 +199,7 @@ fn a_named_read_names_the_constant_it_consumed_even_when_both_values_agree() {
         assert_eq!(psi_handoff_consumer::array_parameter_length(&lowered, "copy"), Some(8));
         spec_corpus::observe_handoff!("named-constant-reads/consumer", assert_eq!(constant_reads(&lowered, "ALIAS"), [read]));
         let closure = lowered.target_closure.as_ref().unwrap();
-        assert!(
-            closure
-                .inputs()
-                .iter()
-                .any(|input| matches!(&input.origin, FoldedValueOrigin::StaticIndex { .. }) && input.constants.iter().any(|id| id.path == "ALIAS"))
-        );
+        assert_both_extents_read_alias(closure, &source);
     }
 }
 

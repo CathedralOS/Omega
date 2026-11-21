@@ -145,6 +145,17 @@ fn a_callee_guard_names_its_own_formal_not_the_caller_spelling() {
     assert_eq!(guard(&check.contract.crash_routes[0]), [Formal(0), Integer(3.into()), Apply(Equal)]);
     assert_eq!(guard(&outer.contract.crash_routes[0]), [Formal(1), Integer(3.into()), Apply(Equal)]);
     assert_eq!(check.contract.crash_routes[0].cause, CrashCause::Abort);
+    assert_eq!(outer.contract.crash_routes[0].cause, CrashCause::Abort);
+
+    // At check(value), the callee's guard reads value, not outer's guarded other.
+    let [call] = outer.body.operations.as_slice() else {
+        panic!("expected one call to check")
+    };
+    let OperationKind::Call { callee: CallTarget::Machine(callee), arguments, .. } = &call.kind else {
+        panic!("expected a direct call to check")
+    };
+    assert_eq!(*callee, check.id);
+    psi_handoff_consumer::product_witness::call_reads_formals(&outer.body, arguments, &[0]).expect("check reads outer's value");
 }
 
 #[test]
