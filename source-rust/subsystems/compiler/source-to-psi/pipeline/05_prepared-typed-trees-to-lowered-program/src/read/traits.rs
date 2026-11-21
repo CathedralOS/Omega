@@ -702,44 +702,51 @@ impl<'program> Program<'program> {
                     "implementation has no complete exact trait application",
                 )
             })?;
-        let application_identity = application
-            .portable_application_identity(typed)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "implementation trait application has no portable identity",
-                )
-            })?;
-        let requirements = typed.trait_machine_signatures(application.declaration);
+        let receivers = crate::source_state::service_declarations::projection::inherited_scopes(
+            typed, application,
+        )
+        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        let mut requirements = std::collections::HashMap::new();
+        for receiver in &receivers {
+            for signature in typed.trait_machine_signatures(receiver.declaration) {
+                if requirements
+                    .insert(signature.symbol, (receiver, signature))
+                    .is_some()
+                {
+                    return Err(services::unavailable(
+                        context,
+                        "two declarations claim the same implementation requirement",
+                    ));
+                }
+            }
+        }
         if declaration.rows.len() != requirements.len() {
             return Err(services::unavailable(
                 context,
                 "implementation rows do not cover the complete schema",
             ));
         }
-        let mut entered = Vec::with_capacity(declaration.rows.len());
         let mut questions = Vec::with_capacity(declaration.rows.len());
         for row in &declaration.rows {
-            if row.declaring_trait != application.declaration.symbol
-                || entered.contains(&row.requirement)
-            {
-                return Err(services::unavailable(
-                    context,
-                    "implementation repeats or changes an exact schema requirement",
-                ));
-            }
-            let required = requirements
-                .iter()
-                .find(|signature| signature.symbol == row.requirement)
+            let (application, required) = requirements
+                .remove(&row.requirement)
+                .filter(|(owner, _)| owner.declaration.symbol == row.declaring_trait)
                 .ok_or_else(|| {
                     services::unavailable(
                         context,
-                        "implementation row names no exact schema requirement",
+                        "implementation row repeats or changes an exact declaring requirement",
                     )
                 })?;
-            entered.push(row.requirement);
+            let application_identity = application
+                .portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "implementation requirement has no portable receiver identity",
+                    )
+                })?;
             let supplied = typed
                 .machine_by_symbol(row.realization_machine)
                 .ok_or_else(|| {
@@ -762,7 +769,7 @@ impl<'program> Program<'program> {
                                 required.symbol,
                             )
                             .map_err(|reason| services::unavailable(context, reason))?
-                            .is_some_and(|own| own.same_application(typed, &application)));
+                            .is_some_and(|own| own.same_application(typed, application)));
                 if !same_application {
                     return Err(services::unavailable(
                         context,
@@ -806,7 +813,7 @@ impl<'program> Program<'program> {
                     .push(super::FixedContract::Interface(machine));
                 SourceImplementation::Machine(machine)
             };
-            let scope = self.applied_scope(context, &application)?;
+            let scope = self.applied_scope(context, application)?;
             let signature = self.static_requirement_signature(
                 context,
                 required,
@@ -905,7 +912,7 @@ impl<'program> Program<'program> {
             questions.push(SourceConformance {
                 declaration: symbol,
                 requirement: row.requirement,
-                application: application_identity.clone(),
+                application: application_identity,
                 implementation,
                 signature,
                 envelope: self.static_envelope(
