@@ -2960,7 +2960,17 @@ impl<'a> Replay<'a> {
         if !machine.flow.contains_key(&machine.entry) {
             return None;
         }
-        let mut states = States::from([(machine.entry, self.initial(machine)?)]);
+        let start = self.initial(machine).or_else(|| {
+            eprintln!("ARRAY ROOTS {:?}", machine.place_types);
+            for (at, step) in &machine.flow {
+                if !(step.value_transfers.is_empty() && step.derivations.is_empty() && step.inputs.is_empty()) {
+                    eprintln!("ARRAY USE {:?} copies {:?} derived {:?} inputs {:?}",at,step.value_transfers, step.derivations, step.inputs);
+                }
+            }
+            eprintln!("ARRAY CONTENTS {:?} {:?}",machine.contents_queries,machine.contents_transfers.keys().collect::<Vec<_>>());
+            None
+        })?;
+        let mut states = States::from([(machine.entry, start)]);
         let mut arrivals = States::new();
         let mut invocation_states = InvocationStates::new();
         let mut normal_exits = States::new();
