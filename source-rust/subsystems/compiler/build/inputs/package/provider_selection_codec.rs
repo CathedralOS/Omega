@@ -26,6 +26,7 @@ use symbols::SymbolKind;
 
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const FAMILY_MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x04";
+const UNQUALIFIED_TARGET: u64 = u64::MAX;
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
 struct SelectionSources {
@@ -170,7 +171,10 @@ impl SelectionSources {
                 self.application(application.as_ref(), &mut output);
             }
             self.application(row.provider_application.as_ref(), &mut output);
-            integer(&mut output, row.target.code());
+            integer(
+                &mut output,
+                row.target.map_or(UNQUALIFIED_TARGET, ProductTarget::code),
+            );
             output.push(match row.composition_mode {
                 CompositionMode::Fused => 0,
                 CompositionMode::Independent => 1,
@@ -355,7 +359,10 @@ pub fn decode_package_provider_selections(
             *application = decode_application(&mut cursor, &application_sources)?;
         }
         let provider_application = decode_application(&mut cursor, &application_sources)?;
-        let target = ProductTarget::from_code(cursor.u64()?)?;
+        let target = match cursor.u64()? {
+            UNQUALIFIED_TARGET => None,
+            code => Some(ProductTarget::from_code(code)?),
+        };
         let composition_mode = match cursor.u8()? {
             0 => CompositionMode::Fused,
             1 => CompositionMode::Independent,
@@ -718,7 +725,7 @@ mod tests {
             provider: build,
             provider_identity: "provider".into(),
             provider_application: None,
-            target: ProductTarget::LinuxX86_64,
+            target: Some(ProductTarget::LinuxX86_64),
             composition_mode: CompositionMode::Fused,
             origin,
         };
@@ -734,6 +741,15 @@ mod tests {
             ),
             Some((vec![single.clone()], observation))
         );
+        let mut unqualified = single.clone();
+        unqualified.target = None;
+        let unrestricted =
+            encode_package_provider_selections(std::slice::from_ref(&unqualified), observation);
+        assert_eq!(
+            decode_package_provider_selections(&unrestricted),
+            Some((vec![unqualified], observation))
+        );
+        assert_ne!(unrestricted, ordinary);
         let members = vec![
             RetainedOperatorCoordinate {
                 declaration: first,

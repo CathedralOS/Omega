@@ -10,14 +10,14 @@ use source_declarations::declaration_selection::{
 use source_symbol_table::source_inputs::SourceMap;
 use std::sync::Arc;
 
-/// The provider Build chose for a declaration or operator family on one target.
+/// The provider Build chose for a declaration or operator family and its optional target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedProviderSelection {
     pub subject: RetainedProviderSubject,
     pub provider: RetainedDeclaration,
     pub provider_identity: String,
     pub provider_application: Option<RetainedProductApplication>,
-    pub target: ProductTarget,
+    pub target: Option<ProductTarget>,
     pub composition_mode: CompositionMode,
     pub origin: BuildSelectionOrigin,
 }

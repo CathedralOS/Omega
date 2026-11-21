@@ -137,27 +137,11 @@ fn prepare_published_application<Publisher>(
             )),
         ),
     };
-    let imports = realization
-        .component_imports()
-        .map(|(plan, import)| (plan.clone(), import.clone()))
-        .collect::<Vec<_>>();
-    let mut calling = realization.calling_applications().to_vec();
-    for (_, import) in &imports {
-        for selected in import.calls() {
-            add_component_calling(
-                artifact,
-                profile,
-                selected.receiving_boundary(),
-                &mut calling,
-            )?;
-        }
-    }
     project_root(
         execution,
         artifact,
         root,
         roots,
-        calling,
         NativeApplicationSettings {
             application: inputs.application,
             optimizations: inputs.optimizations,
@@ -199,16 +183,6 @@ pub fn bind_component_export<Publisher>(
             "component export belongs to another supplier publication",
         )]);
     }
-    let profile = execution
-        .target_profile()
-        .ok_or_else(|| vec![Diagnostic::error("component export has no target")])?;
-    let mut calling = execution.realization().calling_applications().to_vec();
-    add_component_calling(
-        artifact,
-        profile,
-        selected.provider_boundary(),
-        &mut calling,
-    )?;
     let entry = terminal_psi::TargetMachineCallable::Machine(selected.candidate());
     let root = artifact
         .semantic_module()
@@ -226,7 +200,6 @@ pub fn bind_component_export<Publisher>(
         artifact,
         verified_optimization_input::NativeRootNomination::Component(selected),
         vec![root],
-        calling,
         settings,
         exclusions,
     )
@@ -237,7 +210,6 @@ fn project_root<Publisher>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     root: verified_optimization_input::NativeRootNomination<'_>,
     roots: Vec<terminal_psi::ProofDeclarationId>,
-    calling: Vec<calling_conventions::BoundaryCallingApplication>,
     settings: NativeApplicationSettings<'_>,
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
 ) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
@@ -248,6 +220,21 @@ fn project_root<Publisher>(
     let profile = execution
         .target_profile()
         .ok_or_else(|| refuse("native root has no deployment target".into()))?;
+    // A supplier can export one boundary and call others from its body.
+    // Resolve both sides against this package's own artifact.
+    let imports: Vec<_> = realization
+        .component_imports()
+        .map(|(_, import)| import.clone())
+        .collect();
+    let mut calling = realization.calling_applications().to_vec();
+    if let verified_optimization_input::NativeRootNomination::Component(export) = &root {
+        add_component_calling(artifact, profile, export.provider_boundary(), &mut calling)?;
+    }
+    for import in &imports {
+        for selected in import.calls() {
+            add_component_calling(artifact, profile, selected.receiving_boundary(), &mut calling)?;
+        }
+    }
     let mut provider_proposal = execution
         .provider_proposal(artifact.view(), settings.optimizations.identity())
         .ok_or_else(|| refuse("native root lost its provider proposal".into()))?;
@@ -287,10 +274,7 @@ fn project_root<Publisher>(
             calling_applications: calling,
         },
         root,
-        imports: realization
-            .component_imports()
-            .map(|(_, import)| import.clone())
-            .collect(),
+        imports,
         application: settings.application,
         optimizations: settings.optimizations.project_post_terminal(),
         external_bindings: realization.external_bindings(),
