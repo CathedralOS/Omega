@@ -1005,6 +1005,39 @@ fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
 }
 
 #[test]
+fn named_constants_select_operators_with_their_declared_type() {
+    use crate::source_state::expression::ExpressionNode;
+    let declaration = format!("use units; {OPERATOR}");
+    let program = typed(&[
+        ("units/domains.omg", DOMAIN),
+        ("operator.omg", &declaration),
+        (
+            "readings.omg",
+            r"use units;
+              machine read() -> u32 in Distance { 4u32 as +Distance }
+              public const SAMPLE: u32 in Distance = read();",
+        ),
+        (
+            "client.omg",
+            r"use units; use readings;
+              machine summed(value: u32 in Distance) -> u32 in Distance { SAMPLE + value }
+              machine reversed(value: u32 in Distance) -> u32 in Distance { value + readings\SAMPLE }
+              machine shadowed(SAMPLE: u32) -> u32 { SAMPLE + 4u32 }",
+        ),
+    ]);
+    let target = program.machine_token_bindings()[0].symbol;
+    let owners = crate::source_state::references::collect_program_operand_owners(&program);
+    for (name, expected) in [("summed", 1), ("reversed", 1), ("shadowed", 0)] {
+        let owner = program.machines().iter().find(|m| m.name.as_str() == name).unwrap().symbol;
+        let selected = program.expression_table.iter_expressions().filter(|(id, node)| {
+            matches!(node, ExpressionNode::Call(call) if call.target_symbol == target)
+                && owners.expression_owners(*id).any(|found| found == owner)
+        }).count();
+        assert_eq!(selected, expected, "{name}");
+    }
+}
+
+#[test]
 fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
     let program = typed(&[
         (
