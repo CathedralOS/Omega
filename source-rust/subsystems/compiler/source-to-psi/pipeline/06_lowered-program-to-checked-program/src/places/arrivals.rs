@@ -41,9 +41,9 @@ impl Storage<'_> {
         }))
     }
 
-    /// Visit the complete telescope in the same order as the receiving
-    /// checker. Save only authenticated argument lineages, after every edge
-    /// and its requested observation has been checked in order.
+    /// Visit every incoming binding of one block input in checker order.
+    /// Retain its argument lineages only after each edge and its requested
+    /// observation have been checked.
     pub(super) fn visit_incoming_storage(
         &self,
         target: &Block,
