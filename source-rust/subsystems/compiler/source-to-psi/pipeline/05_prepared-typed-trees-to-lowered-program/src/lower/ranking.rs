@@ -4,7 +4,7 @@
 
 use super::places::Bound;
 use super::{Lowering, Value};
-use crate::lowering::body::{Expression, ExpressionKind, Signature, Strict, ValueType};
+use crate::lowering::body::{Expression, ExpressionKind, RankRange, Signature, Strict, ValueType};
 use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
@@ -36,7 +36,7 @@ impl Lowering<'_> {
 
     pub(super) fn begin_ranking(&mut self, member: MachineId) -> Checked<()> {
         let signature = self.signatures.get(member.into(), self.id)?;
-        let Some(expressions) = &signature.ranking else {
+        let Some(ranking) = &signature.ranking else {
             return Ok(());
         };
         let inputs = signature
@@ -53,11 +53,71 @@ impl Lowering<'_> {
                 _ => Input::Unavailable,
             })
             .collect::<Vec<_>>();
-        let values = self.observe_ranks(expressions, &inputs)?;
+        let values = self.observe_ranks(&ranking.measures, &inputs)?;
         let block = self.current()?;
         let missing = self.internal("ranked block has no construction row");
         *self.block_ranks.get_mut(block).ok_or(missing)? = Some(values.clone());
         self.active_rank = Some(values);
+        if let Some(range) = &ranking.range {
+            let Some([measure]) = self.active_rank.as_deref() else {
+                return Err(self.unserved_rank("a scalar rank range needs exactly one measure"));
+            };
+            self.establish_rank_range(*measure, range, &inputs)?;
+        }
+        Ok(())
+    }
+
+    /// Each source invocation checks its private interval on the normalized
+    /// rank. The ordinary invariant edge proves the two inequalities before
+    /// its destination can assume them, including on first entry to a loop.
+    fn establish_rank_range(
+        &mut self,
+        rank: TerminalIntegerRankValue,
+        range: &RankRange,
+        inputs: &[Input],
+    ) -> Checked<()> {
+        use semantic_vocabulary::{Proposition, ScalarTerm};
+
+        let lower = self.rank_expression(&range.lower, inputs)?;
+        let upper = self.rank_expression(&range.upper, inputs)?;
+        let source = range.lower.source;
+        let established = self.block(source);
+        let scalar_type = ScalarType::Integer(rank.integer_type);
+        let mut bind = |position| -> Checked<ScalarTerm> {
+            let id = self.value(
+                scalar_type,
+                ValueOrigin::BlockParameter {
+                    block: established,
+                    position,
+                },
+            );
+            self.parameter(established, id, scalar_type)?;
+            Ok(ScalarTerm::Value { id, scalar_type })
+        };
+        let floor = bind(0)?;
+        let measure = bind(1)?;
+        let ceiling = bind(2)?;
+        let below_ceiling = if range.upper_inclusive {
+            Proposition::LessOrEqual(measure.clone(), ceiling)
+        } else {
+            Proposition::LessThan(measure.clone(), ceiling)
+        };
+        self.invariants.push(terminal_psi::ScalarBlockInvariant {
+            machine: self.id,
+            header: established,
+            predicate: crate::lowering::canonical::conjunction(
+                vec![Proposition::LessOrEqual(floor, measure), below_ceiling],
+                self.id,
+            )?,
+            arrivals: Vec::new(),
+        });
+        self.jump_with_structural(
+            established,
+            vec![lower, rank.value, upper],
+            Vec::new(),
+            source,
+        )?;
+        self.enter(established);
         Ok(())
     }
 
@@ -68,11 +128,11 @@ impl Lowering<'_> {
         structural: &[StructuralArgument],
     ) -> Checked<()> {
         let signature = self.signatures.get(member.into(), self.id)?;
-        let Some(expressions) = &signature.ranking else {
+        let Some(ranking) = &signature.ranking else {
             return Ok(());
         };
         let inputs = self.rank_inputs(signature, scalars, structural)?;
-        let values = self.observe_ranks(expressions, &inputs)?;
+        let values = self.observe_ranks(&ranking.measures, &inputs)?;
         self.successor_ranks.push((self.current()?, member, values));
         Ok(())
     }

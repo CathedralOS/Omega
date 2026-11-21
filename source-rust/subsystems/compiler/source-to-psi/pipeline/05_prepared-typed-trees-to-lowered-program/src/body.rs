@@ -590,7 +590,29 @@ pub struct Signature {
     pub termination: Termination,
     /// The body's private decreasing measure. A conforming public signature
     /// cannot replace this witness or publish it as a caller guarantee.
-    pub ranking: Option<Vec<Expression>>,
+    pub ranking: Option<Ranking>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ranking {
+    pub measures: Vec<Expression>,
+    pub range: Option<Box<RankRange>>,
+}
+
+impl Ranking {
+    pub fn without_range(measures: Vec<Expression>) -> Self {
+        Self {
+            measures,
+            range: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RankRange {
+    pub lower: Expression,
+    pub upper: Expression,
+    pub upper_inclusive: bool,
 }
 
 /// Borrow the one signature representation across the two actual declaration

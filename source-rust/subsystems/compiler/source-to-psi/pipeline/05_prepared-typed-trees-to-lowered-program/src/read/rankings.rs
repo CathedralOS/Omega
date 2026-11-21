@@ -3,7 +3,9 @@
 //! compiler ranking theory.
 
 use super::{Program, Slot};
-use crate::lowering::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
+use crate::lowering::body::{
+    Expression, ExpressionKind, Policy, RankRange, Ranking, Strict, ValueType,
+};
 use crate::lowering::{Unserved, refuse};
 use crate::source_state::machine::Machine;
 use semantic_vocabulary::RankingViewId;
@@ -135,14 +137,14 @@ impl Program<'_> {
         id: MachineId,
         machine: &Machine,
         slots: &[Slot],
-    ) -> Checked<Option<Vec<Expression>>> {
+    ) -> Checked<Option<Ranking>> {
         let Some(witness) = &machine.termination_plan.implementation_witness else {
             return Ok(None);
         };
         let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
         let (view, default) = self.ranking_view(id, machine)?;
-        if witness.rank_range.is_some() || !witness.view_arguments.is_empty() {
-            return Err(unsupported("ranking view arguments and bounded ranges"));
+        if !witness.view_arguments.is_empty() {
+            return Err(unsupported("ranking view arguments"));
         }
         let subjects =
             crate::source_state::ranking::resolve_machine_witness_subjects(self.typed, machine)
@@ -189,7 +191,46 @@ impl Program<'_> {
         {
             return Err(unsupported("ranking needs a closed finite integer carrier"));
         }
-        Ok(Some(vec![rank]))
+        let range = if witness.rank_range.is_some() {
+            let range = self
+                .typed
+                .ranking_expression_custody_for(machine.symbol)
+                .and_then(|selected| selected.rank_range)
+                .ok_or_else(|| unsupported("rank range has no resolved endpoints"))?;
+            let crate::source_state::expression::ExpressionNode::Range(range) =
+                *self.node(id, range)?
+            else {
+                return Err(unsupported("ranking range must be a resolved interval"));
+            };
+            if !range.start.is_valid() || !range.end.is_valid() {
+                return Err(unsupported(
+                    "ranking range needs a lower and an upper bound",
+                ));
+            }
+            let scalar_type = rank.result.and_then(ValueType::scalar);
+            let expected = scalar_type.map(ValueType::plain);
+            let lower = self.expression(id, slots, range.start, expected)?;
+            let upper = self.expression(id, slots, range.end, expected)?;
+            if [lower.result, upper.result]
+                .into_iter()
+                .any(|ty| ty.and_then(ValueType::scalar) != scalar_type)
+            {
+                return Err(unsupported(
+                    "ranking range bounds must use the rank's integer carrier",
+                ));
+            }
+            Some(Box::new(RankRange {
+                lower,
+                upper,
+                upper_inclusive: range.end_inclusive,
+            }))
+        } else {
+            None
+        };
+        Ok(Some(Ranking {
+            measures: vec![rank],
+            range,
+        }))
     }
 
     fn distance(
