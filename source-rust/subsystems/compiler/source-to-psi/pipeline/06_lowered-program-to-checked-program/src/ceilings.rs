@@ -239,12 +239,15 @@ fn machine_envelope<'a>(
             &elaboration.generic_callable_declarations[position].envelope,
         ));
     }
-    if !elaboration.requirements.is_empty()
-        && elaboration.module.execution.callables.contracts.is_empty()
-        && elaboration.module.execution.callables.descriptors.is_empty()
-        && let Some(envelope) = elaboration.requirement_ceilings.get(machine)
+    // validate_requirement_envelopes joins a retained requirement envelope
+    // to this exact bodyless machine, even when its form takes callbacks.
+    if let Some(bounds) = elaboration.requirement_ceilings.get(machine)
+        && (bounds.envelope.is_some()
+            || (!elaboration.requirements.is_empty()
+                && elaboration.module.execution.callables.contracts.is_empty()
+                && elaboration.module.execution.callables.descriptors.is_empty()))
     {
-        return Ok(Envelope::Abstract(envelope));
+        return Ok(Envelope::Abstract(bounds));
     }
     Err(fault(
         machine,
