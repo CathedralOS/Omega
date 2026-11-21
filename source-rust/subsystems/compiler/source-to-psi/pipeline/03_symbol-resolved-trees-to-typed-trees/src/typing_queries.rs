@@ -480,10 +480,18 @@ fn declared_projection_type(
                 }
                 for expression in spine.into_iter().rev() {
                     reference = match table.expression(expression) {
-                        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
-                            let base = program.type_reference_table.unconstrained_type_reference(reference);
-                            let TypeReferenceNode::Reference { referee, .. } = program.type_reference_table.type_reference(base) else {
-                                return Err(crate::typing::unavailable_judgment("dereference of non-reference storage"));
+                        ExpressionNode::Unary(unary)
+                            if unary.operator == UnaryOperator::Dereference =>
+                        {
+                            let base = program
+                                .type_reference_table
+                                .unconstrained_type_reference(reference);
+                            let TypeReferenceNode::Reference { referee, .. } =
+                                program.type_reference_table.type_reference(base)
+                            else {
+                                return Err(crate::typing::unavailable_judgment(
+                                    "dereference of non-reference storage",
+                                ));
                             };
                             *referee
                         }
@@ -1592,6 +1600,22 @@ impl DeclaredExpressionTypes {
             .contains_type_reference(retained)
         {
             return Some(retained);
+        }
+        // A requirement's namespace receiver is not a value argument. Read its
+        // exact public signature before a surrounding cast accounts for the
+        // result's domains; the receiving type cannot supply that information.
+        if let ExpressionNode::Call(call) = table.expression(expression)
+            && call.selects_only_nominal_route()
+            && table.expression_is_valid(call.receiver)
+            && let Ok(signature) = program.source_call_requirement_signature(
+                owner,
+                crate::source_state::references::StaticArgumentCall::Expression(expression, call),
+            )
+        {
+            return program
+                .type_reference_table
+                .contains_type_reference(signature.return_type)
+                .then_some(signature.return_type);
         }
         if let ExpressionNode::Call(call) = table.expression(expression)
             && call.selects_only_nominal_route()

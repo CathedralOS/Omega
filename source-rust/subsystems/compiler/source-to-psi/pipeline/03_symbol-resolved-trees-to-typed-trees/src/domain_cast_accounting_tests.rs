@@ -41,6 +41,55 @@ fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
 }
 
 #[test]
+fn a_domain_cast_reads_a_named_requirements_declared_result() {
+    let (_, typed) = source(
+        r#"
+boundary trait Offset {
+    machine value() -> u64 reaches none crashes none;
+}
+machine read() -> u64 in Wrapping {
+    Offset::value() as u64 +Wrapping
+}
+"#,
+    );
+    assert!(
+        typed.deferred_refusals.is_empty(),
+        "{:?}",
+        typed.deferred_refusals
+    );
+    assert!(
+        typed
+            .expression_table
+            .expression_entries()
+            .any(|(_, node)| {
+                matches!(node, ExpressionNode::Cast(cast) if cast.form.entry().is_some()
+            && cast.result_type.is_valid())
+            })
+    );
+}
+
+#[test]
+fn a_carrier_cast_cannot_drop_a_named_requirements_result_domain() {
+    let (_, result) = source_result(
+        r#"
+domain u64::Tagged;
+boundary trait Offset {
+    machine value() -> u64 in Tagged reaches none crashes none;
+}
+machine read() -> u64 in Wrapping {
+    Offset::value() as u64 +Wrapping
+}
+"#,
+    );
+    let error = result.expect_err("the carrier cast must account for Tagged");
+    assert!(
+        error.message.contains("carrier cast") && error.message.contains("Tagged"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn a_borrowed_collection_cast_keeps_its_declared_field_type() {
     let (_, typed) = source(
         r#"
@@ -327,7 +376,12 @@ machine remove(value: i64 in Marked<u32>) -> i64 { value as -Marked<u32> }
         };
         assert!(cast.result_type.is_valid());
         assert!(cast.semantic_domain_symbol.is_valid());
-        assert_eq!(typed.expression_table.name_path_string(cast.semantic_domain), "Marked");
+        assert_eq!(
+            typed
+                .expression_table
+                .name_path_string(cast.semantic_domain),
+            "Marked"
+        );
         let arguments = typed
             .type_reference_table
             .type_reference_handles(cast.semantic_domain_arguments);
