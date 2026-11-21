@@ -28,9 +28,10 @@ pub(crate) fn publish_stage(
     source: StageSource<'_>,
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
+    accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
 ) -> Result<(PublishedPsi, CompletedProductSource), Vec<Diagnostic>> {
     let (product, continuation) = source.resolve()?;
-    let checked = product.judge(continuation, entry)?;
+    let checked = product.judge(continuation, entry, accounting)?;
     let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
@@ -64,11 +65,13 @@ impl ProductSourceInputs<'_> {
         &self,
         continuation: SourceTypingCheckpoint,
         entry: ProductEntry<'_>,
+        accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
         prepare_lower_and_check(
             continuation,
             self.clone(),
             entry,
+            accounting,
             &mut CompileTimings::default(),
         )
     }

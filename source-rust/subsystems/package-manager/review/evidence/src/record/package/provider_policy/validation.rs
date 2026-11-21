@@ -8,7 +8,7 @@ use application_identity::type_identity::normalize_requirement_lifetime_partitio
 use std::cmp::Ordering;
 
 impl PackagePolicyProviderPlan {
-    pub(crate) fn compare_canonical(&self, other: &Self) -> Ordering {
+    pub fn compare_canonical(&self, other: &Self) -> Ordering {
         self.plan_name
             .cmp(&other.plan_name)
             .then_with(|| self.realizing_package.cmp(&other.realizing_package))

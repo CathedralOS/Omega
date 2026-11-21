@@ -15,12 +15,12 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRepresentation {
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: PackageReviewRepresentationTarget,
-    pub(crate) declarations: Vec<PackageReviewNominalIdentity>,
-    pub(crate) producer_availability: Vec<PackagePolicyRepresentationAvailability>,
-    pub(crate) selected_availability: Vec<PackagePolicyRepresentationSelection>,
-    pub(crate) demands: Vec<PackagePolicyRepresentationDemand>,
+    pub package: PackageKeyIdentity,
+    pub target: PackageReviewRepresentationTarget,
+    pub declarations: Vec<PackageReviewNominalIdentity>,
+    pub producer_availability: Vec<PackagePolicyRepresentationAvailability>,
+    pub selected_availability: Vec<PackagePolicyRepresentationSelection>,
+    pub demands: Vec<PackagePolicyRepresentationDemand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

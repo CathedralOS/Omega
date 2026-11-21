@@ -10,16 +10,16 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyProviderRow {
-    pub(crate) method: String,
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) requirement_application: Option<String>,
-    pub(crate) realization: Option<PackageReviewNominalIdentity>, // Authored realization machine (`None` for toolchain-settled rows).
-    pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>, // Actual Build producer when native supply has no realization body.
-    pub(crate) requirement_lifetime_partition: Vec<u32>,
-    pub(crate) admitted_same_stack_bytes: u64, // Authored same-stack demand in bytes (`0` when no `stack N bytes` clause was written).
-    pub(crate) binding: PackagePolicyProviderBinding,
-    pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
-    pub(crate) installation_reach: Option<PackageReviewSelectedInstallationReach>,
+    pub method: String,
+    pub requirement: PackageReviewNominalIdentity,
+    pub requirement_application: Option<String>,
+    pub realization: Option<PackageReviewNominalIdentity>, // Authored realization machine (`None` for toolchain-settled rows).
+    pub native_build: Option<PackagePolicyEvaluatedBindingProducer>, // Actual Build producer when native supply has no realization body.
+    pub requirement_lifetime_partition: Vec<u32>,
+    pub admitted_same_stack_bytes: u64, // Authored same-stack demand in bytes (`0` when no `stack N bytes` clause was written).
+    pub binding: PackagePolicyProviderBinding,
+    pub compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
+    pub installation_reach: Option<PackageReviewSelectedInstallationReach>,
 }
 
 impl PackagePolicyProviderRow {
@@ -50,8 +50,8 @@ impl PackagePolicyProviderRow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyProviderEvaluatedSyscall {
-    pub(crate) target: String,
-    pub(crate) producer: PackagePolicyEvaluatedBindingProducer,
+    pub target: String,
+    pub producer: PackagePolicyEvaluatedBindingProducer,
 }
 
 impl PackagePolicyProviderEvaluatedSyscall {}

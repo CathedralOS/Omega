@@ -20,7 +20,7 @@ use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use crate::record::validation::ordered;
 
 impl PackagePolicyBaseline {
-    pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
+    pub fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         if self.callables.package != self.package
             || self.callables.target != self.target
             || self.selected_providers.package != self.package

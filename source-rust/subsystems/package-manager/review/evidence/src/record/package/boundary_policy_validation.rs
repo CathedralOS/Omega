@@ -18,7 +18,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 impl PackagePolicyBoundaryApplicationRealization {
-    pub(crate) fn application_key(
+    pub fn application_key(
         &self,
     ) -> (
         &PackageReviewOperatorCoordinate,

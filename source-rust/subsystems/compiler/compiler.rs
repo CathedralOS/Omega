@@ -13,12 +13,41 @@ use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
+pub use native_compiler::SelectedProviderResult;
 pub use native_compiler::{
     NativeApplicationSettings, SavedProgramTarget as NativeTarget, SourceNativeTarget,
     TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
+
+/// Complete package declaration and target-supply findings from one publication.
+pub fn review_package(
+    source: StageSource<'_>,
+    target: SourceNativeTarget<'_>,
+    accounting: &mut source_compiler::compile_time_invocations::SourceCompletionAccounting,
+) -> Result<
+    (
+        source_compiler::CheckedPackageDeclarations,
+        SelectedProviderResult,
+    ),
+    Vec<Diagnostic>,
+> {
+    let (declarations, publication) =
+        source_to_psi::review_package(source, target.profile.target_name(), accounting)?;
+    let (artifact, providers, _) = publication.into_parts();
+    let authorized = authorize_current_compilation(artifact)?;
+    let selected = native_compiler::review_source_providers(authorized, providers, target)?;
+    Ok((declarations, selected))
+}
+
+fn authorize_current_compilation(
+    artifact: PublishedPsi,
+) -> Result<AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    let producer = HostProducerTrust::accept("current compiler invocation");
+    authorize_terminal_artifact(artifact, Some(&producer))
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+}
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
@@ -188,9 +217,7 @@ impl Program<'_> {
                     })
                     .transpose()?;
                 let (artifact, providers, exclusions) = publication.into_parts();
-                let producer = HostProducerTrust::accept("current compiler invocation");
-                let authorized = authorize_terminal_artifact(artifact, Some(&producer))
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+                let authorized = authorize_current_compilation(artifact)?;
                 let program = native_compiler::prepare_source_program(
                     authorized,
                     providers,

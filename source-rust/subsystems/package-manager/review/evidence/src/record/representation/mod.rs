@@ -6,12 +6,14 @@ mod shape;
 mod target;
 
 pub(crate) use movement::{
-    PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryValueClass,
-    PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
-    PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,
-    PackageReviewMachineRegister, PackageReviewOpaqueRepresentationMovementRole,
-    PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,
-    PackageReviewSystemVEightbyteClass,
+    PackageReviewBoundaryCallingPolicy, PackageReviewMachineRegister,
+    PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
+    PackageReviewOpaqueRepresentationPathElement,
+};
+pub use movement::{
+    PackageReviewBoundaryValueClass, PackageReviewBoundaryValueLocation,
+    PackageReviewBoundaryValuePlacement, PackageReviewBoundaryValueShape,
+    PackageReviewIndirectPointerLocation, PackageReviewSystemVEightbyteClass,
 };
 pub use policy::PackagePolicyRepresentation;
 pub(crate) use policy::{
@@ -19,12 +21,12 @@ pub(crate) use policy::{
     PackagePolicyRepresentationSelection,
 };
 
-pub(crate) use shape::{
-    PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
-    PackageReviewBoundaryShapeGraph,
+pub(crate) use shape::PackageReviewBoundaryShapeClass;
+pub use shape::{
+    PackageReviewBoundaryShape, PackageReviewBoundaryShapeField, PackageReviewBoundaryShapeGraph,
 };
 
-pub(crate) use target::{
+pub use target::{
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };

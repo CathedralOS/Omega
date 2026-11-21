@@ -39,8 +39,8 @@ impl PackagePolicyCapabilityFlow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyMutation {
-    pub(crate) completeness: PackageReviewWriteFrameCompleteness,
-    pub(crate) paths: Vec<String>,
+    pub completeness: PackageReviewWriteFrameCompleteness,
+    pub paths: Vec<String>,
 }
 impl PackagePolicyMutation {
     field_projection_accessors!(copied completeness: PackageReviewWriteFrameCompleteness);
@@ -55,8 +55,8 @@ pub enum PackagePolicyCrashGuard {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyCrashRoute {
-    pub(crate) cause: PackageReviewCrashCause,
-    pub(crate) alternative_guards: Vec<PackagePolicyCrashGuard>,
+    pub cause: PackageReviewCrashCause,
+    pub alternative_guards: Vec<PackagePolicyCrashGuard>,
 }
 impl PackagePolicyCrashRoute {
     field_projection_accessors!(copied cause: PackageReviewCrashCause);
@@ -73,10 +73,10 @@ pub enum PackagePolicyInferredCrash {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCrash {
-    pub(crate) interface: PackageReviewCrashInterface,
-    pub(crate) published: Vec<PackagePolicyCrashRoute>,
-    pub(crate) structural_runtime_requirements: Option<Vec<PackageReviewBooleanExpression>>,
-    pub(crate) inferred: PackagePolicyInferredCrash,
+    pub interface: PackageReviewCrashInterface,
+    pub published: Vec<PackagePolicyCrashRoute>,
+    pub structural_runtime_requirements: Option<Vec<PackageReviewBooleanExpression>>,
+    pub inferred: PackagePolicyInferredCrash,
 }
 impl PackagePolicyCrash {
     field_projection_accessors!(copied interface: PackageReviewCrashInterface);

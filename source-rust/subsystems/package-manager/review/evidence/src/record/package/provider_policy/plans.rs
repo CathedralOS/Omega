@@ -10,10 +10,10 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicySelectedProviders {
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: TargetProfile,
-    pub(crate) plans: Vec<PackagePolicyProviderPlan>,
-    pub(crate) families: Vec<PackagePolicyProviderFamily>,
+    pub package: PackageKeyIdentity,
+    pub target: TargetProfile,
+    pub plans: Vec<PackagePolicyProviderPlan>,
+    pub families: Vec<PackagePolicyProviderFamily>,
 }
 
 impl PackagePolicySelectedProviders {
@@ -24,15 +24,15 @@ impl PackagePolicySelectedProviders {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyProviderPlan {
-    pub(crate) plan_name: String,
-    pub(crate) realizing_package: Option<PackageKeyIdentity>,
-    pub(crate) schema_declaration: PackageReviewNominalIdentity,
-    pub(crate) provider_type: String,
-    pub(crate) provider_type_declaration: Option<PackageReviewNominalIdentity>,
-    pub(crate) target: String,
-    pub(crate) methods: Vec<PackagePolicyServiceMethod>,
-    pub(crate) rows: Vec<PackagePolicyProviderRow>,
-    pub(crate) grants: Vec<PackageReviewProviderGrantSelectorKind>,
+    pub plan_name: String,
+    pub realizing_package: Option<PackageKeyIdentity>,
+    pub schema_declaration: PackageReviewNominalIdentity,
+    pub provider_type: String,
+    pub provider_type_declaration: Option<PackageReviewNominalIdentity>,
+    pub target: String,
+    pub methods: Vec<PackagePolicyServiceMethod>,
+    pub rows: Vec<PackagePolicyProviderRow>,
+    pub grants: Vec<PackageReviewProviderGrantSelectorKind>,
 }
 
 impl PackagePolicyProviderPlan {

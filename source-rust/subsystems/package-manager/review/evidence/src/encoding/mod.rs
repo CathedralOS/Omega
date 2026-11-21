@@ -26,7 +26,7 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
 pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 37;
-pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 38;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 38;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 10;

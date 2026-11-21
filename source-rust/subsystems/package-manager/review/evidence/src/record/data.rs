@@ -9,10 +9,10 @@ use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDataField {
-    pub(crate) identity: Option<u64>,
-    pub(crate) name: String,
-    pub(crate) relevance: language_core::BindingRelevance,
-    pub(crate) type_identity: PackageReviewTypeIdentity,
+    pub identity: Option<u64>,
+    pub name: String,
+    pub relevance: language_core::BindingRelevance,
+    pub type_identity: PackageReviewTypeIdentity,
 }
 
 impl PackageReviewDataField {}
@@ -39,8 +39,8 @@ pub enum PackageReviewDataKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
-    pub(crate) multiplicity: language_core::Multiplicity,
-    pub(crate) carry: Option<language_core::CarryPolicy>,
+    pub multiplicity: language_core::Multiplicity,
+    pub carry: Option<language_core::CarryPolicy>,
 }
 
 impl PackageReviewDataProperties {}

@@ -31,13 +31,10 @@ pub fn prepare_source_program(
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     target: SourceNativeTarget<'_>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
-    let artifact = authorization.shared_artifact();
-    let demand = publication.receive(artifact, target.profile.target_name())?;
-    let issued = provider_demand::IssuedProviderDemand::from_publication(
-        artifact.manifest().identity(),
-        Arc::clone(artifact),
-        Some(target.profile),
-        demand,
+    let issued = source_demand(
+        &authorization,
+        publication,
+        target.profile,
         target.package_permissions,
         target.semantic_bindings,
     )?;
@@ -47,6 +44,49 @@ pub fn prepare_source_program(
         target.settings,
         exclusions,
         target.installation_assumptions,
+    )
+}
+
+/// Determine the checked target supply for a package, including an entryless library.
+/// Selecting providers does not require a process-entry ABI.
+pub fn review_source_providers(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    publication: provider_demand::PublishedTargetProviders,
+    target: SourceNativeTarget<'_>,
+) -> Result<provider_realization::SelectedProviderResult, Vec<Diagnostic>> {
+    let issued = source_demand(
+        &authorization,
+        publication,
+        target.profile,
+        target.package_permissions,
+        target.semantic_bindings,
+    )?;
+    let admitted = native_inputs::admit(authorization, issued)
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    Ok(provider_realization::select_published_providers(admitted)?
+        .result()
+        .clone())
+}
+
+fn source_demand(
+    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    publication: provider_demand::PublishedTargetProviders,
+    profile: target::TargetProfile,
+    permissions: Option<declaration_scope::ProductDeclarationScope>,
+    bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+) -> Result<
+    provider_demand::IssuedProviderDemand<terminal_codec::TerminalArtifactIdentity>,
+    Vec<Diagnostic>,
+> {
+    let artifact = authorization.shared_artifact();
+    let demand = publication.receive(artifact, profile.target_name())?;
+    provider_demand::IssuedProviderDemand::from_publication(
+        artifact.manifest().identity(),
+        Arc::clone(artifact),
+        Some(profile),
+        demand,
+        permissions,
+        bindings,
     )
 }
 

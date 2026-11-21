@@ -4,22 +4,22 @@
 
 use super::declarations::unavailable;
 use super::input::PolicySource;
-use crate::record::{
+use diagnostics::Diagnostic;
+use review_evidence::record::{
     PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryRealization,
     PackagePolicyProviderBinding, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackageReviewBoundaryApplication,
     PackageReviewCompilerIntrinsicExecution, PackageReviewNominalIdentity,
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewSignatureParameter,
 };
-use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use source_compiler::source_state::declarations::intrinsic_requirements::{
+use source_compiler::representations::source_state::declarations::intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind,
 };
 use target::TargetProfile;
 
 pub(super) struct Projection {
-    pub dependency: crate::record::PackagePolicySemanticDependency,
+    pub dependency: review_evidence::record::PackagePolicySemanticDependency,
     pub realization: Option<(PackagePolicyProviderPlan, Application)>,
 }
 
@@ -70,7 +70,7 @@ pub(super) struct PreparedNumeric {
 
 struct NumericDeclaration {
     boundary: BoundaryMachineId,
-    dependency: crate::record::PackagePolicySemanticDependency,
+    dependency: review_evidence::record::PackagePolicySemanticDependency,
     method: Option<NumericMethod>,
 }
 
@@ -88,6 +88,7 @@ pub(super) fn prepare(
     let accepted = input.accepted();
     let module = accepted.module();
     let numeric = module
+        .interfaces
         .boundary_machines
         .iter()
         .filter(|boundary| {
@@ -172,11 +173,11 @@ pub(super) fn prepare(
                 "the numeric declaration's exact accepted application",
             ));
         }
-        let dependency = crate::record::PackagePolicySemanticDependency {
-            consumer: crate::record::PackagePolicySemanticDependencyConsumer::PackageImplementation,
+        let dependency = review_evidence::record::PackagePolicySemanticDependency {
+            consumer: review_evidence::record::PackagePolicySemanticDependencyConsumer::PackageImplementation,
             dependency: nominal.clone(),
-            exposure: crate::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
-            kind: crate::record::PackageReviewSemanticDependencyKind::NominalIdentity,
+            exposure: review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
+            kind: review_evidence::record::PackageReviewSemanticDependencyKind::NominalIdentity,
         };
         if demanded.binary_search(&boundary.id).is_err() {
             declarations.push(NumericDeclaration {
@@ -243,18 +244,17 @@ impl PreparedNumeric {
 
     pub(super) fn finish(
         &self,
-        checked: &products::CheckedCompilation,
+        checked: &compiler::SelectedProviderResult,
         target: TargetProfile,
     ) -> Result<Vec<Projection>, Vec<Diagnostic>> {
-        if target != self.target || checked.execution().target_profile() != Some(target) {
+        if target != self.target || checked.target_profile() != Some(target) {
             return Err(unavailable("the numeric declaration's target realization"));
         }
-        let leaves =
-            match checked.execution().package_review() {
-                Some(reviewed) => reviewed.numeric.as_deref().map_err(Clone::clone)?,
-                None if self.demanded == 0 => &[],
-                None => return Err(unavailable("the numeric declaration's target realization")),
-            };
+        let leaves = match checked.package_review() {
+            Some(reviewed) => reviewed.numeric.as_deref().map_err(Clone::clone)?,
+            None if self.demanded == 0 => &[],
+            None => return Err(unavailable("the numeric declaration's target realization")),
+        };
         if leaves.len() != self.demanded {
             return Err(unavailable("one exact numeric target realization"));
         }
@@ -312,8 +312,7 @@ impl NumericMethod {
         let [row] = leaf.plan.rows.as_slice() else {
             return Err(unavailable("one complete numeric realization row"));
         };
-        let provider_plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
-        else {
+        let provider_plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
             return Err(unavailable("the numeric method's intrinsic binding"));
         };
         let nominal = self.coordinate.identity.clone();

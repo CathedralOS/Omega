@@ -11,9 +11,9 @@ pub(crate) use signatures::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyEvaluatedBindingProducer {
-    pub(crate) declaration: PackageReviewNominalIdentity,
-    pub(crate) package: Option<PackageKeyIdentity>,
-    pub(crate) callable_identity: String,
+    pub declaration: PackageReviewNominalIdentity,
+    pub package: Option<PackageKeyIdentity>,
+    pub callable_identity: String,
 }
 
 impl PackagePolicyEvaluatedBindingProducer {

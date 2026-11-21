@@ -56,7 +56,7 @@ impl PackageReviewDomainEstablishmentRoute {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewDomainAliasAtom {
+pub enum PackageReviewDomainAliasAtom {
     Declared(PackageReviewNominalIdentity),
     Carry(language_core::CarryPermission),
 }

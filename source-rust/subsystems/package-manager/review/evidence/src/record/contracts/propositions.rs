@@ -93,21 +93,21 @@ pub(crate) struct PackageReviewPropositionBinderArgument {
 impl PackageReviewPropositionBinderArgument {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewEvidenceRequirement {
-    pub(crate) declaring_trait: PackageReviewNominalIdentity,
-    pub(crate) declaring_trait_lifetime_arguments: Vec<u32>,
-    pub(crate) declaring_trait_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) requirement: PackageReviewNominalIdentity,
+pub struct PackageReviewEvidenceRequirement {
+    pub declaring_trait: PackageReviewNominalIdentity,
+    pub declaring_trait_lifetime_arguments: Vec<u32>,
+    pub declaring_trait_arguments: Vec<PackageReviewTypeIdentity>,
+    pub requirement: PackageReviewNominalIdentity,
 }
 
 impl PackageReviewEvidenceRequirement {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewEvidenceInterface {
-    pub(crate) trait_identity: PackageReviewNominalIdentity,
-    pub(crate) lifetime_arguments: Vec<u32>,
-    pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) requirements: Vec<PackageReviewEvidenceRequirement>,
+    pub trait_identity: PackageReviewNominalIdentity,
+    pub lifetime_arguments: Vec<u32>,
+    pub arguments: Vec<PackageReviewTypeIdentity>,
+    pub requirements: Vec<PackageReviewEvidenceRequirement>,
 }
 
 impl PackageReviewEvidenceInterface {}

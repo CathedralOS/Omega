@@ -18,45 +18,45 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyCallingPlan {
-    pub(crate) abi: semantic_vocabulary::CallingAbiIdentity,
-    pub(crate) boundary_trait: PackageReviewNominalIdentity,
-    pub(crate) boundary_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) boundary_lifetime_parameter_count: u32,
-    pub(crate) boundary_lifetime_arguments: Vec<u32>,
-    pub(crate) application_lifetime_parameter_count: u32,
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) requirement_trait: PackageReviewNominalIdentity,
-    pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) requirement_lifetime_arguments: Vec<u32>,
-    pub(crate) requirement_lifetime_parameter_count: u32,
-    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) target: PackageReviewRepresentationTarget,
-    pub(crate) shape_graph: PackageReviewBoundaryShapeGraph,
-    pub(crate) semantic_parameters: Vec<PackagePolicyCallingParameter>,
-    pub(crate) semantic_result: Option<PackageReviewTypeIdentity>,
-    pub(crate) native_parameters: Vec<PackagePolicyNativeParameter>,
-    pub(crate) callbacks: PackagePolicyCallbacks,
-    pub(crate) opaque_uses: Vec<PackagePolicyCallingOpaqueUse>,
-    pub(crate) physical: PackagePolicyPhysicalCallingContract,
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
+    pub boundary_trait: PackageReviewNominalIdentity,
+    pub boundary_arguments: Vec<PackageReviewTypeIdentity>,
+    pub boundary_lifetime_parameter_count: u32,
+    pub boundary_lifetime_arguments: Vec<u32>,
+    pub application_lifetime_parameter_count: u32,
+    pub requirement: PackageReviewNominalIdentity,
+    pub requirement_trait: PackageReviewNominalIdentity,
+    pub requirement_arguments: Vec<PackageReviewTypeIdentity>,
+    pub requirement_lifetime_arguments: Vec<u32>,
+    pub requirement_lifetime_parameter_count: u32,
+    pub static_parameters: Vec<PackagePolicyTypeParameter>,
+    pub target: PackageReviewRepresentationTarget,
+    pub shape_graph: PackageReviewBoundaryShapeGraph,
+    pub semantic_parameters: Vec<PackagePolicyCallingParameter>,
+    pub semantic_result: Option<PackageReviewTypeIdentity>,
+    pub native_parameters: Vec<PackagePolicyNativeParameter>,
+    pub callbacks: PackagePolicyCallbacks,
+    pub opaque_uses: Vec<PackagePolicyCallingOpaqueUse>,
+    pub physical: PackagePolicyPhysicalCallingContract,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyCallingParameter {
-    pub(crate) name: String,
-    pub(crate) value_type: PackageReviewTypeIdentity,
-    pub(crate) is_mutable: bool,
-    pub(crate) is_const: bool,
-    pub(crate) shape_root: u16,
+pub struct PackagePolicyCallingParameter {
+    pub name: String,
+    pub value_type: PackageReviewTypeIdentity,
+    pub is_mutable: bool,
+    pub is_const: bool,
+    pub shape_root: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyNativeParameter {
-    pub(crate) name: String,
-    pub(crate) origin: PackagePolicyNativeParameterOrigin,
+    pub name: String,
+    pub origin: PackagePolicyNativeParameterOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyNativeParameterOrigin {
+pub enum PackagePolicyNativeParameterOrigin {
     SemanticFormal {
         formal_ordinal: u32,
         shape_root: u16,
