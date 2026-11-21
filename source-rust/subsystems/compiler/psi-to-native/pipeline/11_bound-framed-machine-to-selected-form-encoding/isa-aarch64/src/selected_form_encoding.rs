@@ -8191,6 +8191,14 @@ pub(crate) mod ieee_float_arithmetic {
             read: bool,
             general: u8,
         },
+        ToUpperLane {
+            general: u8,
+            vector: u8,
+        },
+        FromUpperLane {
+            vector: u8,
+            general: u8,
+        },
         BranchNonzeroOverCrash {
             general: u8,
         },
@@ -8318,6 +8326,10 @@ pub(crate) mod ieee_float_arithmetic {
             }
             Word::BranchNonzeroOverCrash { general } => 0xb500_0040 | reg(general),
             Word::Crash => 0xd420_0000,
+            Word::ToUpperLane { general, vector } => 0x9eaf_0000 | reg(general) << 5 | reg(vector),
+            Word::FromUpperLane { vector, general } => {
+                0x9eae_0000 | reg(vector) << 5 | reg(general)
+            }
             Word::ToFloat {
                 double,
                 general,
@@ -8509,6 +8521,14 @@ pub(crate) mod ieee_float_arithmetic {
             _ if word & 0xffff_ffe0 == 0xb500_0040 => {
                 Word::BranchNonzeroOverCrash { general: field(0) }
             }
+            0x9eaf_0000 => Word::ToUpperLane {
+                general: field(5),
+                vector: field(0),
+            },
+            0x9eae_0000 => Word::FromUpperLane {
+                vector: field(5),
+                general: field(0),
+            },
             0x1e27_0000 | 0x9e67_0000 if bit(31) == bit(22) => Word::ToFloat {
                 double: bit(31),
                 general: field(5),
@@ -8783,7 +8803,11 @@ pub(crate) mod ieee_float_arithmetic {
                     read: true,
                     general: result,
                 },
-                move_in(result, mask, true),
+                // The low lane may hold the third scalar operand of FMADD.
+                Word::ToUpperLane {
+                    general: result,
+                    vector: mask,
+                },
                 Word::MoveWide {
                     keep: false,
                     shift: 1,
@@ -8795,8 +8819,7 @@ pub(crate) mod ieee_float_arithmetic {
                     general: result,
                 },
                 operation,
-                Word::ToGeneral {
-                    double: true,
+                Word::FromUpperLane {
                     vector: mask,
                     general: result,
                 },
@@ -8919,19 +8942,27 @@ pub(crate) mod ieee_float_arithmetic {
                 }
                 words
             }
-            IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
-                move_in(registers[0], first, double),
-                move_in(registers[1], second, double),
-                move_in(registers[2], mask, double),
-                Word::FusedMultiplyAdd {
+            IeeeFloatArithmeticOperation::FusedMultiplyAdd
+            | IeeeFloatArithmeticOperation::DirectedFusedMultiplyAdd { .. } => {
+                let mut inputs = vec![
+                    move_in(registers[0], first, double),
+                    move_in(registers[1], second, double),
+                    move_in(registers[2], mask, double),
+                ];
+                let fused = Word::FusedMultiplyAdd {
                     double,
                     left: first,
                     right: second,
                     addend: mask,
                     result: first,
-                },
-                move_out(first),
-            ],
+                };
+                if let Some(rounding) = form.operation.rounding_direction() {
+                    directed(rounding, inputs, fused)
+                } else {
+                    inputs.extend([fused, move_out(first)]);
+                    inputs
+                }
+            }
             IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
                 move_in(registers[0], first, double),
                 move_in(registers[1], second, double),
@@ -9311,6 +9342,47 @@ pub(crate) mod ieee_float_arithmetic {
                         );
                         let bytes = super::encode(form, &registers).unwrap();
                         super::validate(form, &registers, &bytes).unwrap();
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn directed_fma_keeps_the_control_word_out_of_the_addend_lane() {
+            use super::IeeeFloatRoundingDirection as Mode;
+            use IeeeFloatArithmeticOperation::DirectedFusedMultiplyAdd;
+            for (rounding, fpcr_mode) in [
+                (Mode::TowardZero, 3u32),
+                (Mode::TowardPositive, 1),
+                (Mode::TowardNegative, 2),
+            ] {
+                for (format, fmadd) in [
+                    (IeeeFloatFormat::Binary32, 0x1f11_4a10),
+                    (IeeeFloatFormat::Binary64, 0x1f51_4a10),
+                ] {
+                    let form = form(DirectedFusedMultiplyAdd { rounding }, format);
+                    for registers in [[1, 2, 3, 1], [1, 2, 3, 2], [1, 2, 3, 3], [0, 0, 0, 0]] {
+                        let out = u32::from(registers[3]);
+                        let words = words(form, &registers);
+                        // Inputs are captured first. MRS saves FPCR in the high
+                        // lane of v18; FMADD reads the addend from its low lane.
+                        assert_eq!(
+                            &words[3..10],
+                            &[
+                                0xd53b_4400 | out,
+                                0x9eaf_0012 | (out << 5),
+                                0xd2a0_0000 | (fpcr_mode << 11) | out,
+                                0xd51b_4400 | out,
+                                fmadd,
+                                0x9eae_0240 | out,
+                                0xd51b_4400 | out,
+                            ]
+                        );
+                        let mut bytes = encode(form, &registers).unwrap();
+                        validate(form, &registers, &bytes).unwrap();
+                        // Ordinary FMOV to the low lane would destroy the addend.
+                        bytes[16..20].copy_from_slice(&(0x9e67_0012 | (out << 5)).to_le_bytes());
+                        assert!(validate(form, &registers, &bytes).is_err());
                     }
                 }
             }

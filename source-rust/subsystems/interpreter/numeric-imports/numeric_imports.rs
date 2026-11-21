@@ -329,8 +329,19 @@ fn evaluate(
         Operation::MultiplyThenAdd => {
             FloatSemantics::multiply_then_add(format, first, &meanings[1], &meanings[2])
         }
-        Operation::FusedMultiplyAdd => {
-            FloatSemantics::fused_multiply_add(format, first, &meanings[1], &meanings[2])
+        Operation::FusedMultiplyAdd | Operation::DirectedFusedMultiplyAdd { .. } => {
+            use IeeeFloatRoundingDirection as Direction;
+            let fuse = match realization.operation.rounding_direction() {
+                None => FloatSemantics::fused_multiply_add,
+                Some(Direction::TowardZero) => FloatSemantics::fused_multiply_add_toward_zero,
+                Some(Direction::TowardPositive) => {
+                    FloatSemantics::fused_multiply_add_toward_positive
+                }
+                Some(Direction::TowardNegative) => {
+                    FloatSemantics::fused_multiply_add_toward_negative
+                }
+            };
+            fuse(format, first, &meanings[1], &meanings[2])
         }
         Operation::Add => FloatSemantics::add(format, first, &meanings[1]),
         Operation::Subtract => FloatSemantics::subtract(format, first, &meanings[1]),

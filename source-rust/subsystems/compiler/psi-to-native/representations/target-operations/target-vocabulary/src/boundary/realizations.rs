@@ -55,12 +55,15 @@ pub struct NearestIeeeFloatArithmeticRealization {
 
 impl NearestIeeeFloatArithmeticRealization {
     pub fn supports_target(&self, target: target::NativeTarget) -> bool {
-        let fused = self.operation == crate::IeeeFloatArithmeticOperation::FusedMultiplyAdd;
+        use crate::IeeeFloatArithmeticOperation::{DirectedFusedMultiplyAdd, FusedMultiplyAdd};
         match (target.architecture, self.x86_scalar_fma) {
             (target::Architecture::Aarch64, None) => true,
-            (target::Architecture::X86_64, None) => !fused,
+            (target::Architecture::X86_64, None) => !matches!(
+                self.operation,
+                FusedMultiplyAdd | DirectedFusedMultiplyAdd { .. }
+            ),
             (target::Architecture::X86_64, Some(provider)) => {
-                fused && provider.profile().native_target() == target
+                self.operation == FusedMultiplyAdd && provider.profile().native_target() == target
             }
             (target::Architecture::Aarch64, Some(_)) => false,
         }
