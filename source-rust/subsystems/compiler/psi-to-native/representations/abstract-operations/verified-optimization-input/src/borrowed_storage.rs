@@ -6,18 +6,17 @@ use abstract_operations::{AbstractOperationPlan, StructuralTypeCatalog};
 use calling_conventions::terminal_layout::NativeGeometry;
 use runtime_abi::NativeBorrowedStorageLayouts;
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeSet;
 use terminal_psi::{BoundaryMachineResult, StructuralAccess, StructuralTypeShape};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowedStorageInputs {
     catalog: StructuralTypeCatalog,
-    roots: BTreeSet<StructuralTypeId>,
+    roots: Vec<StructuralTypeId>,
 }
 
 impl BorrowedStorageInputs {
     pub fn of(plan: &AbstractOperationPlan) -> Self {
-        let results: BTreeSet<_> = plan
+        let mut results: Vec<_> = plan
             .boundary_machines
             .iter()
             .filter_map(|machine| match &machine.result {
@@ -25,25 +24,29 @@ impl BorrowedStorageInputs {
                 _ => None,
             })
             .collect();
-        let mut roots = results.clone();
+        results.sort_unstable();
+        let mut roots = Vec::new();
         // A returned reference has a carrier recipe and a separate recipe for
         // its provider-owned backing.
-        roots.extend(
-            plan.structural_types
-                .iter()
-                .filter(|ty| results.contains(&ty.id))
-                .filter_map(|ty| match &ty.shape {
-                    StructuralTypeShape::Reference { referent, .. } => Some(*referent),
-                    _ => None,
-                }),
-        );
+        if !results.is_empty() {
+            roots.extend(
+                plan.structural_types
+                    .iter()
+                    .filter(|ty| results.binary_search(&ty.id).is_ok())
+                    .filter_map(|ty| match &ty.shape {
+                        StructuralTypeShape::Reference { referent, .. } => Some(*referent),
+                        _ => None,
+                    }),
+            );
+            roots.append(&mut results);
+        }
         let mut needs_backing = false;
         for parameter in plan
             .boundary_machines
             .iter()
             .flat_map(|machine| &machine.structural_parameters)
         {
-            roots.insert(parameter.structural_type);
+            roots.push(parameter.structural_type);
             needs_backing |= matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
@@ -67,6 +70,8 @@ impl BorrowedStorageInputs {
                 );
             }
         }
+        roots.sort_unstable();
+        roots.dedup();
         Self {
             catalog: plan.structural_types.clone(),
             roots,
