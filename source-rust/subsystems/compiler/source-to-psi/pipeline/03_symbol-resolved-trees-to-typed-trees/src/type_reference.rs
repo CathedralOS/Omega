@@ -603,6 +603,13 @@ pub(crate) mod alias_uses {
                 )
                 .with_source_span(site));
             }
+            // An argument copied across a substitution retains its supplier.
+            // Other authored occurrences acquire their owning header when typing finishes it.
+            let supplying_owner = if application.supplied_operand_owner.is_valid() {
+                application.supplied_operand_owner
+            } else {
+                program.type_reference_table.operand_lifetime_owner(application.application)
+            };
             let regions = program
                 .type_reference_table
                 .operand_lifetimes(application.application);
@@ -614,7 +621,7 @@ pub(crate) mod alias_uses {
                     .or_else(|| {
                         typed::type_identity::lifetime_parameter_identity(
                             program,
-                            application.supplied_operand_owner,
+                            supplying_owner,
                             argument.as_str(),
                         )
                     });

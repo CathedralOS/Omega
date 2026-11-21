@@ -2125,10 +2125,11 @@ impl Lowerer<'_> {
         &mut self,
         alias: &crate::source_resolved::type_aliases::TypeAliasDefinition,
     ) -> Result<(), Diagnostic> {
-        let alias = self
-            .with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
+        let alias = self.with_source_owner(alias.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
                 lower_type_alias_definition(lowerer, alias)
-            })?;
+            })
+        })?;
         self.typed_trees.push_type_alias_definition(alias);
         Ok(())
     }

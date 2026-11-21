@@ -208,7 +208,8 @@ fn declared_callback_lifetimes_bind_in_the_named_owners_parameter_identity() {
 fn declared_callback_lifetime_aliases_publish_without_an_entry() {
     let result = judged(
         "public data Visit<'item,T> = machine(item: @'item T) -> u64;
-         public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;",
+         public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;
+         public data Forward<'enclosing,T> = Visit<'enclosing,T>;",
         false,
     );
     let RouteVerdict::Accepted(accepted) = result else {
