@@ -26,7 +26,9 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
 pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 37;
-pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 38;
+pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 38;
+pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 39;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_PROVIDER_APPLICATION_GRANTS;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 10;
@@ -38,7 +40,8 @@ pub(crate) const CALLING_POLICY_MAGIC: &[u8] = b"OMEGA-CALLING-POLICY\0";
 pub(crate) const PACKAGE_REPRESENTATION_POLICY_VERSION: u16 = 15;
 pub(crate) const REPRESENTATION_POLICY_MAGIC: &[u8] = b"OMEGA-REPRESENTATION-POLICY\0";
 
-pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 27;
+pub(crate) const PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS: u16 = 27;
+pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 28;
 pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVIDER-POLICY\0";
 
 pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 15;

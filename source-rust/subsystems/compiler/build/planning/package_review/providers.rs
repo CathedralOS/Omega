@@ -19,7 +19,7 @@ use review_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashInterface,
     PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
+    PackageReviewWriteFrameCompleteness,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
 use source_compiler::compile_product::provider_declarations::ProviderSelectionSubject;
@@ -195,6 +195,7 @@ impl PreparedProviders {
         self,
         checked: &compiler::SelectedProviderResult,
         target: TargetProfile,
+        authored_grants: &[symbols::root_grants::AuthoredRootGrant],
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
         let selected = checked.plans();
         let plans = selected.plans();
@@ -202,8 +203,9 @@ impl PreparedProviders {
             return Err(unavailable("the complete prepared provider roster"));
         }
         let mut review = self.review;
+        let grants = super::provider_grants::by_plan(checked, authored_grants)?;
         // Both rosters retain the order of the same checked target's plans.
-        for (plan, captured) in plans.iter().zip(self.choices) {
+        for ((plan, captured), grants) in plans.iter().zip(self.choices).zip(grants) {
             let mut rows = Vec::with_capacity(captured.rows.len());
             let mut declarations: Vec<_> = captured.rows.iter().collect();
             declarations.sort_unstable_by_key(|row| &row.canonical);
@@ -230,7 +232,7 @@ impl PreparedProviders {
                 target: plan.target.clone(),
                 methods: captured.methods,
                 rows,
-                grants: Vec::new(),
+                grants,
             });
         }
         let mut applications = Vec::new();
@@ -491,7 +493,7 @@ impl PolicySource<'_> {
             numeric: Some(numeric),
             service_names: declarations.service_names.to_vec(),
         }
-        .finish(checked, target)
+        .finish(checked, target, self.declarations.root_grants())
     }
 
     fn project_remaining_requirements(
@@ -556,7 +558,7 @@ impl PolicySource<'_> {
             let signatures = typed.trait_machine_signatures(declaration);
             let mut requirements = Vec::new();
             for signature in signatures {
-                let requirement = self.requirement(signature)?;
+                let requirement = self.requirement(declaration, signature)?;
                 review.callables.push(self.declared_boundary(&requirement)?);
                 requirements.push(requirement);
             }
@@ -1245,15 +1247,11 @@ impl PolicySource<'_> {
             },
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
             unresolved_installation_reaches,
-            declared_synchronous_invocations: Some(
-                reviewed_services(
-                    declarations.service_names,
-                    &boundary.published_synchronous_entries,
-                )?
-                .into_iter()
-                .map(PackageReviewSynchronousInvocation::Service)
-                .collect(),
-            ),
+            declared_synchronous_invocations: Some(super::callables::reviewed_invocations(
+                declarations.service_names,
+                declarations.accepted.module().execution.callables.boundary_envelope(boundary.id)
+                    .ok_or_else(|| unavailable("the boundary requirement's invocation contract"))?,
+            )?),
             realized_synchronous_invocations: Vec::new(),
             capability_flows: Vec::new(),
             reachable_capability_flows: Vec::new(),

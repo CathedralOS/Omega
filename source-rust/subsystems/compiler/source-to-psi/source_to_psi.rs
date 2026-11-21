@@ -113,7 +113,7 @@ pub fn review_package(
         explicit_providers: checked.explicit_providers.clone(),
         native_supplies: checked.native_supplies.clone(),
         service_audits: std::mem::take(&mut checked.declarations.service_audits),
-        has_root_grants: !checked.grants.is_empty(),
+        root_grants: checked.grants.clone(),
         has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
     };
     let target = driver::published_target(artifact, checked, target, subject)?;
@@ -150,7 +150,7 @@ pub struct CheckedPackageDeclarations {
     explicit_providers: Vec<compile_product::provider_declarations::ProviderSelection>,
     native_supplies: Vec<checked_program_to_psi::provider_choice_inputs::NativeBuildSupply>,
     service_audits: Vec<symbols::SymbolHandle>,
-    has_root_grants: bool,
+    root_grants: Vec<symbols::root_grants::AuthoredRootGrant>,
     has_assumed_bindings: bool,
     publication: Arc<driver::judge_lowered_source::SourcePublication>,
 }
@@ -172,8 +172,8 @@ impl CheckedPackageDeclarations {
     pub fn service_audits(&self) -> &[symbols::SymbolHandle] {
         &self.service_audits
     }
-    pub fn has_root_grants(&self) -> bool {
-        self.has_root_grants
+    pub fn root_grants(&self) -> &[symbols::root_grants::AuthoredRootGrant] {
+        &self.root_grants
     }
     pub fn has_assumed_bindings(&self) -> bool {
         self.has_assumed_bindings

@@ -149,7 +149,6 @@ fn declaration_policy(
         .typed()
         .opaque_representation_selections
         .is_empty()
-        || declarations.declarations.has_root_grants()
         || declarations.declarations.has_assumed_bindings()
         || !config.default_provider_selections.is_empty()
         || !config.assumed_bindings.is_empty()
@@ -346,7 +345,7 @@ fn require_supported_inventory(
             && !declarations.owns(declaration.symbol, package)?
             && (declaration.is_public || !declaration.supplies_checked_body())
         {
-            return Err(unavailable(&format!(
+            return Err(unavailable(format!(
                 "the Build-scope public or bodyless callable contract of `{}`",
                 declaration.symbol_spelling()
             )));

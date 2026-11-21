@@ -34,7 +34,9 @@ impl PackagePolicyBaseline {
         let schema_version = reader.u16()?;
         if !matches!(
             schema_version,
-            BASELINE_WITHOUT_STRUCTURAL_PARAMETERS | PACKAGE_POLICY_BASELINE_VERSION
+            BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
+                | crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS
+                | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
         }

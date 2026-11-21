@@ -17,6 +17,18 @@ pub struct PackagePolicySelectedProviders {
 }
 
 impl PackagePolicySelectedProviders {
+    pub(crate) fn has_application_grants(&self) -> bool {
+        self.plans
+            .iter()
+            .flat_map(|plan| &plan.grants)
+            .any(|grant| {
+                matches!(
+                    grant,
+                    PackageReviewProviderGrantSelectorKind::ProviderApplication(_)
+                )
+            })
+    }
+
     field_projection_accessors!(copied package: PackageKeyIdentity, target: TargetProfile);
     field_projection_accessors!(sliced plans: &[PackagePolicyProviderPlan]);
     field_projection_accessors!(sliced families: &[PackagePolicyProviderFamily]);

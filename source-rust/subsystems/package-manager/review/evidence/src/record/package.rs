@@ -37,10 +37,9 @@ pub use provider_policy::{PackagePolicySelectedProviders, PackagePolicyServiceMe
 
 pub use providers::{
     PackageReviewBoundaryApplication, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewSelectedInstallationReach,
+    PackageReviewProviderGrantSelectorKind, PackageReviewSelectedInstallationReach,
 };
 pub(crate) use providers::{
     PackageReviewBoundaryApplicationArgument, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewProviderSelectionAuthority, PackageReviewSymbolicBoundaryApplicationArgument,
 };

@@ -71,7 +71,7 @@ pub(in crate::encoding::encode) fn trait_shape(
             );
             let positions = requirement.structural_parameter_positions();
             if positions.is_some()
-                != (baseline_schema == crate::encoding::PACKAGE_POLICY_BASELINE_VERSION)
+                != (baseline_schema >= crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS)
             {
                 return Err(PackageReviewEncodingError::new(
                     "public requirement structural parameters disagree with its policy version",

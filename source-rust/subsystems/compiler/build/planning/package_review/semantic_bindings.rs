@@ -204,16 +204,15 @@ pub(super) fn candidates(
     // a candidate; replaying an old binding must not nominate its supplier.
     for candidate in &rows {
         let fresh = candidate.binding();
-        if let Some(previous) = input.sources().accepted_semantic_binding(fresh.role()) {
-            if fresh.package() != previous.package()
+        if let Some(previous) = input.sources().accepted_semantic_binding(fresh.role())
+            && (fresh.package() != previous.package()
                 || fresh.declaration_path() != previous.declaration_path()
                 || fresh.normalized_schema_digest() != previous.normalized_schema_digest()
-                || fresh.selected_provider_plan_digest() != previous.selected_provider_plan_digest()
-            {
-                return Err(unavailable(
-                    "a fresh nomination conflicting with its accepted supplier",
-                ));
-            }
+                || fresh.selected_provider_plan_digest() != previous.selected_provider_plan_digest())
+        {
+            return Err(unavailable(
+                "a fresh nomination conflicting with its accepted supplier",
+            ));
         }
     }
     rows.sort_by_key(|row| row.binding().role());

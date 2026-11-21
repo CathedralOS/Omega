@@ -90,6 +90,7 @@ pub(crate) struct CompletedProductSource {
     pub declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
     pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     pub(crate) terminal_publication: Arc<judge_lowered_source::SourcePublication>,
+    review_package: bool,
     deployments: Vec<String>,
     pub(crate) explicit_providers: Vec<provider_choice_inputs::ProviderSelection>,
     pub(crate) native_supplies: Vec<provider_choice_inputs::NativeBuildSupply>,
@@ -121,7 +122,7 @@ impl CompletedProductSource {
             Some(target),
             &self.explicit_providers,
             &self.native_supplies,
-            false,
+            self.review_package,
         )
     }
 }
@@ -240,6 +241,7 @@ pub(crate) fn prepare_lower_and_check(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
     Ok(CompletedProductSource {
+        review_package: matches!(pass.entry, ProductEntry::PackageReview),
         program: judged.program,
         terminal_publication: judged.publication,
         deployments: pass

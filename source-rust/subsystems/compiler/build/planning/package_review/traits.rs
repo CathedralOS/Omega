@@ -6,7 +6,8 @@ use diagnostics::Diagnostic;
 use review_evidence::record::{
     PackagePolicyTermination, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
     PackageReviewBorrowOrigin, PackageReviewParameterQualification,
-    PackageReviewReturnedBorrowOrigin, PackageReviewSignatureParameter, PackageReviewTypeIdentity,
+    PackageReviewReturnedBorrowOrigin, PackageReviewSemanticDependencyExposure,
+    PackageReviewSignatureParameter, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -112,7 +113,7 @@ impl PolicySource<'_> {
             }
             let mut requirements = Vec::new();
             for signature in typed.trait_machine_signatures(declaration) {
-                requirements.push(self.requirement(signature)?);
+                requirements.push(self.requirement(declaration, signature)?);
             }
             requirements.sort_by(|left, right| left.identity.cmp(&right.identity));
             rows.push(self.trait_shape(declaration, requirements)?);
@@ -211,6 +212,7 @@ impl PolicySource<'_> {
 
     pub(super) fn requirement(
         &self,
+        declaration: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
         signature: &source_compiler::representations::source_state::signature::StateSignature,
     ) -> Result<PackagePolicyTraitRequirement, Vec<Diagnostic>> {
         let typed = self.typed();
@@ -234,19 +236,16 @@ impl PolicySource<'_> {
                 "the public requirement's exact checked formal namespace",
             ));
         }
-        // Type identities come from the shared whole-signature
-        // normalizer. Validate all source dependency ownership too.
+        let exposure = if declaration.is_public {
+            PackageReviewSemanticDependencyExposure::PublicInterface
+        } else {
+            PackageReviewSemanticDependencyExposure::PrivateImplementation
+        };
         for formal in &formals {
-            self.require_type_dependencies(
-                formal.type_reference,
-                review_evidence::record::PackageReviewSemanticDependencyExposure::PublicInterface,
-            )?;
+            self.require_type_dependencies(formal.type_reference, exposure)?;
         }
         if signature.return_type.is_valid() {
-            self.require_type_dependencies(
-                signature.return_type,
-                review_evidence::record::PackageReviewSemanticDependencyExposure::PublicInterface,
-            )?;
+            self.require_type_dependencies(signature.return_type, exposure)?;
         }
         let parameters = formals
             .iter()

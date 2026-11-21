@@ -21,12 +21,30 @@ use super::{
 use crate::encoding::{PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, SELECTED_PROVIDER_POLICY_MAGIC};
 
 impl PackagePolicySelectedProviders {
-    super::recover_canonical_component!(
-        SELECTED_PROVIDER_POLICY_MAGIC,
-        PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
-        policy,
-        validate,
-    );
+    pub fn recover_canonical(
+        bytes: &[u8],
+        limits: PackagePolicyRecoveryLimits,
+    ) -> Result<Self, Error> {
+        super::recover_component(
+            bytes,
+            limits,
+            SELECTED_PROVIDER_POLICY_MAGIC,
+            |version| {
+                matches!(
+                    version,
+                    crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
+                        | PACKAGE_SELECTED_PROVIDER_POLICY_VERSION
+                )
+            },
+            policy,
+            |policy| {
+                policy
+                    .validate_canonical_structure()
+                    .map_err(|_| Error::InvalidValue)
+            },
+            Self::canonical_bytes,
+        )
+    }
 }
 
 pub(in crate::encoding::recovery) fn policy(
@@ -66,6 +84,7 @@ pub(in crate::encoding::recovery) fn plan(
             Ok(super::tag!(reader => {
                 0 => PackageReviewProviderGrantSelectorKind::PlanName,
                 1 => PackageReviewProviderGrantSelectorKind::ProviderSlot,
+                2 => PackageReviewProviderGrantSelectorKind::ProviderApplication(reader.option(Reader::string)?),
             }))
         })?,
     })

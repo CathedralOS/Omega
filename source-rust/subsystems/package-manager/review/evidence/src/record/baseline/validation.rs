@@ -35,6 +35,11 @@ impl PackagePolicyBaseline {
         self.public_api.validate_canonical_structure(self.package)?;
         self.callables.validate_canonical_structure()?;
         self.selected_providers.validate_canonical_structure()?;
+        if self.schema_version < crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
+            && self.selected_providers.has_application_grants()
+        {
+            return Err("this package policy version cannot record provider application grants");
+        }
         self.terminal_permissions.validate_canonical_structure()?;
         self.representation.validate_canonical_structure()?;
         self.boundary_applications.validate_canonical_structure(

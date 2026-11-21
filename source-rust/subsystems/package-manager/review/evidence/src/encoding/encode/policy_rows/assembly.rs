@@ -192,8 +192,13 @@ pub(super) fn project(
         demands,
         realizations,
     } = boundary_applications;
-    builder.push(
-        PackagePolicyRowKind::SelectedProviderAssociation,
+    let provider_schema = if selected_providers.has_application_grants() {
+        crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
+    } else {
+        crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
+    };
+    builder.push_versioned(
+        (PackagePolicyRowKind::SelectedProviderAssociation, provider_schema),
         false,
         false,
         |_| Ok(()),
