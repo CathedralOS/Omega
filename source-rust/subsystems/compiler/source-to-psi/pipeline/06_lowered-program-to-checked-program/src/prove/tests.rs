@@ -1180,6 +1180,61 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
 }
 
 #[test]
+fn scalar_counterexamples_check_every_premise_and_semantic_axiom() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let input = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        }),
+        scalar_type,
+    );
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let excluded = |key| {
+        Proposition::Disjunction(vec![
+            Proposition::LessThan(input.clone(), literal(key)),
+            Proposition::LessThan(literal(key), input.clone()),
+        ])
+    };
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let assumptions = [excluded(3), excluded(7)];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert!(prover.has_scalar_counterexample(&Proposition::Falsehood));
+    assert!(prover.prove(&Proposition::Falsehood).is_err());
+    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+
+    let conflicting = [Proposition::Equal(input, literal(3))];
+    let mut prover = Prover::new(&context, &assumptions, &conflicting, &values, &mut activity);
+    assert!(!prover.has_scalar_counterexample(&Proposition::Falsehood));
+    let proof = prover.prove(&Proposition::Falsehood).unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &conflicting,
+        &proof,
+    )
+    .unwrap();
+
+    let unknown = [Proposition::Equal(
+        ScalarTerm::ViewExtent {
+            root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            scalar_type: integer,
+        },
+        literal(1),
+    )];
+    let prover = Prover::new(&context, &assumptions, &unknown, &values, &mut activity);
+    assert!(!prover.has_scalar_counterexample(&Proposition::Falsehood));
+}
+
+#[test]
 fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar = ScalarType::Integer(integer);
