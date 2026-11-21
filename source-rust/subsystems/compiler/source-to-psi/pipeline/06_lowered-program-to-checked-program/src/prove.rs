@@ -2552,11 +2552,26 @@ impl<'a> Prover<'a> {
             .iter()
             .map(|&index| self.equations[index])
             .collect();
+        // A previously computed addend is a usable order endpoint. Keep it
+        // intact before trying the full denotation (needed for aliases).
+        let immediate: Vec<_> = selected.iter().copied().filter(|&index| {
+            matches!(&self.facts[index].proposition, Proposition::Equal(result, operand)
+                if result == left || matches!(operand, ScalarTerm::Integer { .. } | ScalarTerm::Value { .. }))
+        }).collect();
+        if immediate.len() != selected.len()
+            && let Some(proof) = self.successor_via(&goal, &immediate)
+        {
+            return Some(proof);
+        }
+        self.successor_via(&goal, &selected)
+    }
+
+    fn successor_via(&mut self, goal: &Proposition, selected: &[usize]) -> Option<ProofNode> {
         // The goal with its values unfolded, such as `a +exact 1 <= b`, and
         // that order read over the mathematical integers.
         let unfolded = check_value_equality_denotation(
             self.context,
-            &goal,
+            goal,
             selected.iter().map(|&index| &self.facts[index].proposition),
         )
         .ok()?;
@@ -2617,7 +2632,7 @@ impl<'a> Prover<'a> {
             .map(|&index| self.facts[index].proof(&self.facts))
             .collect();
         Some(node(
-            goal,
+            goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(carrier),
                 equalities,
@@ -2879,6 +2894,11 @@ impl<'a> Prover<'a> {
                     {
                         steps.push((left.as_ref().clone(), chained, false));
                     }
+                }
+                Proposition::Equal(output, sum @ ScalarTerm::ExactIntegerAdd { .. })
+                    if output == at =>
+                {
+                    steps.extend(self.interior_sum_edges(output, sum));
                 }
                 // `a / d <= a` when `0 <= a` and `0 < d`.
                 Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerDivide { .. })
@@ -3770,7 +3790,22 @@ impl<'a> Prover<'a> {
                 let multiple = matches!(expression, ScalarTerm::ExactIntegerRemainder { .. })
                     .then(|| self.multiple_remainder_bound(subject, Some(axiom), direction))
                     .flatten();
-                [defined, below, within, quotient, fixed, multiple]
+                let interior = (direction == Direction::Upper
+                    && matches!(expression, ScalarTerm::ExactIntegerAdd { .. }))
+                .then(|| {
+                    self.interior_sum_edges(subject, expression)
+                        .into_iter()
+                        .filter_map(|(end, relation, _)| self.through(relation, &end, direction))
+                        .reduce(|best, next| {
+                            if direction.prefers(integer.compare(next.literal, best.literal)) {
+                                next
+                            } else {
+                                best
+                            }
+                        })
+                })
+                .flatten();
+                [defined, below, within, quotient, fixed, multiple, interior]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {

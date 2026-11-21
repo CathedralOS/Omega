@@ -670,7 +670,14 @@ fn a_positive_gap_and_quotient_certify_an_interior_probe() {
     let source = "machine probe(lower: u64, upper: u64, divisor: u64) -> u64
         requires lower < upper && divisor > 1
         ensures lower <= result && result < upper
-        { lower + (upper - lower) / divisor }";
+        { lower + (upper - lower) / divisor }
+        machine advance(lower: u64, upper: u64, step: u64) -> u64
+        requires lower < upper && step < upper - lower
+        ensures result <= upper
+        { let middle: u64 = lower + step; middle + 1 }
+        machine read(data: @[u64], lower: u64, upper: u64, step: u64) -> u64
+        requires lower < upper && upper <= data.len && step < upper - lower
+        { let middle: u64 = lower + step; data[middle] }";
     let checked = match super::entryless::judged(source, false) {
         RouteVerdict::Accepted(checked) => checked,
         verdict => panic!("the probe must stay inside the open upper bound: {verdict:?}"),

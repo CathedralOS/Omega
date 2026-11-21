@@ -102,6 +102,15 @@ fn lift_endpoint_order(relation: ProofNode) -> Option<ProofNode> {
     ))
 }
 
+/// One formed or named gap with the same origin as a source sum.
+#[derive(PartialEq)]
+struct OffsetRoom {
+    origin: ScalarTerm,
+    offset: ScalarTerm,
+    gap: ScalarTerm,
+    end: ScalarTerm,
+}
+
 impl Prover<'_> {
     /// The earlier axiom that fixes `term` to a literal, which a chain step
     /// cites as the landing of its literal operand.
@@ -437,71 +446,108 @@ impl Prover<'_> {
         })
     }
 
-    /// A formed difference supplies a candidate upper endpoint for a sum.
-    /// Prove that the step fits the gap before adding its origin back to
-    /// both sides. The endpoint's own bound then bounds the mathematical
-    /// sum, including when forming the source addition is still at issue.
+    /// Ordered arguments and computed differences can both name the end
+    /// of an interval. Its presence nominates a possible bound; the proof
+    /// must still establish how the actual offset compares with this gap.
+    fn offset_rooms(&self, sum: &ScalarTerm) -> Vec<OffsetRoom> {
+        let mut rooms = Vec::new();
+        let ScalarTerm::ExactIntegerAdd { left, right, .. } = sum else {
+            return rooms;
+        };
+        for (origin, offset) in [
+            (left.as_ref(), right.as_ref()),
+            (right.as_ref(), left.as_ref()),
+        ] {
+            let ScalarTerm::Value { id, .. } = origin else {
+                continue;
+            };
+            let mut cursor = super::BoundFactCursor::default();
+            while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
+                let (Proposition::Equal(_, gap)
+                | Proposition::LessThan(_, gap)
+                | Proposition::LessOrEqual(_, gap)) = &self.facts[index].proposition
+                else {
+                    continue;
+                };
+                let ScalarTerm::ExactIntegerSubtract {
+                    left: end,
+                    right: base,
+                    ..
+                } = gap
+                else {
+                    continue;
+                };
+                if base.as_ref() == origin {
+                    let room = OffsetRoom {
+                        origin: origin.clone(),
+                        offset: offset.clone(),
+                        gap: gap.clone(),
+                        end: end.as_ref().clone(),
+                    };
+                    if !rooms.contains(&room) {
+                        rooms.push(room);
+                    }
+                }
+            }
+        }
+        rooms
+    }
+
+    /// A stored sum remains below the original exclusive end. Later index
+    /// and increment obligations can chain through that checked endpoint.
+    pub(super) fn interior_sum_edges(
+        &mut self,
+        output: &ScalarTerm,
+        sum: &ScalarTerm,
+    ) -> Vec<(ScalarTerm, ProofNode, bool)> {
+        let mut edges = Vec::new();
+        for room in self.offset_rooms(sum) {
+            if output != &room.end && matches!(room.end, ScalarTerm::Value { .. }) {
+                let goal = Proposition::LessThan(output.clone(), room.end.clone());
+                if let Ok(proof) = self.prove_direct_subgoal(&goal) {
+                    edges.push((room.end, proof, true));
+                }
+            }
+        }
+        edges
+    }
+
+    /// Bound the mathematical sum even before the source addition has
+    /// proved its own fit. Translating an offset bound by its origin
+    /// recovers the original endpoint, whose upper bound then applies.
     pub(super) fn remaining_capacity_image(
         &mut self,
         target: &ScalarTerm,
         sum: &IntegerMathTerm,
     ) -> Option<ProofNode> {
-        let ScalarTerm::ExactIntegerAdd { left, right, .. } = target else {
-            return None;
-        };
-        for (base, step) in [
-            (left.as_ref(), right.as_ref()),
-            (right.as_ref(), left.as_ref()),
-        ] {
-            let ScalarTerm::Value { id, .. } = base else {
+        for room in self.offset_rooms(target) {
+            let Some(order) = self
+                .relation(&room.offset, &room.gap, false)
+                .and_then(lift_endpoint_order)
+            else {
                 continue;
             };
-            let mut cursor = super::BoundFactCursor::default();
-            while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
-                let Proposition::Equal(
-                    _,
-                    difference @ ScalarTerm::ExactIntegerSubtract {
-                        left: limit,
-                        right: origin,
-                        ..
-                    },
-                ) = &self.facts[index].proposition
-                else {
-                    continue;
-                };
-                if origin.as_ref() != base {
-                    continue;
-                }
-                let difference = difference.clone();
-                let limit = limit.as_ref().clone();
-                let Some(order) = self
-                    .relation(step, &difference, false)
-                    .and_then(lift_endpoint_order)
-                else {
-                    continue;
-                };
-                let bound = Proposition::IntegerMathLessOrEqual(
-                    sum.clone(),
-                    IntegerMathTerm::embed(limit.clone())?,
-                );
-                let Some(to_limit) = self.translate_mathematical_order(
-                    order,
-                    IntegerMathTerm::embed(base.clone())?,
-                    &bound,
-                ) else {
-                    continue;
-                };
-                if limit.integer_value().is_some() {
-                    return Some(to_limit);
-                }
-                if let Some(cap) = self
-                    .evidence(&limit, Direction::Upper)
-                    .ok()
-                    .and_then(lift_endpoint_order)
-                    && let Some(result) = super::chain_math(to_limit, cap)
-                {
-                    return Some(result);
-                }
+            let bound = Proposition::IntegerMathLessOrEqual(
+                sum.clone(),
+                IntegerMathTerm::embed(room.end.clone())?,
+            );
+            let Some(to_limit) = self.translate_mathematical_order(
+                order,
+                IntegerMathTerm::embed(room.origin)?,
+                &bound,
+            ) else {
+                continue;
+            };
+            if room.end.integer_value().is_some() {
+                return Some(to_limit);
+            }
+            if let Some(cap) = self
+                .evidence(&room.end, Direction::Upper)
+                .ok()
+                .and_then(lift_endpoint_order)
+                && let Some(result) = super::chain_math(to_limit, cap)
+            {
+                return Some(result);
             }
         }
         None
