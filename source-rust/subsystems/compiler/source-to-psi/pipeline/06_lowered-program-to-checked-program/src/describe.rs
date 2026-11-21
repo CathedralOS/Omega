@@ -137,11 +137,23 @@ pub(crate) fn unproved(
                 ),
             };
             match indexed_extent(&elaboration.module, machine, execution, obligation) {
-                Some((Some(index), extent)) => {
+                Some(IndexedExtent::Fixed {
+                    index: Some(index),
+                    extent,
+                }) => {
                     format!("{statement}: cannot prove index `{index}` is within length {extent}")
                 }
-                Some((None, extent)) => {
+                Some(IndexedExtent::Fixed {
+                    index: None,
+                    extent,
+                }) => {
                     format!("{statement}: cannot prove index is within length {extent}")
+                }
+                Some(IndexedExtent::Runtime) => {
+                    format!(
+                        "cannot prove storage index bounds in {}",
+                        owner(names, site)
+                    )
                 }
                 None => statement,
             }
@@ -365,7 +377,12 @@ fn crash_coverage(
     }
 }
 
-/// Name the exact array whose projection owns the failed bound. A single
+enum IndexedExtent {
+    Fixed { index: Option<u64>, extent: u64 },
+    Runtime,
+}
+
+/// Name the exact storage projection that owns the failed bound. A single
 /// operation can index several arrays, so the operation alone cannot identify
 /// the extent. The index comes back too when it is a constant, so the message
 /// can say which index fell outside (`values[8]` into `[i32; 8]`).
@@ -374,7 +391,7 @@ fn indexed_extent(
     machine: MachineId,
     site: ExecutionSite,
     obligation: ObligationId,
-) -> Option<(Option<u64>, u64)> {
+) -> Option<IndexedExtent> {
     let lowered = module.machine(machine)?;
     let projections = match site {
         ExecutionSite::Operation(operation) => {
@@ -407,10 +424,14 @@ fn indexed_extent(
             StructuralTypeShape::FixedArray {
                 length: ArrayExtent::Literal(extent),
                 ..
-            } => Some((
-                terminal_semantics::constant_runtime_index(lowered, index),
+            } => Some(IndexedExtent::Fixed {
+                index: terminal_semantics::constant_runtime_index(lowered, index),
                 extent,
-            )),
+            }),
+            StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::ElementView { .. } => {
+                Some(IndexedExtent::Runtime)
+            }
+            _ if array.shape.is_borrowed_byte_view() => Some(IndexedExtent::Runtime),
             _ => None,
         }
     })
