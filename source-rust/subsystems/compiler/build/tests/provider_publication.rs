@@ -989,7 +989,7 @@ fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
         r#"
 public boundary trait TimeHost {
     machine ticks() -> u64 reaches none crashes none;
-    machine frequency() -> u64 reaches none crashes none;
+    machine frequency() -> u64 reaches TimeHost crashes none;
 }
 "#,
     )
@@ -1066,6 +1066,16 @@ public boundary trait TimeHost {
             .collect::<Vec<_>>()
     );
     assert_eq!(service.methods.len(), 2);
+    for method in &service.methods {
+        match method.name.as_str() {
+            "ticks" => assert!(method.authority.service_reach.is_empty()),
+            "frequency" => assert_eq!(
+                method.authority.service_reach.as_slice(),
+                std::slice::from_ref(&service.service),
+            ),
+            unexpected => panic!("unexpected permission method {unexpected}"),
+        }
+    }
     let frequency = &service
         .methods
         .iter()

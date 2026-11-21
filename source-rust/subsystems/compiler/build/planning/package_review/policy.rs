@@ -78,7 +78,7 @@ pub(super) fn project(
     callables.extend(providers.callables);
     callables.sort_by(|left, right| left.identity.cmp(&right.identity));
     let terminal_permissions =
-        super::terminal_permissions::project(input, checked, target, package, &callables)?;
+        super::terminal_permissions::project(input, checked, target, package)?;
     let mut semantic_dependencies = providers.semantic_dependencies;
     semantic_dependencies.extend(input.carried_dependencies(package)?);
     semantic_dependencies.sort_unstable();

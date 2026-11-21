@@ -999,17 +999,14 @@ impl PolicySource<'_> {
             ));
         }
 
-        // Provider authority includes the selected slot. Calls contribute only
-        // the requirement's own reach, which the callable below publishes.
-        let mut reach = boundary.published_service_ceiling.clone();
-        reach.push(owner);
-        reach.sort_unstable();
-        reach.dedup();
-        let authority = reviewed_services(declarations.service_names, &reach)?;
+        // Owning a provider slot identifies the method. Its published reach is
+        // the independently declared ceiling, including any authored parents.
+        let reach = &boundary.published_service_ceiling;
+        let authority = reviewed_services(declarations.service_names, reach)?;
         // The plan stores source names. Resolve those from the same checked
         // coordinates, even when the nominal identities have qualified paths.
         let ceiling_matches = declarations
-            .source_service_names(&reach, |declaration| declaration.name.as_str())?
+            .source_service_names(reach, |declaration| declaration.name.as_str())?
             .into_iter()
             .eq(method.service_reach.iter().map(String::as_str));
         use service_surface::ServiceSynchronousInvocation;
