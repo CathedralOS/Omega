@@ -7,7 +7,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 ## Development-health outcomes
 
 - **ITERATION-PERFORMANCE.** Reduce measured delays in the edit/build/run cycle.
-  - Use the [worktree assignment](tools/xtask/src/worktree.rs) to prefer collecting idle build outputs under disk pressure. Exercise independent collectors with one target's worth of space, an assignment and a release. Preserve explicit keep/evict settings, command leases and Cargo locks.
   - After real-program bottlenecks, measure arena growth and copied nodes on repeated aggregate [constant substitutions](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/substitution.rs). Preserve per-occurrence metadata when sharing definition content.
   - Measure ascending, descending, repeated and tiny sets of [specializations](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs). Count movement in the sorted index before changing storage. Preserve application identity, encounter order and deduplication.
 - **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.

@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index 8de068b..8b1184f 100644
+index 8de068b..4deafe7 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -1443,7 +1443,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
@@ -7,7 +7,7 @@ index 8de068b..8b1184f 100644
  [[package]]
  name = "mbx"
 -version = "1.29.2"
-+version = "1.29.2-omega.1"
++version = "1.29.2-omega.2"
  dependencies = [
   "bytesize",
   "cargo-config2",
@@ -219,17 +219,87 @@ index 12053df..e821833 100644
  fn models_embedded_metadata_selection_in_the_action_key() {
      let invocation = |selection: &[&str]| {
 diff --git a/crates/mbx/Cargo.toml b/crates/mbx/Cargo.toml
-index 2279085..2d88838 100644
+index 2279085..4803315 100644
 --- a/crates/mbx/Cargo.toml
 +++ b/crates/mbx/Cargo.toml
 @@ -1,6 +1,6 @@
  [package]
  name = "mbx"
 -version = "1.29.2"
-+version = "1.29.2-omega.1"
++version = "1.29.2-omega.2"
  description = "A build cache for Rust projects"
  edition.workspace = true
  rust-version.workspace = true
+diff --git a/crates/mbx/src/cli/test_runner.rs b/crates/mbx/src/cli/test_runner.rs
+index 330a38c..1a41d8e 100644
+--- a/crates/mbx/src/cli/test_runner.rs
++++ b/crates/mbx/src/cli/test_runner.rs
+@@ -349,20 +349,10 @@ fn ledger_name(project: Option<&str>, package: Option<&str>, binary: &str) -> St
+ /// `None` outside Git, where history falls back to package and binary names.
+ fn repository_identity(workspace_root: &Path) -> Option<String> {
+     use sha2::Digest as _;
+-    let checkout = workspace_root
+-        .ancestors()
+-        .find(|directory| directory.join(".git").exists())?;
+-    let dot_git = checkout.join(".git");
+-    let common = if dot_git.is_dir() {
+-        dot_git
+-    } else {
+-        let pointer = std::fs::read_to_string(&dot_git).ok()?;
+-        let git_dir = checkout.join(pointer.strip_prefix("gitdir:")?.trim());
+-        match std::fs::read_to_string(git_dir.join("commondir")) {
+-            Ok(common) => git_dir.join(common.trim()),
+-            // A submodule's directory is its own repository.
+-            Err(_) => git_dir,
+-        }
++    let (_, git_dir) = crate::util::git_checkout(workspace_root)?;
++    let common = match std::fs::read_to_string(git_dir.join("commondir")) {
++        Ok(common) => git_dir.join(common.trim()),
++        Err(_) => git_dir,
+     };
+     let common = common.canonicalize().ok()?;
+     let digest = sha2::Sha256::digest(common.as_os_str().as_encoded_bytes());
+diff --git a/crates/mbx/src/config.rs b/crates/mbx/src/config.rs
+index 561a588..0fa240c 100644
+--- a/crates/mbx/src/config.rs
++++ b/crates/mbx/src/config.rs
+@@ -1566,6 +1566,13 @@ impl Config {
+                 );
+                 continue;
+             }
++            if key == "prefer_target_while_git_file" {
++                workspace_priority_file(value).ok_or_else(|| eyre::eyre!(
++                    "{}.prefer_target_while_git_file must name one file in the Git worktree directory",
++                    path.display()
++                ))?;
++                continue;
++            }
+             if key == "linker" {
+                 if environment_contains("MBX_LINKER") {
+                     continue;
+@@ -1662,7 +1669,7 @@ impl Config {
+                     | "cc"
+             ) {
+                 bail!(
+-                    "{} contains unsupported workspace setting {key:?}; only incremental, eager_incremental, share_out_dir, share_workspace_root, build_script_execution, cc, linker, and scheduler are allowed",
++                    "{} contains unsupported workspace setting {key:?}; only incremental, eager_incremental, share_out_dir, share_workspace_root, build_script_execution, cc, linker, scheduler, and prefer_target_while_git_file are allowed",
+                     path.display()
+                 );
+             }
+@@ -1706,6 +1713,13 @@ impl Config {
+     }
+ }
+
++/// A workspace may identify an assignment file in its own Git metadata.
++pub(crate) fn workspace_priority_file(value: &toml_edit::Item) -> Option<&str> {
++    let name = value.as_str()?;
++    let path = Path::new(name);
++    (path.file_name()? == path.as_os_str() && !name.contains(['/', '\\', ':'])).then_some(name)
++}
++
+ fn workspace_bool(path: &Path, setting: &str, value: &toml_edit::Item) -> Result<bool> {
+     value
+         .as_bool()
 diff --git a/crates/mbx/src/materialize.rs b/crates/mbx/src/materialize.rs
 index f88a546..713ecc8 100644
 --- a/crates/mbx/src/materialize.rs
@@ -509,3 +579,175 @@ index 1f62e91..072631e 100644
          )
      )
  }
+diff --git a/crates/mbx/src/target.rs b/crates/mbx/src/target.rs
+index 1372ed6..9e50dee 100644
+--- a/crates/mbx/src/target.rs
++++ b/crates/mbx/src/target.rs
+@@ -132,6 +132,24 @@ impl Precedence {
+     }
+ }
+
++/// A worktree manager owns the assignment file. Read it at collection time so
++/// another process observes a release even when no build followed it.
++fn checkout_prefers_its_target(workspace_root: &Path) -> bool {
++    let Some((checkout, git_dir)) = crate::util::git_checkout(workspace_root) else {
++        return false;
++    };
++    let Some(policy) = crate::util::read_small_text_file(&checkout.join(".mbx.toml"))
++        .and_then(|text| text.parse::<toml_edit::DocumentMut>().ok())
++    else {
++        return false;
++    };
++    policy
++        .get("prefer_target_while_git_file")
++        .and_then(crate::config::workspace_priority_file)
++        .and_then(|name| crate::util::read_small_text_file(&git_dir.join(name)))
++        .is_some_and(|contents| !contents.trim().is_empty())
++}
++
+ /// How far into `workspace_root` the deepest of `entries` reaches, counted
+ /// in path components, then how many components that entry names; `None`
+ /// when none matches. The second breaks ties between entries that end at the
+@@ -1545,6 +1563,7 @@ fn collect_with(
+             files,
+             crate::store::checkout_is_live_on(root, &record.workspace_root),
+             precedence.standing(&record.workspace_root),
++            record.workspace_root,
+         ));
+     }
+     // A file a view still links stays counted there; a deletion that stops
+@@ -1570,7 +1589,7 @@ fn collect_with(
+             .any(|entry| entry.4 && entry.5 != Standing::Keep && !expired(entry.2, entry.5))
+         && crate::target_units::access_times_tracked(&views_root(root))
+     {
+-        for (_, directory, updated, files, live, standing) in &mut entries {
++        for (_, directory, updated, files, live, standing, _) in &mut entries {
+             // A kept target keeps what it holds: one built for a bisect or a
+             // release and left alone is exactly one whose units look unused.
+             if !*live || *standing == Standing::Keep || expired(*updated, *standing) {
+@@ -1638,7 +1657,7 @@ fn collect_with(
+     let mut projection = max_bytes.map(|_| ledger.clone());
+     let mut remaining = ledger.total();
+     let mut selected = HashSet::new();
+-    for (record_path, _, updated, files, live, standing) in &entries {
++    for (record_path, _, updated, files, live, standing, _) in &entries {
+         if !live || expired(*updated, *standing) {
+             selected.insert(record_path.clone());
+             if let Some(projection) = &mut projection {
+@@ -1655,7 +1674,12 @@ fn collect_with(
+             .filter(|entry| !selected.contains(&entry.0) && entry.5 != Standing::Keep)
+             .collect();
+         // Stable, so each standing stays oldest-first.
+-        candidates.sort_by_key(|entry| entry.5);
++        candidates.sort_by_cached_key(|entry| {
++            (
++                entry.5,
++                entry.5 == Standing::Normal && checkout_prefers_its_target(&entry.6),
++            )
++        });
+         for entry in candidates {
+             if remaining <= max_bytes {
+                 break;
+@@ -1674,7 +1698,7 @@ fn collect_with(
+     }
+
+     before_removal();
+-    for (record_path, directory, updated, files, live, _) in entries {
++    for (record_path, directory, updated, files, live, _, _) in entries {
+         if !selected.contains(&record_path) {
+             continue;
+         }
+diff --git a/crates/mbx/src/target_tests.rs b/crates/mbx/src/target_tests.rs
+index 880383e..ca72812 100644
+--- a/crates/mbx/src/target_tests.rs
++++ b/crates/mbx/src/target_tests.rs
+@@ -1462,6 +1462,47 @@ fn over_budget_takes_evict_first_targets_before_older_ones_and_never_kept_ones()
+     assert!(!newest.1.exists());
+ }
+
++#[test]
++fn a_checkout_can_prefer_its_target_until_its_assignment_ends() {
++    let directory = tempfile::tempdir().unwrap();
++    let config = test_config(directory.path(), true);
++    let [old, new, _, _] = ranked_views(directory.path(), &config);
++    let admin = directory.path().join("old-admin");
++    std::fs::create_dir(&admin).unwrap();
++    let marker = admin.join("assignment");
++    std::fs::write(old.0.join(".git"), "gitdir: ../old-admin\n").unwrap();
++    std::fs::write(
++        old.0.join(".mbx.toml"),
++        "prefer_target_while_git_file = \"assignment\"",
++    )
++    .unwrap();
++    std::fs::write(&marker, "compiling\n").unwrap();
++    assert!(checkout_prefers_its_target(&old.0));
++    collect_by(
++        &config.target.root,
++        Some(21),
++        None,
++        &Precedence::default(),
++        RunningPrograms::Spare,
++        false,
++    )
++    .unwrap();
++    assert!(old.1.exists());
++    assert!(!new.1.exists());
++    std::fs::remove_file(marker).unwrap();
++    assert!(!checkout_prefers_its_target(&old.0));
++    collect_by(
++        &config.target.root,
++        Some(0),
++        None,
++        &Precedence::default(),
++        RunningPrograms::Spare,
++        false,
++    )
++    .unwrap();
++    assert!(!old.1.exists());
++}
++
+ #[test]
+ fn the_most_recent_target_is_collected_when_it_is_evict_first() {
+     let directory = tempfile::tempdir().unwrap();
+diff --git a/crates/mbx/src/util.rs b/crates/mbx/src/util.rs
+index c6291e2..4208661 100644
+--- a/crates/mbx/src/util.rs
++++ b/crates/mbx/src/util.rs
+@@ -5,6 +5,37 @@ use std::io::Write as _;
+ use std::path::{Path, PathBuf};
+ use std::time::Duration;
+
++/// Locate this checkout's own Git metadata, including a linked worktree or submodule.
++pub(crate) fn git_checkout(workspace_root: &Path) -> Option<(&Path, PathBuf)> {
++    let checkout = workspace_root
++        .ancestors()
++        .find(|dir| dir.join(".git").exists())?;
++    let dot_git = checkout.join(".git");
++    if dot_git.is_dir() {
++        return Some((checkout, dot_git));
++    }
++    let pointer = read_small_text_file(&dot_git)?;
++    let git_dir = pointer.strip_prefix("gitdir:")?.trim();
++    (!git_dir.is_empty()).then(|| (checkout, checkout.join(git_dir)))
++}
++
++/// Discovery can reach other checkouts. Bound what it reads and skip special files.
++pub(crate) fn read_small_text_file(path: &Path) -> Option<String> {
++    use std::io::Read;
++    const LIMIT: u64 = 64 * 1024;
++    let meta = std::fs::metadata(path).ok()?;
++    if !meta.is_file() || meta.len() > LIMIT {
++        return None;
++    }
++    let mut text = String::new();
++    std::fs::File::open(path)
++        .ok()?
++        .take(LIMIT + 1)
++        .read_to_string(&mut text)
++        .ok()?;
++    (text.len() as u64 <= LIMIT).then_some(text)
++}
++
+ /// Capture clock-independent snapshots for compiler inputs known up front.
+ ///
+ /// A source file is snapshotted by its metadata change token, which catches a

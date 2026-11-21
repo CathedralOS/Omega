@@ -71,14 +71,6 @@ fi
 step "mbx $MBX_VERSION"
 bash "$repo/tools/xtask/bootstrap-mbx.sh" --install-dir "$bin"
 mbx --version
-# Collection settings are machine policy, unsupported in workspace .mbx.toml.
-# Managed hosts share one fixed worker pool; retain it without disabling GC or
-# changing local users' settings. Apply this in --mbx-only setup as well.
-if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ -n "${CODEX_ENVIRONMENT_ID:-}" ]; then
-  # Bootstrap the helper before collection can discard the pool it will pin.
-  # This override lasts for this command; no global GC setting is changed.
-  (cd "$repo" && MBX_GC_AUTO=false mbx xtask managed-cache-retention --repository "$repo")
-fi
 if [ "$mbx_only" = true ]; then
   exit 0
 fi

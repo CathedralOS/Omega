@@ -13,7 +13,6 @@
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
 //! - `cargo xtask worktree <status|acquire|begin|release|clean> [options]`
-//! - `cargo xtask managed-cache-retention [--repository <dir>]`
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
@@ -30,7 +29,6 @@ mod doctor;
 mod execution;
 mod fmt;
 mod gamma_invoke;
-mod managed_cache_retention;
 mod portable_services;
 mod producer;
 mod provenance;
@@ -91,7 +89,6 @@ coordination and workspace:
   claims                    Inspect or update the cross-session work-claim registry
   branch-cleanup            Report (or, with --delete, delete) stale merged remote branches
   worktree                  List, acquire/recycle, release, or clean isolated `.agents/worktree/` checkouts
-  managed-cache-retention   Retain the managed session's shared worker pool in mbx
   provenance                Emit the canonical model-audit footer from the active session transcript
 
 bootstrap tools:
@@ -121,7 +118,6 @@ fn main() -> ExitCode {
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
-        "managed-cache-retention" => managed_cache_retention::run(&args),
         "alpha-forge" => alpha_forge::run(&args),
         "gamma-invoke" => gamma_invoke::run(&args),
         "source-closure" => source_closure::run(&args),
@@ -161,7 +157,6 @@ mod tests {
             "claims",
             "provenance",
             "worktree",
-            "managed-cache-retention",
             "alpha-forge",
             "gamma-invoke",
             "source-closure",
