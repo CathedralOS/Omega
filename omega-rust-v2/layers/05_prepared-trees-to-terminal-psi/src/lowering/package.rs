@@ -220,6 +220,9 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             }
             for record in tree.semantics_at(node) {
                 let (carrier, site) = match record {
+                    omega_typed::NodeSemantics::Operation(op) if types::changes_transport_only_qualification(op, &domain_schemas) => {
+                        return Err(LoweringError::new(&op.site, "changing an applied or inherited scalar qualification is not supported"));
+                    }
                     // A static callable argument selects a machine; it is not a runtime descriptor.
                     omega_typed::NodeSemantics::Expression(e) if e.static_argument_slot.is_some() && matches!(e.ty, ValueType::Callable(_)) => continue,
                     omega_typed::NodeSemantics::Expression(e) => (&e.ty, &e.site),
@@ -401,23 +404,15 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     crate::machines::suspension::plan_package(
         &mut machines,
         &member_calls,
+        &data,
         &types,
         &callees,
         &mut crossing_owners,
     )?;
-    let mut domains = Vec::new();
-    let mut domain_identities = HashMap::new();
-    let mut domain_aliases = Vec::new();
-    for schema in domain_schemas {
-        let id = schema.declaration;
-        match schema.lower(&types)? {
-            domains::DomainDeclaration::Named(domain) => {
-                domain_identities.insert(id, domain.declaration.clone());
-                domains.push(domain);
-            }
-            domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
-        }
-    }
+    let domain_catalog = domain_schemas
+        .into_iter()
+        .map(|schema| Ok((schema.declaration, schema.lower(&types)?)))
+        .collect::<Result<std::collections::BTreeMap<_, _>, LoweringError>>()?;
     mathematics.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
     theorems.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
     data_templates.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
@@ -427,6 +422,15 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         .iter()
         .map(crate::declarations::callables::contract)
         .collect::<Result<Vec<_>, _>>()?;
+    let types = types.finish(&domain_catalog)?;
+    let mut domains = Vec::new();
+    let mut domain_aliases = Vec::new();
+    for declaration in domain_catalog.into_values() {
+        match declaration {
+            domains::DomainDeclaration::Named(domain) => domains.push(domain),
+            domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
+        }
+    }
     let mut package = LoweredPackage {
         member_calls,
         conformances,
@@ -436,7 +440,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         mathematics,
         theorems,
         target_closure: crate::lowering::target::fold_target_closure(prepared)?,
-        types: types.finish(&domain_identities),
+        types,
         data,
         aliases,
         domains,

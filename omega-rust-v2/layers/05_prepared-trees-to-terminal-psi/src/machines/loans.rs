@@ -175,7 +175,7 @@ fn vacancy_at(
         let OperationKind::BorrowedMove { source } = &operation.kind else { continue };
         let source = captured_place(body, source);
         let reason = match relate(body, &source, &target) {
-            Relation::Unproved => "element restoration needs the identical selector value of the extracted element",
+            Relation::Unproved => "cannot prove the store selector equal to or distinct from the selector of an open vacancy",
             Relation::Overlap => "nested restoration needs the overlapping structural window",
             Relation::Same | Relation::Disjoint => continue,
         };

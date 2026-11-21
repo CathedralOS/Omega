@@ -60,16 +60,17 @@ fn a_carrier_failure_is_located_where_it_becomes_a_lowering_refusal() {
 
 #[test]
 fn unsupported_node_preserves_its_callers_origin_through_package_lowering() {
-    let text = "machine choose(value: u8) -> u8 { match value {0u8 -> 1u8, _ -> 2u8,} }";
-    let origin = refusal(text, 47, 50, "expected an exact Boolean pattern: ValuePattern");
+    let repaired = "data Choice {case A(code:u8, value:u8); case B;} machine first(x:@Choice)->u8 {match x {Choice::A {code:1u8, value} -> value, _ -> 0u8,}}";
+    let text = repaired.replace("-> value,", "-> value +% 1u8,");
+    let field = source::span_within(&text, "value} ->", "value");
+    let origin = refusal(&text, field.start, field.end, "payload requires one literal test and direct value bindings: FieldPattern");
     assert!(
         origin
             .file()
             .replace('\\', "/")
-            .ends_with("src/machines/branches.rs")
+            .ends_with("src/machines/branches/value_patterns.rs")
     );
-    let repaired = "machine choose(value: bool) -> u8 { match value {true -> 1u8, _ -> 2u8,} }";
-    source::lower(&[("main.omg", repaired)]).expect("exact Boolean alternatives lower");
+    source::lower(&[("main.omg", repaired)]).expect("the direct payload binding lowers");
 }
 
 #[test]

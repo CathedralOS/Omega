@@ -87,8 +87,13 @@ fn an_ordinary_scope_stores_the_replacement_descriptor_into_the_original_home() 
 fn a_replaced_home_never_parks_with_its_first_descriptor() {
     for (initial, latest) in [("first", "second"), ("second", "first")] {
         let text = program(initial, latest, true);
-        let err = source::lower(&[("replaced.omg", &text)]).unwrap_err();
-        assert_eq!(err.message, UNTRACED);
+        // Parking is checked at the call operation, inside its `suspend` marker.
+        let err = source::refuse(
+            &[("replaced.omg", &text)],
+            "replaced.omg",
+            source::span_within(&text, "suspend wait()", "wait()"),
+            UNTRACED,
+        );
         known_gap::report(&format!("suspend after replacing {initial} with {latest}"), "The parked record needs the latest descriptor's origin", &text, &err);
         assert!(
             err.site

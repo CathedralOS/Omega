@@ -662,12 +662,10 @@ fn published_sort_requirement_binds_each_calls_element_and_ordering() {
     .unwrap_err();
     assert_eq!(error.file, "calls.omg");
     assert_eq!(error.message, "selected evidence has the wrong trait application");
-    assert_span_within(
-        &wrong,
-        error.span.get_start_offset(),
-        error.span.get_end_offset(),
-        "Sorting::sort::<u8,WideOrder>(xs)",
-    );
+    // WideOrder is valid in the second call; only its occurrence in the first call is wrong.
+    let start = wrong.find("WideOrder").unwrap();
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(start, start + "WideOrder".len()));
+    assert_eq!(error.reason(), Some(omega_typer::TraitEvidenceError::WrongTraitApplication.into()));
 }
 
 #[test]

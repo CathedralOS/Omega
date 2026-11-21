@@ -6,6 +6,7 @@ use omega_resolved::DeclarationId;
 use omega_typed::TypeError;
 use omega_typed::{MachineEffects, TypedConstant, TypedTrees};
 
+use crate::evaluation::integer_arithmetic::IntegerRange;
 use crate::evaluation::owned_values::NominalAdmission;
 use crate::evaluation::refusal;
 use crate::invocation::EvaluationError;
@@ -40,7 +41,7 @@ pub(crate) struct ConstantEvaluation<'trees, 'text> {
     pub(crate) trees: &'trees TypedTrees<'text>,
     pub(crate) definitions: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
     repeated: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
-    pub(crate) values: HashMap<DeclarationId, PreparedValue>,
+    values: HashMap<DeclarationId, PreparedValue>,
     pub(crate) open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
     pub(crate) boundary_slots: &'trees [omega_typed::BoundarySlot],
     pub(crate) target: Option<&'trees TargetSemantics>,
@@ -144,6 +145,10 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
             }
             effects
         })[signature]
+    }
+
+    pub(crate) fn frozen_value(&self, id: &DeclarationId) -> Option<&PreparedValue> {
+        self.values.get(id)
     }
 
     pub(crate) fn finish(&mut self) -> Result<HashMap<DeclarationId, PreparedValue>, PreparationRefusal> {
@@ -251,6 +256,21 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         Ok(())
     }
 
+    /// Guard the initializer's integer range at the only cache write, even for
+    /// constants never read. A rejected value must not become visible to readers.
+    fn publish_constant(&mut self, constant: &TypedConstant, value: PreparedValue) -> Result<(), PreparationRefusal> {
+        let request = &constant.initializer;
+        if let PreparedValue::Integer(integer) = &value {
+            let range = IntegerRange::for_type(&request.carrier)
+                .ok_or_else(|| refusal(&request.expression, PreparationReason::ConstantCarrierMismatch))?;
+            if !range.fits(integer) {
+                return Err(refusal(&request.expression, PreparationReason::FrozenConstantOutsideCarrier));
+            }
+        }
+        self.values.insert(constant.declaration.clone(), value);
+        Ok(())
+    }
+
     fn materialize(
         &mut self,
         root: &'trees TypedConstant,
@@ -270,7 +290,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
             self.origin = Some(crate::PreparedValueOrigin::Constant(constant.declaration.clone()));
             match self.evaluate_value_request(request, None) {
                 Ok(value) => {
-                    self.values.insert(constant.declaration.clone(), value);
+                    self.publish_constant(constant, value)?;
                     active.remove(&constant.declaration);
                     stack.pop();
                 }
@@ -301,3 +321,6 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

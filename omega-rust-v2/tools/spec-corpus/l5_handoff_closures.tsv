@@ -1,0 +1,15 @@
+case	scope	checks
+integer value pattern dispatch	product	psi-output/integer-pattern-equality
+payload value pattern	product	psi-output/payload-pattern-equality
+call in a contract predicate	product	psi-output/predicate-call-machine-requirement
+call in a data requirement	product	psi-output/data-requirement-call
+call in a domain predicate	product	psi-output/named-domain-call
+indexed domain alias	product	psi-output/indexed-alias-atoms
+inherited domain	product	psi-output/inherited-domain-subject
+omitted field zero in executable construction	product	psi-output/omitted-field-zero
+omitted timeout field at the same construction span	product	psi-output/omitted-timeout-zero
+ranked recursion through an ordinary call	checker-input	psi-output/ordinary-rank-call|psi-output/ordinary-rank-successor
+unequal-width scalar recast from u16 to i32	checker-input	psi-output/differing-recast-carriers
+unequal-width scalar recast from u32 to i16	checker-input	psi-output/differing-recast-carriers
+unequal-width scalar recast from u64 to u32	checker-input	psi-output/differing-recast-carriers
+recast of a Boolean referent	checker-input	psi-output/differing-recast-carriers

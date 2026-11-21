@@ -406,6 +406,7 @@ impl BodyTyper<'_, '_> {
             {
                 self.refine_callable(
                     node_index,
+                    node_index,
                     c,
                     None,
                     &crate::MachineApplication {

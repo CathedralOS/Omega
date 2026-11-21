@@ -327,7 +327,12 @@ fn explicit_discard_releases_affine_storage_and_refuses_a_linear_claim_at_the_op
     assert_eq!(edge.cleanup, [omega_lowering::CleanupAction::DiscardRoot(place)]);
     assert!(matches!(&body.blocks[edge.target.get()-1].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
     let linear = source.replace("Handle {}", "Handle [linear] {}");
-    let error = lower(&linear).unwrap_err();
+    let error = sources::refuse(
+        &[("calls.omg", &linear)],
+        "calls.omg",
+        sources::unique_span(&linear, "Handle{}"),
+        "normal exit needs an authorized disposition for owned storage",
+    );
     assert_eq!(error.message, "normal exit needs an authorized disposition for owned storage");
     assert_eq!(error.site.file, "calls.omg");
     assert_eq!(error.site.span.slice(linear.as_bytes()), Some(b"Handle{}".as_slice()));

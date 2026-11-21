@@ -70,13 +70,14 @@ def measure(report, inventory):
     for key, entry in causes.items():
         family, name = key.split(":")
         families.setdefault(family, {})[name] = entry
-    return {"measured": True, "families": families}
+    missing = {test: key for test, key in expected.items() if test not in causes[key]["package"]}
+    return {"measured": True, "families": families, "registered_package_tests": len(expected), "missing_package_tests": missing}
 
 
 def blocks(result):
     if result is None:
         return False
-    return not result["measured"] or any(not row["package"] for family in result["families"].values() for row in family.values())
+    return not result["measured"] or bool(result.get("missing_package_tests")) or any(not row["package"] for family in result["families"].values() for row in family.values())
 
 
 def summary(result):
@@ -84,9 +85,13 @@ def summary(result):
         return []
     if not result["measured"]:
         return ["- L3 finite typing reason inventory unavailable."]
-    return [f"- L3 · `{family}`: {sum(bool(row['package']) for row in causes.values())}/{len(causes)} declared reasons have "
+    lines = [f"- L3 · `{family}`: {sum(bool(row['package']) for row in causes.values())}/{len(causes)} declared reasons have "
             "exact typed package witnesses. [Sibling ledger](typing-sites.md#finite-typing-reasons)"
             for family, causes in result["families"].items()]
+    if "registered_package_tests" in result:
+        total = result["registered_package_tests"]
+        lines.append(f"- L3 verified the exact typed reason in {total - len(result['missing_package_tests'])}/{total} registered package tests.")
+    return lines
 
 
 def details(result):
@@ -95,6 +100,8 @@ def details(result):
     lines = ["## Finite typing reasons", "", *summary(result), "",
              "Only named package twins credit a sibling. Other passing L3 returns are listed separately. "
              "These families are not an inventory of all typing reasons.", ""]
+    for test, reason in result.get("missing_package_tests", {}).items():
+        lines.append(f"- Missing package witness `{test}` for `{reason}`.")
     for family, causes in result.get("families", {}).items():
         lines += [f"### {family}", ""]
         for name, row in causes.items():

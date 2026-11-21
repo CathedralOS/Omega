@@ -207,11 +207,11 @@ fn building_a_record_moves_each_field_once_in_authored_order() {
     }
     assert!(matches!(&body.blocks[0].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
     let duplicate = source.replace("left:move p.right", "left:move p.left");
-    assert_eq!(
-        sources::lower(&[("duplicate.omg", &duplicate)])
-            .unwrap_err()
-            .message,
-        "owned transfer overlaps previously moved storage"
+    sources::refuse(
+        &[("duplicate.omg", &duplicate)],
+        "duplicate.omg",
+        sources::span_within(&duplicate, "left:move p.left", "move p.left"),
+        "owned transfer overlaps previously moved storage",
     );
 }
 
@@ -298,9 +298,11 @@ fn transferring_an_owned_match_result_uses_the_join_parameter() {
             .any(|o| matches!(&o.kind,OperationKind::MoveStructural{source} if source.root==parameter && source.path.is_empty()))
     );
     let different = source.replace("false->move p.left", "false->move p.right");
-    assert_eq!(
-        sources::lower(&[("join.omg", &different)]).unwrap_err().message,
-        "structural join requires a common incoming ownership frontier"
+    sources::refuse(
+        &[("join.omg", &different)],
+        "join.omg",
+        sources::unique_span(&different, "{let chosen=match flag{true->move p.left,false->move p.right,};chosen}"),
+        "structural join requires a common incoming ownership frontier",
     );
 }
 
@@ -427,9 +429,11 @@ fn a_cleanup_pattern_transfers_bound_children_and_disposes_ignored_children() {
     assert_eq!(returned.root, kept);
     assert!(cleanup.is_empty());
     let illegal = source.replace("let Lease{kept,..}=x;kept", "move x.kept");
-    assert_eq!(
-        sources::lower(&[("parts.omg", &illegal)]).unwrap_err().message,
-        "a field move cannot decompose a value with selected cleanup"
+    sources::refuse(
+        &[("parts.omg", &illegal)],
+        "parts.omg",
+        sources::unique_span(&illegal, "move x.kept"),
+        "a field move cannot decompose a value with selected cleanup",
     );
 }
 

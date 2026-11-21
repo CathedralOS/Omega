@@ -7,9 +7,12 @@
 //! those remain checker obligations. Unsupported shapes refuse.
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
-    BlockTerminator, CallArgument, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds, RankComparison,
+    BlockTerminator, CallArgument, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
     RankExpression, RankOrder, RankRelation, RankedEdge, ScalarType, Site, TypeShape, ValueOrigin, site_at,
 };
+mod calls;
+mod comparisons;
+use calls::{Invocation, RankedTransfer};
 use num_bigint::BigInt;
 use omega_resolved::Symbol;
 use omega_syntax::{NodeKind, TerminationClause};
@@ -78,7 +81,7 @@ pub(crate) fn authored(
             span, kind: NodeKind::Param, ..
         }) = resolved.symbol(node)
         else {
-            return Err(refuse(node, "ranking subject must name a machine formal"));
+            return Err(refuse(node, "lowering only represents rank operands that name machine formals"));
         };
         let index = sig
             .parameters
@@ -206,42 +209,41 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             .ok_or_else(|| LoweringError::new(site, "rank graph has an unknown local machine"))?;
         Ok(Some(index))
     };
-    let mut ordinary = vec![Vec::new(); machines.len()];
-    let mut terminal = vec![Vec::new(); machines.len()];
+    let mut calls = vec![Vec::new(); machines.len()];
     for (position, machine) in machines.iter().enumerate() {
         let diagnostics = &machine.body.diagnostics;
-        let mut ordinary_target = |callee: &crate::CallTarget, site: &Site| -> Result<(), LoweringError> {
+        let mut add = |callee: &crate::CallTarget, site: &Site, invocation| -> Result<(), LoweringError> {
             if machine.contract.ranking.is_some() && matches!(callee, crate::CallTarget::Runtime { .. }) {
-                return Err(LoweringError::new(site, "ranked dynamic dispatch needs the descriptor's termination contract"));
+                if matches!(invocation, Invocation::Terminal(_)) {
+                    return Err(LoweringError::new(site, "lowering cannot include an indirect terminal call in the caller's rank graph"));
+                }
+                return Err(LoweringError::new(site, "lowering cannot include an indirect call in the caller's rank graph"));
             }
             if let Some(target) = local_target(callee, site)? {
-                ordinary[position].push((target, site.clone()));
+                calls[position].push((target, invocation));
             }
             Ok(())
         };
-        for operation in &machine.body.operations {
-            let site = &diagnostics.operations[operation.id.index()];
-            match &operation.kind {
-                OperationKind::Call { callee, .. } => ordinary_target(callee, site)?,
-                OperationKind::StructuralStore {
-                    disposition: crate::StructuralStoreDisposition::Dispose(actions),
-                    ..
-                } => {
-                    for action in actions {
-                        if let crate::CleanupAction::Invoke { target, .. } = action {
-                            ordinary_target(&crate::CallTarget::Machine(*target), site)?;
+        for row in &machine.body.blocks {
+            for op in &machine.body.operations[row.operations.clone()] {
+                let site = &diagnostics.operations[op.id.index()];
+                match &op.kind {
+                    OperationKind::Call { callee, .. } => add(callee, site, Invocation::Ordinary(row, op))?,
+                    OperationKind::StructuralStore { disposition: crate::StructuralStoreDisposition::Dispose(actions), .. } => {
+                        for action in actions {
+                            if let crate::CleanupAction::Invoke { target, .. } = action {
+                                add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(site))?;
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
-        for (block, row) in machine.body.blocks.iter().enumerate() {
             let mut add_cleanups = |actions: &[crate::CleanupAction], id: crate::EdgeId| -> Result<(), LoweringError> {
                 let site = edge_site(&machine.body, id.get());
                 for action in actions {
                     if let crate::CleanupAction::Invoke { target, .. } = action {
-                        ordinary_target(&crate::CallTarget::Machine(*target), site)?;
+                        add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(site))?;
                     }
                 }
                 Ok(())
@@ -250,15 +252,7 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
                 BlockTerminator::Return { id, cleanup, .. } => add_cleanups(cleanup, *id)?,
                 BlockTerminator::TerminalCall { id, callee, cleanup, .. } => {
                     add_cleanups(cleanup, *id)?;
-                    if machine.contract.ranking.is_some() && matches!(callee, crate::CallTarget::Runtime { .. }) {
-                        return Err(LoweringError::new(
-                            edge_site(&machine.body, id.get()),
-                            "ranked dynamic dispatch needs the descriptor's termination contract",
-                        ));
-                    }
-                    if let Some(target) = local_target(callee, edge_site(&machine.body, id.get()))? {
-                        terminal[position].push((block, target));
-                    }
+                    add(callee, edge_site(&machine.body, id.get()), Invocation::Terminal(row))?;
                 }
                 BlockTerminator::Jump(edge) => add_cleanups(&edge.cleanup, edge.id)?,
                 BlockTerminator::Conditional { when_true, when_false, .. } => {
@@ -270,14 +264,8 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             }
         }
     }
-    let successors: Vec<Vec<usize>> = (0..machines.len())
-        .map(|m| {
-            ordinary[m]
-                .iter()
-                .map(|&(target, _)| target)
-                .chain(terminal[m].iter().map(|&(_, target)| target))
-                .collect()
-        })
+    let successors: Vec<Vec<usize>> = calls.iter()
+        .map(|outgoing| outgoing.iter().map(|&(target, _)| target).collect())
         .collect();
     let component = strongly_connected(&successors);
     let mut groups: Vec<Vec<usize>> = Vec::new();
@@ -312,7 +300,7 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             if ranked {
                 return Err(LoweringError::new(
                     &machines[m].body.diagnostics.body,
-                    "every member of a ranked recursive component requires its own `terminates by` witness",
+                    "lowering has no entry-rank mapping for this member of the recursive component",
                 ));
             }
             if let Some(&m) = members
@@ -341,15 +329,6 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             if Some(ranking.relation) != relation {
                 return Err(LoweringError::new(&ranking.site, "a recursive component requires one common rank relation"));
             }
-            if let Some((_, site)) = ordinary[m]
-                .iter()
-                .find(|(target, _)| component[*target] == group)
-            {
-                return Err(LoweringError::new(
-                    site,
-                    "ranked recursion through an ordinary call cannot lower to constant-stack iteration",
-                ));
-            }
             match has_block_cycle(&machine.body) {
                 Some(false) => {}
                 Some(true) => return Err(LoweringError::new(&machine.body.diagnostics.body, "ranked block backedges are unsupported")),
@@ -363,16 +342,10 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             let source = ranking
                 .source_rank(&machine.body.parameters)
                 .ok_or_else(|| LoweringError::new(&ranking.site, "ranking input is not a scalar formal"))?;
+            let comparisons = comparisons::Comparisons::new(&machine.body);
             let mut edges = Vec::new();
-            for &(block, target) in terminal[m]
-                .iter()
-                .filter(|&&(_, target)| component[target] == group)
-            {
-                let row = &machine.body.blocks[block];
-                let BlockTerminator::TerminalCall { id, arguments, .. } = &row.terminator else {
-                    unreachable!("collected from a terminal call")
-                };
-                let edge_site = edge_site(&machine.body, id.get());
+            for &(target, invocation) in calls[m].iter().filter(|&&(target, _)| component[target] == group) {
+                let RankedTransfer { block, edge, forwarded_call, arguments, site: edge_site } = invocation.transfer(&machine.body, &package.types)?;
                 let callee_machine = &machines[target];
                 let target_rank = callee_machine
                     .contract
@@ -397,14 +370,11 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
                         _ => None,
                     })
                     .ok_or_else(|| LoweringError::new(edge_site, "ranked edge argument is not a scalar actual of the target rank"))?;
-                let comparison = if successor == source {
-                    RankComparison::Preserving
-                } else {
-                    RankComparison::Strict
-                };
+                let comparison = comparisons.comparison(block, &source, &successor);
                 edges.push(RankedEdge {
-                    block: row.id,
-                    edge: *id,
+                    block,
+                    edge,
+                    forwarded_call,
                     target: callee_machine.id,
                     successor,
                     comparison,

@@ -1,3 +1,5 @@
+mod predicate_calls;
+
 use crate::lowering::applied_tree::LoweringTree;
 use num_bigint::BigInt;
 use omega_prepared::{PreparedTrees, PreparedValue};
@@ -137,18 +139,21 @@ pub(crate) fn lower_predicate(
             predicate.push(PredicateStep::MathematicalTerm(term));
             continue;
         }
-        if current.kind == NodeKind::Call
-            && let Some((step, operands)) = super::hypotheses::guarantee(tree, owner, node, ty, guarantee.filter(|_| node == root).map(|sig| &sig.machine))?
-        {
-            work.push(Step::Emit(step));
-            for (operand, carrier) in operands.into_iter().rev() {
-                work.push(Step::Visit {
-                    node: operand,
-                    ty: carrier,
-                    inherited: None,
-                });
+        if current.kind == NodeKind::Call {
+            let proved = guarantee.filter(|_| node == root).map(|sig| &sig.machine);
+            let application = match super::hypotheses::guarantee(tree, owner, node, ty, proved)? {
+                None if tree.semantics_at(node).any(|row| matches!(row, NodeSemantics::Call(c) if c.use_site == omega_typed::CallUse::Fact)) => {
+                    Some(predicate_calls::application(prepared, tree, owner, node, ty, proved, role == PredicateRole::CrashGuard && node == root)?)
+                }
+                hypothesis => hypothesis,
+            };
+            if let Some((step, operands)) = application {
+                work.push(Step::Emit(step));
+                for (node, ty) in operands.into_iter().rev() {
+                    work.push(Step::Visit { node, ty, inherited: None });
+                }
+                continue;
             }
-            continue;
         }
         if current.kind == NodeKind::Index {
             let (base, receiver, index) = fixed_index(prepared, tree, node, ty, inherited, guarantee.filter(|_| node == root).map(|sig| &sig.machine))?;
@@ -638,6 +643,7 @@ fn records<'a>(
     let mut typed = false;
     let mut obligation = false;
     let mut total_guard = false;
+    let mut unsupported = false;
     for record in tree.semantics_at(node) {
         match record {
             NodeSemantics::Expression(e)
@@ -683,8 +689,21 @@ fn records<'a>(
             NodeSemantics::Obligation(row) if crash_guard && !total_guard && matches!(row.kind, ObligationKind::TotalCrashGuard) && row.site == site => {
                 total_guard = true;
             }
-            _ => return Err(LoweringError::new(&site, "unsupported typed contract predicate record")),
+            NodeSemantics::Obligation(row) if matches!(row.kind, ObligationKind::FormSquash { .. }) => {
+                return Err(LoweringError::new(&site, "Psi cannot form a squash proposition in a contract predicate"));
+            }
+            NodeSemantics::Call(call) => {
+                return Err(LoweringError::new(
+                    &site,
+                    format!("unsupported machine call `{}` in a Psi contract predicate", call.machine.path),
+                ));
+            }
+            // A specific unsupported construct can follow its expression type at the same site.
+            _ => unsupported = true,
         }
+    }
+    if unsupported {
+        return Err(LoweringError::new(&site, "unsupported typed contract predicate record"));
     }
     if !typed || obligation != guarantee.is_some() || total_guard != crash_guard {
         return Err(LoweringError::new(&site, "contract predicate has incomplete typing or guarantee records"));

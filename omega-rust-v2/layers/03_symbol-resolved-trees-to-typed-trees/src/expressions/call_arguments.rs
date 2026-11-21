@@ -292,6 +292,9 @@ impl BodyTyper<'_, '_> {
                 self.record_obligation(node_index, ObligationKind::UniverseMembership { subject, sort });
             })
             .map_err(|message| TypeError::at(source_file, callee, message))?;
+        if !bindings.is_empty() || !enclosing.is_empty() {
+            crate::contracts::logical_hypotheses::check_application(self.catalog, id, self.unit, callee, instantiate)?;
+        }
         for (index, ty) in bindings.iter().enumerate() {
             if let Some(ValueType::LogicalRequirement(site)) = self.catalog.types.bound(id, index) {
                 let req = &self.catalog.hypotheses[site];
@@ -400,7 +403,8 @@ impl BodyTyper<'_, '_> {
                     );
                 }
                 if !valid {
-                    return Err(TypeError::at(source_file, callee, "selected evidence has the wrong trait application"));
+                    let argument = explicit_arguments.get(index).copied().unwrap_or(callee);
+                    return Err(TypeError::for_reason(&site_at(source_file, argument), crate::TraitEvidenceError::WrongTraitApplication));
                 }
             }
             if let Some(formal @ ValueType::Callable(_)) = self.catalog.types.bound(id, index)
@@ -421,7 +425,7 @@ impl BodyTyper<'_, '_> {
                             &application.arguments,
                             &application.enclosing_arguments,
                         )?;
-                        self.refine_callable(node_index, &c, Some((id.clone(), index)), application)?;
+                        self.refine_callable(node_index, selection.unwrap_or(callee), &c, Some((id.clone(), index)), application)?;
                     }
                     ValueType::Parameter { .. }
                         if let Some(ValueType::Callable(actual)) = self.catalog.types.parameter_carrier(ty)

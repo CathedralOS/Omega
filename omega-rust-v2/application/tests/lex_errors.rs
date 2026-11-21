@@ -3,7 +3,7 @@
 #[path = "support/diagnostic_occurrence.rs"]
 mod diagnostic_occurrence;
 
-use omega_lexer::{LexErrorKind, lex};
+use omega_lexer::{LexErrorKind, lex, lex_into};
 use std::{
     fs,
     path::Path,
@@ -77,8 +77,8 @@ fn input(kind: LexErrorKind) -> Twin {
         ),
         NonAsciiOutsideCommentOrQuoted => twin(
             Fixture("words/reject/non_ascii_identifier"),
-            b"machine cafe()->bool{true}",
-            "machine café()->bool{true}".as_bytes(),
+            "// header\r\n/* 界 */ machine cafe()->bool{true}".as_bytes(),
+            "// header\r\n/* 界 */ machine café()->bool{true}".as_bytes(),
         ),
         UnknownCharacter => twin(Fixture("punctuation/reject/unknown_character_question"), b"machine f()->bool{true}", b"machine f()->bool{true?}"),
         UnterminatedBlockComment => twin(
@@ -173,11 +173,24 @@ fn measure(
     let end = start + occurrence.len();
 
     // The first producer: the production lexer itself refuses with this variant and range.
-    let observed_kind = match lex(twin.bad) {
-        Err(error) if error.get_kind() == kind && (error.get_span().get_start_offset(), error.get_span().get_end_offset()) == (start, end) => error.get_kind(),
+    let refusal = match lex(twin.bad) {
+        Err(error) if error.get_kind() == kind && (error.get_span().get_start_offset(), error.get_span().get_end_offset()) == (start, end) => error,
         Err(error) => return Err(format!("the lexer refused with {:?} at {:?}", error.get_kind(), error.get_span())),
         Ok(_) => return Err("the negative source lexes".into()),
     };
+
+    // The reusable-buffer API must report the same first error without leaking partial tokens.
+    let mut reused = lex(twin.good).map_err(|e| format!("positive twin did not lex: {e}"))?;
+    let reused_result = lex_into(twin.bad, &mut reused);
+    if reused_result != Err(refusal) || !reused.is_empty() {
+        return Err(format!("lex_into returned {reused_result:?} with {} tokens left, expected {refusal} and none", reused.len()));
+    }
+    let observed_kind = refusal.get_kind();
+    let api = refusal.to_string();
+    let expected_api = format!("{} (bytes {start}..{end})", kind.get_message());
+    if api != expected_api {
+        return Err(format!("lexer API rendered {api:?}, expected {expected_api:?}"));
+    }
 
     let path = directory.join("case.omg");
     fs::write(&path, twin.good).map_err(|e| e.to_string())?;
@@ -197,7 +210,7 @@ fn measure(
     let prefix = &twin.bad[..start];
     let line = prefix.iter().filter(|&&b| b == b'\n').count() + 1;
     let column = prefix.rsplit(|&b| b == b'\n').next().unwrap().len() + 1;
-    let expected = format!("case.omg:{line}:{column}: lexer: {} (bytes {start}..{end})", kind.get_message());
+    let expected = format!("case.omg:{line}:{column}: lexer: {expected_api}");
     let observed = stderr
         .strip_suffix('\n')
         .ok_or("lexer diagnostic has no line terminator")?;
@@ -215,9 +228,10 @@ fn measure(
     let field = spec_corpus::diagnostic_field;
     let witness = diagnostic_occurrence::fields("case.omg", twin.bad, start, &occurrence);
     Ok(format!(
-        "OMEGA_DIAGNOSTIC_KIND\tL0\t{kind:?}\t{observed_kind:?}\t{}\t{}\t{witness}",
+        "OMEGA_DIAGNOSTIC_KIND\tL0\t{kind:?}\t{observed_kind:?}\t{}\t{}\t{}\t{witness}",
         field(&expected),
-        field(observed)
+        field(observed),
+        field(&api)
     ))
 }
 

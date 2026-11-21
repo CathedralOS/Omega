@@ -54,15 +54,25 @@ fn matrix_indices_retain_every_ordered_segment() {
 
 #[test]
 fn runtime_selector_forms_no_fixed_index_path() {
-    let error = lower("machine f(a:[u8;4], i:u64, b:u8)->u8 requires a[i] < 5 {b}").unwrap_err();
-    assert_eq!(error.message, "contract index requires a fixed selector");
+    let source = "machine f(a:[u8;4], i:u64, b:u8)->u8 requires a[i] < 5 {b}";
+    sources::refuse(
+        &[("structural.omg", source)],
+        "structural.omg",
+        sources::span_within(source, "a[i]", "i"),
+        "contract index requires a fixed selector",
+    );
     observed("contract-path/runtime-selector-refusal");
 }
 
 #[test]
 fn out_of_bounds_selector_rejects_instead_of_redirecting() {
-    let error = lower("machine f(a:[u8;4], b:u8)->u8 requires a[4] < 5 {b}").unwrap_err();
-    assert_eq!(error.message, "contract index is outside its fixed array");
+    let source = "machine f(a:[u8;4], b:u8)->u8 requires a[4] < 5 {b}";
+    sources::refuse(
+        &[("structural.omg", source)],
+        "structural.omg",
+        sources::unique_span(source, "a[4]"),
+        "contract index is outside its fixed array",
+    );
     observed("contract-path/out-of-bounds-refusal");
 }
 

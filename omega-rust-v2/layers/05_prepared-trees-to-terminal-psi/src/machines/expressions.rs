@@ -1,5 +1,5 @@
 use super::body::{MachineBodyValues, check_container, next_id, site_at, unsupported_node};
-use super::branches::{BlockFlow, BooleanArm};
+use super::branches::{BlockFlow, BooleanArm, TestedDispatch, tested_dispatch, value_patterns};
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
     BlockId, BooleanPrimitive, CallArgument, CallTarget, LoweringError, LoweringTypes, MachineBody, OperationId, OperationKind, OperationResult, Place,
@@ -69,9 +69,8 @@ enum PendingOperation {
     Boolean(BooleanPrimitive),
     ExactIntegerCast,
     ScalarBitRecast {
-        width: u64,
-        source_signed: bool,
-        destination_signed: bool,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
     },
     Call {
         callee: CallTarget,
@@ -105,6 +104,12 @@ enum ExpressionStep<'a> {
         node: usize,
         target: TypeId,
         direction: crate::QualificationDirection,
+    },
+    SplitIntegerMatch {
+        dispatch: usize,
+        subject_carrier: &'a ValueType,
+        carrier: &'a ValueType,
+        ty: Option<TypeId>,
     },
     SplitMatch {
         subject: usize,
@@ -356,6 +361,8 @@ impl Expressions<'_> {
             landing: None,
         }];
         let mut values = Vec::new();
+        // A direct payload binding is keyed by its unique arm-local use node.
+        let mut bound_results = std::collections::BTreeMap::<usize, value_patterns::PayloadRead>::new();
         while let Some(step) = work.pop() {
             let (expression, carrier, inherited) = match step {
                 ExpressionStep::Frozen { node, value, carrier } => {
@@ -364,8 +371,30 @@ impl Expressions<'_> {
                         .types
                         .id_for(carrier)
                         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-                    if let (PreparedValue::Array(elements), ValueType::Array(element, length)) = (value, carrier) {
-                        work.push(array_construction(self.types, node, ty, element, *length, elements.len(), &site)?);
+                    let nominal = match value {
+                        PreparedValue::Record { owner, fields } => Some((owner, None, fields)),
+                        PreparedValue::Sum { owner, case, fields } => Some((owner, Some(case), fields)),
+                        _ => None,
+                    };
+                    if let Some((owner, case, fields)) = nominal && carrier.nominal_parts().is_some() {
+                        let schema = super::construction::schema(self, ty, owner, &site)?;
+                        if schema.cleanup_target.is_some() {
+                            return Err(LoweringError::new(&site, "frozen construction cannot establish a value with cleanup"));
+                        }
+                        let (plan, visits) = super::construction::plan(self, carrier, schema, owner, case, fields.iter().enumerate(), &site)?;
+                        work.push(ExpressionStep::Emit {
+                            node,
+                            output: OperationOutput::Structural(ty),
+                            operation: PendingOperation::Construct(plan),
+                            arity: visits.len(),
+                        });
+                        work.extend(
+                            visits.into_iter().rev().map(|(value, carrier)| ExpressionStep::Frozen { node, value, carrier }),
+                        );
+                    } else if let (PreparedValue::Array(elements), ValueType::Array(element, length)) = (value, carrier) {
+                        // Nominal children here are fresh complete places, not reads of live storage.
+                        let supported = self.types.can_forward_value(element) || crate::lowering::types::contains_nominal_value(element);
+                        work.push(array_construction(node, ty, element, *length, elements.len(), supported, &site)?);
                         work.extend(
                             elements
                                 .iter()
@@ -386,7 +415,22 @@ impl Expressions<'_> {
                     values.push(OperationResult::Scalar(result));
                     continue;
                 }
-                ExpressionStep::Visit { node, carrier, landing } => (node, carrier, landing),
+                ExpressionStep::Visit { node, carrier, landing } => {
+                    if let Some(read) = bound_results.remove(&node) {
+                        values.push(OperationResult::Scalar(read.emit(block)));
+                        continue;
+                    }
+                    (node, carrier, landing)
+                }
+                ExpressionStep::SplitIntegerMatch { dispatch, subject_carrier, carrier, ty } => {
+                    let Some(OperationResult::Scalar(value)) = values.pop() else {
+                        return Err(unsupported_node(file, file.nodes[dispatch].children[0], "integer pattern needs a scalar subject"));
+                    };
+                    let captured = value_patterns::Subject::Integer(value, subject_carrier);
+                    let targets = value_patterns::lower(self, dispatch, captured, carrier, block, flow, &mut bound_results)?;
+                    work.push(ExpressionStep::MatchArms { targets, carrier, ty });
+                    continue;
+                }
                 ExpressionStep::SplitMatch { subject, arms, carrier, ty } => {
                     let Some(OperationResult::Scalar(condition)) = values.pop() else {
                         return Err(unsupported_node(file, subject, "Boolean dispatch requires a scalar subject"));
@@ -523,16 +567,15 @@ impl Expressions<'_> {
                             }
                         }
                         PendingOperation::ScalarBitRecast {
-                            width,
-                            source_signed,
-                            destination_signed,
+                            source_referent,
+                            destination_referent,
                         } => {
                             let [OperationResult::Structural(source)] = *operands.as_slice() else {
                                 return Err(unsupported_node(file, node, "recast requires one source descriptor"));
                             };
                             drop(operands);
                             let expected = crate::TypeShape::ScalarReference {
-                                referent: crate::ScalarType::Integer { signed: source_signed, width },
+                                referent: source_referent,
                                 access: crate::ReferenceAccess::Shared,
                             };
                             if self.types.get(block.places[source.index()].ty) != Some(&expected) {
@@ -540,9 +583,8 @@ impl Expressions<'_> {
                             }
                             OperationKind::ScalarBitRecast {
                                 source,
-                                width,
-                                source_signed,
-                                destination_signed,
+                                source_referent,
+                                destination_referent,
                             }
                         }
                         PendingOperation::EstablishStructuralArray => {
@@ -945,12 +987,26 @@ impl Expressions<'_> {
                     .then(lookup_type)
                     .transpose()?;
                 crate::machines::branches::check_match_result(tree, expression, carrier, &self.signature.machine)?;
-                if let Some(targets) = super::references::dispatch_cases(self, expression, block, flow)? {
+                let tested = tested_dispatch(file, expression);
+                if let Some(TestedDispatch::Literal { subject }) = tested {
+                    match value_patterns::plan(self, subject, block)? {
+                        value_patterns::SubjectPlan::EvaluateInteger(subject_carrier) => {
+                            work.push(ExpressionStep::SplitIntegerMatch { dispatch: expression, subject_carrier, carrier, ty });
+                            work.push(ExpressionStep::Visit { node: subject, carrier: subject_carrier, landing: None });
+                        }
+                        value_patterns::SubjectPlan::Captured(subject) => {
+                            let targets = value_patterns::lower(self, expression, subject, carrier, block, flow, &mut bound_results)?;
+                            work.push(ExpressionStep::MatchArms { targets, carrier, ty });
+                        }
+                    }
+                    continue;
+                }
+                if let Some(TestedDispatch::Guards) = tested {
+                    let targets = crate::machines::branches::lower_guards(self, expression, block, flow)?;
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
-                if crate::machines::branches::has_guards(file, expression) {
-                    let targets = crate::machines::branches::lower_guards(self, expression, block, flow)?;
+                if let Some(targets) = super::references::dispatch_cases(self, expression, block, flow)? {
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
@@ -998,14 +1054,13 @@ impl Expressions<'_> {
                             .iter()
                             .any(|t| matches!(t, ValueType::Reference(..)))
                     {
-                        let recast = super::casts::scalar_bit_recast(op, &obligations, &self.signature.machine)?;
+                        let recast = super::casts::shared_scalar_recast(op, &obligations, &self.signature.machine)?;
                         work.push(ExpressionStep::Emit {
                             node: expression,
                             output: OperationOutput::Structural(lookup_type()?),
                             operation: PendingOperation::ScalarBitRecast {
-                                width: recast.width,
-                                source_signed: recast.source_signed,
-                                destination_signed: recast.destination_signed,
+                                source_referent: recast.source_referent,
+                                destination_referent: recast.destination_referent,
                             },
                             arity: 1,
                         });
@@ -1114,12 +1169,12 @@ impl Expressions<'_> {
                     .id_for(element)
                     .map_err(|e| LoweringError::new(&site, e.to_string()))?;
                 work.push(array_construction(
-                    self.types,
                     expression,
                     lookup_type()?,
                     element,
                     *length,
                     bytes.len(),
+                    self.types.can_forward_value(element),
                     &site,
                 )?);
                 for &value in bytes {
@@ -1138,18 +1193,9 @@ impl Expressions<'_> {
                     };
                     let site = site_at(file, expression);
                     // Owned nominal elements arrive as completed places, each consumed once.
-                    work.push(
-                        if super::fixed_arrays::owned_elements(self.types, self.data, element, *length, elements.len(), &site)? {
-                            ExpressionStep::Emit {
-                                node: expression,
-                                output: OperationOutput::Structural(lookup_type()?),
-                                operation: PendingOperation::EstablishStructuralArray,
-                                arity: elements.len(),
-                            }
-                        } else {
-                            array_construction(self.types, expression, lookup_type()?, element, *length, elements.len(), &site)?
-                        },
-                    );
+                    let supported = super::fixed_arrays::owned_elements(self.types, self.data, element, *length, elements.len(), &site)?
+                        || self.types.can_forward_value(element);
+                    work.push(array_construction(expression, lookup_type()?, element, *length, elements.len(), supported, &site)?);
                     work.extend(elements.iter().rev().map(|&node| ExpressionStep::Visit {
                         node,
                         carrier: element,
@@ -1288,18 +1334,18 @@ fn return_semantics<'a>(
 }
 
 fn array_construction<'a>(
-    types: &crate::LoweringTypes,
     node: usize,
     ty: TypeId,
     element: &ValueType,
     extent: u64,
     count: usize,
+    supported: bool,
     site: &Site,
 ) -> Result<ExpressionStep<'a>, LoweringError> {
-    if u64::try_from(count) != Ok(extent) || !types.can_forward_value(element) {
+    if u64::try_from(count) != Ok(extent) || !supported {
         return Err(LoweringError::new(site, "array construction requires a matching extent and copyable elements"));
     }
-    let operation = if matches!(element, ValueType::Array(..)) {
+    let operation = if matches!(element, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)) {
         PendingOperation::EstablishStructuralArray
     } else {
         PendingOperation::EstablishScalarArray

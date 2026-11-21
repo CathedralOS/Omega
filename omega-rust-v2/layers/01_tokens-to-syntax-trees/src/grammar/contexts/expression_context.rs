@@ -12,9 +12,17 @@
     `FULL`, because the closing bracket ends the doubt.
 */
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExpressionSuffix {
+    Delimiter,
+    Clause,
+    Assignment,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ExpressionContext {
     allows_record_literal: bool, // False where a `{` after a name must be left for the caller.
     allows_membership: bool,     // False where the word `in` must be left for the caller.
+    suffix: ExpressionSuffix,    // What the caller may consume after the expression.
     stops_at_greater: bool,      // True inside `<...>`, where `>` closes the list instead of comparing.
 }
 
@@ -23,28 +31,41 @@ impl ExpressionContext {
     pub(crate) const FULL: Self = Self {
         allows_record_literal: true,
         allows_membership: true,
+        suffix: ExpressionSuffix::Delimiter,
         stops_at_greater: false,
     };
 
-    /// A `{` follows: the subject of a `match`, or a clause's predicate before a body.
+    pub(crate) const STATEMENT_HEAD: Self = Self {
+        suffix: ExpressionSuffix::Assignment,
+        ..Self::FULL
+    };
+
+    /// A `{` follows, for instance after the subject of a `match`.
     pub(crate) const BEFORE_BRACE: Self = Self {
         allows_record_literal: false,
-        allows_membership: true,
-        stops_at_greater: false,
+        ..Self::FULL
+    };
+
+    pub(crate) const HEADER: Self = Self {
+        suffix: ExpressionSuffix::Clause,
+        ..Self::BEFORE_BRACE
+    };
+
+    pub(crate) const PATTERN: Self = Self {
+        suffix: ExpressionSuffix::Assignment,
+        ..Self::BEFORE_BRACE
     };
 
     /// The measure of `terminates by`, which may be followed by `in` and then by a body.
     pub(crate) const MEASURE: Self = Self {
-        allows_record_literal: false,
         allows_membership: false,
-        stops_at_greater: false,
+        ..Self::HEADER
     };
 
     /// A generic argument, which ends at `,` or `>`.
     pub(crate) const INSIDE_ANGLES: Self = Self {
-        allows_record_literal: true,
-        allows_membership: true,
         stops_at_greater: true,
+        ..Self::FULL
     };
 
     pub(crate) fn get_allows_record_literal(&self) -> bool {
@@ -53,6 +74,10 @@ impl ExpressionContext {
 
     pub(crate) fn get_allows_membership(&self) -> bool {
         self.allows_membership
+    }
+
+    pub(crate) fn suffix(&self) -> ExpressionSuffix {
+        self.suffix
     }
 
     pub(crate) fn get_stops_at_greater(&self) -> bool {

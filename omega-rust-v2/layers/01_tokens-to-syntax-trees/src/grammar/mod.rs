@@ -9,6 +9,7 @@ mod dispatch;
 mod expressions;
 mod generics;
 mod items;
+mod reference_access;
 mod roots;
 mod statements;
 mod traits;

@@ -139,6 +139,56 @@ fn failed_static_evaluation_is_preparation() {
 }
 
 #[test]
+fn freezing_after_a_successful_retype_is_still_preparation() {
+    use omega_preparation::{PreparationReason, RefusalCause};
+    use omega_typer::TypingProgress;
+
+    let healthy = format!("{DIVIDE}\nconst EXTRA:u64=divide(9,1);");
+    with_package(&healthy, |package| {
+        let product = prepare_source_package_diagnosed(package).unwrap();
+        for (name, value) in [("SIZE", 4), ("EXTRA", 9)] {
+            let constant = product.typed().constants.iter().find(|c| c.declaration.path == name).unwrap();
+            assert_eq!(product.integer_constant(&constant.declaration), Some(&value.into()));
+        }
+    });
+
+    // EXTRA is never demanded by a type. Both variants can evaluate SIZE; only
+    // if L3 accepts its answer may L4 go on to freeze the bad initializer.
+    let bad_freeze = healthy.replace("9,1", "9,0");
+    let bad_retype = bad_freeze.replace("12,3", "12,2");
+    for (source, width_matches) in [(&bad_freeze, true), (&bad_retype, false)] {
+        with_package(source, |package| {
+            let direct = prepare_source_package_diagnosed(package).unwrap_err();
+            let round = PreparationRound::begin(package, &[], None).unwrap();
+            assert!(matches!(round.typing(), TypingProgress::Pending(_)));
+            let answers = round.evaluate_with_cause(CheckedPreparationEvidence::default()).unwrap();
+            match (width_matches, round.advance(answers)) {
+                (true, Ok(PreparationStep::Evaluate(next))) => {
+                    assert!(matches!(next.typing(), TypingProgress::Complete(_)));
+                    let Err(refusal) = next.evaluate_with_cause(CheckedPreparationEvidence::default()) else {
+                        panic!("freezing EXTRA must reject its divisor");
+                    };
+                    assert_eq!(direct, PreparationFailure::Preparation(refusal));
+                    let call = "divide(9,0)";
+                    let start = source.find(call).unwrap();
+                    spec_corpus::assert_preparation_refusal!(
+                        direct, RefusalCause::Preparation(PreparationReason::IntegerPreconditionFalse), "app", "main.omg",
+                        (start, start + call.len()),
+                        "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments"
+                    );
+                }
+                (false, Err(PreparationAdvanceError::Refused(PreparationFailure::ResumedTyping(error)))) => {
+                    assert_at(&error, source, "x", "expected [u8; 4], found [u8; 6]");
+                    assert_eq!(direct, PreparationFailure::ResumedTyping(error));
+                    assert_eq!(direct.cause(), None);
+                }
+                _ => panic!("expected {}", if width_matches { "final freezing pass" } else { "resumed L3 refusal" }),
+            }
+        });
+    }
+}
+
+#[test]
 fn an_extent_without_a_selected_target_is_missing_target_input() {
     let source = format!("{LAYOUT}{EXTENT_USE}");
     spec_corpus::observe_handoff!("preparation-refusal/missing-target", match diagnose(&source) {
@@ -199,4 +249,31 @@ fn a_selected_target_without_the_layout_refuses_evaluation_at_the_query() {
         );
         assert_eq!(prepare_source_package_for_target(package, &[], &target).unwrap_err(), error);
     }));
+}
+
+#[test]
+fn resumed_typing_uses_the_selected_closed_record_field_for_the_parameter_extent() {
+    let program = |wide, result| format!(
+        "data Part [copy]{{n:u8; wide:u64;}} machine width<const P:Part>()->u64 {{P.wide}}
+         machine read(x:[u8;width::<Part{{wide:{wide}u64,n:42u8}}>()])->[u8;{result}] {{x}}"
+    );
+    let signatures = [3, 5].map(|wide| {
+        let source = program(wide, wide);
+        with_package(&source, |package| {
+            let prepared = prepare_source_package_diagnosed(package).unwrap();
+            let read = prepared.typed().signatures.iter().find(|sig| sig.machine.path == "read").unwrap();
+            let [(_, parameter)] = read.parameters.as_slice() else { panic!("expected the read parameter") };
+            (parameter.to_string(), read.result.to_string())
+        })
+    });
+    spec_corpus::observe_handoff!(
+        "closed-record-field-in-resumed-typing/consumer",
+        assert_eq!(signatures, [("[u8; 3]".to_owned(), "[u8; 3]".to_owned()), ("[u8; 5]".to_owned(), "[u8; 5]".to_owned())]),
+    );
+
+    for wide in [3, 5] {
+        let source = program(wide, 9);
+        let Err(PreparationFailure::ResumedTyping(error)) = diagnose(&source) else { panic!("expected the resumed return-type check") };
+        assert_at(&error, &source, "x", &format!("expected [u8; 9], found [u8; {wide}]"));
+    }
 }

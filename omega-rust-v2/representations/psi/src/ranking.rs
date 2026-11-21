@@ -5,7 +5,7 @@
 //! verdict: well-foundedness, every comparison, the rank bounds and the global
 //! every-cycle descent rule remain checker obligations. Identities are owned
 //! and independent of source trees and of any native representation.
-use crate::{BlockId, DeclarationId, EdgeId, MachineId, Parameter, ScalarType, Site, ValueId};
+use crate::{BlockId, DeclarationId, EdgeId, MachineId, OperationId, Parameter, ScalarType, Site, ValueId};
 use num_bigint::BigInt;
 
 /// The order shared by one reconstructed component. The carrier, including
@@ -64,10 +64,14 @@ pub struct RankBounds {
     pub site: Site,
 }
 
-/// The comparison an edge claims. The checker proves it on the actual
-/// successor arguments; producing the claim proves nothing.
+/// Comparison obligation in *unchecked* Psi. Even a named role must be
+/// proved on the actual successor arguments before it can be used.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RankComparison {
+    /// No role selected. Checking must establish one of the two comparisons
+    /// below in the edge's context, and strict edges must break every cycle.
+    /// This is not a third role in a checked component.
+    Pending,
     /// `successor_rank <= source_rank`
     Preserving,
     /// `successor_rank < source_rank`
@@ -81,8 +85,17 @@ pub enum RankComparison {
 pub struct RankedEdge {
     pub block: BlockId,
     pub edge: EdgeId,
+    /// `None`: `edge` is the terminal call. `Some(op)`: `op` and `edge`
+    /// together encode one constant-stack tail transfer, not a recursive
+    /// activation. The final call operation supplies the target, actuals and
+    /// call requirements; the cleanup-free return must forward its exact
+    /// scalar result. A checker can reconstruct this pair from the body.
+    pub forwarded_call: Option<OperationId>,
     pub target: MachineId,
     pub successor: RankExpression<ValueId>,
+    /// Compare `successor` to the owning member's `source_rank`. The owner
+    /// supplies entry requirements; the block and call identify the path and
+    /// operation premises. A pending comparison uses the very same inputs.
     pub comparison: RankComparison,
 }
 

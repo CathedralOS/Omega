@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -481,11 +479,56 @@ fn a_unit_guard_dispatch_rejoins_before_the_following_call() {
 }
 
 #[test]
-fn value_pattern_dispatch_refuses_without_an_exact_lowered_comparison() {
+fn integer_value_pattern_selects_by_exact_typed_equality() {
     let source = "machine choose(value: u8) -> u8 { match value {0u8 -> 1u8, _ -> 2u8,} }";
-    let error = lower(source).unwrap_err();
-    assert_eq!(error.message, "expected an exact Boolean pattern: ValuePattern", "{error}");
-    known_gap::report("integer value pattern dispatch", "The match needs an exact comparison against the integer pattern", source, &error);
+    use omega_lowering::{ArithmeticPolicy, IntegerPrimitive, OperationKind, ScalarLiteral, ScalarType, TypeShape};
+    let package = lower(source).unwrap();
+    let body = &package.machines[0].body;
+    let [Parameter::Scalar(subject)] = body.parameters[..] else {
+        panic!("expected one integer")
+    };
+    let entry = &body.blocks[0];
+    let [zero, compare] = &body.operations[entry.operations.clone()] else {
+        panic!("expected constant and equality")
+    };
+    let OperationResult::Scalar(pattern) = zero.result else {
+        panic!("expected scalar pattern")
+    };
+    assert_eq!(zero.kind, OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+    assert_eq!(body.values[subject.index()].ty, body.values[pattern.index()].ty);
+    assert_eq!(
+        package.types.get(body.values[pattern.index()].ty),
+        Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 8 }))
+    );
+    let OperationKind::Integer { operation, operands } = &compare.kind else {
+        panic!("expected exact equality")
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/integer-pattern-equality",
+        assert_eq!((operation.primitive, operation.policy, operands.as_slice()), (IntegerPrimitive::Equal, ArithmeticPolicy::Exact, [subject, pattern].as_slice())),
+    );
+    assert!(operation.obligations.is_empty());
+    let BlockTerminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &entry.terminator
+    else {
+        panic!("expected conditional successors")
+    };
+    assert_eq!(compare.result, OperationResult::Scalar(*condition));
+    assert_eq!(
+        package.types.get(body.values[condition.index()].ty),
+        Some(&TypeShape::PrimitiveScalar(ScalarType::Boolean))
+    );
+    for (edge, expected) in [(when_true, 1), (when_false, 2)] {
+        let arm = &body.blocks[edge.target.get() - 1];
+        let [result] = &body.operations[arm.operations.clone()] else {
+            panic!("expected arm constant")
+        };
+        assert_eq!(result.kind, OperationKind::Constant(ScalarLiteral::Integer(expected.into())));
+        assert!(matches!(arm.terminator, BlockTerminator::Return {result:ReturnEdge::Scalar(value), ..} if OperationResult::Scalar(value)==result.result));
+    }
 }
 
 #[test]

@@ -29,7 +29,7 @@ CLASSES = {
 }
 LIMITS = ("Names are not resolved: aliases, `Self::` calls and imported constructors are missed. "
           "Only `test` is read from `cfg`. Macro bodies are inspected only when they parse as expressions. "
-          "The scanner cannot see generated code. Returned messages below come from executed tests.")
+          "The scanner cannot see generated code. A closure or helper can forward several decisions through one constructor. A recorded message establishes only the observed rendering at that site.")
 
 
 def parse(text):
@@ -162,6 +162,8 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         site = find_site(observation["compiler_site"], name, "refused", observation["reason"])
         if site is not None:
             site.setdefault("package_tests", []).append(name)
+            if site["class"] in {"dynamic", "template"}:
+                site.setdefault("package_messages", {}).setdefault(observation["reason"], []).append(name)
             reasons.attach(inventory, site, observation, name, "package")
 
     statuses = {}
@@ -205,13 +207,91 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
             except (ValueError, OSError):
                 verified = False
             if verified:
-                observed[0][0].setdefault("fixtures", []).append(fixture)
+                site, result = observed[0]
+                site.setdefault("fixtures", []).append(fixture)
+                if site["class"] in {"dynamic", "template"}:
+                    site.setdefault("fixture_messages", {}).setdefault(result["reason"], []).append(fixture)
             else:
                 inventory["errors"].append(f"{fixture}: missing or inconsistent typed refusal for the matched golden fixture")
 
 
+# Mutually exclusive site buckets; a fixture match is stronger than a helper sighting,
+# but it is not the independent full tuple comparison recorded in api_checks.
+GAP_LABELS = {
+    "none": "No recorded return", "helper": "Helper return only", "fixture": "Handwritten fixture match only",
+}
+FULL_LABELS = {"api": "Stage typed API", "package": "Package", "both": "Stage typed API and package"}
+
+
+def evidence_bucket(row):
+    if row.get("api_checks"):
+        return "both" if row.get("package_tests") else "api"
+    if row.get("package_tests"):
+        return "package"
+    if row.get("fixtures"):
+        return "fixture"
+    return "helper" if row.get("stage_tests") else "none"
+
+
+def rendered_outcomes(row):
+    """Use the same Rust origin and exact returned text for every kind of witness."""
+    if row["class"] not in {"dynamic", "template"}:
+        return {}
+    stage = row.get("api_checks", {})
+    package = row.get("package_messages", {})
+    fixture = row.get("fixture_messages", {})
+    returned = row.get("returned_messages", {})
+    outcomes = dict.fromkeys(returned, "helper")
+    outcomes.update(dict.fromkeys(fixture, "fixture"))
+    outcomes.update(dict.fromkeys(stage, "api"))
+    outcomes.update(dict.fromkeys(package, "package"))
+    outcomes.update(dict.fromkeys(stage.keys() & package.keys(), "both"))
+    return outcomes
+
+
+def rendered_summary(rows):
+    groups = [rendered_outcomes(row) for row in rows]
+    counts = Counter(bucket for group in groups for bucket in group.values())
+    exact = sum(counts[k] for k in FULL_LABELS)
+    partial = sum(any(k in FULL_LABELS for k in g.values()) and any(k in GAP_LABELS for k in g.values()) for g in groups)
+    return (f"Tests observed {counts.total()} distinct combinations of Rust origin and message at dynamic or templated sites. "
+            f"Stage API or package tests checked the full diagnostic for {exact}. "
+            f"{counts['fixture']} had only a handwritten fixture comparison and {counts['helper']} had only a recorded return. "
+            f"Sites with a full check for one message and a weaker check for another: {partial}.")
+
+
+def site_details(row, directory):
+    link = source_link(row["path"], directory)
+    text = f" · {readable(row['text'])}" if row["text"] else ""
+    yield (f"- [{row['path']}:{row['line']}:{row['column']}]({link}#L{row['line']}) · {row['scope']} · "
+           f"{row['constructor']} · {row['class']}{text}")
+    for name in row.get("package_tests", []):
+        yield f"  - Returned to package test `{name}`. [Original input and diagnostic](rule-diagnostics.md#l3)"
+    for message, tests in sorted(row.get("api_checks", {}).items()):
+        names = ", ".join(f"`{name}`" for name in sorted(tests))
+        yield f"  - API tests checked the package, file, byte range and refusal “{readable(message)}” in {names}"
+    renderings = rendered_outcomes(row)
+    if renderings:
+        for message, bucket in sorted(renderings.items()):
+            tests = set(row.get("returned_messages", {}).get(message, ())) | set(row.get("package_messages", {}).get(message, ()))
+            label = (FULL_LABELS | GAP_LABELS)[bucket]
+            names = ", ".join(f"`{name}`" for name in sorted(tests))
+            yield f"  - Returned “{readable(message)}” to {names} · {label}"
+    elif row.get("stage_tests"):
+        yield "  - Returned to " + ", ".join(f"`{name}`" for name in row["stage_tests"])
+    if row.get("fixtures"):
+        yield "  - Checked against handwritten expectations for " + ", ".join(f"`{name}`" for name in row["fixtures"])
+
+
+def module_count_line(label, counts):
+    full = sum(counts[key] for key in FULL_LABELS)
+    missing = sum(counts[key] for key in GAP_LABELS)
+    return (f"| {label} | {full + missing} | {counts['api'] + counts['both']} | {counts['package'] + counts['both']} "
+            f"| {full} | {missing} | {counts['fixture']} | {counts['helper']} | {counts['none']} |")
+
+
 def details(inventory, directory):
-    rows, counts = inventory["rows"], Counter(row["class"] for row in inventory["rows"])
+    rows = inventory["rows"]
     lines = ["# Explicit L3 typing diagnostic call sites", "",
              f"{len(rows)} explicit `TypeError` constructor calls in {inventory['files']} files under `{SOURCE}`; "
              f"{inventory['excluded_items']} test-only items or constructor definitions were excluded. "
@@ -219,36 +299,45 @@ def details(inventory, directory):
     lines.extend(reasons.details(inventory.get("typing_reasons")))
     for error in inventory["errors"]:
         lines.append(f"- Inventory error: {readable(error)}")
-    lines += ["", "| Constructor class | Sites | Exact diagnostic checked | Returned to a passing test only | No recorded return |",
+    if inventory["errors"]:
+        lines += ["", "Evidence gaps unavailable: the inventory or witness join has errors.", ""]
+        for row in rows:
+            lines.extend(site_details(row, directory))
+        return lines
+    lines += ["", "| Constructor class | Sites | Exact diagnostic checked (including fixtures) | Returned to a passing test only | No recorded return |",
               "| --- | ---: | ---: | ---: | ---: |"]
     for kind, title in CLASSES.items():
-        selected = [r for r in rows if r["class"] == kind]
-        if selected:
-            exact = sum(bool(r.get("package_tests") or r.get("fixtures") or r.get("api_checks")) for r in selected)
-            reached_only = sum(
-                1 for r in selected if r.get("stage_tests") and not (r.get("package_tests") or r.get("fixtures") or r.get("api_checks")))
-            lines.append(f"| {title} | {len(selected)} | {exact} | {reached_only} | {len(selected) - exact - reached_only} |")
-    for kind, title in CLASSES.items():
-        if not counts[kind]:
-            continue
-        lines += ["", f"## {title} ({counts[kind]})", ""]
-        for row in (row for row in rows if row["class"] == kind):
-            link = source_link(row["path"], directory)
-            text = f" · {readable(row['text'])}" if row["text"] else ""
-            lines.append(f"- [{row['path']}:{row['line']}:{row['column']}]({link}#L{row['line']}) · {row['scope']} · {row['constructor']}{text}")
-            for name in row.get("package_tests", []):
-                lines.append(f"  - Returned to package test `{name}`. [Original input and diagnostic](rule-diagnostics.md#l3)")
-            for message, tests in sorted(row.get("api_checks", {}).items()):
-                names = ", ".join(f"`{name}`" for name in sorted(tests))
-                lines.append(f"  - API tests checked the package, file, byte range and refusal “{readable(message)}” in {names}")
-            if row.get("returned_messages"):
-                for message, tests in sorted(row["returned_messages"].items()):
-                    names = ", ".join(f"`{name}`" for name in sorted(tests))
-                    lines.append(f"  - Returned “{readable(message)}” to {names}")
-            elif row.get("stage_tests"):
-                lines.append("  - Returned to " + ", ".join(f"`{name}`" for name in row["stage_tests"]))
-            if row.get("fixtures"):
-                lines.append("  - Checked against handwritten expectations for " + ", ".join(f"`{name}`" for name in row["fixtures"]))
+        counts = Counter(evidence_bucket(row) for row in rows if row["class"] == kind)
+        if counts:
+            total = sum(counts.values())
+            lines.append(f"| {title} | {total} | {total - counts['helper'] - counts['none']} | {counts['helper']} | {counts['none']} |")
+
+    lines += ["", "## Observed messages at dynamic and templated sites", "", rendered_summary(rows),
+              "A change in a type name or value can produce a different message for the same rule. Unobserved messages have no measured count.", ""]
+    modules = {}
+    for row in rows:  # Inventory order is path, line, column.
+        modules.setdefault(row["path"], {}).setdefault(evidence_bucket(row), []).append(row)
+    lines += ["", "## Evidence gaps by module", "",
+              "Each site counts once in **Either** if a stage typed API test, a package test, or both checked the full diagnostic. "
+              "**Missing** means neither comparison was recorded; the last three columns split those sites by their strongest evidence. "
+              "A handwritten fixture compares the refusal against its expected source and reason, not the full API tuple. "
+              "These are constructor sites, not language rules: one site can return different refusals.", "",
+              "| Source module | Sites | Stage typed API | Package | Either | Missing | Fixture only | Helper only | No return |",
+              "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    totals = Counter()
+    for index, (path, buckets) in enumerate(modules.items()):
+        counts = Counter({key: len(group) for key, group in buckets.items()})
+        totals.update(counts)
+        lines.append(module_count_line(f"[`{path}`](#typing-module-{index})", counts))
+    lines.append(module_count_line("**Total**", totals))
+    for index, (path, buckets) in enumerate(modules.items()):
+        lines += ["", f'<a id="typing-module-{index}"></a>', "", f"### `{path}`"]
+        for key, label in (GAP_LABELS | FULL_LABELS).items():
+            if key in buckets:
+                prefix = "Missing full comparison: " if key in GAP_LABELS else "Full comparison: "
+                lines += ["", f"#### {prefix}{label} ({len(buckets[key])})", ""]
+                for row in buckets[key]:
+                    lines.extend(site_details(row, directory))
     return lines
 
 
@@ -289,10 +378,15 @@ def summary(report):
         return ["", f"- L3 call-site inventory unavailable (exit {inventory['command']['exit']}). [Log](typing-sites.log)"]
     counts = Counter(row["class"] for row in inventory["rows"])
     parts = ", ".join(f"{counts[kind]} {kind}" for kind in CLASSES if counts[kind])
-    flag = f" {len(inventory['errors'])} inventory errors." if inventory["errors"] else ""
-    return ["", f"- L3 · {len(inventory['rows'])} explicit `TypeError` call sites ({parts or 'none'}).{flag} "
+    if inventory["errors"]:
+        return ["", f"- L3 call-site evidence gaps unavailable: {len(inventory['errors'])} inventory errors. "
+                "[Sites and errors](typing-sites.md)", *reasons.summary(inventory.get("typing_reasons"))]
+    missing = sum(evidence_bucket(row) in GAP_LABELS for row in inventory["rows"])
+    return ["", f"- L3 · {len(inventory['rows'])} explicit `TypeError` call sites ({parts or 'none'}). "
             f"The L3 test helper received errors from {sum(bool(r.get('stage_tests')) for r in inventory['rows'])} sites in passing tests. "
             f"Handwritten fixture diagnostics matched {sum(len(r.get('fixtures', [])) for r in inventory['rows'])} returned errors. "
             f"Stage API tests checked the full refusal from {sum(bool(r.get('api_checks')) for r in inventory['rows'])} sites. "
             f"Package tests checked the full diagnostic from {sum(bool(r.get('package_tests')) for r in inventory['rows'])} sites. "
-            "[Sites and their witnesses](typing-sites.md)", *reasons.summary(inventory.get("typing_reasons"))]
+            f"No full API or package comparison was recorded for {missing} sites. [Evidence gaps by module](typing-sites.md#evidence-gaps-by-module)",
+            "- " + rendered_summary(inventory["rows"]),
+            *reasons.summary(inventory.get("typing_reasons"))]

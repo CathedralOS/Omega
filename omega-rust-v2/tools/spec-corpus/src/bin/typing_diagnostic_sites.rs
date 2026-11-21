@@ -10,17 +10,17 @@
 use std::{fs, path::Path, process::ExitCode};
 
 use proc_macro2::Span;
-use quote::ToTokens;
+#[path = "../site_scan.rs"]
+mod site_scan;
+use site_scan::{Args, message, rust_files, test_only};
 use syn::{
-    Attribute, Expr, ExprLit, Lit, Meta, Token, Type,
-    punctuated::Punctuated,
+    Attribute, Expr, Type,
     spanned::Spanned,
     visit::{self, Visit},
 };
 
 const SOURCE: &str = "layers/03_symbol-resolved-trees-to-typed-trees/src";
 const HEADER: &str = "#typing-diagnostic-sites\tv1\npath\tline\tcolumn\tscope\tconstructor\tclass\ttext";
-type Args = Punctuated<Expr, Token![,]>;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Site {
@@ -41,21 +41,6 @@ struct Sites {
     excluded: usize,
 }
 
-/// `#[test]`, `#[cfg(test)]` and `#[cfg(all(test, ..))]`; `not` or `any` keeps the item for review.
-fn test_only(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| match &attr.meta {
-        Meta::Path(path) => path.is_ident("test"),
-        Meta::List(list) if list.path.is_ident("cfg") => {
-            let text = list.tokens.to_string();
-            let words: Vec<&str> = text
-                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .collect();
-            words.contains(&"test") && !words.iter().any(|w| *w == "not" || *w == "any")
-        }
-        _ => false,
-    })
-}
-
 fn type_name(ty: &Type) -> Option<String> {
     match ty {
         Type::Path(path) => path.path.segments.last().map(|s| s.ident.to_string()),
@@ -73,40 +58,6 @@ fn constructor(path: &syn::ExprPath) -> Option<String> {
     (owner.as_deref() == Some("TypeError"))
         .then(|| segments.last().cloned())
         .flatten()
-}
-
-fn message(expr: &Expr) -> (&'static str, String) {
-    let dynamic = || ("dynamic", expr.to_token_stream().to_string());
-    match expr {
-        Expr::Lit(ExprLit { lit: Lit::Str(text), .. }) => ("literal", text.value()),
-        Expr::Paren(inner) => message(&inner.expr),
-        Expr::MethodCall(call) if call.args.is_empty() && ["into", "to_string", "to_owned"].contains(&call.method.to_string().as_str()) => {
-            match message(&call.receiver) {
-                ("literal", text) => ("literal", text),
-                _ => dynamic(),
-            }
-        }
-        Expr::Macro(mac)
-            if mac
-                .mac
-                .path
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "format") =>
-        {
-            match mac
-                .mac
-                .parse_body_with(Args::parse_terminated)
-                .ok()
-                .as_ref()
-                .and_then(|a| a.first())
-            {
-                Some(Expr::Lit(ExprLit { lit: Lit::Str(text), .. })) => ("template", text.value()),
-                _ => dynamic(),
-            }
-        }
-        _ => dynamic(),
-    }
 }
 
 fn classify(
@@ -258,23 +209,6 @@ fn inventory(
 }
 
 use spec_corpus::diagnostic_field as field;
-
-/// Regular `.rs` files only; symbolic links and junctions are not followed.
-fn rust_files(
-    dir: &Path,
-    out: &mut Vec<std::path::PathBuf>,
-) -> std::io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let (kind, path) = (entry.file_type()?, entry.path());
-        if kind.is_dir() {
-            rust_files(&path, out)?;
-        } else if kind.is_file() && path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
-        }
-    }
-    Ok(())
-}
 
 fn main() -> ExitCode {
     let root = Path::new(SOURCE);

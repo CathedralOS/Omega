@@ -266,14 +266,13 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
         let recast = operation_at(body, &obligation.site);
         let OperationKind::ScalarBitRecast {
             source: borrowed,
-            width,
-            source_signed,
-            destination_signed,
+            source_referent,
+            destination_referent,
         } = recast.kind
         else {
             panic!("{cast}: expected a bit recast, found {:?}", recast.kind)
         };
-        assert_eq!((width, source_signed, destination_signed), (from.1, from.0, to.0), "{cast}");
+        assert_eq!((source_referent, destination_referent), (scalar(from), scalar(to)), "{cast}");
         assert_eq!(from.1, to.1);
         let OperationKind::BorrowPlace { source: place, access } = &place_producer(body, borrowed).kind else {
             panic!("{cast}: the recast source is a fresh borrow")

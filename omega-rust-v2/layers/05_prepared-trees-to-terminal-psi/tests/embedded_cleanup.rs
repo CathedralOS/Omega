@@ -97,7 +97,11 @@ fn a_shared_reference_beside_a_resource_is_a_separate_residual() {
 fn an_embedded_exclusive_loan_is_not_discarded_without_restoration_evidence() {
     for others in ["", "n:u8;"] {
         let text = format!("data Token{{v:u8;}} data Holder{{{others}r:@mut Token;}} machine finish(h:Holder){{}}");
-        let error = source::lower(&[("embedded.omg", &text)]).unwrap_err();
-        assert_eq!(error.message, "normal exit needs restoration evidence for an embedded exclusive loan");
+        source::refuse(
+            &[("embedded.omg", &text)],
+            "embedded.omg",
+            source::span_within(&text, "machine finish(h:Holder){}", "{}"),
+            "normal exit needs restoration evidence for an embedded exclusive loan",
+        );
     }
 }

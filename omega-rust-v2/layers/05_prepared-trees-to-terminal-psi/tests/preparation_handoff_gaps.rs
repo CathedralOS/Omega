@@ -16,13 +16,16 @@ use omega_typer::{StaticValue, ValueType};
 #[test]
 fn nested_helper_constants_stop_at_the_open_enclosing_template() {
     for entry in ["helper(input)", "invoke::<helper>(input)"] {
+        let outer = format!(
+            "machine outer<const FLAG:bool>(input:bool)->bool {{
+                 {entry}
+                 machine helper(value:bool)->bool {{FLAG}}
+             }}"
+        );
         let source = format!(
             "data BoolStep=machine(input:bool)->bool;
              machine invoke<const K:BoolStep>(input:bool)->bool {{K(input)}}
-             machine outer<const FLAG:bool>(input:bool)->bool {{
-                 {entry}
-                 machine helper(value:bool)->bool {{FLAG}}
-             }}
+             {outer}
              const FIRST:bool=outer::<true>(false);
              const SECOND:bool=outer::<false>(true);
              machine first()->bool{{FIRST}}
@@ -43,12 +46,24 @@ fn nested_helper_constants_stop_at_the_open_enclosing_template() {
             })
             .collect();
         // The value comes from the enclosing argument, not from the runtime operand.
-        assert_eq!(frozen, [Some(PreparedValue::Bool(true)), Some(PreparedValue::Bool(false))], "{entry}");
+        assert_eq!(
+            frozen,
+            [
+                Some(PreparedValue::Bool(true)),
+                Some(PreparedValue::Bool(false))
+            ],
+            "{entry}"
+        );
 
         // L5 lowers every declaration. `outer` has no runtime application and its
         // Boolean binder is not a callable bound, so no template or instance exists.
-        let error = sources::lower_prepared(&prepared, &[("helper.omg", &source)]).expect_err("L5 now lowers this package; add the consumer comparison");
-        assert_eq!(error.message, "open generic machine requires a closed application before lowering", "{entry}");
+        let error = sources::refuse_prepared(
+            &prepared,
+            &[("helper.omg", &source)],
+            "helper.omg",
+            sources::unique_span(&source, &outer),
+            "open generic machine requires a closed application before lowering",
+        );
         known_gap::report(
             &format!("nested helper enclosing static argument via {entry}"),
             "The runtime reads of FIRST and SECOND need the package with the open enclosing machine",
@@ -87,15 +102,22 @@ fn nested_field_owner_arguments_stop_at_generic_data_lowering() {
         .collect();
     // Both fields are answered under Outer's argument followed by Inner's argument.
     for value in [3, 5] {
-        assert!(answers.contains(&(vec!["2".to_owned(), "4".to_owned()], StaticValue::Integer(value.into()))), "{answers:?}");
+        assert!(
+            answers.contains(&(vec!["2".to_owned(), "4".to_owned()], StaticValue::Integer(value.into()))),
+            "{answers:?}"
+        );
     }
     assert!(answers.iter().all(|(arguments, _)| arguments == &["2", "4"]), "{answers:?}");
 
     // Psi data must be closed, a value-index record, or a type-parameter template.
     // A data declaration with `const` integer binders is none of these.
-    let error = sources::lower_prepared(&prepared, &[("fields.omg", source)]).expect_err("L5 now lowers this package; add the consumer comparison");
-    assert_eq!(error.message, "generic data requires a closed application before lowering");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"<const A:u64>".as_slice()));
+    let error = sources::refuse_prepared(
+        &prepared,
+        &[("fields.omg", source)],
+        "fields.omg",
+        sources::unique_span(source, "<const A:u64>"),
+        "generic data requires a closed application before lowering",
+    );
     known_gap::report(
         "specialized field owner arguments",
         "The applied record needs its field extents from the specialized answers",

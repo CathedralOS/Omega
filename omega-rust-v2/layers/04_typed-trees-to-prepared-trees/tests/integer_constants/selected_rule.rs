@@ -83,18 +83,12 @@ fn an_unbounded_integer_has_no_selected_bitwise_execution_rule() {
 }
 
 #[test]
-fn a_nested_integer_overflow_highlights_the_operation_that_failed() {
-    let good = "const BASE:u8=253u8; const ANSWER:u8=1u8 + (BASE + 1u8);";
+fn a_forward_constant_read_only_observes_an_in_range_initializer() {
+    let good = "const COPY:u8=ANSWER; const BASE:u8=253u8; const ANSWER:u8=1u8 + (BASE + 1u8);";
     let package = super::source_package([("numbers.omg", good)]);
     let product = prepare_source_package_diagnosed(&package).unwrap();
-    let answer = &product
-        .typed()
-        .constants
-        .iter()
-        .find(|c| c.declaration.path == "ANSWER")
-        .unwrap()
-        .declaration;
-    assert_eq!(product.integer_constant(answer), Some(&255.into()));
+    super::assert_integer_constant(&product, "ANSWER", 255);
+    super::assert_integer_constant(&product, "COPY", 255);
 
     for (base, occurrence) in [("254u8", "1u8 + (BASE + 1u8)"), ("255u8", "BASE + 1u8")] {
         let bad = good.replace("253u8", base);

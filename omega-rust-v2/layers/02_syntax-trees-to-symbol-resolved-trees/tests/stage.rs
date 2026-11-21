@@ -2351,7 +2351,12 @@ fn declaration_qualifiers_report_the_name_that_cannot_select_an_owner() {
         ("domain Point::Ready;", "Point::Ready", NameErrorKind::AmbiguousCarrier, "ambiguous carrier Point"),
         // An unresolved carrier names only the carrier but reports the whole head.
         ("domain Absent::Ready;", "Absent::Ready", NameErrorKind::UnresolvedName, "unresolved name Absent"),
-        ("machine Owner::run() {}", "Owner::run", NameErrorKind::AmbiguousMachineOwner, "ambiguous machine owner Owner"),
+        (
+            "machine Owner::run() {}",
+            "Owner",
+            NameErrorKind::AmbiguousMachineOwner,
+            r"ambiguous machine owner Owner: competing declarations: app\left\Owner, app\right\Owner",
+        ),
         (
             "const Count:u8=0; machine Count::run() {}",
             "Count::run",

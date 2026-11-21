@@ -95,13 +95,17 @@ fn unused_domains_keep_each_carrier_when_their_predicates_do_not_read_self() {
 }
 
 #[test]
-fn unsupported_domain_clause_is_refused_at_its_predicate_call() {
-    let source = "machine predicate()->bool reaches none crashes none terminates {true}
-                  domain i32::Guarded requires true && predicate();";
-    let error = sources::lower(&[("guard.omg", source)]).unwrap_err();
-    assert_eq!(error.site.file, "guard.omg");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
-    assert_eq!(error.message, "unsupported typed contract predicate record");
+fn domain_clause_applies_the_selected_predicate_at_its_occurrence() {
+    let source = "machine allowed()->bool reaches none crashes none terminates {true}
+                  domain i32::Guarded requires true && allowed();";
+    let package = sources::lower(&[("guard.omg", source)]).unwrap();
+    let domain = &package.domains[0];
+    let allowed = &package.machines[0].declaration;
+    assert_eq!((domain.declaration.path.as_str(), allowed.path.as_str()), ("i32::Guarded", "allowed"));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/named-domain-call",
+        assert!(matches!(domain.requires[0].predicate.as_slice(), [PredicateStep::Boolean(true), PredicateStep::MachineApplication {callee, site, ..}, PredicateStep::Apply(PredicateOperator::And)] if callee == allowed && site.span.slice(source.as_bytes()) == Some(b"allowed()"))),
+    );
 }
 
 #[test]
@@ -121,22 +125,165 @@ fn parenthesized_and_explicitly_sized_bounds_lower_to_the_same_predicate() {
 
 #[test]
 fn unsupported_domain_forms_do_not_publish_plain_classifications() {
-    for (source, message) in [
+    for (source, refused, message) in [
+        ("domain<T> T::Tag;", "T::Tag", "domain carrier requires a fixed scalar"),
         (
-            "domain u8::Five = u8::Bound<5>; domain<const N:u8> u8::Bound<N>;",
-            "domain alias requires indexed qualification lowering",
-        ),
-        ("domain<T> T::Tag;", "domain carrier requires a fixed scalar"),
-        ("data Item { valid:bool; } domain Item::Tag;", "domain carrier requires a fixed scalar"),
-        (
-            "domain i32::Positive requires self > 0; domain i32::Positive::Small requires true;",
-            "inherited domain requires its parent qualification",
+            "data Item { valid:bool; } domain Item::Tag;",
+            "Item::Tag",
+            "domain carrier requires a fixed scalar",
         ),
     ] {
-        let error = sources::lower(&[("domain.omg", source)]).unwrap_err();
+        let error = sources::refuse(&[("domain.omg", source)], "domain.omg", sources::unique_span(source, refused), message);
         assert_eq!(error.site.file, "domain.omg");
         assert_eq!(error.message, message);
     }
+}
+
+#[test]
+fn indexed_alias_keeps_each_applied_atom_and_canonical_argument() {
+    use omega_psi::{DeclarationTerm, DomainAtom, TemplateBinder, TypeExpression, TypeExpressionStep};
+    let byte = ScalarType::Integer { signed: false, width: 8 };
+    let original = "domain u8::Five = u8::Bound<5>; domain<const N:u8> u8::Bound<N>;";
+    for (source, values) in [
+        (original.to_owned(), vec![5]),
+        (original.replace("u8::Bound<5>;", "u8::Bound<6> & u8::Bound<5> & u8::Bound<6>;"), vec![5, 6]),
+    ] {
+        let files = [("domain.omg", source.as_str())];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let (_, members) = prepared.typed().domain_alias_members.iter().find(|(id, _)| id.package == "app" && id.path == "u8::Five").unwrap();
+        assert_eq!(members.len(), values.len());
+        for (member, &n) in members.iter().zip(&values) {
+            assert_eq!(member.declaration.path, "u8::Bound");
+            assert_eq!(member.arguments, [omega_typed::ValueType::StaticInteger {
+                carrier: Box::new(omega_typed::ValueType::Integer { signed: false, width: Some(8) }), value: n.into(),
+            }]);
+        }
+        let package = sources::lower_prepared(&prepared, &files).unwrap();
+        let [bound] = package.domains.as_slice() else {
+            panic!("expected only the atom")
+        };
+        let [alias] = package.domain_aliases.as_slice() else {
+            panic!("expected the transparent alias")
+        };
+        assert_eq!(alias.declaration.path, "u8::Five");
+        assert_eq!(bound.declaration.path, "u8::Bound");
+        assert_eq!(alias.carrier, bound.carrier);
+        assert_eq!(package.types.get(alias.carrier), Some(&TypeShape::PrimitiveScalar(byte)));
+        assert_eq!(
+            bound.parameters,
+            [TemplateBinder::Const(TypeExpression(vec![
+                TypeExpressionStep::Scalar(byte)
+            ]))]
+        );
+        assert_eq!(bound.index_binders, [0]);
+        spec_corpus::observe_handoff!(psi "psi-output/indexed-alias-atoms", assert_eq!(
+            alias.members,
+            values
+                .into_iter()
+                .map(|n| DomainAtom {
+                    declaration: bound.declaration.clone(),
+                    arguments: vec![DeclarationTerm::StaticInteger {
+                        carrier: byte,
+                        value: n.into()
+                    }],
+                })
+                .collect::<Vec<_>>()
+        ));
+    }
+}
+
+#[test]
+fn indexed_alias_forwards_its_own_binders_in_member_argument_order() {
+    use omega_psi::{DeclarationTerm, TypeExpression, TypeExpressionStep};
+    let source = "domain<const X:u8, const Y:u8> u8::Pair<Y,X>; domain<const A:u8,const B:u8> u8::Swapped<A,B> = u8::Pair<B,A>;";
+    let package = sources::lower(&[("domain.omg", source)]).unwrap();
+    let [pair] = package.domains.as_slice() else { panic!("expected the family") };
+    let [alias] = package.domain_aliases.as_slice() else {
+        panic!("expected the alias")
+    };
+    assert_eq!(pair.declaration.path, "u8::Pair");
+    assert_eq!(alias.declaration.path, "u8::Swapped");
+    assert_eq!(pair.index_binders, [1, 0]);
+    assert_eq!(alias.index_binders, [0, 1]);
+    assert_eq!(alias.parameters.len(), 2);
+    let [atom] = alias.members.as_slice() else {
+        panic!("expected the applied family")
+    };
+    assert_eq!(atom.declaration, pair.declaration);
+    assert_eq!(
+        atom.arguments,
+        [1, 0].map(|index| DeclarationTerm::Type(TypeExpression(vec![TypeExpressionStep::GenericParameter {
+            owner: alias.declaration.clone(),
+            index
+        }])))
+    );
+}
+
+#[test]
+fn inherited_domain_requires_the_qualified_parent_subject() {
+    let original = "domain i32::Positive requires self > 0; domain i32::Positive::Small requires true;";
+    let files = [("domain.omg", original)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let (_, subject) = prepared.typed().domain_carriers.iter().find(|(id, _)| id.package == "app" && id.path == "i32::Positive::Small").unwrap();
+    let [inherited] = subject.domains() else { panic!("expected one prepared parent qualification") };
+    assert_eq!(inherited.declaration.path, "i32::Positive");
+    assert!(inherited.arguments.is_empty());
+    assert_eq!(prepared.typed().domain_carriers.get(&inherited.declaration), Some(subject.carrier()));
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let [parent, child] = package.domains.as_slice() else {
+        panic!("expected parent and child declarations")
+    };
+    assert_eq!(parent.declaration.path, "i32::Positive");
+    assert_eq!(child.declaration.path, "i32::Positive::Small");
+    let Some(TypeShape::QualifiedScalar { carrier, domains }) = package.types.get(child.carrier) else {
+        panic!("child subject lost its parent qualification")
+    };
+    assert_eq!(*carrier, ScalarType::Integer { signed: true, width: 32 });
+    assert_eq!(package.types.get(parent.carrier), Some(&TypeShape::PrimitiveScalar(*carrier)));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/inherited-domain-subject",
+        assert_eq!(package.types.domain_set(*domains).unwrap(), std::slice::from_ref(&parent.declaration)),
+    );
+    let [base] = parent.requires.as_slice() else {
+        panic!("missing parent predicate")
+    };
+    assert_eq!(
+        base.predicate,
+        [
+            PredicateStep::SelfValue,
+            PredicateStep::Integer(0.into()),
+            PredicateStep::Apply(PredicateOperator::GreaterThan)
+        ]
+    );
+    let [own] = child.requires.as_slice() else {
+        panic!("missing child predicate")
+    };
+    assert_eq!(own.predicate, [PredicateStep::Boolean(true)]);
+}
+
+#[test]
+fn inherited_subject_selects_the_named_parent_among_equal_predicates() {
+    for parent in ["A", "B"] {
+        let text = format!("domain i32::A requires self > 0; domain i32::B requires self > 0; domain i32::{parent}::Child;");
+        let package = sources::lower(&[("domain.omg", &text)]).unwrap();
+        let domain = |path: &str| package.domains.iter().find(|d| d.declaration.path == path).unwrap();
+        let child = domain(&format!("i32::{parent}::Child"));
+        assert!(child.requires.is_empty()); // No authored requirement; not a bare tag.
+        let Some(TypeShape::QualifiedScalar { domains, .. }) = package.types.get(child.carrier) else { panic!("missing inherited subject") };
+        let expected = &domain(&format!("i32::{parent}")).declaration;
+        assert_eq!(package.types.domain_set(*domains).unwrap(), std::slice::from_ref(expected));
+    }
+}
+
+#[test]
+fn inherited_subject_cast_still_requires_predicate_qualification_lowering() {
+    let text = "domain i32::Positive requires self > 0; domain i32::Positive::Small requires (self as -Positive) < 100;";
+    let cast = "self as -Positive";
+    let message = "unsupported contract predicate expression";
+    let error = sources::refuse(&[("domain.omg", text)], "domain.omg", sources::unique_span(text, cast), message);
+    assert_eq!(error.site.span.slice(text.as_bytes()), Some(cast.as_bytes()));
 }
 
 #[test]
@@ -150,10 +297,11 @@ fn domain_access_refusal_identifies_the_authored_policy() {
                           new_plan::<'t>(@schema, Issuance::Unrestricted{})
                       }
                   }";
-    let error = sources::lower(&[("policy.omg", source)]).unwrap_err();
+    let message = "unsupported domain member: Access";
+    let error = sources::refuse(&[("policy.omg", source)], "policy.omg", sources::unique_span(source, "access Rule"), message);
     assert_eq!(error.site.file, "policy.omg");
     assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"access Rule".as_slice()));
-    assert_eq!(error.message, "unsupported domain member: Access");
+    assert_eq!(error.message, message);
 }
 
 #[test]
@@ -183,7 +331,13 @@ fn unused_domain_aliases_expand_to_exact_atoms_without_creating_a_domain() {
         assert_eq!(alias.declaration.path, path);
         assert_eq!(alias.public, path != "u8::Other");
         assert_eq!(alias.carrier, a.carrier);
-        assert_eq!(alias.members, [a.declaration.clone(), second.declaration.clone()]);
+        assert_eq!(
+            alias.members,
+            [a, second].map(|atom| omega_psi::DomainAtom {
+                declaration: atom.declaration.clone(),
+                arguments: vec![]
+            })
+        );
     }
 }
 
@@ -225,10 +379,15 @@ fn an_alias_cast_delivers_the_qualifications_of_its_current_expansion() {
             .map(|id| id.path.as_str())
             .collect();
         spec_corpus::observe_handoff!("type-and-domain-aliases/consumer", assert_eq!(delivered, expected));
-        let [alias] = &package.domain_aliases[..] else {
-            panic!("expected the alias")
-        };
-        assert_eq!(alias.members.iter().map(|id| id.path.as_str()).collect::<Vec<_>>(), expected);
+        let [alias] = &package.domain_aliases[..] else { panic!("expected the alias") };
+        assert_eq!(
+            alias
+                .members
+                .iter()
+                .map(|atom| atom.declaration.path.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
     }
 }
 
@@ -334,9 +493,10 @@ fn retaining_membership_forwards_the_value_and_replacing_membership_refuses_at_t
     assert!(body.operations.is_empty());
     assert!(matches!(body.blocks[0].terminator, BlockTerminator::Return {result: ReturnEdge::Scalar(v), ..} if v == a));
     let program = format!("{declarations} machine replace(a:u8 in A)->u8 in B {{a as -A +B}}");
-    let error = sources::lower(&[("cast.omg", &program)]).unwrap_err();
+    let message = "Psi has no specified edge for simultaneous domain removal and addition";
+    let error = sources::refuse(&[("cast.omg", &program)], "cast.omg", sources::unique_span(&program, "a as -A +B"), message);
     assert_eq!(error.site.span.slice(program.as_bytes()), Some(b"a as -A +B".as_slice()));
-    assert_eq!(error.message, "Psi has no specified edge for simultaneous domain removal and addition");
+    assert_eq!(error.message, message);
 }
 
 #[test]
@@ -431,7 +591,8 @@ fn a_forwarded_predicate_binds_the_formal_and_result_and_is_required_at_each_cal
 #[test]
 fn predicate_membership_cannot_be_added_with_only_a_tag_edge() {
     let text = "domain u8::Positive requires self > 0u8; machine f(x:u8)->u8 in Positive {x as +Positive}";
-    let err = sources::lower(&[("domain.omg", text)]).unwrap_err();
+    let message = "adding a predicate-bearing domain requires a retained establishment proof";
+    let err = sources::refuse(&[("domain.omg", text)], "domain.omg", sources::unique_span(text, "x as +Positive"), message);
     assert_eq!(err.site.span.slice(text.as_bytes()), Some("x as +Positive".as_bytes()));
-    assert_eq!(err.message, "adding a predicate-bearing domain requires a retained establishment proof");
+    assert_eq!(err.message, message);
 }

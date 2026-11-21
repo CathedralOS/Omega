@@ -1,8 +1,9 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{DomainApplication, TypeError, ValueType};
-use omega_resolved::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, IndexedSource, Symbol};
 use omega_syntax::NodeKind;
 use std::collections::{HashMap, HashSet};
 
@@ -34,6 +35,26 @@ impl TypeCatalog<'_> {
     ) -> Result<&'a DeclarationId, &'a str> {
         self.selected_domain(name, None)
             .map(|selection| selection.expect("selection without a carrier has no width comparison"))
+    }
+
+    /// Machine heads are plain paths (no type arguments). For `u8::Ready::add`,
+    /// use the written `u8`, not an operand or the machine's module-qualified ID.
+    pub(crate) fn selected_machine_home<'a>(
+        &self,
+        name: &'a Symbol,
+        file: &IndexedSource<'_>,
+        machine: usize,
+    ) -> Result<Option<&'a DeclarationId>, &'a str> {
+        let mut carrier = None;
+        if matches!(name, Symbol::DomainCandidates { candidates, .. } if candidates.iter().any(|c| c.carrier_deferred))
+            && let Some(head) = file.child(machine, NodeKind::Path)
+            && let Some((owner, _)) = file.nodes[head].path().rsplit_once("::")
+            && let Some((root, _)) = owner.split_once("::")
+            && let Some(integer @ ValueType::Integer { width: Some(_), .. }) = ValueType::integer(root)
+        {
+            carrier = Some(integer);
+        }
+        self.selected_domain(name, carrier.as_ref())
     }
 
     /// Select among visible domains. A carrier-deferred candidate, found through an applied
@@ -80,6 +101,20 @@ impl TypeCatalog<'_> {
 }
 
 impl<'a> ResolvedSourceFile<'a> {
+    /// Ordinary machines don't publish an operator home, but their explicit domain
+    /// qualifier must select one declaration before their signature is available.
+    pub(crate) fn check_machine_qualifier(&self, machine: usize, types: &TypeCatalog<'_>) -> Result<(), TypeError> {
+        if let Some(head) = self.file.child(machine, NodeKind::Path)
+            && let Some(name) = self.names(head).find(|name| name.role == omega_resolved::NameRole::Qualifier)
+            && matches!(name.target, Symbol::DomainCandidates { .. })
+        {
+            types.selected_machine_home(&name.target, self.file, machine)
+                .map_err(|message| TypeError::at(self.file, head, message).with_span(name.span))?
+                .ok_or_else(|| types.indices.wait(self.file, head))?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn domain_name(
         &self,
         node: usize,

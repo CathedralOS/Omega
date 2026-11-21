@@ -323,10 +323,11 @@ fn a_join_can_forward_the_result_of_a_completed_local_call() {
 #[test]
 fn a_boundary_view_has_no_local_return_to_identify_its_backing() {
     let text = "boundary trait Device {machine view(p:@[u8])->@[u8] reaches Device crashes none;} machine relay(p:@[u8])->@[u8] reaches Device {Device::view(p)} machine inspect(bits:@[u8]) suspends{} machine forward(flag:bool,left:@[u8],other:@[u8]) suspends reaches Device {let right=relay(other); let chosen=match flag{true->left,false->right,}; suspend inspect(chosen)}";
-    let err = source::lower(&[("joined.omg", text)]).unwrap_err();
-    assert_eq!(
-        err.message,
-        "suspension needs the exact backing and carry evidence of the live structural place"
+    let err = source::refuse(
+        &[("joined.omg", text)],
+        "joined.omg",
+        source::unique_span(text, "inspect(chosen)"),
+        "suspension needs the exact backing and carry evidence of the live structural place",
     );
     assert!(
         err.site

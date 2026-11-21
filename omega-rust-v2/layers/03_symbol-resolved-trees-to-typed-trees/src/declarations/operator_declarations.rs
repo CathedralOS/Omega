@@ -1,8 +1,8 @@
-use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::declarations::declaration_catalog::{DeclarationCatalog, PendingOperator};
 use crate::type_error::SourceTypeError;
 use crate::type_relations::TypeRelations;
 use crate::type_system::overload_identity::same_operands;
-use crate::{TypeError, ValueType};
+use crate::{OperatorDeclarationError, TypeError, ValueType};
 use omega_resolved::{DeclarationId, ResolvedStage, SymbolResolvedTrees};
 use omega_syntax::NodeKind;
 use omega_typed::site_at;
@@ -73,20 +73,48 @@ pub(crate) fn index_operator_declarations<'a>(
             .nth(binding.node.file)
             .expect("operator belongs to the resolved forest");
         let node = binding.node.node;
-        let refusal = |message: &str| TypeError::at(tree.file, node, message);
-        let mut home = binding
-            .declared_home
-            .as_ref()
-            .map(|symbol| catalog.types.selected_declaration(symbol))
-            .transpose()
-            .map_err(refusal)?;
-        if home.is_some_and(|owner| owner.kind == NodeKind::Conformance) {
-            return Err(refusal("a conformance supplies the trait's token and cannot bind one"));
+        let site = site_at(tree.file, node);
+        let machine = tree.file.nodes[node].parent.expect("operator belongs to a machine");
+        let (declared_home, waiting_domains) = match &binding.declared_home {
+            None => (None, None),
+            Some(symbol) => match catalog.types.selected_machine_home(symbol, tree.file, machine)
+                .map_err(|message| TypeError::at(tree.file, node, message))? {
+                Some(home) => (Some(home), None),
+                None => {
+                    let omega_resolved::Symbol::DomainCandidates { candidates, .. } = symbol else {
+                        unreachable!("only a domain carrier comparison can wait")
+                    };
+                    (None, Some(candidates))
+                }
+            },
+        };
+        if declared_home.is_some_and(|owner| owner.kind == NodeKind::Conformance) {
+            return Err(TypeError::for_reason(&site, OperatorDeclarationError::ConformanceBindsToken));
         }
-        let signature = items
-            .signatures
-            .get(&binding.machine)
-            .ok_or_else(|| refusal("operator has no typed signature"))?;
+        let signature = items.signatures.get(&binding.machine);
+        if signature.is_none() && !(matches!(binding.machine.kind, NodeKind::Machine | NodeKind::AsmMachine) && catalog.types.indices.declaration_is_pending(&binding.machine)) {
+            return Err(TypeError::at(tree.file, node, "operator has no typed signature"));
+        }
+        let pending_binding = |declared_home| PendingOperator {
+            machine: &binding.machine,
+            // A waiting generic binder can postpone even the partial parameter list.
+            arity: tree.file.parameters(machine).count(),
+            declared_home,
+            public: binding.public,
+        };
+        if let Some(domains) = waiting_domains {
+            // A qualified binding can participate only through one of its resolved homes.
+            // Keep those possibilities private to this pass until L4 answers the width.
+            catalog.types.indices.block_node(binding.node);
+            let pending = catalog.pending_operators.entry(&binding.token).or_default();
+            pending.extend(domains.iter().map(|domain| pending_binding(Some(&domain.declaration))));
+            continue;
+        }
+        let Some(signature) = signature else {
+            catalog.pending_operators.entry(&binding.token).or_default().push(pending_binding(declared_home));
+            continue;
+        };
+        let mut home = declared_home;
         if home.is_none() {
             for (_, parameter) in &signature.parameters {
                 let domains = parameter.domains();
@@ -100,14 +128,14 @@ pub(crate) fn index_operator_declarations<'a>(
                         continue;
                     }
                     if home.is_some_and(|previous| previous != &domain.declaration) {
-                        return Err(refusal("operator declaration has multiple possible semantic homes"));
+                        return Err(TypeError::for_reason(&site, OperatorDeclarationError::MultipleSemanticHomes));
                     }
                     home = Some(&domain.declaration);
                 }
             }
         }
         if home.is_some_and(|home| home.package != binding.machine.package) {
-            return Err(refusal("only the declaring package may bind an operator for this home"));
+            return Err(TypeError::for_reason(&site, OperatorDeclarationError::ForeignHome));
         }
         if home.is_none() {
             let mut nominal_operands = signature
@@ -117,7 +145,7 @@ pub(crate) fn index_operator_declarations<'a>(
                 .filter_map(|(position, (_, ty))| nominal_operator_operand(&binding.token, position, ty))
                 .peekable();
             if nominal_operands.peek().is_some() && !nominal_operands.any(|operand| operand.package == binding.machine.package) {
-                return Err(refusal("only a nominal operand's declaring package may bind this operator"));
+                return Err(TypeError::for_reason(&site, OperatorDeclarationError::ForeignNominalOperands));
             }
         }
         let arity = signature.parameters.len();
@@ -146,14 +174,14 @@ pub(crate) fn index_operator_declarations<'a>(
                 && b.package == binding.machine.package
                 && same_operands(&items.signatures[*b], signature)
         });
-        if !valid || duplicate || primitive {
-            return Err(refusal(if !valid {
-                "incorrect operator arity"
-            } else if primitive {
-                "cannot bind a compiler-owned primitive operator family"
-            } else {
-                "duplicate normalized operator binding"
-            }));
+        if !valid {
+            return Err(TypeError::for_reason(&site, OperatorDeclarationError::IncorrectArity));
+        }
+        if primitive {
+            return Err(TypeError::for_reason(&site, OperatorDeclarationError::PrimitiveFamily));
+        }
+        if duplicate {
+            return Err(TypeError::for_reason(&site, OperatorDeclarationError::DuplicateBinding));
         }
         let home = home.cloned();
         let signature = items
@@ -162,7 +190,7 @@ pub(crate) fn index_operator_declarations<'a>(
             .expect("the operator signature was checked above");
         std::sync::Arc::make_mut(signature).operator = Some(crate::TypedOperatorDeclaration {
             node: binding.node,
-            site: site_at(tree.file, node),
+            site,
             token: binding.token.clone(),
             home,
             public: binding.public,

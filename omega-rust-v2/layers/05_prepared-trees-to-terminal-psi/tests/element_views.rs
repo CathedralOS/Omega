@@ -233,8 +233,12 @@ fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
 #[test]
 fn an_element_length_contract_on_a_mutable_view_still_rejects() {
     let text = "machine get(items:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }";
-    let error = sources::lower(&[("contract.omg", text)]).unwrap_err();
-    assert_eq!(error.message, "unsupported contract predicate expression");
+    let error = sources::refuse(
+        &[("contract.omg", text)],
+        "contract.omg",
+        sources::unique_span(text, "items.len"),
+        "unsupported contract predicate expression",
+    );
     known_gap::report("mutable element-view length contract", "Psi needs the element count of the mutable formal", text, &error);
     assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items.len".as_slice()));
 }
@@ -242,8 +246,12 @@ fn an_element_length_contract_on_a_mutable_view_still_rejects() {
 #[test]
 fn a_mutable_element_view_is_not_an_immutable_parameter() {
     let text = "machine get(items:@mut [u32],i:u64)->u32 { items[i] }";
-    let error = sources::lower(&[("mutable.omg", text)]).unwrap_err();
-    assert_eq!(error.message, "no Psi lowering for carrier @mut [u32]");
+    let error = sources::refuse(
+        &[("mutable.omg", text)],
+        "mutable.omg",
+        sources::span_within(text, "items:@mut [u32]", "items"),
+        "no Psi lowering for carrier @mut [u32]",
+    );
     known_gap::report("mutable element-view read", "Psi needs the mutable descriptor, selector and bounds obligation", text, &error);
     assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items".as_slice()));
 }

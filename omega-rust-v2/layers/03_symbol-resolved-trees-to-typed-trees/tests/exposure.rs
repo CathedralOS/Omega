@@ -178,14 +178,23 @@ fn a_static_callback_requires_admitted_arguments_for_its_selected_machine() {
     for application in ["selected::<BoolStep>(x)", "apply::<selected::<BoolStep>>(x)"] {
         let rejected = format!("{declarations} machine f(x:u8)->u8{{{application}}}");
         let error = check(&[("main.omg", &rejected)]).unwrap_err();
-        assert_eq!(error.message, "selected evidence has the wrong trait application", "{application}");
+        let start = rejected.rfind("BoolStep").unwrap();
+        let end = start + "BoolStep".len();
+        let message = "selected evidence has the wrong trait application";
+        assert_eq!((&*error.package, &*error.file), ("game", "main.omg"));
+        assert_eq!(error.span, omega_lexer::SourceSpan::new(start, end), "{application}");
+        assert!(!error.waiting_for_static_value());
+        assert_eq!(error.reason(), Some(omega_typer::TraitEvidenceError::WrongTraitApplication.into()));
+        assert_eq!(error.message, message);
+        #[cfg(feature = "diagnostic-origins")]
+        support::report_return(&error, "", Some(("game", "main.omg", start, end, message)));
     }
 }
 
 #[test]
 fn a_static_callback_matches_the_applied_nominal_requirement() {
     let declarations =
-        "trait Step<T>{machine run<U>(x:u8)->u8;} machine selected<T>(x:u8)->u8 satisfies Step<T>::run {x} machine accept<const F:Step<u8>::run>(){}";
+        "trait Step<T>{machine run<U>(x:u8)->u8; machine stop<U>(x:u8)->u8;} machine selected<T>(x:u8)->u8 satisfies Step<T>::run {x} machine accept<const F:Step<u8>::run>(){}";
     let accepted = format!("{declarations} machine f(){{accept::<selected::<u8>>()}}");
     let stage = check(&[("main.omg", &accepted)]).unwrap();
     let byte = ValueType::Integer { signed: false, width: Some(8) };
@@ -199,9 +208,38 @@ fn a_static_callback_matches_the_applied_nominal_requirement() {
                 })
     )));
 
-    let rejected = accepted.replace("selected::<u8>", "selected::<bool>");
-    let error = check(&[("main.omg", &rejected)]).unwrap_err();
-    assert_eq!(error.message, "selected machine lacks the exact satisfaction edge");
+    // Every selection has signature (u8)->u8; only its nominal evidence differs.
+    for (rejected, selection, message, reason) in [
+        (
+            accepted.replace(" satisfies Step<T>::run", ""),
+            "selected::<u8>",
+            "selected machine lacks the exact satisfaction edge",
+            None,
+        ),
+        (
+            accepted.replace("satisfies Step<T>::run", "satisfies Step<T>::stop"),
+            "selected::<u8>",
+            "selected machine satisfies a different requirement",
+            None,
+        ),
+        (
+            accepted.replace("selected::<u8>", "selected::<bool>"),
+            "selected::<bool>",
+            "selected evidence has the wrong trait application",
+            Some(omega_typer::TraitEvidenceError::WrongTraitApplication.into()),
+        ),
+    ] {
+        let error = check(&[("main.omg", &rejected)]).unwrap_err();
+        let start = rejected.rfind(selection).unwrap();
+        let end = start + selection.len();
+        assert_eq!((&*error.package, &*error.file), ("game", "main.omg"));
+        assert!(!error.waiting_for_static_value());
+        assert_eq!(error.span, omega_lexer::SourceSpan::new(start, end));
+        assert_eq!(error.message, message);
+        assert_eq!(error.reason(), reason);
+        #[cfg(feature = "diagnostic-origins")]
+        support::report_return(&error, "", Some(("game", "main.omg", start, end, message)));
+    }
 }
 
 #[test]

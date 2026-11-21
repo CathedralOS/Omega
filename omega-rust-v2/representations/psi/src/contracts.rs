@@ -35,9 +35,33 @@ pub struct ContractClause {
     pub site: Site,
 }
 
+/// Progress input for one predicate application, not a termination judgment.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PredicateProgress {
+    /// Establish the selected contract's termination promise with its premises.
+    CheckPromise,
+    /// Establish progress from the selected private machine's body. It may be cyclic.
+    CheckPrivateBody,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PredicateStep {
     Formal(usize),
+    /// Apply the selected local machine in this predicate, not in the executable
+    /// body. The preceding operand terms supply the formals in declaration order.
+    /// Before using the result, establish each indexed requirement of `callee`
+    /// at this occurrence under that substitution (never assume the enclosing goal).
+    MachineApplication {
+        callee: DeclarationId,
+        operands: Vec<crate::ScalarType>,
+        result: crate::ScalarType,
+        requirements: std::ops::Range<usize>,
+        /// The non-specialized `callee` identifies one body and contract in this package.
+        /// The checker owes total denotation (including no crash) under the actuals;
+        /// neither an empty ceiling nor availability of the body establishes progress.
+        progress: PredicateProgress,
+        site: Site,
+    },
     /// Apply this binder's selected guarantee to the preceding arguments and result.
     CallbackGuarantee {
         binder: usize,

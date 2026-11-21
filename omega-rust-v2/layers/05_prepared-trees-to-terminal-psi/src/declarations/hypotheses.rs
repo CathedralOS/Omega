@@ -128,9 +128,16 @@ pub(crate) fn lower(
     let bounds = found
         .into_iter()
         .map(|(typed, node, binder)| {
-            binder
-                .map(|binder| Bound { typed, node, binder })
-                .ok_or_else(|| LoweringError::new(&typed.site, "a logical hypothesis must be supplied through its theorem's machine binder"))
+            binder.map(|binder| Bound { typed, node, binder }).ok_or_else(|| {
+                let mut site = typed.site.clone();
+                if let Some(name) = file.nodes[node].binder_name() {
+                    site.span = name.span;
+                }
+                LoweringError::new(
+                    &site,
+                    format!("lowering has no matching `machine {0}` binder for logical hypothesis `{0}`", typed.name),
+                )
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -139,7 +146,11 @@ pub(crate) fn lower(
     for (index, bound) in bounds.iter().enumerate() {
         let hypothesis = bound.typed;
         if hypothesis.result != ValueType::NoResult {
-            return Err(LoweringError::new(&hypothesis.site, "a logical hypothesis cannot promise an executable result"));
+            let site = file.child(bound.node, NodeKind::Result).map(|result| site_at(tree, result));
+            return Err(LoweringError::new(
+                site.as_ref().unwrap_or(&hypothesis.site),
+                format!("Psi cannot represent result `{}` on logical hypothesis `{}`", hypothesis.result, hypothesis.name),
+            ));
         }
         let owner = ClauseOwner::Theorem(sig, bounds.as_slice(), Some(index));
         let (mut premises, mut conclusions) = (Vec::new(), Vec::new());

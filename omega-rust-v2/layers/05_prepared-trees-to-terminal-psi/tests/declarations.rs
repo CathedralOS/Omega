@@ -207,13 +207,17 @@ fn default_domains_retain_truth_and_exact_fields_after_preparation_is_dropped() 
 }
 
 #[test]
-fn unsupported_data_requirement_refuses_the_package_at_the_predicate_call() {
+fn data_requirement_applies_the_selected_predicate_at_its_occurrence() {
     let source = "machine predicate()->bool reaches none crashes none terminates {true}
                   data Guarded requires true && predicate() {}";
-    let error = lower(&[("guard.omg", source)]).unwrap_err();
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
-    assert_eq!(error.message, "unsupported typed contract predicate record");
-    known_gap::report("call in a data requirement", "The data schema needs the predicate and its selected call", source, &error);
+    let package = lower(&[("guard.omg", source)]).unwrap();
+    let schema = &package.data[0];
+    let predicate = &package.machines[0].declaration;
+    assert_eq!((schema.declaration.path.as_str(), predicate.path.as_str()), ("Guarded", "predicate"));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/data-requirement-call",
+        assert!(matches!(schema.requires[0].predicate.as_slice(), [PredicateStep::Boolean(true), PredicateStep::MachineApplication {callee, site, ..}, PredicateStep::Apply(PredicateOperator::And)] if callee == predicate && site.span.slice(source.as_bytes()) == Some(b"predicate()"))),
+    );
 }
 
 #[test]
@@ -283,7 +287,12 @@ fn transparent_aliases_share_the_underlying_schema_and_field_carrier() {
 #[test]
 fn aliases_with_attributes_still_refuse() {
     let source = "data Alias [copy] = u64;";
-    let error = lower(&[("alias.omg", source)]).unwrap_err();
+    let error = sources::refuse(
+        &[("alias.omg", source)],
+        "alias.omg",
+        sources::unique_span(source, "u64"),
+        "data alias or unsupported member requires declaration lowering",
+    );
     assert_eq!(error.message, "data alias or unsupported member requires declaration lowering");
     assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"u64".as_slice()));
     known_gap::report("attributed data alias", "The alias needs its attributes and expansion", source, &error);

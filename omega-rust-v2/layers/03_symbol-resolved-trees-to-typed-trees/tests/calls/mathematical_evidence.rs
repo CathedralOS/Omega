@@ -143,6 +143,51 @@ fn mathematical_telescope_preserves_distinct_levels_and_strict_propositions() {
 }
 
 #[test]
+fn logical_hypothesis_results_follow_the_normalized_carrier_not_the_annotation_spelling() {
+    let aliases = "data Answer=u8; data Transform=u8->u8; data Callback=machine(y:u8)->u8;";
+    let header = "machine theorem<P:core\\Strict<0>,machine Step>(pred:u8->core\\Strict<0>) requires machine Step(y:u8)";
+    for result in ["Answer", "Callback", "bool", "@u8"] {
+        let annotation = format!("-> {result}");
+        let source = format!("{header}{annotation}; {{}}");
+        let error = check(&[("proof.omg", &source), ("aliases.omg", aliases)]).unwrap_err();
+        assert_eq!(error.file, "proof.omg");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(annotation.as_bytes()));
+        assert_eq!(error.message, "logical hypothesis cannot promise an observed Type result");
+    }
+    for result in ["Transform", "core\\Type<0>", "core\\Squash<u8>", "P", "pred(y)"] {
+        let source = format!("{header}-> {result}; {{}}");
+        let stage = check(&[("proof.omg", &source), ("aliases.omg", aliases)]).unwrap();
+        assert_ne!(stage.logical_hypotheses[0].result, ValueType::NoResult);
+    }
+}
+
+#[test]
+fn specializing_a_logical_parameter_preserves_its_authority_restriction() {
+    let program = |access| format!("data Input = {access}u8; machine theorem<T,machine Step>() requires machine Step(x:T); {{}} machine sink(x:Input){{}} machine use_it(){{theorem::<Input,sink>()}}");
+    let shared = program("@");
+    let stage = check(&[("proof.omg", &shared)]).unwrap();
+    assert!(stage.obligations.iter().any(|o| matches!(o.kind, omega_typer::ObligationKind::SupplyHypothesis { .. })));
+    for access in ["@mut ", "@write "] {
+        let source = program(access);
+        let error = check(&[("proof.omg", &source)]).unwrap_err();
+        assert_eq!(error.file, "proof.omg");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"theorem::<Input,sink>".as_slice()));
+        assert_eq!(error.message, "logical hypothesis cannot supply mutable authority");
+    }
+}
+
+#[test]
+fn specializing_a_logical_result_cannot_introduce_a_runtime_byte() {
+    let theorem = "machine theorem<T,machine Step>() requires machine Step(x:T)->T; {}";
+    let program = |result| format!("{theorem} machine keep(x:{result})->{result}{{x}} machine use_it(){{theorem::<{result},keep>()}}");
+    check(&[("proof.omg", &program("core\\Squash<u8>"))]).unwrap();
+    let source = program("u8");
+    let error = check(&[("proof.omg", &source)]).unwrap_err();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"theorem::<u8,keep>".as_slice()));
+    assert_eq!(error.message, "logical hypothesis cannot promise an observed Type result");
+}
+
+#[test]
 fn a_machine_shaped_hypothesis_keeps_its_premises_and_cannot_be_executed() {
     let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine use_theorem(x:u8){theorem::<lemma>(x)}";
     let stage = check(&[("proof.omg", source)]).unwrap();

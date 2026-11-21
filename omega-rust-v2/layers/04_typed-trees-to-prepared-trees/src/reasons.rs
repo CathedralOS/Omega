@@ -57,9 +57,9 @@ preparation_reasons! {
     CyclicConstantInitializer => "cyclic constant initializer",
     /// A constant reference selects more than one declaration.
     AmbiguousConstantReference => "ambiguous constant reference",
-    /// A named constant read lands in a different carrier than its declaration.
+    /// A named constant value or read requires a different carrier from its initializer.
     ConstantCarrierMismatch => "the selected constant has a different carrier",
-    /// A frozen integer constant does not fit the carrier that reads it.
+    /// At publication, the evaluated integer is outside its initializer's numeric range.
     FrozenConstantOutsideCarrier => "the frozen constant exceeds its carrier",
 
     /// L3 selected the declaration, but preparation cannot freeze its description into retained storage.

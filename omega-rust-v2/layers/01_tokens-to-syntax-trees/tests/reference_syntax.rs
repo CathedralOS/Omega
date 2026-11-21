@@ -42,6 +42,125 @@ fn nested_access_modes_stay_on_their_authored_layer() {
     }
 }
 
+fn assert_tree(
+    kind: FragmentKind,
+    source: &str,
+    expected: &str,
+) {
+    let bytes = source.as_bytes();
+    let tokens = lex(bytes).unwrap();
+    let tree = parse_fragment(bytes, &tokens, kind).unwrap_or_else(|error| panic!("{source}: {error}"));
+    assert_eq!(support::describe_tree_problem(bytes, &tokens, &tree), None, "{source}");
+    assert_eq!(support::dump_tree(bytes, &tokens, &tree), expected, "{source}");
+}
+
+#[test]
+fn contextual_borrows_leave_cast_and_membership_outside_the_borrow() {
+    for word in ["mut", "write"] {
+        for gap in [" ", "/*gap*/", "\r\n"] {
+            for (op, node, rhs) in [("as", "Cast", "PathType"), ("in", "Binary", "PathExpression")] {
+                assert_tree(
+                    FragmentKind::Statements,
+                    &format!("_ = @{word}{gap}{op}{gap}S;"),
+                    &format!(
+                        "Fragment\n  Discard\n    '_'\n    '='\n    {node}\n      Borrow\n        '@'\n        PathExpression '{word}'\n      '{op}'\n      {rhs} 'S'\n    ';'\n"
+                    ),
+                );
+                assert_tree(
+                    FragmentKind::Statements,
+                    &format!("_ = @{word}{gap}{op};"),
+                    &format!("Fragment\n  Discard\n    '_'\n    '='\n    Borrow\n      '@'\n      '{word}'\n      PathExpression '{op}'\n    ';'\n"),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn contextual_reference_types_leave_qualification_and_expression_suffixes_to_the_caller() {
+    for word in ["mut", "write"] {
+        for name in ["as", "in"] {
+            assert_tree(
+                FragmentKind::GenericParam,
+                &format!("const V: @{word}/*type*/{name}"),
+                &format!("Fragment\n  ConstParam\n    'const'\n    'V'\n    ':'\n    ReferenceType\n      '@'\n      '{word}'\n      PathType '{name}'\n"),
+            );
+        }
+        assert_tree(
+            FragmentKind::Statements,
+            &format!("let v: @'a {word}/*domain*/in D;"),
+            &format!(
+                "Fragment\n  Let\n    'let'\n    BindingPattern 'v'\n    ':'\n    QualifiedType\n      ReferenceType\n        '@'\n        Lifetime ''' 'a'\n        PathType '{word}'\n      'in'\n      PathType 'D'\n    ';'\n"
+            ),
+        );
+        for (op, node, rhs) in [("as", "Cast", "PathType"), ("in", "Binary", "PathExpression")] {
+            assert_tree(
+                FragmentKind::Statements,
+                &format!("x as @{word}\r\n{op} S"),
+                &format!(
+                    "Fragment\n  Tail\n    {node}\n      Cast\n        PathExpression 'x'\n        'as'\n        ReferenceType\n          '@'\n          PathType '{word}'\n      '{op}'\n      {rhs} 'S'\n"
+                ),
+            );
+            assert_tree(
+                FragmentKind::Statements,
+                &format!("x as @{word} {op}"),
+                &format!(
+                    "Fragment\n  Tail\n    Cast\n      PathExpression 'x'\n      'as'\n      ReferenceType\n        '@'\n        '{word}'\n        PathType '{op}'\n"
+                ),
+            );
+        }
+    }
+}
+
+#[test]
+fn the_enclosing_syntax_owns_the_suffix() {
+    // `=` cannot end the discard operand, but it can end the left side of an assignment.
+    assert_tree(
+        FragmentKind::Statements,
+        "_ = @mut as =D;",
+        "Fragment\n  Discard\n    '_'\n    '='\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mut'\n      'as'\n      CastEntry\n        '='\n        PathType 'D'\n    ';'\n",
+    );
+    assert_tree(
+        FragmentKind::Statements,
+        "@mut as = D;",
+        "Fragment\n  Assign\n    Borrow\n      '@'\n      'mut'\n      PathExpression 'as'\n    '='\n    PathExpression 'D'\n    ';'\n",
+    );
+    assert_tree(
+        FragmentKind::Clauses,
+        "requires @mut as ensures ok",
+        "Fragment\n  Requires\n    'requires'\n    Borrow\n      '@'\n      'mut'\n      PathExpression 'as'\n  Ensures\n    'ensures'\n    PathExpression 'ok'\n",
+    );
+    assert_tree(
+        FragmentKind::Statements,
+        "machine f() -> @write in requires ok;",
+        "Fragment\n  Machine\n    'machine'\n    Path 'f'\n    Params '(' ')'\n    Result\n      '->'\n      ReferenceType\n        '@'\n        'write'\n        PathType 'in'\n    Requires\n      'requires'\n      PathExpression 'ok'\n    ';'\n",
+    );
+    assert_tree(
+        FragmentKind::Statements,
+        "let x: @mut in in S;",
+        "Fragment\n  Let\n    'let'\n    BindingPattern 'x'\n    ':'\n    QualifiedType\n      ReferenceType\n        '@'\n        'mut'\n        PathType 'in'\n      'in'\n      PathType 'S'\n    ';'\n",
+    );
+}
+
+#[test]
+fn operator_words_can_still_be_names_before_a_suffix() {
+    assert_tree(
+        FragmentKind::Statements,
+        "@mut as as u8",
+        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        'mut'\n        PathExpression 'as'\n      'as'\n      PathType 'u8'\n",
+    );
+    assert_tree(
+        FragmentKind::Statements,
+        "@mut as as",
+        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mut'\n      'as'\n      PathType 'as'\n",
+    );
+    assert_tree(
+        FragmentKind::Statements,
+        "@write in(x)",
+        "Fragment\n  Tail\n    Borrow\n      '@'\n      'write'\n      Call\n        PathExpression 'in'\n        Args\n          '('\n          PathExpression 'x'\n          ')'\n",
+    );
+}
+
 #[test]
 fn incomplete_and_retired_prefixes_identify_the_first_bad_token() {
     // The marker locates the expected diagnostic, including zero-width EOF after a consumed @.
@@ -59,6 +178,9 @@ fn incomplete_and_retired_prefixes_identify_the_first_bad_token() {
         ("machine f() { _ = f::<|&T>(x); }", "&"),
         ("machine f() { _ = x as |&T; }", "&"),
         ("machine f() { _ = x |@ y; }", "@"),
+        ("machine f() { _ = @mut as @|; }", ";"),
+        ("machine f() { _ = @write in $|; }", ";"),
+        ("machine f(x: @write in D & |) {}", ")"),
     ] {
         let (before_error, after_error) = marked_source.split_once('|').unwrap();
         let source = format!("{before_error}{after_error}");

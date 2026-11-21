@@ -29,10 +29,6 @@ fn residual_ordinals(
         .collect()
 }
 
-fn lowering_error(source: &str) -> String {
-    sources::lower(&[("arrays.omg", source)]).unwrap_err().message
-}
-
 #[test]
 fn moving_sibling_zero_or_one_returns_that_ordinal_and_disposes_only_the_other() {
     for (selected, remaining) in [(0u64, 1u64), (1, 0)] {
@@ -224,29 +220,45 @@ fn reassembling_every_ordinal_consumes_each_element_once() {
 #[test]
 fn transferring_one_ordinal_twice_rejects() {
     let source = format!("{TOKEN} machine twice(items:[Token;2])->[Token;2]{{[move items[0], move items[0]]}}");
-    assert_eq!(lowering_error(&source), "owned transfer overlaps previously moved storage");
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, ", move items[0]", "move items[0]"),
+        "owned transfer overlaps previously moved storage",
+    );
 }
 
 #[test]
 fn a_partially_transferred_array_cannot_leave_whole() {
     let source = format!("{TOKEN} machine whole(items:[Token;2])->[Token;2]{{let first=move items[0]; items}}");
-    assert_eq!(lowering_error(&source), "owned transfer overlaps previously moved storage");
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, "; items}", "items"),
+        "owned transfer overlaps previously moved storage",
+    );
 }
 
 #[test]
 fn a_runtime_selector_supplies_no_static_ordinal() {
     let source = format!("{TOKEN} machine pick(items:[Token;2], i:u64)->Token{{move items[i]}}");
-    assert_eq!(lowering_error(&source), "owned element transfer requires a literal or frozen constant selector");
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, "[i]", "i"),
+        "owned element transfer requires a literal or frozen constant selector",
+    );
 }
 
 #[test]
 fn an_ordinal_outside_the_declared_extent_rejects() {
     let source = format!("{TOKEN} machine pick(items:[Token;2])->Token{{move items[2]}}");
-    let error = sources::lower(&[("arrays.omg", &source)]).unwrap_err();
-    assert_eq!(error.message, "owned element transfer selects outside its fixed array");
-    assert_eq!(error.site.file, "arrays.omg");
-    let selector = source.rfind("[2]").unwrap() + 1;
-    assert_eq!((error.site.span.get_start_offset(), error.site.span.get_end_offset()), (selector, selector + 1));
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, "items[2]", "2"),
+        "owned element transfer selects outside its fixed array",
+    );
 }
 
 #[test]

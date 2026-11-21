@@ -184,7 +184,12 @@ fn a_const_valued_implementation_binder_is_refused_at_the_selected_implementatio
         Good satisfies Sized { machine pick<const M:u64>(x:u8)->u8 { x } } \
         machine run<const E:Sized>(x:u8)->u8 { E::pick::<4>(x) } \
         machine go(x:u8)->u8 { run::<Good>(x) }";
-    let error = source::lower(&[("sized.omg", src)]).unwrap_err();
+    let error = source::refuse(
+        &[("sized.omg", src)],
+        "sized.omg",
+        source::unique_span(src, "machine pick<const M:u64>(x:u8)->u8 { x }"),
+        "selected implementation binders require a supported closed application",
+    );
     assert_eq!(error.message, "selected implementation binders require a supported closed application");
     known_gap::report("const binder on selected implementation", "The member call needs the selected implementation and static argument", src, &error);
     assert_eq!(error.site.file, "sized.omg");

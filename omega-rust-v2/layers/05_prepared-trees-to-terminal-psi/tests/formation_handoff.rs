@@ -4,9 +4,9 @@
 //!
 //! Each test locates the obligation in the prepared package by kind and source
 //! site, lowers those same prepared trees through the shared helper, and compares
-//! L5's stopping point with that site. No input carrying one of these kinds
-//! reaches Psi yet, so every case pins a located refusal and reports it with
-//! `known_gap`. A refusal is not evidence of output. Where a twin without the
+//! L5's output or stopping point with that site. A plain scalar `ZeroField`
+//! supplies the SSA operand for the omitted declaration slot. Other formations
+//! below still stop before Psi. A refusal is not evidence of output. Where a twin without the
 //! obligation lowers, its Psi shows the operation at the same site that the
 //! refused input lacks. Where both twins refuse, the stop does not depend on the
 //! obligation at all.
@@ -26,18 +26,26 @@ use omega_lowering::{LoweredPackage, LoweringError, MachineBody, OperationKind, 
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_typed::{ObligationKind, Site, TypingObligation};
 
-/// Prepare one file, read the prepared package, then lower the same trees.
-fn lower<T>(
+use std::ops::Range;
+
+/// Read the obligations and run the requested check on the same prepared trees.
+fn with_prepared<T>(
     file: &str,
     source: &str,
     read: impl FnOnce(&PreparedTrees<'_>) -> T,
-) -> (Vec<TypingObligation>, T, Result<LoweredPackage, LoweringError>) {
+) -> (Vec<TypingObligation>, T) {
     let package = sources::resolve(&[(file, source)]);
     let prepared = prepare_source_package(&package).unwrap_or_else(|error| panic!("{file}: preparation failed: {error:?}\n{source}"));
     let obligations = prepared.typed().obligations.clone();
-    let observed = read(&prepared);
-    let lowered = sources::lower_prepared(&prepared, &[(file, source)]);
-    (obligations, observed, lowered)
+    (obligations, read(&prepared))
+}
+
+fn refusal(file: &str, source: &str, span: Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
+    with_prepared(file, source, |prepared| sources::refuse_prepared(prepared, &[(file, source)], file, span, message))
+}
+
+fn lower(file: &str, source: &str) -> (Vec<TypingObligation>, Result<LoweredPackage, LoweringError>) {
+    with_prepared(file, source, |prepared| sources::lower_prepared(prepared, &[(file, source)]))
 }
 
 fn spelled<'s>(
@@ -69,13 +77,6 @@ fn encloses(
     inner: &Site,
 ) -> bool {
     outer.file == inner.file && outer.span.get_start_offset() <= inner.span.get_start_offset() && inner.span.get_end_offset() <= outer.span.get_end_offset()
-}
-
-fn refused(
-    lowered: Result<LoweredPackage, LoweringError>,
-    source: &str,
-) -> LoweringError {
-    lowered.expect_err(&format!("L5 now lowers this input; replace the pin with a Psi comparison:\n{source}"))
 }
 
 /// The one operation of `machine` whose retained site spells `text`.
@@ -120,40 +121,79 @@ fn producer<'a>(
     &body.operations[id.index()].kind
 }
 
-/// L3 hands the omitted `retries` field and its instantiated type to the checker
-/// at the construction. In an executable body L5 stops at exactly that site. The
-/// twin writes the zero and lowers, so the omission alone causes the stop. Its Psi
-/// shows the record establishment with a zero in the `retries` slot that the
-/// omitted form still needs.
 #[test]
-fn an_omitted_field_stops_at_its_construction_while_the_written_zero_lowers() {
+fn zero_field_supplies_the_exact_declared_slot_at_the_construction() {
+    use omega_lowering::{OperationResult, ScalarType, TypeShape};
     let file = "zero_field.omg";
     let omitted = "data Options {count:u8; retries:u16;} machine build(){let options=Options{count:1,..};}";
-    let (obligations, (), lowered) = lower(file, omitted, |_| ());
-    let zero: Vec<_> = obligations
-        .iter()
-        .filter_map(|o| match &o.kind {
-            ObligationKind::ZeroField { field, ty } => Some((o, field, ty)),
-            _ => None,
-        })
-        .collect();
-    let [(obligation, field, ty)] = zero.as_slice() else {
-        panic!("expected one omitted field, found {zero:?}")
-    };
-    assert_eq!(spelled(&obligation.site, file, omitted), "Options{count:1,..}");
-    assert_eq!((field.path.as_str(), ty.to_string()), ("Options::retries", "u16".to_owned()));
-    let error = refused(lowered, omitted);
-    assert_eq!(error.site, obligation.site);
-    assert_eq!(error.message, "construction requires additional establishment evidence");
-    known_gap::report(
-        "omitted field zero in executable construction",
-        "The record construction needs the typed zero of Options::retries in its declared slot",
-        omitted,
-        &error,
-    );
+    let other = omitted.replace("retries:u16", "timeout:u32");
+    let same = omitted.replace("count:u8", "count:u16");
+    let swapped = same.replace("count:1", "retries:1");
+    for (source, names, widths, slot, literal) in [
+        (omitted, ["Options::count", "Options::retries"], [8, 16], 1, "Options{count:1,..}"),
+        (other.as_str(), ["Options::count", "Options::timeout"], [8, 32], 1, "Options{count:1,..}"),
+        (same.as_str(), ["Options::count", "Options::retries"], [16, 16], 1, "Options{count:1,..}"),
+        (swapped.as_str(), ["Options::count", "Options::retries"], [16, 16], 0, "Options{retries:1,..}"),
+    ] {
+        let (_, (site, lowered)) = with_prepared(file, source, |prepared| {
+            let tree = prepared.typed().trees().next().unwrap();
+            let zeros: Vec<_> = prepared.typed().obligations.iter().filter(|o| matches!(o.kind, ObligationKind::ZeroField { .. })).collect();
+            let [obligation] = zeros.as_slice() else { panic!("one ZeroField expected, found {zeros:?}") };
+            let node = obligation.node.node;
+            let construction = tree.construction(node).expect("obligation on the constructor");
+            let [written] = construction.initializers.as_slice() else { panic!("one authored operand") };
+            assert_eq!(written.position, 1 - slot);
+            assert_eq!(tree.resolved().file.span(written.expression).slice(source.as_bytes()), Some(b"1".as_slice()));
+            let declaration = &prepared.typed().record_fields[&construction.owner][slot];
+            assert!(matches!(&obligation.kind, ObligationKind::ZeroField {field, ty} if field == &declaration.declaration && ty == &declaration.ty
+                && field.path == names[slot] && ty.to_string() == format!("u{}", widths[slot])));
+            (obligation.site.clone(), sources::lower_prepared(prepared, &[(file, source)]).unwrap())
+        });
+        assert_eq!(spelled(&site, file, source), literal);
+        if source == omitted || source == other {
+            assert_eq!((site.span.get_start_offset(), site.span.get_end_offset()), (66, 85));
+        }
+        let body = &lowered.machines.iter().find(|m| m.declaration.path == "build").unwrap().body;
+        let [one, zero, establish] = body.operations.as_slice() else { panic!("two operands followed by one construction") };
+        assert_eq!(one.kind, OperationKind::Constant(ScalarLiteral::Integer(1.into())));
+        assert_eq!(spelled(&body.diagnostics.operations[one.id.index()], file, source), "1");
+        assert_eq!(zero.kind, OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+        assert_eq!(body.diagnostics.operations[zero.id.index()], site);
+        assert_eq!(body.diagnostics.operations[establish.id.index()], site);
+        let OperationKind::EstablishRecord {fields} = &establish.kind else { panic!("expected a record") };
+        let OperationResult::Structural(home) = establish.result else { panic!("expected fresh storage") };
+        let schema = lowered.data.iter().find(|d| d.carrier == body.places[home.index()].ty).unwrap();
+        assert_eq!(schema.declaration.path, "Options");
+        assert_eq!(fields.len(), 2);
+        let OperationResult::Scalar(zero_value) = zero.result else { panic!("zero must define an SSA value") };
+        if source == omitted {
+            spec_corpus::observe_handoff!(
+                psi "psi-output/omitted-field-zero",
+                assert_eq!((fields[1].field.path.as_str(), &fields[1].operand), ("Options::retries", &ValueOperand::Scalar(zero_value))),
+            );
+        } else if source == other {
+            spec_corpus::observe_handoff!(
+                psi "psi-output/omitted-timeout-zero",
+                assert_eq!(
+                    (fields[1].field.path.as_str(), &fields[1].operand, lowered.types.get(body.values[zero_value.index()].ty)),
+                    ("Options::timeout", &ValueOperand::Scalar(zero_value), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 32 }))),
+                ),
+            );
+        }
+        for (i, f) in fields.iter().enumerate() {
+            assert_eq!(f.field, schema.fields[i].declaration);
+            assert_eq!(f.field.path, names[i]);
+            let ValueOperand::Scalar(v) = f.operand else { panic!("expected a scalar initializer") };
+            let backing = if i == slot { zero } else { one };
+            assert_eq!(OperationResult::Scalar(v), backing.result);
+            assert_eq!(body.values[v.index()].origin, ValueOrigin::Operation(backing.id));
+            assert_eq!(body.values[v.index()].ty, schema.fields[i].carrier);
+            assert_eq!(lowered.types.get(schema.fields[i].carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer {signed:false, width:widths[i]})));
+        }
+    }
 
     let written = omitted.replace("count:1,..", "count:1,retries:0");
-    let (obligations, (), lowered) = lower(file, &written, |_| ());
+    let (obligations, lowered) = lower(file, &written);
     assert!(
         !obligations
             .iter()
@@ -168,7 +208,58 @@ fn an_omitted_field_stops_at_its_construction_while_the_written_zero_lowers() {
         panic!("expected both declared slots, found {fields:?}")
     };
     assert_eq!([count.field.path.as_str(), retries.field.path.as_str()], ["Options::count", "Options::retries"]);
+    assert_eq!(producer(body, &count.operand), &OperationKind::Constant(ScalarLiteral::Integer(1.into())));
     assert_eq!(producer(body, &retries.operand), &OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+    let (_, written_zero) = operation_spelled(&package, "build", &written, "0");
+    assert!(matches!(written_zero.result, OperationResult::Scalar(v) if retries.operand == ValueOperand::Scalar(v)));
+}
+
+#[test]
+fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
+    use omega_lowering::{CallTarget, OperationResult};
+    let file = "case_zero.omg";
+    let source = "data Choice{case First(x:u8,flag:bool,y:u8); case Other(flag:bool);}
+        machine left()->u8{1} machine right()->u8{2}
+        machine build(){let choice=Choice::First{y:right(),x:left(),..};}";
+    let (obligations, lowered) = lower(file, source);
+    let zeros: Vec<_> = obligations.iter().filter(|o| matches!(&o.kind, ObligationKind::ZeroField {..})).collect();
+    let [zero] = zeros.as_slice() else { panic!("one omitted payload field") };
+    assert!(matches!(&zero.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::Bool} if field.path == "Choice::First::flag"));
+    let package = lowered.unwrap();
+    let machine = |path| package.machines.iter().find(|m| m.declaration.path == path).unwrap();
+    let body = &machine("build").body;
+    let [right, left, flag, construct] = body.operations.as_slice() else { panic!("two calls, one zero, one constructor") };
+    for (op, target, text) in [(right, "right", "right()"), (left, "left", "left()")] {
+        assert!(matches!(op.kind, OperationKind::Call {callee: CallTarget::Machine(id), ..} if id == machine(target).id));
+        assert_eq!(spelled(&body.diagnostics.operations[op.id.index()], file, source), text);
+    }
+    assert_eq!(flag.kind, OperationKind::Constant(ScalarLiteral::Boolean(false)));
+    assert_eq!(body.diagnostics.operations[flag.id.index()], zero.site);
+    assert_eq!(body.diagnostics.operations[construct.id.index()], zero.site);
+    let OperationKind::EstablishCase {case, fields} = &construct.kind else { panic!("expected case construction") };
+    assert_eq!(case.path, "Choice::First");
+    assert_eq!(fields.len(), 3);
+    for (field, (path, backing)) in fields.iter().zip([("Choice::First::x", left), ("Choice::First::flag", flag), ("Choice::First::y", right)]) {
+        assert_eq!(field.field.path, path);
+        assert!(matches!(backing.result, OperationResult::Scalar(v) if field.operand == ValueOperand::Scalar(v)));
+    }
+}
+
+#[test]
+fn zero_field_cannot_supply_a_reference_or_discharge_an_independent_predicate() {
+    let file = "zero_field.omg";
+    for (declaration, reason) in [
+        ("data Options{count:u8;handle:@u8;}", "cannot lower implicit zero of type `@u8` for omitted field `Options::handle`"),
+        ("data Options requires self.n>0 {count:u8;n:u8;}", "lowering cannot establish the data predicate for `Options` at construction"),
+    ] {
+        let literal = "Options{count:1,..}";
+        let source = format!("{declaration} machine build(){{let options={literal};}}");
+        let (obligations, error) = refusal(file, &source, sources::unique_span(&source, literal), reason);
+        assert!(obligations.iter().any(|o| matches!(o.kind, ObligationKind::ZeroField {..}) && o.site == error.site));
+        if declaration.contains("requires") {
+            assert!(obligations.iter().any(|o| matches!(&o.kind, ObligationKind::EstablishData(id) if id.path == "Options") && o.site == error.site));
+        }
+    }
 }
 
 /// `EstablishData` sits on the construction of a predicate-bearing record and on a
@@ -188,7 +279,10 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
         (sum, "Mode::On"),
     ] {
         let source = format!("{declaration} machine make(){{let value={construction};}}");
-        let (obligations, (), lowered) = lower(file, &source, |_| ());
+        let (obligations, error) = refusal(
+            file, &source, sources::unique_span(&source, construction),
+            &format!("lowering cannot establish the data predicate for `{owner}` at construction"),
+        );
         let establish: Vec<_> = obligations
             .iter()
             .filter(|o| matches!(o.kind, ObligationKind::EstablishData(_)))
@@ -201,9 +295,8 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
             "{obligation:?}"
         );
         assert_eq!(spelled(&obligation.site, file, &source), construction);
-        let error = refused(lowered, &source);
         assert_eq!(error.site, obligation.site, "{construction}");
-        assert_eq!(error.message, "construction requires additional establishment evidence", "{construction}");
+        assert_eq!(error.message, format!("lowering cannot establish the data predicate for `{owner}` at construction"), "{construction}");
         if !reported {
             reported = true;
             known_gap::report(
@@ -215,7 +308,7 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
         }
 
         let source = source.replace(declaration, plain);
-        let (obligations, (), lowered) = lower(file, &source, |_| ());
+        let (obligations, lowered) = lower(file, &source);
         assert!(
             !obligations
                 .iter()
@@ -254,7 +347,7 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
                           new_plan::<'t>(@schema, Issuance::Unrestricted{})
                       }
                   }";
-    let (obligations, (), lowered) = lower(file, source, |_| ());
+    let (obligations, error) = refusal(file, source, sources::unique_span(source, "access Rule"), "unsupported domain member: Access");
     let plans: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
@@ -267,7 +360,6 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
     };
     assert_eq!((domain.path.as_str(), machine.path.as_str()), ("i32::Locked", "Rule::plan"));
     assert_eq!(spelled(&obligation.site, file, source), "access Rule");
-    let error = refused(lowered, source);
     assert_eq!(error.site, obligation.site);
     assert_eq!(error.message, "unsupported domain member: Access");
     known_gap::report(
@@ -286,7 +378,7 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
 fn an_open_width_stops_at_its_closed_const_application() {
     let file = "width.omg";
     let source = "machine sum<const N:u64>(x:u<N>,y:u<N>)->u<N> requires N>0{x+%y} machine pair(x:u13,y:u13)->u13{sum(x,y)}";
-    let (obligations, (template, arguments), lowered) = lower(file, source, |prepared| {
+    let (obligations, (template, arguments, error)) = with_prepared(file, source, |prepared| {
         let typed = prepared.typed();
         let template = typed
             .signatures
@@ -306,6 +398,11 @@ fn an_open_width_stops_at_its_closed_const_application() {
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
+            sources::refuse_prepared(
+                prepared, &[(file, source)], file,
+                sources::unique_span(source, "machine sum<const N:u64>(x:u<N>,y:u<N>)->u<N> requires N>0{x+%y}"),
+                "open generic machine requires a closed application before lowering",
+            ),
         )
     });
     assert_eq!(arguments, ["13"]);
@@ -319,7 +416,6 @@ fn an_open_width_stops_at_its_closed_const_application() {
             .any(|o| spells(&o.site, file, source, "u<N>") && encloses(&template, &o.site)),
         "{widths:?}"
     );
-    let error = refused(lowered, source);
     assert_eq!(error.site, template);
     assert_eq!(error.message, "open generic machine requires a closed application before lowering");
     known_gap::report(
@@ -345,7 +441,11 @@ fn recursive_formation_stops_at_the_const_binder_of_its_data() {
         assert_eq!(spelled(&error.site, file, source), "<const N:u64>");
     };
 
-    let (obligations, (), lowered) = lower(file, changing, |_| ());
+    let at_binder = |source: &str| refusal(
+        file, source, sources::unique_span(source, "<const N:u64>"),
+        "generic data requires a closed application before lowering",
+    );
+    let (obligations, error) = at_binder(changing);
     assert!(
         obligations
             .iter()
@@ -360,7 +460,6 @@ fn recursive_formation_stops_at_the_const_binder_of_its_data() {
             .any(|o| matches!(o.kind, ObligationKind::PositiveWidth(_)) && spells(&o.site, file, changing, "u<N>")),
         "{obligations:?}"
     );
-    let error = refused(lowered, changing);
     binder(&error, changing);
     known_gap::report(
         "recursive formation of const-indexed data",
@@ -369,14 +468,14 @@ fn recursive_formation_stops_at_the_const_binder_of_its_data() {
         &error,
     );
 
-    let (obligations, (), lowered) = lower(file, &same, |_| ());
+    let (obligations, error) = at_binder(&same);
     assert!(
         !obligations
             .iter()
             .any(|o| matches!(o.kind, ObligationKind::FormRecursiveApplication { .. })),
         "{obligations:?}"
     );
-    binder(&refused(lowered, &same), &same);
+    binder(&error, &same);
 }
 
 /// Selecting `Quiet` for a binder bounded by the restricted alias `Local` records
@@ -387,7 +486,10 @@ fn recursive_formation_stops_at_the_const_binder_of_its_data() {
 fn refined_evidence_stops_at_the_restricted_trait_alias() {
     let file = "refine.omg";
     let source = "trait Log{machine put() blocks;} trait Local=Log{machine * blocks false reaches none terminates;} Quiet satisfies Log{machine put(){}} Busy satisfies Log{machine put() blocks {}} machine use_it<const E:Local>(){E::put()} machine f(){use_it::<Quiet>()}";
-    let (obligations, (), lowered) = lower(file, source, |_| ());
+    let (obligations, error) = refusal(
+        file, source, sources::span_within(source, "trait Local=Log", "Log"),
+        "trait binders, inheritance and restrictions require an applied trait interface",
+    );
     let refinements: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::RefineEvidence { .. }))
@@ -400,7 +502,6 @@ fn refined_evidence_stops_at_the_restricted_trait_alias() {
     };
     assert_eq!((binder.declaration.path.as_str(), implementation.path.as_str()), ("Local", "Quiet"));
     assert_eq!(spelled(&obligation.site, file, source), "use_it::<Quiet>()");
-    let error = refused(lowered, source);
     assert_eq!(error.message, "trait binders, inheritance and restrictions require an applied trait interface");
     assert_eq!(spelled(&error.site, file, source), "Log");
     assert_eq!(error.site.span.get_start_offset(), source.find("=Log").unwrap() + 1);

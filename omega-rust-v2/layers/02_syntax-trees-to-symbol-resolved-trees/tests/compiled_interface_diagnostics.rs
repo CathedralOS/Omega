@@ -4,7 +4,7 @@
 use omega_lexer::{SourceSpan, lex};
 use omega_parser::{NodeKind, parse_file};
 use omega_resolver::{
-    CompiledInterface, DeclarationId, DeclarationName, Dependency, InterfaceExport, NameError, NameErrorKind, NameRole, ParsedSource, StageSource, Symbol,
+    CompiledInterface, DeclarationId, DeclarationName, Dependency, DomainCarrier, InterfaceExport, NameError, NameErrorKind, NameRole, ParsedSource, StageSource, Symbol,
     resolve_stage, resolve_stage_with_exports,
 };
 use std::sync::Arc;
@@ -340,6 +340,118 @@ fn a_compiled_domain_carrier_appears_exactly_on_attached_domains() {
         assert!(carrier.is_some());
         export(&mut interface, path, kind).domain_carrier = carrier;
         assert_refusal(&reject(&[], &mut interface), refusal_kind, "wire", path, reason);
+    }
+}
+
+const ATTACHMENT_REASON: &str = "compiled domain attachment does not match its declaration";
+
+#[test]
+fn compiled_named_attachment_cannot_change_the_carrier_leaf() {
+    let (mut interface, _) = library();
+    let link = id(&mut interface, "net\\Link", NodeKind::Data);
+    export(&mut interface, "proto\\Packet::Ready", NodeKind::Domain).domain_carrier = Some(DomainCarrier::Named(link));
+    let client = "use dep\\proto; use dep\\net\\Link; machine f(x: Link in Link::Ready) {}";
+    parsed(&[("app", "main.omg", client)], |sources| {
+        let error = resolve_stage_with_exports(sources, &[WIRE], &Default::default(), &interface).unwrap_err();
+        assert_refusal(&error, NameErrorKind::CompiledDomainAttachmentMismatch, "wire", "proto\\Packet::Ready", ATTACHMENT_REASON);
+    });
+    assert_refusal(&reject(&[], &mut interface), NameErrorKind::CompiledDomainAttachmentMismatch, "wire", "proto\\Packet::Ready", ATTACHMENT_REASON);
+}
+
+#[test]
+fn compiled_builtin_attachment_must_match_even_without_arguments() {
+    let (mut interface, _) = library();
+    export(&mut interface, "proto\\Packet::Ready", NodeKind::Domain).domain_carrier = Some(DomainCarrier::Builtin("u8".into()));
+    assert_refusal(&reject(&[], &mut interface), NameErrorKind::CompiledDomainAttachmentMismatch, "wire", "proto\\Packet::Ready", ATTACHMENT_REASON);
+}
+
+#[test]
+fn compiled_attachments_keep_builtin_binder_and_nominal_roles_distinct() {
+    let (mut interface, _) = library();
+    let packet = id(&mut interface, "proto\\Packet", NodeKind::Data);
+    let link = id(&mut interface, "net\\Link", NodeKind::Data);
+    let bound = DomainCarrier::Bound { position: 0, alternative: packet.clone() };
+    let nominal = DomainCarrier::Named(packet.clone());
+    for (path, impossible) in [
+        ("proto\\Packet::Ready", DomainCarrier::Builtin("Packet".into())),
+        ("proto\\Packet::Ready", DomainCarrier::Named(DeclarationId { kind: NodeKind::Trait, ..packet })),
+        ("proto\\Packet::Ready", DomainCarrier::Bound { position: 0, alternative: link }),
+        ("proto\\u8::Ready", DomainCarrier::Builtin("u16".into())),
+        ("proto\\u8::Ready", nominal),
+        ("proto\\u8::Ready", DomainCarrier::Generic),
+        ("proto\\hw\\Packet::Ready", DomainCarrier::Generic),
+        ("proto\\Outer::Packet::Ready", bound),
+    ] {
+        let (mut forged, _) = library();
+        let domain = export(&mut forged, "proto\\Packet::Ready", NodeKind::Domain);
+        domain.id = renamed(&domain.id, |n| n.path = path.into());
+        domain.domain_carrier = Some(impossible);
+        assert_refusal(&reject(&[], &mut forged), NameErrorKind::CompiledDomainAttachmentMismatch, "wire", path, ATTACHMENT_REASON);
+    }
+}
+
+#[test]
+fn compiled_attachments_keep_imported_aliases_qualified_owners_and_binders() {
+    let origin = Dependency { requester: "wire", alias: "hw", package: "hardware" };
+    let files = [
+        ("hardware", "types/data.omg", "public data Frame { data Packet = u8; }"),
+        ("wire", "proto/one.omg", concat!(
+            "use hw\\types\\Frame::Packet; public domain Packet::Ready; public domain Packet::Ready::Again; ",
+            "public domain<Packet> Packet::Any; public domain<const N:u8, const Packet:u8> Packet::Maybe<N>;",
+        )),
+        ("wire", "proto/two.omg", "public domain hw\\types\\Frame::Packet::Qualified; public domain u8::Small;"),
+    ];
+    let mut interface = parsed(&files, |sources| resolve_stage(sources, &[origin]).unwrap().compiled_interface());
+    let packet = id(&mut interface, "types\\Frame::Packet", NodeKind::Data);
+    let ready = id(&mut interface, "proto\\Packet::Ready", NodeKind::Domain);
+    for (path, carrier) in [
+        ("proto\\Packet::Ready", DomainCarrier::Named(packet.clone())),
+        ("proto\\hw\\types\\Frame::Packet::Qualified", DomainCarrier::Named(packet.clone())),
+        ("proto\\Packet::Ready::Again", DomainCarrier::Named(ready)),
+        ("proto\\Packet::Any", DomainCarrier::Generic),
+        ("proto\\Packet::Maybe", DomainCarrier::Bound { position: 1, alternative: packet }),
+        ("proto\\u8::Small", DomainCarrier::Builtin("u8".into())),
+    ] {
+        assert_eq!(export(&mut interface, path, NodeKind::Domain).domain_carrier.as_ref(), Some(&carrier), "{path}");
+    }
+    let again = id(&mut interface, "proto\\Packet::Ready::Again", NodeKind::Domain);
+    let small = id(&mut interface, "proto\\u8::Small", NodeKind::Domain);
+    let client = "use dep\\proto; use hw\\types\\Frame::Packet; machine f(x: Packet in Packet::Ready::Again, y:u8 in u8::Small) {}";
+    parsed(&[("app", "main.omg", client)], |sources| {
+        let hw = Dependency { requester: "app", ..origin };
+        let stage = resolve_stage_with_exports(sources, &[WIRE, hw], &Default::default(), &interface).unwrap();
+        for expected in [&again, &small] {
+            assert!(stage.uses().any(|u| matches!(&u.target, Symbol::Declaration(id) if id == expected)));
+        }
+    });
+}
+
+#[test]
+fn the_same_export_path_can_bind_a_packet_from_either_package() {
+    let files = [
+        ("east", "schema.omg", "public data Packet {}"),
+        ("west", "schema.omg", "public data Packet {}"),
+        ("wire", "proto/packet.omg", "use schema\\Packet; public domain Packet::Ready;"),
+    ];
+    for package in ["east", "west"] {
+        let edge = Dependency { requester: "wire", alias: "schema", package };
+        let mut interface = parsed(&files, |sources| resolve_stage(sources, &[edge]).unwrap().compiled_interface());
+        let ready = export(&mut interface, "proto\\Packet::Ready", NodeKind::Domain);
+        assert!(matches!(&ready.domain_carrier, Some(DomainCarrier::Named(id)) if id.package == package && id.path == "Packet"));
+        let client = "use dep\\proto; use schema\\Packet; machine f(x:Packet in Packet::Ready){}";
+        parsed(&[("app", "main.omg", client)], |sources| {
+            let consume = |package| {
+                let schema = Dependency { requester: "app", alias: "schema", package };
+                resolve_stage_with_exports(sources, &[WIRE, schema], &Default::default(), &interface)
+            };
+            consume(package).unwrap();
+            let wrong = consume(if package == "east" { "west" } else { "east" }).unwrap_err();
+            let start = client.find("Packet::Ready").unwrap();
+            spec_corpus::assert_resolver_refusal!(
+                &wrong, NameErrorKind::UnresolvedName, "app", "main.omg",
+                SourceSpan::new(start, start + "Packet::Ready".len()), "unresolved name Packet::Ready"
+            );
+        });
     }
 }
 

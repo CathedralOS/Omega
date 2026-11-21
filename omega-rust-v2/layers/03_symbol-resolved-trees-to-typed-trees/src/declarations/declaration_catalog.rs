@@ -50,6 +50,15 @@ pub(crate) struct DeclarationCatalog<'a> {
     /// Only complete signatures enter overload selection. These partial types
     /// can rule out a dependency on an unfinished overload in the current pass.
     pub(crate) pending_signatures: HashMap<&'a DeclarationId, PendingSignature>,
+    /// Local to this pass: these bindings can delay selection, never supply a callee.
+    pub(crate) pending_operators: HashMap<&'a str, Vec<PendingOperator<'a>>>,
+}
+
+pub(crate) struct PendingOperator<'a> {
+    pub machine: &'a DeclarationId,
+    pub arity: usize,
+    pub declared_home: Option<&'a DeclarationId>,
+    pub public: bool,
 }
 
 pub(crate) struct PendingSignature {
@@ -94,6 +103,7 @@ pub(crate) struct DeclaredItems<'a> {
     pub(crate) token_bindings: HashMap<&'a str, Vec<&'a DeclarationId>>,
     pub(crate) predicates: HashSet<&'a DeclarationId>,
     pub(crate) hypotheses: HashMap<Site, LogicalHypothesis>,
+    pub(crate) hypotheses_by_owner: HashMap<&'a DeclarationId, Vec<Site>>,
     pub(crate) assumptions: HashMap<DeclarationId, Vec<DeclarationId>>,
 
     pub(crate) constants: HashMap<&'a DeclarationId, ValueType>,

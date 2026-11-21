@@ -11,25 +11,28 @@ from pathlib import Path
 import subprocess
 import sys
 
+from test_inventory import target_header, TEST_RESULT
+
 
 WORKSPACE = Path(__file__).absolute().parents[2]
+STAGE_TARGETS = {"L2": "tests/stage.rs", "L3": "tests/contextual_examples.rs"}
 STAGE_TESTS = {
     "language/domains.md:1020": (
-        "published_quantity_keeps_its_carrier_and_unit_index",
-        "explicit_quantity_carrier_matches_the_subject_in_every_domain_position",
+        ("L3", "published_quantity_keeps_its_carrier_and_unit_index"),
+        ("L3", "explicit_quantity_carrier_matches_the_subject_in_every_domain_position"),
     ),
-    "language/effects.md:51": ("published_inherited_call_contributes_its_declared_reach",),
-    "language/effects.md:203": ("published_counter_fields_retain_their_callable_contracts",),
-    "language/effects.md:878": ("published_pause_markers_cover_each_required_effect",),
-    "language/generics.md:61": ("published_sort_requirement_binds_each_calls_element_and_ordering",),
+    "language/effects.md:51": (("L3", "published_inherited_call_contributes_its_declared_reach"),),
+    "language/effects.md:203": (("L3", "published_counter_fields_retain_their_callable_contracts"),),
+    "language/effects.md:878": (("L3", "published_pause_markers_cover_each_required_effect"),),
+    "language/generics.md:61": (("L3", "published_sort_requirement_binds_each_calls_element_and_ordering"),),
     "language/generics.md:310": (
-        "published_equality_binds_a_shadowing_parameter",
-        "published_static_type_disjunction_reaches_typing",
+        ("L2", "published_equality_binds_a_shadowing_parameter"),
+        ("L3", "published_static_type_disjunction_reaches_typing"),
     ),
-    "language/generics.md:640": ("published_static_parameters_require_the_declared_argument_role",),
-    "language/machine_values.md:22": ("published_record_call_selects_the_shared_counter_field",),
-    "language/machine_values.md:44": ("published_reader_and_factory_bind_their_own_preconditions",),
-    "language/modules.md:117": ("published_import_exposes_the_exact_remote_domain",),
+    "language/generics.md:640": (("L3", "published_static_parameters_require_the_declared_argument_role"),),
+    "language/machine_values.md:22": (("L3", "published_record_call_selects_the_shared_counter_field"),),
+    "language/machine_values.md:44": (("L2", "published_reader_and_factory_bind_their_own_preconditions"),),
+    "language/modules.md:117": (("L2", "published_import_exposes_the_exact_remote_domain"),),
 }
 PRODUCT_CASES = {
     "language/conformances.md:204": (
@@ -48,6 +51,15 @@ PRODUCT_CASES = {
         "refuse a callable over Socket at the initializer",
     ),
 }
+
+
+def context_launch_error(code, lines):
+    """Only the launcher's terminal error before any product evidence establishes a failed launch."""
+    prefix = "mbx[error]: failed to launch Cargo application: "
+    last = next((line for line in reversed(lines) if line.strip()), "")
+    if (code and last.startswith(prefix) and last[len(prefix):].strip()
+            and not any(line in PRODUCT_CASES or line.startswith(("OMEGA_CONTEXT_EXPORT", "PASS ", "FAIL ", "  PASS ", "  FAIL ")) for line in lines)):
+        return last[len(prefix):]
 
 
 def context_results(label, lines):
@@ -87,27 +99,42 @@ def run_mbx(*arguments):
 def main():
     # Run the integration targets without a name filter. Losing a required
     # test must keep its example out of the verified count.
-    tests_code, tests = run_mbx(
-        "test", "--locked", "--no-fail-fast", "-p", "omega-resolver", "-p", "omega-typer",
-        "--test", "stage", "--test", "contextual_examples", "--", "--format", "pretty",
-    )
+    results = {}
+    suite_failed = False
+    for stage, crate in (("L2", "omega-resolver"), ("L3", "omega-typer")):
+        expected = STAGE_TARGETS[stage]
+        code, lines = run_mbx("test", "--locked", "-p", crate, "--test", Path(expected).stem, "--", "--format", "pretty")
+        suite_failed |= bool(code)
+        target = None
+        for line in lines:
+            if header := target_header(line):
+                target = header
+            elif line == "failures:" or line.startswith("test result:"):
+                target = None
+            elif target == expected and (match := TEST_RESULT.fullmatch(line)):
+                results.setdefault((stage, match[1]), []).append(match[2])
     products_code, products = run_mbx(
         "run", "--locked", "-p", "spec-corpus", "--features", "readiness", "--bin", "published_readiness",
     )
     verdicts = {
-        label: all(f"test {name} ... ok" in tests for name in names)
-        for label, names in STAGE_TESTS.items()
+        label: all(results.get(witness) == ["ok"] for witness in witnesses)
+        for label, witnesses in STAGE_TESTS.items()
     }
-    for label in PRODUCT_CASES:
-        passed, _, error = context_results(label, products)
-        verdicts[label] = passed
-        if error:
-            print(error)
+    launch_error = context_launch_error(products_code, products)
+    if launch_error:
+        print(f"published_readiness could not start: {launch_error}")
+        verdicts.update(dict.fromkeys(PRODUCT_CASES, False))
+    else:
+        for label in PRODUCT_CASES:
+            passed, _, error = context_results(label, products)
+            verdicts[label] = passed
+            if error:
+                print(error)
     print("\nFront-end verdicts")
     for label, passed in sorted(verdicts.items()):
         print(f"{'PASS' if passed else 'UNVERIFIED'} {label}")
     print(f"{sum(verdicts.values())}/{len(verdicts)} intended verdicts verified")
-    return int(bool(tests_code or products_code or not all(verdicts.values())))
+    return int(bool(suite_failed or products_code or not all(verdicts.values())))
 
 
 if __name__ == "__main__":

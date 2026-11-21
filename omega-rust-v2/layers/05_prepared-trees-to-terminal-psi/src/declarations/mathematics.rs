@@ -147,6 +147,18 @@ pub(super) fn lower_term(
                     } if application.is_none() => application = Some((definition, generic_arguments, *argument_count)),
                     ObligationKind::AdmitMathematicalAssumption(id) => dependencies.push(crate::identity::declaration(id, &site)?),
                     ObligationKind::MathematicalFact { sort: result } if sort.is_none() => sort = Some(result),
+                    ObligationKind::RefineMathematicalCitation { machine, expected } => {
+                        return Err(LoweringError::new(
+                            &site,
+                            format!("Psi cannot cite machine `{}` as evidence of `{expected}` in a mathematical term", machine.path),
+                        ));
+                    }
+                    ObligationKind::UniverseMembership { .. } => {
+                        return Err(LoweringError::new(
+                            &site,
+                            "Psi cannot carry a universe membership check on a mathematical application",
+                        ));
+                    }
                     _ => return Err(error("unsupported obligation in mathematical definition")),
                 },
                 _ => return Err(error("unsupported selection in mathematical definition")),

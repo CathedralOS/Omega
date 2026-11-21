@@ -43,6 +43,20 @@ impl SyntaxParser<'_> {
         self.nth_word(ahead).and_then(clause).is_some()
     }
 
+    /// Can this word start the next header clause rather than name an operand?
+    pub(super) fn nth_can_start_clause(
+        &self,
+        ahead: usize,
+    ) -> bool {
+        match self.nth_word(ahead).and_then(clause) {
+            Some(Clause::Predicate(_)) => self.nth_can_start_expression(ahead + 1),
+            Some(Clause::Type(_)) => self.nth_can_start_type(ahead + 1) || self.nth_at(ahead + 1, Punctuation::LeftParenthesis),
+            Some(Clause::Crashes | Clause::Registers | Clause::Clobbers) => self.nth_at_word(ahead + 1),
+            Some(Clause::Flag(_) | Clause::Terminates) => true,
+            None => false,
+        }
+    }
+
     /*
         `clause*`
 
@@ -86,7 +100,7 @@ impl SyntaxParser<'_> {
 
         let kind = match header {
             Clause::Predicate(kind) => {
-                self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
+                self.parse_expression(ExpressionContext::HEADER)?;
                 kind
             }
             Clause::Crashes => {
@@ -109,7 +123,7 @@ impl SyntaxParser<'_> {
                     .into_iter()
                     .any(|punctuation| self.at(punctuation));
                 if !at_boundary {
-                    self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
+                    self.parse_expression(ExpressionContext::HEADER)?;
                 }
                 NodeKind::Crashes
             }
@@ -134,7 +148,7 @@ impl SyntaxParser<'_> {
                     }
 
                     if self.eat_keyword("in") {
-                        self.parse_bound(ExpressionContext::BEFORE_BRACE)?;
+                        self.parse_bound(ExpressionContext::HEADER)?;
                     }
                 }
                 NodeKind::Terminates
@@ -142,7 +156,7 @@ impl SyntaxParser<'_> {
             Clause::Registers => {
                 self.expect_word("a register name")?;
                 self.expect(Punctuation::Equal, "`=`")?;
-                self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
+                self.parse_expression(ExpressionContext::HEADER)?;
                 NodeKind::Registers
             }
             Clause::Clobbers => {

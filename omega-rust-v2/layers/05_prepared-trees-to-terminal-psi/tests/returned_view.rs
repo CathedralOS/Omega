@@ -4,6 +4,8 @@ mod source;
 use omega_lowering::{BlockTerminator, Parameter, ReturnEdge};
 use psi_handoff_consumer::returned_view_backing;
 
+const MISSING_VIEW_EVIDENCE: &str = "suspension needs the exact backing and carry evidence of the live structural place";
+
 #[test]
 fn a_returned_view_keeps_the_actual_at_the_selected_formal_position() {
     for (element, returned, formal, backing) in [
@@ -68,12 +70,13 @@ fn only_an_actual_that_can_supply_the_return_needs_backing_at_the_later_crossing
         let text = format!(
             "boundary trait Device{{machine view(p:@[u8])->@[u8] reaches Device crashes none;}} machine pick(known:@[u8],external:@[u8])->@[u8] {{{selected}}} machine inspect(bytes:@[u8]) suspends {{}} machine forward(input:@[u8]) suspends reaches Device {{let external=Device::view(input); let selected=pick(input,external); suspend inspect(selected)}}"
         );
-        let result = source::lower(&[("selected_origin.omg", &text)]);
+        let files = [("selected_origin.omg", text.as_str())];
         if selected == "external" {
-            let err = result.unwrap_err();
-            assert_eq!(
-                err.message,
-                "suspension needs the exact backing and carry evidence of the live structural place"
+            let err = source::refuse(
+                &files,
+                "selected_origin.omg",
+                source::unique_span(&text, "inspect(selected)"),
+                MISSING_VIEW_EVIDENCE,
             );
             assert!(
                 err.site
@@ -83,7 +86,7 @@ fn only_an_actual_that_can_supply_the_return_needs_backing_at_the_later_crossing
                     .ends_with(b"inspect(selected)")
             );
         } else {
-            let pkg = result.unwrap();
+            let pkg = source::lower(&files).unwrap();
             let forward = pkg
                 .machines
                 .iter()
@@ -199,10 +202,11 @@ fn a_local_conformance_return_uses_the_selected_implementations_body() {
 #[test]
 fn a_recursive_result_cannot_supply_its_own_backing() {
     let text = "machine cycle(v:@[u8])->@[u8]{cycle(v)} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8]) suspends {let selected=cycle(input); suspend inspect(selected)}";
-    let err = source::lower(&[("cycle.omg", text)]).unwrap_err();
-    assert_eq!(
-        err.message,
-        "suspension needs the exact backing and carry evidence of the live structural place"
+    let err = source::refuse(
+        &[("cycle.omg", text)],
+        "cycle.omg",
+        source::unique_span(text, "inspect(selected)"),
+        MISSING_VIEW_EVIDENCE,
     );
     assert!(
         err.site

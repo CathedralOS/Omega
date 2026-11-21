@@ -100,8 +100,12 @@ macro_rules! assert_preparation_cause {
                 (omega_preparation::RefusalCause::Preparation(wanted), omega_preparation::RefusalCause::Preparation(actual)) => {
                     format!("OMEGA_PREPARATION_REASON\t{wanted:?}\t{actual:?}")
                 }
-                (_, omega_preparation::RefusalCause::TargetLayout(_)) => "OMEGA_PREPARATION_FORWARDED\tTargetLayout".to_owned(),
-                (_, omega_preparation::RefusalCause::IntegerPrimitive(_)) => "OMEGA_PREPARATION_FORWARDED\tIntegerPrimitive".to_owned(),
+                (_, omega_preparation::RefusalCause::TargetLayout(reason)) => {
+                    format!("OMEGA_PREPARATION_FORWARDED\tTargetLayout\t{}", $crate::diagnostic_field(reason))
+                }
+                (_, omega_preparation::RefusalCause::IntegerPrimitive(reason)) => {
+                    format!("OMEGA_PREPARATION_FORWARDED\tIntegerPrimitive\t{}", $crate::diagnostic_field(reason))
+                }
                 _ => unreachable!("cause equality checked above"),
             };
             $crate::report_preparation_observation(format!(

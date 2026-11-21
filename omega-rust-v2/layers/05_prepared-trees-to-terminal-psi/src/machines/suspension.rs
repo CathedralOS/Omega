@@ -129,12 +129,14 @@ impl Keys {
     }
 }
 
+mod field_reborrows;
 mod returned_views;
 use returned_views::{ReturnInputs, input_origins};
 use std::cell::LazyCell;
 
 struct Liveness<'a> {
     body: &'a MachineBody,
+    data: &'a [crate::LoweredData],
     keys: Keys,
     reads: Vec<Vec<usize>>,
     definitions: Vec<Vec<usize>>,
@@ -144,6 +146,7 @@ struct Liveness<'a> {
 impl<'a> Liveness<'a> {
     fn new(
         body: &'a MachineBody,
+        data: &'a [crate::LoweredData],
         site: &Site,
     ) -> Result<Self, LoweringError> {
         let keys = Keys(body.values.len());
@@ -164,6 +167,7 @@ impl<'a> Liveness<'a> {
         let mut graph = Self {
             keys,
             body,
+            data,
             reads,
             definitions,
             input_origins: std::cell::OnceCell::new(),
@@ -289,7 +293,7 @@ impl<'a> Liveness<'a> {
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
     /// the original operands; this lookup only identifies their live backing.
-    fn caller_owned_backing(
+    fn borrow_backing(
         &self,
         place: &crate::ProjectedPlace,
         owners: &[crate::RetainedOwner],
@@ -305,10 +309,18 @@ impl<'a> Liveness<'a> {
         } else {
             place
         };
-        if !matches!(
-            types.get(self.body.places[place.root.index()].ty),
-            Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })
-        ) {
+        let root = &self.body.places[place.root.index()];
+        if root.origin == crate::PlaceOrigin::Parameter
+            && let Some(TypeShape::NominalReference { referent, .. }) = types.get(root.ty)
+            && let [crate::PlaceProjection::Referent, fields @ ..] = place.path.as_slice()
+            && matches!(fields.first(), Some(crate::PlaceProjection::Field(_)))
+        {
+            // The incoming loan is the provenance anchor. Only follow checked
+            // record fields here, not another descriptor stored in a field.
+            field_reborrows::check_backing(*referent, fields, types, self.data, site)?;
+            return Ok(true);
+        }
+        if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
             return Ok(false);
         }
         let owner = owners
@@ -333,7 +345,7 @@ impl<'a> Liveness<'a> {
         let mut held = vec![false; after.len()];
         for arg in args {
             if let CallArgument::Borrow { place, .. } = arg {
-                self.caller_owned_backing(place, owners, types, site)?;
+                self.borrow_backing(place, owners, types, site)?;
             }
             self.keys.operand(arg, |key| held[key] = true);
         }
@@ -354,7 +366,7 @@ impl<'a> Liveness<'a> {
             let has_backing = match place.origin {
                 crate::PlaceOrigin::Parameter => true,
                 crate::PlaceOrigin::Operation(id) if let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind => {
-                    self.caller_owned_backing(source, owners, types, site)?
+                    self.borrow_backing(source, owners, types, site)?
                 }
                 crate::PlaceOrigin::BlockParameter(_) | crate::PlaceOrigin::Operation(_) => self
                     .input_origins
@@ -414,6 +426,7 @@ impl<'a> Liveness<'a> {
 pub(crate) fn plan_package(
     machines: &mut [crate::LoweredMachine],
     members: &[crate::MemberCallSelection],
+    data: &[crate::LoweredData],
     types: &LoweringTypes,
     callees: &Callees<'_>,
     crossing_owners: &mut [super::ownership::OwnedCrossings],
@@ -427,7 +440,7 @@ pub(crate) fn plan_package(
     let sites = machines
         .iter()
         .zip(crossing_owners)
-        .map(|(machine, owners)| plan(&machine.body, types, callees, &returns, owners))
+        .map(|(machine, owners)| plan(&machine.body, data, types, callees, &returns, owners))
         .collect::<Result<Vec<_>, _>>()?;
     for (machine, crossings) in machines.iter_mut().zip(sites) {
         machine.body.suspension_sites = crossings;
@@ -437,6 +450,7 @@ pub(crate) fn plan_package(
 
 fn plan<'members>(
     body: &MachineBody,
+    data: &[crate::LoweredData],
     types: &LoweringTypes,
     callees: &Callees<'_>,
     returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
@@ -456,7 +470,7 @@ fn plan<'members>(
             })
         });
     let Some(first) = first else { return Ok(Vec::new()) };
-    let graph = Liveness::new(body, first)?;
+    let graph = Liveness::new(body, data, first)?;
     let mut crossings = Vec::new();
     for block in &body.blocks {
         let start = crossings.len();

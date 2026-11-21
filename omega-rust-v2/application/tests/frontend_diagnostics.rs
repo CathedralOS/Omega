@@ -4,6 +4,8 @@
 //! repeat the earlier stop unchanged. L5 inputs use `source lower`: each positive twin lowers,
 //! and the refused input must already pass `source prepare`, so lowering owns the failure.
 use std::{fs, path::Path, process::Command};
+#[path = "support/diagnostic_occurrence.rs"]
+mod diagnostic_occurrence;
 
 struct Case<'a> {
     stage: &'static str,
@@ -60,7 +62,8 @@ fn check(case: Case<'_>) {
     let actual = String::from_utf8(bad.stderr).unwrap();
     assert_eq!(bad.status.code(), Some(1), "source {action}: {actual}");
     assert!(bad.stdout.is_empty());
-    assert_eq!(actual.trim_end(), expected);
+    let rendered = actual.strip_suffix('\n').expect("diagnostic must end with a newline");
+    assert_eq!(rendered, expected);
     let controls = if after_preparation {
         assert!(
             neighbor.status.success() && neighbor.stdout.is_empty() && neighbor.stderr.is_empty(),
@@ -79,8 +82,12 @@ fn check(case: Case<'_>) {
         "good-twin-prepares,lower-repeats-stop"
     };
     println!(
-        "OMEGA_FRONTEND\t{}\t{name}\t{action}\t{}\tcase.omg\t{line}\t{column}\t{start}\t{end}\t{controls}\t{}",
-        case.stage, case.producer, spec_corpus::diagnostic_field(case.reason)
+        "OMEGA_FRONTEND\t{}\t{name}\t{action}\t{}\tcase.omg\t{line}\t{column}\t{start}\t{end}\t{controls}\t{}\t{}\t{}",
+        case.stage,
+        case.producer,
+        spec_corpus::diagnostic_field(case.reason),
+        spec_corpus::diagnostic_field(rendered),
+        diagnostic_occurrence::fields("case.omg", case.bad, start, case.occurrence)
     );
 }
 
@@ -276,9 +283,21 @@ fn unavailable_target_for_a_required_extent() {
     });
 }
 
-// These inputs prepare and stop only when `source lower` builds Psi. The matching layer witnesses
-// are omega-lowering `declarations::aliases_with_attributes_still_refuse` and
-// `domains::unsupported_domain_clause_is_refused_at_its_predicate_call`.
+#[test]
+fn a_ranked_indirect_terminal_call_identifies_the_unsupported_edge() {
+    let good = "data Step=machine(x:u64)->u64 reaches none crashes none terminates;
+        machine run(f:Step,n:u64)->u64 terminates {transition {_ -> f(n),}}";
+    let bad = good.replace("terminates {transition", "terminates by n {transition");
+    check(Case {
+        stage: "L5",
+        producer: "lowering",
+        good: good.as_bytes(),
+        bad: bad.as_bytes(),
+        occurrence: b"f(n)",
+        reason: "lowering cannot include an indirect terminal call in the caller's rank graph",
+    });
+}
+
 #[test]
 fn attributed_alias_refused_by_lowering() {
     check(Case {
@@ -288,19 +307,5 @@ fn attributed_alias_refused_by_lowering() {
         bad: b"// alias\r\ndata Alias [copy] = u64;",
         occurrence: b"u64",
         reason: "data alias or unsupported member requires declaration lowering",
-    });
-}
-
-const GUARD: &str = "machine predicate()->bool reaches none crashes none terminates {true}\r\ndomain i32::Guarded requires true && self > 0;";
-#[test]
-fn domain_predicate_call_refused_by_lowering() {
-    let bad = GUARD.replace("self > 0", "predicate()");
-    check(Case {
-        stage: "L5",
-        producer: "lowering",
-        good: GUARD.as_bytes(),
-        bad: bad.as_bytes(),
-        occurrence: b"predicate()",
-        reason: "unsupported typed contract predicate record",
     });
 }

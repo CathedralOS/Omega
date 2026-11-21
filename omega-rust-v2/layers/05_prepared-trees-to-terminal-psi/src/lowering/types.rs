@@ -1,11 +1,29 @@
-use crate::declarations::domains::DomainSchema;
+use crate::declarations::domains::{DomainDeclaration, DomainSchema};
 use omega_resolved::DeclarationId;
-use omega_typed::ValueType;
+use omega_typed::{DomainApplication, ValueType};
 
 use crate::DataId;
 use std::fmt;
 
 use crate::{DomainSetId, ScalarType, TypeId, TypeShape};
+
+type AtomKey = (DeclarationId, Vec<ScalarDomainArgument>);
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum ScalarDomainArgument {
+    Integer { carrier: ScalarType, value: num_bigint::BigInt },
+    Boolean(bool),
+}
+
+impl From<ScalarDomainArgument> for omega_psi::DeclarationTerm {
+    fn from(value: ScalarDomainArgument) -> Self {
+        match value {
+            ScalarDomainArgument::Integer { carrier, value } => Self::StaticInteger { carrier, value },
+            ScalarDomainArgument::Boolean(b) => Self::StaticBoolean(b),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeError {
     MissingIntegerWidth { signed: bool },
@@ -47,7 +65,7 @@ pub struct LoweringTypes {
     rows: Vec<TypeShape>,
     data_declarations: Vec<DeclarationId>,
     applied_data: std::collections::HashMap<ValueType, DataId>,
-    domain_sets: Vec<Vec<DeclarationId>>,
+    domain_sets: Vec<Vec<AtomKey>>,
     predicate_domains: Vec<DeclarationId>,
     /// Runtime callable contracts in declaration-site order; see `crate::declarations::callables`.
     callables: Vec<omega_typed::CallableType>,
@@ -64,13 +82,10 @@ impl LoweringTypes {
         for (index, carrier) in carriers.clone().enumerate() {
             if matches!(array_leaf(carrier), ValueType::Qualified(..)) {
                 let members = local_scalar_members(carrier, domains).ok_or_else(|| (index, TypeError::UnsupportedCarrier(array_leaf(carrier).to_string())))?;
-                sets.insert(members.iter().map(|m| &m.declaration).collect::<Vec<_>>());
+                sets.insert(atom_keys(members).ok_or_else(|| (index, TypeError::UnsupportedCarrier(carrier.to_string())))?);
             }
         }
-        let domain_sets = sets
-            .into_iter()
-            .map(|members| members.into_iter().cloned().collect())
-            .collect();
+        let domain_sets = sets.into_iter().collect();
         let callables = crate::declarations::callables::collect(carriers.clone())?;
         let applied_data = applications
             .into_iter()
@@ -156,14 +171,33 @@ impl LoweringTypes {
     }
     pub(crate) fn finish(
         self,
-        identities: &std::collections::HashMap<&DeclarationId, omega_psi::DeclarationId>,
-    ) -> omega_psi::TypeTable {
-        let domain_sets = self
-            .domain_sets
-            .iter()
-            .map(|set| set.iter().map(|id| identities[id].clone()).collect())
-            .collect();
-        omega_psi::TypeTable::new(self.rows, domain_sets)
+        declarations: &std::collections::BTreeMap<&DeclarationId, DomainDeclaration>,
+    ) -> Result<omega_psi::TypeTable, crate::LoweringError> {
+        let mut sets = Vec::with_capacity(self.domain_sets.len());
+        for set in self.domain_sets {
+            let mut atoms = Vec::with_capacity(set.len());
+            for (id, arguments) in set {
+                // local_scalar_members has already checked every identity against this catalog.
+                let domain = match &declarations[&id] {
+                    DomainDeclaration::Named(d) => d,
+                    DomainDeclaration::Alias(a) => return Err(crate::LoweringError::new(&a.site, "a scalar qualification requires expanded named domains")),
+                };
+                // Generic predicate substitution is not part of value-type transport: never
+                // publish a qualified entry or result with a missing specialized clause.
+                if !arguments.is_empty() && (!domain.requires.is_empty() || arguments.len() != domain.index_binders.len()) {
+                    return Err(crate::LoweringError::new(
+                        &domain.site,
+                        "applied scalar qualification requires a closed predicate-free domain application",
+                    ));
+                }
+                atoms.push(omega_psi::DomainAtom {
+                    declaration: domain.declaration.clone(),
+                    arguments: arguments.into_iter().map(Into::into).collect(),
+                });
+            }
+            sets.push(atoms);
+        }
+        Ok(omega_psi::TypeTable::with_domain_atoms(self.rows, sets))
     }
     fn intern_frontier(
         &mut self,
@@ -278,12 +312,10 @@ impl LoweringTypes {
             });
         }
         if let ValueType::Qualified(base, members) = carrier {
-            if members.iter().any(|m| !m.arguments.is_empty()) {
-                return Err(TypeError::UnsupportedCarrier(carrier.to_string()));
-            }
+            let key = atom_keys(members).ok_or_else(|| TypeError::UnsupportedCarrier(carrier.to_string()))?;
             let index = self
                 .domain_sets
-                .binary_search_by(|set| set.iter().cmp(members.iter().map(|m| &m.declaration)))
+                .binary_search(&key)
                 .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
             return Ok(TypeShape::QualifiedScalar {
                 carrier: scalar_carrier(base)?,
@@ -305,6 +337,25 @@ impl LoweringTypes {
     }
 }
 
+/// Registering an ordinary value type must not also admit new qualification-change edges.
+/// Existing casts over simple domains keep their own obligation checks in machines/casts.
+pub(super) fn changes_transport_only_qualification(
+    op: &omega_typed::TypedOperation,
+    domains: &[DomainSchema<'_>],
+) -> bool {
+    let [source] = op.operands.as_slice() else { return false };
+    let target = &op.result;
+    op.token == "as"
+        && scalar_carrier(target.carrier()).is_ok()
+        && source.domains() != target.domains()
+        && source.domains().iter().chain(target.domains()).any(|atom| {
+            !atom.arguments.is_empty()
+                || domains
+                    .binary_search_by(|d| d.declaration.cmp(&atom.declaration))
+                    .is_ok_and(|i| !domains[i].carrier.domains().is_empty())
+        })
+}
+
 pub(crate) fn local_scalar_members<'a>(
     ty: &'a ValueType,
     domains: &[DomainSchema<'_>],
@@ -317,14 +368,42 @@ pub(crate) fn local_scalar_members<'a>(
                 return false;
             };
             let domain = &domains[index];
-            // Array contracts cannot yet express a predicate over every element.
-            m.arguments.is_empty()
-                && domain.carrier == base.as_ref()
+            if matches!(ty, ValueType::Array(..)) {
+                // Do not extend scalar transport to element qualifications.
+                return m.arguments.is_empty() && domain.carrier == base.as_ref() && domain.predicates().is_some_and(|p| p.is_empty());
+            }
+            domain.carrier.carrier() == base.as_ref()
                 && domain
-                    .predicates()
-                    .is_some_and(|p| p.is_empty() || !matches!(ty, ValueType::Array(..)))
+                    .carrier
+                    .domains()
+                    .iter()
+                    .all(|parent| members.contains(parent))
+                && (domain.predicates().is_some() || !m.arguments.is_empty() && m.arguments.iter().all(|arg| scalar_argument(arg).is_some()))
         }))
     .then_some(members)
+}
+
+fn scalar_argument(arg: &ValueType) -> Option<ScalarDomainArgument> {
+    match arg {
+        ValueType::StaticInteger { carrier, value } => Some(ScalarDomainArgument::Integer {
+            carrier: scalar_carrier(carrier)
+                .ok()
+                .filter(|c| matches!(c, ScalarType::Integer { .. }))?,
+            value: value.clone(),
+        }),
+        ValueType::StaticValue {
+            carrier,
+            value: omega_typed::StaticValue::Bool(b),
+        } if **carrier == ValueType::Bool => Some(ScalarDomainArgument::Boolean(*b)),
+        _ => None,
+    }
+}
+
+fn atom_keys(members: &[DomainApplication]) -> Option<Vec<AtomKey>> {
+    members
+        .iter()
+        .map(|m| Some((m.declaration.clone(), m.arguments.iter().map(scalar_argument).collect::<Option<_>>()?)))
+        .collect()
 }
 
 /// A value made entirely of scalar bits cannot carry a loan across a return.

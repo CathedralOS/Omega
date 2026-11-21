@@ -103,13 +103,40 @@ pub enum ElementLeafStep {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TypeTable {
     rows: Vec<TypeShape>,
-    domain_sets: Vec<Vec<DeclarationId>>,
+    domain_sets: Vec<DomainSet>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum DomainSet {
+    Unapplied(Vec<DeclarationId>),
+    Applied(std::sync::Arc<[crate::DomainAtom]>),
+}
+
 impl TypeTable {
     pub fn new(
         rows: Vec<TypeShape>,
         domain_sets: Vec<Vec<DeclarationId>>,
     ) -> Self {
+        Self {
+            rows,
+            domain_sets: domain_sets.into_iter().map(DomainSet::Unapplied).collect(),
+        }
+    }
+
+    pub fn with_domain_atoms(
+        rows: Vec<TypeShape>,
+        sets: Vec<Vec<crate::DomainAtom>>,
+    ) -> Self {
+        let domain_sets = sets
+            .into_iter()
+            .map(|atoms| {
+                if atoms.iter().all(|a| a.arguments.is_empty()) {
+                    DomainSet::Unapplied(atoms.into_iter().map(|a| a.declaration).collect())
+                } else {
+                    DomainSet::Applied(atoms.into())
+                }
+            })
+            .collect();
         Self { rows, domain_sets }
     }
     pub fn get(
@@ -119,11 +146,31 @@ impl TypeTable {
         self.rows.get(usize::try_from(id.get() - 1).ok()?)
     }
 
+    /// Declaration-only view of an unapplied set. Never discard application arguments.
     pub fn domain_set(
         &self,
         id: DomainSetId,
     ) -> Option<&[DeclarationId]> {
-        self.domain_sets.get(id.0.get() - 1).map(Vec::as_slice)
+        match self.domain_sets.get(id.0.get() - 1)? {
+            DomainSet::Unapplied(ids) => Some(ids),
+            DomainSet::Applied(_) => None,
+        }
+    }
+
+    /// Complete membership of the qualified value, in prepared atom order.
+    pub fn domain_atoms(
+        &self,
+        id: DomainSetId,
+    ) -> Option<impl ExactSizeIterator<Item = (&DeclarationId, &[crate::DeclarationTerm])>> {
+        let set = self.domain_sets.get(id.0.get() - 1)?;
+        let len = match set {
+            DomainSet::Unapplied(ids) => ids.len(),
+            DomainSet::Applied(atoms) => atoms.len(),
+        };
+        Some((0..len).map(move |i| match set {
+            DomainSet::Unapplied(ids) => (&ids[i], &[][..]),
+            DomainSet::Applied(atoms) => (&atoms[i].declaration, atoms[i].arguments.as_slice()),
+        }))
     }
 
     pub fn rows(&self) -> impl ExactSizeIterator<Item = (TypeId, &TypeShape)> {

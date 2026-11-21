@@ -219,6 +219,88 @@ fn typed_generics_and_transparent_aliases() {
     }
 }
 
+fn assert_call_refusal(
+    source: &str,
+    site: &str,
+    reason: &str,
+) {
+    let start = source.find(site).unwrap();
+    assert_eq!(source.rfind(site), Some(start), "ambiguous test site: {source}");
+    let error = check(&[("call.omg", source)]).unwrap_err();
+    assert_eq!(error.file, "call.omg");
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(start, start + site.len()), "{source}");
+    assert_eq!(error.message, reason, "{source}");
+}
+
+#[test]
+fn wrong_arity_overloads_preserve_the_conflicting_type_argument_site() {
+    let generic = "machine id<T>(x:T){}";
+    let binary = "machine id(x:u8,y:u8){}";
+    for (before, after) in [(generic, ""), (generic, binary), (binary, generic)] {
+        let source = format!("{before} machine f(){{id::<bool>(2u8);}} {after}");
+        assert_call_refusal(&source, "bool", "conflicting type argument bool");
+        let good = source.replace("::<bool>", "::<u8>");
+        check(&[("call.omg", &good)]).unwrap();
+        if !after.is_empty() {
+            let both = good.replace("(2u8);", "(2u8); id(1u8,2u8);");
+            let stage = check(&[("call.omg", &both)]).unwrap();
+            assert_eq!(stage.calls[0].machine.operands.len(), 1);
+            assert_eq!(stage.calls[1].machine.operands.len(), 2);
+        }
+    }
+}
+
+#[test]
+fn wrong_arity_trait_requirements_preserve_the_conflicting_type_argument_site() {
+    let generic = "machine id<T>(x:T);";
+    let binary = "machine id(x:u8,y:u8);";
+    for (first, second) in [(generic, binary), (binary, generic)] {
+        let source = format!("trait Ops{{{first} {second}}} machine f<const E:Ops>(){{E::id::<bool>(2u8); E::id(1u8,2u8);}}");
+        assert_call_refusal(&source, "bool", "conflicting type argument bool");
+        let good = source.replace("::<bool>", "::<u8>");
+        let stage = check(&[("call.omg", &good)]).unwrap();
+        assert_eq!(stage.calls.len(), 2);
+        assert!(stage.calls.iter().all(|call| call.evidence.is_some()));
+    }
+}
+
+#[test]
+fn result_domain_excluded_overload_preserves_the_conflicting_type_argument_site() {
+    let plain = "machine pick<T>(x:T)->u8{0u8}";
+    let wire = "machine pick<T>(x:T)->u8 in Wire{0u8 as +Wire}";
+    for (first, second) in [(plain, wire), (wire, plain)] {
+        let source = format!("domain u8::Wire; {first} {second} machine f()->u8{{pick::<bool>(2u8)}}");
+        assert_call_refusal(&source, "bool", "conflicting type argument bool");
+        let good = source.replace("::<bool>", "::<u8>");
+        let stage = check(&[("call.omg", &good)]).unwrap();
+        assert!(stage.calls[0].result.domains().is_empty());
+    }
+}
+
+#[test]
+fn conflicting_type_argument_is_not_attributed_to_one_of_two_eligible_signatures() {
+    let left = "machine pick<T>(x:T,y:u8){}";
+    let right = "machine pick<T>(x:u8,y:T){}";
+    for (first, second) in [(left, right), (right, left)] {
+        let source = format!("{first} {second} machine f(){{pick::<bool>(1u8,2u8);}}");
+        assert_call_refusal(&source, "pick::<bool>", "no matching overload for pick(u8, u8)");
+        for operands in ["true,2u8", "1u8,true"] {
+            check(&[("call.omg", &source.replace("1u8,2u8", operands))]).unwrap();
+        }
+    }
+}
+
+#[test]
+fn source_generic_application_error_precedes_a_speculative_operand_conflict() {
+    let generic = "machine id<T>(x:T){}";
+    let concrete = "machine id(x:u16){}";
+    for (first, second) in [(generic, concrete), (concrete, generic)] {
+        let source = format!("{first} {second} machine f(){{id::<bool>(2u8);}}");
+        assert_call_refusal(&source, "id::<bool>", "excess generic arguments");
+        check(&[("call.omg", &source.replace("::<bool>", "::<u8>"))]).unwrap();
+    }
+}
+
 #[test]
 fn normalized_static_arguments_and_binder_occurrences() {
     let code = "data Buffer<const N:u8>{} data Eight=Buffer<4+4>; machine f(x:Eight)->Buffer<8>{x} machine forward<const N:u8>(x:Buffer<N>)->Buffer<N>{x} machine g(x:Buffer<8>)->Eight{forward::<8>(x)}";

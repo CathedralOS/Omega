@@ -14,7 +14,7 @@ pub(crate) enum DomainDeclaration {
 
 enum DomainDefinition {
     Named(Vec<ContractClause>),
-    Alias(Vec<DeclarationId>),
+    Alias(Vec<omega_psi::DomainAtom>),
 }
 
 pub(crate) struct DomainSchema<'a> {
@@ -23,6 +23,7 @@ pub(crate) struct DomainSchema<'a> {
     pub site: Site,
     public: bool,
     parameters: Vec<crate::TemplateBinder>,
+    index_binders: Vec<usize>,
     definition: DomainDefinition,
 }
 
@@ -48,6 +49,7 @@ impl DomainSchema<'_> {
         Ok(match self.definition {
             DomainDefinition::Named(requires) => DomainDeclaration::Named(LoweredDomain {
                 parameters: self.parameters,
+                index_binders: self.index_binders,
                 declaration,
                 carrier,
                 public,
@@ -58,10 +60,9 @@ impl DomainSchema<'_> {
                 declaration,
                 carrier,
                 public,
-                members: members
-                    .iter()
-                    .map(|id| crate::identity::declaration(id, &site))
-                    .collect::<Result<_, _>>()?,
+                parameters: self.parameters,
+                index_binders: self.index_binders,
+                members,
                 site,
             }),
         })
@@ -92,29 +93,50 @@ pub(crate) fn read_domain<'a>(
     let head = file
         .child(node, NodeKind::PathType)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed head"))?;
-    if matches!(resolved.symbol(head), Some(Symbol::Declaration(parent)) if parent.kind == NodeKind::Domain) || !carrier.domains().is_empty() {
+    if matches!(resolved.symbol(head), Some(Symbol::Declaration(parent)) if parent.kind == NodeKind::Domain) && carrier.domains().is_empty() {
         return Err(LoweringError::new(&site_at(tree, head), "inherited domain requires its parent qualification"));
     }
-    if crate::lowering::types::scalar_carrier(carrier).is_err() {
+    // Only the representation check uses the bare scalar. The clause owner and
+    // the published subject TypeId both use the complete prepared carrier.
+    if crate::lowering::types::scalar_carrier(carrier.carrier()).is_err() {
         return Err(LoweringError::new(&site_at(tree, head), "domain carrier requires a fixed scalar"));
     }
     let public = resolved.exports().any(|export| &export.id == declaration);
+    let index_binders = resolved
+        .arguments_for(head, declaration)
+        .iter()
+        .map(|&arg| {
+            let slot = match resolved.symbol(arg) {
+                Some(Symbol::Binding { binder_node, .. }) => file
+                    .generic_parameters(node)
+                    .position(|(_, binder, _)| binder == *binder_node),
+                _ => None,
+            };
+            slot.ok_or_else(|| LoweringError::new(&site_at(tree, arg), "domain index has no declaration binder"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if let Some(members) = prepared.typed().domain_alias_members.get(declaration) {
-        if !parameters.is_empty() || members.iter().any(|member| !member.arguments.is_empty()) {
-            return Err(LoweringError::new(&site, "domain alias requires indexed qualification lowering"));
-        }
+        let atoms = members
+            .iter()
+            .map(|member| {
+                Ok(omega_psi::DomainAtom {
+                    declaration: crate::identity::declaration(&member.declaration, &site)?,
+                    arguments: member
+                        .arguments
+                        .iter()
+                        .map(|arg| super::type_expression::declaration_term(arg, &site))
+                        .collect::<Result<_, _>>()?,
+                })
+            })
+            .collect::<Result<_, LoweringError>>()?;
         return Ok(DomainSchema {
             declaration,
             carrier,
             site,
             public,
             parameters,
-            definition: DomainDefinition::Alias(
-                members
-                    .iter()
-                    .map(|member| member.declaration.clone())
-                    .collect(),
-            ),
+            index_binders,
+            definition: DomainDefinition::Alias(atoms),
         });
     }
     let mut requires = Vec::new();
@@ -148,6 +170,7 @@ pub(crate) fn read_domain<'a>(
         carrier,
         public,
         parameters,
+        index_binders,
         definition: DomainDefinition::Named(requires),
         site,
     })

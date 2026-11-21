@@ -699,6 +699,27 @@ impl Catalog<'_> {
         };
         Ok(Some(usage(file, n, super::NameRole::Qualifier, span, target)))
     }
+    pub(super) fn domain_candidates(
+        &self,
+        slots: &[usize],
+        attachments: &[Attachment],
+        ambiguity: String,
+    ) -> Symbol {
+        let candidates = slots
+            .iter()
+            .map(|&slot| {
+                let attachment = attachments.iter().find(|a| a.slot == slot);
+                super::DomainCandidate {
+                    declaration: self.entries[slot].id.clone(),
+                    type_binder: attachment
+                        .and_then(|a| a.type_binder)
+                        .map(|(owner, index)| (self.entries[owner].id.clone(), index)),
+                    carrier_deferred: attachment.is_some_and(|a| a.carrier_deferred),
+                }
+            })
+            .collect();
+        Symbol::DomainCandidates { candidates, ambiguity }
+    }
     pub(super) fn occurrence_symbol(
         &self,
         file: &File<'_>,
@@ -737,23 +758,7 @@ impl Catalog<'_> {
                 .all(|&i| self.entries[i].id.kind == NodeKind::Domain)
                 && attachments.iter().any(|a| a.type_binder.is_some() || a.carrier_deferred)
             {
-                let candidates = slots
-                    .iter()
-                    .map(|&slot| {
-                        let attachment = attachments.iter().find(|a| a.slot == slot);
-                        super::DomainCandidate {
-                            declaration: self.entries[slot].id.clone(),
-                            type_binder: attachment
-                                .and_then(|a| a.type_binder)
-                                .map(|(owner, index)| (self.entries[owner].id.clone(), index)),
-                            carrier_deferred: attachment.is_some_and(|a| a.carrier_deferred),
-                        }
-                    })
-                    .collect();
-                Ok(Symbol::DomainCandidates {
-                    candidates,
-                    ambiguity: error.message,
-                })
+                Ok(self.domain_candidates(&slots, attachments, error.message))
             } else {
                 Err(error)
             }

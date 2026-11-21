@@ -80,14 +80,17 @@ class ConsumerScopeTests(unittest.TestCase):
                 handoff_evidence.classify_consumers(data, rows, results)
                 field = next(r for r in rows["L4"] if r["line"] == 9)
                 self.assertEqual((field["consumer_scope"], field["observed_stops"]), ("unmeasured", []))
-                self.assertIn("was not observed", field["consumer_context"])
+                self.assertIn("No pinned L5 refusal was observed", field["consumer_context"])
 
-    def test_every_pinned_label_must_be_observed(self):
+    def test_only_the_returned_sibling_is_reported(self):
         pinned = handoff_evidence.PREPARATION_CONSUMERS[HELPER][2]
         rows = outlines(later_l3=False)
         data, results = report("L5", stop(pinned[1][0], pinned[0]))
         handoff_evidence.classify_consumers(data, rows, results)
-        self.assertEqual(next(r for r in rows["L4"] if r["line"] == 21)["consumer_scope"], "unmeasured")
+        row = next(r for r in rows["L4"] if r["line"] == 21)
+        self.assertEqual(row["consumer_scope"], "l5 refusal")
+        self.assertEqual(row["observed_stops"], [f"stop for {pinned[1][0]}"])
+        self.assertEqual(row["unobserved_l5_cases"], [pinned[1][1]])
 
     def test_before_l5_separates_deferred_comparisons_from_open_l4_consumers(self):
         rows = outlines()
@@ -104,18 +107,33 @@ class ConsumerScopeTests(unittest.TestCase):
         self.assertIn("| comparison registered in a suite outside this run | 2 | L3 line 38, L4 line 29 |", text)
         self.assertIn("| L5 refusal pinned by a test outside this run | 2 | L4 line 9, L4 line 21 |", text)
         self.assertIn("| no L5 contract paragraph or lowering code reads the product | 1 | L4 line 23 |", text)
-        self.assertIn("| no consumer comparison or pinned L5 refusal | 1 | L4 line 15 |", text)
+        self.assertIn("| no consumer comparison or pinned L5 refusal for the registered input | 1 | L4 line 15 |", text)
         self.assertIn("stay open in the full run", text)
 
-    def test_observed_consumer_has_no_reason_and_a_stale_reason_is_reported(self):
+    def test_a_consumer_comparison_and_an_independent_refusal_both_survive(self):
         rows = outlines()
         rows["L4"][0]["consumer"].append("L5 tests/fields.rs::reads_extents · assert_eq!(a, b)")
         rows["L4"][0]["consumer_scope"] = "l5 refusal"
         rows["L4"].pop(1)
         data, results = report("L5", all_stops())
         handoff_evidence.classify_consumers(data, rows, results)
-        self.assertNotIn("consumer_scope", rows["L4"][0])
+        field = rows["L4"][0]
+        self.assertEqual(field["consumer_scope"], "l5 refusal")
+        self.assertTrue(field["consumer"] and field["observed_stops"])
+        gap, = [g for g in handoff_evidence.unverified_contracts(rows, "L5") if g["stage"] == "L4" and g["line"] == 9]
+        self.assertEqual(gap["missing"], ["L5 product for refused input"])
+        data["handoff_rules"] = rows
+        self.assertIn("| L5 refuses the valid product; the stop was observed in this run | 1 | L4 line 9 |",
+                      "\n".join(handoff_evidence.consumer_scope_summary(data)))
         self.assertEqual(data["measurement_errors"], [f"L4: expected one contract entry for consumer reason {HELPER!r}"])
+        data["cases"].clear()
+        handoff_evidence.classify_consumers(data, rows, results)
+        self.assertTrue(field["consumer"])
+        self.assertEqual(field["consumer_scope"], "unmeasured")
+        self.assertEqual(field["observed_stops"], [])
+        self.assertEqual(field["unobserved_l5_cases"], list(handoff_evidence.PREPARATION_CONSUMERS[FIELD][2][1]))
+        gap, = [g for g in handoff_evidence.unverified_contracts(rows, "L5") if g["stage"] == "L4" and g["line"] == 9]
+        self.assertEqual(gap["missing"], ["L5 outcome for registered input"])
 
     def test_each_reason_names_one_current_contract_entry(self):
         rules = handoff_evidence.document_rules("L4", L4_CONTRACT.read_text(encoding="utf-8"))

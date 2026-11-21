@@ -12,12 +12,17 @@ import sys
 import tempfile
 from time import monotonic
 
-from check_frontend_readiness import PRODUCT_CASES, STAGE_TESTS, context_results
+from check_frontend_readiness import PRODUCT_CASES, STAGE_TARGETS, STAGE_TESTS, context_launch_error, context_results
 import frontend_diagnostics
+import frontend_fixture_cli
+import diagnostic_kinds
 from diagnostic_fields import unescape
 import handoff_evidence
+import handoff_closures
 import lowering_evidence
 import lowering_origins
+import lowering_sites
+import lowering_cli
 import preparation_reason_evidence
 import test_inventory
 import typing_sites
@@ -30,7 +35,7 @@ import sample_diagnostics
 import resolver_kind_evidence
 
 LAYERS = ("omega-lexer", "omega-parser", "omega-resolver", "omega-typer", "omega-preparation", "omega-lowering")
-TEST = re.compile(r"^test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?$")
+TEST = test_inventory.TEST_RESULT
 RESULT = re.compile(r"^test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored")
 BLOCKERS = {"open gap", "checker input blocked", "unresolved refusal", "inspection failed", "compatibility blocked", "missing context", "executable product uninspected", "unexpected Psi product"}
 CASE_STATUSES = BLOCKERS | {"recorded refusal", "executable product inspected", "declaration or empty product", "intended rejection verified", "expected L6 refusal unverified", "contextual product inspected"}
@@ -72,24 +77,47 @@ def reflection_exports(lines, errors):
 
 
 def contextual_examples(report, directory, environment):
-    frontend = [test for stage, target in (("L2", "tests/stage.rs"), ("L3", "tests/contextual_examples.rs"))
-                for test in report["suites"][stage]["tests"] if test["target"].replace("\\", "/") == target]
-    for label, names in STAGE_TESTS.items():
-        missing = [name for name in names if [t["status"] for t in frontend if t["test"] == name] != ["ok"]]
+    results = {}
+    for stage, target in STAGE_TARGETS.items():
+        for test in report["suites"][stage]["tests"]:
+            if test["target"].replace("\\", "/") == target:
+                results.setdefault((stage, test["test"]), []).append(test["status"])
+    for label, witnesses in STAGE_TESTS.items():
+        outcomes = {f"{stage} {STAGE_TARGETS[stage]}::{name}": results.get((stage, name), []) for stage, name in witnesses}
+        unavailable = [name for name, results in outcomes.items() if results not in (["ok"], ["FAILED"])]
+        failed = [name for name, results in outcomes.items() if "FAILED" in results]
+        if unavailable:
+            report["measurement_errors"].append(f"{label}: missing unique executed test result for {', '.join(unavailable)}")
+        status = "contextual witnesses verified"
+        if failed:
+            status = "inspection failed"
+        elif unavailable:
+            status = "test evidence unavailable"
         report["cases"]["context/" + label] = {
-            "cohort": "context", "stage": "L2/L3",
-            "status": "inspection failed" if missing else "contextual witnesses verified",
-            "detail": ", ".join(missing or names),
+            "cohort": "context", "stage": "/".join(sorted({stage for stage, _ in witnesses})), "status": status,
+            "detail": ", ".join(f"{name} ({', '.join(results) or 'absent'})" for name, results in outcomes.items()),
         }
     command = ["mbx", "run", "--locked", "-p", "spec-corpus", "--features", "readiness", "--bin", "published_readiness"]
     log = directory / "context.log"
+    launch_error = None
     try:
         with log.open("wb") as stream:
             code = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT).returncode
     except OSError as error:
         code = 1
-        log.write_text(str(error), encoding="utf-8")
+        launch_error = str(error)
+        log.write_text(launch_error, encoding="utf-8")
     lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    report["context_command"] = {"command": command, "exit": code}
+    launch_error = launch_error or context_launch_error(code, lines)
+    if launch_error:
+        report["context_command"]["launch_error"] = launch_error
+        report["measurement_errors"].append(f"published_readiness could not start: {launch_error}")
+        for label in PRODUCT_CASES:
+            report["cases"]["context/" + label] = {
+                "cohort": "context", "stage": "runner", "status": "probe did not start", "detail": launch_error,
+            }
+        return
     exports = reflection_exports(lines, report["measurement_errors"])
     for label in PRODUCT_CASES:
         passed, details, error = context_results(label, lines)
@@ -105,7 +133,6 @@ def contextual_examples(report, directory, environment):
         }
         if label == "language/reflection.md:77":
             report["cases"]["context/" + label]["toolchain_exports"] = exports
-    report["context_command"] = {"command": command, "exit": code}
     if code and all("PASS " + label in lines for label in PRODUCT_CASES):
         report["measurement_errors"].append(f"context command exited {code} after reporting every case passed")
 
@@ -377,6 +404,12 @@ def collect(output, stage, report, *, require_lowering_origins=False):
             report["obligations"][fields[2]][fields[1]] = int(fields[3])
         elif line.startswith("OMEGA_FIXTURE"):
             fields = line.split("\t")
+            # A replay frame follows the program site and optional Rust origin.
+            replay = None
+            for boundary in (12, 15):
+                if fields[boundary:boundary + 1] == ["replay-v1"]:
+                    replay, fields = fields[boundary + 1:], fields[:boundary]
+                    break
             position_fields, origin_fields, fields = fields[5:12], fields[12:], fields[:5]
             pairs = fields[3].split(",") if len(fields) == 5 and fields[3] else []
             kinds = [pair.split("=")[0] for pair in pairs]
@@ -417,6 +450,12 @@ def collect(output, stage, report, *, require_lowering_origins=False):
                         except ValueError as error:
                             malformed_fixture()
                             errors.append(f"{stage}: invalid compiler origin in {where[0]}::{where[1]}: {error}")
+                    if replay is not None:
+                        try:
+                            fixture["replay"] = lowering_origins.decode_replay(replay, fixture)
+                        except ValueError as error:
+                            malformed_fixture()
+                            errors.append(f"{stage}: invalid replay inputs in {where[0]}::{where[1]}: {error}")
             report["package_fixtures"].append(fixture)
     # A passing comparison test must have printed the outcome it compared with the versioned baseline.
     statuses = {}
@@ -478,6 +517,16 @@ def summarize(report):
         counts = suite["counts"]
         log = suite.get("log", f"{stage}.log")
         lines.append(f"| {stage} {suite['crate']} | {counts.get('passed', 0)} | {counts.get('failed', 0)} | {counts.get('ignored', 0)} | {suite['exit']} | [{stage}]({log}) |")
+    launch_failures = [(stage, suite, issue) for stage, suite in report["suites"].items() for issue in suite.get("launch_failures", ())]
+    probe_error = report.get("context_command", {}).get("launch_error")
+    if launch_failures or probe_error:
+        lines += ["", "## Executables that could not start", ""]
+        if probe_error:
+            lines.append(f"- Context examples · published_readiness · {sample_diagnostics.readable(probe_error)}. [Runner log](context.log)")
+        for stage, suite, issue in launch_failures:
+            site = issue["target"] + (f"::{issue['test']}" if issue.get("test") else "")
+            log = suite["roster"]["log"] if issue["action"] == "list" else suite.get("log", f"{stage}.log")
+            lines.append(f"- {stage} · {issue['action']} · {site} · {sample_diagnostics.readable(issue['reason'])}. [Runner log]({log})")
     if "lowering_evidence" in report:
         obligations = report["lowering_evidence"]["obligations"]
         checked = sum(row["state"] == lowering_evidence.OBLIGATION_STATES[0] for row in obligations.values())
@@ -488,7 +537,7 @@ def summarize(report):
         lines += ["", "Each suite lists its selected tests independently. Missing, extra, repeated and ignored tests appear under incomplete measurements. " + " · ".join(rosters)]
     lines.extend(rule_diagnostics.summary(report))
     lines.extend(typing_sites.summary(report))
-    lines += ["", "## Failed assertions", ""]
+    lines += ["", "## Failed tests", ""]
     for stage, suite in report["suites"].items():
         for test in suite["tests"]:
             if test["status"] == "FAILED":
@@ -502,7 +551,7 @@ def summarize(report):
                 if excerpt:
                     lines.extend(["", *["      " + message for message in excerpt], ""])
     if not any(suite["counts"].get("failed", 0) for suite in report["suites"].values()):
-        lines.append("No failed assertions were reported.")
+        lines.append("No individual test reported a failure.")
     lines += ["", "## Programs and spec fragments", "",
               "The stage identifies the producer of the refusal or the inspected product. An L3 refusal can follow L4 static evaluation. An isolated fragment can require declarations from its surrounding package. Contextual examples have separate positive and negative witnesses. [Front-end product checks](context.log)",
               "", "| Cohort | Stage | Observed outcome | Cases |", "| --- | --- | --- | ---: |"]
@@ -526,6 +575,7 @@ def summarize(report):
                 for variant, site in report.get("lowering_locations", {}).get(key[5:], {}).items():
                     position = f"{chapter}:{site['spec_line']}" if "spec_line" in site else f"generated wrapper:{site['line']}"
                     lines.append(f"  - {variant} · {position}, byte column {site['byte_column']}, bytes {site['byte_start']}..{site['byte_end']}")
+    lines.extend(handoff_closures.summary(report))
     lines.extend(sample_diagnostics.summary(report["cases"]))
     lines.extend(frontend_diagnostics.section(report))
     lines.extend(handoff_evidence.summary(report))
@@ -539,6 +589,8 @@ def summarize(report):
     lines.extend(lowering_evidence.summary(report))
     lines.extend(refusal_evidence.summary(report))
     lines.extend(lowering_origins.summary(report))
+    lines.extend(lowering_sites.summary(report))
+    lines.extend(lowering_cli.summary(report))
     controls = report["product_controls"]
     lines += ["", f"Psi corruption checks rejected {sum(row['verified'] for row in controls.values())} "
               f"of {len(controls)} registered changes to branch targets, call operands, restoration or residual cleanup. "
@@ -613,6 +665,7 @@ def readiness_exit(report):
     missing_outputs = lowering_evidence.paragraphs_without_output_check(lowering)
     return int(bool(report["measurement_errors"] or any(s["exit"] for s in report["suites"].values())
                     or blocked or report.get("unverified_contracts") or pending_obligations or missing_outputs
+                    or ("CLI" in report["suites"] and diagnostic_kinds.blocks(report.get("frontend_diagnostics", {}).get("diagnostic_kinds")))
                     or any(not rows for rows in report.get("resolver_diagnostic_kinds", {}).values())
                     or typing_reason_evidence.blocks(report.get("typing_sites", {}).get("typing_reasons"))
                     or preparation_reason_evidence.blocks(report.get("preparation_reasons"))))
@@ -660,19 +713,24 @@ def main():
         report["measurement_errors"].append(f"CLI command failed without a named failing test; inspect {cli_log.name}")
     report["suites"]["CLI"] = {**report["frontend_cli_command"], "crate": "omega", "log": cli_log.name,
                                "counts": cli_counts, "tests": cli_tests}
-    handoff_evidence.finish(report, directory)
+    handoff_evidence.collect_rules(report)
     for stage in report["suites"]:
         test_inventory.verify_suite(report, stage, directory, environment)
     rule_diagnostics.finish(report, directory)
+    handoff_evidence.finish(report, directory)
     typing_sites.finish(report, directory, environment)
     if not options.before_l5:
+        lowering_sites.finish(report, directory, environment)
+        lowering_cli.finish(report, directory, environment)
         report["measurement_errors"].extend(incomplete_cohorts(report))
         lowering_evidence.finish(report, directory)
         product_controls.finish(report)
         refusal_evidence.apply(report)
+        handoff_closures.apply(report)
         comparison = compare_fragment_runs(report)
         report["fragment_agreement"] = comparison
         report["measurement_errors"].extend(f"{label}: {detail}" for label, detail in comparison["differences"].items())
+    frontend_fixture_cli.finish(report, directory, environment)
     if report["revision"] != git("rev-parse", "HEAD") or report["fingerprint"] != source_fingerprint():
         report["measurement_errors"].append("V2 sources changed during this run; repeat for a single-revision measurement")
     (directory / "evidence.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

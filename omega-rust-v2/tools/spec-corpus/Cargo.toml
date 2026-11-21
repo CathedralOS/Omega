@@ -10,6 +10,7 @@ parser = ["dep:omega-lexer", "dep:omega-parser"]
 readiness = ["parser", "dep:omega-resolver", "dep:omega-toolchain", "dep:omega-typer"]
 # Test tooling only: source inventory of explicit L3 TypeError call sites.
 typing-sites = ["dep:proc-macro2", "dep:quote", "dep:syn"]
+lowering-sites = ["dep:proc-macro2", "dep:quote", "dep:syn"]
 
 [dependencies]
 omega-lexer = { path = "../../layers/00_bytes-to-tokens", optional = true }
@@ -32,3 +33,7 @@ required-features = ["readiness"]
 [[bin]]
 name = "typing_diagnostic_sites"
 required-features = ["typing-sites"]
+
+[[bin]]
+name = "lowering_diagnostic_sites"
+required-features = ["lowering-sites"]

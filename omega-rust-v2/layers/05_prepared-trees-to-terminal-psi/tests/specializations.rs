@@ -180,8 +180,10 @@ fn open_callback_calls_preserve_operands_and_reject_an_unlowered_body() {
     assert_eq!(m.body[0].operands, [1, 0]);
     assert_eq!(m.result, Some(0));
     let bad = source.replace("F(b,a)", "F(b,a) + F(a,b)");
-    let err = sources::lower(&[("template.omg", &bad)]).unwrap_err();
-    assert_eq!(err.message, "open generic machine requires a closed application before lowering");
+    let declaration = "machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + F(a,b)}";
+    let message = "open generic machine requires a closed application before lowering";
+    let err = sources::refuse(&[("template.omg", &bad)], "template.omg", sources::unique_span(&bad, declaration), message);
+    assert_eq!(err.message, message);
 }
 
 #[test]

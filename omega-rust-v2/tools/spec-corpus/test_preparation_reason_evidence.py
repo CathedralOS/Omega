@@ -31,7 +31,7 @@ def witness(reason="ZeroDivisor", actual=None, message=None, package="app", file
 
 
 def forwarded(family="TargetLayout", message="the selected target has no validated layout for this type"):
-    return f"OMEGA_PREPARATION_FORWARDED\t{family}\tapp\tmain.omg\t3\t9\t{len(message.encode())}\t{message}"
+    return f"OMEGA_PREPARATION_FORWARDED\t{family}\t{message}\tapp\tmain.omg\t3\t9\t{len((PREFIX + message).encode())}\t{PREFIX}{message}"
 
 
 class PreparationReasonTests(unittest.TestCase):
@@ -115,6 +115,25 @@ class PreparationReasonTests(unittest.TestCase):
                 else:
                     self.assertTrue(report["measurement_errors"])
 
+    def test_context_cannot_supply_the_primary_preparation_reason(self):
+        reason = TEXTS["ZeroDivisor"]
+        for message in ("resumed typing: " + reason, PREFIX + reason + " was not the cause",
+                        PREFIX + TEXTS["CyclicConstantInitializer"] + "%0Acall chain: " + reason):
+            with self.subTest(message=message):
+                report = self.inspect(("tests/integer_constants.rs", ("wrong_reason", "ok", [witness(message=message)])))
+                self.assertIn("ZeroDivisor", report["preparation_reasons"]["missing"])
+                self.assertIn("primary diagnostic", report["measurement_errors"][0])
+
+    def test_an_unsupported_float_reason_precedes_its_target_context(self):
+        name = "UnsupportedFloatOperation"
+        text = "the selected target does not support this floating operation"
+        for message, valid in [(text + " (Binary32 Add on test)", True), ("failed (Binary32 Add on " + text + ")", False)]:
+            with self.subTest(message=message):
+                report = self.inspect(("tests/owned_floats.rs", ("unsupported", "ok", [witness(name, message=message)])),
+                                      inventory=roster(name), texts={name: text})
+                self.assertEqual(report["preparation_reasons"]["missing"], [] if valid else [name])
+                self.assertEqual(bool(report["measurement_errors"]), not valid)
+
     def test_records_outside_a_captured_l4_test_are_misplaced(self):
         report = {"expected": {}, "cases": {}, "measurement_errors": [], "suites": {}, "package_fixtures": [], "obligations": {}}
         collect(libtest("tests/typing_cases.rs", ("zero", "ok", [witness()])), "CLI", report)
@@ -131,7 +150,7 @@ class PreparationReasonTests(unittest.TestCase):
             report["suites"]["CLI"] = {"tests": records}
             report["rule_diagnostics"] = {"L4": {"zero": {"verified": True, "observation": {
                 "file": "main.omg", "byte_start": 9 if mismatch else 10, "byte_end": 15, "reason": PREFIX + TEXTS["ZeroDivisor"]}}}}
-            with patch.object(evidence, "declared", return_value=TEXTS):
+            with patch.object(evidence, "declared", return_value=TEXTS), patch.object(evidence, "preparation_causes", return_value={"zero": "preparation:ZeroDivisor"}):
                 row = evidence.measure(report)["reasons"]["ZeroDivisor"]
             self.assertEqual(row["state"], "missing" if mismatch else "verified")
             self.assertEqual(bool(report["measurement_errors"]), mismatch)
@@ -147,7 +166,7 @@ class PreparationReasonTests(unittest.TestCase):
         self.assertEqual(report["measurement_errors"], [])
         self.assertEqual([row["cause"] for row in result["forwarded"]], ["TargetLayout", "IntegerPrimitive"])
         self.assertEqual(result["missing"], list(TEXTS))
-        self.assertIn("Forwarded target-layout or integer-primitive causes, not counted: 2.", evidence.summary(result)[0])
+        self.assertIn("TargetLayout (distinct cause texts observed at the API: 1, through package commands: 0)", evidence.summary(result)[1])
         report = self.inspect(("tests/target_layout.rs", ("layout", "ok", [forwarded("ZeroDivisor")])))
         self.assertTrue(report["measurement_errors"])
         self.assertEqual(report["preparation_reasons"]["forwarded"], [])

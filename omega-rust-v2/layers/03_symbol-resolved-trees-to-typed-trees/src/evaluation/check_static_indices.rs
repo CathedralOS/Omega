@@ -102,6 +102,9 @@ impl<'a> IndexEvaluations<'a> {
         file: &IndexedSource<'_>,
         node: usize,
     ) -> TypeError {
+        if !self.allow_pending {
+            return TypeError::at(file, node, "static expression requires an admitted evaluation result");
+        }
         self.block_node(file.node_id(node));
         TypeError::waiting(file, node)
     }

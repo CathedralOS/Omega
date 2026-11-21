@@ -9,7 +9,7 @@ FAMILIES = {
     "L0": ("lex_errors", "layers/00_bytes-to-tokens/src/errors/lex_error_kind.rs", "LexErrorKind"),
     "L1": ("parse_errors", "layers/01_tokens-to-syntax-trees/src/errors/parse_error_kind.rs", "ParseErrorKind"),
 }
-INDEX_TEST = "parsing::syntax_parser::tests::token_indices_report_the_first_unrepresentable_position"
+INDEX_TEST = "parsing::syntax_parser::tests::token_index_overflow_preserves_the_byte_span_and_exact_diagnostic"
 
 
 def kinds(path, enum, *, payload=None):
@@ -64,7 +64,9 @@ def measure(report, log):
             errors.append(str(exc))
             inventory[stage] = {}
     current = target = ""
+    reading_results = False
     statuses = {}
+    captures = {}
     observations = {}
     invalid = set()
     # Only LF/CRLF frame records. A raw vertical tab, for example, must not
@@ -73,23 +75,32 @@ def measure(report, log):
         line = line.removesuffix("\r")
         if header := re.match(r"^\s*Running (.+?) \(", line):
             target, current = header[1].replace("\\", "/"), ""
-        elif outcome := re.fullmatch(r"test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?", line):
+            reading_results = True
+        elif reading_results and (outcome := re.fullmatch(r"test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?", line)):
             statuses.setdefault((target, outcome[1]), []).append(outcome[2])
         elif captured := re.fullmatch(r"---- (.+?) stdout ----", line):
+            reading_results = False
             current = captured[1]
-        elif line in {"successes:", "failures:"} or line.startswith(("test result:", "   Doc-tests ")):
+            captures[target, current] = captures.get((target, current), 0) + 1
+        elif line.lstrip().startswith("Doc-tests "):
+            reading_results = False
+            target, current = "doctests", ""
+        elif line in {"successes:", "failures:"} or line.startswith("test result:") or re.fullmatch(r"---- .+? stderr ----", line):
+            reading_results = False
             current = ""
         elif line.startswith("OMEGA_DIAGNOSTIC_KIND"):
             fields = line.split("\t")
-            if len(fields) != 10 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
-                if len(fields) == 6 and fields[0] == "OMEGA_DIAGNOSTIC_KIND":
+            if len(fields) != 11 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
+                if len(fields) == 10 and fields[0] == "OMEGA_DIAGNOSTIC_KIND":
+                    errors.append(f"{fields[1]} {fields[2]}: historical diagnostic kind lacks API display evidence")
+                elif len(fields) == 6 and fields[0] == "OMEGA_DIAGNOSTIC_KIND":
                     errors.append(f"{fields[1]} {fields[2]}: historical diagnostic kind lacks source occurrence evidence")
                 else:
                     errors.append(f"malformed diagnostic kind: {line}")
                 if len(fields) >= 3:
                     invalid.add((fields[1], fields[2]))
                 continue
-            _, stage, kind, actual_kind, expected_text, actual_text, *witness = fields
+            _, stage, kind, actual_kind, expected_text, actual_text, api_text, *witness = fields
             if kind not in inventory.get(stage, {}):
                 errors.append(f"unknown diagnostic kind: {stage} {kind}")
                 continue
@@ -104,18 +115,21 @@ def measure(report, log):
                     raise ValueError("misplaced or repeated observation")
                 producer = {"L0": "lexer", "L1": "parser"}[stage]
                 rendered = unescape(actual_text).decode("utf-8")
-                match = re.fullmatch(rf"([^:\n]+):([0-9]+):([0-9]+): {producer}: (.+) \(bytes ([0-9]+)\.\.([0-9]+)\)", rendered, re.S)
+                match = re.fullmatch(rf"([^:\r\n]+):([1-9][0-9]*):([1-9][0-9]*): {producer}: ([^\r\n]+) \(bytes (0|[1-9][0-9]*)\.\.(0|[1-9][0-9]*)\)", rendered)
                 if not match:
                     raise ValueError("invalid CLI diagnostic")
                 file, row, column, reason, start, end = match.groups()
                 row, column, start, end = map(int, (row, column, start, end))
+                api = unescape(api_text).decode("utf-8")
+                if api != f"{reason} (bytes {start}..{end})":
+                    raise ValueError("API display differs from the CLI reason or range")
                 check_occurrence(witness, file, row, column, start, end)
             except ValueError as exc:
                 errors.append(f"{target}::{current}: {stage} {kind}: {exc}")
                 invalid.add((stage, kind))
                 continue
             observations[stage, kind] = expected, {"file": file, "line": row, "byte_column": column,
-                                                   "byte_start": start, "byte_end": end, "reason": reason}
+                                                   "byte_start": start, "byte_end": end, "reason": reason, "api_display": api}
     for stage, rows in inventory.items():
         for kind, row in rows.items():
             if (stage, kind) in invalid:
@@ -123,6 +137,9 @@ def measure(report, log):
             record = observations.get((stage, kind))
             if record:
                 where, sample = record
+                if captures[where] != 1:
+                    errors.append(f"{stage} {kind}: repeated stdout capture for {where}")
+                    continue
                 row.update(sample)
                 if statuses.get(where) == ["ok"]:
                     row["state"] = "CLI verified"
@@ -131,25 +148,53 @@ def measure(report, log):
                     row["state"] = "matched in a failed test"
                     continue
             if (stage, kind) == ("L1", "SourceTooLarge") and not record:
-                checks = [test["status"] for test in report["suites"]["L1"]["tests"]
+                checks = [test["status"] for test in report.get("suites", {}).get("L1", {}).get("tests", ())
                           if test["test"] == INDEX_TEST and test["target"].replace("\\", "/") == "unittests src/lib.rs"]
                 if checks == ["ok"]:
                     row.update(state="parser boundary verified", test=INDEX_TEST,
-                               reason="The first unrepresentable token index is tested at the production conversion. No oversized CLI file was built.")
+                               reason="The 64-bit unit test checks the last representable index and the next index's kind, supplied span, expected phrase and exact display at the production conversion. No oversized file was parsed or passed to the CLI.")
                     continue
             errors.append(f"{stage} {kind}: missing verified diagnostic")
     return inventory
+
+
+def blocks(inventory):
+    """A boundary check is not a CLI observation and may stand in only for SourceTooLarge."""
+    if not isinstance(inventory, dict) or inventory.keys() != FAMILIES.keys():
+        return True
+    for stage, (_, path, enum) in FAMILIES.items():
+        rows = inventory[stage]
+        try:
+            if not isinstance(rows, dict) or rows.keys() != kinds(path, enum):
+                return True
+        except (ValueError, OSError):
+            return True
+        for kind, row in rows.items():
+            if not isinstance(row, dict):
+                return True
+            if (stage, kind) == ("L1", "SourceTooLarge"):
+                if row.get("state") != "parser boundary verified" or row.get("test") != INDEX_TEST:
+                    return True
+                continue
+            if row.get("state") != "CLI verified" or not row.get("file") or not row.get("reason"):
+                return True
+            line, column, start, end = (row.get(key) for key in ("line", "byte_column", "byte_start", "byte_end"))
+            if not all(type(n) is int for n in (line, column, start, end)) or min(line, column) < 1 or not 0 <= start <= end:
+                return True
+            if row.get("api_display") != f"{row['reason']} (bytes {start}..{end})":
+                return True
+    return False
 
 
 def details(inventory):
     lines = ["## Public diagnostic kinds", ""]
     for stage, rows in inventory.items():
         public = sum(row["state"] == "CLI verified" for row in rows.values())
-        lines += [f"### {stage}", "", f"{public} of {len(rows)} declared kinds were observed through the package CLI.", ""]
+        lines += [f"### {stage}", "", f"{public} of {len(rows)} declared kinds matched the API display and package CLI diagnostic.", ""]
         for kind, row in rows.items():
             reason = row.get("reason", "")
             if "file" in row:
-                reason = f"{row['file']} bytes {row['byte_start']}..{row['byte_end']} · {reason}"
+                reason = f"{row['file']}:{row['line']}:{row['byte_column']} · {row['api_display']}"
             lines.append(f"- {kind} · {row['state']} · {reason}")
         lines.append("")
     return lines

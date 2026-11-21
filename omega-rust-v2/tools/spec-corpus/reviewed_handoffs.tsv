@@ -106,11 +106,15 @@ L3	When a client calls a guarded library machine, `crash_route`	direct	L3	unitte
 L3	- **Dependent applications.** For a closed integer index, the	direct	L3	tests/standard.rs	specialization_uses_the_selected_trait_operation	dependent-applications/producer
 L3	- **Dependent applications.** For a closed integer index, the	refusals	L3	tests/standard.rs	specialization_uses_the_selected_trait_operation	dependent-applications/refusal
 L4	A specialized field request carries the declarations that own	direct	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	collection-layout-and-indirect-call-selections/consumer
+L4	A specialized field request carries the declarations that own	direct	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	specialized-owner-layout/frozen-recipe
+L4	A specialized field request carries the declarations that own	consumer	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	specialized-owner-layout/resumed-field-reads
 L4	A specialized field request carries the declarations that own	refusals	L4	tests/boolean_calls.rs	nested_fields_specialize_their_own_and_the_enclosing_boolean_binders	owner-arguments-and-nested-constant-bindings/refusal
 L4	When a public type depends on an unselected target,	direct	L4	tests/target_layout.rs	an_open_package_retains_exact_demands_and_closes_like_direct_preparation	open-target-and-selected-layout/producer
 L4	When a public type depends on an unselected target,	refusals	L5	tests/assembly_handoff.rs	preparation_cannot_mix_an_instruction_catalog_with_another_layout_target	open-target-and-selected-layout/refusal
-L4	L4 specializes the selected body's published effects and checks	direct	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/producer
-L4	L4 specializes the selected body's published effects and checks	refusals	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/refusal
+L4	Proofs supplied by the checker	direct	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/producer
+L4	Proofs supplied by the checker	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	invocation-proof/materialization
+L4	Proofs supplied by the checker	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	invocation-proof/changed-materialization-plan
+L4	Proofs supplied by the checker	refusals	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/refusal
 L4	A static callback selects an ordinary machine at a	direct	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/producer
 L4	A static callback selects an ordinary machine at a	refusals	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/refusal
 L4	An explicit discard evaluates its operand before continuing. A	direct	L4	tests/boolean_calls.rs	an_explicit_discard_evaluates_and_drops_a_copy_value	discarded-constant-reads/producer
@@ -213,3 +217,12 @@ L4	When preparation reads a closed aggregate argument,	direct	L4	tests/owned_rec
 L4	When preparation reads a closed aggregate argument,	refusals	L4	tests/owned_records.rs	value_witness::an_invalid_closed_argument_is_refused_before_direct_or_nested_named_reads	closed-argument-fields/refusal
 L0	R16	consumer	L1	tests/golden_fixtures.rs	accept_fixtures_parse_to_their_expected_trees	fixture/operators/accept/right_shift.omg
 L3	Patterns and places	consumer	L5	tests/ownership.rs	a_grouped_call_argument_transfers_the_selected_field_to_the_callee	grouped-call-field/consumer
+L4	When preparation reads a closed aggregate argument,	consumer	L4	tests/preparation_failure_phases.rs	resumed_typing_uses_the_selected_closed_record_field_for_the_parameter_extent	closed-record-field-in-resumed-typing/consumer
+L4	Preparation indexes each named constant by its declaration.	consumer	L5	tests/frozen_constants.rs	returned_literal_tracks_the_selected_constant_declaration	named-constant-initializers/consumer
+L4	L4 specializes the selected body's published effects and checks	direct	L4	tests/prepared_callback_handoff.rs	a_quiet_selection_under_a_suspending_bound_closes_the_extent	static-invocation-admission/frozen-result
+L4	L4 specializes the selected body's published effects and checks	consumer	L4	tests/prepared_callback_handoff.rs	a_quiet_selection_under_a_suspending_bound_closes_the_extent	static-invocation-admission/resumed-quiet-extent
+L4	L4 specializes the selected body's published effects and checks	consumer	L5	tests/prepared_callback_handoff.rs	psi_returns_the_result_of_the_admitted_callback	static-invocation-admission/psi-result
+L4	A specialized initializer may invoke the exact machine	consumer	L4	tests/prepared_callback_handoff.rs	the_second_callback_slot_closes_each_field_read	specialized-callback-field/resumed-read
+L4	A specialized initializer may invoke the exact machine	refusals	L4	tests/prepared_callback_handoff.rs	the_selected_field_slot_cannot_supply_a_refinement	specialized-callback-field/selected-refusal
+L4	A local declaration after a tail expression or transition	consumer	L4	tests/prepared_callback_handoff.rs	nested_helper_applications_close_distinct_array_parameters	nested-helpers-and-tail-expressions/resumed-extents
+L4	An evaluation request identifies its expression	consumer	L5	tests/frozen_constants.rs	returned_nominal_has_the_frozen_declaration_slots_and_active_case	frozen-nominal-slots/consumer

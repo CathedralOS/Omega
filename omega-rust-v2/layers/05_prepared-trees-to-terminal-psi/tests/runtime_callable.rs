@@ -480,8 +480,12 @@ fn the_invocation_after_a_join_uses_the_arriving_descriptor() {
 fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
     // A loan formal needs custody lowering the contract cannot yet state.
     let loan = "data Lend = machine(x:@u8)->u8 reaches none crashes none; machine keep(f:Lend) {}";
-    let error = sources::lower(&[("runtime_callable.omg", loan)]).unwrap_err();
-    assert_eq!(error.message, "no Psi lowering for carrier runtime callable machine(@u8) -> u8");
+    let error = sources::refuse(
+        &[("runtime_callable.omg", loan)],
+        "runtime_callable.omg",
+        sources::span_within(loan, "keep(f:Lend)", "f"),
+        "no Psi lowering for carrier runtime callable machine(@u8) -> u8",
+    );
     assert_eq!(error.site.span.slice(loan.as_bytes()), Some(b"f".as_slice()));
     known_gap::report("runtime callable with a loan formal", "The callable interface needs the formal's access and custody", loan, &error);
 
@@ -492,10 +496,11 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
          machine start(value:u8)->u8 {{run((action), value)}}",
         alias("Step")
     );
-    let error = sources::lower(&[("runtime_callable.omg", &construction)]).unwrap_err();
-    assert_eq!(
-        error.message,
-        "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported"
+    let error = sources::refuse(
+        &[("runtime_callable.omg", &construction)],
+        "runtime_callable.omg",
+        sources::unique_span(&construction, "(action)"),
+        "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported",
     );
     assert_eq!(error.site.span.slice(construction.as_bytes()), Some(b"(action)".as_slice()));
     known_gap::report("construct a runtime descriptor", "The descriptor needs the selected named machine", &construction, &error);

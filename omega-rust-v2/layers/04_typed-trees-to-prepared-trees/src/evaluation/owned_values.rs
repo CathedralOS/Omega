@@ -399,8 +399,7 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
         {
             return Err(at_read(PreparationReason::ConstantCarrierMismatch));
         }
-        self.values
-            .get(id)
+        self.frozen_value(id)
             .map(Some)
             .ok_or_else(|| EvaluationError::NeedsConstant {
                 declaration: id.clone(),

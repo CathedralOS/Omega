@@ -194,16 +194,10 @@ pub(crate) fn check(
                 }
             }
         }
-        let [(requirement, implementation, owner)] = matches.as_slice() else {
-            return Err(TypeError::at(
-                f,
-                row,
-                if matches.is_empty() {
-                    "conformance row has no matching signature"
-                } else {
-                    "ambiguous conformance row"
-                },
-            ));
+        let (requirement, implementation, owner) = match matches.as_slice() {
+            [] => return Err(TypeError::at(f, row, "conformance row has no matching signature")),
+            [binding] => binding,
+            _ => return Err(TypeError::at(f, row, "ambiguous conformance row")),
         };
         if !supplied.insert(*requirement) {
             return Err(TypeError::at(f, row, "requirement is supplied twice"));

@@ -106,8 +106,13 @@ fn constructed_case_uses_the_applied_nested_carrier() {
 #[test]
 fn a_record_constructor_cannot_drop_its_independent_establishment_requirement() {
     let src = "data Positive requires self.n > 0 {n:u8;} machine make(){let n=Positive{n:0};}";
-    let err = sources::lower(&[("pred.omg", src)]).unwrap_err();
-    assert_eq!(err.message, "construction requires additional establishment evidence");
+    let err = sources::refuse(
+        &[("pred.omg", src)],
+        "pred.omg",
+        sources::unique_span(src, "Positive{n:0}"),
+        "lowering cannot establish the data predicate for `Positive` at construction",
+    );
+    assert_eq!(err.site.span.slice(src.as_bytes()), Some(b"Positive{n:0}".as_slice()));
 }
 
 #[test]
@@ -131,8 +136,13 @@ fn copy_record_is_writable_only_when_bound_mutably_and_needs_no_discard() {
     assert!(matches!(&body.blocks[0].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
 
     let linear = src.replace("[copy]", "[linear]");
-    let err = sources::lower(&[("linear.omg", &linear)]).unwrap_err();
-    assert_eq!(err.message, "normal exit needs an authorized disposition for owned storage");
+    // The implicit return belongs to the body, not to p's last use.
+    sources::refuse(
+        &[("linear.omg", &linear)],
+        "linear.omg",
+        sources::unique_span(&linear, "{let mut p=(Point{x:1});p.x=2;}"),
+        "normal exit needs an authorized disposition for owned storage",
+    );
 }
 
 #[test]

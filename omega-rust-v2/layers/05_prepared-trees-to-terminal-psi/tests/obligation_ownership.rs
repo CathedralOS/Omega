@@ -52,10 +52,13 @@ fn an_explicit_region_binding_stops_at_the_machine_that_owns_the_region() {
         "{region:?}"
     );
 
-    let error =
-        sources::lower_prepared(&prepared, &[(pipeline::FILE, bound)]).expect_err("L5 now lowers a region-bound machine; add the BindLifetime comparison");
-    assert_eq!(error.message, "open generic machine requires a closed application before lowering");
-    assert_eq!(error.site.file, pipeline::FILE);
+    let error = sources::refuse_prepared(
+        &prepared,
+        &[(pipeline::FILE, bound)],
+        pipeline::FILE,
+        sources::unique_span(bound, "machine forward<'a>(input:@'a ByteCell)->@'a u8 {@input.value}"),
+        "open generic machine requires a closed application before lowering",
+    );
     assert!(
         error.site.span.get_start_offset() <= binding.site.span.get_start_offset() && binding.site.span.get_end_offset() <= error.site.span.get_end_offset(),
         "the refusal names the machine that encloses the binding: {}",

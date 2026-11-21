@@ -95,7 +95,14 @@ fn array_reads_cannot_acquire_a_domain_or_bypass_its_predicate() {
     let error = omega_preparation::prepare_source_package(&package).unwrap_err();
     assert!(error.message.contains("expected u8 in app\\u8::Mark, found u8"), "{error:?}");
     let guarded = "domain u8::Mark requires self > 0u8; machine f(a:[u8 in Mark;4],i:u64)->u8 in Mark{a[i]}";
-    let error = source::lower(&[("guarded.omg", guarded)]).unwrap_err();
+    // The unsupported carrier belongs to the array formal, not the indexed read or scalar result.
+    let error = source::refuse_with_cli_message(
+        &[("guarded.omg", guarded)],
+        "guarded.omg",
+        source::span_within(guarded, "f(a:", "a"),
+        "no Psi lowering for carrier u8 in app\\u8::Mark",
+        "no Psi lowering for carrier u8 in root\\u8::Mark",
+    );
     assert!(
         error
             .message

@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -93,13 +91,36 @@ fn scalar_contracts_name_the_formals_and_result_and_preserve_each_call_requireme
 }
 
 #[test]
-fn unsupported_predicate_call_is_refused_at_its_occurrence() {
+fn parameterless_predicate_application_is_backed_by_its_selected_machine() {
     let source = "machine predicate()->bool reaches none crashes none terminates {true}
                   machine guarded() requires predicate() {}";
-    let error = lower(source).unwrap_err();
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
-    assert_eq!(error.message, "unsupported typed contract predicate record");
-    known_gap::report("call in a contract predicate", "The clause needs the predicate and its selected call", source, &error);
+    let files = [("contracts.omg", source)];
+    let input = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&input).unwrap();
+    let mut facts = prepared.typed().calls.iter().filter(|c| c.site.file == "contracts.omg");
+    let call = facts.next().unwrap();
+    assert!(facts.next().is_none());
+    assert_eq!(call.use_site, omega_typed::CallUse::Fact);
+    assert_eq!(call.caller.as_ref().unwrap().path, "guarded");
+    assert_eq!(call.machine.path, "predicate");
+    assert!(call.operands.is_empty());
+    assert_eq!(call.result, omega_typed::ValueType::Bool);
+    assert!(!prepared.typed().obligations.iter().any(|o| o.node == call.node));
+
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let [guarded, predicate] = package.machines.as_slice() else { panic!("expected both machines") };
+    assert_eq!(guarded.declaration.path, "guarded");
+    assert_eq!(predicate.declaration.path, "predicate");
+    assert!(guarded.body.operations.is_empty());
+    assert!(predicate.contract.promises_termination && predicate.contract.has_empty_crash_ceiling);
+    assert!(predicate.contract.requires.is_empty());
+    spec_corpus::observe_handoff!(
+        psi "psi-output/predicate-call-machine-requirement",
+        assert_eq!(guarded.contract.requires[0].predicate, [PredicateStep::MachineApplication {
+            callee: predicate.declaration.clone(), operands: vec![], result: omega_psi::ScalarType::Boolean,
+            requirements: 0..0, progress: omega_psi::PredicateProgress::CheckPromise, site: call.site.clone(),
+        }]),
+    );
 }
 
 #[test]

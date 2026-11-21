@@ -233,7 +233,14 @@ fn a_routed_callback_selection_is_refused_before_its_guard_is_lost() {
                   data ByteStep=machine(x:u8)->u8;
                   machine apply<const F:ByteStep>(v:u8)->u8{F(v)}
                   machine outer(a:u8)->u8{apply::<guarded>(a)}";
-    let error = sources::lower(&[("route.omg", routed)]).unwrap_err();
+    // The selected callback's crash ceiling reaches outer through apply. The header
+    // check refuses outer's effects, before its body or the specialized apply lowers.
+    let error = sources::refuse(
+        &[("route.omg", routed)],
+        "route.omg",
+        sources::unique_span(routed, "machine outer(a:u8)->u8{apply::<guarded>(a)}"),
+        "machine requires contract or effects lowering",
+    );
     assert!(
         [
             "a callback crash route requires indirect invocation coverage",

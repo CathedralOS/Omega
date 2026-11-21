@@ -145,10 +145,14 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
         panic!("expected one supplied hypothesis, found {supplied:?}")
     };
     assert!(matches!(&supply.kind, ObligationKind::SupplyHypothesis { evidence: ValueType::ProofCitation(lemma), .. } if lemma.path == "lemma"));
-    let error = sources::lower_prepared(&prepared, &files).unwrap_err();
+    let error = sources::refuse_prepared(
+        &prepared,
+        &files,
+        "proof.omg",
+        sources::unique_span(&cited, "theorem::<lemma>(x,x)"),
+        "a logical theorem citation requires erased proof-application lowering",
+    );
     assert_eq!(error.site, supply.site, "the refusal stops at the supplied evidence");
-    assert_eq!(error.message, "a logical theorem citation requires erased proof-application lowering");
-    assert_eq!(error.site.span.slice(cited.as_bytes()), Some(b"theorem::<lemma>(x,x)".as_slice()));
     known_gap::report(
         "cite a theorem from executable code",
         "The call site needs an erased proof application",
@@ -156,17 +160,71 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
         &error,
     );
 
-    let resultful = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8)->u8 requires y != 0; requires x != 0 {}";
-    let error = sources::lower(&[("proof.omg", resultful)]).unwrap_err();
-    assert_eq!(error.message, "a logical hypothesis cannot promise an executable result");
-
-    let unbound = "machine theorem(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; requires x != 0 {}";
-    let error = sources::lower(&[("proof.omg", unbound)]).unwrap_err();
-    assert_eq!(error.message, "a logical hypothesis must be supplied through its theorem's machine binder");
-
-    let worked = THEOREM.replace("ensures Step::ensures(x) {}", "ensures Step::ensures(x) { let w = x; }");
-    let worked = format!("{TRUST} {worked}");
-    let error = sources::lower(&[("proof.omg", &worked)]).unwrap_err();
-    assert_eq!(error.message, "a logical theorem body requires checked proof-term lowering");
+    let declaration = THEOREM.replace("ensures Step::ensures(x) {}", "ensures Step::ensures(x) { let w = x; }");
+    let worked = format!("{TRUST} {declaration}");
+    let error = sources::refuse(
+        &[("proof.omg", &worked)],
+        "proof.omg",
+        sources::unique_span(&worked, &declaration),
+        "a logical theorem body requires checked proof-term lowering",
+    );
     known_gap::report("proof steps in a theorem body", "The theorem needs its checked proof term", &worked, &error);
+}
+
+#[test]
+fn a_result_bearing_hypothesis_stops_at_its_result_annotation() {
+    // Squashed existence does not promise to produce the underlying byte. It
+    // is a valid typed result even though Psi cannot publish it yet.
+    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8)->core\\Squash<u8> requires y != 0; requires x != 0 {}";
+    let files = [("proof.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let [step] = prepared.typed().logical_hypotheses.as_slice() else { panic!("expected Step") };
+    assert_eq!(step.result, ValueType::Squash(Box::new(ValueType::Integer { signed: false, width: Some(8) })));
+    sources::refuse_prepared(
+        &prepared,
+        &files,
+        "proof.omg",
+        sources::unique_span(source, "->core\\Squash<u8>"),
+        "Psi cannot represent result `core\\Squash<u8>` on logical hypothesis `Step`",
+    );
+
+    let twin = source.replace("->core\\Squash<u8>", "");
+    let package = sources::lower(&[("proof.omg", &twin)]).unwrap();
+    assert!(package.machines.is_empty());
+    let [theorem] = package.theorems.as_slice() else { panic!("expected one theorem") };
+    assert_eq!(theorem.binders, [TheoremBinder::Hypothesis(0)]);
+    assert_eq!(
+        theorem.hypotheses[0].premises[0].predicate,
+        [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(NotEqual)]
+    );
+}
+
+#[test]
+fn a_hypothesis_without_a_matching_theorem_binder_stops_at_its_name() {
+    let source = "machine theorem(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; requires x != 0 {}";
+    let files = [("proof.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let typed = prepared.typed();
+    let [step] = typed.logical_hypotheses.as_slice() else { panic!("expected Step") };
+    assert_eq!(step.name, "Step");
+    assert!(typed.generic_parameters.get(&step.owner).is_none_or(|t| t.parameters.is_empty()));
+    sources::refuse_prepared(
+        &prepared,
+        &files,
+        "proof.omg",
+        sources::unique_span(source, "Step"),
+        "lowering has no matching `machine Step` binder for logical hypothesis `Step`",
+    );
+
+    let twin = source.replace("theorem(", "theorem<machine Step>(");
+    let package = sources::lower(&[("proof.omg", &twin)]).unwrap();
+    assert!(package.machines.is_empty());
+    let [theorem] = package.theorems.as_slice() else { panic!("expected one theorem") };
+    assert_eq!(theorem.binders, [TheoremBinder::Hypothesis(0)]);
+    assert_eq!(
+        theorem.hypotheses[0].conclusions[0].predicate,
+        [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(GreaterThan)]
+    );
 }

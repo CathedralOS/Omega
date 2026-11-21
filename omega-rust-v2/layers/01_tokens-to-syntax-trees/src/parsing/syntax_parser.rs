@@ -450,14 +450,16 @@ mod tests {
 
     #[cfg(target_pointer_width = "64")]
     #[test]
-    fn token_indices_report_the_first_unrepresentable_position() {
+    fn token_index_overflow_preserves_the_byte_span_and_exact_diagnostic() {
         let last = u32::MAX as usize;
-        let span = omega_tokens::SourceSpan::new(last + 1, last + 2);
+        // Trivia and wider tokens can put the byte range well beyond the token index.
+        let span = omega_tokens::SourceSpan::new(last + 101, last + 104);
         assert_eq!(SyntaxParser::compact_token_index(last, span), Ok(u32::MAX));
         let error = SyntaxParser::compact_token_index(last + 1, span).unwrap_err();
         assert_eq!(error.get_kind(), crate::ParseErrorKind::SourceTooLarge);
         assert_eq!(error.get_span(), span);
-        assert!(error.to_string().contains("more tokens than one file may hold"));
+        assert_eq!(error.get_expected(), "fewer tokens");
+        assert_eq!(error.to_string(), "this source has more tokens than one file may hold (bytes 4294967396..4294967399)");
     }
 
     #[test]

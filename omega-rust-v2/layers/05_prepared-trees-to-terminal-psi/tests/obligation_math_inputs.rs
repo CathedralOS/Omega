@@ -54,12 +54,12 @@ fn proof(goal: &str) -> String {
 }
 
 /// Prepare one source, copy its obligations, lower the same trees and return the refusal.
-fn refusal(source: &str) -> (Vec<TypingObligation>, LoweringError) {
+fn refusal(source: &str, span: std::ops::Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
     let files = [(pipeline::FILE, source)];
     let resolved = sources::resolve(&files);
     let prepared = preparation::prepare(&resolved).unwrap_or_else(|(stage, error)| panic!("{stage} stopped before L5: {error:?}\n{source}"));
     let obligations = prepared.typed().obligations.clone();
-    let error = sources::lower_prepared(&prepared, &files).expect_err(&format!("L5 now lowers this input; replace the pin with a Psi comparison:\n{source}"));
+    let error = sources::refuse_prepared(&prepared, &files, pipeline::FILE, span, message);
     (obligations, error)
 }
 
@@ -123,7 +123,10 @@ fn a_squash_goal_reaches_its_theorem_and_stops_at_that_goal() {
     for inhabited in ["u8", "bool"] {
         let goal = format!("core\\Squash::<{inhabited}>");
         let source = proof(&goal);
-        let (obligations, error) = refusal(&source);
+        let (obligations, error) = refusal(
+            &source, sources::unique_span(&source, &goal),
+            "Psi cannot form a squash proposition in a contract predicate",
+        );
 
         let squashes = of_kind(&obligations, "FormSquash");
         let [squash] = squashes.as_slice() else {
@@ -148,7 +151,7 @@ fn a_squash_goal_reaches_its_theorem_and_stops_at_that_goal() {
             "{goal}: the theorem owes the squash goal: {guarantees:?}"
         );
 
-        assert_eq!(error.message, "unsupported typed contract predicate record", "{goal}");
+        assert_eq!(error.message, "Psi cannot form a squash proposition in a contract predicate", "{goal}");
         assert_eq!(error.site, squash.site, "{goal}: L5 stops at the squash goal itself");
         if first.is_none() {
             first = Some((source, error));
@@ -198,7 +201,10 @@ fn a_machine_cited_as_evidence_stops_at_the_citation_inside_its_definition() {
     let byte = ValueType::Integer { signed: false, width: Some(8) };
 
     let source = citing("lemma");
-    let (obligations, error) = refusal(&source);
+    let (obligations, error) = refusal(
+        &source, sources::span_within(&source, "consume(lemma)", "lemma"),
+        r"Psi cannot cite machine `lemma` as evidence of `(u8 -> core\Squash<u8>)` in a mathematical term",
+    );
     let applications = of_kind(&obligations, "MathematicalApplication");
     let [application] = applications.as_slice() else {
         panic!("expected one application, found {applications:?}")
@@ -223,7 +229,7 @@ fn a_machine_cited_as_evidence_stops_at_the_citation_inside_its_definition() {
         "the citation names the parameter interface: {expected:?}"
     );
 
-    assert_eq!(error.message, "unsupported obligation in mathematical definition");
+    assert_eq!(error.message, r"Psi cannot cite machine `lemma` as evidence of `(u8 -> core\Squash<u8>)` in a mathematical term");
     assert_eq!(error.site, citation.site, "L5 stops at the cited machine");
     known_gap::report(
         "machine cited as mathematical evidence",
@@ -270,7 +276,10 @@ fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
         let universe = format!("core\\Type<{subject}>");
         let application = format!("id::<{universe}>(x)");
         let source = format!("let id<A:core\\Type<{bound}>>(x:A):A=x; let f(x:{universe}):{universe} = {application};");
-        let (obligations, error) = refusal(&source);
+        let (obligations, error) = refusal(
+            &source, sources::unique_span(&source, &application),
+            "Psi cannot carry a universe membership check on a mathematical application",
+        );
 
         let memberships = of_kind(&obligations, "UniverseMembership");
         let [membership] = memberships.as_slice() else {
@@ -294,7 +303,7 @@ fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
             applied.kind
         );
 
-        assert_eq!(error.message, "unsupported obligation in mathematical definition", "{application}");
+        assert_eq!(error.message, "Psi cannot carry a universe membership check on a mathematical application", "{application}");
         assert_eq!(error.site, membership.site, "{application}: L5 stops at the membership");
         if first.is_none() {
             first = Some((source, error));

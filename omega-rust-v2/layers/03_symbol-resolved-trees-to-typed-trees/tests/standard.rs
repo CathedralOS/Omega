@@ -324,6 +324,49 @@ fn an_inbound_slot_counts_as_entry_and_an_outbound_provider_propagates_entries()
 }
 
 #[test]
+fn direct_boundary_entry_checks_the_callers_invocation_ceiling() {
+    use omega_typer::{BoundarySlot, RequirementSlot, Site, SlotDirection, TypingEnvironment, type_stage_in_environment};
+
+    let source = "trait Host{machine enter();} trait Other{machine tick();} machine direct() invokes Other {Host::enter()}";
+    let file = "slot.omg";
+    let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+    let sources = [StageSource {
+        package: "app",
+        source: ParsedSource { logical_path: file, text: source, tokens: &tokens, tree: &tree },
+    }];
+    let names = omega_resolver::resolve_stage(&sources, &[]).unwrap();
+    let outbound = BoundarySlot {
+        requirement: RequirementSlot {
+            declaration: names.declarations.iter().find(|id| id.path == "Host::enter").unwrap().clone(),
+            trait_arguments: vec![],
+        },
+        arguments: vec![],
+        direction: SlotDirection::ProgramToProvider,
+    };
+    let inbound = BoundarySlot { direction: SlotDirection::EnvironmentToProgram, ..outbound.clone() };
+    let run = |slots: &[BoundarySlot]| type_stage_in_environment(&names, &TypingEnvironment { boundary_slots: slots, ..Default::default() });
+    let call = "Host::enter()";
+    let start = source.find(call).unwrap();
+    let end = start + call.len();
+    let site = Site { package: "app".into(), file: file.into(), span: omega_lexer::SourceSpan::new(start, end) };
+
+    // The outbound control must match the applied slot, not merely type as an ordinary call.
+    let stage = run(std::slice::from_ref(&outbound)).unwrap();
+    assert_eq!(stage.boundary_calls, [(site.clone(), outbound.clone())]);
+
+    let refused = |slots: &[BoundarySlot], message: &str| {
+        let error = run(slots).expect_err("the boundary call must be refused");
+        assert!(!error.waiting_for_static_value());
+        assert_eq!((&*error.package, &*error.file, error.span, &*error.message), ("app", file, site.span, message));
+        #[cfg(feature = "diagnostic-origins")]
+        diagnostic_origin::report_return(&error, "", Some(("app", file, start, end, message)));
+    };
+    refused(std::slice::from_ref(&inbound), "call exceeds the declared synchronous invocation ceiling");
+    refused(&[outbound, inbound], "competing directions for an applied boundary slot");
+}
+
+#[test]
 fn raw_stages_cannot_define_sealed_toolchain_operations() {
     let text = "machine read() {}";
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();

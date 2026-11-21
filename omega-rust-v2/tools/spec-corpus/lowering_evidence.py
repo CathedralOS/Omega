@@ -171,14 +171,15 @@ def obligation_rows(source):
 def scan(log):
     """Yield (target, test, line) for each L5 receipt, attributed like the runner's own parser."""
     target, current = "", None
-    for line in log.splitlines():
+    for physical_line in log.split("\n"):
+        line = physical_line.removesuffix("\r")
         if header := re.match(r"^\s*Running (.+?) \(", line):
             target, current = header[1].replace("\\", "/"), None
         elif line.lstrip().startswith("Doc-tests "):
             target, current = "doctests", None
         elif captured := re.match(r"^---- (.+?) stdout ----$", line):
             current = captured[1]
-        elif line in {"successes:", "failures:"} or line.startswith("test result: "):
+        elif line in {"successes:", "failures:"} or line.startswith("test result: ") or re.fullmatch(r"---- .+? stderr ----", line):
             current = None
         elif line.startswith("OMEGA_L5_"):
             yield target, current, line
@@ -195,7 +196,7 @@ def observe(log, errors):
             comparison = fields[2] if len(fields) == 3 else None
             needs_comparison = len(fields) >= 2 and fields[1].startswith("psi-output/")
             if (not assertion or (target, test) != (assertion.target, assertion.test)
-                    or needs_comparison and not re.match(r"assert(?:_eq|_ne)?!\s*\(", comparison or "")):
+                    or needs_comparison and not re.fullmatch(r"assert(?:_eq|_ne)?!\s*\(.*\S.*\)", comparison or "")):
                 errors.append(f"unregistered or misplaced L5 assertion receipt: {line} ({target}::{test})")
                 if len(fields) > 1 and fields[1] in ASSERTIONS:
                     invalid.add(fields[1])
@@ -494,7 +495,7 @@ def obligation_inputs(report, tests, errors, receipts=None):
                        "obligations": counts, "lowering": lowering, "status": aggregate or "absent",
                        "receipt": receipt["verdict"] if receipt else "absent", "standing": spec_standing(aggregate, receipt)})
     unreported = set()
-    for fixture in report.get("package_fixtures", ()):
+    for index, fixture in enumerate(report.get("package_fixtures", ())):
         target, test = test_key(fixture["target"], fixture["test"])
         status = tests.get((target, test))
         if status is None and (target, test) not in unreported:
@@ -502,7 +503,18 @@ def obligation_inputs(report, tests, errors, receipts=None):
             errors.append(f"package fixture {target}::{test} has no test result in this run")
         outcome = fixture["outcome"]
         lowering = "lowered" if outcome == "produced Psi" else "refused" if outcome.startswith("refused: ") else "unattributed"
+        exact = None
+        # A live instrumented run expects the versioned frame on every refusal. An
+        # archive read without that requirement can legitimately predate the frame.
+        if (lowering == 'refused' and report.get('lowering_origins', {}).get('origins_required_by_reader')
+                and 'obligation_sites' not in fixture.get('replay', {}) and fixture.get('origin_status') != 'malformed capture'):
+            errors.append(f'L5 {target}::{test}: fixture {index} missing prepared obligation sites')
+        if status == 'ok' and fixture.get('obligation_sites_observed'):
+            location = fixture['location']
+            exact = Counter(row['kind'] for row in fixture['replay']['obligation_sites']
+                            if all(row[k] == location[k] for k in ('package', 'file', 'byte_start', 'byte_end')))
         inputs.append({"source": "fixture", "site": f"{target}::{test} ({fixture['files']})", "target": target, "test": test,
+                       "fixture_index": index, "exact_sites": exact,
                        "obligations": dict(fixture["obligations"]), "lowering": lowering, "status": status or "absent",
                        "standing": standing(status)})
     return inputs
@@ -579,7 +591,30 @@ def classify_obligations(report, inputs, states, lock, errors):
             "lowered": lowered, "refused": refused, "unattributed": unattributed,
             "property_checks": credited.get(kind, []), "failed_property_checks": failed.get(kind, []),
         }
+        if state == OBLIGATION_STATES[4]:
+            result[kind]['refusal_sites'] = refusal_sites(kind, carrying)
     return result
+
+
+def refusal_sites(kind, carrying):
+    """Partition calls (any exact row) and occurrences (each row separately)."""
+    inputs = {key: 0 for key in ('exact', 'elsewhere', 'unknown')}
+    occurrences = inputs.copy()
+    witnesses = []
+    for row in carrying:
+        count = row['obligations'][kind]
+        exact = row.get('exact_sites')
+        if exact is None:  # Spec counts, legacy logs, or no validated capture.
+            state = 'unknown'
+            occurrences[state] += count
+        else:
+            state = 'exact' if exact[kind] else 'elsewhere'
+            occurrences['exact'] += exact[kind]
+            occurrences['elsewhere'] += count - exact[kind]
+        inputs[state] += 1
+        witnesses.append({'site': row['site'], 'fixture_index': row.get('fixture_index'), 'relation': state,
+                          'exact_occurrences': None if exact is None else exact[kind], 'occurrences': count})
+    return dict(inputs=inputs, occurrences=occurrences, witnesses=witnesses)
 
 
 def input_table(inputs):
@@ -710,6 +745,7 @@ def write_details(directory, data):
         checks += [f"{label} (failed)" for label in row["failed_property_checks"]]
         lines.append(f"| {kind} | {row['state']} | {row['lock_row'] or 'none'} | {row['inputs']['spec']} / {row['inputs']['fixture']} ({row['distinct_inputs']}) | "
                      f"{row['occurrences']} | {lowered} | {len(row['refused'])} | {len(row['unattributed'])} | {'; '.join(checks) or 'none'} |")
+    lines += refusal_site_table(data['obligations'])
     lines += ["", "## Earlier-layer rules checked by an L5 consumer", ""]
     for row in data["earlier_consumers"]:
         verdict = "credited" if row["credited"] else f"not credited (test {row['test']})"
@@ -762,6 +798,32 @@ def summary(report):
     return lines
 
 
+def refusal_site_table(kinds):
+    refused = [(kind, row) for kind, row in kinds.items() if row['state'] == OBLIGATION_STATES[4]]
+    if not refused:
+        return []
+    lines = ['', '### Where always-refused inputs stopped', '',
+             'Exact means the returned refusal has the same package, file and byte range as a prepared obligation. '
+             'An input counts as exact if any occurrence of the kind matches; other occurrences still count separately. '
+             'Elsewhere means a different site in the same input. Without validated site evidence the relation is unknown. '
+             'Co-location does not establish that the obligation caused the refusal. '
+             'In `evidence.json`, each fixture index identifies the helper call.', '',
+             '| Kind | Inputs: exact / elsewhere / unknown | Occurrences: exact / elsewhere / unknown |',
+             '| --- | --- | --- |']
+
+    def cell(counts, total):
+        if counts is None:  # Rendering archived evidence.json without the new measurement.
+            return f'0 / 0 / {total}'
+        return ' / '.join(str(counts[k]) for k in ('exact', 'elsewhere', 'unknown'))
+
+    for kind, row in refused:
+        sites = row.get('refusal_sites', {})
+        calls = cell(sites.get('inputs'), len(row['refused']))
+        occurrences = cell(sites.get('occurrences'), row['occurrences'])
+        lines.append(f'| {kind} | {calls} | {occurrences} |')
+    return lines
+
+
 def obligation_summary(data):
     kinds, table = data["obligations"], data["obligation_inputs"]
     names = {"spec": "Spec examples", "fixture": "Helper fixtures"}
@@ -787,6 +849,7 @@ def obligation_summary(data):
     lines += ["", f"Kinds by strongest observation ({len(kinds)} declared). Absence of an input is unmeasured, not a failure.", "",
               "| Observation | Kinds | Names |", "| --- | ---: | --- |"]
     lines += [f"| {state} | {len(by_state[state])} | {', '.join(by_state[state]) or 'none'} |" for state in OBLIGATION_STATES]
+    lines += refusal_site_table(kinds)
     checks = [(kind, label) for kind, row in kinds.items() for label in row["property_checks"]]
     failed = [(kind, label) for kind, row in kinds.items() for label in row["failed_property_checks"]]
     lines += ["", f"Registered Psi property checks credited for an obligation kind: {len(checks)}, covering {len({kind for kind, _ in checks})} of {len(kinds)} kinds. Each establishes only the property its claim states, on its own test input."]

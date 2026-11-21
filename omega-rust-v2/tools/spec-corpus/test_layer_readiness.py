@@ -7,12 +7,57 @@ import frontend_diagnostics
 import handoff_evidence
 import reviewed_comparisons
 
-from check_frontend_readiness import PRODUCT_CASES, context_results
-from check_layer_readiness import case_blocks_readiness, collect, compare_fragment_runs, failure_excerpt, incomplete_cohorts, readiness_exit
+from check_frontend_readiness import PRODUCT_CASES, STAGE_TARGETS, STAGE_TESTS, context_launch_error, context_results
+from check_layer_readiness import case_blocks_readiness, collect, compare_fragment_runs, contextual_examples, failure_excerpt, incomplete_cohorts, readiness_exit
 from test_l5_records import SAMPLE_LINES, contracts, libtest, sample, spec
 
 
 class LayerReportTests(unittest.TestCase):
+    def test_probe_start_failure_is_one_measurement_error_and_keeps_the_native_witnesses(self):
+        reason = "An Application Control policy has blocked this file. (os error 4551)"
+        diagnostic = "mbx[error]: failed to launch Cargo application: " + reason
+        for code, lines in [(0, [diagnostic]), (1, [reason]), (1, [diagnostic, "different final error"]),
+                            (1, [next(iter(PRODUCT_CASES)), diagnostic])]:
+            self.assertIsNone(context_launch_error(code, lines))
+
+        witnesses = [witness for group in STAGE_TESTS.values() for witness in group]
+        for outcome in ("ok", "absent", "ignored", "duplicate", "FAILED", "wrong stage", "wrong target"):
+            with self.subTest(outcome=outcome), TemporaryDirectory() as directory:
+                suites = {stage: {"tests": [], "exit": 0} for stage in STAGE_TARGETS}
+                for stage, name in witnesses:
+                    suites[stage]["tests"].append({"target": STAGE_TARGETS[stage], "test": name, "status": "ok"})
+                stage, _ = witnesses[0]
+                tests = suites[stage]["tests"]
+                if outcome == "absent":
+                    tests.pop(0)
+                elif outcome == "duplicate":
+                    tests.append(tests[0].copy())
+                elif outcome == "wrong stage":
+                    suites["L2"]["tests"].append(tests.pop(0))
+                elif outcome == "wrong target":
+                    tests[0]["target"] = "tests/another.rs"
+                else:
+                    tests[0]["status"] = outcome
+                report = {"suites": suites, "measurement_errors": [], "cases": {}}
+                def blocked(*args, stdout, **kwargs):
+                    stdout.write((diagnostic + "\n").encode())
+                    return type("Exit", (), {"returncode": 1})()
+                with patch("check_layer_readiness.subprocess.run", side_effect=blocked):
+                    contextual_examples(report, Path(directory), {})
+                self.assertEqual(report["context_command"]["launch_error"], reason)
+                self.assertEqual(report["measurement_errors"][-1], "published_readiness could not start: " + reason)
+                unavailable = outcome in ("absent", "ignored", "duplicate", "wrong stage", "wrong target")
+                self.assertEqual(len(report["measurement_errors"]), 2 if unavailable else 1)
+                case = report["cases"]["context/" + next(iter(STAGE_TESTS))]
+                self.assertEqual(case["status"], "test evidence unavailable" if unavailable else
+                                 "inspection failed" if outcome == "FAILED" else "contextual witnesses verified")
+                for label in PRODUCT_CASES:
+                    case = report["cases"]["context/" + label]
+                    self.assertEqual((case["stage"], case["status"]), ("runner", "probe did not start"))
+                    self.assertFalse(case_blocks_readiness(case))
+                    self.assertNotIn("toolchain_exports", case)
+                self.assertEqual(readiness_exit(report), 1)
+
     def test_a_refusal_cannot_verify_a_promised_psi_output(self):
         section = {"capabilities": ["The output retains its operand."], "asserted": ["bad-input"]}
         self.report["lowering_evidence"] = {"contract": [section], "assertions": {"bad-input": {"role": "refusal"}}}
@@ -111,7 +156,9 @@ class LayerReportTests(unittest.TestCase):
 
     def test_lowering_diagnostic_requires_its_own_successful_cli_test_and_stage_controls(self):
         name = "attributed_alias_refused_by_lowering"
-        line = f"OMEGA_FRONTEND\tL5\t{name}\tlower\tlowering\tcase.omg\t2\t21\t30\t33\tgood-twin-lowers,bad-input-prepares\tunsupported alias"
+        rendered = "case.omg:2:5: lowering: unsupported alias (bytes 9..12)"
+        line = (f"OMEGA_FRONTEND\tL5\t{name}\tlower\tlowering\tcase.omg\t2\t5\t9\t12\tgood-twin-lowers,bad-input-prepares\tunsupported alias"
+                f"\t{rendered}\tcase.omg\tu64%0D%0A    u64\t9\tu64")
         def probe(test, status):
             log = f"Running tests/frontend_diagnostics.rs (target/test)\ntest {test} ... {status}\n---- {test} stdout ----\n{line}"
             return list(frontend_diagnostics.witness_lines(self.report, log, True))
@@ -119,8 +166,17 @@ class LayerReportTests(unittest.TestCase):
         self.assertEqual(probe("other", "ok"), [])
         self.assertEqual(probe(name, "FAILED"), [])
         self.report["last_layer"] = "L5"
-        frontend_diagnostics.collect(self.report, line.replace("bad-input-prepares", "bad-input-fails"))
-        self.assertNotIn(name, self.report["frontend_diagnostics"]["cli"])
+        frontend_diagnostics.collect(self.report, line)
+        receipt = self.report["frontend_diagnostics"]["cli"][name]
+        self.assertEqual(receipt["rendered"], rendered)
+        self.assertEqual(receipt["occurrence_bytes_escaped"], "u64")
+        for fault in (line.replace("bad-input-prepares", "bad-input-fails"),
+                      line.replace(rendered, rendered.replace("lowering:", "typer:")),
+                      line.replace("    u64", "    u32"), line.replace("\t9\tu64", "\t0\tu64"),
+                      line.rsplit("\t", 5)[0]):
+            with self.subTest(fault=fault):
+                frontend_diagnostics.collect(self.report, fault)
+                self.assertNotIn(name, self.report["frontend_diagnostics"]["cli"])
         self.report["last_layer"] = "L4"
         self.assertNotIn(name, frontend_diagnostics.active_cases(self.report))
 
@@ -188,6 +244,7 @@ class LayerReportTests(unittest.TestCase):
             for twin, name in handoff_evidence.IDENTITY_TESTS.items())
         Path("target").mkdir(exist_ok=True)
         with TemporaryDirectory(dir="target") as temp:
+            handoff_evidence.collect_rules(self.report)
             handoff_evidence.finish(self.report, Path(temp))
         errors = self.report["measurement_errors"]
         mismatch = self.report["cases"]["handoff/constant identity/L3/OTHER"]

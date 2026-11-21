@@ -11,6 +11,8 @@ use crate::{BlockId, EdgeId, LoweringError, MachineBody, OperationResult, Place,
 
 use crate::{BlockTerminator, BranchBlock, CallArgument, SuccessorEdge};
 
+pub(super) mod value_patterns;
+
 #[derive(Clone, Copy)]
 pub(crate) struct BooleanArm {
     pattern: usize,
@@ -184,6 +186,7 @@ struct PendingArm {
     block: BlockId,
     expression: usize,
     terminal_call: bool,
+    bound_result: Option<value_patterns::PayloadRead>,
 }
 
 pub(crate) fn lower_tail_dispatch(
@@ -230,7 +233,11 @@ pub(crate) fn lower_tail_dispatch(
             );
             continue;
         }
-        let value = expressions.lower(arm.expression, &expressions.signature.result, body, flow)?;
+        let value = if let Some(read) = arm.bound_result {
+            OperationResult::Scalar(read.emit(body))
+        } else {
+            expressions.lower(arm.expression, &expressions.signature.result, body, flow)?
+        };
         emit_return_block(body, flow, Some(value), result_type, site_at(file, arm.expression))?;
     }
     Ok(())
@@ -263,10 +270,23 @@ fn enqueue_dispatch(
             _ => return Err(unsupported_node(file, dispatch, "expected a terminal Boolean dispatch")),
         }
     }
-    let targets = if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
-        targets
-    } else if has_guards(file, dispatch) {
+    let mut bound_results = std::collections::BTreeMap::new();
+    let tested = tested_dispatch(file, dispatch);
+    let targets = if let Some(TestedDispatch::Literal { subject }) = tested {
+        let captured = match value_patterns::plan(expressions, subject, body)? {
+            value_patterns::SubjectPlan::EvaluateInteger(carrier) => {
+                let OperationResult::Scalar(value) = expressions.lower(subject, carrier, body, flow)? else {
+                    return Err(unsupported_node(file, subject, "integer pattern needs a scalar subject"));
+                };
+                value_patterns::Subject::Integer(value, carrier)
+            }
+            value_patterns::SubjectPlan::Captured(subject) => subject,
+        };
+        value_patterns::lower(expressions, dispatch, captured, &expressions.signature.result, body, flow, &mut bound_results)?
+    } else if let Some(TestedDispatch::Guards) = tested {
         lower_guards(expressions, dispatch, body, flow)?
+    } else if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
+        targets
     } else {
         let (subject, arms) = boolean_dispatch(tree, dispatch)?;
         let condition = lower_condition(expressions, subject, body, flow)?;
@@ -282,19 +302,49 @@ fn enqueue_dispatch(
             block,
             expression,
             terminal_call,
+            bound_result: bound_results.remove(&expression),
         });
     }
     Ok(())
 }
 
+/// Both authored guards and literal patterns need a Boolean test carrier,
+/// even in a machine with no Boolean expression in its source.
 pub(crate) fn has_guards(
     file: &IndexedSource<'_>,
     node: usize,
 ) -> bool {
-    file.nodes[node]
-        .children
-        .first()
-        .is_some_and(|&first| file.nodes[first].kind == NodeKind::Arm)
+    tested_dispatch(file, node).is_some()
+}
+
+pub(super) enum TestedDispatch {
+    Guards,
+    Literal { subject: usize },
+}
+
+pub(super) fn tested_dispatch(file: &IndexedSource<'_>, node: usize) -> Option<TestedDispatch> {
+    let (&subject, arms) = file.nodes[node].children.split_first()?;
+    if file.nodes[subject].kind == NodeKind::Arm {
+        Some(TestedDispatch::Guards)
+    } else {
+        value_patterns::has_literal_test(file, arms).then_some(TestedDispatch::Literal { subject })
+    }
+}
+
+/// Classification only needs the shape; lowering also checks every wrapper for unhandled records.
+fn ungroup_pattern(
+    file: &IndexedSource<'_>,
+    mut pattern: usize,
+    mut check_group: impl FnMut(usize) -> Result<(), LoweringError>,
+) -> Result<usize, LoweringError> {
+    while file.nodes[pattern].kind == NodeKind::ParenPattern {
+        check_group(pattern)?;
+        let [inner] = file.nodes[pattern].children[..] else {
+            return Err(unsupported_node(file, pattern, "expected one grouped pattern"));
+        };
+        pattern = inner;
+    }
+    Ok(pattern)
 }
 
 pub(crate) fn lower_guards(
@@ -313,11 +363,7 @@ pub(crate) fn lower_guards(
         let [pattern, expression] = *file.nodes[arm].children.as_slice() else {
             return Err(unsupported_node(file, arm, "guard arm requires a condition and a result"));
         };
-        let mut guard = pattern;
-        while let (NodeKind::ParenPattern, [inner]) = (file.nodes[guard].kind, file.nodes[guard].children.as_slice()) {
-            check_container(tree, guard)?;
-            guard = *inner;
-        }
+        let guard = ungroup_pattern(file, pattern, |group| check_container(tree, group))?;
         guards.push(guard);
         targets.push((flow.reserve(), expression));
     }
@@ -474,28 +520,23 @@ pub(crate) fn boolean_dispatch(
 
 fn boolean_pattern(
     tree: &LoweringTree<'_>,
-    mut pattern: usize,
+    pattern: usize,
 ) -> Result<Option<bool>, LoweringError> {
     let resolved = tree.resolved();
     let file = resolved.file;
-    loop {
-        check_container(tree, pattern)?;
-        let node = &file.nodes[pattern];
-        match (node.kind, node.children.as_slice()) {
-            (NodeKind::ParenPattern, [inner]) => pattern = *inner,
-            (NodeKind::WildcardPattern, []) => return Ok(None),
-            (NodeKind::BindingPattern, []) => {
-                if let Some(Symbol::Builtin(name)) = resolved.symbol(pattern)
-                    && matches!(name.as_str(), "true" | "false")
-                {
-                    return Ok(Some(name == "true"));
-                }
-                break;
-            }
-            _ => break,
+    let pattern = ungroup_pattern(file, pattern, |group| check_container(tree, group))?;
+    check_container(tree, pattern)?;
+    let node = &file.nodes[pattern];
+    match (node.kind, node.children.as_slice()) {
+        (NodeKind::WildcardPattern, []) => Ok(None),
+        (NodeKind::BindingPattern, [])
+            if let Some(Symbol::Builtin(name)) = resolved.symbol(pattern)
+                && matches!(name.as_str(), "true" | "false") =>
+        {
+            Ok(Some(name == "true"))
         }
+        _ => Err(unsupported_node(file, pattern, "expected an exact Boolean pattern")),
     }
-    Err(unsupported_node(file, pattern, "expected an exact Boolean pattern"))
 }
 
 pub(super) fn successor(

@@ -1,6 +1,9 @@
 use super::tests::{ADMISSION, WORD, assert_refused, binds, frozen, prepare_pass, range_in, typed};
 use super::*;
 
+#[path = "../../../../tests/support/source_package.rs"]
+mod source_package;
+
 const SOURCE: &str = "
 let positive(n:u64):bool = n > 0u64;
 machine demand(n:u64)->u64 requires positive(n) ensures result > 0u64 {n}
@@ -183,7 +186,8 @@ fn checks_general_precondition_and_result_postcondition_separately() {
 #[test]
 fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     use crate::{
-        CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparedValueOrigin, SelectedLayout, TargetIdentity, TargetSemantics,
+        CheckedPreparationEvidence, ConstantMaterializationError, LayoutExtent, LayoutGeometry, PreparationProgress, PreparationRound, PreparationStep,
+        PreparedValueOrigin, SelectedLayout, TargetIdentity, TargetSemantics,
     };
     use omega_typer::LayoutQuery;
     use std::sync::Arc;
@@ -195,9 +199,32 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         machine via<const K:u64>(n:u64)->u64 {get::<K>(n)}
         const VALUE:u64=via::<1u64>(7u64);
     ";
-    let progress = omega_typer::TypingProgress::Complete(typed(source));
-    let omega_typer::TypingProgress::Complete(trees) = &progress else {
-        unreachable!()
+    let identity = TargetIdentity {
+        profile: "selected-target".into(),
+        semantics_version: 1,
+        realization: Arc::from(&b"probe-abi"[..]),
+    };
+    let layout = SelectedLayout {
+        target: identity.clone(),
+        subject: WORD,
+        schema: Arc::from(&b"probe-u64-schema"[..]),
+        plan: Arc::from(&b"probe-plan-one"[..]),
+        geometry: LayoutGeometry {
+            extent: LayoutExtent::Fixed(8),
+            alignment: Some(8),
+        },
+    };
+    let capsule = TargetSemantics::new(identity.clone(), [layout.clone()], []).unwrap();
+    let other_layout = SelectedLayout {
+        plan: Arc::from(&b"probe-plan-two"[..]),
+        ..layout.clone()
+    };
+    let other = TargetSemantics::new(identity, [other_layout], []).unwrap();
+    let package = source_package::source_package([("main.omg", source)]);
+    let round = PreparationRound::begin(&package, &[], Some(&capsule)).unwrap();
+    let progress = round.typing();
+    let omega_typer::TypingProgress::Complete(trees) = progress else {
+        panic!("expected a complete typing pass")
     };
     let selected = trees
         .calls
@@ -261,27 +288,6 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     assert_eq!(query.layout_query, Some(LayoutQuery::Size));
     assert_eq!(query.type_arguments, [WORD]);
 
-    let identity = TargetIdentity {
-        profile: "selected-target".into(),
-        semantics_version: 1,
-        realization: Arc::from(&b"probe-abi"[..]),
-    };
-    let layout = SelectedLayout {
-        target: identity.clone(),
-        subject: WORD,
-        schema: Arc::from(&b"probe-u64-schema"[..]),
-        plan: Arc::from(&b"probe-plan-one"[..]),
-        geometry: LayoutGeometry {
-            extent: LayoutExtent::Fixed(8),
-            alignment: Some(8),
-        },
-    };
-    let capsule = TargetSemantics::new(identity.clone(), [layout.clone()], []).unwrap();
-    let other_layout = SelectedLayout {
-        plan: Arc::from(&b"probe-plan-two"[..]),
-        ..layout
-    };
-    let other = TargetSemantics::new(identity, [other_layout], []).unwrap();
     let (size, observation) = capsule.observe_layout(LayoutQuery::Size, &WORD).unwrap();
     let operand = 7u64;
     assert!(operand <= size);
@@ -301,7 +307,7 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         result: None,
     };
     let prepare = |target, application: &Option<TypedCall>| {
-        prepare_pass(&progress, &[], Some(target), || {
+        prepare_pass(progress, &[], Some(target), || {
             CheckedPreparationEvidence::default().with_invocation_fact(proof(application.clone()))
         })
     };
@@ -309,21 +315,9 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     let range = range_in(source, "machine via<", "get::<K>(n)");
 
     // Healthy control: the receipt names this target, application and operand.
-    let prepared = prepare(&capsule, &Some(application.clone())).unwrap();
-    let PreparationAnswers::Frozen { constants, .. } = prepared.answers else {
-        panic!("constant was frozen")
-    };
-    let declaration = &trees.constants[0].declaration;
-    assert_eq!(constants[declaration], PreparedValue::Integer(operand.into()));
-    let inputs = prepared
-        .dependencies
-        .inputs(&PreparedValueOrigin::Constant(declaration.clone()))
+    let evaluated = round
+        .evaluate(CheckedPreparationEvidence::default().with_invocation_fact(proof(Some(application.clone()))))
         .unwrap();
-    spec_corpus::observe_handoff!(
-        "static-invocation-admission/producer",
-        assert_eq!(inputs.target_observations.as_slice(), std::slice::from_ref(&observation))
-    );
-    assert_eq!(prepared.target_observations.as_slice(), std::slice::from_ref(&observation));
 
     // Wrong target: the receipt's layout observation is not the selected plan.
     spec_corpus::observe_handoff!(
@@ -346,6 +340,36 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         PreparationReason::PreconditionNeedsProof,
         range,
         &format!("{ADMISSION}the selected precondition requires a checked proof for the supplied arguments\ncall chain: via -> get"),
+    );
+
+    let PreparationStep::Finished(PreparationProgress::Complete(prepared)) = round.advance(evaluated).unwrap() else {
+        panic!("expected the frozen package")
+    };
+    let [constant] = prepared.typed().constants.as_slice() else {
+        panic!("expected VALUE")
+    };
+    let declaration = &constant.declaration;
+    assert_eq!(declaration.path, "VALUE");
+    let inputs = prepared.dependencies().inputs(&PreparedValueOrigin::Constant(declaration.clone())).unwrap();
+    spec_corpus::observe_handoff!(
+        "static-invocation-admission/producer",
+        assert_eq!(inputs.target_observations.as_slice(), std::slice::from_ref(&observation))
+    );
+    assert_eq!(prepared.target_observations(), std::slice::from_ref(&observation));
+
+    // Same frozen package, target identity and geometry; only the plan that
+    // justified the premise has changed. Materialization must replay it.
+    let material = prepared.constant_for_materialization(declaration, &capsule).unwrap();
+    spec_corpus::observe_handoff!(
+        "invocation-proof/materialization",
+        assert_eq!((material.definition, material.value, material.layout), (constant, &PreparedValue::Integer(7u64.into()), &layout))
+    );
+    spec_corpus::observe_handoff!(
+        "invocation-proof/changed-materialization-plan",
+        assert_eq!(
+            prepared.constant_for_materialization(declaration, &other).unwrap_err(),
+            ConstantMaterializationError::ChangedTargetDependency(&observation)
+        )
     );
 }
 

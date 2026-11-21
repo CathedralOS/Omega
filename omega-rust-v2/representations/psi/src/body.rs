@@ -147,20 +147,15 @@ pub enum OperationKind {
         source: ProjectedPlace,
         access: crate::ReferenceAccess,
     },
-    /// Representation recast of a scalar reference descriptor: the result
-    /// views the same backing, with the same access, provenance and lifetime,
-    /// as `source`. Both referents are unqualified fixed-width integers of
-    /// exactly `width` semantic bits and differ only in signedness, so the
-    /// stored bits are reinterpreted as stored: the top bit is the sign under
-    /// a signed carrier and the `2^(width-1)` magnitude bit under an unsigned
-    /// one. This is not a value conversion, extension, truncation or owned
-    /// bit cast. The operation is the checker's recast-compatibility subject;
-    /// its formation establishes no compatibility, domain or handback fact.
+    /// Same-backing shared scalar view. This operation owns the obligation
+    /// to compare the selected layouts of its two referents and prove source
+    /// validity implies destination validity at this place. It supplies no
+    /// compatibility fact. The source and result descriptors retain their
+    /// respective referent types, with unchanged authority and lifetime.
     ScalarBitRecast {
         source: PlaceId,
-        width: u64,
-        source_signed: bool,
-        destination_signed: bool,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
     },
     /// Take the live value through an exclusive loan. The source path must be
     /// re-established before the loan can be released.

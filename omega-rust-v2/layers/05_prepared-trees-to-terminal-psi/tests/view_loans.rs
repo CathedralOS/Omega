@@ -8,6 +8,7 @@ use omega_lowering::{
 };
 
 const CELL: &str = "data Cell{v:u8;}";
+const UNPROVED_SELECTOR: &str = "cannot prove the store selector equal to or distinct from the selector of an open vacancy";
 
 /// The view-rooted element of one occurrence: its selector, bound obligation and length.
 fn element(
@@ -136,17 +137,19 @@ fn equal_literal_selectors_repair_the_extracted_element() {
 
 #[test]
 fn a_different_selector_never_repairs_the_extracted_element() {
-    // Distinct literals are provably disjoint; an unrelated value is not proved equal.
+    // None of these pairs is known either equal or disjoint.
     for (params, taken, written) in [
         (",i:u64,j:u64", "i", "j"),
         (",i:u64", "i", "0"),
         (",i:u64", "0", "i"),
     ] {
         let src = format!("{CELL} machine edit(p:@mut [Cell]{params}) {{let old=move p[{taken}]; p[{written}]=move old;}}");
-        let error = sources::lower(&[("view.omg", &src)]).unwrap_err();
-        assert_eq!(
-            error.message, "element restoration needs the identical selector value of the extracted element",
-            "{src}"
+        let destination = format!("p[{written}]");
+        sources::refuse(
+            &[("view.omg", &src)],
+            "view.omg",
+            sources::span_within(&src, &format!("{destination}=move old"), &destination),
+            UNPROVED_SELECTOR,
         );
     }
 }
@@ -210,11 +213,41 @@ fn swapping_between_same_typed_views_repairs_each_vacancy_on_its_own_root() {
 }
 
 #[test]
+fn reusing_a_computed_selector_repairs_the_window_with_separate_bounds_obligations() {
+    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let k=i+1; let old=move p[k]; p[k]=move old;}}");
+    let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
+    let body = &pkg.machines[0].body;
+    let Parameter::Structural(view) = body.parameters[0] else {
+        panic!("expected a view");
+    };
+    let mut sums = body.operations.iter().filter(|op| {
+        matches!(&op.kind, OperationKind::Integer { operation, .. } if operation.primitive == omega_lowering::IntegerPrimitive::Add)
+    });
+    let sum = sums.next().expect("the captured i+1").result;
+    assert!(sums.next().is_none(), "the selector must not be recomputed");
+    let [(taken, _)] = moves(body)[..] else {
+        panic!("expected only the opening move");
+    };
+    let [(written, _, disposition)] = stores(body)[..] else {
+        panic!("expected one repair");
+    };
+    let (taken, taken_length) = element(taken, view);
+    let (written, written_length) = element(written, view);
+    assert_eq!(OperationResult::Scalar(taken.selector), sum);
+    assert_eq!(written.selector, taken.selector);
+    assert_ne!(written.obligation, taken.obligation);
+    assert_ne!(written_length, taken_length);
+    assert_eq!(*disposition, StructuralStoreDisposition::FillVacancy);
+}
+
+#[test]
 fn recomputing_a_selector_does_not_establish_that_it_repairs_the_active_window() {
     let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let old=move p[i+1]; p[i+1]=move old;}}");
-    assert_eq!(
-        sources::lower(&[("view.omg", &src)]).unwrap_err().message,
-        "element restoration needs the identical selector value of the extracted element"
+    sources::refuse(
+        &[("view.omg", &src)],
+        "view.omg",
+        sources::span_within(&src, "p[i+1]=move old", "p[i+1]"),
+        UNPROVED_SELECTOR,
     );
 }
 

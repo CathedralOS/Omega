@@ -198,16 +198,16 @@ impl CallCandidate<'_, '_> {
 
 impl BodyTyper<'_, '_> {
     /// An unfinished overload may keep a call waiting but can never select a machine.
-    fn unfinished_call_may_match(
+    pub(super) fn unfinished_call_may_match(
         &self,
+        kind: NodeKind,
         declaration: &DeclarationId,
         signature: &PendingSignature,
-        formals: &[ValueType],
         operands: &[CallOperand],
         capture: impl Fn(&ValueType) -> ValueType,
     ) -> bool {
         let indices = &self.catalog.types.indices;
-        let mut bindings = vec![None; formals.len()];
+        let mut bindings = vec![None; self.catalog.types.arity(declaration)];
         signature.parameters.iter().zip(operands).enumerate().all(|(position, (parameter, operand))| {
             let carrier_operand;
             let (formal, operand) = match parameter {
@@ -221,10 +221,10 @@ impl BodyTyper<'_, '_> {
                 }
                 PendingParameter::Unknown => return true,
             };
-            let formal = capture(formal).substitute(declaration, formals);
+            let formal = capture(formal);
             // Earlier operand subjects become available with the full signature.
             formal.components().any(|ty| matches!(ty, ValueType::Subject { .. } | ValueType::BoundSubject(_)))
-                || self.infer_operand_with(NodeKind::Call, position, operand, &formal, declaration, &mut bindings, &mut |left, right| {
+                || self.infer_operand_with(kind, position, operand, &formal, declaration, &mut bindings, &mut |left, right| {
                     indices.can_wait_for_equality(left, right)
                 })
         })
@@ -356,7 +356,6 @@ impl BodyTyper<'_, '_> {
         let mut prepared = Vec::new();
         let mut unfinished = Vec::new();
         let mut argument_error = None;
-        let candidate_count = declarations.len() + requirements.len();
         for id in declarations.iter().chain(requirements) {
             let partial = self.catalog.pending_signatures.get(id);
             let signature = self.catalog.signatures.get(id);
@@ -506,8 +505,14 @@ impl BodyTyper<'_, '_> {
         }
         let mut matches = Vec::new();
         let mut waiting = unfinished.into_iter().any(|candidate| {
-            self.unfinished_call_may_match(candidate.declaration, candidate.signature, &candidate.bindings.arguments, &operands, capture)
+            self.unfinished_call_may_match(NodeKind::Call, candidate.declaration, candidate.signature, &operands, |ty| {
+                capture(ty).substitute(candidate.declaration, &candidate.bindings.arguments)
+            })
         });
+        // Retry inference without explicit arguments only for a unique eligible signature.
+        // An unfinished competitor that might match still forces a wait; a source
+        // error from reading the written arguments takes precedence over this diagnosis.
+        let diagnose_conflict = prepared.len() == 1 && !explicit.is_empty() && !waiting && argument_error.is_none();
         for candidate in prepared {
             let matched = candidate.match_operands(self, capture, &operands, &subjects);
             if let Some(destination) = pending_destination {
@@ -574,7 +579,7 @@ impl BodyTyper<'_, '_> {
                         matches.push((id, signature, bindings));
                     }
                 }
-            } else if candidate_count == 1 {
+            } else if diagnose_conflict {
                 let mut inferred = vec![None; formals.len()];
                 if signature
                     .parameters

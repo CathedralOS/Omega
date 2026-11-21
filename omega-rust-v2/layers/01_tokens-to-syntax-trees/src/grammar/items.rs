@@ -349,7 +349,7 @@ impl SyntaxParser<'_> {
 
             self.expect_word("a parameter name or `)`")?;
             self.expect(Punctuation::Colon, "`:`")?;
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
             self.close(param, NodeKind::Param);
 
             if !self.eat(Punctuation::Comma) {
@@ -368,7 +368,7 @@ impl SyntaxParser<'_> {
         let result = self.open();
 
         self.bump();
-        self.parse_type_in(TypePosition::Plain)?;
+        self.parse_type_in(TypePosition::Result)?;
         self.close(result, NodeKind::Result);
 
         Ok(())

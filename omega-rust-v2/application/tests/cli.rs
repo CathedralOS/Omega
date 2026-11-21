@@ -239,6 +239,46 @@ fn resolve_refuses_a_filename_that_cannot_identify_a_source_module() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("logical paths must be UTF-8"));
 }
 
+// Keep the original two-file CLI packages, including their control inputs. The
+// formation_handoff and predicate_call_handoff layer tests inspect the actual Psi.
+fn assert_packages_prepare_and_lower(
+    label: &str,
+    sources: [&str; 2],
+) {
+    let directory = application_directory()
+        .join("../target/frontend-diagnostic-cases")
+        .join(format!("{}-{label}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(directory.join("other.omg"), b"machine other() {}").unwrap();
+    for source in sources {
+        fs::write(directory.join("case.omg"), source).unwrap();
+        for action in ["prepare", "lower"] {
+            let output = invoke(&directory, &["source", action, "other.omg", "case.omg"]);
+            assert!(
+                output.status.success(),
+                "source {action} on {source}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.stdout.is_empty() && output.stderr.is_empty());
+        }
+    }
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn lowers_omitted_and_written_zero_initializers() {
+    let omitted = "data Options {count:u8; retries:u16;} machine build(){let options=Options{count:1,..};}";
+    let written = omitted.replace("count:1,..", "count:1,retries:0");
+    assert_packages_prepare_and_lower("zero-field", [omitted, &written]);
+}
+
+#[test]
+fn lowers_called_and_inline_domain_predicates() {
+    let inline = "machine predicate()->bool reaches none crashes none terminates {true}\r\ndomain i32::Guarded requires true && self > 0;";
+    let called = inline.replace("self > 0", "predicate()");
+    assert_packages_prepare_and_lower("domain-predicate", [&called, inline]);
+}
+
 #[test]
 fn lowers_prepared_array_extent_and_runtime_arithmetic() {
     let root = application_directory().join("../layers/05_prepared-trees-to-terminal-psi/tests/fixtures/array_extent");
