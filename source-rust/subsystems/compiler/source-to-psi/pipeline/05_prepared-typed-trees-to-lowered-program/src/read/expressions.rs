@@ -223,6 +223,9 @@ impl<'t> Program<'t> {
             return self.member(id, slots, member, source, Access::Read);
         }
         let expected = match node {
+            // A constant supplies its declared carrier through the ordinary
+            // value reader. Only a local slot needs its storage or borrow type.
+            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => false,
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 if slots[slot].borrowed.is_none() {
@@ -352,12 +355,9 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Name(path) => {
                 self.undeclared_data_member(id, path, source)?;
-                if let Some(constant) = path
-                    .resolved_symbol()
-                    .and_then(|symbol| self.typed.const_declaration_by_symbol(symbol))
-                    .filter(|constant| {
-                        constant.pending_target_observation && constant.evaluated_value.is_none()
-                    })
+                if let Some(constant) = self.typed.named_const_declaration(path)
+                    && constant.pending_target_observation
+                    && constant.evaluated_value.is_none()
                 {
                     let (application, scalar_type) = self.deferred_scalar_constant(id, constant)?;
                     return Ok(Expression {

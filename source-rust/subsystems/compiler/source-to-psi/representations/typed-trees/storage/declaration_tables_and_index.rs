@@ -2355,6 +2355,21 @@ pub(crate) mod declaration_tables {
                 .finalize_intrinsic(occurrence, binding, intrinsic)
         }
 
+        /// A qualified value name selects its constant at the leaf. Its head
+        /// can instead denote the module that owns that declaration.
+        pub fn named_const_declaration(
+            &self,
+            path: &crate::source_state::expression::TableNamePath,
+        ) -> Option<&crate::source_state::constant::ConstDeclaration> {
+            if path.static_application.is_valid() || path.reserved_result_of.is_valid()
+                || !self.symbols.symbols().nodes().is_valid(path.symbol)
+                || self.symbols.get(path.symbol).kind != symbols::SymbolKind::Const
+            {
+                return None;
+            }
+            self.const_declaration_by_symbol(path.symbol)
+        }
+
         pub fn const_declaration_by_symbol(
             &self,
             symbol: symbols::SymbolHandle,
