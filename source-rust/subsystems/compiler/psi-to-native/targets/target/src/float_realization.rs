@@ -123,7 +123,7 @@ impl TargetProfile {
             }
         } else if x86 && fused && directed {
             CanonicalFloatRealization::Unsupported {
-                constraint: "x86-64 has no directed-rounding fused multiply-add realization",
+                constraint: "the x86-64 scalar FMA provider admits nearest rounding only",
             }
         } else {
             CanonicalFloatRealization::CatalogIntrinsic {
