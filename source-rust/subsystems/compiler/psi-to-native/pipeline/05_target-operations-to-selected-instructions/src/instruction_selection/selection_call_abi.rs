@@ -268,8 +268,9 @@ pub(crate) mod borrowed_argument {
         let window = byte_view
             .map(|(offset, _)| offset)
             .or(element_view.map(|(offset, _, _)| offset));
-        let destination_shape = internal_borrow_shape(target.structural_type, source.geometry())?;
         let projected_loan = projected_loan_shape(source, semantic, target, indices);
+        let destination_shape = projected_loan
+            .or_else(|| internal_borrow_shape(target.structural_type, source.geometry()))?;
         let block_forward = semantic.path.is_empty()
             && terminal_semantics::borrowed_referent_presentation(
                 signature.structural_types.iter(),
@@ -517,13 +518,39 @@ pub(crate) mod borrowed_argument {
         target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<ValueShape> {
-        source.structural.as_ref()?;
+        let signature = source.structural.as_ref()?;
         let root = crate::instruction_selection::selection::arrival_parameter_input::parameter(
             source,
             semantic.place,
         )?;
         if !semantic.access.admits_referent(root.access) {
             return None;
+        }
+        let declaration =
+            terminal_psi::find_structural_type(source.geometry(), root.structural_type)?;
+        if let Some(pointer) = calling_conventions::terminal_layout::opaque_borrow_transport(
+            &declaration.shape,
+            semantic.access,
+        ) {
+            let incoming = signature
+                .parameters
+                .iter()
+                .find(|p| p.semantic.place == semantic.place)?;
+            let target_vocabulary::TargetStructuralArgumentSource::Placement(placement) =
+                &target.source
+            else {
+                return None;
+            };
+            return (semantic.path.is_empty()
+                && indices.is_empty()
+                && target.indices.is_empty()
+                && target.source_byte_offset == 0
+                && root == &incoming.semantic
+                && root.structural_type == target.root_structural_type
+                && root.structural_type == target.structural_type
+                && incoming.target.shape == pointer
+                && *placement == incoming.target.placement)
+                .then_some(pointer);
         }
         let (referent, offset, elements) = runtime_borrowed_projection(
             root.structural_type,
