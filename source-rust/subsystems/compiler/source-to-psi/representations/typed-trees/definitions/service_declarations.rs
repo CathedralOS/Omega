@@ -1174,8 +1174,12 @@ pub mod projection {
                     )
                     .collect(entry.symbol, entry.contracts, None)
                     .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
-                    service_reach: service_reach_names(program, None, requirement.service_reach_row)
-                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    service_reach: service_reach_names(
+                        program,
+                        None,
+                        requirement.service_reach_row,
+                    )
+                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     synchronous_invocations: machine_synchronous_invocations(program, requirement)
                         .ok_or_else(|| {
                             projection_failure(
@@ -1272,8 +1276,12 @@ pub mod projection {
                 normal_result_memberships: normal_memberships
                     .collect(signature.symbol, signature.contracts, Some(scope))
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
-                service_reach: service_reach_names(program, Some(scope), signature.service_reach_row)
-                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                service_reach: service_reach_names(
+                    program,
+                    Some(scope),
+                    signature.service_reach_row,
+                )
+                .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 synchronous_invocations: synchronous_invocations(program, scope, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
@@ -1658,8 +1666,11 @@ pub mod projection {
             .map(|target| match target {
                 InvocationTarget::Parameter(position) => ((position as usize) < parameter_count)
                     .then_some(ServiceSynchronousInvocation::Parameter(position)),
-                InvocationTarget::AppliedService(id) => program.service_effect_scope(id, receiver).ok()
-                    .and_then(|scope| service_surface_name(program, &scope)).map(ServiceSynchronousInvocation::Service),
+                InvocationTarget::AppliedService(id) => program
+                    .service_effect_scope(id, receiver)
+                    .ok()
+                    .and_then(|scope| service_surface_name(program, &scope))
+                    .map(ServiceSynchronousInvocation::Service),
                 InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
