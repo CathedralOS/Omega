@@ -6,7 +6,7 @@ use omega\language\core\FenceOrdering;
 data Cell requires value <= 100 { value: AtomicU32; }
 machine publish(cell: @Cell, value: u32) requires value <= 101 { cell.value.store(value, Publish); }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -36,7 +36,7 @@ requires progress.outer <= 1 && progress.inner <= 2
     machine finish() {}
     machine bad() crashes Trap { crash Trap; }
 }
-boundary trait Hosted { machine perform(counter: @mut u64, active: bool) reaches crashes Trap; }
+boundary trait Hosted { machine perform(counter: @mut u64, active: bool) reaches none crashes Trap; }
 HostedBody satisfies Hosted {
     machine perform(counter: @mut u64, active: bool) crashes Trap { let progress: Progress = match active { true -> Progress { outer: 1, inner: 2, canary: 641 }, false -> Progress { outer: 0, inner: 0, canary: 641 } }; count(counter, progress); }
 }

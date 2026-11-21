@@ -171,7 +171,7 @@ impl AcceptedDeployment<'_> {
         );
         let row = self.section.occurrences().iter().find(|row| {
             row.acceptance().package() == inputs.root() && row.context() == context
-        }).and_then(|row| row.compilation()).ok_or_else(|| {
+        }).map(|row| row.compilation()).ok_or_else(|| {
             format!("locked {} section has no accepted compilation for the requested package, purpose, target and Build host", self.section.target().target_name())
         })?;
         inputs

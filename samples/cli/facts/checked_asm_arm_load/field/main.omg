@@ -2,7 +2,7 @@
 // Expected exit: 0.
 data Cell { value: u32; }
 boundary trait SelectedMain {
-    machine run() reaches crashes Trap;
+    machine run() reaches none crashes Trap;
 }
 
 X86Main satisfies SelectedMain {

@@ -426,8 +426,8 @@ projection cannot fit a finite authored ceiling in that body. A bounded
 projection fits when its bound fits. Omitting the enclosing clause publishes the
 derived union; an authored ceiling contributes no services to that union.
 Closed callers substitute first: a Console-only `for_each<u32, Log>` application fits
-a caller's `reaches Console`, while the same application fails under bare
-`reaches`. The open requirement does not itself grant any service authority.
+a caller's `reaches Console`. A caller that declares `reaches none` rejects
+the same application. The open requirement does not itself grant any service authority.
 
 The compiler derives the dependency structure from the checked call graph. Each
 closed application substitutes the selected machines' published contracts into

@@ -146,7 +146,9 @@ pub(super) fn admit_product_policy(
         request.executed,
         &declaration_formations,
     )?;
-    crate::compile_product::declarations::require_supported_exclusions(
+    let exclusions = super::behavior_exclusions::admit(
+        typed,
+        activation,
         request.declared,
         request.executed,
         request.exclusions,
@@ -157,6 +159,6 @@ pub(super) fn admit_product_policy(
         native_bindings,
         grants,
         declarations,
-        exclusions: Vec::new(),
+        exclusions,
     })
 }

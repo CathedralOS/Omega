@@ -10,6 +10,8 @@ use terminal_check_tables::Checked;
 
 #[derive(Debug)]
 pub(super) struct ApplicationArguments<'source> {
+    /// Original source scope for callbacks nested in this application.
+    pub(super) lexical_owner: SymbolHandle,
     pub(super) types: Vec<ValueType>,
     pub(super) references: Option<Vec<crate::source_state::types::TypeReferenceHandle>>,
     pub(super) values: Vec<ScalarTerm>,
@@ -26,6 +28,7 @@ pub(super) struct ApplicationArguments<'source> {
 /// Source-only authentication is shared with static partition discovery,
 /// which runs before any checking machine or scalar input is allocated.
 pub(super) struct ApplicationBindings<'source> {
+    lexical_owner: SymbolHandle,
     pub(super) parameters: arena::RootRows<'source, crate::source_state::data::TypeParameter>,
     pub(super) inherited: bool,
     pub(super) bindings: arena::HandleKeyMap<
@@ -66,8 +69,7 @@ impl<'source> Program<'source> {
                 .static_machine_application(application);
             if typed
                 .machine_by_own_or_state_symbol(source.lexical_owner)
-                .map(|machine| machine.symbol)
-                != Some(caller)
+                .is_none_or(|machine| source.lexical_owner != caller && machine.symbol != caller)
                 || (source.registration_operation != target
                     && typed
                         .machine_by_own_or_state_symbol(source.registration_operation)
@@ -189,6 +191,7 @@ impl<'source> Program<'source> {
             return Err(unavailable("generic application lost a declared binder"));
         }
         Ok(ApplicationBindings {
+            lexical_owner: source.map_or(caller, |source| source.lexical_owner),
             parameters,
             inherited,
             bindings: retained,
@@ -197,20 +200,17 @@ impl<'source> Program<'source> {
 
     /// Authenticate the whole tuple once, then read each argument by its binder kind.
     /// Types select a checking instance; scalar consts become its explicit inputs.
-    /// Record consts retain their complete source-only schema account.
+    /// The checking frame supplies values; the lexical caller authenticates the source tuple.
     pub(super) fn application_arguments(
         &mut self,
         id: MachineId,
+        caller: SymbolHandle,
         target: SymbolHandle,
         application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         authored: &[crate::source_state::expression::StaticMachineArgument],
     ) -> Checked<ApplicationArguments<'source>> {
         let unavailable = |reason| super::services::unavailable(id, reason);
         let typed = self.typed;
-        let caller = *self
-            .symbols
-            .get(id)
-            .ok_or_else(|| unavailable("generic application has no source caller"))?;
         let prepared = self.application_bindings(id, caller, target, application, authored)?;
         let parameters = prepared.parameters;
         let inherited = prepared.inherited;
@@ -360,6 +360,7 @@ impl<'source> Program<'source> {
             }
         }
         Ok(ApplicationArguments {
+            lexical_owner: prepared.lexical_owner,
             types,
             references: (!inherited).then_some(references),
             values,

@@ -2,7 +2,7 @@
 // Place: another target body.
 // Invalid: the source binding is handed to the target body while a derived loan is live.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

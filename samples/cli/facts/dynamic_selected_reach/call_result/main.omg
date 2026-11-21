@@ -41,7 +41,7 @@ machine select() -> dyn Source { QuietSource as dyn Source }
 public machine observe(value: u64) -> u64
 requires value == 100u64
 ensures result >= 100u64
-reaches
+reaches none
 {
     let selected: dyn Source = select();
     Source::get(selected, value)

@@ -12,6 +12,6 @@ machine accept(value: u64) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-machine main() reaches crashes Trap {
+machine main() reaches none crashes Trap {
     accept(Mark::read());
 }

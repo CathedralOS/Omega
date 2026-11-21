@@ -6,7 +6,7 @@ machine bump(room: @mut Room) {
     room.exit_count = room.exit_count + 1;
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

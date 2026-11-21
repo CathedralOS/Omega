@@ -9,7 +9,7 @@ Provider<const Bound: i32> satisfies Reader<Bound> {
 }
 public boundary trait SelectedForward {
     machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
-    reaches
+    reaches none
     crashes Trap value < Zero;
 }
 WindowsForward satisfies SelectedForward {

@@ -2,7 +2,7 @@
 // Expected exit: 0
 
 boundary trait Choosing {
-    machine choose<Value, machine Callback>(value: @Value, number: u64) -> bool reaches
+    machine choose<Value, machine Callback>(value: @Value, number: u64) -> bool reaches none
     requires machine Callback(argument: @Value, count: u64) -> bool requires count <= 512;
     requires number <= 64 crashes none;
 }

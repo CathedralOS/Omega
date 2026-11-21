@@ -6,8 +6,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
-  - Bind `FilesystemHost` and direct foreign services to the exact operation and owner. [Native review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/host_cohorts.rs) still classifies non-Windows filesystem and Console operations from their method names. Check the selected operation itself and refuse insufficient or installation-dependent evidence.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
@@ -166,7 +164,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
-  - Retire bare `reaches` in the maintained parsers and migrate its sample and fixture uses to `reaches none`.
   - Add the [result-relation row](wiki/spec/language/effects.md#callback-result-relations): opaque relation per checked call, authored `F::ensures(args, r)` claims discharged from it, selected relation substituted at specialization; immutable arguments first.
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
@@ -276,7 +273,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Build-level behavior exclusions
 
-- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions). The [CLI test](source-rust/application/tests/build_prelude_operation_calls.rs) still expects an intermediate refusal. Require a clean selected body to run and a selected transitive `Trap` to reject for the exclusion.
+- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions).
   - Distinguish dormant bodies from selected callbacks, semantic service calls from physical effects and a stale replacement from the accepted installation. Check a saved publication independently before accepting its exclusions.
 
 ## Requirement-based tests

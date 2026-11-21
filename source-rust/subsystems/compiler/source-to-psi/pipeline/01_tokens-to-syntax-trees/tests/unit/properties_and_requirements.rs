@@ -872,6 +872,18 @@ fn rejects_duplicate_operational_clauses() {
 }
 
 #[test]
+fn rejects_bare_reaches_before_a_body_terminator_or_another_clause() {
+    for source in [
+        "machine quiet() reaches {}",
+        "trait Api { machine quiet() reaches; }",
+        "boundary trait Api { machine quiet() reaches crashes none; }",
+    ] {
+        let error = crate::tests::parse_tokenized_error(source, "a reach ceiling requires a row");
+        crate::tests::expect_error(&error, "write `reaches none`");
+    }
+}
+
+#[test]
 fn rejects_legacy_effects_reach_clause() {
     let source = "machine run() effects Console {}";
     let error = crate::tests::parse_tokenized_error(source, "legacy reach spelling must fail");

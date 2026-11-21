@@ -1,9 +1,5 @@
-// Package permissions name the checked service and the particular operation
-// the package may call. A TimeHost permission alone cannot establish what a
-// native import does. The target must recognize the selected clock operation.
-//
-// Filesystem close operations need a checked release contract before the
-// receiver can classify them.
+// A service permission binds the package's checked schema and requirement.
+// The receiver classifies the selected native operation separately.
 
 #[cfg(test)]
 #[path = "host_cohorts/tests.rs"]
@@ -12,7 +8,6 @@ mod tests;
 use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet,
-    TerminalAuthorityClass,
     TerminalAuthorityDisposition,
 };
 use terminal_authority_receipts::{NormalizedForeignArgumentContract, TerminalMechanismIdentity};
@@ -26,14 +21,6 @@ const LIBSYSTEM_INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnsettledFilesystemRequirement {
     UnknownRequirement,
-    SettledFacetCohort,
-    OrdinaryReleaseContract,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FilesystemCohortDisposition {
-    Facets(&'static [PortableFilesystemAuthorityFacet]),
-    OrdinaryReleaseContract,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,8 +28,7 @@ pub enum UnsettledTimeHostRequirement {
     UnknownRequirement,
 }
 
-pub(crate) fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDisposition> {
-    use FilesystemCohortDisposition::Facets;
+fn permitted_filesystem_facets(name: &str) -> Option<&'static [PortableFilesystemAuthorityFacet]> {
     use PortableFilesystemAuthorityFacet as Facet;
     const ALL: &[Facet] = &Facet::ALL;
     const CONTENT_READ: &[Facet] = &[Facet::ContentRead];
@@ -59,32 +45,30 @@ pub(crate) fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDi
     const CREATE_DIR: &[Facet] = &[Facet::NamespaceMutation, Facet::MetadataMutation];
     const EMPTY: &[Facet] = &[];
     Some(match name {
-        "create" => Facets(CREATE),
-        "open" | "open_create" | "open_at" | "open_path_handle" => Facets(ALL),
-        "read" | "read_at" => Facets(CONTENT_READ),
-        "write" | "write_at" | "set_len" => Facets(CONTENT_WRITE),
+        "create" => CREATE,
+        "open" | "open_create" | "open_at" | "open_path_handle" => ALL,
+        "read" | "read_at" => CONTENT_READ,
+        "write" | "write_at" | "set_len" => CONTENT_WRITE,
         "remove" | "remove_dir" | "unlink_at" | "rename" | "hard_link" | "symlink"
-        | "create_hard_link" | "remove_name" | "remove_dir_name" => Facets(NAMESPACE_MUTATION),
-        "create_dir" | "create_dir_name" => Facets(CREATE_DIR),
+        | "create_hard_link" | "remove_name" | "remove_dir_name" => NAMESPACE_MUTATION,
+        "create_dir" | "create_dir_name" => CREATE_DIR,
         "set_permissions"
         | "set_file_permissions"
         | "set_file_time"
         | "set_file_times"
         | "change_owner"
         | "change_owner_no_follow"
-        | "change_file_owner" => Facets(METADATA_MUTATION),
+        | "change_file_owner" => METADATA_MUTATION,
         "canonicalize"
         | "read_metadata"
         | "read_file_metadata"
         | "read_symlink_metadata"
         | "final_path_name_by_handle"
-        | "read_link" => Facets(METADATA_QUERY),
-        "read_dir" | "find_first" | "find_next" => Facets(DIRECTORY_ENUMERATION),
+        | "read_link" => METADATA_QUERY,
+        "read_dir" | "find_first" | "find_next" => DIRECTORY_ENUMERATION,
         "sync" | "sync_data" | "lock_file" | "lock_file_ex" | "unlock_file" | "seek"
-        | "get_osfhandle" | "duplicate" | "get_last_error" | "errno" => Facets(EMPTY),
-        "close" | "find_close" | "close_handle" => {
-            FilesystemCohortDisposition::OrdinaryReleaseContract
-        }
+        | "get_osfhandle" | "duplicate" | "get_last_error" | "errno" => EMPTY,
+        "close" | "find_close" | "close_handle" => EMPTY,
         _ => return None,
     })
 }
@@ -95,11 +79,8 @@ pub(crate) fn filesystem_host_permission_row(
     method: &ServiceMethod,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledFilesystemRequirement> {
-    let facets = match settled_filesystem_cohort(&method.name) {
-        Some(FilesystemCohortDisposition::Facets(facets)) => facets,
-        Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => &[],
-        None => return Err(UnsettledFilesystemRequirement::UnknownRequirement),
-    };
+    let facets = permitted_filesystem_facets(&method.name)
+        .ok_or(UnsettledFilesystemRequirement::UnknownRequirement)?;
     Ok(ServiceTerminalAuthorityPermission::for_filesystem_facets(
         service_schema,
         identities.intern(schema.identity_text(method.requirement_identity)),
@@ -118,20 +99,6 @@ pub fn filesystem_host_permission_rows(
         .iter()
         .map(|method| filesystem_host_permission_row(schema, digest, method, identities))
         .collect()
-}
-
-pub(crate) fn filesystem_mechanism_row(
-    mechanism: TerminalMechanismIdentity,
-    method: &ServiceMethod,
-) -> Option<TerminalAuthorityPolicyRow> {
-    let FilesystemCohortDisposition::Facets(facets) = settled_filesystem_cohort(&method.name)?
-    else {
-        return None;
-    };
-    Some(TerminalAuthorityPolicyRow::new(
-        mechanism,
-        TerminalAuthorityDisposition::from_filesystem_facets(facets.iter().copied()),
-    ))
 }
 
 fn settled_time_host_cohort(name: &str) -> bool {
@@ -173,26 +140,6 @@ pub fn time_host_permission_rows(
         .iter()
         .map(|method| time_host_permission_row(schema, digest, method, identities))
         .collect()
-}
-
-pub(crate) fn settled_console_cohort(name: &str) -> Option<TerminalAuthorityClass> {
-    match name {
-        "exit_process" => Some(TerminalAuthorityClass::ProcessTermination),
-        "write" | "write_byte" | "write_line" => Some(TerminalAuthorityClass::ProcessOutput),
-        "read_byte" | "read_line" => Some(TerminalAuthorityClass::ProcessInput),
-        _ => None,
-    }
-}
-
-pub(crate) fn console_mechanism_row(
-    mechanism: TerminalMechanismIdentity,
-    method: &ServiceMethod,
-) -> Option<TerminalAuthorityPolicyRow> {
-    let class = settled_console_cohort(&method.name)?;
-    Some(TerminalAuthorityPolicyRow::new(
-        mechanism,
-        TerminalAuthorityDisposition::from_classes([class]),
-    ))
 }
 
 fn reviewed_darwin_clock_symbol(

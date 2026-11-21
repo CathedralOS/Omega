@@ -3,7 +3,7 @@
 // disjoint, permitting simultaneous exclusive loans and writes a[0] = 11, b[1] = 41.
 // Both loans remain live through the writes and readback.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

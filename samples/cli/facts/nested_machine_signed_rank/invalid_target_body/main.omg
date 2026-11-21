@@ -7,7 +7,7 @@ requires value <= 7
 ensures (result as i64) == 5i64 - (value as i64)
 { (5i64 - (value as i64)) as i8 }
 measure Remaining::Complement(value: u64) -> i8 { rank(value) }
-boundary trait HostedIndexed { machine perform(counter: @mut u64, active: bool, second: bool) reaches crashes Trap; }
+boundary trait HostedIndexed { machine perform(counter: @mut u64, active: bool, second: bool) reaches none crashes Trap; }
 machine count(counter: @mut u64, remaining: @mut Remaining, slot: u64) crashes Trap
 terminates
 terminates by remaining.values[slot] -> Remaining::Complement in -128..=127

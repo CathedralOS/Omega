@@ -5,11 +5,8 @@ evidence records that bind compiler-encoded text, relocated text, function
 region inventories, and entry footprints into a replayable chain.
 */
 
-use crate::final_image::byte_report_fingerprint;
-
 image_digest!(CompilerEntryRegionBindingDigest);
 image_digest!(CompilerEntryFootprintBindingDigest);
-image_digest!(CompilerFunctionValidationDigest);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
@@ -53,10 +50,6 @@ pub struct EmittedImageOutput {
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub data_regions: crate::PlacedDataRegionInventory,
     pub import_data_regions: crate::PlacedDataRegionInventory,
-    // Legacy replay records. Fresh emission leaves both absent; explicit
-    // receiving checks authenticate supplied records against actual bytes.
-    pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
-    pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
     pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
 }
@@ -106,56 +99,6 @@ pub struct CompilerEntryFootprintBindingEvidence {
     pub resulting_inventory_report_fingerprint: u64,
     pub evidence_digest: CompilerEntryFootprintBindingDigest,
     pub evidence_report_fingerprint: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CompilerFunctionValidationEvidence {
-    pub function_count: usize,
-    pub instruction_count: usize,
-    pub zero_width_instruction_count: usize,
-    pub frame_prologue_byte_count: usize,
-    pub frame_epilogue_byte_count: usize,
-    pub fragment_manifest_report_fingerprint: u64,
-    pub frame_application_report_fingerprint: u64,
-    pub boundary_contract_report_fingerprint: Option<u64>,
-    pub final_region_binding_report_fingerprint: u64,
-    pub final_text_validation_report_fingerprint: u64,
-}
-
-impl CompilerFunctionValidationEvidence {
-    pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.compiler-function-validation.sha256.v2\0",
-        );
-        for value in [
-            self.function_count,
-            self.instruction_count,
-            self.zero_width_instruction_count,
-            self.frame_prologue_byte_count,
-            self.frame_epilogue_byte_count,
-        ] {
-            digest.u64(value as u64);
-        }
-        for value in [
-            self.fragment_manifest_report_fingerprint,
-            self.frame_application_report_fingerprint,
-            self.final_region_binding_report_fingerprint,
-            self.final_text_validation_report_fingerprint,
-        ] {
-            digest.raw(&value.to_le_bytes());
-        }
-        digest.byte(u8::from(
-            self.boundary_contract_report_fingerprint.is_some(),
-        ));
-        if let Some(boundary) = self.boundary_contract_report_fingerprint {
-            digest.raw(&boundary.to_le_bytes());
-        }
-        CompilerFunctionValidationDigest::from_digest(digest.finish())
-    }
-
-    pub fn evidence_report_fingerprint(self) -> u64 {
-        byte_report_fingerprint(self.evidence_digest().as_bytes())
-    }
 }
 
 image_digest!(EncodedCompilerTextDigest);
@@ -237,8 +180,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         executable_regions: output.executable_regions,
         data_regions: output.data_regions,
         import_data_regions: output.import_data_regions,
-        compiler_text_validation: None,
-        compiler_function_validation: None,
         compiler_entry_region_binding: None,
         compiler_entry_footprint_binding: None,
     }
@@ -247,9 +188,8 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
 #[cfg(test)]
 mod tests {
     use super::{
-        CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
-        CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence,
-        EncodedCompilerTextDigest, FinalCompilerTextDigest,
+        CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+        CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
     };
 
     fn text_evidence(encoded_digest: [u8; 32]) -> CompilerTextValidationEvidence {
@@ -269,21 +209,6 @@ mod tests {
         };
         evidence.derivation_digest = evidence.recomputed_derivation_digest();
         evidence
-    }
-
-    fn function_evidence() -> CompilerFunctionValidationEvidence {
-        CompilerFunctionValidationEvidence {
-            function_count: 1,
-            instruction_count: 5,
-            zero_width_instruction_count: 3,
-            frame_prologue_byte_count: 4,
-            frame_epilogue_byte_count: 8,
-            fragment_manifest_report_fingerprint: 6,
-            frame_application_report_fingerprint: 7,
-            boundary_contract_report_fingerprint: Some(11),
-            final_region_binding_report_fingerprint: 14,
-            final_text_validation_report_fingerprint: 15,
-        }
     }
 
     #[test]
@@ -310,80 +235,5 @@ mod tests {
         let mut evidence = text_evidence([1; 32]);
         evidence.final_compiler_text_digest = FinalCompilerTextDigest::from_digest([77; 32]);
         assert!(!evidence.has_valid_derivation_digest());
-    }
-
-    #[test]
-    fn function_validation_digest_binds_every_normalized_field() {
-        let evidence = function_evidence();
-        let expected = evidence.evidence_digest();
-
-        for drifted in [
-            {
-                let mut drifted = evidence;
-                drifted.function_count += 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.instruction_count += 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.zero_width_instruction_count += 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.frame_prologue_byte_count += 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.frame_epilogue_byte_count += 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.fragment_manifest_report_fingerprint ^= 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.frame_application_report_fingerprint ^= 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.boundary_contract_report_fingerprint = None;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.boundary_contract_report_fingerprint = Some(12);
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.final_region_binding_report_fingerprint ^= 1;
-                drifted
-            },
-            {
-                let mut drifted = evidence;
-                drifted.final_text_validation_report_fingerprint ^= 1;
-                drifted
-            },
-        ] {
-            assert_ne!(drifted.evidence_digest(), expected);
-        }
-    }
-
-    #[test]
-    fn function_validation_digest_distinguishes_absent_and_zero_boundary() {
-        let mut absent = function_evidence();
-        absent.boundary_contract_report_fingerprint = None;
-        let mut present = absent;
-        present.boundary_contract_report_fingerprint = Some(0);
-        assert_ne!(absent.evidence_digest(), present.evidence_digest());
     }
 }

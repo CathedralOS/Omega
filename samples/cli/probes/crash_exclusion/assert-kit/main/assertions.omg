@@ -1,5 +1,5 @@
 public boundary trait Assert {
-    machine check(ok: bool) reaches crashes Trap;
+    machine check(ok: bool) reaches none crashes Trap;
 }
 machine verify(ok: bool) -> bool
 crashes Trap

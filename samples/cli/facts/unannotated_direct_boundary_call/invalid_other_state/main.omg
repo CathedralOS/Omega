@@ -7,7 +7,7 @@ public boundary trait Mark {
 MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
-machine main() reaches crashes Trap {
+machine main() reaches none crashes Trap {
     let value: u64 = Mark::read();
     transition { _ -> check(value) }
     machine check(value: u64) {

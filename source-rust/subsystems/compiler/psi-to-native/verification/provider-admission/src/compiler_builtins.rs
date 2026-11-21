@@ -161,8 +161,8 @@ pub(super) fn settle_compiler_builtins<'request>(
             let physical =
                 crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            if super::terminal_authority_policy::reviewed_windows_import(physical)
-                != Some(disposition)
+            if super::terminal_authority_policy::reviewed_host_operation(physical)
+                .as_ref().map(|row| row.disposition()) != Some(&disposition)
             {
                 return Err(vec![Diagnostic::error(
                     "Windows process exit import and primitive require different authority",

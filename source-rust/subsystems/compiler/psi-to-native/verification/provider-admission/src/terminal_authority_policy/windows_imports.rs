@@ -201,16 +201,9 @@ mod tests {
     }
 
     #[test]
-    fn parent_dispatch_preserves_reviewed_windows_cohort_coverage() {
-        use provider_plans::ServiceMethod;
-
-        let method = ServiceMethod {
-            name: "read".to_owned(),
-            ..Default::default()
-        };
+    fn reviewed_host_operations_keep_the_windows_import_and_its_classes() {
         let read = imported(b"kernel32.dll", b"ReadFile", 1);
-        let row =
-            super::super::cohort_mechanism_row(read.into(), &Default::default(), &method).unwrap();
+        let row = super::super::reviewed_host_operation(read.into()).unwrap();
         assert_eq!(row.mechanism, read.into());
         assert!(
             row.disposition
@@ -220,21 +213,14 @@ mod tests {
         assert!(row.disposition.classes().contains(&Class::ProcessInput));
         assert!(row.disposition.classes().contains(&Class::ProcessOutput));
         assert!(
-            super::super::cohort_mechanism_row(
+            super::super::reviewed_host_operation(
                 imported(b"other.dll", b"ReadFile", 1).into(),
-                &Default::default(),
-                &method
             )
             .is_none()
         );
 
-        let method = ServiceMethod {
-            name: "open".to_owned(),
-            ..Default::default()
-        };
         let open = imported(b"ntdll.dll", b"NtOpenFile", 1);
-        let row =
-            super::super::cohort_mechanism_row(open.into(), &Default::default(), &method).unwrap();
+        let row = super::super::reviewed_host_operation(open.into()).unwrap();
         assert_eq!(row.mechanism, open.into());
         assert_eq!(
             row.disposition,
@@ -244,18 +230,12 @@ mod tests {
         // These actual std imports previously entered the Time and Console
         // cohorts after filesystem lookup. Preserve their physical meanings
         // while preventing those method names from classifying other exports.
-        for (name, export, classes) in [
-            ("sleep", b"Sleep".as_slice(), &[][..]),
-            ("exit_process", b"ExitProcess", &[Class::ProcessTermination]),
+        for (export, classes) in [
+            (b"Sleep".as_slice(), &[][..]),
+            (b"ExitProcess", &[Class::ProcessTermination]),
         ] {
-            let method = ServiceMethod {
-                name: name.to_owned(),
-                ..Default::default()
-            };
-            let row = super::super::cohort_mechanism_row(
+            let row = super::super::reviewed_host_operation(
                 imported(b"kernel32.dll", export, 1).into(),
-                &Default::default(),
-                &method,
             )
             .unwrap();
             assert_eq!(
@@ -263,10 +243,8 @@ mod tests {
                 TerminalAuthorityDisposition::from_classes(classes.iter().copied())
             );
             assert!(
-                super::super::cohort_mechanism_row(
+                super::super::reviewed_host_operation(
                     imported(b"other.dll", export, 1).into(),
-                    &Default::default(),
-                    &method,
                 )
                 .is_none()
             );
@@ -283,19 +261,10 @@ mod tests {
         }
         // No complete argument/handler contract is claimed for generic CRT
         // descriptors. Refusal must not be replaced by a filesystem-only row.
-        for (name, export) in [
-            ("read", b"_read".as_slice()),
-            ("write", b"_write".as_slice()),
-        ] {
-            let method = provider_plans::ServiceMethod {
-                name: name.to_owned(),
-                ..Default::default()
-            };
+        for export in [b"_read".as_slice(), b"_write"] {
             assert!(
-                super::super::cohort_mechanism_row(
+                super::super::reviewed_host_operation(
                     imported(b"msvcrt.dll", export, 1).into(),
-                    &Default::default(),
-                    &method,
                 )
                 .is_none()
             );

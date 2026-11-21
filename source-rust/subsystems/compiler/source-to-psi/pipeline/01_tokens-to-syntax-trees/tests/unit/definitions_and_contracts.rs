@@ -896,54 +896,23 @@ fn parses_machine_parameter_with_mandatory_contract() {
 }
 
 #[test]
-fn parses_nominal_machine_parameter_requirement() {
-    let source = r#"
-        machine register<machine Selected>()
-        requires machine Selected satisfies platform\WindowProcedure::call;
-        {
-            Selected()
-        }
-        "#;
-
-    let parsed = crate::tests::parse_source(source, "nominal machine contract should parse");
-    let machine = crate::tests::root_machine(&parsed, "generic machine");
-    let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
-        panic!("expected one machine parameter");
-    };
-    let syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(syntax_trees::item::MachineParameterContract::Nominal { requirement, .. }),
-    } = &parameter.kind
-    else {
-        panic!("Selected should retain its nominal requirement path");
-    };
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(*requirement)
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
-        ["platform", "WindowProcedure", "call"]
-    );
-    assert!(!machine.bodyless);
-}
-
-#[test]
-fn parses_bodyless_nominal_parameter_with_one_terminator_per_declaration() {
-    let source = r#"
-        boundary machine register<machine Selected>()
-        requires machine Selected satisfies WindowProcedure::call;;
-        "#;
-
+fn parses_nominal_callable_as_a_typed_static_parameter() {
+    let source = r"boundary machine register<const Selected: platform\WindowProcedure::call>();";
     let parsed = crate::tests::parse_source(source, "bodyless nominal binder should parse");
-    let machine = crate::tests::root_machine(&parsed, "bodyless generic machine");
+    let machine = crate::tests::root_machine(&parsed, "generic machine");
     assert!(machine.bodyless);
-    assert!(matches!(
-        parsed.items.type_parameters(machine.type_parameters)[0].kind,
-        syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(syntax_trees::item::MachineParameterContract::Nominal { .. })
-        }
-    ));
+    let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
+        panic!("expected one static parameter");
+    };
+    let syntax_trees::item::TypeParameterKind::Const { type_reference } = parameter.kind else {
+        panic!("Selected should retain its declared type");
+    };
+    let syntax_trees::types::TypeReferenceNode::Named(name) =
+        parsed.type_references.type_reference(type_reference)
+    else {
+        panic!("qualified nominal requirement path");
+    };
+    assert_eq!(name.as_str(&parsed), "platform::WindowProcedure::call");
 }
 
 #[test]
@@ -983,9 +952,8 @@ fn parses_target_scoped_bodyless_boundary_machine() {
 #[test]
 fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     let source = r#"
-        machine apply<machine Schema, machine Selected>()
+        machine apply<machine Schema, const Selected: WindowProcedure::call>()
         requires machine Schema(value: u64) -> u64;
-        requires machine Selected satisfies WindowProcedure::call;
         {
         }
         "#;
@@ -1001,9 +969,7 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     ));
     assert!(matches!(
         parameters[1].kind,
-        syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(syntax_trees::item::MachineParameterContract::Nominal { .. })
-        }
+        syntax_trees::item::TypeParameterKind::Const { .. }
     ));
 }
 
@@ -1013,8 +979,7 @@ fn retains_nominal_machine_parameter_trait_application() {
         trait Visitor<Context> {
             machine visit(context: @mut Context);
         }
-        machine walk<Context, machine Step>(context: @mut Context)
-        requires machine Step satisfies Visitor<Context>::visit;
+        machine walk<Context, const Step: Visitor<Context>::visit>(context: @mut Context)
         {
             Step(context);
         }
@@ -1033,55 +998,27 @@ fn retains_nominal_machine_parameter_trait_application() {
         .iter()
         .find(|parameter| parameter.name.as_str(&parsed) == "Step")
         .expect("machine parameter");
-    let syntax_trees::item::TypeParameterKind::Machine {
-        contract:
-            Some(syntax_trees::item::MachineParameterContract::Nominal {
-                requirement,
-                trait_arguments,
-            }),
-    } = &step.kind
-    else {
-        panic!("Step should retain its nominal requirement");
+    let syntax_trees::item::TypeParameterKind::Const { type_reference } = step.kind else {
+        panic!("Step should retain its declared type");
     };
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(*requirement)
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
-        vec!["Visitor", "visit"]
-    );
-    assert_eq!(trait_arguments.len(), 1);
+    let syntax_trees::types::TypeReferenceNode::StaticSelection(owner) =
+        parsed.type_references.type_reference(type_reference)
+    else {
+        panic!("applied nominal requirement");
+    };
+    let application = owner.application.as_ref().unwrap();
+    assert_eq!(owner.path[0].as_str(&parsed), "Visitor");
+    assert_eq!(application.arguments[0].path[0].as_str(&parsed), "Context");
+    let member = parsed.expressions.static_member(application.member).unwrap();
+    assert_eq!(member.path[0].as_str(&parsed), "visit");
 }
 
 #[test]
-fn rejects_malformed_nominal_machine_parameter_requirements() {
-    let cases = [
-        (
-            "requires machine Selected satisfies WindowProcedure;",
-            "must name an exact `Trait::requirement`",
-        ),
-        (
-            "requires machine Selected satisfies WindowProcedure::call as Choice;",
-            "do not accept `as Name`",
-        ),
-        (
-            "requires machine Selected satisfies WindowProcedure::call via Native;",
-            "cannot use `via`",
-        ),
-        (
-            "requires machine Selected satisfies WindowProcedure<u64>;",
-            "must be followed by `::requirement`",
-        ),
-    ];
-
-    for (contract, expected) in cases {
-        let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
-        let error =
-            crate::tests::parse_tokenized_error(&source, "malformed nominal binder must reject");
-        crate::tests::expect_error(&error, expected);
-    }
+fn rejects_detached_nominal_callable_contracts() {
+    let source =
+        "machine register<machine Selected>() requires machine Selected satisfies Hook::step; {}";
+    let error = crate::tests::parse_tokenized_error(source, "the nominal contract belongs on its binder");
+    crate::tests::expect_error(&error, "const Selected: Trait::requirement");
 }
 
 #[test]
@@ -1806,7 +1743,7 @@ fn boundary_requirement_must_write_its_crash_ceiling() {
 #[test]
 fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_realizers() {
     let source = r#"
-        public boundary trait Mark { machine read() -> u64 reaches crashes none; }
+        public boundary trait Mark { machine read() -> u64 reaches none crashes none; }
         MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
         machine main() { let value: u64 = Mark::read(); }
     "#;
@@ -1827,7 +1764,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
     assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
 
     let missing = source.replace(
-        "read() -> u64 reaches crashes none;",
+        "read() -> u64 reaches none crashes none;",
         "read() -> u64 crashes none;",
     );
     let tokens = Lexer::new(&missing).tokenize().expect("valid tokens");

@@ -2,7 +2,7 @@
 // Rejected: every body receives count == items.len, so `Index < items.len`
 // cannot be discharged at read_at.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

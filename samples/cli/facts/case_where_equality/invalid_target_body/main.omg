@@ -15,10 +15,10 @@ machine run_main(main: @mut Main) crashes Trap {
 }
 
 boundary trait PointWidth {
-    machine run(main: @mut Main) reaches crashes Trap;
+    machine run(main: @mut Main) reaches none crashes Trap;
 }
 SelectedPointWidth satisfies PointWidth {
-    machine run(main: @mut Main) reaches crashes Trap {
+    machine run(main: @mut Main) reaches none crashes Trap {
 
     transition main.interval {
         Interval::Point { lo, hi } -> take(lo, hi, main),
