@@ -11,6 +11,7 @@
 use checked_program_to_psi::production;
 use std::collections::VecDeque;
 use typed_trees::data_applications;
+use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::TypedTrees;
 use crate::source_state::constant_recipes::{
@@ -252,13 +253,14 @@ pub fn evaluate(
         std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
     >,
     accounting: &mut SourceCompletionAccounting,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<ValueInputs>, Vec<Diagnostic>> {
     let found = pending(program);
     if found.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let demanded = crate::compile_time_invocations::demanded_declarations(program, request).map_err(refuse)?;
+    let demanded =
+        crate::compile_time_invocations::demanded_declarations(program, request).map_err(refuse)?;
     let owners = crate::source_state::references::collect_program_operand_owners(program);
     let jobs = found
         .into_iter()
@@ -274,19 +276,36 @@ pub fn evaluate(
         })
         .collect::<Vec<_>>();
     if jobs.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     // A job waits for every job held by a declaration its expression
     // reaches: `Outer<outer()>` waits for the `Buffer<leaf()>` in `outer`.
     let mut rows =
         crate::source_state::references::collect_computation_symbol_dependencies(program);
     rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
+    let mut values = Vec::with_capacity(jobs.len());
     let mut successors = vec![Vec::new(); jobs.len()];
     let mut remaining = vec![0usize; jobs.len()];
     for (position, job) in jobs.iter().enumerate() {
         let mut named = Named::default();
         crate::source_state::references::visit_expression(program, &mut named, job.expression);
         let reached = reached(program, &rows, named.0);
+        let constants = reached
+            .iter()
+            .copied()
+            .filter(|&symbol| program.symbols.get(symbol).kind == symbols::SymbolKind::Const)
+            .collect();
+        values.push(ValueInputs::new(
+            program,
+            PreparedValue::StaticArgument {
+                owner: job.owner,
+                site: job.argument,
+                expression: job.expression,
+                carrier: job.carrier,
+            },
+            constants,
+            TargetInputs::None,
+        ));
         for (dependency, other) in jobs.iter().enumerate() {
             if reached
                 .binary_search_by_key(&key(other.owner), |symbol| key(*symbol))
@@ -308,26 +327,20 @@ pub fn evaluate(
         let result = (|| -> Result<(), String> {
             let mut probe = program.clone();
             let entry = entry(&mut probe, job)?;
-            let prepared = crate::compile_time_invocations::PreparedBuildMachineProgram::prepare_for(
-                &probe,
-                authority.clone(),
-                request.purpose,
-                source_consent.clone(),
-            )
-            .map_err(|errors| diagnostics::join_messages(&errors))?;
+            let prepared =
+                crate::compile_time_invocations::PreparedBuildMachineProgram::prepare_for(
+                    &probe,
+                    authority.clone(),
+                    request.purpose,
+                    source_consent.clone(),
+                )
+                .map_err(|errors| diagnostics::join_messages(&errors))?;
             let invocation = prepared.entry(job.owner, entry, &[])?;
+            let module = invocation.accepted().module();
+            use crate::compile_time_invocations::PreparedBuildMachineEntry;
             if job.application.is_none()
-                && invocation
-                    .accepted()
-                    .module()
-                    .interfaces.boundary_machines
-                    .iter()
-                    .any(|boundary| {
-                        boundary
-                            .declaration
-                            .as_ref()
-                            .is_some_and(|row| !row.execution.compiler_owned())
-                    })
+                && (PreparedBuildMachineEntry::uses_target_layout(module)
+                    || PreparedBuildMachineEntry::needs_selected_provider(module))
             {
                 let symbol = self::entry(program, job)?;
                 let contexts =
@@ -353,18 +366,18 @@ pub fn evaluate(
                         ..Default::default()
                     }],
                 );
+                values[position].targets = TargetInputs::Deferred;
                 return Ok(());
             }
-            let value = invocation
-                .invoke_recorded(
-                    InvocationTarget {
-                        name: None,
-                        layout_target: None,
-                        carrier_layout: None,
-                        address_model: None,
-                    },
-                    accounting,
-                )?;
+            let value = invocation.invoke_recorded(
+                InvocationTarget {
+                    name: None,
+                    layout_target: None,
+                    carrier_layout: None,
+                    address_model: None,
+                },
+                accounting,
+            )?;
             use application_identity::const_value::DecodedCanonicalConstValue;
             let spelling = match decoded(program, job.carrier, &value)? {
                 DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
@@ -407,7 +420,7 @@ pub fn evaluate(
             .with_source_span(program.expression_table.source_span(job.expression)),
         ]);
     }
-    Ok(())
+    Ok(values)
 }
 
 /// Drops the type-expression and array-extent rows of declarations that no

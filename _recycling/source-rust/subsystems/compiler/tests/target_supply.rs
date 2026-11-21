@@ -150,6 +150,7 @@ fn judged(
     let (prepared, _) = source_compiler::preparation::prepare_typed_trees(
         typed,
         &source_compiler::preparation::PreparationRequest::settled(),
+        &[],
     )
     .expect("prepare provider fixture");
     let roster = source_compiler::SourceCompilationRoster {

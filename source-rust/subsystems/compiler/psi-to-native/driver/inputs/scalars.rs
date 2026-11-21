@@ -24,6 +24,7 @@ pub(crate) fn complete(
         proposal.target_profile().target_name(),
         demand,
         proposal.target_provider_proposals(),
+        proposal.x86_scalar_fma(),
         receipts,
     )
     .map(Some)

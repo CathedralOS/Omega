@@ -718,8 +718,8 @@ machine entry() crashes none {
 }
 "#;
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[]).unwrap();
+    let entry = super::boundary_calls::entry(typed.trees());
     let prepare = || {
         crate::lowering::prepare_compilation(
             &typed,
@@ -1724,8 +1724,8 @@ fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
 {entry}"
     );
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&text), &[], &[]).unwrap();
+    let entry = super::boundary_calls::entry(typed.trees());
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         crate::lowering::Compilation {

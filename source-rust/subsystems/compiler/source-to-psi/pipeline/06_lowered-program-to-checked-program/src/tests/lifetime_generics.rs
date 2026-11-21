@@ -213,9 +213,10 @@ boundary trait Source {{
 machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::take(@holder, 1) }}"
         )),
         &[],
+        &[],
     )
     .unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -326,18 +327,19 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
             2,
             "the helper supplies both its type and callable arguments"
         );
-        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[])
             .expect("ordinary preparation must retain the selected helper");
-        let template = prepared
+        let trees = prepared.trees();
+        let template = trees
             .machines()
             .iter()
             .find(|machine| machine.symbol == template_symbol)
             .unwrap();
         assert!(!template.lifetime_parameters.is_empty());
-        let callback = prepared
+        let callback = trees
             .machine_type_parameters(template)
             .iter()
-            .find_map(|parameter| prepared.retained_static_machine_contract(parameter.symbol))
+            .find_map(|parameter| trees.retained_static_machine_contract(parameter.symbol))
             .expect("the callback keeps its actual declared contract");
         let crate::source_state::data::MachineParameterContractView::Structural(callback) =
             callback
@@ -347,6 +349,7 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
         assert!(callback.declares_no_crash_route);
         assert!(
             prepared
+                .trees()
                 .authored_service_reach_rows_for(callback.symbol)
                 .next()
                 .is_some(),
@@ -354,6 +357,7 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
         );
         assert_eq!(
             prepared
+                .trees()
                 .expression_table
                 .static_machine_application(application)
                 .arguments

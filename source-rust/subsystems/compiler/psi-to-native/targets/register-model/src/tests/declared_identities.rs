@@ -207,6 +207,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         bits_to_float64: None,
         ieee_float_arithmetic: None,
         ieee_float_directed_binary: None,
+        ieee_float_directed_ternary: None,
         ieee_float_directed_unary: None,
         ieee_float_unary: None,
         ieee_float_conversion_control: None,
@@ -280,13 +281,19 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         assert!(!policy_identities[..position].contains(identity));
     }
 
-    let directed_identities = [None, Some(instruction_key(785)), Some(instruction_key(792))]
-        .map(|directed| identity_with(&|row| row.ieee_float_directed_binary = directed));
-    for (position, identity) in directed_identities.iter().enumerate() {
-        assert!(
-            !directed_identities[..position].contains(identity),
-            "missing, nearest and directed custody must remain distinct"
-        );
+    let mut directed_identities = std::collections::HashSet::new();
+    let choices = [None, Some(instruction_key(785)), Some(instruction_key(792))];
+    for unary in choices {
+        for binary in choices {
+            for ternary in choices {
+                let identity = identity_with(&|row| {
+                    row.ieee_float_directed_unary = unary;
+                    row.ieee_float_directed_binary = binary;
+                    row.ieee_float_directed_ternary = ternary;
+                });
+                assert!(directed_identities.insert(identity));
+            }
+        }
     }
 
     for descriptor in [false, true] {

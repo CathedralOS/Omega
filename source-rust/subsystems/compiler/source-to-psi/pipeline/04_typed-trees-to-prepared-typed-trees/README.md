@@ -118,9 +118,12 @@ rebuilt: an assignment's receiving type and a local home for an assigned
 parameter. Structural elaboration types an assignment and homes a binding from
 its own slots.
 
-Stage 04 accepts typed trees and Build-selected wire compatibility demands through
-`prepare_typed_trees`. It returns `PreparedTypedTrees` after all passes finish.
-An outstanding wire demand refuses preparation until a pass can serve it.
+The prepared result owns the frozen source and the inputs used to settle its
+named constants, computed type arguments and array extents. Each computation
+retains the constants it names and the deployments that admitted its evaluation.
+A pending deployment stays explicit. Build reads its constant dependencies from
+this result after lowering. Source admission refuses unsupported wire demands
+before evaluation.
 
 The Product driver forms Build-selected operands against the authored typed
 declarations before specializing the program. Source calls and applied Product

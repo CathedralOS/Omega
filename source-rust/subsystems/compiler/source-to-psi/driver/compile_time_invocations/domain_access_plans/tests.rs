@@ -364,7 +364,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let mut accounting = SourceCompletionAccounting::default();
     super::evaluate(&mut typed, request, None, None, &mut accounting)
         .expect("evaluate the actual domain's selected policy with normal call accounting");
-    let source = preparation::prepare_typed_trees(typed.clone(), &[])
+    let source = preparation::prepare_typed_trees(typed.clone(), &[], &[])
         .expect("ordinary preparation keeps the exact caller description");
     let accepted = judge_lowered_source::judge_terminal_source(
         source,
@@ -628,7 +628,7 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
             "the original selected policy must be judged before checking its operations: {:?}",
             policy.plan,
         );
-        let prepared = preparation::prepare_typed_trees(typed, &[])
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[])
             .expect("retain the same selected declarations and checked borrows");
         let judged = judge_lowered_source::judge_terminal_source(
             prepared,

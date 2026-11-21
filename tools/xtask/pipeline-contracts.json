@@ -18262,9 +18262,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:AcceptedTerminalSource::implementation#1",
       "kind": "definition",
-      "meaning": "Methods for the AcceptedTerminalSource contract in 01 source compilation.",
+      "meaning": "Publish native bindings from the accepted source judgment, matching exact declarations or their authenticated checked applications.",
       "producer": "01 source compilation",
-      "signature": "4ed3185b60f9be4e1d64c85110a7e5cb4d0e7b1f61fd95b1db72203a59b2265d"
+      "signature": "e2b15f569ba66671b6edfc4687c7b465755258c0c0cc9c27b90b1f088ba224d3"
     },
     {
       "consumers": [
@@ -18274,9 +18274,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:AcceptedTerminalSource::method:reached_native_bindings#1",
       "kind": "producer",
-      "meaning": "Check the selected Build callable against its unique reached source requirement and pass the completed binding or its refusal to the receiver.",
+      "meaning": "Join the evaluated Build binding to each reached checked application of its exact method and declaring trait, retaining explicit-tuple matching, duplicate refusal and the original evaluation receipt.",
       "producer": "01 source compilation",
-      "signature": "1b66e1d14ac0b7a6aa530fc975025932244434fb665c29f53aa073afc3187cfa"
+      "signature": "111acd7445bbfdb6eceacbd1f92bdf61ab625e0c5c6ee8ada1e22af0e6c947bf"
     },
     {
       "consumers": [
@@ -18464,11 +18464,11 @@
         "source provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
-      "item": "use:super :: { ClosedLogicalProviderReach , explicit_build_requirements , }#1",
+      "item": "use:super :: { ClosedLogicalProviderReach , explicit_build_requirements }#1",
       "kind": "definition",
       "meaning": "Close logical reach and include the Build requirements for the selected target.",
       "producer": "source provider demand preparation",
-      "signature": "712af615efba38750fd873a49addd32181faa2acba8841c96501dd144580623d"
+      "signature": "ceac805be48d8824308b743a8a00c28b1029cc8cebfe5ade7d5beb4cd15f98e3"
     },
     {
       "consumers": [
@@ -18853,6 +18853,17 @@
     },
     {
       "consumers": [
+        "source target-provider preparation"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "TargetSupplyRequest::field:source#1",
+      "kind": "carried_record",
+      "meaning": "Borrow the same accepted typed source only while source compilation joins Build bindings to closed requirements; native publication receives the resulting canonical selections, not this typed program.",
+      "producer": "accepted source judgment",
+      "signature": "6bcd7c5d2fcc1237ea1b2a71d35f13e78b40a30ba2a61a18aab7c45e8dc59983"
+    },
+    {
+      "consumers": [
         "01 source provider fact issuance",
         "compiler source provider inspection"
       ],
@@ -19063,9 +19074,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "impl:PreparedTargetSupply::implementation#1",
       "kind": "definition",
-      "meaning": "Methods for the PreparedTargetSupply contract in 01 source compilation.",
+      "meaning": "Prepare source-owned target supply from the accepted typed source and its exact closed publication requirements.",
       "producer": "checked source publication",
-      "signature": "2b9bf986ea147c80721a919c5e2c78f793234c382421e11e307d0ae5512081d4"
+      "signature": "e47adb56c477b60c2aed97e0e65a8644ec5741e7a07dea2e0394056012c97456"
     },
     {
       "consumers": [
@@ -19099,9 +19110,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "impl:PreparedTargetSupply::method:prepare#1",
       "kind": "producer",
-      "meaning": "Collect declarations and target-scoped supply candidates for the prepared requirements.",
+      "meaning": "Choose target-scoped candidates with the existing precedence rules; match native bindings through the checked method/application query without granting source authority.",
       "producer": "checked source publication",
-      "signature": "f3496435e2b3eb5137d34327770ca84c560e4762a5f06d784b702502d11ca776"
+      "signature": "c5aba6e58a97ad39bbf684dbb76727b5d239d23b3193ad67303a3e44566d9dd0"
     },
     {
       "consumers": [
@@ -19375,9 +19386,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "struct:TargetSupplyRequest#1",
       "kind": "carried_record",
-      "meaning": "Inputs needed to inspect one source-level target supply, including exact roots and selections.",
+      "meaning": "Borrow the accepted typed source, published module, exact roots and selections while source compilation prepares one target supply.",
       "producer": "checked source publication",
-      "signature": "6a9673b5f1a81f5bbe993cc648fe0015891e2fa3f8ef0251fc1476a5f5f8153a"
+      "signature": "08d08aada8047b8dd54e44d3b7fe00ae163532c3b48d9a869e5e88fecbd1cb1a"
     },
     {
       "consumers": [
@@ -19504,9 +19515,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/package_review.rs",
       "item": "impl:AcceptedTerminalSource::implementation#1",
       "kind": "producer",
-      "meaning": "Binds the source package review inputs to the same declarations and selected provider bodies that the provider request closed.",
+      "meaning": "Bind package review inputs to the same checked declarations, provider bodies and exact native-binding applications as source provider selection.",
       "producer": "checked source publication",
-      "signature": "a7ed342151033efa69da3e25e2a079ebddd125d00692e22f320429dfa8bbae65"
+      "signature": "8f07f7404a8eece1c8eaa7104f8fd5129e8b0114012947cf96a2c4930cd6dcbe"
     },
     {
       "consumers": [
@@ -19516,9 +19527,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/package_review.rs",
       "item": "impl:AcceptedTerminalSource::method:source_package_review_requirements#1",
       "kind": "producer",
-      "meaning": "Captures source numeric demand and joins every Build supply for the target to its checked slot and requirement by exact index and generation. Unused native supplies remain reviewable.",
+      "meaning": "Retain numeric demand and join each target Build supply to its exact checked method or application, preserving canonical identities, duplicate refusal and unused-supply review.",
       "producer": "checked source publication",
-      "signature": "d74a1fc3d0214281ecb01082fc76661b586ef120875f036f7195e0fe810015b2"
+      "signature": "baa46aa6993e9b1e2069e1bf5c0975898da027ab7100288a39e52f431edfefc7"
     },
     {
       "consumers": [

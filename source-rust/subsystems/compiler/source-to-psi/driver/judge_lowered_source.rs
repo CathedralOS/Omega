@@ -10,26 +10,23 @@ use prepared_typed_trees_to_lowered_program::lowering::source_roster::SourceComp
 use prepared_typed_trees_to_lowered_program::lowering::{
     LoweredSourcePublication, PreparedTypedTrees,
 };
-use typed_trees::source_state::FrozenTypedTrees;
 use typed_trees_to_prepared_typed_trees as preparation;
 
 /// Typed source with its constant inputs materialized. An authored Build settles those
 /// inputs using its source consent and sponsorship. A nested call arrives with its
 /// arguments already materialized by the caller.
-pub(crate) struct SettledSource<'request> {
+pub(crate) struct SettledSource {
     pub(crate) program: crate::source_state::TypedTrees,
-    pub(crate) wire_demands: &'request [crate::WireCompatibilityDemand],
-    pub(crate) demanded_constants: Vec<symbols::SymbolHandle>,
+    pub(crate) values: Vec<preparation::ValueInputs>,
     pub(crate) selected_providers: Vec<symbols::SymbolHandle>,
     pub(crate) accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
-impl SettledSource<'_> {
+impl SettledSource {
     pub(crate) fn materialized_call(program: crate::source_state::TypedTrees) -> Self {
         Self {
             program,
-            wire_demands: &[],
-            demanded_constants: Vec::new(),
+            values: Vec::new(),
             selected_providers: Vec::new(),
             accounting: Default::default(),
         }
@@ -38,21 +35,11 @@ impl SettledSource<'_> {
     pub(crate) fn freeze(
         self,
     ) -> Result<FrozenSource, prepare_typed_source::SourcePreparationFailure> {
-        let result = (|| {
-            let program = preparation::prepare_with_selected_providers(
-                self.program,
-                self.wire_demands,
-                &self.selected_providers,
-            )
-            .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
-            let constants = constant_reads(&program, self.demanded_constants)
-                .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
-            Ok((program, constants))
-        })();
-        match result {
-            Ok((program, constants)) => Ok(FrozenSource {
+        match preparation::prepare_typed_trees(self.program, &self.values, &self.selected_providers)
+            .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))
+        {
+            Ok(program) => Ok(FrozenSource {
                 program,
-                constants,
                 accounting: self.accounting,
             }),
             Err(diagnostics) => Err(prepare_typed_source::SourcePreparationFailure {
@@ -71,13 +58,11 @@ impl SettledSource<'_> {
         let FrozenSource {
             program,
             accounting,
-            constants,
         } = self.freeze()?;
         match judge_terminal_source(program, compilation, publication) {
             Ok(accepted) => Ok(JudgedSource {
                 accepted,
                 accounting,
-                constants,
             }),
             Err(diagnostics) => Err(prepare_typed_source::SourcePreparationFailure {
                 diagnostics,
@@ -87,49 +72,14 @@ impl SettledSource<'_> {
     }
 }
 
-fn constant_reads(
-    program: &FrozenTypedTrees,
-    demanded_constants: Vec<symbols::SymbolHandle>,
-) -> Result<Vec<production::ConstantRead>, Vec<Diagnostic>> {
-    if demanded_constants.is_empty() {
-        return Ok(Vec::new());
-    }
-    let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-    let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();
-    declarations.sort_unstable_by_key(|declaration| key(declaration.symbol));
-    demanded_constants
-        .into_iter()
-        .map(|symbol| {
-            let index = declarations
-                .binary_search_by_key(&key(symbol), |declaration| key(declaration.symbol))
-                .map_err(|_| {
-                    vec![Diagnostic::error(
-                        "source preparation lost a demanded constant declaration",
-                    )]
-                })?;
-            let declaration = declarations[index];
-            Ok(production::ConstantRead {
-                name: program.symbols.name(symbol).to_owned(),
-                declaration: crate::source_symbols::retain_declaration(&program.symbols, symbol)
-                    .ok(),
-                value: declaration.evaluated_value.clone(),
-            })
-        })
-        .collect()
-}
-
 pub struct FrozenSource {
     pub program: PreparedTypedTrees,
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
-    /// Actual demand before named uses became literals. This is result
-    /// correspondence data, not declaration-selection or execution authority.
-    pub constants: Vec<production::ConstantRead>,
 }
 
 pub struct JudgedSource {
     pub accepted: production::AcceptedTerminalSource,
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
-    pub constants: Vec<production::ConstantRead>,
 }
 
 enum SourceRoots<'a> {
@@ -208,7 +158,7 @@ fn judge_authored_ieee(
         })
         .expect("the authored package entry")
         .symbol;
-    let prepared = preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
     judge_terminal_source(
         prepared,
         TerminalSourceCompilation {
@@ -249,9 +199,9 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
     judge("value", "other", "main")
         .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
     for (body, other) in [("2.0f32", "other"), ("value", "value")] {
-        let refused = judge(body, other, "main")
-            .err()
-            .expect("false wrapper guarantee");
+        let Err(refused) = judge(body, other, "main") else {
+            panic!("false wrapper guarantee");
+        };
         assert!(
             diagnostics::join_messages(&refused)
                 .contains("float meaning wrapper does not establish its result identity"),
@@ -259,9 +209,9 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
         );
     }
     // The same valid declaration cannot be chosen as an executable entry.
-    let runtime = judge("value", "other", "observe")
-        .err()
-        .expect("runtime proof result");
+    let Err(runtime) = judge("value", "other", "observe") else {
+        panic!("runtime proof result");
+    };
     assert!(
         diagnostics::join_messages(&runtime).contains("proof-only FloatMeaning has no runtime ABI"),
         "{runtime:?}"
@@ -285,9 +235,9 @@ fn a_float_meaning_equation_keeps_the_precision_of_its_materialized_format() {
     ";
     judge_authored_ieee(&source.replace("PRECISION", "BINARY64"), "main")
         .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
-    let wrong = judge_authored_ieee(&source.replace("PRECISION", "BINARY32"), "main")
-        .err()
-        .expect("a binary32 rounding contract for a binary64 operation");
+    let Err(wrong) = judge_authored_ieee(&source.replace("PRECISION", "BINARY32"), "main") else {
+        panic!("a binary32 rounding contract for a binary64 operation");
+    };
     assert!(
         diagnostics::join_messages(&wrong)
             .contains("float meaning equality mixes permanent formats"),

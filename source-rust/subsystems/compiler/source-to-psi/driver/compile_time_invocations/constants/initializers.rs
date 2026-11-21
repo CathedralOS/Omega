@@ -6,6 +6,7 @@
 
 use checked_program_to_psi::production;
 use std::collections::VecDeque;
+use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::TypedTrees;
 use crate::source_state::expression::ExpressionHandle;
@@ -17,27 +18,7 @@ use crate::compile_time_invocations::{
     demanded_declarations, invocation_error,
 };
 
-use super::{References, decoded, family_position, insert, key, named_uses};
-
-fn dependencies(program: &TypedTrees, entry: SymbolHandle) -> Vec<SymbolHandle> {
-    let mut references = References::default();
-    let mut pending = vec![entry];
-    let mut visited = Vec::new();
-    while let Some(callee) = pending.pop() {
-        let Some(machine) = program
-            .machine_by_symbol(callee)
-            .or_else(|| program.machine_holding_state(callee))
-        else {
-            continue;
-        };
-        if !insert(&mut visited, machine.symbol) {
-            continue;
-        }
-        crate::source_state::references::visit_machine(program, &mut references, machine);
-        pending.append(&mut references.calls);
-    }
-    references.symbols
-}
+use super::{References, decoded, family_position, key, named_uses};
 
 fn materialize_uses(
     program: &mut TypedTrees,
@@ -130,9 +111,49 @@ pub fn evaluate_with_source_consent(
         std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
     >,
     accounting: &mut SourceCompletionAccounting,
-) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+) -> Result<Vec<ValueInputs>, Vec<Diagnostic>> {
     let demanded =
         demanded_constants(program, request).map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut declarations = program
+        .const_declarations()
+        .iter()
+        .filter(|decl| family_position(&demanded, decl.symbol).is_some())
+        .collect::<Vec<_>>();
+    declarations.sort_unstable_by_key(|decl| key(decl.symbol));
+    let mut values = declarations
+        .into_iter()
+        .map(|declaration| {
+            let inputs = if program
+                .expression_table
+                .expression_is_valid(declaration.authored_initializer)
+                && !program
+                    .tables
+                    .machines
+                    .is_valid(declaration.evaluation_entry)
+            {
+                super::request_references(program, declaration.authored_initializer)
+                    .symbols
+                    .into_iter()
+                    .filter(|&symbol| {
+                        program.symbols.symbols().nodes().is_valid(symbol)
+                            && program.symbols.get(symbol).kind == symbols::SymbolKind::Const
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            ValueInputs::new(
+                program,
+                PreparedValue::Constant(declaration.symbol),
+                inputs,
+                if declaration.pending_target_observation {
+                    TargetInputs::Deferred
+                } else {
+                    TargetInputs::None
+                },
+            )
+        })
+        .collect::<Vec<_>>();
     let jobs = program
         .roots
         .const_declarations
@@ -156,7 +177,7 @@ pub fn evaluate_with_source_consent(
         })
         .collect::<Vec<_>>();
     if jobs.is_empty() {
-        return Ok(demanded);
+        return Ok(values);
     }
     let mut constants = program
         .const_declarations()
@@ -182,8 +203,17 @@ pub fn evaluate_with_source_consent(
     positions.sort_unstable_by_key(|(symbol, _)| key(*symbol));
     let mut successors = vec![Vec::new(); jobs.len()];
     let mut remaining = vec![0usize; jobs.len()];
-    for (position, (_, _, entry)) in jobs.iter().enumerate() {
-        for dependency in dependencies(program, *entry) {
+    for (position, (_, symbol, entry)) in jobs.iter().enumerate() {
+        let value = family_position(&demanded, *symbol).expect("constant job was demanded");
+        let references = References {
+            calls: vec![*entry],
+            ..Default::default()
+        }
+        .follow_calls(program);
+        for dependency in references.symbols {
+            if family_position(&constants, dependency).is_some() {
+                values[value].constants.push(dependency);
+            }
             if let Ok(index) =
                 positions.binary_search_by_key(&key(dependency), |(symbol, _)| key(*symbol))
             {
@@ -207,6 +237,7 @@ pub fn evaluate_with_source_consent(
     let mut completed = 0usize;
     while let Some(position) = ready.pop_front() {
         let (handle, symbol, entry) = jobs[position];
+        let value_index = family_position(&demanded, symbol).expect("constant job was demanded");
         let result = (|| -> Result<(), Vec<Diagnostic>> {
             let prepared = PreparedBuildMachineProgram::prepare_for(
                 program,
@@ -223,8 +254,8 @@ pub fn evaluate_with_source_consent(
             let applications = module.scalars.scalar_applications.declarations();
             // A scalar produced with target inputs belongs to that deployment.
             // Publish the initializer so each use closes it with its own facts.
-            let observes_target =
-                !module.layouts.target_layout_applications.is_empty() || !applications.is_empty();
+            use crate::compile_time_invocations::PreparedBuildMachineEntry;
+            let observes_target = PreparedBuildMachineEntry::uses_target_layout(module);
             let scalar_result = matches!(module.entry,
                 Some(terminal_psi::TargetMachineCallable::Machine(entry))
                     if module.machine(entry).is_some_and(|machine| machine.result.scalar().is_some()));
@@ -235,12 +266,7 @@ pub fn evaluate_with_source_consent(
                         terminal_psi::ScalarApplication::Evaluate { .. }
                     )
                 })
-                || module.interfaces.boundary_machines.iter().any(|boundary| {
-                    boundary
-                        .declaration
-                        .as_ref()
-                        .is_some_and(|row| !row.execution.compiler_owned())
-                })
+                || PreparedBuildMachineEntry::needs_selected_provider(module)
             {
                 // The checked initializer is the recipe until a deployment
                 // supplies its layout facts or selects its implementation.
@@ -249,17 +275,19 @@ pub fn evaluate_with_source_consent(
                     .const_declarations
                     .get_mut(handle)
                     .pending_target_observation = true;
+                values[value_index].targets = TargetInputs::Deferred;
                 return Ok(());
             }
-            let values = invocation
+            let (outcomes, target_inputs) = invocation
                 .invoke_recorded_in_targets(&targets, accounting)
                 .map_err(invocation_error)?;
+            values[value_index].targets = target_inputs;
             let carrier = program.tables.const_declarations.get(handle).declared_type;
             // A constant is one value for every deployment that reads it. Each
             // target's layout decides only where the bytes go, so the
             // semantic snapshot must be the same under every one of them.
             let mut folded = None;
-            for value in &values {
+            for value in &outcomes {
                 let value = decoded(program, carrier, value).map_err(invocation_error)?;
                 let encoding =
                     application_identity::const_value::CanonicalConstIdentity::from_declaration_value(
@@ -333,5 +361,5 @@ pub fn evaluate_with_source_consent(
             "constant evaluation dependency cycle",
         )]);
     }
-    Ok(demanded)
+    Ok(values)
 }

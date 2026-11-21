@@ -832,9 +832,9 @@ machine entry() -> u64 { first::<u32>(3u64) }
 "#;
     let prepare = |text: &str| {
         let typed =
-            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[])
                 .unwrap();
-        let entry = super::boundary_calls::entry(&typed);
+        let entry = super::boundary_calls::entry(typed.trees());
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -1049,9 +1049,9 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
     ));
     let judge = |source: &str| {
         let typed =
-            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[])
+            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[])
                 .unwrap();
-        let entry = super::build_purpose::symbol(&typed, "main");
+        let entry = super::build_purpose::symbol(typed.trees(), "main");
         let prepared = crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -1106,9 +1106,9 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
         "#
         );
         let typed =
-            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&source), &[])
+            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&source), &[], &[])
                 .unwrap();
-        let entry = super::boundary_calls::entry(&typed);
+        let entry = super::boundary_calls::entry(typed.trees());
         let prepared = crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -1333,9 +1333,9 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
     );
     let results = [source, negative.as_str()].map(|text| {
         let typed = super::boundary_calls::typed(text);
-        let typed = crate::preparation::prepare_typed_trees(typed, &[])
+        let typed = crate::preparation::prepare_typed_trees(typed, &[], &[])
             .expect("the closed application must retain its required contract");
-        let entry = super::boundary_calls::entry(&typed);
+        let entry = super::boundary_calls::entry(typed.trees());
         let compilation = crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -1399,9 +1399,9 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
     assert_ne!(source, negative, "the twin changes only the required type");
     let results = [source, negative.as_str()].map(|text| {
         let typed = super::boundary_calls::typed(text);
-        let typed = crate::preparation::prepare_typed_trees(typed, &[])
+        let typed = crate::preparation::prepare_typed_trees(typed, &[], &[])
             .expect("preparation retains the callback for contract checking");
-        let entry = super::boundary_calls::entry(&typed);
+        let entry = super::boundary_calls::entry(typed.trees());
         let compilation = crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -1468,9 +1468,9 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
 
 fn callback_form(text: &str) -> Checked<crate::lowering::Elaboration> {
     let source = super::boundary_calls::typed(text);
-    let source = crate::preparation::prepare_typed_trees(source, &[])
+    let source = crate::preparation::prepare_typed_trees(source, &[], &[])
         .expect("the real preparation stage retains the callback application");
-    crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+    crate::lowering::elaborate_generic(source.trees(), super::boundary_calls::entry(source.trees()))
 }
 
 const CALLBACK_REACH: &str = r#"
@@ -1752,8 +1752,11 @@ fn a_nested_generic_constructor_keeps_its_argument_contents() {
         }
     "#,
     );
-    let source = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
-    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
+    let source = crate::preparation::prepare_typed_trees(source, &[], &[]).unwrap();
+    let form = crate::lowering::elaborate_generic(
+        source.trees(),
+        super::boundary_calls::entry(source.trees()),
+    );
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
@@ -1773,8 +1776,11 @@ fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
         machine consume(item: Ticket) -> u64 { let { number } = move item; number }
     "#,
     );
-    let source = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
-    let form = crate::lowering::elaborate_closure(&source, super::boundary_calls::entry(&source));
+    let source = crate::preparation::prepare_typed_trees(source, &[], &[]).unwrap();
+    let form = crate::lowering::elaborate_closure(
+        source.trees(),
+        super::boundary_calls::entry(source.trees()),
+    );
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
@@ -1795,8 +1801,11 @@ fn a_known_empty_case_keeps_its_cleanup_membership() {
         machine consume(item: Ticket) -> u64 { let { number } = move item; number }
     "#,
     );
-    let source = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
-    let form = crate::lowering::elaborate_closure(&source, super::boundary_calls::entry(&source));
+    let source = crate::preparation::prepare_typed_trees(source, &[], &[]).unwrap();
+    let form = crate::lowering::elaborate_closure(
+        source.trees(),
+        super::boundary_calls::entry(source.trees()),
+    );
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
@@ -2144,8 +2153,8 @@ fn judge_prepared_source(
     source: &str,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
-    let entry = super::build_purpose::symbol(&typed, "main");
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
+    let entry = super::build_purpose::symbol(typed.trees(), "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         super::build_purpose::roster(
@@ -2192,7 +2201,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/fail/constructed_slice_callback/main.omg"
     ));
-    let errors = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(invalid), &[])
+    let errors = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(invalid), &[], &[])
         .expect_err("a callback cannot require mutable access to a shared input");
     assert!(errors.iter().any(|error| {
         error.message.contains("does not satisfy the callback binder of `apply::Read`")
@@ -2257,6 +2266,7 @@ fn a_selected_callback_keeps_its_exact_applied_record_result() {
     let rejected = match crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&invalid),
         &[],
+        &[],
     ) {
         Err(rejected) => rejected,
         Ok(_) => panic!("a different callback result type must be refused"),
@@ -2302,9 +2312,9 @@ machine entry() -> u32 {
     "#;
     let observed = [positive, negative.as_str(), unformed].map(|text| {
         let source = super::boundary_calls::typed(text);
-        let source = crate::preparation::prepare_typed_trees(source, &[])
+        let source = crate::preparation::prepare_typed_trees(source, &[], &[])
             .expect("the actual generic application must be prepared");
-        let entry = super::boundary_calls::entry(&source);
+        let entry = super::boundary_calls::entry(source.trees());
         let compilation = crate::lowering::prepare_compilation(
             &source,
             crate::lowering::Compilation {
@@ -2391,9 +2401,9 @@ machine main() crashes Trap {
     "#;
     let observed = [positive, negative.as_str(), unknown_domain].map(|text| {
         let source = super::boundary_calls::typed(text);
-        let source = crate::preparation::prepare_typed_trees(source, &[])
+        let source = crate::preparation::prepare_typed_trees(source, &[], &[])
             .expect("the qualified field must retain its applied source type");
-        super::entryless::judged_typed_result(&source, false)
+        super::entryless::judged_typed_result(source.trees(), false)
     });
     for (name, result) in [
         "qualified field",
@@ -2493,32 +2503,29 @@ machine entry(pair: Pair<u32>) -> u32 {
 }
 "#;
     let prepared =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
     fn read_prepared(prepared: &crate::preparation::PreparedTypedTrees) {
-        let entry = prepared
+        let trees = prepared.trees();
+        let entry = trees
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap();
-        let state = &prepared.machine_states(entry)[0];
-        let reference = prepared.state_parameters(state)[0].type_reference;
-        let record = prepared
-            .closed_data_definition(reference)
-            .expect("Pair<u32>");
+        let state = &trees.machine_states(entry)[0];
+        let reference = trees.state_parameters(state)[0].type_reference;
+        let record = trees.closed_data_definition(reference).expect("Pair<u32>");
         assert!(record.generic_instance.is_some());
-        let fields: Vec<_> = prepared
-            .data_member_fields(prepared.data_members(record))
+        let fields: Vec<_> = trees
+            .data_member_fields(trees.data_members(record))
             .collect();
         let marker = state
             .statement_nodes
             .handles()
-            .filter_map(|handle| prepared.statement_table.statement(handle).as_local_data())
+            .filter_map(|handle| trees.statement_table.statement(handle).as_local_data())
             .find(|local| local.role == language_core::LocalBindingRole::RecordPattern)
             .unwrap();
         assert_eq!(marker.pattern_subject, record.symbol);
-        let selected = prepared
-            .expression_table
-            .match_fields(marker.pattern_fields);
+        let selected = trees.expression_table.match_fields(marker.pattern_fields);
         assert_eq!(
             [selected[0].field_symbol, selected[1].field_symbol],
             [fields[1].symbol, fields[0].symbol]
@@ -2526,9 +2533,9 @@ machine entry(pair: Pair<u32>) -> u32 {
         assert_ne!(fields[0].symbol, fields[1].symbol);
     }
     read_prepared(&prepared);
-    let entry = super::boundary_calls::entry(&prepared);
+    let entry = super::boundary_calls::entry(prepared.trees());
     let lowered = crate::lowering::elaborate_for(
-        &prepared,
+        prepared.trees(),
         crate::lowering::Compilation {
             calling: None,
             providers: None,

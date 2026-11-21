@@ -219,12 +219,10 @@ pub fn direct_compiler_primitive_leaves(
                 (canonical, execution, None)
             }
             terminal_psi::CheckedBoundaryExecution::NumericPrimitive => {
-                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
-                    .map_err(fail)?;
                 let meaning = boundary
                     .numeric_intrinsic
                     .ok_or_else(|| fail("numeric primitive lost its semantic meaning"))?;
-                let entry = canonical_numeric_realization(module, boundary, target)?;
+                let entry = provider_admission::direct_numeric_target(module, boundary, target)?;
                 (
                     boundary,
                     native_intrinsics::CompilerIntrinsicExecutionIdentity::from(meaning),
@@ -295,32 +293,6 @@ pub fn direct_compiler_primitive_leaves(
 
 /// Target preparation and native publication consult the same canonical table.
 /// A declaration that no selected root reaches imposes no target obligation.
-pub(crate) fn canonical_numeric_realization(
-    module: &terminal_psi::TerminalModule,
-    boundary: &terminal_psi::BoundaryMachineDeclaration,
-    target: &str,
-) -> Result<target::CanonicalFloatRealization, Vec<Diagnostic>> {
-    let fail = |reason: &str| vec![Diagnostic::error(reason)];
-    if boundary.numeric_intrinsic.is_none() {
-        return Err(fail("numeric primitive lost its semantic meaning"));
-    }
-    let profile = target::TargetProfile::from_canonical_target_name(target)
-        .map_err(|_| fail("numeric primitive has no recognized target"))?;
-    let requirement = module
-        .identities
-        .text(boundary.identity)
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(|| fail("numeric primitive lost its exact declaration identity"))?;
-    let entry = profile
-        .canonical_float_realization(requirement)
-        .ok_or_else(|| fail("numeric primitive has no canonical target realization entry"))?;
-    if let target::CanonicalFloatRealization::Unsupported { constraint } = entry {
-        return Err(vec![Diagnostic::error(format!(
-            "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
-        ))]);
-    }
-    Ok(entry)
-}
 
 #[cfg(test)]
 mod tests {

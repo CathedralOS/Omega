@@ -11,9 +11,9 @@ fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
         }";
     for (field, accepted) in [("value", true), ("tag", false)] {
         let typed = super::boundary_calls::typed(&program.replace("FIELD", field));
-        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[])
             .expect("both fields denote accessible storage");
-        let result = super::entryless::judged_typed_result(&prepared, false)
+        let result = super::entryless::judged_typed_result(prepared.trees(), false)
             .expect("both observations lower");
         match result {
             RouteVerdict::Accepted(_) if accepted => {}
@@ -65,9 +65,9 @@ machine main() crashes Trap {
     );
     let observed = [positive, negative.as_str(), reversed.as_str()].map(|text| {
         let source = super::boundary_calls::typed(text);
-        let source = crate::preparation::prepare_typed_trees(source, &[])
+        let source = crate::preparation::prepare_typed_trees(source, &[], &[])
             .expect("the query keeps its actual type operand");
-        super::entryless::judged_typed_result(&source, false)
+        super::entryless::judged_typed_result(source.trees(), false)
     });
     for (name, result) in [
         "matching layout",
@@ -199,9 +199,9 @@ machine main() {
 }
 "#;
     let typed = super::boundary_calls::typed(text);
-    let prepared = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
     let Ok(RouteVerdict::Accepted(closure)) =
-        super::entryless::judged_typed_result(&prepared, false)
+        super::entryless::judged_typed_result(prepared.trees(), false)
     else {
         panic!("the portable call must preserve its deployment prerequisite");
     };
@@ -229,8 +229,8 @@ fn exact_arithmetic_keeps_the_selected_layout_as_a_target_prerequisite() {
     let source = "data Row { tag: u8; count: u64; }
         machine extent() -> u64 { size_of::<Row>() + align_of::<Row>() }";
     let typed = super::boundary_calls::typed(source);
-    let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let verdict = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
     let RouteVerdict::Accepted(closure) = verdict else {
         panic!("portable arithmetic should retain a range for the selected layout: {verdict:?}");
     };
@@ -254,8 +254,8 @@ fn record_geometry_carries_layout_values_through_copies_calls_and_arrivals() {
     let source =
         include_str!("../../../../../../../../samples/cli/probes/record_geometry/main.omg");
     let typed = super::boundary_calls::typed(source);
-    let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let result = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let result = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
     assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
 }
 
@@ -275,8 +275,8 @@ fn conditional_target_arithmetic_owes_the_range_on_its_own_branch() {
             }}"
         );
         let typed = super::boundary_calls::typed(&source);
-        let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-        let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+        let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let verdict = super::entryless::judged_typed_result(typed.trees(), false).unwrap();
         let RouteVerdict::Accepted(closure) = verdict else {
             panic!("expected a portable conditional arithmetic check: {verdict:?}");
         };

@@ -2219,7 +2219,7 @@ machine entry() -> u64 crashes none {
                     .map(|signature| signature.symbol),
             );
         }
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         crate::judge_fixture(
             frozen,
             crate::lowering::Compilation {
@@ -2368,15 +2368,23 @@ machine entry() -> u32 crashes none {{
                 .lexical_owner,
             author
         );
-        let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+        let program = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
         (program, application)
     }
 
     fn accept_formation_program(
         program: crate::lowering::PreparedTypedTrees,
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-        let entry = program.realized_machine_named("entry").unwrap().symbol;
-        let package = program.symbols.symbol_package_identity(entry).unwrap();
+        let entry = program
+            .trees()
+            .realized_machine_named("entry")
+            .unwrap()
+            .symbol;
+        let package = program
+            .trees()
+            .symbols
+            .symbol_package_identity(entry)
+            .unwrap();
         crate::judge_fixture(
             program,
             crate::lowering::Compilation {
@@ -2427,7 +2435,7 @@ machine entry() -> u32 crashes none {{
 
         // A written call still owes visibility before it reaches admission.
         let (program, _) = closed_requirement_formed_in_build(true);
-        let sources = program.symbols.source_map().unwrap();
+        let sources = program.trees().symbols.source_map().unwrap();
         let errors = accept_formation_program(program).err().unwrap();
         assert_eq!(errors.len(), 1, "{errors:?}");
         let refused = &errors[0];
@@ -2449,7 +2457,7 @@ machine entry() -> u32 crashes none {{
                 .expression_table
                 .static_machine_application_mut(application)
                 .lexical_owner = owner;
-            let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+            let prepared = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
             let refusal = accept_formation_program(prepared).err().unwrap();
             assert!(
                 format!("{refusal:?}")
