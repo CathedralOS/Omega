@@ -158,6 +158,30 @@ impl SourceStorage {
         &self.default_package_root
     }
 
+    /// A named Product checks every declaration owned by its subject, including
+    /// modules that no entry imports. Units already checked under Build authority
+    /// enter Product scope only through its normal entry and import requests.
+    pub(crate) fn product_subject_sources(&mut self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+        let root = &self.default_package_root;
+        let excluded = self
+            .package_roots
+            .iter()
+            .filter(|package| package.root != *root && package.root.starts_with(root))
+            .map(|package| package.root.clone())
+            .collect();
+        let build_units = self
+            .sources
+            .selected_files()
+            .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
+            .map(|file| file.path.as_path())
+            .collect::<std::collections::HashSet<_>>();
+        let mut paths = self
+            .package_roots
+            .select_owned(root, &[], &self.filesystem, excluded)?;
+        paths.retain(|path| !build_units.contains(path.as_path()));
+        Ok(paths)
+    }
+
     /// Ordinary Product units share declarations with their authored module's
     /// siblings. Build roots stay on their staged import continuation; compiler-
     /// issued contract roots share only their own logical module cohort.
