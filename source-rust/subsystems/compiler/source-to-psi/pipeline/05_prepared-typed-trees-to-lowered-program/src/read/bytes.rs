@@ -990,6 +990,14 @@ impl Program<'_> {
                 crate::lowering::body::Regions::NONE,
             ),
         };
+        let regions = if regions == crate::lowering::body::Regions::NONE {
+            // A projection can be the first use of a literal. Its immutable
+            // image backing satisfies the lifetime that projection infers.
+            let lifetime = self.fresh_region();
+            self.intern_regions(vec![lifetime])
+        } else {
+            regions
+        };
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::ByteLiteral(bytes.to_vec()),
