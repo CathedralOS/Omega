@@ -13,6 +13,13 @@ use target::TargetProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
 #[test]
+fn saved_psi_requests_do_not_store_the_parser_tables_inline() {
+    let parsed = size_of::<source_compiler::ParsedStageSources>();
+    assert!(size_of::<Program<'_>>() < parsed);
+    assert!(size_of::<CompileRequest<'_>>() < parsed);
+}
+
+#[test]
 fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() {
     let bytes = include_bytes!(
         "../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"

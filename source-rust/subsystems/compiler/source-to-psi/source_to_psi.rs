@@ -42,7 +42,8 @@ pub type PublishedPsi = Arc<terminal_codec::CanonicalTerminalArtifact>;
 /// Captured files include generated source from earlier stages.
 /// Bindings belong to this compilation's selected packages and source identities.
 pub struct StageSource<'a> {
-    pub parsed: ParsedStageSources,
+    /// Source requests own the parser tables. Boxing them keeps saved Psi requests small.
+    pub parsed: Box<ParsedStageSources>,
     pub product: ProductSourceInputs<'a>,
 }
 
