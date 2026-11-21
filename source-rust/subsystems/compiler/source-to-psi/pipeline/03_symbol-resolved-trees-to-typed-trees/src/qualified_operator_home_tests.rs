@@ -1019,7 +1019,7 @@ fn named_constants_select_operators_with_their_declared_type() {
         ),
         (
             "client.omg",
-            r"use units; use readings;
+            r"use units; use readings\SAMPLE;
               machine summed(value: u32 in Distance) -> u32 in Distance { SAMPLE + value }
               machine reversed(value: u32 in Distance) -> u32 in Distance { value + readings\SAMPLE }
               machine shadowed(SAMPLE: u32) -> u32 { SAMPLE + 4u32 }",
