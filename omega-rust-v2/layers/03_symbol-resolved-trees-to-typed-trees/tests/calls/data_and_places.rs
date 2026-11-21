@@ -49,6 +49,16 @@ fn long_field_chain_reports_the_first_invalid_receiver() {
 }
 
 #[test]
+fn a_local_named_mutable_acquires_write_access_only_with_the_marker() {
+    let editable = "machine f(){let mutable mutable:u8=1; _ = @mutable mutable;}";
+    check(&[("scope.omg", editable)]).unwrap();
+
+    let fixed = "machine f(){let mutable:u8=1; _ = @mutable mutable;}";
+    let error = check(&[("scope.omg", fixed)]).unwrap_err();
+    assert!(error.message.contains("writable authority"), "{error:?}");
+}
+
+#[test]
 fn typed_collections_records_and_mutability() {
     let code = "data Point { x: u8; } machine f(p:Point)->[u8;2] { let mutable q = Point {x:p.x}; q.x = 7; let r = @q; [q.x,r.x] }";
     check(&[("a.omg", code)]).unwrap();
