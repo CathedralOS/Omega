@@ -24,7 +24,7 @@ pub(crate) mod borrowed_calls {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
     use terminal_semantics::borrowed_referent_matches;
 
-    fn direct_referent(
+    pub(super) fn direct_referent(
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
@@ -1796,6 +1796,21 @@ pub(crate) mod calls {
                 live,
                 types,
             );
+        }
+        if argument.path.is_empty()
+            && declaration.access == argument.access
+            && let Some(source) = parameters_by_place.get(&argument.place)
+            && declaration.access.admits(source.access)
+            && source.structural_type == declaration.structural_type
+            && let Some(pointer) = types.get(source.structural_type).and_then(|ty| {
+                calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, argument.access)
+            })
+            && source.shape == pointer && destination.shape == pointer
+        {
+            return super::borrowed_calls::direct_referent(
+                argument, declaration, destination, source.structural_type,
+                source.placement.clone().into(), types,
+            ).ok_or(LoweringError::UnknownStructuralType(source.structural_type));
         }
         if live.structural_homes.contains_key(&argument.place) {
             return super::borrowed_calls::argument(

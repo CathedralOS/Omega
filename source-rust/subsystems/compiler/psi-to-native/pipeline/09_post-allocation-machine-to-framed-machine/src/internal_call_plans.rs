@@ -606,7 +606,7 @@ mod incoming_tests {
             incoming_location(
                 StructuralAccess::SharedBorrow,
                 &placement,
-                &terminal_psi::StructuralTypeShape::Unit
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             )
             .is_err()
         );
@@ -631,7 +631,7 @@ mod incoming_tests {
             incoming_location(
                 StructuralAccess::Owned,
                 &placement,
-                &terminal_psi::StructuralTypeShape::Unit
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             )
             .unwrap(),
             StructuralSourceLocation::IncomingIndirectPointer { register }
@@ -647,7 +647,7 @@ mod incoming_tests {
             incoming_location(
                 StructuralAccess::Owned,
                 &placement,
-                &terminal_psi::StructuralTypeShape::Unit
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             )
             .unwrap(),
             StructuralSourceLocation::IncomingIndirectStackPointer {
@@ -660,7 +660,7 @@ mod incoming_tests {
             incoming_location(
                 StructuralAccess::Owned,
                 &placement,
-                &terminal_psi::StructuralTypeShape::Unit
+                &terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             )
             .is_err()
         );
