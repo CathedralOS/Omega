@@ -664,3 +664,60 @@ machine build_entry(step: i32) requires step >= -100 && step <= 100 {
         "{signed_bad:?}"
     );
 }
+
+#[test]
+fn a_positive_gap_and_quotient_certify_an_interior_probe() {
+    let source = "machine probe(lower: u64, upper: u64, divisor: u64) -> u64
+        requires lower < upper && divisor > 1
+        ensures lower <= result && result < upper
+        { lower + (upper - lower) / divisor }
+        machine advance(lower: u64, upper: u64, step: u64) -> u64
+        requires lower < upper && step < upper - lower
+        ensures result <= upper
+        { let middle: u64 = lower + step; middle + 1 }
+        machine read(data: @[u64], lower: u64, upper: u64, step: u64) -> u64
+        requires lower < upper && upper <= data.len && step < upper - lower
+        { let middle: u64 = lower + step; data[middle] }";
+    let checked = match super::entryless::judged(source, false) {
+        RouteVerdict::Accepted(checked) => checked,
+        verdict => panic!("the probe must stay inside the open upper bound: {verdict:?}"),
+    };
+    let mut source = checked.elaboration.clone();
+    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut replay = crate::checking::prepare_replay(&mut source, &mut activity).unwrap();
+    let mut proofs = 0;
+    for (machine, discharge) in checked.discharge.machines.iter() {
+        for (id, verdict) in discharge.verdicts.iter() {
+            if let Ok(Discharged::Certificate(evidence)) = verdict {
+                crate::checking::reverify(
+                    &mut replay,
+                    machine,
+                    id,
+                    &evidence.certificate,
+                    &mut activity,
+                )
+                .unwrap();
+                proofs += 1;
+            }
+        }
+    }
+    assert!(proofs > 0);
+}
+
+#[test]
+fn a_unit_divisor_can_hit_the_exclusive_end_of_a_slice() {
+    let body = "machine read(data: @[u64], base: u64) -> u64
+        requires base < data.len
+        { let position: u64 = base + (data.len - base) / 1; data[position] }";
+    let RouteVerdict::Rejected { unproved, .. } = super::entryless::judged(body, false) else {
+        panic!("division by one lands at the end of the slice");
+    };
+    assert!(!unproved.is_empty());
+    assert!(
+        unproved.iter().all(|row| {
+            matches!(row.kind, ObligationKind::OperationSafety { .. })
+                && row.statement.contains("cannot prove operation safety")
+        }),
+        "{unproved:?}"
+    );
+}

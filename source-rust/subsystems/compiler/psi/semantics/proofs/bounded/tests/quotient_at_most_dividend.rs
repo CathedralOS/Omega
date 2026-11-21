@@ -298,6 +298,72 @@ fn an_acceptance_records_the_provisional_row_and_its_definition() {
 }
 
 #[test]
+fn strict_quotient_order_needs_both_strengthened_premises() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        let integer = carrier(sign);
+        let context = context(integer);
+        let axioms = [definition(integer)];
+        let numerator = value(DIVIDEND, integer);
+        let divisor = value(DIVISOR, integer);
+        let actual = Proposition::LessThan(value(RESULT, integer), numerator.clone());
+        let premises = [
+            positive(integer, DIVIDEND),
+            Proposition::LessThan(literal(integer, 1), divisor.clone()),
+        ];
+        let mut proof = related(
+            integer,
+            assumption(premises[0].clone(), 0),
+            assumption(premises[1].clone(), 1),
+        );
+        proof.conclusion = actual.clone();
+        let accepted = accept_certificate(&context, &actual, &premises, &axioms, &proof).unwrap();
+        assert!(
+            accepted
+                .rules
+                .contains(&AcceptedProofRule::IntegerQuotientAtMostDividend)
+        );
+        let (minimum, maximum) = range(sign);
+        for a in minimum..=maximum {
+            for d in minimum..=maximum {
+                let holds = |left, right| {
+                    decide_primitive(
+                        &context,
+                        &Proposition::LessThan(literal(integer, left), literal(integer, right)),
+                        PrimitiveJudgment::ClosedIntegerRelation,
+                    )
+                    .is_ok()
+                };
+                if holds(0, a) && holds(1, d) {
+                    assert!(holds(a / d, a), "{sign:?}: {a} / {d}");
+                }
+            }
+        }
+        let wrong_divisor = Proposition::Equal(
+            value(RESULT, integer),
+            ScalarTerm::exact_integer_divide(integer, numerator.clone(), value(OTHER, integer))
+                .unwrap(),
+        );
+        assert!(check_certificate(&context, &actual, &premises, &[wrong_divisor], &proof).is_err());
+        for other in [
+            [at_least(integer, 0), premises[1].clone()],
+            [premises[0].clone(), positive(integer, DIVISOR)],
+            [
+                premises[0].clone(),
+                Proposition::LessThan(literal(integer, 1), value(OTHER, integer)),
+            ],
+        ] {
+            let mut forged = related(
+                integer,
+                assumption(other[0].clone(), 0),
+                assumption(other[1].clone(), 1),
+            );
+            forged.conclusion = actual.clone();
+            assert!(check_certificate(&context, &actual, &other, &axioms, &forged).is_err());
+        }
+    }
+}
+
+#[test]
 fn a_missing_weaker_or_misdirected_premise_is_refused() {
     let integer = carrier(IntegerSign::Signed);
     let context = context(integer);

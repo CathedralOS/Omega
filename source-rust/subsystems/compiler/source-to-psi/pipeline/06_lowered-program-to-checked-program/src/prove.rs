@@ -2487,7 +2487,10 @@ impl<'a> Prover<'a> {
         } else {
             Proposition::LessOrEqual(left.clone(), right.clone())
         };
-        if let Some(proof) = self.sum_order(&carrier_order) {
+        if let Some(proof) = self
+            .positive_difference(&carrier_order)
+            .or_else(|| self.sum_order(&carrier_order))
+        {
             return Ok(proof);
         }
         let left_side = self.comparison_side(left, Direction::Upper)?;
@@ -2549,11 +2552,26 @@ impl<'a> Prover<'a> {
             .iter()
             .map(|&index| self.equations[index])
             .collect();
+        // A previously computed addend is a usable order endpoint. Keep it
+        // intact before trying the full denotation (needed for aliases).
+        let immediate: Vec<_> = selected.iter().copied().filter(|&index| {
+            matches!(&self.facts[index].proposition, Proposition::Equal(result, operand)
+                if result == left || matches!(operand, ScalarTerm::Integer { .. } | ScalarTerm::Value { .. }))
+        }).collect();
+        if immediate.len() != selected.len()
+            && let Some(proof) = self.successor_via(&goal, &immediate)
+        {
+            return Some(proof);
+        }
+        self.successor_via(&goal, &selected)
+    }
+
+    fn successor_via(&mut self, goal: &Proposition, selected: &[usize]) -> Option<ProofNode> {
         // The goal with its values unfolded, such as `a +exact 1 <= b`, and
         // that order read over the mathematical integers.
         let unfolded = check_value_equality_denotation(
             self.context,
-            &goal,
+            goal,
             selected.iter().map(|&index| &self.facts[index].proposition),
         )
         .ok()?;
@@ -2614,7 +2632,7 @@ impl<'a> Prover<'a> {
             .map(|&index| self.facts[index].proof(&self.facts))
             .collect();
         Some(node(
-            goal,
+            goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(carrier),
                 equalities,
@@ -2754,7 +2772,7 @@ impl<'a> Prover<'a> {
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
         let mut visited = self.bounds.map(|_, _| [false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
-            self.steps(from, to).into_iter().collect();
+            self.steps(from, to, strict).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
             if let ScalarTerm::Value { id, .. } = &at {
                 let seen = visited.get_mut(*id)?;
@@ -2783,7 +2801,7 @@ impl<'a> Prover<'a> {
                 }
                 continue;
             }
-            for (next, step, step_strict) in self.steps(&at, to) {
+            for (next, step, step_strict) in self.steps(&at, to, strict && !at_strict) {
                 if let Ok(chained) = chain(proof.clone(), step) {
                     queue.push_back((next, chained, at_strict || step_strict));
                 }
@@ -2793,7 +2811,12 @@ impl<'a> Prover<'a> {
     }
 
     /// The order steps leaving `at`: `(next, proof of at R next, strict)`.
-    fn steps(&mut self, at: &ScalarTerm, to: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode, bool)> {
+    fn steps(
+        &mut self,
+        at: &ScalarTerm,
+        to: &ScalarTerm,
+        strict: bool,
+    ) -> Vec<(ScalarTerm, ProofNode, bool)> {
         let mut steps = Vec::new();
         let ScalarTerm::Value { id, .. } = at else {
             return steps;
@@ -2898,15 +2921,24 @@ impl<'a> Prover<'a> {
                         steps.push((left.as_ref().clone(), chained, false));
                     }
                 }
+                Proposition::Equal(output, sum @ ScalarTerm::ExactIntegerAdd { .. })
+                    if output == at =>
+                {
+                    steps.extend(self.interior_sum_edges(output, sum));
+                }
                 // `a / d <= a` when `0 <= a` and `0 < d`.
                 Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerDivide { .. })
                     if output == at =>
                 {
-                    if let Some(axiom) = axiom
-                        && let Some((dividend, at_most)) =
-                            self.quotient_at_most_dividend(axiom, output, expression)
-                    {
-                        steps.push((dividend, at_most, false));
+                    if let Some(axiom) = axiom {
+                        let relation = strict
+                            .then(|| self.quotient_order(axiom, output, expression, true))
+                            .flatten()
+                            .or_else(|| self.quotient_order(axiom, output, expression, false));
+                        if let Some((dividend, proof)) = relation {
+                            let strict = matches!(proof.conclusion, Proposition::LessThan(..));
+                            steps.push((dividend, proof, strict));
+                        }
                     }
                 }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
@@ -3775,7 +3807,7 @@ impl<'a> Prover<'a> {
                 // A quotient of a nonnegative dividend by a positive divisor
                 // is at most the dividend, and so at most its upper bound.
                 let quotient = (direction == Direction::Upper)
-                    .then(|| self.quotient_at_most_dividend(axiom, subject, expression))
+                    .then(|| self.quotient_order(axiom, subject, expression, false))
                     .flatten()
                     .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
                 // A remainder by a divisor its own bounds fix to a literal.
@@ -3784,7 +3816,22 @@ impl<'a> Prover<'a> {
                 let multiple = matches!(expression, ScalarTerm::ExactIntegerRemainder { .. })
                     .then(|| self.multiple_remainder_bound(subject, Some(axiom), direction))
                     .flatten();
-                [defined, below, within, quotient, fixed, multiple]
+                let interior = (direction == Direction::Upper
+                    && matches!(expression, ScalarTerm::ExactIntegerAdd { .. }))
+                .then(|| {
+                    self.interior_sum_edges(subject, expression)
+                        .into_iter()
+                        .filter_map(|(end, relation, _)| self.through(relation, &end, direction))
+                        .reduce(|best, next| {
+                            if direction.prefers(integer.compare(next.literal, best.literal)) {
+                                next
+                            } else {
+                                best
+                            }
+                        })
+                })
+                .flatten();
+                [defined, below, within, quotient, fixed, multiple, interior]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {
@@ -5089,6 +5136,13 @@ impl<'a> Prover<'a> {
         // no unmet requested limit that needs another search through the facts.
         if preferred.is_none() {
             return fallback;
+        }
+        if direction == Direction::Upper
+            && let Some(image) = self.remaining_capacity_image(target, term)
+            && preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(&image, limit, direction))
+        {
+            return Some(image);
         }
         let mathematical = self.mathematical_relation_image(term, direction, preferred);
         if mathematical.as_ref().is_some_and(|image| {
