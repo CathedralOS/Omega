@@ -75,6 +75,38 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A byte read can run in a Build but prevent it from resuming
+
+- Category: One idea, several implementations.
+- Where: [byte-read semantics](source-rust/subsystems/compiler/psi-semantics/src/structural/structural_effect.rs#L390), [interpreter](source-rust/subsystems/interpreter/instructions/structural.rs#L2520), [continuation operation comparison](source-rust/subsystems/compiler/psi-semantics/src/continuation.rs#L508).
+- Saw: On Windows x86-64 at `98fb39c09558c`, a helper with `requires bytes.len == 3` returned `bytes[1]` from `"kit"`. Calling it after dependency preparation passed with native/Psi agreement. Moving the same call before preparation failed during resumption with `no checked correspondence for an operation before the preparation`. Returning the literal `105u8` from the same pre-wait helper passed.
+- Cost: The continuation checker maintains a second list of operations it can compare. It includes byte length and omits `ByteSequenceRead`. Give the byte read a checked comparison of its source, index, length and bounds evidence. Test that the checker refuses a successor which changes the index of the read that already ran.
+- Reported: 2026-11-20, Codex, while rechecking the borrowed-field Build on current main.
+
+### Build preparation misses a suspended helper used as a transition subject
+
+- Category: One idea, several implementations.
+- Where: [Build's syntax walk](source-rust/subsystems/compiler/source-to-psi/driver/compile_build/waits/mod.rs#L318), [resolution's transition subject capture](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/dispatches.rs#L86), [ordinary suspension placement check](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/operational.rs#L142).
+- Saw: At `98fb39c09558c`, `ready` prepared a dependency and returned whether its public machine returned 7. Binding `suspend ready(builder, registration)` to a local and branching on it passed with native/Psi agreement. Putting the same call directly after `transition` reported that the dependency machine had no visible declaration inside `ready`. The direct form passed when the helper still prepared the dependency and returned `true` without importing it.
+- Cost: The Build planner recognizes a call in a transition arm's target but misses the subject that ordinary resolution captures. Follow the authored call through that capture so both forms stop at the same preparation and admit the helper's return in the mounted scope.
+- Reported: 2026-11-20, Codex, while comparing ordinary and staged suspension placement.
+
+### Comparing a projected case drops its known parent type
+
+- Category: Knowledge crossing a boundary.
+- Where: [argument comparison](source-rust/subsystems/compiler/psi-semantics/src/continuation.rs#L755), [case path comparison](source-rust/subsystems/compiler/psi-semantics/src/continuation.rs#L720), [typed interpreter path](source-rust/subsystems/interpreter/embedding/continuation.rs#L641), [public selector test](source-rust/subsystems/compiler/psi-semantics/tests/checked_continuation.rs#L842).
+- Saw: The public test gives two types case number 9, then renumbers their cases to 11 and 12. Lookup through the first type finds 11. Lookup without a parent correctly refuses the ambiguity. When comparing call arguments, the continuation checker has the place and its declaring machine but compares the path using the parentless lookup.
+- Cost: An unrelated type can prevent comparison of a case selected from a known place. Carry the declared type through the path and exercise the two-owner example through a call argument. The existing control tests selector lookup directly; source-level reachability is unverified.
+- Reported: 2026-11-20, Codex, while following field and case numbers across a Build wait.
+
+### Comparing a record constructor rescans every field for each initializer
+
+- Category: Re-deriving.
+- Where: [constructor comparison](source-rust/subsystems/compiler/psi-semantics/src/continuation/coordinates.rs#L225), [field lookup and uniqueness check](source-rust/subsystems/compiler/psi-semantics/src/continuation/coordinates.rs#L42).
+- Saw: For each initializer in a reached `EstablishRecord`, the continuation checker finds the old field's ordinal, selects the corresponding new field, and scans the new field roster to count occurrences of its ID. On a successful comparison of a 256-field record with all fields initialized, that last count alone examines 65,536 field entries.
+- Cost: Work grows quadratically with record width at a dependency mount. Build the checked field correspondence once per reached type and reuse it, preserving the duplicate-ID refusal. The count follows from the loops; elapsed-time impact is unmeasured.
+- Reported: 2026-11-20, Codex, while auditing the cost of resuming checked records.
+
 ### The portable service check stops before comparing targets
 
 - Category: Tests that pin the bug.
