@@ -67,9 +67,9 @@ duplicates learning, and produces competing partial fixes.
   becomes an outcome around the runnable sample or customer program that proves
   the requirement with `omega run --both` and its negative twins. Internal
   symbols and stage owners stay as notes, not as the definition of done. Only
-  development-health problems (`ITERATION-PERFORMANCE`,
-  `VALIDATION-ENVIRONMENT`), bootstrap proofs, and external host or release
-  gates may be accepted without a sample.
+  development-health problems such as slow builds or missing test coverage,
+  bootstrap proofs, and external host or release gates may be accepted without
+  a sample.
 - **Merge items an agent would solve together**, because solving one leaves the
   context, invariants and files for the others open:
   - Collapse `split-of:` chains, sequential migration phases (e.g., seed ->

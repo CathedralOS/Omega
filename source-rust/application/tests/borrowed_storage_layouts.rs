@@ -136,6 +136,37 @@ machine main() crashes Trap {
         .collect();
     assert_eq!(offsets, [0, 4, 8]);
 
+    // Preserve the type ID, field paths, size and alignment, but reverse the
+    // outer field offsets. The forged table has a valid canonical encoding.
+    let wrong_record = runtime_abi::NativeBorrowedStorageLayout::new(
+        record.structural_type,
+        record.byte_size,
+        record.alignment,
+        record.fields().iter().map(|field| {
+            (
+                record.field_path(field).collect(),
+                record.field_repetitions(field).to_vec(),
+                8 - field.byte_offset,
+                field.logical_scalar,
+                field.stored_scalar,
+            )
+        }),
+        [],
+        [],
+    );
+    let mut changed = native_layouts.to_vec();
+    let slot = changed
+        .iter_mut()
+        .find(|row| row.structural_type == record.structural_type)
+        .unwrap();
+    *slot = wrong_record;
+    let changed = runtime_abi::NativeBorrowedStorageLayouts::seal(changed).unwrap();
+    let admitted = psi.runtime_provisions().unwrap().host_provisions();
+    assert_eq!(
+        admitted.require_borrowed_storage_layouts(&changed),
+        Err("borrowed storage geometry differs from the admitted runtime input"),
+    );
+
     let Err(refusal) = refused else {
         panic!("a missing provider must prevent runtime admission");
     };

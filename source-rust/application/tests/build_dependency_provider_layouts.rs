@@ -110,3 +110,172 @@ fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
         "{report}"
     );
 }
+
+#[test]
+fn an_entryless_library_demands_only_the_selected_targets_layouts() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    let root = TemporaryDirectory::create("entryless-layout-demand", false).unwrap();
+    std::fs::write(
+        root.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+        Build::package(builder, "layout_reach");
+        Build::select_provider::<Reading, ConstantReading>(builder, alpha_bootstrap);
+    }"#,
+    )
+    .unwrap();
+
+    // Alpha has no C record geometry. Its selected provider can still return
+    // a constant while an unrelated declaration in the same library mentions CLayout.
+    for (formal, representation, refusal) in [
+        ("", "CLayout<Packet>", None),
+        (
+            "pair: @PacketPair",
+            "CLayout<Packet>",
+            Some(
+                "layout policy for `Packet` on `alpha_bootstrap`: target has no complete layout facts",
+            ),
+        ),
+        (
+            "",
+            "LayoutStorage<Packet, CAbiPolicy<OtherPacket>>",
+            Some("selected layout policy belongs to another semantic type"),
+        ),
+    ] {
+        let source = format!(
+            r#"use omega\language\core\CLayout;
+            use omega\language\core\CAbiPolicy;
+            use omega\language\core\LayoutStorage;
+            public data Packet [copy] {{ a: i64; b: i64; }}
+            public data OtherPacket [copy] {{ a: i64; b: i64; }}
+            public data PacketPair = [{representation}; 2];
+            public machine accepts_pair(pair: @PacketPair) reaches none crashes none {{}}
+            public boundary trait Reading {{
+                machine value({formal}) -> i32 reaches none crashes none;
+            }}
+            public ConstantReading satisfies Reading {{
+                machine value({formal}) -> i32 reaches none crashes none {{ 7 }}
+            }}"#
+        );
+        std::fs::write(root.path().join("main.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args([
+                "--emit-psi",
+                "library.psi",
+                "--target",
+                "linux_x86_64",
+                "build.omg",
+            ])
+            .current_dir(root.path())
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.success(), refusal.is_none(), "{stderr}");
+        if let Some(reason) = refusal {
+            assert!(stderr.contains(reason), "{stderr}");
+            assert!(!stderr.contains("defect of the checker"), "{stderr}");
+        } else {
+            let bytes = std::fs::read(root.path().join("library.psi")).unwrap();
+            let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            let module = saved.semantic_module();
+            let [pending] = module.layouts.target_layout_applications.as_slice() else {
+                panic!("one unapplied CLayout for Packet");
+            };
+            assert!(pending.target_inputs.is_empty());
+            assert!(pending.realizations.is_empty());
+            assert_ne!(pending.record, pending.schema);
+            let record = module.structural_type(pending.record).unwrap();
+            assert!(
+                matches!(record.shape, terminal_psi::StructuralTypeShape::Record {
+                storage: terminal_psi::StructuralRecordStorage::TargetLayout(id), ..
+            } if id == pending.id)
+            );
+
+            let mut wrong_policy = module.clone();
+            assert_ne!(pending.policy_identity, pending.plan_identity);
+            wrong_policy.layouts.target_layout_applications[0].policy_identity =
+                pending.plan_identity;
+            let error = terminal_codec::ClosedTerminalModule::new(wrong_policy).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("native layout changed its selected semantic policy"),
+                "{error}"
+            );
+
+            // Even without target placements, the logical fields must match
+            // their source schema. Reopening a mismatched carrier must fail.
+            let mut altered = module.clone();
+            let schema = altered
+                .types
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.id == pending.schema)
+                .unwrap();
+            let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut schema.shape else {
+                panic!("Packet has a record schema");
+            };
+            fields[0].field_type =
+                terminal_psi::StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Boolean);
+            let error = terminal_codec::ClosedTerminalModule::new(altered).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("layout record differs from its semantic field schema"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    use terminal_psi::{LayoutMeasurement, ScalarApplication};
+    let root = TemporaryDirectory::create("entryless-layout-constant", false).unwrap();
+    std::fs::write(
+        root.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+        Build::package(builder, "observed_packet");
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("main.omg"),
+        r#"use omega\language\core\CLayout;
+        public data Packet [copy] { first: u8; second: u64; last: u16; }
+        public const BYTES: u64 = size_of::<CLayout<Packet>>();
+        public machine packet_bytes() -> u64 reaches none crashes none { BYTES }"#,
+    )
+    .unwrap();
+    let report = omega(
+        &[
+            "--emit-psi",
+            "library.psi",
+            "--target",
+            "linux_x86_64",
+            "build.omg",
+        ],
+        root.path(),
+    );
+    let bytes =
+        std::fs::read(root.path().join("library.psi")).unwrap_or_else(|_| panic!("{report}"));
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = saved.semantic_module();
+    let [pending] = module.layouts.target_layout_applications.as_slice() else {
+        panic!("one authored layout for Packet");
+    };
+    assert!(pending.target_inputs.is_empty() && pending.realizations.is_empty());
+    let applications = &module.scalars.scalar_applications;
+    assert!(module.operations().any(|operation| matches!(operation.kind,
+        terminal_psi::OperationKind::ReadScalarApplication { application }
+            if matches!(applications.declaration(application), Some(ScalarApplication::Evaluate { .. })))));
+    let recipes = applications.declarations();
+    assert!(
+        recipes
+            .iter()
+            .any(|row| matches!(row, ScalarApplication::Evaluate { .. }))
+    );
+    assert!(recipes.iter().any(|row| matches!(row,
+        ScalarApplication::LayoutObservation { subject, measurement: LayoutMeasurement::Size, .. }
+            if *subject == pending.record)));
+}

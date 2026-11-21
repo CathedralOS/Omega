@@ -26,6 +26,7 @@ impl AdmittedRuntimeProgram {
         plan: verified_optimization_input::runtime_provisions::NativeRuntimePlan<
             object_file::ForeignAdapterObject,
         >,
+        components: Vec<Arc<crate::NativeComponentProduct>>,
     ) -> Result<Self, &'static str> {
         if !plan.matches_retained_program(&terminal) {
             return Err(
@@ -34,7 +35,8 @@ impl AdmittedRuntimeProgram {
         }
         Ok(Self {
             terminal,
-            runtime: TerminalRuntimeProvisions::from_plan(plan.map_adapters(emit_runtime_adapter)),
+            runtime: TerminalRuntimeProvisions::from_plan(plan.map_adapters(emit_runtime_adapter))
+                .with_component_products(components)?,
         })
     }
 

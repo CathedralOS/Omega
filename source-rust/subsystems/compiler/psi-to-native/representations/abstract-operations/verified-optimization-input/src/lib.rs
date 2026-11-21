@@ -30,10 +30,7 @@ pub mod component_inputs;
 pub use target_bound_program::entry_settlement;
 pub mod native_proposal;
 pub mod settlement;
-pub use component_inputs::{
-    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-    RetainedComponentNativeInputs,
-};
+pub use component_inputs::{AdmittedNativeComponentCall, ComponentImport};
 pub use target_bound_program::ScopedProviderSelection;
 mod runtime_input;
 pub mod runtime_provisions;
@@ -46,7 +43,8 @@ pub use entry_settlement::{
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use native_proposal::{
-    RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
+    NativeRootNomination, RetainedTerminalArtifact, TerminalNativeProposalRequest,
+    TerminalNativeRealizationProposal,
 };
 pub use provider_admission::{
     InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,
@@ -64,6 +62,7 @@ pub use target_bound_program::SelectedProgramEntryCall;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
+    borrowed_storage: borrowed_storage::AdmittedBorrowedStorage,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
     scalar_applications: Option<AdmittedScalarApplications>,
@@ -167,7 +166,9 @@ impl VerifiedPsiOptimizationInput {
             return Err("lowered plan belongs to another host-authorized artifact");
         }
         validate_cleanup_source(&plan, artifact.artifact().semantic_module())?;
+        let borrowed_storage = borrowed_storage::AdmittedBorrowedStorage::from_plan(&plan)?;
         Ok(Self {
+            borrowed_storage,
             native_execution_scope: None,
             selected_provider_closure: None,
             scalar_applications: None,
@@ -346,7 +347,7 @@ impl VerifiedPsiOptimizationInput {
 
     pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
         AdmittedLoweringFacts {
-            borrowed_storage: borrowed_storage::BorrowedStorageInputs::of(&self.plan),
+            borrowed_storage: self.borrowed_storage,
             terminal: self.plan.psi,
             entry: self.plan.entry,
             native_execution_scope: self.native_execution_scope,
@@ -409,7 +410,7 @@ impl VerifiedPsiOptimizationContext {
 // its verified input; later stages borrow the sealed association.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedLoweringFacts {
-    borrowed_storage: borrowed_storage::BorrowedStorageInputs,
+    borrowed_storage: borrowed_storage::AdmittedBorrowedStorage,
     terminal: terminal_psi::TerminalPsiIdentity,
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
@@ -468,7 +469,15 @@ impl AdmittedLoweringFacts {
         target: target::NativeTarget,
     ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, &'static str> {
         self.require_target(target)?;
-        self.borrowed_storage.layouts()
+        Ok(self.borrowed_storage.layouts().clone())
+    }
+
+    pub fn replay_borrowed_storage_layouts(
+        &self,
+        target: target::NativeTarget,
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, &'static str> {
+        self.require_target(target)?;
+        self.borrowed_storage.replay()
     }
 
     fn require_target(&self, target: target::NativeTarget) -> Result<(), &'static str> {

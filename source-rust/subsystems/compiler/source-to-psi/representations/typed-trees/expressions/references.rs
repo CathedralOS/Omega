@@ -1354,6 +1354,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn derived_declaration_references(&self) -> bool {
         true
     }
+    /// A carried type belongs to the typed program. Inferring it never names
+    /// its declaration in the receiver's source.
+    fn inferred_type_references(&self) -> bool {
+        self.derived_declaration_references()
+    }
     fn declaration(&mut self, _: SymbolHandle) -> bool {
         true
     }
@@ -1469,6 +1474,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn derived_declaration_references(&self) -> bool {
         self.0.derived_declaration_references()
+    }
+    fn inferred_type_references(&self) -> bool {
+        self.0.inferred_type_references()
     }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         self.0.declaration(symbol)
@@ -3926,7 +3934,9 @@ fn visit_statement(
             }
         }
         StatementNode::LocalData(local) => {
-            visit_type_reference(program, retained, local.type_reference);
+            if !local.type_is_inferred || retained.inferred_type_references() {
+                visit_type_reference(program, retained, local.type_reference);
+            }
             for field in program.expression_table.match_fields(local.pattern_fields) {
                 if field.field_symbol.is_valid() {
                     visit_symbol(retained, field.field_symbol);

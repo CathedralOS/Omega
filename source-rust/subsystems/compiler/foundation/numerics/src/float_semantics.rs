@@ -1271,39 +1271,6 @@ pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
     ternary!(fused_multiply_add_toward_negative),
 ];
 
-pub const FLOAT_NAMED_CALL_LEAVES: &[&str] = &[
-    "negate",
-    "square_root",
-    "classify",
-    "is_finite",
-    "is_nan",
-    "is_infinite",
-    "is_normal",
-    "is_subnormal",
-    "square_root_toward_zero",
-    "square_root_toward_positive",
-    "square_root_toward_negative",
-    "minimum",
-    "maximum",
-    "add_toward_zero",
-    "add_toward_positive",
-    "add_toward_negative",
-    "subtract_toward_zero",
-    "subtract_toward_positive",
-    "subtract_toward_negative",
-    "multiply_toward_zero",
-    "multiply_toward_positive",
-    "multiply_toward_negative",
-    "divide_toward_zero",
-    "divide_toward_positive",
-    "divide_toward_negative",
-    "multiply_then_add",
-    "fused_multiply_add",
-    "fused_multiply_add_toward_zero",
-    "fused_multiply_add_toward_positive",
-    "fused_multiply_add_toward_negative",
-];
-
 impl FloatSemanticOperation {
     pub fn parameters(&self) -> &[FloatSemanticValueKind] {
         &self.parameters[..usize::from(self.parameter_count)]
@@ -1421,17 +1388,21 @@ impl FloatSemanticOperation {
                     .is_some())
     }
 
-    pub fn named_call_arity(name: &str) -> Option<usize> {
-        if !FLOAT_NAMED_CALL_LEAVES.contains(&name) {
-            return None;
-        }
-        FLOAT_SEMANTIC_OPERATIONS
-            .iter()
-            .find(|row| row.name.matches_source(name))
-            .map(|row| {
-                row.parameters().len()
-                    - usize::from(row.parameters().first() == Some(&FloatSemanticValueKind::Format))
-            })
+    /// Resolve the mathematical operation for an arity of same-format float
+    /// operands. A leading format argument comes from the declared precision.
+    pub fn for_float_operands(
+        name: &str,
+        arity: usize,
+        result: FloatSemanticValueKind,
+    ) -> Option<Self> {
+        FLOAT_SEMANTIC_OPERATIONS.iter().copied().find(|row| {
+            let parameters = row.parameters();
+            let operands = parameters.strip_prefix(&[Format]).unwrap_or(parameters);
+            row.name.matches_source(name)
+                && row.result == result
+                && operands.len() == arity
+                && operands.iter().all(|&kind| kind == Meaning)
+        })
     }
 
     pub const fn kernel(&self) -> FloatSemanticKernel {

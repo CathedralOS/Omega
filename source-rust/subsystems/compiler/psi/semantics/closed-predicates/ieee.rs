@@ -1,7 +1,14 @@
-//! Compare two literal IEEE operands in their declared format.
+//! Evaluate closed IEEE comparisons and equations between mathematical float meanings.
 
-use numerics::float_semantics::{FloatMeaning, FloatSemantics};
-use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatValue, Proposition, ScalarTerm};
+use numerics::float_semantics::{
+    FloatFormat, FloatMeaning, FloatSemanticOperand, FloatSemanticOperation, FloatSemanticResult,
+    FloatSemantics,
+};
+use semantic_vocabulary::{
+    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, IntegerMathLiteral, Proposition,
+    ScalarTerm,
+};
 
 pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
     let Proposition::ScalarIeeeFloatComparison {
@@ -20,10 +27,6 @@ pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
     if left.format() != *format || right.format() != *format {
         return None;
     }
-    let meaning = |value: IeeeFloatValue| match value {
-        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
-    };
     let (left, right) = (meaning(*left), meaning(*right));
     Some(match kind {
         IeeeFloatComparisonKind::Equal => FloatSemantics::equal(&left, &right),
@@ -33,4 +36,116 @@ pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
         IeeeFloatComparisonKind::NotLessThan => !FloatSemantics::less(&left, &right),
         IeeeFloatComparisonKind::NotLessOrEqual => !FloatSemantics::less_or_equal(&left, &right),
     })
+}
+
+fn meaning(value: IeeeFloatValue) -> FloatMeaning {
+    match value {
+        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
+        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
+    }
+}
+
+/// Evaluate the checked graph in dependency order after actual arguments and
+/// the returned scalar have been substituted. Structural equality of meanings
+/// retains zero signs and discards NaN payloads.
+pub(crate) fn closed_float_meaning_equality(clause: &FloatMeaningClause) -> Option<bool> {
+    clause.validate().ok()?;
+    let mut values: Vec<FloatMeaning> = Vec::with_capacity(clause.values.len());
+    for row in &clause.values {
+        let value = match row {
+            FloatMeaningClauseValue::Projection {
+                source: ScalarTerm::IeeeFloatLiteral(bits),
+                ..
+            } => meaning(*bits),
+            FloatMeaningClauseValue::Projection { .. } => return None,
+            FloatMeaningClauseValue::Application {
+                contract, operands, ..
+            } => {
+                let operation = FloatSemanticOperation::for_contract_identity(contract)?;
+                let mut arguments = Vec::with_capacity(operands.len());
+                for operand in operands {
+                    arguments.push(match operand {
+                        FloatMeaningClauseOperand::Format(format) => {
+                            FloatSemanticOperand::Format(match format {
+                                IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
+                                IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
+                            })
+                        }
+                        FloatMeaningClauseOperand::Meaning(slot) => {
+                            FloatSemanticOperand::Meaning(values.get(slot.0 as usize)?.clone())
+                        }
+                        FloatMeaningClauseOperand::Integer(ScalarTerm::Integer {
+                            value, ..
+                        }) => FloatSemanticOperand::Integer(crate::big_integer_literal(
+                            IntegerMathLiteral::from_integer_value(*value),
+                        )),
+                        FloatMeaningClauseOperand::Integer(_) => return None,
+                    });
+                }
+                let FloatSemanticResult::Meaning(result) =
+                    operation.kernel_discharge(&arguments, 4096).ok()?.result
+                else {
+                    return None;
+                };
+                result
+            }
+        };
+        values.push(value);
+    }
+    Some(values.get(clause.left.0 as usize)? == values.get(clause.right.0 as usize)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerics::float_semantics::FloatSemanticValueKind::Meaning;
+
+    fn equation(name: &str, expected: u32, inputs: &[u32]) -> Proposition {
+        let operation =
+            FloatSemanticOperation::for_float_operands(name, inputs.len(), Meaning).unwrap();
+        let literal = |bits| ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits));
+        Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                literal(expected),
+                operation.contract_identity(),
+                IeeeFloatFormat::Binary32,
+                inputs.iter().copied().map(literal),
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn closed_result_equations_check_the_actual_return_for_each_rounding() {
+        let inputs = [0x3f80_0001, 0x3f80_0001, 0xbf80_0002];
+        for (operation, correct, wrong) in [
+            ("fused_multiply_add", 0x2880_0000, 0),
+            ("multiply_then_add", 0, 0x2880_0000),
+        ] {
+            let mut integers = crate::ClosedIntegerEvaluator::default();
+            assert_eq!(
+                crate::closed_guard(&equation(operation, correct, &inputs), &mut integers),
+                Ok(Some(true))
+            );
+            assert_eq!(
+                crate::closed_guard(&equation(operation, wrong, &inputs), &mut integers),
+                Ok(Some(false))
+            );
+        }
+    }
+
+    #[test]
+    fn meaning_equations_preserve_signed_zero_and_erase_nan_payloads() {
+        let mut integers = crate::ClosedIntegerEvaluator::default();
+        for (input, returned, expected) in [
+            (0, 0x8000_0000, true),
+            (0, 0, false),
+            (0x7fc0_0001, 0x7fc0_0002, true),
+        ] {
+            assert_eq!(
+                crate::closed_guard(&equation("negate", returned, &[input]), &mut integers),
+                Ok(Some(expected))
+            );
+        }
+    }
 }

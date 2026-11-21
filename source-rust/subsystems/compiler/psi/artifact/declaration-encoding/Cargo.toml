@@ -1,0 +1,15 @@
+[package]
+name = "psi-declaration-encoding"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+access-vocabulary = { path = "../../access/policies" }
+schema-reflection = { path = "../../types/reflection" }
+arena = { path = "../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+numerics = { path = "../../../foundation/numerics" }
+terminal-psi = { path = "../.." }
+access-admission = { path = "../../access/validated-placements" }
+layout-plans = { path = "../../layouts/geometry" }

@@ -36,6 +36,23 @@ impl SelectedProviderAdapters {
         })
     }
 
+    /// An independent requirement enters its installed supplier through an import.
+    /// Keep the complete selection identity while excluding its local body from reach.
+    pub fn without_imports(
+        mut self,
+        imported: &[semantic_vocabulary::provider_identity::ProviderPlanDigest],
+    ) -> Self {
+        if !imported.is_empty() {
+            self.rows = self
+                .rows
+                .iter()
+                .filter(|row| !imported.contains(&row.provider_plan_digest))
+                .cloned()
+                .collect();
+        }
+        self
+    }
+
     pub fn require_selection(
         &self,
         selected: &selected_provider_plans::SelectedProviderPlanFacts,

@@ -30,7 +30,7 @@ use crate::CodecError;
 use crate::semantic_module::{
     Reader, Writer, decode_proposition, decode_scalar_term, encode_proposition, encode_scalar_term,
 };
-use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
+use crate::term_table::{TableChildren, TermEncoding, decode_term_table, encode_term_table};
 use crate::term_wire::integer_math_term_wire::encode_integer_math_term;
 use crate::wire_fields::Field;
 use crate::wire_fields::wire::{bounded_count, decode_canonical};
@@ -767,14 +767,17 @@ fn branch(writer: &mut Writer, branch: &CorrelatedAffineBranchWitness) -> Result
 /// conclusion, then one handle per premise. The match is exhaustive: a new
 /// rule changes this encoding deliberately.
 fn encode_proof_node(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
-    encode_term_table(writer, node)
+    encode_term_table::<CertificateTable>(writer, node)
 }
 
-impl TableTerm for ProofNode {
+struct CertificateTable;
+
+impl TermEncoding for CertificateTable {
+    type Term = ProofNode;
     const LABEL: &'static str = "certificate node";
 
-    fn children<'term>(&'term self, premises: &mut Vec<&'term Self>) {
-        match &self.rule {
+    fn children<'term>(term: &'term Self::Term, premises: &mut Vec<&'term Self::Term>) {
+        match &term.rule {
             ProofRule::FloatIntegerConversion { premise, computed } => {
                 premises.push(premise);
                 if let Some(computed) = computed {
@@ -911,14 +914,14 @@ impl TableTerm for ProofNode {
         }
     }
 
-    fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
-        write_proof_row(writer, self)
+    fn write_row(term: &Self::Term, writer: &mut Writer) -> Result<(), CodecError> {
+        write_proof_row(writer, term)
     }
 
     fn read_row(
         reader: &mut Reader<'_>,
-        children: &mut TableChildren<'_, Self>,
-    ) -> Result<Self, CodecError> {
+        children: &mut TableChildren<'_, Self::Term>,
+    ) -> Result<Self::Term, CodecError> {
         read_proof_row(reader, children)
     }
 }
@@ -1086,7 +1089,7 @@ impl crate::wire_fields::Field<CertificateEnvelope> for Certificate {
         Ok(CertificateEnvelope {
             identity,
             proof_system_marker,
-            proof: decode_term_table(reader)?,
+            proof: decode_term_table::<CertificateTable>(reader)?,
         })
     }
 }

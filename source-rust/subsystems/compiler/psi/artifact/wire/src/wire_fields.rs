@@ -1,389 +1,6 @@
-/*
-Primitive wire cursors (`wire::Reader`, `wire::Writer`, canonical length-bounded decoding helpers)
-and declarative field/record/enum serialization macros (`wire_fields::Field`, `wire_record!`,
-`wire_enum!`, `integer_fields!`, `byte_enums!`, `delegated_fields!`, `u32_newtypes!`) for the
-canonical `PSITERM\0` semantic-module format.
-*/
+//! Fields used by the complete Psi artifact. Shared declaration fields come from the declaration encoder.
 
-pub(crate) use crate::semantic_module::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
-
-pub(crate) mod wire {
-
-    use super::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
-    use arena::NumericId;
-    use semantic_vocabulary::InvocationSite;
-
-    pub(crate) fn encode_invocation_site(writer: &mut Writer, site: InvocationSite) {
-        let (tag, identity, action_ordinal) = match site {
-            InvocationSite::Operation(operation) => (0, operation.get(), None),
-            InvocationSite::ExternalCompletion(edge) => (1, edge.get(), None),
-            InvocationSite::InvokeNoNormal(edge) => (2, edge.get(), None),
-            InvocationSite::Cleanup {
-                edge,
-                action_ordinal,
-            } => (3, edge.get(), Some(action_ordinal)),
-        };
-        writer.u8(tag);
-        writer.u64(identity);
-        if let Some(action_ordinal) = action_ordinal {
-            writer.u32(action_ordinal);
-        }
-    }
-
-    pub(crate) fn decode_invocation_site(
-        reader: &mut Reader<'_>,
-    ) -> Result<InvocationSite, CodecError> {
-        let tag = reader.u8()?;
-        let identity = reader.u64()?;
-        if tag == 3 {
-            let edge = semantic_vocabulary::EdgeId::new(identity).ok_or(
-                CodecError::MalformedStructuralFoundation("invalid cleanup invocation edge"),
-            )?;
-            return Ok(InvocationSite::Cleanup {
-                edge,
-                action_ordinal: reader.u32()?,
-            });
-        }
-        InvocationSite::from_tagged_identity(tag, identity).ok_or(
-            CodecError::MalformedStructuralFoundation("invalid invocation identity"),
-        )
-    }
-
-    #[derive(Clone, Copy, Default)]
-    enum EncodingRole {
-        #[default]
-        ClosedPublication,
-        InvocationPrefix,
-        CheckingIdentity,
-    }
-
-    #[derive(Default)]
-    pub(crate) struct Writer {
-        bytes: Vec<u8>,
-        role: EncodingRole,
-        closed_types: std::rc::Rc<std::cell::RefCell<crate::ClosedTypeCatalog>>,
-    }
-
-    impl Writer {
-        pub(crate) fn invocation_prefix() -> Self {
-            Self {
-                role: EncodingRole::InvocationPrefix,
-                ..Self::default()
-            }
-        }
-
-        pub(crate) fn is_invocation_prefix(&self) -> bool {
-            matches!(self.role, EncodingRole::InvocationPrefix)
-        }
-
-        /// Checking keys identify rigid widths; they do not publish executable code.
-        pub(crate) fn checking_identity() -> Self {
-            Self {
-                role: EncodingRole::CheckingIdentity,
-                ..Self::default()
-            }
-        }
-
-        /// Local canonical keys keep their real bytes and share the closure
-        /// traversal with the enclosing module or record.
-        pub(crate) fn nested(&self) -> Self {
-            Self {
-                bytes: Vec::new(),
-                role: self.role,
-                closed_types: std::rc::Rc::clone(&self.closed_types),
-            }
-        }
-
-        pub(crate) fn require_integer_width(
-            &mut self,
-            integer: semantic_vocabulary::IntegerType,
-        ) -> Result<(), CodecError> {
-            if matches!(self.role, EncodingRole::CheckingIdentity)
-                && matches!(
-                    integer.width(),
-                    semantic_vocabulary::IntegerWidth::Parameter(_)
-                )
-            {
-                return Ok(());
-            }
-            self.closed_types.borrow_mut().record(integer).map(|_| ())
-        }
-
-        pub(crate) fn finish_closed(self) -> (Vec<u8>, crate::ClosedTypeCatalog) {
-            let types = std::rc::Rc::try_unwrap(self.closed_types)
-                .map(std::cell::RefCell::into_inner)
-                .unwrap_or_else(|types| types.borrow().clone());
-            (self.bytes, types)
-        }
-
-        pub(crate) fn finish(self) -> Vec<u8> {
-            self.bytes
-        }
-
-        pub(crate) fn bytes(&mut self, bytes: &[u8]) {
-            self.bytes.extend_from_slice(bytes);
-        }
-
-        pub(crate) fn u8(&mut self, value: u8) {
-            self.bytes.push(value);
-        }
-
-        pub(crate) fn boolean(&mut self, value: bool) {
-            self.u8(u8::from(value));
-        }
-
-        pub(crate) fn u16(&mut self, value: u16) {
-            self.bytes(&value.to_le_bytes());
-        }
-
-        pub(crate) fn u32(&mut self, value: u32) {
-            self.bytes(&value.to_le_bytes());
-        }
-
-        pub(crate) fn u64(&mut self, value: u64) {
-            self.bytes(&value.to_le_bytes());
-        }
-
-        pub(crate) fn id(&mut self, id: impl NumericId) {
-            self.bytes(&id.get().to_le_bytes());
-        }
-
-        pub(crate) fn len(&mut self, label: &'static str, len: usize) -> Result<(), CodecError> {
-            self.u32(u32::try_from(len).map_err(|_| CodecError::CollectionTooLong(label))?);
-            Ok(())
-        }
-
-        pub(crate) fn string(
-            &mut self,
-            label: &'static str,
-            value: &str,
-        ) -> Result<(), CodecError> {
-            if value.len() > MAX_CONTENT_IDENTITY_BYTES {
-                return Err(CodecError::StringTooLong(label));
-            }
-            self.len(label, value.len())?;
-            self.bytes(value.as_bytes());
-            Ok(())
-        }
-
-        pub(crate) fn strings(
-            &mut self,
-            label: &'static str,
-            values: &[String],
-        ) -> Result<(), CodecError> {
-            self.len(label, values.len())?;
-            for value in values {
-                self.string(label, value)?;
-            }
-            Ok(())
-        }
-
-        pub(crate) fn ids<I: NumericId>(
-            &mut self,
-            label: &'static str,
-            values: &[I],
-        ) -> Result<(), CodecError> {
-            self.len(label, values.len())?;
-            for value in values {
-                self.id(*value);
-            }
-            Ok(())
-        }
-
-        pub(crate) fn counted<T>(
-            &mut self,
-            label: &'static str,
-            values: &[T],
-            encode: fn(&mut Writer, &T) -> Result<(), CodecError>,
-        ) -> Result<(), CodecError> {
-            self.len(label, values.len())?;
-            for value in values {
-                encode(self, value)?;
-            }
-            Ok(())
-        }
-    }
-
-    pub(crate) struct Reader<'bytes> {
-        bytes: &'bytes [u8],
-        offset: usize,
-    }
-
-    impl<'bytes> Reader<'bytes> {
-        pub(crate) const fn new(bytes: &'bytes [u8]) -> Self {
-            Self { bytes, offset: 0 }
-        }
-
-        pub(crate) fn remaining(&self) -> usize {
-            self.bytes.len() - self.offset
-        }
-
-        pub(crate) fn take(&mut self, len: usize) -> Result<&'bytes [u8], CodecError> {
-            let end = self
-                .offset
-                .checked_add(len)
-                .ok_or(CodecError::UnexpectedEnd)?;
-            let bytes = self
-                .bytes
-                .get(self.offset..end)
-                .ok_or(CodecError::UnexpectedEnd)?;
-            self.offset = end;
-            Ok(bytes)
-        }
-
-        pub(crate) fn array<const N: usize>(&mut self) -> Result<[u8; N], CodecError> {
-            self.take(N)?
-                .try_into()
-                .map_err(|_| CodecError::UnexpectedEnd)
-        }
-
-        pub(crate) fn u8(&mut self) -> Result<u8, CodecError> {
-            Ok(self.array::<1>()?[0])
-        }
-
-        pub(crate) fn u16(&mut self) -> Result<u16, CodecError> {
-            Ok(u16::from_le_bytes(self.array()?))
-        }
-
-        pub(crate) fn u32(&mut self) -> Result<u32, CodecError> {
-            Ok(u32::from_le_bytes(self.array()?))
-        }
-
-        pub(crate) fn u64(&mut self) -> Result<u64, CodecError> {
-            Ok(u64::from_le_bytes(self.array()?))
-        }
-
-        pub(crate) fn count(&mut self) -> Result<u32, CodecError> {
-            self.u32()
-        }
-
-        pub(crate) fn boolean(&mut self) -> Result<bool, CodecError> {
-            match self.u8()? {
-                0 => Ok(false),
-                1 => Ok(true),
-                value => Err(CodecError::InvalidBoolean(value)),
-            }
-        }
-
-        pub(crate) fn string(&mut self, label: &'static str) -> Result<String, CodecError> {
-            let len =
-                usize::try_from(self.count()?).map_err(|_| CodecError::StringTooLong(label))?;
-            if len > MAX_CONTENT_IDENTITY_BYTES {
-                return Err(CodecError::StringTooLong(label));
-            }
-            let bytes = self.take(len)?;
-            std::str::from_utf8(bytes)
-                .map(str::to_owned)
-                .map_err(|_| CodecError::InvalidUtf8(label))
-        }
-
-        pub(crate) fn strings(&mut self, label: &'static str) -> Result<Vec<String>, CodecError> {
-            let count = bounded_count(self, 4)?;
-            let mut values = Vec::with_capacity(count);
-            for _ in 0..count {
-                values.push(self.string(label)?);
-            }
-            Ok(values)
-        }
-
-        pub(crate) fn id<T: NumericId>(&mut self, label: &'static str) -> Result<T, CodecError> {
-            let raw = self.u64()?;
-            T::new(raw).ok_or(CodecError::ZeroIdentity(label))
-        }
-    }
-
-    pub(crate) fn encode_optional_id<I: NumericId>(writer: &mut Writer, id: Option<I>) {
-        match id {
-            None => writer.u8(0),
-            Some(id) => {
-                writer.u8(1);
-                writer.id(id);
-            }
-        }
-    }
-
-    pub(crate) fn bounded_count(
-        reader: &mut Reader<'_>,
-        min_element_bytes: usize,
-    ) -> Result<usize, CodecError> {
-        debug_assert!(
-            min_element_bytes > 0,
-            "every encoded element occupies at least one byte"
-        );
-        let count = reader.count()?;
-        let count = usize::try_from(count).map_err(|_| CodecError::UnexpectedEnd)?;
-        if count > reader.remaining() / min_element_bytes {
-            return Err(CodecError::UnexpectedEnd);
-        }
-        Ok(count)
-    }
-
-    pub(crate) fn decode_counted<T>(
-        reader: &mut Reader<'_>,
-        mut decode: impl FnMut(&mut Reader<'_>) -> Result<T, CodecError>,
-    ) -> Result<Vec<T>, CodecError> {
-        let count = bounded_count(reader, 1)?;
-        let mut values = Vec::with_capacity(count);
-        for _ in 0..count {
-            values.push(decode(reader)?);
-        }
-        Ok(values)
-    }
-
-    pub(crate) fn decode_ids<I: NumericId>(
-        reader: &mut Reader<'_>,
-        label: &'static str,
-    ) -> Result<Vec<I>, CodecError> {
-        decode_counted(reader, |reader| reader.id(label))
-    }
-
-    pub(crate) fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
-        values.into_iter().is_sorted_by(|left, right| left < right)
-    }
-
-    pub(crate) fn require_increasing<T: Ord>(
-        values: impl IntoIterator<Item = T>,
-        label: &'static str,
-    ) -> Result<(), CodecError> {
-        if strictly_increasing(values) {
-            Ok(())
-        } else {
-            Err(CodecError::NonCanonicalOrder(label))
-        }
-    }
-
-    pub(crate) fn decode_bytes(reader: &mut Reader<'_>) -> Result<Vec<u8>, CodecError> {
-        let len = bounded_count(reader, 1)?;
-        Ok(reader.take(len)?.to_vec())
-    }
-
-    pub(crate) fn decode_optional_id<I: NumericId>(
-        reader: &mut Reader<'_>,
-        label: &'static str,
-    ) -> Result<Option<I>, CodecError> {
-        match reader.u8()? {
-            0 => Ok(None),
-            1 => Ok(Some(reader.id(label)?)),
-            tag => Err(CodecError::InvalidTag("OptionalSemanticId", tag)),
-        }
-    }
-
-    pub(crate) fn decode_canonical<T>(
-        bytes: &[u8],
-        decode: impl FnOnce(&mut Reader<'_>) -> Result<T, CodecError>,
-        encode: impl FnOnce(&T) -> Result<Vec<u8>, CodecError>,
-    ) -> Result<T, CodecError> {
-        let mut reader = Reader::new(bytes);
-        let value = decode(&mut reader)?;
-        if reader.remaining() != 0 {
-            return Err(CodecError::TrailingBytes(reader.remaining()));
-        }
-        if encode(&value)? != bytes {
-            return Err(CodecError::NonCanonicalEncoding);
-        }
-        Ok(value)
-    }
-}
+pub(crate) use crate::semantic_module::CodecError;
 
 use super::proof_term_wire::{decode_proof_terms, encode_proof_terms};
 use super::scalar_term_wire::{decode_scalar_terms, encode_scalar_terms};
@@ -395,14 +12,12 @@ use super::structural_place_wire::{
     encode_structural_path,
 };
 use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
-use super::wire::{
-    Reader, Writer, bounded_count, decode_bytes, decode_counted, decode_ids, decode_optional_id,
-    encode_optional_id,
-};
-use arena::NumericId;
+use super::wire::{Reader, Writer, decode_counted, decode_optional_id, encode_optional_id};
+pub(crate) use psi_declaration_encoding::fields::*;
+pub(crate) use psi_declaration_encoding::wire;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation,
-    IeeeFloatValue, IntegerValue, ProofTerm, ScalarTerm, StructuralFieldId,
+    CanonicalStructuralPathSegment, IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue,
+    ProofTerm, ScalarTerm,
 };
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
@@ -410,136 +25,9 @@ use terminal_psi::{
     OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificEvidenceUse, RecordFieldInitializer, RecordFieldValue, ResidentReferenceSource,
-    ScalarCaseField, StructuralArgument, StructuralContentProjection, StructuralPathQualification,
-    StructuralPathSegment, StructuralReferentIdentity, StructuralResultClaimBinding,
+    ScalarCaseField, StructuralArgument, StructuralPathQualification, StructuralPathSegment,
+    StructuralReferentIdentity, StructuralResultClaimBinding,
 };
-
-pub(crate) trait Field<T> {
-    fn write(writer: &mut Writer, value: &T) -> Result<(), CodecError>;
-    fn read(reader: &mut Reader<'_>) -> Result<T, CodecError>;
-}
-
-pub(crate) struct ResultField<Success, Failure>(std::marker::PhantomData<(Success, Failure)>);
-impl<Success, Failure, SuccessField: Field<Success>, FailureField: Field<Failure>>
-    Field<Result<Success, Failure>> for ResultField<SuccessField, FailureField>
-{
-    fn write(writer: &mut Writer, value: &Result<Success, Failure>) -> Result<(), CodecError> {
-        writer.boolean(value.is_ok());
-        match value {
-            Ok(value) => SuccessField::write(writer, value),
-            Err(reason) => FailureField::write(writer, reason),
-        }
-    }
-
-    fn read(reader: &mut Reader<'_>) -> Result<Result<Success, Failure>, CodecError> {
-        Ok(if reader.boolean()? {
-            Ok(SuccessField::read(reader)?)
-        } else {
-            Err(FailureField::read(reader)?)
-        })
-    }
-}
-
-fn label<T>() -> &'static str {
-    let name = std::any::type_name::<T>();
-    name.rsplit("::").next().unwrap_or(name)
-}
-
-pub(crate) struct Id;
-impl<T: NumericId> Field<T> for Id {
-    fn write(writer: &mut Writer, value: &T) -> Result<(), CodecError> {
-        writer.id(*value);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<T, CodecError> {
-        reader.id(label::<T>())
-    }
-}
-
-pub(crate) struct OptionalId;
-impl<T: NumericId> Field<Option<T>> for OptionalId {
-    fn write(writer: &mut Writer, value: &Option<T>) -> Result<(), CodecError> {
-        encode_optional_id(writer, *value);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Option<T>, CodecError> {
-        decode_optional_id(reader, label::<T>())
-    }
-}
-
-pub(crate) struct Ids;
-impl<T: NumericId> Field<Vec<T>> for Ids {
-    fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {
-        writer.ids("operation identities", value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<T>, CodecError> {
-        decode_ids(reader, label::<T>())
-    }
-}
-
-pub(crate) struct OptionalField;
-impl Field<Option<StructuralFieldId>> for OptionalField {
-    fn write(writer: &mut Writer, value: &Option<StructuralFieldId>) -> Result<(), CodecError> {
-        writer.u64(value.map_or(0, StructuralFieldId::get));
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Option<StructuralFieldId>, CodecError> {
-        Ok(StructuralFieldId::new(reader.u64()?))
-    }
-}
-
-macro_rules! integer_fields {
-    ($($marker:ident: $ty:ty => $write:ident / $read:ident),* $(,)?) => {$(
-        pub(crate) struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
-                writer.$write(*value);
-                Ok(())
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
-                reader.$read()
-            }
-        }
-    )*};
-}
-integer_fields! {
-    U8: u8 => u8 / u8,
-    U16: u16 => u16 / u16,
-    U32: u32 => u32 / u32,
-    U64: u64 => u64 / u64,
-    Flag: bool => boolean / boolean,
-}
-
-pub(crate) struct I128;
-impl Field<i128> for I128 {
-    fn write(writer: &mut Writer, value: &i128) -> Result<(), CodecError> {
-        writer.bytes(&value.to_le_bytes());
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<i128, CodecError> {
-        Ok(i128::from_le_bytes(reader.array()?))
-    }
-}
-
-pub(crate) const DECLARED_LIFETIME_FAMILY: bool = true;
-
-pub(crate) struct Path<const LIFETIME_FAMILY: bool = false>;
-impl<const LIFETIME_FAMILY: bool> Field<Vec<StructuralPathSegment>> for Path<LIFETIME_FAMILY> {
-    fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {
-        if LIFETIME_FAMILY {
-            super::structural_place_wire::encode_declared_lifetime_path(writer, value)
-        } else {
-            encode_structural_path(writer, "operation path", value)
-        }
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        if LIFETIME_FAMILY {
-            super::structural_place_wire::decode_declared_lifetime_path(reader)
-        } else {
-            decode_structural_path(reader)
-        }
-    }
-}
 
 pub(crate) struct Argument;
 impl Field<StructuralArgument> for Argument {
@@ -581,18 +69,6 @@ impl Field<Vec<CanonicalStructuralPathSegment>> for FieldPath {
             4 => Ok(CanonicalStructuralPathSegment::Referent),
             tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
         })
-    }
-}
-
-pub(crate) struct Bytes;
-impl Field<Vec<u8>> for Bytes {
-    fn write(writer: &mut Writer, value: &Vec<u8>) -> Result<(), CodecError> {
-        writer.len("byte-sequence literal bytes", value.len())?;
-        writer.bytes(value);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<u8>, CodecError> {
-        decode_bytes(reader)
     }
 }
 
@@ -938,125 +414,6 @@ impl Field<semantic_vocabulary::ScalarType> for Scalar {
     }
 }
 
-pub(crate) struct Index;
-impl Field<terminal_psi::TerminalIdentityIndex> for Index {
-    fn write(
-        writer: &mut Writer,
-        value: &terminal_psi::TerminalIdentityIndex,
-    ) -> Result<(), CodecError> {
-        writer.u32(value.0);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::TerminalIdentityIndex, CodecError> {
-        Ok(terminal_psi::TerminalIdentityIndex(reader.u32()?))
-    }
-}
-
-pub(crate) struct Text;
-impl Field<String> for Text {
-    fn write(writer: &mut Writer, value: &String) -> Result<(), CodecError> {
-        writer.string("wire text", value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<String, CodecError> {
-        reader.string("wire text")
-    }
-}
-
-// A pair is just its two existing field encodings in order. Reuse those
-// codecs for tuple-valued data rather than defining another domain marker.
-impl<Left, Right, LeftField: Field<Left>, RightField: Field<Right>> Field<(Left, Right)>
-    for (LeftField, RightField)
-{
-    fn write(writer: &mut Writer, value: &(Left, Right)) -> Result<(), CodecError> {
-        LeftField::write(writer, &value.0)?;
-        RightField::write(writer, &value.1)
-    }
-
-    fn read(reader: &mut Reader<'_>) -> Result<(Left, Right), CodecError> {
-        Ok((LeftField::read(reader)?, RightField::read(reader)?))
-    }
-}
-
-// Catalogs with known row prefixes can bound allocation before reading a row.
-// The default preserves existing schemas, and the minimum never changes bytes.
-pub(crate) struct List<K, const MIN_ELEMENT_BYTES: usize = 1>(std::marker::PhantomData<K>);
-impl<T, K: Field<T>, const MIN_ELEMENT_BYTES: usize> Field<Vec<T>> for List<K, MIN_ELEMENT_BYTES> {
-    fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {
-        writer.len("wire roster", value.len())?;
-        for element in value {
-            K::write(writer, element)?;
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<T>, CodecError> {
-        let count = bounded_count(reader, MIN_ELEMENT_BYTES)?;
-        let mut values = Vec::new();
-        values
-            .try_reserve_exact(count)
-            .map_err(|_| CodecError::CollectionTooLong("wire roster"))?;
-        for _ in 0..count {
-            values.push(K::read(reader)?);
-        }
-        Ok(values)
-    }
-}
-
-pub(crate) struct Optional<K>(std::marker::PhantomData<K>);
-impl<T, K: Field<T>> Field<Option<T>> for Optional<K> {
-    fn write(writer: &mut Writer, value: &Option<T>) -> Result<(), CodecError> {
-        writer.boolean(value.is_some());
-        if let Some(value) = value {
-            K::write(writer, value)?;
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Option<T>, CodecError> {
-        Ok(if reader.boolean()? {
-            Some(K::read(reader)?)
-        } else {
-            None
-        })
-    }
-}
-
-macro_rules! wire_record {
-    ($($marker:ident: $ty:ident { $($field:ident: $kind:ty),* $(,)? })*) => {$(
-        pub(crate) struct $marker;
-        impl $crate::sections::semantic_module::wire_fields::Field<$ty> for $marker {
-            fn write(
-                writer: &mut $crate::sections::semantic_module::wire::Writer,
-                value: &$ty,
-            ) -> Result<(), $crate::sections::semantic_module::CodecError> {
-                let $ty { $($field),* } = value;
-                $(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(
-                    writer, $field,
-                )?;)*
-                Ok(())
-            }
-            fn read(
-                reader: &mut $crate::sections::semantic_module::wire::Reader<'_>,
-            ) -> Result<$ty, $crate::sections::semantic_module::CodecError> {
-                Ok($ty {
-                    $($field: <$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(
-                        reader,
-                    )?),*
-                })
-            }
-        }
-    )*};
-}
-pub(crate) use wire_record;
-
-pub(crate) struct Strings;
-impl Field<Vec<String>> for Strings {
-    fn write(writer: &mut Writer, value: &Vec<String>) -> Result<(), CodecError> {
-        writer.strings("wire texts", value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<String>, CodecError> {
-        reader.strings("wire texts")
-    }
-}
-
 delegated_fields! {
     CallResult: terminal_psi::BoundaryMachineResult
         => super::structural_signature_wire::encode_call_result,
@@ -1085,48 +442,6 @@ impl Field<terminal_psi::BoundaryLifetimeDependency> for DeclaredLifetimeDepende
     }
 }
 
-macro_rules! wire_enum {
-    ($($marker:ident: $ty:ident, $name:literal {
-        $($tag:literal => $variant:ident
-            $(( $($tuple_field:ident: $tuple_kind:ty),+ $(,)? ))?
-            $({ $($field:ident: $kind:ty),* $(,)? })?
-        ),* $(,)?
-        $(; refuse $($refused:pat => $refusal:expr),+ $(,)?)?
-    })*) => {$(
-        pub(crate) struct $marker;
-        impl $crate::sections::semantic_module::wire_fields::Field<$ty> for $marker {
-            fn write(
-                writer: &mut $crate::sections::semantic_module::wire::Writer,
-                value: &$ty,
-            ) -> Result<(), $crate::sections::semantic_module::CodecError> {
-                match value {
-                    $($ty::$variant $(($($tuple_field),+))? $({ $($field),* })? => {
-                        writer.u8($tag);
-                        $($(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $tuple_field)?;)+)?
-                        $($(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $field)?;)*)?
-                    })*
-                    $($($refused => return Err($refusal),)+)?
-                }
-                Ok(())
-            }
-            fn read(
-                reader: &mut $crate::sections::semantic_module::wire::Reader<'_>,
-            ) -> Result<$ty, $crate::sections::semantic_module::CodecError> {
-                Ok(match reader.u8()? {
-                    $($tag => $ty::$variant
-                        $(($(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?),+))?
-                        $({ $($field: <$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?),* })?,
-                    )*
-                    tag => return Err($crate::sections::semantic_module::CodecError::InvalidTag(
-                        $name, tag,
-                    )),
-                })
-            }
-        }
-    )*};
-}
-pub(crate) use wire_enum;
-
 pub(crate) type EvidenceInterface = super::proof_declaration_wire::Interface;
 
 pub(crate) struct Commitment;
@@ -1151,11 +466,41 @@ impl Field<semantic_vocabulary::InvocationSite> for InvocationSite {
         writer: &mut Writer,
         value: &semantic_vocabulary::InvocationSite,
     ) -> Result<(), CodecError> {
-        super::wire::encode_invocation_site(writer, *value);
+        use semantic_vocabulary::InvocationSite as Site;
+
+        let (tag, identity, action_ordinal) = match *value {
+            Site::Operation(operation) => (0, operation.get(), None),
+            Site::ExternalCompletion(edge) => (1, edge.get(), None),
+            Site::InvokeNoNormal(edge) => (2, edge.get(), None),
+            Site::Cleanup {
+                edge,
+                action_ordinal,
+            } => (3, edge.get(), Some(action_ordinal)),
+        };
+        writer.u8(tag);
+        writer.u64(identity);
+        if let Some(action_ordinal) = action_ordinal {
+            writer.u32(action_ordinal);
+        }
         Ok(())
     }
     fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::InvocationSite, CodecError> {
-        super::wire::decode_invocation_site(reader)
+        use semantic_vocabulary::InvocationSite as Site;
+
+        let tag = reader.u8()?;
+        let identity = reader.u64()?;
+        if tag == 3 {
+            let edge = semantic_vocabulary::EdgeId::new(identity).ok_or(
+                CodecError::MalformedStructuralFoundation("invalid cleanup invocation edge"),
+            )?;
+            return Ok(Site::Cleanup {
+                edge,
+                action_ordinal: reader.u32()?,
+            });
+        }
+        Site::from_tagged_identity(tag, identity).ok_or(CodecError::MalformedStructuralFoundation(
+            "invalid invocation identity",
+        ))
     }
 }
 
@@ -1165,84 +510,6 @@ wire_record! {
         parameter_position: U32,
         structural_path: Optional<Path>,
     }
-}
-
-macro_rules! u32_newtypes {
-    ($($marker:ident: $ty:path;)*) => {$(
-        pub(crate) struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
-                writer.u32(value.0);
-                Ok(())
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
-                Ok($ty(reader.u32()?))
-            }
-        }
-    )*};
-}
-pub(crate) use u32_newtypes;
-
-pub(crate) struct Digest;
-impl Field<[u8; 32]> for Digest {
-    fn write(writer: &mut Writer, value: &[u8; 32]) -> Result<(), CodecError> {
-        writer.bytes(value);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<[u8; 32], CodecError> {
-        reader.array()
-    }
-}
-
-pub(crate) struct Nominal;
-impl Field<terminal_psi::NominalDeclarationIdentity> for Nominal {
-    fn write(
-        writer: &mut Writer,
-        value: &terminal_psi::NominalDeclarationIdentity,
-    ) -> Result<(), CodecError> {
-        writer.u32(value.identity().0);
-        Ok(())
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<terminal_psi::NominalDeclarationIdentity, CodecError> {
-        Ok(terminal_psi::NominalDeclarationIdentity::new(
-            terminal_psi::TerminalIdentityIndex(reader.u32()?),
-        ))
-    }
-}
-
-pub(crate) struct Proposition;
-impl Field<semantic_vocabulary::Proposition> for Proposition {
-    fn write(
-        writer: &mut Writer,
-        value: &semantic_vocabulary::Proposition,
-    ) -> Result<(), CodecError> {
-        super::proposition_wire::encode_proposition(writer, value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::Proposition, CodecError> {
-        super::proposition_wire::decode_proposition(reader)
-    }
-}
-
-pub(crate) struct ContentExpression;
-impl Field<semantic_vocabulary::ContentProjectionExpression> for ContentExpression {
-    fn write(
-        writer: &mut Writer,
-        value: &semantic_vocabulary::ContentProjectionExpression,
-    ) -> Result<(), CodecError> {
-        super::structural_signature_wire::encode_content_projection_expression(writer, value)
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<semantic_vocabulary::ContentProjectionExpression, CodecError> {
-        super::structural_signature_wire::decode_content_projection_expression(reader)
-    }
-}
-
-delegated_fields! {
-    ContentAlgebra: semantic_vocabulary::ContentAlgebra
-        => super::content_wire::encode_content_algebra, super::content_wire::decode_content_algebra;
 }
 
 pub(crate) struct ReachArgument;
@@ -1275,12 +542,6 @@ delegated_fields! {
 }
 
 wire_record! {
-    ProjectionIdentity: ContentProjectionIdentity { domain: Id, projection_report_fingerprint: U64 }
-    ContentProjection: StructuralContentProjection {
-        identity: ProjectionIdentity,
-        algebra: ContentAlgebra,
-        expression: ContentExpression,
-    }
     PathQualification: StructuralPathQualification { path: QualificationPath, domain: Id }
 }
 
@@ -1422,7 +683,7 @@ wire_enum! {
 
 #[cfg(test)]
 mod invocation_site_tests {
-    use super::wire::{Reader, Writer, decode_invocation_site, encode_invocation_site};
+    use super::wire::{Reader, Writer};
     use super::{Field, List, U32};
     use crate::CodecError;
     use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
@@ -1470,13 +731,13 @@ mod invocation_site_tests {
             },
         ] {
             let mut writer = Writer::default();
-            encode_invocation_site(&mut writer, site);
+            super::InvocationSite::write(&mut writer, &site).unwrap();
             let bytes = writer.finish();
             let mut expected = Vec::new();
             site.encode_identity(&mut expected);
             assert_eq!(bytes, expected);
             let mut reader = Reader::new(&bytes);
-            assert_eq!(decode_invocation_site(&mut reader).unwrap(), site);
+            assert_eq!(super::InvocationSite::read(&mut reader).unwrap(), site);
             assert_eq!(reader.remaining(), 0);
             assert!(!encodings.contains(&bytes));
             encodings.push(bytes);
@@ -1484,7 +745,7 @@ mod invocation_site_tests {
         let cleanup = encodings.last().unwrap();
         assert_eq!(cleanup.len(), 13);
         for length in 0..cleanup.len() {
-            assert!(decode_invocation_site(&mut Reader::new(&cleanup[..length])).is_err());
+            assert!(super::InvocationSite::read(&mut Reader::new(&cleanup[..length])).is_err());
         }
     }
 }

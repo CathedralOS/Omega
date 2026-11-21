@@ -586,6 +586,7 @@ pub(crate) mod structural_type_lookup {
 
 #[cfg(test)]
 mod native_region_geometry_tests {
+    use verified_optimization_input::borrowed_storage::AdmittedBorrowedStorage;
     use super::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::StructuralTypeCatalog;
     use semantic_vocabulary::{
@@ -1138,8 +1139,8 @@ mod native_region_geometry_tests {
     fn provider_reference_capture_retains_each_declared_referent_recipe() {
         for (root, referent, bytes, alignment, fields) in [(2, 1, 4, 4, 1), (4, 3, 8, 4, 2)] {
             let plan = reference_result_plan(id(root));
-            let layouts = verified_optimization_input::borrowed_storage::BorrowedStorageInputs::of(&plan)
-                .layouts().unwrap();
+            let storage = AdmittedBorrowedStorage::from_plan(&plan).unwrap();
+            let layouts = storage.layouts();
             assert_eq!(
                 layouts
                     .iter()
@@ -1164,8 +1165,8 @@ mod native_region_geometry_tests {
     fn provider_reference_capture_does_not_invent_unavailable_referent_layouts() {
         for (root, expected) in [(6, vec![id(6)]), (7, Vec::new())] {
             let plan = reference_result_plan(id(root));
-            let layouts = verified_optimization_input::borrowed_storage::BorrowedStorageInputs::of(&plan)
-                .layouts().unwrap();
+            let storage = AdmittedBorrowedStorage::from_plan(&plan).unwrap();
+            let layouts = storage.layouts();
             assert_eq!(
                 layouts
                     .iter()

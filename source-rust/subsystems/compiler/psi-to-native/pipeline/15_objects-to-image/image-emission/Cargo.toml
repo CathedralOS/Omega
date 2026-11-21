@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+structural-storage-queries = { path = "../../../representations/structural-storage/queries" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 psi-publication-records = { path = "../../../../psi/artifact/publication" }
 psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }

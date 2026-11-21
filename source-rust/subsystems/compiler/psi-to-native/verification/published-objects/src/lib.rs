@@ -354,10 +354,12 @@ pub fn verify_retained_target_operations(
         current.lowering_facts(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-    let expected = current.lowering_facts().borrowed_storage_layouts(current.target())
-    .map_err(|error| {
-        diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error:?}"))
-    })?;
+    let expected = current
+        .lowering_facts()
+        .replay_borrowed_storage_layouts(current.target())
+        .map_err(|error| {
+            diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error}"))
+        })?;
     if expected != current.execution_plan().plan().borrowed_storage_layouts {
         return Err(diagnostics::Diagnostic::error(
             "published borrowed storage geometry differs from admitted declarations",

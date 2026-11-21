@@ -60,6 +60,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
@@ -103,6 +104,7 @@ dependencies = [
  "build-time-values",
  "build-value-projection",
  "calling-conventions",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
@@ -117,6 +119,7 @@ dependencies = [
  "layout-plans",
  "native-execution-scope",
  "native-intrinsics",
+ "native-scalar-inputs",
  "optimization",
  "optimization-core",
  "optimization-selections",
@@ -582,12 +585,9 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
- "admitted-native-inputs-to-target-bound-program",
  "compiler-identity",
  "diagnostics",
  "native-compiler",
- "native-scalar-inputs",
- "optimization-selections",
  "product-publication",
  "provider-acceptance",
  "psi-authorization",
@@ -596,13 +596,9 @@ dependencies = [
  "semantic-vocabulary",
  "source-admission",
  "source-compiler",
- "source-provenance",
  "source-text",
- "symbols",
  "target",
- "target-provider-admission",
  "terminal-codec",
- "terminal-psi",
 ]
 
 [[package]]
@@ -1050,6 +1046,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-operations",
@@ -1528,6 +1525,7 @@ dependencies = [
  "boundary-applications",
  "bounded-process",
  "calling-conventions",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "encoding-admission",
@@ -1561,6 +1559,7 @@ dependencies = [
  "provider-correspondence",
  "provider-demand",
  "provider-plans",
+ "provider-stack-contribution",
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
@@ -1585,6 +1584,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "verified-optimization-input",
+ "wire",
 ]
 
 [[package]]
@@ -1835,6 +1835,7 @@ dependencies = [
  "psi-entry-memory",
  "resolver-execution",
  "retained-image-runtime",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",
@@ -1923,8 +1924,8 @@ dependencies = [
  "numerics",
  "operation-evidence",
  "optimization-core",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
  "wire",
 ]
@@ -1937,9 +1938,9 @@ dependencies = [
  "arena",
  "optimization-core",
  "optimization-unit",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
- "structural-storage",
- "terminal-codec",
+ "structural-storage-queries",
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
@@ -2121,7 +2122,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-vocabulary",
@@ -2405,6 +2406,20 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "psi-declaration-encoding"
+version = "0.1.0"
+dependencies = [
+ "access-admission",
+ "access-vocabulary",
+ "arena",
+ "layout-plans",
+ "numerics",
+ "schema-reflection",
+ "semantic-vocabulary",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -3266,11 +3281,20 @@ dependencies = [
 name = "structural-storage"
 version = "0.1.0"
 dependencies = [
- "operation-operands",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
  "terminal-psi",
+]
+
+[[package]]
+name = "structural-storage-queries"
+version = "0.1.0"
+dependencies = [
+ "operation-operands",
+ "semantic-vocabulary",
+ "structural-storage",
+ "terminal-psi",
  "terminal-semantics",
- "terminal-wire",
 ]
 
 [[package]]
@@ -3444,6 +3468,7 @@ dependencies = [
  "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-publication-records",
  "psi-target-layouts",
  "selected-provider-plans",
@@ -3528,6 +3553,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -3753,8 +3779,6 @@ dependencies = [
 name = "terminal-wire"
 version = "0.1.0"
 dependencies = [
- "access-admission",
- "access-vocabulary",
  "application-identity",
  "arena",
  "bignum",
@@ -3765,8 +3789,8 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-applications",
+ "psi-declaration-encoding",
  "psi-effect-contracts",
- "schema-reflection",
  "semantic-vocabulary",
  "service-surface",
  "terminal-psi",

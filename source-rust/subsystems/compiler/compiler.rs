@@ -15,8 +15,8 @@ use psi_authorization::{
 
 pub use native_compiler::SelectedProviderResult;
 pub use native_compiler::{
-    NativeApplicationSettings, SavedProgramTarget as NativeTarget, SourceNativeTarget,
-    TargetProviderInstallation, stage_validators,
+    ComponentSourcePublication, NativeApplicationSettings, SavedProgramTarget as NativeTarget,
+    SourceNativeTarget, TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
@@ -62,17 +62,28 @@ pub enum CompileRequest<'a> {
     },
 }
 
-/// The source producer supplies its checked deployment; a saved program uses the
+/// Publishes one dependency using its own settled Build, package graph and target policy.
+pub trait ComponentSuppliers {
+    fn publish(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        target: target::TargetProfile,
+    ) -> Result<native_compiler::ComponentSourcePublication, Vec<Diagnostic>>;
+}
+
+/// The source producer supplies its checked deployment. A saved program uses the
 /// receiving host's installation already pinned to the authorized manifest.
 pub enum Program<'a> {
     Source {
         source: StageSource<'a>,
         target: SourceNativeTarget<'a>,
+        suppliers: &'a dyn ComponentSuppliers,
         runtime_consent:
             Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
     },
     CheckedSource {
         publication: source_compiler::PublishedTargetProgram,
+        suppliers: &'a dyn ComponentSuppliers,
         runtime_consent:
             Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
         target: SourceNativeTarget<'a>,
@@ -187,6 +198,7 @@ impl Program<'_> {
                 source,
                 target,
                 runtime_consent,
+                suppliers,
             } => {
                 let publication = source_to_psi::compile_for_target(
                     source,
@@ -197,6 +209,7 @@ impl Program<'_> {
                     publication,
                     target,
                     runtime_consent,
+                    suppliers,
                 }
                 .prepare(None)
             }
@@ -204,7 +217,14 @@ impl Program<'_> {
                 publication,
                 target,
                 runtime_consent,
+                suppliers,
             } => {
+                let components = publication
+                    .independent_packages()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .into_iter()
+                    .map(|package| suppliers.publish(package, target.profile))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let subject = publication.subject();
                 let consent = runtime_consent
                     .map(|accepted| {
@@ -222,6 +242,7 @@ impl Program<'_> {
                     authorized,
                     providers,
                     &exclusions,
+                    components,
                     target,
                 )?;
                 if let Some((accepted, declarations, bindings)) = consent {

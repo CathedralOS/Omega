@@ -3,6 +3,7 @@
 mod body_resources;
 mod callable_objects;
 mod callback_thunks;
+pub(crate) mod components;
 mod object_emission;
 pub(crate) mod plan_callables;
 
@@ -53,6 +54,7 @@ pub(super) fn prepare_program_image(
         .map_err(|error| vec![error.diagnostic().clone()])?;
     Ok((
         native_artifact::ProgramImageInput {
+            components: Vec::new(),
             terminal: artifact,
             published: emitted,
             image: image_request,

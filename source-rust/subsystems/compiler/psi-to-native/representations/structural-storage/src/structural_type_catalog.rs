@@ -6,12 +6,12 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use psi_declaration_encoding::CodecError;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     StructuralReferentIdentity, StructuralTypeDeclaration, TerminalAccessViewInput,
     TerminalAccessViewPlan, TerminalQuotientCatalog,
 };
-use terminal_wire::CodecError;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct StructuralTypeCatalog(
@@ -68,7 +68,7 @@ impl StructuralTypeCatalog {
         self.5 = if plans.is_empty() {
             None
         } else {
-            let canonical = terminal_wire::encode_access_lifecycle_catalog(&plans)?;
+            let canonical = psi_declaration_encoding::encode_access_lifecycle_catalog(&plans)?;
             Some(Arc::new(RetainedAccessLifecycles { plans, canonical }))
         };
         Ok(self)
@@ -90,7 +90,7 @@ impl StructuralTypeCatalog {
         self.4 = if catalog == EMPTY_QUOTIENTS {
             None
         } else {
-            let canonical = terminal_wire::encode_quotient_catalog(&catalog)?;
+            let canonical = psi_declaration_encoding::encode_quotient_catalog(&catalog)?;
             Some(Arc::new(RetainedQuotients { catalog, canonical }))
         };
         Ok(self)

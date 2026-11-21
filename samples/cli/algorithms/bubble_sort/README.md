@@ -3,7 +3,7 @@
 From the repository root, run with a built Omega CLI:
 
 ```text
-omega run --both samples/cli/algorithms/bubble_sort/main.omg
+omega run --both samples/cli/algorithms/bubble_sort/build.omg
 ```
 
 Press Enter at the closing prompt (EOF also works). Native execution and the

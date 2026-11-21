@@ -2560,7 +2560,9 @@ impl<'a> Lowering<'a> {
                 } else {
                     None
                 };
-                let lent = self.captured_loan(base, *access, captured, None)?;
+                let lent_access = borrowed_access(*access)
+                    .ok_or_else(|| self.internal("write-only array view"))?;
+                let lent = self.captured_loan(base, lent_access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 let region = if let Some(source_length) = source_length {
@@ -2913,7 +2915,7 @@ impl<'a> Lowering<'a> {
                     } else {
                         false
                     };
-                let lent = self.captured_loan(place, *access, captured, None)?;
+                let lent = self.captured_loan(place, declared, captured, None)?;
                 let storage = if reinterpret && !shared_descriptor {
                     let byte_offset = self.zero(
                         ScalarType::Integer(
@@ -3203,12 +3205,14 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
+        let lent_access =
+            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
         if matches!(place.kind, ExpressionKind::OwnedTemporary { .. }) {
             // A returned reference or a folded call can keep borrowing
             // this backing. It belongs to ordinary owned-root cleanup.
             let captured = continuing!(self.capture_place(place));
             return self
-                .captured_loan(place, access, captured, None)
+                .captured_loan(place, lent_access, captured, None)
                 .map(Reached::Value);
         }
         let shared_view = match value_type {
@@ -3259,21 +3263,27 @@ impl<'a> Lowering<'a> {
             let (root, steps, exact, actual) = continuing!(self.capture_place(place));
             (root, steps, exact, actual, None)
         };
-        self.captured_loan(place, access, (root, steps, exact, actual), temporary)
+        // A later call operand can change the descriptor or selector before
+        // invocation. Save the actual address at this argument's evaluation.
+        let (root, steps, exact) =
+            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
+        self.captured_loan(place, lent_access, (root, steps, exact, actual), temporary)
             .map(Reached::Value)
     }
 
     fn captured_loan(
         &mut self,
         place: &Expression,
-        access: language_core::ReferenceAccess,
+        lent_access: StructuralAccess,
         (root, steps, exact, actual): (PlaceId, Vec<Step>, ExactPlaceId, ValueType),
         temporary: Option<PlaceId>,
     ) -> Checked<Lent> {
-        let lent_access =
-            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
-        let (root, steps, exact) =
-            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
+        // A reference or view captures its single operand at formation. Keep
+        // the measured descriptor and selector together for its bounds check.
+        // A staged call operand already holds its captured address in a root.
+        if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
+            self.measured_view(&view, place.source)?;
+        }
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;

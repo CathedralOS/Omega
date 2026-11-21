@@ -6,13 +6,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **ITERATION-PERFORMANCE.** Reduce measured delays in the edit/build/run cycle.
-  - Use the [worktree assignment](tools/xtask/src/worktree.rs) to prefer collecting idle build outputs under disk pressure. Exercise independent collectors with one target's worth of space, an assignment and a release. Preserve explicit keep/evict settings, command leases and Cargo locks.
-  - After real-program bottlenecks, measure arena growth and copied nodes on repeated aggregate [constant substitutions](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/substitution.rs). Preserve per-occurrence metadata when sharing definition content.
-  - Measure ascending, descending, repeated and tiny sets of [specializations](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs). Count movement in the sorted index before changing storage. Preserve application identity, encounter order and deduplication.
 - **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
   - Bind `FilesystemHost`, `TimeHost` and direct foreign services to the exact operation and owner. Keep insufficient or installation-dependent evidence a refusal.
-  - Make all nine output-publication cases in the [construction host test](source/application/construction/tests/test_construct.py#L86) exercise the producer on Windows. The test launches an extensionless Python script by its shebang, which Windows rejects with error 193 before it can compare stdout or the exit code.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
@@ -31,7 +26,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
-  - Prove `jp = j + 1` stays below the array length in [bubble sort](samples/cli/algorithms/bubble_sort), and prove the arithmetic in `blue_put`'s inferred requirement total in [Dutch flag](samples/cli/algorithms/dutch_flag). Run their existing oracles.
   - Check the linked repositories and both compilers against the same declaration model. Preserve the original execution results of migrated programs.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete [scalar range contracts](wiki/spec/language/domains.md#declaration-and-membership).
@@ -105,7 +99,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **LIBRARY-RESPONSIBILITY-NAMES.** Migrate `std` to `system` and `alloc` to `allocation` across imports, registrations, sealed references, fixtures and docs. Preserve exact primitive ownership and the hosted, UEFI and explicit-storage customers. [Library names](wiki/spec/build/declarations.md#library-responsibilities-and-names)
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Complete the handoff from [source provider publication](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply) to [native admission](source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs). Bind external realizations and calling plans to the exact requirement, provider, target and published program.
-  - Finish provider-backed operator, opaque representation, constant and review cases, including float/FMA and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
+  - Finish provider-backed operator, opaque representation, constant and review cases, including the remaining floating-point and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
   - Preserve a rootless package's private `SelectedAnswer` choice for public `Answer::read() -> u32` in UEFI review. Recover the exact source contract without inventing a runnable entry.
   - Preserve the selected implementation's authored `reaches ReadCapability` and its checked effects independently of its requirement in [reviewed service rows](samples/cli/probes/reviewed_service_rows).
 
@@ -273,7 +267,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **OBSERVATION-PROFILE.** Derive the [observation profile](wiki/spec/terminal-psi/observations.md) from the validated Psi module, including its identity, ordinary events, crashes and terminal external sites. Encode it in the [wire format](source-rust/subsystems/compiler/psi/artifact/wire). Have an independent consumer compare the decoded rows with the program and reject a changed association.
 
 - **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Carry structural loans and slice views through native and Psi, including nested element views. Exercise lending an owned sequence as `&[T]` when its elements themselves retain borrowed views. Preserve each backing and its exact loan through return and cleanup.
-  - Run [case-selected slice references](samples/cli/probes/case_selected_slice_reference/main.omg) unchanged with native/Psi agreement: establish the mutable typed slice's actual backing and loan, then preserve the selected child through the return, including a rebound slice. Its recorded refusal precedes the returned-window checks; those checks and the independent projection-bound rejection remain required.
   - Check an unused `Observe<T>` machine taking `&T` under its declared lifetime and requirements. Run closed applications through both engines and reject mutation through a shared formal.
 
 <a id="normalized-abi-lowering"></a>

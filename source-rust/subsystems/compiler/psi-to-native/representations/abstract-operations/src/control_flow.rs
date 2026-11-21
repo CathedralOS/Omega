@@ -1,6 +1,5 @@
 /*
-We define abstract functions, blocks, and control-flow successor edges,
-along with their subordinate address-join and bounded-owner loan classifiers.
+An abstract function records its blocks and control-flow successor edges.
 
 A receiver may reuse its entrance place across states while a named state
 parameter receives a fresh place. `AbstractFunction::arrival_parameter` resolves
@@ -8,8 +7,6 @@ both across the function entrance roster and every non-entry block's ordered
 `(block, position)` coordinates, failing closed on any duplicate place spelling
 or entry-block parameter collision.
 */
-
-pub use structural_storage::{address_joins, owner_loans};
 
 use crate::{AbstractFunctionResult, AbstractOperation, AbstractParameter, ValueBinding};
 use semantic_vocabulary::{

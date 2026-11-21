@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Focused compiler checks rebuild the implementation three times
-
-- Category: Verifying costs more than writing
-- Where: [integration test dependency](source-rust/subsystems/compiler/Cargo.toml#L29), [forwarded test features](source-rust/subsystems/compiler/source-to-psi/Cargo.toml#L11), [provider-choice integration test](source-rust/subsystems/compiler/tests/source_provider_choices.rs#L12).
-- Saw: The locked Cargo unit graphs for a source-compiler unit test, the compiler’s `source_provider_choices` integration test and a CLI build contain three distinct `source_compiler` artifacts: a test executable, a library with `test-support`, and a normal library.
-- Cost: These controls cannot reuse a single compiled implementation. A historical macOS run on `a827cf2c269` spent 22m17s building 24 controls across 12 binaries and 177s executing them. Measure the same selection and feature sets before attributing that time to this split.
-- Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 
 - Category: One idea, several implementations
@@ -101,6 +93,6 @@ framework or a list of unimplemented features.
 
 - Category: Verifying costs more than writing
 - Where: [optimization unit identity](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs#L2062), [native structural type catalog](source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/src/structural_type_catalog.rs#L64), [abstract operations' storage queries](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/src/control_flow.rs#L12).
-- Saw: A private edit to the storage analysis still rebuilds the optimizer. The optimizer imports the Psi codec to encode a structural domain for its identity. Its abstract operations also import the native structural catalog, which encodes access and quotient declarations. Cargo therefore builds the full Psi wire validator for these callers.
-- Cost: Keep the canonical declaration encodings available to these consumers without compiling the storage checks that validate an incoming Psi artifact. Preserve the bytes used for optimizer identity. Measure a warm compiler rebuild after editing the private descriptor cache and run the original Console package.
+- Saw: The native structural catalog also contains queries that call the Psi storage checker. Abstract operations and optimizer records depend on this catalog, so a private edit to the checker rebuilds them.
+- Cost: Move those queries out of the catalog. Preserve the canonical domain, access and quotient bytes used for optimizer identity. Repeat the warm compiler rebuild with the same private descriptor edit and run the original Console package on native and Psi.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution

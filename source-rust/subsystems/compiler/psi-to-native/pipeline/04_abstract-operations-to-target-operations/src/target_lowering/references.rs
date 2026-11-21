@@ -1803,7 +1803,7 @@ mod stored_calls {
                         let mut path = formal.path.clone();
                         path.push(StructuralPathSegment::Referent);
                         if !access_covers(supplied.access, formal.access)
-                        || !abstract_operations::control_flow::address_joins::loan_access_permitted(
+                        || !structural_storage_queries::address_joins::loan_access_permitted(
                             types.values().copied(),
                             parameter.structural_type,
                             &path,

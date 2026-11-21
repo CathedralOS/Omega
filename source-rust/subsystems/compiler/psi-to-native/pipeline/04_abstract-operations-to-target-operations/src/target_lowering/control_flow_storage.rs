@@ -334,7 +334,7 @@ pub(crate) mod aggregate_results {
             })?;
             if parameter.access != terminal_psi::StructuralAccess::Owned
                 && (!argument.path.is_empty()
-                    || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                    || !structural_storage_queries::address_joins::is_descriptor_join(
                         parameter,
                         |identity| types.get(identity).copied(),
                     )

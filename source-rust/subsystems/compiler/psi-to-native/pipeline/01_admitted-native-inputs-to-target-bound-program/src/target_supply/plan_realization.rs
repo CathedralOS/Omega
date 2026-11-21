@@ -20,6 +20,7 @@ use super::realized_supply::{
 /// No default constructor turns an unfinished projection into empty supply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetSupplyExecutionInputs {
+    pub components: Option<PublishedComponentSuppliers>,
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
@@ -28,7 +29,17 @@ pub struct TargetSupplyExecutionInputs {
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublishedComponentSuppliers {
+    pub receiver: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    pub suppliers: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        Arc<component_description::VerifiedComponent>,
+    >,
+}
+
 pub struct TargetSupplyRealizationRequest<'a> {
+    components: Option<PublishedComponentSuppliers>,
     logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
     module: &'a TerminalModule,
     target: &'a str,
@@ -52,6 +63,7 @@ impl<'a> TargetSupplyRealizationRequest<'a> {
             logical,
             target: logical.target(),
             reached: logical.requirements(),
+            components: inputs.components,
             calling_applications: inputs.calling_applications,
             external_bindings: inputs.external_bindings,
             evaluated_native_bindings: inputs.evaluated_native_bindings,
@@ -197,6 +209,7 @@ fn checked_plan(
         ..ProviderPlan::default()
     };
     Ok(ProviderPlanRealizationInput {
+        component: None,
         composition_mode: choice.composition_mode,
         schema_declaration: choice.schema_declaration,
         schema_application: choice.schema_application,
@@ -500,11 +513,26 @@ pub fn realize_target_supply(
     let mut plans = Vec::with_capacity(logical.len());
     let mut covered = vec![false; request.reached.len()];
     for selected in logical {
-        plans.push(checked_plan(
-            module,
-            selected,
-            &request.calling_applications,
-        )?);
+        let mut plan = checked_plan(module, selected, &request.calling_applications)?;
+        if let Some(components) = &request.components
+            && selected.choice.composition_mode
+                == semantic_vocabulary::source_selections::CompositionMode::Independent
+        {
+            if components.receiver.view().identity() != request.logical.program() {
+                return Err("component imports belong to another receiving publication".into());
+            }
+            let supplier = selected
+                .choice
+                .provider_package
+                .and_then(|package| components.suppliers.get(&package))
+                .ok_or("independent provider has no separately verified supplier package")?;
+            plan.component = Some(verified_optimization_input::ComponentImport::admit(
+                components.receiver.view(),
+                Arc::clone(supplier),
+                &plan.declaration,
+            )?);
+        }
+        plans.push(plan);
         for (ordinal, boundary) in request.reached.iter().enumerate() {
             covered[ordinal] |= selected.covered.contains(boundary);
         }

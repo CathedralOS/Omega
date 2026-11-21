@@ -2,6 +2,10 @@
 //! This chooses source records; their full contracts are still questions of the
 //! ordinary lowered judgment. No native/ABI ProviderPlan is fabricated here.
 
+#[cfg(test)]
+#[path = "provider_choices/tests.rs"]
+mod tests;
+
 #[path = "provider_choices/authored_defaults.rs"]
 mod authored_defaults;
 pub use authored_defaults::retain_provider_defaults;

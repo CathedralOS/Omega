@@ -42,11 +42,15 @@ impl<Publisher, Plans> std::ops::Deref for PublishedSelection<Publisher, Plans> 
 
 pub fn select_published_providers<Publisher>(
     demand: native_inputs::AdmittedProviderDemand<Publisher>,
+    components: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        std::sync::Arc<component_description::VerifiedComponent>,
+    >,
 ) -> Result<PublishedSelection<Publisher, SelectedExecution>, Vec<Diagnostic>> {
     let (issued, authorization) = demand.into_parts();
     let (facts, publisher) = issued.into_parts();
     Ok(PublishedSelection {
-        plans: plan_provider_inputs(facts)?,
+        plans: plan_provider_inputs(facts, components)?,
         authorization,
         publisher,
     })
@@ -83,6 +87,10 @@ impl<Publisher> PublishedSelection<Publisher, SelectedExecution> {
 
 fn plan_provider_inputs(
     demand: ProviderDemandInputs,
+    components: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        std::sync::Arc<component_description::VerifiedComponent>,
+    >,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     use crate::{NativeProgramPlanningError, target_supply::TargetSupplyRealizationError};
     let (profile, logical, bodies, labels, origins, review, has_bound_applications) = match demand {
@@ -109,7 +117,7 @@ fn plan_provider_inputs(
     };
     let artifact = std::sync::Arc::clone(origins.artifact());
     let module = artifact.semantic_module();
-    crate::execution::plan_published_target_execution(origins, profile, &logical, &bodies, review, has_bound_applications)
+    crate::execution::plan_published_target_execution(origins, profile, &logical, &bodies, review, has_bound_applications, components)
         .map_err(|error| match error {
             NativeProgramPlanningError::Supply(TargetSupplyRealizationError::MissingSupplies { target, boundaries }) => {
                 boundaries.iter().map(|boundary| {

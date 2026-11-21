@@ -25,14 +25,21 @@ pub struct CallableTargetProduct {
     pub observation: crate::driver::observations::NativePipelineObservation,
 }
 
-fn plan_callable(
+pub(super) struct CallableAdmission {
+    pub runtime: crate::driver::runtime::TerminalCallableRuntimeProvisions<
+        crate::driver::runtime::NativeForeignAdapterRequest,
+    >,
+    pub authority: provider_admission::AdmittedNativeCallableAuthority,
+}
+
+pub(super) fn plan_callable(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'_>,
     admission: artifact_lowering::NativeAdmissionRequest<'_, '_>,
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     retain_native_stage_inputs: bool,
-) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
+) -> Result<(CallableTargetProduct, CallableAdmission), Vec<Diagnostic>> {
     let observation = crate::driver::observations::NativePipelineObservation::new(
         admission.providers.profile,
         crate::driver::observations::NativePipelineUnit::Callable,
@@ -64,7 +71,7 @@ fn plan_callable(
         },
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    crate::driver::runtime::TerminalCallableRuntimeProvisions::admit(
+    let runtime = crate::driver::runtime::TerminalCallableRuntimeProvisions::admit(
         artifact.view(),
         admitted.input.optimization_input().runtime_input(),
         callable_entry,
@@ -72,6 +79,7 @@ fn plan_callable(
         host,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
+    let authority = admitted.providers.callable_authority().clone();
     let optimized_target = crate::driver::compile_body::plan_native_body(
         admitted.input,
         target_lowering::OptimizedTargetLoweringRequest {
@@ -92,20 +100,23 @@ fn plan_callable(
             realization_error("callable target lowering", error)
         }
     })?;
-    Ok(CallableTargetProduct {
-        code: artifact.retain_code(),
-        coverage: admission
-            .boundary_application_coverage
-            .ok_or_else(|| {
-                realization_error(
-                    "callable physical evidence",
-                    "callable has no semantic occurrence coverage",
-                )
-            })?
-            .clone(),
-        target: optimized_target,
-        observation,
-    })
+    Ok((
+        CallableTargetProduct {
+            code: artifact.retain_code(),
+            coverage: admission
+                .boundary_application_coverage
+                .ok_or_else(|| {
+                    realization_error(
+                        "callable physical evidence",
+                        "callable has no semantic occurrence coverage",
+                    )
+                })?
+                .clone(),
+            target: optimized_target,
+            observation,
+        },
+        CallableAdmission { runtime, authority },
+    ))
 }
 
 /// Physical planning receives only the selected private targets, their ABI
@@ -364,4 +375,5 @@ fn plan_callback_target(
         artifact,
         request.retain_native_stage_inputs,
     )
+    .map(|(target, _)| target)
 }

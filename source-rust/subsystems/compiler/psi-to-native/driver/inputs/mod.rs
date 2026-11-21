@@ -2,8 +2,9 @@
 //! the root execution. Entry memory, requested installation assumptions
 //! and completed scalar values are checked against the retained publication and target.
 
+pub(crate) mod components;
 pub(crate) mod published_application;
-mod scalars;
+pub(crate) mod scalars;
 
 use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
@@ -34,7 +35,7 @@ pub(crate) fn prepare<'input>(
         proposal,
         retained.authorization(),
     )?;
-    let entry = proposal.program_entry().checked_entry().terminal_entry();
+    let entry = proposal.scope_source().root().semantic_entry();
     let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
     for initializer in request.private_entry_ram {
         let row = artifact
@@ -94,7 +95,7 @@ fn validate_installation_environment_inputs(
         {
             return Err(fail("program or target differs from the reviewed interval"));
         }
-        let entry = proposal.program_entry().checked_entry().terminal_entry();
+        let entry = proposal.scope_source().root().semantic_entry();
         if assumption.entry() != entry
             && !proposal
                 .occurrences()

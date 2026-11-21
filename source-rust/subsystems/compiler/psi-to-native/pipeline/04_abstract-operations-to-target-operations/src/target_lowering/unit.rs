@@ -13,10 +13,10 @@ pub(crate) mod argument_roots {
     use crate::target_lowering::structural_layout::structural_shape;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::AbstractFunction;
-    use abstract_operations::control_flow::address_joins::is_address_join;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::PlaceId;
     use std::collections::{BTreeMap, BTreeSet};
+    use structural_storage_queries::address_joins::is_address_join;
     use target_operations::{
         TargetStructuralArgumentSource, TargetStructuralHomeOrigin,
         TargetStructuralHomeRequirement, TargetStructuralParameter,

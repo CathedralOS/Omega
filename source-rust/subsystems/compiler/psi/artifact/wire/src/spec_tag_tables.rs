@@ -185,6 +185,7 @@ fn tag_tables() -> Vec<TagTable> {
         proof_term_wire, proposition_wire, scalar_term_wire, scalar_wire,
     };
     use crate::wire_fields;
+    use psi_declaration_encoding::content_projections;
 
     // A structural type declaration up to its shape tag: no quotient carrier,
     // type id, two identity indexes, three flags, Unrestricted multiplicity,
@@ -397,16 +398,16 @@ fn tag_tables() -> Vec<TagTable> {
         table(
             "content-projection-expression-tags",
             &["ContentProjectionExpression"],
-            |reader| refusal(signature::decode_content_projection_expression(reader)),
+            |reader| {
+                refusal(content_projections::decode_content_projection_expression(
+                    reader,
+                ))
+            },
         ),
         table(
             "content-projection-scalar-tags",
             &["ContentProjectionScalar"],
-            |reader| {
-                refusal(crate::term_table::decode_term_table::<
-                    semantic_vocabulary::ContentProjectionScalar,
-                >(reader))
-            },
+            |reader| refusal(content_projections::decode_capacity_scalar(reader)),
         )
         .after(&[&ONE]),
         table(

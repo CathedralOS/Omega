@@ -37,7 +37,7 @@ pub use build_receiver::CheckedBuildReceiver;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod published_entry;
-mod source_selection_publication;
+pub(crate) mod source_selection_publication;
 mod source_selections;
 pub use source_selections::TerminalSourceSelections;
 pub(crate) mod production_selection {

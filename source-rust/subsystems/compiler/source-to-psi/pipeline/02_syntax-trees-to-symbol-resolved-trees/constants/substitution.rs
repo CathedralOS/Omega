@@ -191,11 +191,12 @@ pub(crate) fn substitute_resolved_constants(
             "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
         ).with_source_span(reference));
         }
+        // A materialized aggregate's children belong to its definition. Each use
+        // keeps its own expression handle, span and declaration selections.
+        // Name paths keep private member storage for subsequent symbol binding.
         let initializer = if matches!(
             program.tables.bodies.expressions.expression(initializer),
-            ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::StructLiteral(_)
-                | ExpressionNode::Name(_)
+            ExpressionNode::Name(_)
         ) {
             program
                 .tables

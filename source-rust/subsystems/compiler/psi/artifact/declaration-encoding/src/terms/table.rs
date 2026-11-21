@@ -20,30 +20,32 @@ of order) is noncanonical. Either refusal rejects the module, so one term has
 exactly one table spelling and decoding re-encodes byte-for-byte.
 */
 
-use crate::semantic_module::wire::bounded_count;
-use crate::semantic_module::{CodecError, Reader, Writer};
+use crate::CodecError;
+use crate::wire::bounded_count;
+use crate::wire::{Reader, Writer};
 
-/// A term family whose recursive children are encoded as table handles.
-pub(crate) trait TableTerm: Sized {
+/// Each term family supplies the fields in one row. The table writer assigns the child indices.
+pub trait TermEncoding: Sized {
+    type Term;
     /// Names the family in refusals.
     const LABEL: &'static str;
 
     /// Pushes this node's recursive children in declared order.
-    fn children<'term>(&'term self, children: &mut Vec<&'term Self>);
+    fn children<'term>(term: &'term Self::Term, children: &mut Vec<&'term Self::Term>);
 
     /// Writes this node's row without its child handles.
-    fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError>;
+    fn write_row(term: &Self::Term, writer: &mut Writer) -> Result<(), CodecError>;
 
     /// Reads one row's fields and takes its children with exactly one
     /// `children.take` call.
     fn read_row(
         reader: &mut Reader<'_>,
-        children: &mut TableChildren<'_, Self>,
-    ) -> Result<Self, CodecError>;
+        children: &mut TableChildren<'_, Self::Term>,
+    ) -> Result<Self::Term, CodecError>;
 }
 
 /// The completed entries a row may consume while it is decoded.
-pub(crate) struct TableChildren<'stack, T> {
+pub struct TableChildren<'stack, T> {
     pending: &'stack mut Vec<(u32, T)>,
     row: u32,
     label: &'static str,
@@ -51,11 +53,7 @@ pub(crate) struct TableChildren<'stack, T> {
 
 impl<T> TableChildren<'_, T> {
     /// Reads `count` handles and returns the entries they name, in order.
-    pub(crate) fn take(
-        &mut self,
-        reader: &mut Reader<'_>,
-        count: usize,
-    ) -> Result<Vec<T>, CodecError> {
+    pub fn take(&mut self, reader: &mut Reader<'_>, count: usize) -> Result<Vec<T>, CodecError> {
         let base = self.pending.len().checked_sub(count);
         for position in 0..count {
             let handle = reader.u32()?;
@@ -78,26 +76,29 @@ impl<T> TableChildren<'_, T> {
 }
 
 /// Encodes `roots` as one table whose unconsumed entries are the roots, in order.
-pub(crate) fn encode_term_forest<'term, T: TableTerm + 'term>(
+fn encode_term_forest<'term, E: TermEncoding>(
     writer: &mut Writer,
-    roots: impl IntoIterator<Item = &'term T>,
-) -> Result<(), CodecError> {
+    roots: impl IntoIterator<Item = &'term E::Term>,
+) -> Result<(), CodecError>
+where
+    E::Term: 'term,
+{
     encode_rows(
         writer,
-        T::LABEL,
+        E::LABEL,
         roots,
         |term, children| {
-            term.children(children);
+            E::children(term, children);
             Ok(())
         },
-        |term, writer| term.write_row(writer),
+        E::write_row,
     )
 }
 
 /// The table encoder for nodes whose children need outside context (an arena).
 /// `children` pushes a node's children in declared order; `write_row` writes
 /// its row without the child handles.
-pub(crate) fn encode_rows<'term, T: 'term>(
+pub fn encode_rows<'term, T: 'term>(
     writer: &mut Writer,
     label: &'static str,
     roots: impl IntoIterator<Item = &'term T>,
@@ -143,24 +144,24 @@ pub(crate) fn encode_rows<'term, T: 'term>(
 }
 
 /// Encodes one term as a table with exactly one root.
-pub(crate) fn encode_term_table<T: TableTerm>(
+pub fn encode_term_table<E: TermEncoding>(
     writer: &mut Writer,
-    term: &T,
+    term: &E::Term,
 ) -> Result<(), CodecError> {
-    encode_term_forest(writer, std::iter::once(term))
+    encode_term_forest::<E>(writer, std::iter::once(term))
 }
 
 /// Decodes a table into its roots, in order.
-pub(crate) fn decode_term_forest<T: TableTerm>(
+fn decode_term_forest<E: TermEncoding>(
     reader: &mut Reader<'_>,
-) -> Result<Vec<T>, CodecError> {
-    decode_rows(reader, T::LABEL, 1, T::read_row)
+) -> Result<Vec<E::Term>, CodecError> {
+    decode_rows(reader, E::LABEL, 1, E::read_row)
 }
 
 /// The table decoder for rows that need outside context. Each row occupies at
 /// least `minimum_row_bytes`; `read_row` takes the row's children with one
 /// `TableChildren::take` call.
-pub(crate) fn decode_rows<T>(
+pub fn decode_rows<T>(
     reader: &mut Reader<'_>,
     label: &'static str,
     minimum_row_bytes: usize,
@@ -182,11 +183,11 @@ pub(crate) fn decode_rows<T>(
 }
 
 /// Decodes a table that must hold exactly one root.
-pub(crate) fn decode_term_table<T: TableTerm>(reader: &mut Reader<'_>) -> Result<T, CodecError> {
-    let mut roots = decode_term_forest::<T>(reader)?;
+pub fn decode_term_table<E: TermEncoding>(reader: &mut Reader<'_>) -> Result<E::Term, CodecError> {
+    let mut roots = decode_term_forest::<E>(reader)?;
     match (roots.pop(), roots.is_empty()) {
         (Some(root), true) => Ok(root),
-        _ => Err(CodecError::NonCanonicalTermTable(T::LABEL)),
+        _ => Err(CodecError::NonCanonicalTermTable(E::LABEL)),
     }
 }
 
@@ -195,7 +196,7 @@ mod tests {
     use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
     use super::*;
-    use crate::semantic_module::{decode_scalar_term, encode_scalar_term};
+    use crate::terms::scalar::{decode_scalar_term, encode_scalar_term};
 
     /// Box trees drop recursively, so a deep test term is taken apart with an
     /// explicit stack before it is dropped.

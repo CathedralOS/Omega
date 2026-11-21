@@ -2,10 +2,6 @@
 //! Foreign ABI adapters use the target calling contract recorded with each admission.
 pub(crate) mod foreign_adapters;
 
-use crate::driver::AdmittedRealization;
-use artifact_lowering::AdmittedNativeRealization;
-use diagnostics::Diagnostic;
-use provider_admission::realization_error;
 use verified_optimization_input::runtime_provisions::AdmittedRuntimeForeignCall;
 pub use verified_optimization_input::runtime_provisions::{
     NativeBindingRuntimeInputs, NativeRuntimePlan, TerminalCallableRuntimeProvisions,
@@ -98,28 +94,4 @@ pub fn plan_root_provisions(
         native,
     )?;
     Ok(admitted.map_adapters(plan_adapter))
-}
-
-pub(crate) fn prepare_terminal_runtime(
-    realization: AdmittedRealization<'_>,
-    target: target::NativeTarget,
-) -> Result<NativeRuntimePlan<object_file::ForeignAdapterObject>, Vec<Diagnostic>> {
-    let AdmittedRealization {
-        admitted: AdmittedNativeRealization { input, .. },
-        runtime_provisions,
-        ..
-    } = realization;
-    let borrowed_storage_layouts = input
-        .into_optimization_input()
-        .into_lowering_facts()
-        .borrowed_storage_layouts(target)
-        .map_err(|error| realization_error("runtime borrowed storage layout", error))?;
-    let provisions = runtime_provisions.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "runtime admission requires a checked program entry",
-        )]
-    })?;
-    Ok(provisions
-        .map_adapters(crate::driver::runtime::foreign_adapters::compile)
-        .with_borrowed_storage_layouts(borrowed_storage_layouts))
 }

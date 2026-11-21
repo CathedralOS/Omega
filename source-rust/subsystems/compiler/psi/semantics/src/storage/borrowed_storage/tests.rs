@@ -43,9 +43,60 @@ fn a_stripped_element_selector_keeps_the_storage_after_it() {
         index: ValueId::new(3).unwrap(),
         obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
     };
-    let selected = Projection::new(&[cells.clone(), selector, x.clone()])
-        .at((semantic_vocabulary::BlockId::new(1).unwrap(), 0));
+    let address = Projection::new(&[cells.clone(), selector, x.clone()]);
+    let literal = |id| (id == ValueId::new(3).unwrap()).then_some(2);
+    assert!(
+        !address
+            .clone()
+            .without_runtime_coordinates_with(literal)
+            .exact
+    );
+    let selected = address.at((semantic_vocabulary::BlockId::new(1).unwrap(), 0));
+    let known = selected.clone().without_runtime_coordinates_with(literal);
+    assert!(known.exact);
+    assert_eq!(known.path, known.captured_address_path().unwrap());
+    assert_eq!(
+        known.captured_address_path(),
+        Ok(vec![
+            cells.clone(),
+            StructuralPathSegment::FixedIndex(2),
+            x.clone()
+        ])
+    );
+    let at = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+    let within_window = Projection::new(std::slice::from_ref(&cells))
+        .with_window(ValueId::new(1).unwrap(), ValueId::new(2).unwrap(), at)
+        .then(
+            &Projection::new(&[StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(3).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            }])
+            .at(at),
+        );
+    let absolute = within_window
+        .clone()
+        .without_runtime_coordinates_with(|id| match id.get() {
+            1 => Some(4),
+            2 => Some(8),
+            3 => Some(2),
+            _ => None,
+        });
+    assert!(absolute.exact);
+    assert_eq!(
+        absolute.captured_storage_path(),
+        Some(vec![cells.clone(), StructuralPathSegment::FixedIndex(6)])
+    );
+    assert!(
+        !within_window
+            .without_runtime_coordinates_with(literal)
+            .exact
+    );
+    // An open call can promise a region without proving the exact address.
+    let mut region = Projection::new(&[]);
+    region.exact = false;
+    assert!(!region.without_runtime_coordinates_with(literal).exact);
     let stripped = selected.clone().without_runtime_coordinates();
+    assert!(stripped.captured_address_path().is_err());
     assert_eq!(stripped.path.as_slice(), std::slice::from_ref(&cells));
     assert_eq!(
         stripped.stripped_origin_path(),

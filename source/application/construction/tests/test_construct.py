@@ -102,8 +102,6 @@ class BuildSourceTests(unittest.TestCase):
 
 class ConstructionOutputTests(unittest.TestCase):
     def test_raw_and_framed_publication(self):
-        wire = b'fixed construction input'
-        manifest = {'units': [], 'source_bytes': 0, 'input_sha256': construct.digest(wire)}
         payload = b'\0\0\0\0\0arbitrary tape bytes'
         success = bytes(5) + payload
         refusal = struct.pack('<BiI', 0, 2, 73)
@@ -118,19 +116,23 @@ class ConstructionOutputTests(unittest.TestCase):
             ('--epsilon-compiler', b'\x02\x12\x04\0\0\0', 0, None),
             ('--epsilon-compiler', b'\xffEEOUT\x01\0' + bytes(32), 0, None),
         ]
-        with tempfile.TemporaryDirectory() as temp, patch.object(construct, 'compiler_input', return_value=(wire, manifest)):
+        with tempfile.TemporaryDirectory() as temp:
             work = Path(temp)
-            producer, output, request = work / 'producer', work / 'result.tape', work / 'request.bin'
+            output, request = work / 'result.tape', work / 'request.bin'
             for option, stdout, exit_code, expected in cases:
                 with self.subTest(option=option, stdout=stdout, exit_code=exit_code):
-                    producer.write_text(f'#!{sys.executable}\nimport sys\nassert sys.stdin.buffer.read() == {wire!r}\n'
-                                        f'sys.stdout.buffer.write({stdout!r})\nraise SystemExit({exit_code})\n')
-                    producer.chmod(0o700)
+                    # Python reads the request from stdin and returns this case's bytes and status.
+                    wire = (f'import sys\nsys.stdout.buffer.write({stdout!r})\n'
+                            f'raise SystemExit({exit_code})\n').encode('ascii')
+                    manifest = {'units': [], 'source_bytes': 0, 'input_sha256': construct.digest(wire)}
                     output.write_bytes(b'previous tape')
-                    args = ['construct.py', option, str(producer), '--input', str(request), '--output', str(output)]
-                    with patch.object(sys, 'argv', args), contextlib.redirect_stdout(io.StringIO()):
+                    args = ['construct.py', option, sys.executable, '--input', str(request), '--output', str(output)]
+                    with (patch.object(construct, 'compiler_input', return_value=(wire, manifest)),
+                          patch.object(sys, 'argv', args), contextlib.redirect_stdout(io.StringIO())):
                         self.assertEqual(construct.main(), int(expected is None))
                     receipt = json.loads(request.with_suffix('.result.json').read_text())
+                    self.assertEqual(request.read_bytes(), wire)
+                    self.assertEqual(receipt['exit'], exit_code)
                     self.assertEqual(receipt['published'], expected is not None)
                     self.assertEqual(receipt['stdout_sha256'], construct.digest(stdout))
                     self.assertEqual(output.read_bytes(), expected if expected is not None else b'previous tape')

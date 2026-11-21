@@ -170,19 +170,7 @@ pub fn callable_reference_result<'module>(
     declared_reference_result(types, &callable.proof)
 }
 
-/// A declared lifetime names static leaves or a whole family of elements.
-pub fn declared_lifetime_path_is_static(path: &[StructuralPathSegment]) -> bool {
-    path.iter().all(|segment| {
-        matches!(
-            segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::Case(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::Referent
-                | StructuralPathSegment::AllElements
-        )
-    })
-}
+pub use terminal_psi::declared_lifetime_path_is_static;
 
 pub(crate) fn validate_result_lifetime_groups(
     groups: &[DeclaredResultLifetime],

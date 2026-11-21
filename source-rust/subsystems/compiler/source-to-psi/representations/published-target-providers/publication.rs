@@ -47,6 +47,30 @@ pub fn issue_target_provider_demand(
 }
 
 impl PublishedTargetProviders {
+    /// Supply the independently selected packages for this target. Explicit Build selections
+    /// participate in this closure even when the entry calls none of their methods.
+    pub fn independent_packages(
+        &self,
+    ) -> Result<std::collections::BTreeSet<semantic_vocabulary::PackageKeyIdentity>, String> {
+        let SourceProviderDemand::Target { closed, .. } = &self.demand else {
+            return Ok(Default::default());
+        };
+        closed
+            .selection()
+            .providers()
+            .iter()
+            .filter(|provider| {
+                provider.choice.composition_mode
+                    == semantic_vocabulary::source_selections::CompositionMode::Independent
+            })
+            .map(|provider| {
+                provider.choice.provider_package.ok_or_else(|| {
+                    "separately compiled supplier needs a package-owned provider".to_owned()
+                })
+            })
+            .collect()
+    }
+
     pub fn receive(
         self,
         artifact: &CanonicalTerminalArtifact,

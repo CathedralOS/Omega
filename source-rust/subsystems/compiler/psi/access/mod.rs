@@ -25,10 +25,10 @@ pub use cleanup::{
     TerminalAffineCleanupAction,
 };
 pub use placement::{
-    AccessRamCorrespondence, AccessRamFieldCorrespondence, AccessorScalarBoundaryDemand,
-    ResidentReferenceSource, TerminalAccessFieldPlan, TerminalAccessLifecycleExecution,
-    TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalAccessOwner,
-    TerminalAccessProfileOperand, TerminalAccessProfileRequirement, TerminalAccessStorage,
-    TerminalAccessViewInput, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
-    canonical_access_view_identity,
+    AccessRamCorrespondence, AccessRamFieldCorrespondence, AccessViewInputError,
+    AccessViewPlanError, AccessorScalarBoundaryDemand, ResidentReferenceSource,
+    TerminalAccessFieldPlan, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+    TerminalAccessLifecyclePlan, TerminalAccessOwner, TerminalAccessProfileOperand,
+    TerminalAccessProfileRequirement, TerminalAccessStorage, TerminalAccessViewInput,
+    TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind, canonical_access_view_identity,
 };

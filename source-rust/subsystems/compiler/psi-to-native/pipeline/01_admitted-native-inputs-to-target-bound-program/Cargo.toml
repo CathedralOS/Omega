@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+component-description = { path = "../../verification/component-description" }
 target-bound-program = { path = "../../representations/target-bound-program" }
 behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
 optimization-core = { path = "../../representations/optimization-records" }
@@ -57,3 +58,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/semantics/work" }
 wire = { path = "../../../../../foundation/wire" }
+
+[dev-dependencies]
+native-scalar-inputs = { path = "../00_psi-to-admitted-native-inputs/scalar-applications" }

@@ -2,6 +2,18 @@ use crate::StructuralAccess;
 use crate::TerminalIdentityIndex;
 use semantic_vocabulary::MachineId;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessViewInputError {
+    MachineMissing,
+    DeclarationMissing,
+    MachineIdentityMismatch,
+    StateIdentityMismatch,
+    CarrierIdentityMissing,
+    ParameterMissing,
+    CarrierMismatch,
+    AccessMismatch,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalAccessViewInput {
     pub machine: MachineId,
@@ -28,6 +40,39 @@ pub fn canonical_access_view_identity(policy: &str, schema: &str) -> String {
         policy.len(),
         schema.len()
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessViewPlanError {
+    DuplicateCarrier,
+    DuplicateAccessor,
+    CarrierMissing,
+    SchemaMissing,
+    CarrierNotRecord,
+    SchemaNotRecord,
+    IdentityMissing,
+    ViewIdentityMismatch,
+    InputPlanMismatch,
+    InputMissing {
+        machine: semantic_vocabulary::MachineId,
+        runtime_position: usize,
+    },
+    /// Inputs must be strictly ordered by `(machine, runtime_position)`;
+    /// this names the first row that repeats or precedes its predecessor.
+    InputOutOfOrder {
+        machine: semantic_vocabulary::MachineId,
+        runtime_position: u32,
+    },
+    FieldSlotMismatch,
+    ViewFieldMismatch,
+    SchemaFieldMismatch,
+    AccessorMissing,
+    DuplicateBoundary,
+    BoundaryMissing,
+    BoundaryCarrierMismatch,
+    OperationNotAdmitted,
+    OperationSignatureMismatch,
+    CarrierStorageMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -10,6 +10,7 @@ mod physical_publication_tests;
 #[path = "verification/stage_validators.rs"]
 pub mod stage_validators;
 
+pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
     SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
     review_source_providers,
@@ -45,6 +46,7 @@ pub struct NativeEmission {
 /// program. Its reviewed assumptions travel to the same entry and installation checks.
 pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
+    suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
@@ -93,11 +95,13 @@ impl NativeProgram {
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
+            suppliers,
             permissions,
             installation_assumptions,
         } = self;
         let mut receipts = Vec::new();
         let request = NativeCompileRequest {
+            suppliers: &suppliers,
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,
             private_entry_ram,
