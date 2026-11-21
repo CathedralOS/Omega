@@ -1,0 +1,11 @@
+[package]
+name = "native-execution-reach"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "reach.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }

@@ -701,6 +701,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "language-core",
+ "native-execution-reach",
  "native-intrinsics",
  "provider-plans",
  "selected-provider-plans",
@@ -708,7 +709,6 @@ dependencies = [
  "service-surface",
  "symbols",
  "target",
- "target-vocabulary",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1028,6 +1028,7 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "native-encoding",
+ "native-execution-reach",
  "object-file",
  "optimization-core",
  "optimization-unit",
@@ -1450,6 +1451,7 @@ dependencies = [
  "installation-conditions",
  "machine-code",
  "native-binding-admission",
+ "native-execution-reach",
  "native-intrinsics",
  "object-file",
  "operation-evidence",
@@ -1613,17 +1615,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-execution-reach"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+]
+
+[[package]]
 name = "native-execution-scope"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
  "function-identity",
+ "native-execution-reach",
  "provider-admission",
  "provider-correspondence",
  "psi-target-layouts",
  "semantic-vocabulary",
- "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -3392,6 +3401,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "target-bound-program"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "native-execution-reach",
+ "psi-target-layouts",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "target-bound-program-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
@@ -3413,6 +3436,7 @@ dependencies = [
  "selected-provider-plans",
  "semantic-vocabulary",
  "target",
+ "target-bound-program",
  "target-provider-admission",
  "terminal-codec",
  "terminal-psi",
@@ -3492,6 +3516,7 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "language-core",
+ "native-execution-reach",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
@@ -3841,6 +3866,7 @@ dependencies = [
  "legalized-operations",
  "native-behavior-exclusions",
  "native-binding-admission",
+ "native-execution-reach",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
@@ -3863,6 +3889,7 @@ dependencies = [
  "selected-provider-plans",
  "semantic-vocabulary",
  "target",
+ "target-bound-program",
  "target-operations",
  "target-provider-admission",
  "target-vocabulary",

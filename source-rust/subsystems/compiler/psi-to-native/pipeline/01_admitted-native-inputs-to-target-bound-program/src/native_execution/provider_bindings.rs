@@ -101,7 +101,7 @@ pub(super) fn bind(
         .interfaces
         .boundary_machines
         .iter()
-        .filter(|boundary| scope.contains_boundary(boundary.id))
+        .filter(|boundary| scope.reach().contains_boundary(boundary.id))
     {
         let name = identity(boundary)?;
         demands.insert(name.to_owned());
@@ -149,7 +149,7 @@ pub(super) fn bind(
         module,
         &proposal.providers().selection,
         &proposal.providers().direct_boundary_leaves,
-        scope.emitted_reach(),
+        scope.reach().emitted_reach(),
         &direct,
     )?;
     let checked = ScopedProviderSelection::bind(authorization, proposal, scope, verified)?;
@@ -184,18 +184,18 @@ pub(super) fn bind(
             .interfaces
             .boundary_machines
             .iter()
-            .filter(|boundary| scope.contains_boundary(boundary.id))
+            .filter(|boundary| scope.reach().contains_boundary(boundary.id))
             .count();
         let mut text = format!(
             "prepared native boundaries: entry={:?} total={} in_scope={} direct_leaves={} builtins={}\n",
-            scope.entry(),
+            scope.reach().entry(),
             module.interfaces.boundary_machines.len(),
             retained_boundary_count,
             proposal.providers().direct_boundary_leaves.len(),
             compiler_builtins.len(),
         );
         for boundary in module.interfaces.boundary_machines.iter().take(16) {
-            let retained = scope.contains_boundary(boundary.id);
+            let retained = scope.reach().contains_boundary(boundary.id);
             let name = module.identities.text(boundary.identity);
             let selected =
                 name.is_some_and(|name| selection.selected_requirement_row(name).is_some());

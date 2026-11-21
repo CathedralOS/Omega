@@ -11,8 +11,7 @@ pub use emission::{
     ScalarCallOrigin, ScalarCallResultFact,
 };
 
-mod execution_scope;
-pub use execution_scope::{EmittedCallbackOccurrence, EmittedExecutionScope};
+use native_execution_reach::ExecutionReach;
 
 use std::sync::Arc;
 
@@ -39,7 +38,7 @@ pub struct NativeEntryFacts {
     pub deployment: Option<DeploymentEntryFacts>,
     pub identities: terminal_psi::TerminalIdentityTable,
     pub entry_declaration: Option<terminal_psi::CheckedMachineDeclaration>,
-    pub native_execution_scope: Option<std::sync::Arc<EmittedExecutionScope>>,
+    pub native_execution_scope: Option<std::sync::Arc<ExecutionReach>>,
     pub selected_provider_closure: Option<[u8; 32]>,
 }
 
@@ -110,7 +109,7 @@ impl NativeEntryFacts {
         target: target::NativeTarget,
         entry: MachineId,
         selected_provider_closure: [u8; 32],
-    ) -> Result<Option<&EmittedExecutionScope>, &'static str> {
+    ) -> Result<Option<&ExecutionReach>, &'static str> {
         let Some(scope) = self.native_execution_scope.as_deref() else {
             return Ok(None);
         };

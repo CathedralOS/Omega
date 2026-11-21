@@ -1848,7 +1848,7 @@ pub(crate) fn lower_selected_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
-    scope: Option<&crate::NativeExecutionScope>,
+    scope: Option<&target_bound_program::TargetBoundReach>,
     scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
@@ -1894,7 +1894,7 @@ pub(crate) fn lower_selected_module(
     }
     let owned_sequence_bounds = match scope {
         Some(scope) => scope.owned_sequence_bounds().to_vec(),
-        None => crate::NativeExecutionScope::full_module_owned_sequence_bounds(
+        None => target_bound_program::TargetBoundReach::full_module_owned_sequence_bounds(
             module,
         )
         .map_err(|reason| {

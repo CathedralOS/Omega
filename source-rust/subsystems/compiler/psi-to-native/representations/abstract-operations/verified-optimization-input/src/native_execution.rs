@@ -47,7 +47,7 @@ impl TerminalNativeRealizationProposal {
             artifact.semantic_module(),
             selection,
             &coverage,
-            scope.machines(),
+            scope.reach().machines(),
         )?;
         Ok(coverage)
     }
@@ -59,7 +59,7 @@ impl NativeExecutionFacts {
         providers: ScopedProviderBindings,
     ) -> Result<Self, Vec<Diagnostic>> {
         if providers.boundary_application_coverage.demands()
-            != checked.scope().boundary_application_demands()
+            != checked.scope().reach().boundary_application_demands()
         {
             return Err(vec![Diagnostic::error(
                 "native provider coverage belongs to another execution scope",

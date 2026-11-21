@@ -1,6 +1,6 @@
 # Native pipeline representations
 
-The numbered transformations exchange the six program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+The numbered transformations exchange the program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 
@@ -19,6 +19,7 @@ tokens or replay evidence a stage keeps beside it.
 
 Other packages separate shared records and preparation from program roots:
 
+- [Target-bound program reach](target-bound-program/bound_reach.rs) records which machines, boundaries, callbacks and scalar applications stage 01 selected for an entry. Stage 02 reads it to lower that body. Direct provider matching and object publication need only the [reached IDs](target-bound-program/execution-reach/reach.rs), so their crates can read those without compiling artifact decoding or layout admission.
 - [Operation evidence](operation-evidence/src/lib.rs) identifies where a row came
   from and preserves its charged work, claim sources and ownership frontier.
   The optimizer and later forms can name this evidence without opening a function.

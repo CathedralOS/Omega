@@ -24,7 +24,7 @@ impl ScopedProviderSelection {
                 artifact.semantic_module(),
                 &proposal.providers().selection,
                 &proposal.providers().direct_boundary_leaves,
-                scope.emitted_reach(),
+                scope.reach().emitted_reach(),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         scope.bind_completed_provider_selection(&selection);

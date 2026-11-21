@@ -9,6 +9,8 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+target-bound-program = { path = "../../target-bound-program" }
+native-execution-reach = { path = "../../target-bound-program/execution-reach" }
 psi-publication-records = { path = "../../../../psi-artifact/publication" }
 native-behavior-exclusions = { path = "../../../verification/behavior-exclusions" }
 provider-acceptance = { path = "../../../../build/providers/acceptance" }

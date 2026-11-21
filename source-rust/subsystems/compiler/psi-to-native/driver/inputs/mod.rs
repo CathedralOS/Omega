@@ -50,7 +50,7 @@ pub(crate) fn prepare<'input>(
             })?;
         let recipe = psi_entry_memory::admit_private_entry_ram(
             artifact.view(),
-            execution.scope().layouts(),
+            execution.scope().reach().layouts(),
             entry,
             &psi_entry_memory::PrivateEntryRamRecipe {
                 input: row.clone(),
@@ -63,7 +63,7 @@ pub(crate) fn prepare<'input>(
     let scalars = scalars::complete(
         artifact,
         proposal,
-        execution.scope().scalar_application_demand(),
+        execution.scope().reach().scalar_application_demand(),
         request.scalar_receipts,
     )?;
     Ok(PreparedNativeCompilation {

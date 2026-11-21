@@ -1,0 +1,173 @@
+//! Scalar reads and storage extents used by the selected machines and boundaries.
+use native_execution_reach::ExecutionReach;
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use terminal_psi::{OperationKind, TerminalModule};
+
+pub(super) struct ScalarDemand<'scope> {
+    pub(super) emitted: Option<&'scope ExecutionReach>,
+    pub(super) owned_sequence_bounds: &'scope [(semantic_vocabulary::StructuralTypeId, u64)],
+}
+
+impl ScalarDemand<'_> {
+    fn contains_machine(&self, machine: MachineId) -> bool {
+        self.emitted
+            .is_none_or(|scope| scope.contains_machine(machine))
+    }
+
+    fn contains_boundary(&self, boundary: BoundaryMachineId) -> bool {
+        self.emitted
+            .is_none_or(|scope| scope.contains_boundary(boundary))
+    }
+
+    pub(super) fn scalar_application_demand(
+        &self,
+        module: &TerminalModule,
+        layouts: &psi_target_layouts::AdmittedTargetLayouts,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
+        let mut demanded = self.storage_extent_demand(module, layouts)?;
+        for machine in module
+            .machines
+            .iter()
+            .filter(|machine| self.contains_machine(machine.id))
+        {
+            for operation in machine.operations() {
+                if let OperationKind::ReadScalarApplication { application } = operation.kind {
+                    demanded.push(application);
+                }
+            }
+        }
+        let catalog = &module.scalars.scalar_applications;
+        for (position, declaration) in catalog.declarations().iter().enumerate() {
+            let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
+                continue;
+            };
+            let terminal_psi::TargetMachineCallable::Machine(machine) = entry else {
+                continue;
+            };
+            let machine = *machine;
+            if !self.contains_machine(machine) {
+                continue;
+            }
+            let application = u64::try_from(position)
+                .ok()
+                .and_then(|position| position.checked_add(1))
+                .and_then(semantic_vocabulary::ScalarApplicationId::new)
+                .ok_or("native scalar application coordinate exceeds its catalog")?;
+            if catalog.conditions.contains_subject(
+                terminal_psi::ScalarConditionSubject::Application(application),
+            ) {
+                demanded.push(application);
+            }
+        }
+        demanded.sort_unstable();
+        demanded.dedup();
+        Ok(demanded)
+    }
+}
+
+mod storage {
+    use super::ScalarDemand;
+    use semantic_vocabulary::ScalarApplicationId;
+    use std::collections::{BTreeMap, BTreeSet};
+    use terminal_psi::TerminalModule;
+
+    impl ScalarDemand<'_> {
+        pub(super) fn storage_extent_demand(
+            &self,
+            module: &TerminalModule,
+            layouts: &psi_target_layouts::AdmittedTargetLayouts,
+        ) -> Result<Vec<ScalarApplicationId>, String> {
+            let mut declarations = module
+                .types
+                .structural_types
+                .iter()
+                .map(|declaration| (declaration.id, declaration))
+                .collect::<BTreeMap<_, _>>();
+            for resolved in layouts.resolved_records() {
+                declarations.insert(resolved.id, resolved);
+            }
+            let mut roots = BTreeSet::new();
+            for machine in module
+                .machines
+                .iter()
+                .filter(|machine| self.contains_machine(machine.id))
+            {
+                roots.extend(
+                    machine
+                        .structural_parameters
+                        .iter()
+                        .chain(machine.block_structural_parameters())
+                        .map(|parameter| parameter.structural_type),
+                );
+                roots.extend(
+                    machine
+                        .result
+                        .structural()
+                        .map(|result| result.structural_type),
+                );
+                for place in &machine.structural_places {
+                    roots.extend(place.kind.produced_structural_type());
+                }
+                for block in &machine.blocks {
+                    for operation in &block.operations {
+                        roots.extend(
+                            operation
+                                .result
+                                .structural()
+                                .map(|result| result.structural_type),
+                        );
+                        for (storage, _) in operation.kind.storage_uses() {
+                            terminal_semantics::storage_operand_dependencies(
+                                machine,
+                                &declarations,
+                                storage,
+                                &mut roots,
+                            )
+                            .map_err(|reason| {
+                                format!("native storage demand for {:?}: {reason}", operation.id)
+                            })?;
+                        }
+                    }
+                    for projection in block.terminator.storage_uses() {
+                        terminal_semantics::storage_operand_dependencies(
+                            machine,
+                            &declarations,
+                            projection.into(),
+                            &mut roots,
+                        )
+                        .map_err(|reason| {
+                            format!(
+                                "native terminator storage demand for {:?}: {reason}",
+                                machine.id
+                            )
+                        })?;
+                    }
+                }
+            }
+            for boundary in module
+                .interfaces
+                .boundary_machines
+                .iter()
+                .filter(|boundary| self.contains_boundary(boundary.id))
+            {
+                roots.extend(
+                    boundary
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.structural_type),
+                );
+                if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
+                    roots.insert(result.structural_type);
+                }
+            }
+            calling_conventions::terminal_layout::StructuralLayouts::with_owned_sequence_bounds(
+                declarations.into_values(),
+                self.owned_sequence_bounds,
+            )
+            .map_err(|error| format!("native storage declarations: {error:?}"))?
+            .required_scalar_extents(roots)
+            .map(|applications| applications.into_iter().collect())
+            .map_err(|error| format!("native storage extent demand: {error:?}"))
+        }
+    }
+}

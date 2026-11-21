@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 terminal-authority-receipts = { path = "../../../verification/provider-admission/authority" }
 native-binding-admission = { path = "../../../verification/native-bindings" }
 native-intrinsics = { path = "../../../targets/intrinsics" }

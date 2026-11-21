@@ -683,9 +683,9 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         let scope = input.require_native_providers(providers, native.bindings)?;
         let selected = providers.selection();
         if scope.checked_entry() != Some(checked)
-            || scope.entry() != native_entry
-            || scope.target_context().target() != target_slot.owner.target_name()
-            || scope.target_context().terminal_psi() != checked.terminal_psi_identity()
+            || scope.reach().entry() != native_entry
+            || scope.reach().target_context().target() != target_slot.owner.target_name()
+            || scope.reach().target_context().terminal_psi() != checked.terminal_psi_identity()
             || input.entry() != native_entry
             || checked.source_signature_identity() != program_entry.source().identity().bytes()
             || program_entry

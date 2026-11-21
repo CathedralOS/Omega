@@ -1,0 +1,18 @@
+[package]
+name = "target-bound-program"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "bound_reach.rs"
+
+[dependencies]
+calling-conventions = { path = "../../targets/calling-conventions" }
+native-execution-reach = { path = "execution-reach" }
+psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+target = { path = "../../targets/target" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi-semantics" }

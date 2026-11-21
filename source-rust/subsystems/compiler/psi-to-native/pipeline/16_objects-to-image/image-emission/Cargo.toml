@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 psi-publication-records = { path = "../../../../psi-artifact/publication" }
 psi-entry-memory = { path = "../../../../psi-execution-inputs/entry-memory" }
 sha2 = "0.10.9"
