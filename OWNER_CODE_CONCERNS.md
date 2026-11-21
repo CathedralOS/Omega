@@ -225,14 +225,6 @@ framework or a list of unimplemented features.
 
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
 
-### Build still validates retired hardware settings
-
-- Category: Zombie machinery
-- Where: [authored Build field](source-rust/subsystems/compiler/build/inputs/declarations/prelude/declarations/builder.omg#L42), [Build initialization](source-rust/subsystems/compiler/build/inputs/build_execution/build_value/initial.rs#L54), [return decoder](source-rust/subsystems/compiler/build/inputs/build_execution/build_value/configuration.rs#L108), [missing-field and Boolean controls](source-rust/subsystems/compiler/build/inputs/build_execution/build_value/configuration.rs#L260), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run).
-- Saw: The prelude still defines `freestanding` and initializes it to false. Build return decoding requires a Boolean in that field. Its regression refuses a missing field and obtains identical normalized settings for true and false.
-- Cost: A Build return can fail for omitting a retired setting that has no effect on its outputs. Remove the field and its decoding requirement while preserving each output’s target and provider authority checks, including the mixed firmware/hosted case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
-
 ### Changing storage analysis rebuilds the native compiler
 
 - Category: Verifying costs more than writing

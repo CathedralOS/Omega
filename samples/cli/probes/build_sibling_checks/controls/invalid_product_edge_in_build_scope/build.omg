@@ -9,5 +9,4 @@ machine build(builder: @mut Build) {
     let mut prod_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_a" });
     dependency\with_alias(@mut prod_dependency, "prod");
     let prod_registration: DependencyRegistration = Build::dependency(builder, prod_dependency);
-    builder.freestanding = true;
 }

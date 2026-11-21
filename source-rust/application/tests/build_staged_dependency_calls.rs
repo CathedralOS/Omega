@@ -288,7 +288,7 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
     for (callee, allowed) in [("needs_range", true), ("needs_seven", false)] {
         let (compiled, report) = check(
             callee,
-            "    let amount: i32 = choose_amount(builder.freestanding);",
+            "    let amount: i32 = choose_amount(builder.optimizations.human_report != 0u8);",
             &format!(
                 r#"    let seven: i32 = kit\v();
     {callee}(amount);
@@ -449,12 +449,12 @@ requires a == b && a < larger && flag == second && enabled { }";
         ("copied-local", "amount", true),
         (
             "independent-local",
-            "choose_amount(builder.freestanding)",
+            "choose_amount(builder.optimizations.human_report != 0u8)",
             false,
         ),
     ] {
         let before = format!(
-            "    let flag: bool = builder.freestanding;
+            "    let flag: bool = builder.optimizations.human_report != 0u8;
     let second: bool = flag;
     let enabled: bool = true;
     let amount: i32 = choose_amount(!builder.tests.disabled);
@@ -892,7 +892,7 @@ machine build(builder: @mut Build) suspends {
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
     let start: i32 = pick(builder.tests.disabled);
     let after: i32 = increment(start);
-    let measured: f64 = reading(builder.freestanding);
+    let measured: f64 = reading(builder.optimizations.human_report != 0u8);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = kit\v();
     require_step(start, after);
@@ -916,12 +916,12 @@ machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
         (
             "staged-proof-arithmetic",
             "increment(start)",
-            "increment(pick(builder.freestanding))",
+            "increment(pick(builder.optimizations.human_report != 0u8))",
             "require_step",
         ),
         (
             "staged-proof-float",
-            "reading(builder.freestanding)",
+            "reading(builder.optimizations.human_report != 0u8)",
             "0.75",
             "require_small",
         ),

@@ -79,17 +79,10 @@ instructions, with a proof-neutral entry marker for an ensures-only block.
 Checked assertions use exact block-point flow facts and refuse stale
 postconditions whose places were written.
 
-Product and source-only preparation no longer carry the unused build-wide
-`AsmAuthorityAdmission` record. The [hardware authority contract](../../../../../wiki/spec/build/permissions.md#where-the-operation-can-run)
-requires each selected output's target to support the instruction and its
-selected provider contracts to cover the required authority. The legacy
-`Build.freestanding` field remains accepted during authored Build migration.
-Mixed firmware/hosted acceptance
-with a selected controller remains unproved. The [code repair queue](../../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
-tracks that acceptance, remaining authored-field migration and interrupt-mask
-reach correction.
-A source gate, catalog row, parser test or instruction encoder is not evidence
-for the final artifact or native execution.
+Each output needs a target that supports its instructions and a selected
+provider with permission for the hardware it uses. A build that selects both
+firmware and a hosted process must check those permissions independently.
+See [Build permissions](../../../../../wiki/spec/build/permissions.md#where-the-operation-can-run).
 
 The [implicit freestanding entry plan](../../psi-to-native/targets/calling-conventions/src/plans.rs)
 adds instruction-pointer, stack-pointer and control-state use to its ordinary

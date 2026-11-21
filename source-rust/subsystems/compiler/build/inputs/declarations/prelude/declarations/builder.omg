@@ -39,7 +39,6 @@ public data Build<'storage> {
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
-    freestanding: bool;
     // Authored application identifier (wiki/spec/build/macos_application.md):
     // supplies the GUI CodeDirectory signing identity and CFBundleIdentifier.
     // Empty means no authored identifier; console output falls back to the

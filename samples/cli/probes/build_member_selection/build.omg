@@ -10,5 +10,4 @@ machine build(builder: @mut Build) {
     let mut two_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep_two" });
     dependency\with_alias(@mut two_dependency, "two");
     let two_registration: DependencyRegistration = Build::dependency(builder, two_dependency);
-    builder.freestanding = true;
 }
