@@ -334,7 +334,7 @@ pub use structural::structural_effect::{
 };
 
 pub use scalars::scalar_observations::{
-    scalar_application_read_equation, structural_read_scalar_type,
+    scalar_application_read_equation, storage_alignment_fact, structural_read_scalar_type,
 };
 
 pub use access::access_ram_origins::{

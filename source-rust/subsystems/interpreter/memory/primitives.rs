@@ -6325,6 +6325,7 @@ pub(crate) mod storage_addresses {
                     }
                 },
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } if index < bytes.len() => Ok(1),
+                PrimitiveStorageEndpoint::RepresentationByte(byte) if byte.index < byte.view.len() => Ok(1),
                 PrimitiveStorageEndpoint::Projection {
                     fragments, stored, ..
                 } => {

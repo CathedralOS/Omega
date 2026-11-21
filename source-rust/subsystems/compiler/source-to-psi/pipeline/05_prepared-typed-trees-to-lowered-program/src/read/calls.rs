@@ -1094,12 +1094,8 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
-    /// `size_of::<T>()` and `align_of::<T>()` (layouts/plans.md, "These forms
-    /// take data types") measure the operand's existing physical storage.
-    /// Records keep their selected layout; primitive carriers use their
-    /// registered builtin storage. Forming a qualified type for this query
-    /// establishes no value or permission. The selected target supplies the
-    /// actual measurement.
+    /// Capture a live location once. Borrowed slices keep the first-element
+    /// obligation even when no scalar value is loaded from the element.
     fn location_alignment(
         &mut self,
         id: MachineId,
@@ -1195,6 +1191,12 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// `size_of::<T>()` and `align_of::<T>()` (layouts/plans.md, "These forms
+    /// take data types") measure the operand's existing physical storage.
+    /// Records keep their selected layout; primitive carriers use their
+    /// registered builtin storage. Forming a qualified type for this query
+    /// establishes no value or permission. The selected target supplies the
+    /// actual measurement.
     pub(super) fn layout_query(
         &mut self,
         id: MachineId,

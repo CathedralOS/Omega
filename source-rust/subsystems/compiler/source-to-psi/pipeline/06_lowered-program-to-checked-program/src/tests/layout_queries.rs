@@ -3,6 +3,32 @@
 use super::*;
 
 #[test]
+fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
+    let program = "data Slots { tag: u8; value: u64; }
+        machine main() -> u64 {
+            let slots: Slots = Slots { tag: 1u8, value: 9u64 };
+            align_of(slots.FIELD) - 8u64
+        }";
+    for (field, accepted) in [("value", true), ("tag", false)] {
+        let typed = super::boundary_calls::typed(&program.replace("FIELD", field));
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+            .expect("both fields denote accessible storage");
+        let result = super::entryless::judged_typed_result(&prepared, false)
+            .expect("both observations lower");
+        match result {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => {
+                assert!(
+                    !unproved.is_empty(),
+                    "the subtraction needs its own lower bound"
+                );
+            }
+            other => panic!("alignment of {field}: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn primitive_layout_queries_keep_their_carrier_and_contract_obligations() {
     let positive = r#"// Expected exit: 0
 // A layout observation keeps the same physical type in contracts and execution.
