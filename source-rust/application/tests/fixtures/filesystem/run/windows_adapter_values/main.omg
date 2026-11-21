@@ -1,0 +1,122 @@
+// Expected exit: 0
+machine unsupported(seconds: i64) -> bool {
+    let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(seconds);
+    transition encoded {
+        WindowsTimestampEncoding::Error { kind } -> error(kind),
+        _ -> false
+    }
+    machine error(kind: ErrorKind) -> bool {
+        transition kind { ErrorKind::Unsupported -> true, _ -> false }
+    }
+}
+machine ticks(seconds: i64, expected: u64) -> bool {
+    let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(seconds);
+    transition encoded {
+        WindowsTimestampEncoding::Ticks { value } -> (value == expected),
+        _ -> false
+    }
+}
+machine scalar_values() crashes Trap {
+    let zero: u64 = windows_filesystem_transfer_size(0u64);
+    let small: u64 = windows_filesystem_transfer_size(31u64);
+    let maximum: u64 = windows_filesystem_transfer_size(4294967295u64);
+    let over: u64 = windows_filesystem_transfer_size(4294967296u64);
+    let all: u64 = windows_filesystem_transfer_size(18446744073709551615u64);
+    transition zero == 0u64 && small == 31u64 && maximum == 4294967295u64
+        && over == 4294967295u64 && all == 4294967295u64
+        && unsupported(-11644473601i64) && unsupported(-11644473600i64)
+        && unsupported(1833029933771i64)
+        && ticks(-11644473599i64, 10000000u64)
+        && ticks(0i64, 116444736000000000u64)
+        && ticks(1833029933770i64, 18446744073700000000u64) {
+        true -> done(),
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+// Expected exit: 0
+machine invalid_length(length: u64) -> bool {
+    let mut record: WindowsDirectoryEntry;
+    record.name_len = length;
+    let result: DirEntryResult = windows_filesystem_directory_entry(record);
+    transition result {
+        DirEntryResult::Error { kind } -> invalid_kind(kind),
+        _ -> false
+    }
+    machine invalid_kind(kind: ErrorKind) -> bool {
+        transition kind { ErrorKind::Other -> true, _ -> false }
+    }
+}
+machine directory_values() crashes Trap {
+    let source: [u8; 765] = "ࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀ";
+    let copied: WindowsDirectoryEntryResult = windows_directory_copy_entry(@source, 765, 16);
+    transition copied {
+        WindowsDirectoryEntryResult::Entry { entry } -> first(entry),
+        _ -> bad()
+    }
+    machine first(record: WindowsDirectoryEntry) crashes Trap {
+        transition record.name_len == 765 && record.attributes == 16
+            && record.name[0] == 224 && record.name[1] == 160 && record.name[2] == 128
+            && record.name[762] == 224 && record.name[763] == 160 && record.name[764] == 128 {
+            true -> portable(record),
+            false -> bad()
+        }
+    }
+    machine portable(record: WindowsDirectoryEntry) crashes Trap {
+        let value: DirEntryResult = windows_filesystem_directory_entry(record);
+        transition value {
+            DirEntryResult::Ok { entry } -> selected(entry),
+            _ -> bad()
+        }
+    }
+    machine selected(entry: DirEntry) crashes Trap {
+        transition entry.name_len == 765 && entry.is_dir && !entry.is_file
+            && entry.name[0] == 224 && entry.name[764] == 128 {
+            true -> second(),
+            false -> bad()
+        }
+    }
+    machine second() crashes Trap {
+        let source: [u8; 765] = [240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 240u8, 159u8, 152u8, 128u8, 224u8, 160u8, 128u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8];
+        let copied: WindowsDirectoryEntryResult = windows_directory_copy_entry(@source, 511, 1024);
+        transition copied {
+            WindowsDirectoryEntryResult::Entry { entry } -> supplementary(entry),
+            _ -> bad()
+        }
+    }
+    machine supplementary(record: WindowsDirectoryEntry) crashes Trap {
+        transition record.name_len == 511 && record.attributes == 1024
+            && record.name[0] == 240 && record.name[1] == 159
+            && record.name[2] == 152 && record.name[3] == 128
+            && record.name[504] == 240 && record.name[507] == 128
+            && record.name[508] == 224 && record.name[510] == 128
+            && record.name[511] == 0 && record.name[764] == 0 {
+            true -> reparse(record),
+            false -> bad()
+        }
+    }
+    machine reparse(record: WindowsDirectoryEntry) crashes Trap {
+        let value: DirEntryResult = windows_filesystem_directory_entry(record);
+        transition value {
+            DirEntryResult::Ok { entry } -> checked(entry),
+            _ -> bad()
+        }
+    }
+    machine checked(entry: DirEntry) crashes Trap {
+        transition entry.name_len == 511 && !entry.is_dir && !entry.is_file
+            && entry.name[3] == 128 && entry.name[510] == 128
+            && invalid_length(0) && invalid_length(766) {
+            true -> done(),
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine main() crashes Trap {
+    scalar_values();
+    directory_values();
+}
