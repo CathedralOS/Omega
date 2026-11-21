@@ -263,64 +263,130 @@ machine OmegaScalarCompiler::u64_index_parameter(
     }
 }
 
-machine OmegaScalarCompiler::slice_relation(
+// Compare the actual parameter identities and the right-hand projection. An
+// inclusive premise can establish an endpoint, but only strict ordering can
+// justify reading a byte at the index.
+machine OmegaScalarCompiler::parameter_order(
     &mut self, source: &[u8], state_index: i32, before: i32,
-    index: i32, slice: i32, guard: i32, truth: i32
+    left: i32, right: i32, offset: i32, guard: i32, truth: i32, strict: i32
 ) -> i32 {
-    transition (index >= 0) && (slice >= 0) {
-        true -> guarded()
+    transition (left >= 0) && (right >= 0) {
+        true -> reflexive()
         _ -> return 0
     }
+    state reflexive() {
+        transition (left == right) && (offset == 0) && (strict == 0) {
+            true -> return 1
+            _ -> guarded()
+        }
+    }
     state guarded() {
-        transition (guard >= 0) && (truth == 1) && (self.pure_value(guard) == 1) {
-            true -> shape(self.parser.expressions[guard])
-            _ -> preserved()
-        }
-    }
-    state shape(row: OmegaExpressionSyntax) {
-        transition row.kind {
-            OmegaExpressionKind::Binary -> operator(self.parser.binary_expressions[row.payload0])
-            _ -> preserved()
-        }
-    }
-    state operator(row: OmegaBinaryExpressionSyntax) {
-        transition row.operator {
-            OmegaBinaryOperatorKind::Less -> operands(row.left, row.right)
-            OmegaBinaryOperatorKind::Greater -> operands(row.right, row.left)
-            _ -> preserved()
-        }
-    }
-    state operands(left: i32, right: i32) {
-        transition (self.u64_index_parameter(source, state_index, before, left) == index) &&
-            (self.slice_length_parameter(source, state_index, before, right) == slice) {
+        transition (guard >= 0) && (self.pure_value(guard) == 1) &&
+            (self.guard_parameter_order(source, state_index, before, left, right, offset, guard, truth, strict) == 1) {
             true -> return 1
             _ -> preserved()
         }
     }
     state preserved() {
-        transition (self.preserve_entry_place(state_index, before, index, 0) == 1) &&
-            (self.preserve_entry_place(state_index, before, slice, 8) == 1) {
+        transition (self.preserve_entry_place(state_index, before, left, 0) == 1) &&
+            (self.preserve_entry_place(state_index, before, right, offset) == 1) {
             true -> bound(0)
             _ -> return 0
         }
     }
-    state bound(offset: i32) {
-        transition offset < self.bound_count[state_index] {
-            true -> pair(offset, self.entry_bounds[self.bound_first[state_index] + offset])
+    state bound(index: i32) {
+        transition index < self.bound_count[state_index] {
+            true -> pair(index, self.entry_bounds[self.bound_first[state_index] + index])
             _ -> return 0
         }
     }
-    state pair(offset: i32, row: OmegaEntryBound) {
-        transition (row.root == index) && (row.slice == slice) {
+    state pair(index: i32, row: OmegaEntryBound) {
+        transition row.kind {
+            OmegaEntryBoundKind::StrictOrder -> identity(index, row, 1)
+            OmegaEntryBoundKind::InclusiveOrder -> identity(index, row, 0)
+            _ -> bound(index + 1)
+        }
+    }
+    state identity(index: i32, row: OmegaEntryBound, evidence: i32) {
+        transition (evidence >= strict) && (row.root == left) && (row.right == right) && (row.right_offset == offset) {
             true -> return 1
-            _ -> bound(offset + 1)
+            _ -> bound(index + 1)
+        }
+    }
+}
+
+// Normalize the selected truth of each comparison before matching places. A
+// true conjunction supplies either conjunct; a true disjunction supplies neither.
+machine OmegaScalarCompiler::guard_parameter_order(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    left: i32, right: i32, offset: i32, guard: i32, truth: i32, strict: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[guard];
+    transition row.kind {
+        OmegaExpressionKind::Binary -> operator(self.parser.binary_expressions[row.payload0])
+        _ -> return 0
+    }
+    state operator(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Less -> relation(row.left, row.right, 1)
+            OmegaBinaryOperatorKind::Greater -> relation(row.right, row.left, 1)
+            OmegaBinaryOperatorKind::LessEqual -> relation(row.left, row.right, 0)
+            OmegaBinaryOperatorKind::GreaterEqual -> relation(row.right, row.left, 0)
+            OmegaBinaryOperatorKind::And -> conjunction(row)
+            _ -> return 0
+        }
+    }
+    state conjunction(row: OmegaBinaryExpressionSyntax) {
+        transition truth { 1 -> parts(row) _ -> return 0 }
+    }
+    state parts(row: OmegaBinaryExpressionSyntax) {
+        return (self.guard_parameter_order(source, state_index, before, left, right, offset, row.left, truth, strict) == 1) ||
+            (self.guard_parameter_order(source, state_index, before, left, right, offset, row.right, truth, strict) == 1);
+    }
+    state relation(a: i32, b: i32, evidence: i32) {
+        transition truth {
+            1 -> operands(a, b, evidence)
+            _ -> operands(b, a, 1 - evidence)
+        }
+    }
+    state operands(a: i32, b: i32, evidence: i32) {
+        transition (evidence >= strict) && (self.u64_index_parameter(source, state_index, before, a) == left) {
+            true -> projection(b)
+            _ -> return 0
+        }
+    }
+    state projection(b: i32) {
+        transition offset {
+            0 -> return self.u64_index_parameter(source, state_index, before, b) == right
+            8 -> return self.slice_length_parameter(source, state_index, before, b) == right
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::prove_actual_scalar_order(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    left: i32, right: i32, guard: i32, truth: i32, strict: i32
+) -> i32 {
+    let minimum: i32 = self.interval_literal(left);
+    let maximum: i32 = self.interval_literal(right);
+    transition (minimum >= 0) && (minimum <= 2147483647 - strict) {
+        true -> return self.prove_bound(source, state_index, before, right, minimum + strict, -1, guard, truth)
+        _ -> upper(maximum)
+    }
+    state upper(maximum: i32) {
+        transition maximum >= strict {
+            true -> return self.prove_bound(source, state_index, before, left, 0, maximum - strict, guard, truth)
+            _ -> return self.parameter_order(source, state_index, before,
+                self.u64_index_parameter(source, state_index, before, left),
+                self.u64_index_parameter(source, state_index, before, right), 0, guard, truth, strict)
         }
     }
 }
 
 machine OmegaScalarCompiler::prove_actual_slice_index(
     &mut self, source: &[u8], state_index: i32, before: i32,
-    index: i32, slice: i32, guard: i32, truth: i32
+    index: i32, slice: i32, guard: i32, truth: i32, strict: i32
 ) -> i32 {
     transition self.value_kinds[slice] {
         OmegaCheckedValueKind::SharedByteRange -> length(self.byte_ranges[slice].length)
@@ -328,18 +394,18 @@ machine OmegaScalarCompiler::prove_actual_slice_index(
         _ -> return 0
     }
     state length(count: i32) {
-        transition count > 0 {
-            true -> return self.prove_bound(source, state_index, before, index, 0, count - 1, guard, truth)
+        transition count >= strict {
+            true -> return self.prove_bound(source, state_index, before, index, 0, count - strict, guard, truth)
             _ -> return 0
         }
     }
     state forward(slot: i32) {
         let literal: i32 = self.byte_range_bound(source, 1, index, 0);
-        transition (literal >= 0) && (literal < 2147483647) {
+        transition (literal >= 0) && (literal <= 2147483647 - strict) {
             true -> return self.prove_place_bound(source, state_index, before, slot, 8, -1, 64,
-                literal + 1, -1, guard, truth)
-            _ -> return self.slice_relation(source, state_index, before,
-                self.u64_index_parameter(source, state_index, before, index), slot, guard, truth)
+                literal + strict, -1, guard, truth)
+            _ -> return self.parameter_order(source, state_index, before,
+                self.u64_index_parameter(source, state_index, before, index), slot, 8, guard, truth, strict)
         }
     }
 }
@@ -358,8 +424,8 @@ machine OmegaScalarCompiler::check_shared_byte_read(
     state bound(index: i32) {
         transition (index >= 0) && (index < 2147483647) {
             true -> proved(self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0))
-            _ -> proved(self.slice_relation(source, state_index, before,
-                self.u64_index_parameter(source, state_index, before, row.index), slot, -1, 0))
+            _ -> proved(self.parameter_order(source, state_index, before,
+                self.u64_index_parameter(source, state_index, before, row.index), slot, 8, -1, 0, 1))
         }
     }
     state proved(proof: i32) {
