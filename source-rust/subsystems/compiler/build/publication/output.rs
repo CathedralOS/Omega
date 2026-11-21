@@ -55,7 +55,7 @@ pub enum CompileOutputKind {
 struct TerminalProduct {
     artifact: RetainedTerminalArtifact,
     optimization_rollback: Option<OptimizationRollbackReceipt>,
-    runtime_provisions: Option<TerminalRuntimeProvisions>, // present only when a native request stopped after runtime admission
+    runtime_provisions: TerminalRuntimeProvisions,
 }
 
 #[derive(Debug)]
@@ -260,35 +260,11 @@ impl CompletedProduct {
             wrote_output: false,
         })
     }
-    pub fn from_terminal(
-        artifact: RetainedTerminalArtifact,
-        optimization_rollback: Option<OptimizationRollbackReceipt>,
-    ) -> Result<Self, &'static str> {
-        if artifact.native_realization_proposal().is_none() {
-            return Err(
-                "compiler report requires the Terminal product's native realization proposal",
-            );
-        }
-        Ok(Self::terminal_product(
-            artifact,
-            None,
-            optimization_rollback,
-        ))
-    }
-
     pub fn from_runtime(
         program: native_artifact::AdmittedRuntimeProgram,
-        rollback: Option<OptimizationRollbackReceipt>,
-    ) -> Self {
-        let (terminal, runtime) = program.into_parts();
-        Self::terminal_product(terminal, Some(runtime), rollback)
-    }
-
-    fn terminal_product(
-        artifact: RetainedTerminalArtifact,
-        runtime_provisions: Option<TerminalRuntimeProvisions>,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
     ) -> Self {
+        let (artifact, runtime_provisions) = program.into_parts();
         Self {
             product: CompileProduct::TerminalArtifact(Box::new(TerminalProduct {
                 artifact,
@@ -414,7 +390,7 @@ impl CompletedProduct {
             }
             CompileProduct::NativeExecutable(product) => product.runtime_provisions.as_ref(),
             CompileProduct::DynamicElfExecutable(product) => product.runtime_provisions.as_ref(),
-            CompileProduct::TerminalArtifact(product) => product.runtime_provisions.as_ref(),
+            CompileProduct::TerminalArtifact(product) => Some(&product.runtime_provisions),
             _ => None,
         }
     }

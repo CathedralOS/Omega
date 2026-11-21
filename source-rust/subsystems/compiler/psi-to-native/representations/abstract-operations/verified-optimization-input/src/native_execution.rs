@@ -76,28 +76,6 @@ impl NativeExecutionFacts {
         &self.checked
     }
 
-    /// The scalar applications this execution reads under `profile`'s admitted
-    /// layouts. The caller completes exactly these before native lowering
-    /// starts; Omega 00 refuses a completion that leaves one without a value.
-    pub fn scalar_application_demand(
-        &self,
-        profile: target::TargetProfile,
-    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, Vec<Diagnostic>> {
-        let fail = |reason: String| diagnostics::error_in_context("native scalar demand", reason);
-        profile.admit_address_representation().map_err(fail)?;
-        let artifact = self.authorization().artifact();
-        let targets =
-            psi_target_layouts::terminal_target_context(artifact.view(), profile.target_name());
-        let facts = profile
-            .layout_target_facts()
-            .ok_or_else(|| fail("selected native target has no representation facts".into()))?;
-        let layouts = psi_target_layouts::admit_target_layouts(artifact.view(), &targets, &facts)
-            .map_err(|error| fail(error.to_string()))?;
-        self.scope()
-            .scalar_application_demand(artifact.semantic_module(), &layouts)
-            .map_err(fail)
-    }
-
     pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         self.checked.authorization()
     }

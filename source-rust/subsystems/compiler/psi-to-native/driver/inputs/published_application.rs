@@ -82,7 +82,6 @@ fn prepare_issued_program<Publisher>(
     behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
-    let subsystem = settings.application.subsystem;
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let (terminal, permissions) =
@@ -90,7 +89,6 @@ fn prepare_issued_program<Publisher>(
     Ok(crate::NativeProgram {
         terminal,
         permissions,
-        subsystem,
         installation_assumptions,
     })
 }

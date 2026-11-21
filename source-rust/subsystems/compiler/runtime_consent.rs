@@ -14,7 +14,7 @@ pub(super) fn compare(
             "locked runtime permission comparison requires the source Product's package identity",
         )]
     })?;
-    let proposal = program.native_realization_proposal()?;
+    let proposal = program.native_realization_proposal();
     if !proposal.providers().selection.assumed_bindings().is_empty() {
         return Err(vec![Diagnostic::error(
             "the selected provider's assumed binding lacks its canonical Build review request",

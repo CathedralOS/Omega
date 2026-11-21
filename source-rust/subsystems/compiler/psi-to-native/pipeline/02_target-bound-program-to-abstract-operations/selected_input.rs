@@ -174,6 +174,7 @@ mod establishment {
 mod native {
     use super::ArtifactLoweringError;
     use abstract_operations::AbstractOperationPlan;
+    use std::borrow::Cow;
     use psi_target_layouts::TerminalTargetContext;
     use psi_scalar_applications::AdmittedScalarApplications;
     use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
@@ -221,8 +222,8 @@ mod native {
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
         targets: TerminalTargetContext,
-        layouts: psi_target_layouts::AdmittedTargetLayouts,
-        scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+        layouts: Cow<'request, psi_target_layouts::AdmittedTargetLayouts>,
+        scalar_demand: Cow<'request, [semantic_vocabulary::ScalarApplicationId]>,
     }
 
     impl<'request> NativeScopePreparation<'request> {
@@ -233,34 +234,22 @@ mod native {
             selection: &'request NativeExecutionSelection<'request>,
         ) -> Result<Self, ArtifactLoweringError> {
             let artifact = authorization.artifact();
-            profile
-                .admit_address_representation()
-                .map_err(ArtifactLoweringError::TargetContext)?;
             let module = artifact.semantic_module();
-            let selections = psi_target_layouts::terminal_target_context(
-                artifact.view(),
-                profile.target_name(),
+            let selections = selection.scope.map_or_else(
+                || {
+                    psi_target_layouts::terminal_target_context(artifact.view(), profile.target_name())
+                },
+                |scope| scope.target_context().clone(),
             );
             let entry = selections
                 .entry(artifact.view().identity(), module, root)
                 .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
-            let target_facts = profile.layout_target_facts().ok_or_else(|| {
-                ArtifactLoweringError::TargetContext(
-                    "selected native target has no representation facts".into(),
-                )
-            })?;
-            let layouts = psi_target_layouts::admit_target_layouts(
-                artifact.view(),
-                &selections,
-                &target_facts,
-            )
-            .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
-            if let Some(scope) = selection.scope {
+            let (layouts, scalar_demand) = if let Some(scope) = selection.scope {
                 scope
                     .require_source_input(
                         artifact.view(),
                         entry,
-                        &selections,
+                        profile,
                         selection.plans,
                         selection.providers,
                     )
@@ -272,14 +261,26 @@ mod native {
                         "native preparation changes its checked entry or callback inputs".into(),
                     ));
                 }
-            }
-            let scalar_demand = match selection.scope {
-                Some(scope) => scope.scalar_application_demand(module, &layouts),
-                None => crate::NativeExecutionScope::full_module_scalar_demand(
-                    module, &layouts,
-                ),
-            }
-            .map_err(ArtifactLoweringError::TargetContext)?;
+                (
+                    Cow::Borrowed(scope.layouts()),
+                    Cow::Borrowed(scope.scalar_application_demand()),
+                )
+            } else {
+                profile
+                    .admit_address_representation()
+                    .map_err(ArtifactLoweringError::TargetContext)?;
+                let facts = profile.layout_target_facts().ok_or_else(|| {
+                    ArtifactLoweringError::TargetContext(
+                        "selected native target has no representation facts".into(),
+                    )
+                })?;
+                let layouts =
+                    psi_target_layouts::admit_target_layouts(artifact.view(), &selections, &facts)
+                        .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
+                let demand = crate::NativeExecutionScope::full_module_scalar_demand(module, &layouts)
+                    .map_err(ArtifactLoweringError::TargetContext)?;
+                (Cow::Owned(layouts), Cow::Owned(demand))
+            };
             Ok(Self {
                 authorization,
                 selection,
@@ -392,7 +393,6 @@ mod native {
                 .optimization_input
                 .retain_native_selections(
                     selection.entry_call.cloned(),
-                    layouts,
                     scalar_applications.cloned(),
                     scope.cloned().map(std::sync::Arc::new),
                     scope.map_or_else(
@@ -497,7 +497,7 @@ mod native {
             if !recipes.is_empty()
                 && recipes
                     .iter()
-                    .any(|recipe| recipe.layouts() != &self.layouts)
+                    .any(|recipe| recipe.layouts() != self.layouts.as_ref())
             {
                 return Err(ArtifactLoweringError::TargetContext(
                     "private entry RAM recipe belongs to another target or selected geometry"

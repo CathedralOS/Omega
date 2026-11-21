@@ -48,72 +48,18 @@ pub struct TerminalNativeRealizationProposal {
     package_terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
-    target_provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
+    target_provider: target_provider_admission::TerminalTargetProviderProposal,
 }
 
 impl TerminalNativeRealizationProposal {
-    pub fn bind_physical_adapter(
-        &mut self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> Result<(), &'static str> {
-        self.program_entry
-            .bind_physical_adapter(artifact, &self.providers.checked_adapters)
-    }
-
-    pub(crate) fn new(
-        application: target::NativeApplicationMetadata,
-        program_entry: crate::ValidatedNativeProgramEntrySettlement,
-        post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
-        providers: TerminalNativeProviders,
-        occurrences: TerminalNativeOccurrences,
-        boundary_applications: TerminalNativeBoundaryApplications,
-        mut package_terminal_authority_permissions: Vec<
-            provider_acceptance::ServiceTerminalAuthorityPermission,
-        >,
-        package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
-        behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
-    ) -> Self {
-        package_terminal_authority_permissions.sort_by(|left, right| {
-            left.service_schema()
-                .as_bytes()
-                .cmp(right.service_schema().as_bytes())
-                .then_with(|| {
-                    package_terminal_authority_permission_identities
-                        .text(left.requirement_identity())
-                        .cmp(
-                            &package_terminal_authority_permission_identities
-                                .text(right.requirement_identity()),
-                        )
-                })
-        });
-        Self {
-            target_provider_proposals: Vec::new(),
-            application,
-            program_entry,
-            post_terminal_optimizations,
-            providers,
-            occurrences,
-            boundary_applications,
-            package_terminal_authority_permissions,
-            package_terminal_authority_permission_identities,
-            behavior_exclusions,
-        }
-    }
-
     pub const fn target_profile(&self) -> target::TargetProfile {
         self.program_entry.source().target_slot().owner
     }
 
-    pub fn with_target_provider_proposals(
-        mut self,
-        proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
-    ) -> Self {
-        self.target_provider_proposals = proposals;
-        self
-    }
-
-    pub fn target_provider_proposals(&self) -> &[target_provider_admission::TerminalTargetProviderProposal] {
-        &self.target_provider_proposals
+    pub fn target_provider_proposals(
+        &self,
+    ) -> &[target_provider_admission::TerminalTargetProviderProposal] {
+        std::slice::from_ref(&self.target_provider)
     }
 
     pub const fn native_target(&self) -> target::NativeTarget {
@@ -176,6 +122,8 @@ mod proposal {
         pub direct_boundary_leaves: Vec<&'input direct_boundary_bindings::DirectBoundaryLeaf>,
         pub target_profile: target::TargetProfile,
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
+        pub target_provider: target_provider_admission::TerminalTargetProviderProposal,
+        pub bind_physical_adapter: bool,
         pub program_entry: crate::NativeProgramEntrySettlement<'input>,
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
@@ -187,41 +135,65 @@ mod proposal {
         pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     }
 
-    pub fn project_terminal_native_realization_proposal(
-        artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        checked_program_entry: psi_publication_records::CheckedProgramEntryTerminalReceipt,
-        request: TerminalNativeProposalRequest<'_>,
-    ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-        let target_profile = request.target_profile;
-        let program_entry = request.program_entry;
-        if program_entry.source().target_slot().owner != target_profile {
-            return Err(vec![Diagnostic::error(
-                "Terminal native proposal target, profile, and ProgramEntry disagree",
-            )]);
+    impl super::RetainedTerminalArtifact {
+        /// Bind the entry, target and providers to the authorized program they describe.
+        pub fn project(
+            authorization: psi_authorization::AuthorizedTerminalArtifact,
+            checked_entry: &psi_publication_records::CheckedProgramEntryTerminalReceipt,
+            request: TerminalNativeProposalRequest<'_>,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            let artifact = authorization.shared_artifact();
+            let target_profile = request.target_profile;
+            if request.program_entry.source().target_slot().owner != target_profile {
+                return Err(vec![Diagnostic::error(
+                    "Terminal native proposal target, profile, and ProgramEntry disagree",
+                )]);
+            }
+            let mut program_entry = crate::validate_native_program_entry_settlement(
+                artifact,
+                checked_entry,
+                request.program_entry.with_checked_entry(checked_entry),
+                target_profile.native_target(),
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "Terminal native proposal ProgramEntry settlement failed: {error}"
+                ))]
+            })?;
+            let body = project_terminal_native_body(artifact, target_profile, &request)?;
+            if request.bind_physical_adapter {
+                program_entry
+                    .bind_physical_adapter(artifact, &body.providers.checked_adapters)
+                    .map_err(|error| vec![Diagnostic::error(error)])?;
+            }
+            let mut permissions = request.package_terminal_authority_permissions;
+            let identities = request.package_terminal_authority_permission_identities;
+            permissions.sort_by(|left, right| {
+                left.service_schema()
+                    .as_bytes()
+                    .cmp(right.service_schema().as_bytes())
+                    .then_with(|| {
+                        identities
+                            .text(left.requirement_identity())
+                            .cmp(&identities.text(right.requirement_identity()))
+                    })
+            });
+            Ok(Self {
+                artifact: authorization,
+                native_realization_proposal: TerminalNativeRealizationProposal {
+                    target_provider: request.target_provider,
+                    application: request.application,
+                    program_entry,
+                    post_terminal_optimizations: request.optimizations,
+                    providers: body.providers,
+                    occurrences: body.occurrences,
+                    boundary_applications: body.boundary_applications,
+                    package_terminal_authority_permissions: permissions,
+                    package_terminal_authority_permission_identities: identities,
+                    behavior_exclusions: body.behavior_exclusions,
+                },
+            })
         }
-        let program_entry = crate::validate_native_program_entry_settlement(
-            artifact,
-            &checked_program_entry,
-            program_entry.with_checked_entry(&checked_program_entry),
-            target_profile.native_target(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "Terminal native proposal ProgramEntry settlement failed: {error}"
-            ))]
-        })?;
-        let body = project_terminal_native_body(artifact, target_profile, &request)?;
-        Ok(TerminalNativeRealizationProposal::new(
-            request.application,
-            program_entry,
-            request.optimizations,
-            body.providers,
-            body.occurrences,
-            body.boundary_applications,
-            request.package_terminal_authority_permissions,
-            request.package_terminal_authority_permission_identities,
-            body.behavior_exclusions,
-        ))
     }
 
     fn project_terminal_native_body(
@@ -566,55 +538,15 @@ mod proposal {
     }
 }
 
-pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
+pub use proposal::TerminalNativeProposalRequest;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {
     artifact: psi_authorization::AuthorizedTerminalArtifact,
-    native_realization_proposal: Option<TerminalNativeRealizationProposal>,
-    /// Operation evidence from this authorized Psi publication. Each seal
-    /// identifies the module, operation and obligation it accompanies.
-    evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    native_realization_proposal: TerminalNativeRealizationProposal,
 }
 
 impl RetainedTerminalArtifact {
-    pub fn new_with_native_realization_proposal(
-        artifact: psi_authorization::AuthorizedTerminalArtifact,
-        native_realization_proposal: TerminalNativeRealizationProposal,
-    ) -> Self {
-        let evidence = artifact.artifact().published_evidence().cloned();
-        Self {
-            artifact,
-            native_realization_proposal: Some(native_realization_proposal),
-            evidence,
-        }
-    }
-
-    /// Keeps the seals that were produced beside this artifact, so native
-    /// production hands them to Omega 00 with the module they name.
-    pub fn with_evidence(
-        mut self,
-        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        if self.artifact.artifact().publication_metadata().is_some() {
-            if evidence.is_some() && self.evidence != evidence {
-                return Err(vec![Diagnostic::error(
-                    "supplied evidence differs from the authorized Psi publication",
-                )]);
-            }
-            return Ok(self);
-        }
-        if let Some(evidence) = &evidence {
-            validate_operation_evidence(self.artifact.artifact(), evidence)?;
-        }
-        self.evidence = evidence;
-        Ok(self)
-    }
-
-    pub const fn evidence(&self) -> Option<&std::sync::Arc<terminal_codec::EvidenceSeals>> {
-        self.evidence.as_ref()
-    }
-
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         self.artifact.artifact()
     }
@@ -627,17 +559,8 @@ impl RetainedTerminalArtifact {
         &self.artifact
     }
 
-    pub const fn native_realization_proposal(&self) -> Option<&TerminalNativeRealizationProposal> {
-        self.native_realization_proposal.as_ref()
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        psi_authorization::AuthorizedTerminalArtifact,
-        Option<TerminalNativeRealizationProposal>,
-    ) {
-        (self.artifact, self.native_realization_proposal)
+    pub const fn native_realization_proposal(&self) -> &TerminalNativeRealizationProposal {
+        &self.native_realization_proposal
     }
 }
 

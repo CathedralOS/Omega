@@ -169,10 +169,7 @@ pub struct RetainedComponentNativeInputs {
 
 impl RetainedComponentNativeInputs {
     pub fn borrow(&self) -> Result<ComponentNativeInputs<'_>, String> {
-        let proposal = self
-            .retained
-            .native_realization_proposal()
-            .ok_or("retained component lost its native proposal")?;
+        let proposal = self.retained.native_realization_proposal();
         let exports = self
             .exports
             .iter()
@@ -195,7 +192,7 @@ impl RetainedComponentNativeInputs {
         Ok(ComponentNativeInputs {
             authorization: self.retained.authorization(),
             component: &self.component,
-            evidence: self.retained.evidence(),
+            evidence: self.retained.artifact().published_evidence(),
             proposal,
             exports,
             plan_digest: self.plan_digest,
@@ -212,9 +209,7 @@ impl RetainedComponentNativeInputs {
                 "component verdict and native product retain different canonical artifacts".into(),
             );
         }
-        let proposal = retained
-            .native_realization_proposal()
-            .ok_or("independent component has no completed native realization proposal")?;
+        let proposal = retained.native_realization_proposal();
         if proposal.target_profile().target_name() != plan.target {
             return Err("component native target differs from the selected provider plan".into());
         }

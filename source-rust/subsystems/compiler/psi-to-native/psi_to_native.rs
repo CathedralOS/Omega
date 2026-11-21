@@ -44,7 +44,6 @@ pub struct NativeEmission {
 pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
-    subsystem: u16,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
@@ -52,10 +51,8 @@ impl NativeProgram {
     /// The settled permissions and binding selections used by both execution paths.
     pub fn native_realization_proposal(
         &self,
-    ) -> Result<&verified_optimization_input::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-        self.terminal.native_realization_proposal().ok_or_else(|| {
-            vec![Diagnostic::error("prepared Psi compilation lost its native proposal")]
-        })
+    ) -> &verified_optimization_input::TerminalNativeRealizationProposal {
+        self.terminal.native_realization_proposal()
     }
 
     pub fn emit(
@@ -63,7 +60,7 @@ impl NativeProgram {
         entry_memory: &[PrivateEntryRamInitialization],
         validators: &stage_validators::StageValidatorRequest,
     ) -> Result<NativeEmission, stage_validators::NativeValidationError> {
-        let profile = self.native_realization_proposal()?.target_profile();
+        let profile = self.native_realization_proposal().target_profile();
         let (image, originals) = self.finish(
             entry_memory,
             &mut Vec::new(),
@@ -90,36 +87,26 @@ impl NativeProgram {
         finish: impl FnOnce(
             RetainedTerminalArtifact,
             NativeCompileRequest<'_>,
-        )
-            -> Result<T, (target::ExecutableImageEmissionRequest, Vec<Diagnostic>)>,
+        ) -> Result<T, Vec<Diagnostic>>,
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
             permissions,
-            subsystem,
             installation_assumptions,
-            ..
         } = self;
-        let proposal = terminal.native_realization_proposal().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "prepared Psi compilation lost its native proposal",
-            )]
-        })?;
         let mut receipts = Vec::new();
-        let optimizations = proposal.post_terminal_optimizations().selections().clone();
         let request = NativeCompileRequest {
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,
             private_entry_ram,
-            optimization_selections: &optimizations,
             terminal_authority_policy: current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
-            image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
+            image_request: driver::request::image_request(terminal.native_realization_proposal())?,
             scalar_receipts: &mut receipts,
         };
         let product = finish(terminal, request);
         accounting.extend(receipts);
-        product.map_err(|(_, diagnostics)| diagnostics)
+        product
     }
 }

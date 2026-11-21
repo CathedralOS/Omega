@@ -397,12 +397,38 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         .unwrap();
     let reopened = CanonicalTerminalArtifact::from_bytes(&original.artifact().to_bytes()).unwrap();
     let view = reopened.view();
-    let plans = original
-        .native_realization_proposal()
-        .unwrap()
-        .providers()
-        .selection
-        .plans();
+    let proposal = original.native_realization_proposal();
+    let execution = provider_realization::native_execution::prepare_program(
+        proposal,
+        original.authorization(),
+    )
+    .unwrap();
+    assert!(!execution.scope().scalar_application_demand().is_empty());
+    // The empty transition arm reads none of the size-dependent constants in main.
+    let done = view
+        .module()
+        .machines
+        .iter()
+        .find(|machine| {
+            execution.scope().contains_machine(machine.id)
+                && machine.operations().next().is_none()
+                && machine.blocks.iter().all(|block| {
+                    matches!(block.terminator, terminal_psi::Terminator::ReturnUnit { .. })
+                })
+        })
+        .expect("the native program reaches its empty done arm");
+    let callable = provider_realization::native_execution::BoundNativeCallable::prepare(
+        proposal,
+        &execution,
+        original.artifact(),
+        terminal_psi::TargetMachineCallable::Machine(done.id),
+    )
+    .unwrap();
+    let (_, _, _, _, scope, _) = callable.into_parts();
+    assert!(std::ptr::eq(scope.layouts(), execution.scope().layouts()));
+    assert!(scope.scalar_application_demand().is_empty());
+
+    let plans = proposal.providers().selection.plans();
     let preimages = target_provider_admission::matching_folded_constant_dependencies(
         view,
         linux.target_name(),
@@ -455,7 +481,6 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         .unwrap();
     let other_plans = other
         .native_realization_proposal()
-        .unwrap()
         .providers()
         .selection
         .plans();
