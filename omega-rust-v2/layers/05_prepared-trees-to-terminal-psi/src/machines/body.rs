@@ -242,7 +242,7 @@ fn emit_body(
                     if !block.mutable_homes.contains(&root) {
                         return Err(unsupported_node(file, place, "assignment requires a writable local"));
                     }
-                    super::references::store_owned(
+                    super::references::store_intact(
                         &expressions,
                         crate::ProjectedPlace { root, path: vec![] },
                         *initializer,

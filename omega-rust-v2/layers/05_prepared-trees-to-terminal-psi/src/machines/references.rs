@@ -618,19 +618,18 @@ pub(super) fn store_place(
     }
     if carrier.nominal_parts().is_some() {
         return match deepest_loan {
-            None => store_owned(expressions, place, rhs, carrier, body, flow, site),
+            None => store_intact(expressions, place, rhs, carrier, body, flow, site),
             // Any loan crossing makes this a store into borrowed storage, even when the
             // path starts at an owned field that holds the `@mut`: the replaced place
             // may be a vacancy, and the displaced value is the lender's, not the owner's.
             Some(crate::ReferenceAccess::Mutable) => super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site),
-            // A write-only loan opens no restoration window and cannot take the
-            // displaced value, so replacing structural content needs checked
-            // cleanup authority for the exact type, which nothing supplies yet
-            // (structural_access.md#write-only-authority). L3 admits no store
-            // below a shared loan.
-            Some(crate::ReferenceAccess::WriteOnly | crate::ReferenceAccess::Shared) => {
-                Err(LoweringError::new(&site, "write-only structural replacement needs its cleanup authority"))
+            Some(crate::ReferenceAccess::WriteOnly) if super::ownership::plain_copy_storage(projected, expressions.types, data) => {
+                store_intact(expressions, place, rhs, carrier, body, flow, site)
             }
+            // A write-only loan starts with valid content. Resource-bearing displacement
+            // needs its own checked authority and cannot extract the old value here.
+            Some(crate::ReferenceAccess::WriteOnly) => Err(LoweringError::new(&site, "write-only structural replacement needs its cleanup authority")),
+            Some(crate::ReferenceAccess::Shared) => Err(LoweringError::new(&site, "structural store requires a writable loan")),
         };
     }
     // A shared descriptor in a field of writable owned storage is intact,
@@ -691,7 +690,7 @@ pub(super) fn store_place(
     Ok(())
 }
 
-pub(super) fn store_owned(
+pub(super) fn store_intact(
     expressions: &Expressions<'_>,
     destination: ProjectedPlace,
     rhs: usize,

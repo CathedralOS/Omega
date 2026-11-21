@@ -214,7 +214,7 @@ mod field_stores;
 pub use field_stores::{StoredDescriptor, parked_field_stores};
 
 mod write_only;
-pub use write_only::{WriteOnlyStore, write_only_stores};
+pub use write_only::{WriteOnlyStore, closed_copy_storage, write_only_stores};
 
 mod parked_windows;
 pub use parked_windows::{ParkedWindow, StoreKind, parked_windows, window_stores};

@@ -232,6 +232,56 @@ impl Frontier {
     }
 }
 
+/// An intact value of this carrier can be displaced without inspecting its
+/// contents. Copy permission alone does not retire a stored descriptor or
+/// run a nominal cleanup. A whole sum has to permit displacement in any case.
+pub(in crate::machines) fn plain_copy_storage(
+    ty: TypeId,
+    types: &LoweringTypes,
+    data: &[LoweredData],
+) -> bool {
+    enum Visit {
+        Enter(TypeId),
+        Finish(TypeId),
+    }
+    use Visit::{Enter, Finish};
+    let mut pending = vec![Enter(ty)];
+    let mut active = std::collections::HashSet::new();
+    let mut complete = std::collections::HashSet::new();
+    while let Some(visit) = pending.pop() {
+        let ty = match visit {
+            Finish(ty) => {
+                active.remove(&ty);
+                complete.insert(ty);
+                continue;
+            }
+            Enter(ty) if complete.contains(&ty) => continue,
+            Enter(ty) => ty,
+        };
+        if !active.insert(ty) {
+            return false;
+        }
+        pending.push(Finish(ty));
+        match types.get(ty) {
+            Some(TypeShape::PrimitiveScalar(_)) => {}
+            Some(TypeShape::FixedArray { element, .. }) => pending.push(Enter(*element)),
+            Some(TypeShape::Nominal(id)) => {
+                let Some(schema) = data.get(id.get() - 1) else { return false };
+                if schema.multiplicity != Multiplicity::Copy || schema.cleanup_target.is_some() {
+                    return false;
+                }
+                let fields = schema
+                    .fields
+                    .iter()
+                    .chain(schema.cases.iter().flat_map(|case| &case.fields));
+                pending.extend(fields.map(|field| Enter(field.carrier)));
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 pub(in crate::machines) fn owned(
     mut ty: TypeId,
     types: &LoweringTypes,

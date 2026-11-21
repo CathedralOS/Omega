@@ -620,13 +620,97 @@ fn a_structural_store_takes_its_operation_from_the_deepest_loan() {
     }
 }
 
-/// A copy record is freely discardable, so the spec admits `x.c = C{v:1u8}`
-/// through `@write` without cleanup authority. Lowering and the Psi-only
-/// write-only reader both still refuse it; this pins that open gap.
 #[test]
-fn a_copy_record_through_a_write_only_loan_still_refuses() {
+fn replacing_a_copy_record_through_a_write_only_loan_preserves_its_value_and_destination() {
     let text = "data C [copy] {v:u8;} data Leaf{c:C;} machine f(x:@write Leaf){ x.c = C{v:1u8}; }";
-    refusal(text, "x.c = ", "x.c", "write-only structural replacement needs its cleanup authority");
+    let package = lower(text);
+    let f = body(&package, "f");
+    let [literal, construct, store] = f.operations.as_slice() else {
+        panic!("one literal, one record construction and one write")
+    };
+    let OperationKind::StructuralStore {
+        destination,
+        value,
+        disposition,
+    } = &store.kind
+    else {
+        panic!("a structural replacement")
+    };
+    let OperationKind::EstablishRecord { fields } = &construct.kind else {
+        panic!("the right-hand side establishes C")
+    };
+    let [field] = fields.as_slice() else { panic!("C has one initializer") };
+    let OperationResult::Scalar(one) = literal.result else {
+        panic!("the initializer is scalar")
+    };
+    let TypeShape::Nominal(data) = package.types.get(f.places[value.index()].ty).unwrap() else {
+        panic!("the incoming value is a record")
+    };
+    let observed = write_only_stores(&package, "f").expect("read the store through the write-only loan");
+    let [written] = observed.as_slice() else { panic!("exactly one write through the formal") };
+    assert_eq!(written.formal, 0);
+    assert_eq!(written.crossing, 0);
+    assert_eq!(written.path, [PlaceProjection::Referent]);
+    assert_eq!(written.field.as_ref().unwrap().path, "Leaf::c");
+    assert_eq!(written.value, Parameter::Structural(*value));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/write-only-copy-record",
+        assert_eq!(
+            (destination.root, spell(&destination.path), disposition, construct.result, package.data[data.get()-1].declaration.path.as_str(),
+             field.field.path.as_str(), &field.operand, &literal.kind),
+            (formal(f, 0), vec!["*".to_string(), "Leaf::c".to_string()], &StructuralStoreDisposition::ReplaceUnrestricted,
+             OperationResult::Structural(*value), "C", "C::v", &CallArgument::Scalar(one), &OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(1.into())))
+        ),
+    );
+}
+
+#[test]
+fn an_intact_structural_write_keeps_every_crossing_to_the_destination() {
+    const TYPES: &str = "data C [copy]{v:u8;} data Leaf{c:C;} data Node{next:@write Leaf;}";
+    for (parent, crossing) in [("Node", false), ("@mut Node", true)] {
+        let text = format!("{TYPES} machine f(x:{parent},n:C){{x.next.c=n;}}");
+        let package = lower(&text);
+        let f = body(&package, "f");
+        let [(place, disposition)] = stores(f)[..] else { panic!("one intact store") };
+        let mut path = Vec::new();
+        if crossing {
+            path.push("*");
+        }
+        path.extend(["Node::next", "*", "Leaf::c"]);
+        assert_eq!(place.root, formal(f, 0));
+        assert_eq!(spell(&place.path), path);
+        assert_eq!(*disposition, StructuralStoreDisposition::ReplaceUnrestricted);
+        assert!(borrowed_moves(f).is_empty());
+    }
+}
+
+#[test]
+fn an_intact_copy_replacement_walks_the_stored_schema() {
+    for declaration in [
+        "data I [copy]{v:u8;} data C [copy]{a:I;b:I;}",
+        "data C [copy]{v:[u8;4];}",
+        "data C [copy]{case A(v:u8);case B(v:u16);}",
+        "data C [copy]{}",
+    ] {
+        let text = format!("{declaration} machine f(x:@write C,n:C){{ $x=n; }}");
+        let package = lower(&text);
+        let f = body(&package, "f");
+        let [(place, disposition)] = stores(f)[..] else { panic!("one intact store") };
+        assert_eq!(place.root, formal(f, 0));
+        assert_eq!(place.path, [PlaceProjection::Referent]);
+        assert_eq!(*disposition, StructuralStoreDisposition::ReplaceUnrestricted);
+        assert!(borrowed_moves(f).is_empty());
+    }
+}
+
+#[test]
+fn replacing_a_copy_value_can_still_require_descriptor_cleanup() {
+    for text in [
+        "data C [copy]{r:@u8;} data Leaf{c:C;} machine f(x:@write Leaf,n:C){ x.c=n; }",
+        "data C [copy]{case Plain(v:u8);case Held(r:@u8);} data Leaf{c:C;} machine f(x:@write Leaf){ x.c=C::Plain{v:1u8}; }",
+    ] {
+        refusal(text, "x.c=", "x.c", "write-only structural replacement needs its cleanup authority");
+    }
 }
 
 /// `@mut x.left` and `@write x.left` in a `Ch::A` arm lend a payload field with

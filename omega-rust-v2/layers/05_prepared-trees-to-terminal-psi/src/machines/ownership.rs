@@ -6,7 +6,7 @@ use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, ValueType};
 mod cleanup;
 pub(crate) use cleanup::OwnedCrossings;
-pub(super) use cleanup::{dispose_temporary, owned, schedule};
+pub(super) use cleanup::{dispose_temporary, owned, plain_copy_storage, schedule};
 
 /// An owned transfer needs the entire selected subtree. A parked borrow that
 /// overlaps a hole stays in Psi for the checker to judge.
