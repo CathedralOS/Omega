@@ -11,8 +11,7 @@ use std::path::Path;
 use super::declarations::unavailable;
 use provider_acceptance::AcceptedSemanticBindingRole as Role;
 use review_evidence::record::{
-    PackagePolicyBaseline, PackagePolicyCallableRole, PackageReviewCheckedServiceReach,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSynchronousInvocation,
+    PackagePolicyBaseline, PackagePolicyCallableRole, PackageReviewNominalOwner,
 };
 use std::collections::BTreeSet;
 
@@ -88,32 +87,21 @@ fn host_services(
     policy: &PackagePolicyBaseline,
     target: target::TargetProfile,
 ) -> Result<Vec<SemanticBindingReviewCandidate>, Vec<Diagnostic>> {
-    let mut services = BTreeSet::<PackageReviewNominalIdentity>::new();
-    for callable in policy.callables.callables.iter().filter(|row| {
-        matches!(
-            row.role,
-            PackagePolicyCallableRole::Build
-                | PackagePolicyCallableRole::Public
-                | PackagePolicyCallableRole::Boundary
-        )
-    }) {
-        services.extend(callable.declared_service_reach.iter().flatten().cloned());
-        if let PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } =
-            &callable.checked_service_reach
-        {
-            services.extend(realized.iter().chain(concrete).cloned());
-        }
-        for invocation in callable
-            .declared_synchronous_invocations
-            .iter()
-            .flatten()
-            .chain(&callable.realized_synchronous_invocations)
-        {
-            if let PackageReviewSynchronousInvocation::Service(service) = invocation {
-                services.insert(service.clone());
-            }
-        }
-    }
+    let mut services: BTreeSet<_> = policy
+        .callables
+        .callables
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.role,
+                PackagePolicyCallableRole::Build
+                    | PackagePolicyCallableRole::Public
+                    | PackagePolicyCallableRole::Boundary
+            )
+        })
+        .flat_map(super::callables::referenced_services)
+        .cloned()
+        .collect();
     let module = input.accepted().module();
     if module
         .interfaces
