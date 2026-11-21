@@ -297,10 +297,12 @@ fn parses_plain_and_boundary_traits() {
     let signature_handle = parsed.items.state_signatures(traits[1].machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     let service_reaches = parsed
-        .items
-        .identifier_path_members(signature.service_reaches);
+        .type_references
+        .type_reference_handles(signature.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
+    assert!(
+        matches!(parsed.type_references.type_reference(service_reaches[0]), syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Console")
+    );
 }
 
 #[test]
@@ -357,10 +359,12 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     assert_eq!(machine.suspends_keyword_source_spans.len(), 1);
     assert_eq!(machine.blocks_keyword_source_spans.len(), 1);
     let service_reaches = parsed
-        .items
-        .identifier_path_members(machine.service_reaches);
+        .type_references
+        .type_reference_handles(machine.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
+    assert!(
+        matches!(parsed.type_references.type_reference(service_reaches[0]), syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Console")
+    );
 
     let trait_definition = crate::tests::root_trait(&parsed, "trait item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
@@ -370,10 +374,12 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     assert_eq!(signature.suspends_keyword_source_spans.len(), 1);
     assert_eq!(signature.blocks_keyword_source_spans.len(), 1);
     let service_reaches = parsed
-        .items
-        .identifier_path_members(signature.service_reaches);
+        .type_references
+        .type_reference_handles(signature.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(&parsed), "Clock");
+    assert!(
+        matches!(parsed.type_references.type_reference(service_reaches[0]), syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Clock")
+    );
 
     let structural_machine = parsed
         .root_items()
@@ -452,10 +458,12 @@ fn parses_machine_requires_before_reaches_on_one_line() {
     let machine = crate::tests::root_machine(&parsed, "machine item");
 
     let service_reaches = parsed
-        .items
-        .identifier_path_members(machine.service_reaches);
+        .type_references
+        .type_reference_handles(machine.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
+    assert!(
+        matches!(parsed.type_references.type_reference(service_reaches[0]), syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Console")
+    );
 
     let [contract] = parsed.items.capability_contracts(machine.contracts) else {
         panic!("machine should carry exactly one requires contract");
@@ -504,8 +512,8 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     };
     let reach_count = |machine: &Machine| {
         parsed
-            .items
-            .identifier_path_members(machine.service_reaches)
+            .type_references
+            .type_reference_handles(machine.service_reaches)
             .len()
     };
     let contracts = |machine: &Machine| parsed.items.capability_contracts(machine.contracts);
@@ -550,8 +558,8 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
     assert_eq!(
         parsed
-            .items
-            .identifier_path_members(signature.service_reaches)
+            .type_references
+            .type_reference_handles(signature.service_reaches)
             .len(),
         1
     );
@@ -1274,4 +1282,42 @@ fn contextual_clause_names_retain_their_first_contract_proposition() {
     assert_eq!(contracts.len(), 3);
     assert!(contracts.iter().all(|contract| contract.facts.count() == 1));
     assert!(machine.blocks);
+}
+
+#[test]
+fn effect_rows_preserve_static_service_arguments_in_reaches_and_invokes() {
+    use syntax_trees::types::TypeReferenceNode;
+
+    let source =
+        "machine use_pair() reaches Sensor<17u64> + Sensor<29u64> invokes Sensor<17u64> {}";
+    let parsed = crate::tests::parse_source(source, "applied service members");
+    let machine = crate::tests::root_machine(&parsed, "applied service customer");
+    let references = &parsed.type_references;
+    let reaches = references.type_reference_handles(machine.service_reaches);
+    let invokes = references.type_reference_handles(machine.invokes);
+    assert_eq!(reaches.len(), 2);
+    assert_eq!(invokes.len(), 1);
+    for (effect, argument) in reaches
+        .iter()
+        .chain(invokes)
+        .zip(["17u64", "29u64", "17u64"])
+    {
+        let TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = references.type_reference(*effect)
+        else {
+            panic!("effect lost its static application");
+        };
+        assert_eq!(base_name.as_str(&parsed), "Sensor");
+        let [value] = references.type_reference_handles(*arguments) else {
+            panic!("expected a single static argument");
+        };
+        let TypeReferenceNode::ConstExpression(value) = references.type_reference(*value) else {
+            panic!("expected a const service argument");
+        };
+        let span = parsed.expressions.source_span(*value).span;
+        assert_eq!(&source[span.start..span.end], argument);
+    }
 }

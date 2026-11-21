@@ -64,7 +64,8 @@ pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
     pub symbols: SymbolTable,
-    pub service_reaches: crate::source_tables::ServiceReachTable,
+    pub service_reaches:
+        crate::source_tables::ServiceReachTable<crate::trait_definition::TraitRequirement>,
     pub service_reach_rows: crate::source_tables::ServiceReachRowTable,
     pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
     pub semantic_domains: crate::source_tables::SemanticDomainTable,

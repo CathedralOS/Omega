@@ -109,7 +109,7 @@ fn ranking_views_and_signature_invokes_use_independent_arenas() {
         .append_to_span(&mut ranking_view, DiagnosticName::generated("remaining"));
     trees.declarations_mut().signature_invokes.append_to_span(
         &mut signature_invokes,
-        DiagnosticName::generated("Console.write"),
+        crate::signature::InvocationReference::Name(crate::trait_definition::TraitRequirement { name: DiagnosticName::generated("Console.write"), ..Default::default() }),
     );
 
     assert_eq!(
@@ -117,7 +117,7 @@ fn ranking_views_and_signature_invokes_use_independent_arenas() {
         "remaining"
     );
     assert_eq!(
-        trees.signature_invokes(signature_invokes)[0].as_str(),
+        trees.signature_invokes(signature_invokes)[0].name().as_str(),
         "Console.write"
     );
 }

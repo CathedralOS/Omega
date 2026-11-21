@@ -160,7 +160,7 @@ use crate::resolution::lowering::lowerer::Lowerer;
 use crate::resolution::lowering::name::lower_name;
 use crate::resolution::lowering::name::lower_names;
 use crate::resolution::lowering::state::{
-    lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
+    lower_effect_references, lower_machine_signature_contracts, lower_signature_invokes,
     lower_state_body, lower_state_node,
 };
 use crate::resolution::lowering::type_reference::lower_child_type_references;
@@ -408,8 +408,8 @@ fn lower_lexical_machine_parts(
     } else {
         ExpressionHandle::invalid()
     };
-    let service_reaches = lower_service_reach_names(syntax_trees, machine.service_reaches);
-    let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
+    let service_reaches = lower_effect_references(lowerer, syntax_trees, machine.service_reaches)?;
+    let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes)?;
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
     let machine_name = lower_name(syntax_trees, &machine.name);

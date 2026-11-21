@@ -6678,8 +6678,50 @@ pub(crate) mod signatures {
     }
 
     impl CallableApplication {
+        pub fn service_reach(
+            &mut self,
+            program: &mut TypedTrees,
+            id: semantic_vocabulary::ServiceReachId,
+        ) -> Result<semantic_vocabulary::ServiceReachId, &'static str> {
+            let row = program
+                .service_reaches
+                .definition(id)
+                .ok_or("missing declared service in callable substitution")?;
+            let Some(application) = &row.application else {
+                return Ok(id);
+            };
+            let mut environment = application
+                .arguments
+                .scope(program)
+                .ok_or("service application lost its declaring scope")?
+                .environment();
+            environment.substitute_service(program, self)?;
+            program.intern_service_reach_environment(&environment)
+        }
+
+        pub(super) fn applied_reach_row(
+            &mut self,
+            program: &mut TypedTrees,
+            row: semantic_vocabulary::ServiceReachRowId,
+        ) -> Result<semantic_vocabulary::ServiceReachRowId, &'static str> {
+            if row.0 == 0 {
+                return Ok(row);
+            }
+            let services = program.service_reach_rows.services(row).to_vec();
+            let applied = services
+                .into_iter()
+                .map(|service| self.service_reach(program, service))
+                .collect::<Result<Vec<_>, _>>()?;
+            let concrete = program.service_reach_rows.intern(applied);
+            Ok(if program.service_reach_rows.is_abstract(row) {
+                program.service_reach_rows.intern_abstract(concrete)
+            } else {
+                concrete
+            })
+        }
+
         pub(super) fn invocations(
-            &self,
+            &mut self,
             program: &mut TypedTrees,
             declared: HandleSpan<signature::AuthoredInvocation>,
         ) -> Result<HandleSpan<signature::AuthoredInvocation>, &'static str> {
@@ -6698,6 +6740,9 @@ pub(crate) mod signatures {
                     }
                     signature::AuthoredInvocationTarget::Service(symbol) => {
                         signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
+                    }
+                    signature::AuthoredInvocationTarget::AppliedService(service) => {
+                        signature::AuthoredInvocationTarget::AppliedService(self.service_reach(program, service)?)
                     }
                     unresolved @ (signature::AuthoredInvocationTarget::Unresolved
                     | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
@@ -6868,6 +6913,8 @@ pub(crate) mod signatures {
                         .signature_contracts
                         .append_to_span(&mut applied.contracts, contract);
                 }
+                applied.service_reach_row =
+                    self.applied_reach_row(program, declared.service_reach_row)?;
                 applied.invokes = self.invocations(program, declared.invokes)?;
                 if let source_declarations::TerminationGuarantee::Terminates { premises } =
                     &mut applied.termination_guarantee
@@ -9178,7 +9225,7 @@ impl CallableApplication {
         })
     }
 
-    fn lifetime(
+    pub(crate) fn lifetime(
         &self,
         original: &crate::source_state::name::Identifier,
     ) -> crate::source_state::name::Identifier {
@@ -9189,7 +9236,7 @@ impl CallableApplication {
             .map_or_else(|| original.clone(), |binding| binding.argument.clone())
     }
 
-    fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
+    pub(crate) fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
         self.symbols
             .iter()
             .rev()
@@ -9670,6 +9717,18 @@ impl TypedTrees {
         }
         for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
+            machine.service_reach_row = application.applied_reach_row(self, machine.service_reach_row)?;
+            let mut reach = self.authored_service_reach_rows_for(declaration).cloned().collect::<Vec<_>>();
+            for row in &mut reach {
+                row.owner = machine.symbol;
+                for target in &mut row.targets {
+                    target.service = match target.service {
+                        signature::ReachSubject::Service(id) => signature::ReachSubject::Service(application.service_reach(self, id)?),
+                        signature::ReachSubject::Static(symbol) => signature::ReachSubject::Static(application.symbol(symbol)),
+                    };
+                }
+            }
+            self.authored_service_reach_rows.extend(reach);
             machine.invokes = application.invocations(self, machine.invokes)?;
             // Definitions belong to the copied declaration just like its
             // written contract. Apply both sides through the same type copier.

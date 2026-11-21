@@ -404,7 +404,7 @@ mod tests {
                     owner: requirement,
                     keyword_source_spans: Vec::new(),
                     targets: vec![crate::source_state::signature::AuthoredServiceReachTarget {
-                        service: other,
+                        service: crate::source_state::signature::ReachSubject::Static(other),
                         source_span: source_text::SourceSpan::new(
                             source,
                             source_text::Span::new(0, 4),

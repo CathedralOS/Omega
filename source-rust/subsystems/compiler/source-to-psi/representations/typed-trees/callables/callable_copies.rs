@@ -388,7 +388,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
                     | crate::source_state::signature::AuthoredInvocationTarget::Service(symbol) => {
                         *symbol = remapped(*symbol, symbols)
                     }
-                    crate::source_state::signature::AuthoredInvocationTarget::Unresolved
+                    crate::source_state::signature::AuthoredInvocationTarget::AppliedService(_)
+                    | crate::source_state::signature::AuthoredInvocationTarget::Unresolved
                     | crate::source_state::signature::AuthoredInvocationTarget::Undeclared => {}
                 }
             });

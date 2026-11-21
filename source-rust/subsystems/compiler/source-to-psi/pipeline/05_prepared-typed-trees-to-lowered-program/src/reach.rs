@@ -273,6 +273,7 @@ pub(crate) fn source_closure(
     let mut active = Vec::new();
     let mut completed = Vec::new();
     while let Some((id, exiting)) = pending.pop() {
+        let id = typed.service_reaches.canonical_id(id);
         let definition = typed
             .service_reaches
             .definition(id)

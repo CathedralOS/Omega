@@ -40,7 +40,7 @@ pub(super) fn service(
         .service_reaches
         .definition(id)
         .ok_or_else(|| unavailable(context, "service permission names an absent declaration"))?;
-    Ok(id)
+    Ok(typed.service_reaches.canonical_id(id))
 }
 
 pub(super) fn service_closure(
@@ -103,6 +103,7 @@ pub(super) fn invocations(
                     unavailable(context, "invocation runtime parameter coordinate overflow")
                 })?)
             }
+            AuthoredInvocationTarget::AppliedService(id) => Invocation::Service(service(typed, context, id)?),
             AuthoredInvocationTarget::Service(symbol) if symbol.is_valid() => {
                 let id = typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| {
                     unavailable(
@@ -1277,20 +1278,7 @@ impl Program<'_> {
         let roots = crate::lowering::reach::source_closure(self.typed, context, &roots)?;
         let mut bindings = Vec::with_capacity(roots.len());
         for source in roots {
-            let symbol = self
-                .typed
-                .service_reaches
-                .definition(source)
-                .ok_or_else(|| unavailable(context, "service declaration is absent"))?
-                .symbol;
-            let declaration = self
-                .typed
-                .trait_definition_by_symbol(symbol)
-                .filter(|declaration| declaration.is_boundary)
-                .ok_or_else(|| {
-                    unavailable(context, "service does not name its exact boundary trait")
-                })?;
-            let id = self.declared_service(context, declaration)?;
+            let id = self.applied_source_service(context, source)?;
             bindings.push((source, id));
         }
         Ok(bindings)
@@ -1453,6 +1441,25 @@ impl<'t> Program<'t> {
         Ok(self.services.push((scope, parents)))
     }
 
+    fn applied_source_service(
+        &mut self,
+        caller: MachineId,
+        source: ServiceReachId,
+    ) -> Checked<ServiceId> {
+        let typed = self.typed;
+        let scope = typed.service_reach_scope(source).ok_or_else(|| {
+            let name = typed
+                .service_reaches
+                .definition(source)
+                .map_or("<absent>", |row| row.name.as_str());
+            unavailable(
+                caller,
+                format!("boundary service `{name}` requires its complete declared application"),
+            )
+        })?;
+        self.service(caller, scope)
+    }
+
     pub(super) fn declared_service(
         &mut self,
         caller: MachineId,
@@ -1593,7 +1600,8 @@ impl<'t> Program<'t> {
         let mut named = Vec::with_capacity(rows.len());
         for row in rows {
             match row.target {
-                Named::Service(requirement) => named.push(requirement),
+                Named::AppliedService(id) => named.push(crate::source_state::signature::ReachSubject::Service(id)),
+                Named::Service(requirement) => named.push(crate::source_state::signature::ReachSubject::Static(requirement)),
                 Named::Parameter { ordinal, symbol }
                     if symbol.is_valid()
                         && parameters
@@ -1658,30 +1666,19 @@ impl<'t> Program<'t> {
     fn named_row(
         &mut self,
         caller: MachineId,
-        named: Vec<symbols::SymbolHandle>,
+        named: Vec<crate::source_state::signature::ReachSubject>,
         axis: crate::lowering::body::Axis,
     ) -> Checked<Vec<ServiceId>> {
         let typed = self.typed;
         let mut row = Vec::with_capacity(named.len());
         for service in named {
-            let declaration = typed
-                .trait_definition_by_symbol(service)
-                .filter(|declaration| declaration.is_boundary)
-                .ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        match axis {
-                            crate::lowering::body::Axis::Reach => Unserved::Typing(
-                                "reaches names something that is not a boundary trait",
-                            ),
-                            crate::lowering::body::Axis::Entries => Unserved::Machine(
-                                "invokes naming a requirement that is not a boundary trait",
-                            ),
-                        },
-                    )
-                })?;
-            row.push(self.declared_service(caller, declaration)?);
+            let id = match service {
+                crate::source_state::signature::ReachSubject::Service(id) => id,
+                crate::source_state::signature::ReachSubject::Static(symbol) => {
+                    typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| unavailable(caller, "the named effect does not select a boundary service"))?
+                }
+            };
+            row.push(self.applied_source_service(caller, id)?);
         }
         Ok(match axis {
             crate::lowering::body::Axis::Reach => self.with_parents(row),

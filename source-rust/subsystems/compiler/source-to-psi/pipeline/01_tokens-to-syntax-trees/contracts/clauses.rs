@@ -22,8 +22,8 @@ pub(crate) struct MachineClauses {
     pub ranking_range: syntax_trees::expression::ExpressionHandle,
     pub service_reach_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub service_reach_is_installation_bound: bool,
-    pub service_reaches: HandleSpan<Identifier>,
-    pub invokes: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<syntax_trees::types::TypeReferenceHandle>,
+    pub invokes: HandleSpan<syntax_trees::types::TypeReferenceHandle>,
     pub suspends_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub suspends: bool,
@@ -132,6 +132,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 
         if input.at_contextual("reaches") {
             input = crate::contracts::effects::take_operational_reaches_clause(
+                syntax_trees,
                 input,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
@@ -143,7 +144,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 
         if input.at_contextual("invokes") {
             input = input.take_contextual("invokes")?;
-            let (binding, after_binding) = input.take_identifier()?;
+            let (binding, after_binding) = crate::contracts::effects::parse_effect_reference(syntax_trees, input)?;
             invokes.push(binding);
             input = after_binding;
             continue;
@@ -358,9 +359,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
             service_reaches: syntax_trees
-                .items
-                .insert_identifier_path_members(service_reaches),
-            invokes: syntax_trees.items.insert_identifier_path_members(invokes),
+                .type_references.insert_type_reference_handles(service_reaches),
+            invokes: syntax_trees.type_references.insert_type_reference_handles(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,

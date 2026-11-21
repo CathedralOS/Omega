@@ -46,6 +46,7 @@ pub(crate) use targets::machine_entry_symbol;
 mod top_level;
 pub(crate) mod type_predicates;
 mod type_references;
+pub(crate) use type_references::bind_service_application_arguments;
 
 use contracts::assign_contract_reference_symbols;
 use domain_facts::assign_domain_fact_symbols;

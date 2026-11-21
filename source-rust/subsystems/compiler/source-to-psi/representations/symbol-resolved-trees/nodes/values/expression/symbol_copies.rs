@@ -223,9 +223,6 @@ impl SymbolCopy<'_, '_> {
             .collect::<Vec<_>>();
         for mut row in rows {
             row.owner = copied.symbol;
-            for target in &mut row.targets {
-                target.service = self.symbol(target.service);
-            }
             // Runtime rows can share their formal namespace while their
             // supplying scope changes. Preserve each distinct authored
             // row without duplicating an unchanged declaration record.

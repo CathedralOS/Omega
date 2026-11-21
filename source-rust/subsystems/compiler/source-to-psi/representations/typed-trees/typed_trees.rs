@@ -25,7 +25,9 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
-    pub service_reaches: crate::source_tables::ServiceReachTable,
+    pub service_reaches: crate::source_tables::ServiceReachTable<
+        crate::source_state::trait_definition::RetainedTraitScope,
+    >,
     pub service_reach_rows: crate::source_tables::ServiceReachRowTable,
     pub authored_service_reach_rows: arena::RetainedRows<signature::AuthoredServiceReachRow>,
     pub semantic_domains: crate::source_tables::SemanticDomainTable,

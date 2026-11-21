@@ -28,7 +28,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub trait_requirements: Arena<crate::source_resolved::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub ranking_views: Arena<crate::source_resolved::name::DiagnosticName>,
-    pub signature_invokes: Arena<crate::source_resolved::name::DiagnosticName>,
+    pub signature_invokes: Arena<crate::source_resolved::signature::InvocationReference>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub statement_path_members: Arena<crate::source_resolved::name::DiagnosticName>,

@@ -152,7 +152,7 @@ fn lower_trait_requirements(
     One `Name` or `Name<args>` reference in trait-position (parent, `requires`,
     or refinement `= Base` head).
 */
-fn lower_trait_requirement_node(
+pub(super) fn lower_trait_requirement_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     handle: syntax::types::TypeReferenceHandle,
@@ -173,7 +173,7 @@ fn lower_trait_requirement_node(
         ),
         _ => {
             return Err(Diagnostic::error(
-                "a trait parent must be a named trait, optionally with generic arguments",
+                "expected a named declaration, optionally with static arguments",
             ));
         }
     };

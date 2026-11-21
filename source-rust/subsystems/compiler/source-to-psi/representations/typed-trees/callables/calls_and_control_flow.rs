@@ -13,8 +13,25 @@ pub mod calls {
         use symbols::SymbolHandle;
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+        pub enum ReachSubject {
+            Service(semantic_vocabulary::ServiceReachId),
+            Static(SymbolHandle),
+        }
+
+        impl ReachSubject {
+            pub fn symbol(self, program: &crate::source_state::TypedTrees) -> Option<SymbolHandle> {
+                match self {
+                    Self::Service(id) => {
+                        program.service_reaches.definition(id).map(|row| row.symbol)
+                    }
+                    Self::Static(symbol) => Some(symbol),
+                }
+            }
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
         pub struct AuthoredServiceReachTarget {
-            pub service: SymbolHandle,
+            pub service: ReachSubject,
             pub source_span: source_text::SourceSpan,
         }
 
@@ -43,6 +60,7 @@ pub mod calls {
                 symbol: SymbolHandle,
             },
             Service(SymbolHandle),
+            AppliedService(semantic_vocabulary::ServiceReachId),
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]

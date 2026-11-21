@@ -1275,7 +1275,7 @@ fn copied_parts(
                 && row
                     .targets
                     .iter()
-                    .all(|target| program.symbols.symbols().nodes().is_valid(target.service))
+                    .all(|target| target.service.symbol(program).is_some_and(|symbol| program.symbols.symbols().nodes().is_valid(symbol)))
         })
         && !program
             .proof_output_calls
@@ -1691,20 +1691,6 @@ fn copy_declarations(
         }
         machine.is_public = false;
         copy_progress(program, source, &mut machine, symbols)?;
-        // A written empty ceiling differs from an omitted one. Retain each
-        // authored row on its actual copied owner; never turn it into inference.
-        let reach_rows = program
-            .authored_service_reach_rows_for(source.symbol)
-            .cloned()
-            .map(|mut row| {
-                row.owner = machine.symbol;
-                for target in &mut row.targets {
-                    target.service = symbols.lookup(target.service).unwrap_or(target.service);
-                }
-                row
-            })
-            .collect::<Vec<_>>();
-        program.authored_service_reach_rows.extend(reach_rows);
         let remaining = program
             .machine_type_parameters(source)
             .iter()

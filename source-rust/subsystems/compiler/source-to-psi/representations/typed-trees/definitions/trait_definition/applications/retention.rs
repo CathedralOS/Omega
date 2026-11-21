@@ -44,6 +44,26 @@ impl AppliedTraitScope<'_> {
 }
 
 impl TraitApplicationEnvironment {
+    pub(crate) fn substitute_service(
+        &mut self,
+        program: &mut TypedTrees,
+        application: &mut crate::callables::callable_applications::CallableApplication,
+    ) -> Result<(), &'static str> {
+        for (_, argument) in &mut self.substitutions {
+            *argument = application.type_reference(program, *argument)?;
+        }
+        for frame in &mut self.region_scopes {
+            for (_, argument) in &mut frame.lifetimes {
+                *argument = application
+                    .lifetime(&Identifier::generated(argument.as_str()))
+                    .as_str()
+                    .to_owned();
+            }
+        }
+        self.argument_owner = application.symbol(self.argument_owner);
+        Ok(())
+    }
+
     pub(crate) fn lifetime_identity(
         &self,
         program: &TypedTrees,

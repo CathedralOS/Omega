@@ -13,13 +13,21 @@ pub(crate) mod contracts {
 
         pub(crate) fn lower_authored_invocations(
             program: &resolved::SymbolResolvedTrees,
-            declarations: &[resolved::name::DiagnosticName],
+            declarations: &[resolved::signature::InvocationReference],
             parameters: &[resolved::signature::StateParameter],
             owner: &str,
         ) -> Result<Vec<typed::signature::AuthoredInvocation>, Diagnostic> {
             let mut lowered = Vec::with_capacity(declarations.len());
-            for declaration in declarations {
-                let target = if let Some((ordinal, parameter)) = parameters
+            for written in declarations {
+                let declaration = written.name();
+                let target = if let resolved::signature::InvocationReference::Service { service, .. } = written {
+                    let row = program.service_reaches.definition(*service).ok_or_else(|| Diagnostic::error("an invocation has no resolved service"))?;
+                    if row.application.is_some() {
+                        typed::signature::AuthoredInvocationTarget::AppliedService(*service)
+                    } else {
+                        typed::signature::AuthoredInvocationTarget::Service(row.symbol)
+                    }
+                } else if let Some((ordinal, parameter)) = parameters
                     .iter()
                     .enumerate()
                     .find(|(_, parameter)| parameter.name.as_str() == declaration.as_str())

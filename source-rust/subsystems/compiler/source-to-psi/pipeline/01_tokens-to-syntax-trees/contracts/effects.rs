@@ -45,15 +45,29 @@ pub(crate) fn reject_retired_operational_reach(
         service.as_str(&input)
     )))
 }
-pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
+pub(crate) fn parse_effect_reference<'tokens, 'source>(
+    trees: &mut syntax_trees::SyntaxTrees,
     input: crate::token_input::cursor::Input<'tokens, 'source>,
-    service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
+) -> crate::token_input::cursor::ParseResult<
+    'tokens,
+    'source,
+    syntax_trees::types::TypeReferenceHandle,
+> {
+    let (name, rest) = input.take_identifier()?;
+    crate::types::references::parse_named_type_reference(trees, name, rest, false)
+}
+
+fn take_service_reach_row_member<'tokens, 'source>(
+    trees: &mut syntax_trees::SyntaxTrees,
+    input: crate::token_input::cursor::Input<'tokens, 'source>,
+    service_reaches: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
 ) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
     let (service, rest) = input.take_identifier()?;
     reject_retired_operational_reach(&service, rest)?;
-    service_reaches.push(service);
-    let mut input = rest;
+    let (reference, mut input) =
+        crate::types::references::parse_named_type_reference(trees, service, rest, false)?;
+    service_reaches.push(reference);
     if input.at_punctuation(PunctuationKind::Comma) {
         input = input.take_punctuation(PunctuationKind::Comma, ",")?;
     } else if input.at_punctuation(PunctuationKind::Plus) {
@@ -63,9 +77,10 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
 }
 
 pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
+    trees: &mut syntax_trees::SyntaxTrees,
     input: crate::token_input::cursor::Input<'tokens, 'source>,
     service_reach_keyword_source_spans: &mut Vec<source_text::SourceSpan>,
-    service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
+    service_reaches: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
     service_reach_is_installation_bound: &mut bool,
     at_clause_boundary: impl Fn(crate::token_input::cursor::Input<'_, '_>) -> bool,
 ) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
@@ -100,7 +115,7 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
         return Ok(after_none);
     }
     while !at_clause_boundary(input) {
-        input = take_service_reach_row_member(input, service_reaches)?;
+        input = take_service_reach_row_member(trees, input, service_reaches)?;
     }
     if *service_reach_is_installation_bound && service_reaches.len() == service_count_before_clause
     {

@@ -8504,9 +8504,9 @@ pub(crate) mod substitution {
     }
 
     /// Follow the same actual-argument frames used by index identity before
-    /// checking its declared integer type. A type binder is never a value,
+    /// checking its declared scalar type. A type binder is never a value,
     /// and a policy-qualified integer is not its plain carrier.
-    pub(crate) fn integer_argument_matches(
+    pub(crate) fn scalar_argument_matches(
         program: &TypedTrees,
         argument: IndexIdentityArgument<'_>,
         context: &TypeIdentityContext<'_>,
@@ -8542,7 +8542,7 @@ pub(crate) mod substitution {
             operand.symbol,
             context,
             |program, argument, context| {
-                integer_argument_matches(program, argument, context, expected)
+                scalar_argument_matches(program, argument, context, expected)
             },
             |_| false,
         ) {
@@ -9280,14 +9280,14 @@ pub fn normalized_index_identity(
     (!invalid.get()).then_some(identity)
 }
 
-pub(crate) fn scoped_integer_argument_matches(
+pub(crate) fn scoped_scalar_argument_matches(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     expected: crate::source_state::types::PrimitiveType,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
 ) -> bool {
-    substitution::integer_argument_matches(
+    substitution::scalar_argument_matches(
         program,
         IndexIdentityArgument::TypeReference(reference),
         &TypeIdentityContext {

@@ -54,7 +54,7 @@ fn check_rows(program: &SymbolResolvedTrees) {
                 assert_eq!(authored.len(), 1);
                 assert_eq!(authored[0].owner, signature.symbol);
                 assert_eq!(authored[0].targets.len(), 1);
-                assert_eq!(authored[0].targets[0].service, service);
+                assert_eq!(authored[0].targets[0].service, service_id);
                 assert_eq!(normalized, &[service_id]);
             }
             2 => {
