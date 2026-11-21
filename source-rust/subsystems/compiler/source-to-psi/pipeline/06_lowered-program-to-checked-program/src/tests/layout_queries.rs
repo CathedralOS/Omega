@@ -154,14 +154,25 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
         else {
             return None;
         };
-        if !matches!(module.structural_type(*subject)?.shape,
-            StructuralTypeShape::PrimitiveScalar(carrier) if carrier == u32_carrier)
-        {
-            return None;
-        }
+        // The call is guarded by the complete source transition. Supply the
+        // other observations in that transition for this 64-bit test target.
+        let shape = &module.structural_type(*subject)?.shape;
+        let (bytes, alignment) = match shape {
+            StructuralTypeShape::PrimitiveScalar(carrier) if *carrier == u32_carrier => (size, 4),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64,
+            )) => (8, 8),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if integer.is_address() => (8, 8),
+            StructuralTypeShape::Record { fields, .. }
+                if fields.len() == 1 && fields[0].field_type == terminal_psi::StructuralFieldType::Scalar(u32_carrier) =>
+            {
+                (size, 4)
+            }
+            _ => panic!("unexpected layout observation in the source transition: {shape:?}"),
+        };
         let bytes = match measurement {
-            LayoutMeasurement::Size => size,
-            LayoutMeasurement::Alignment => 4,
+            LayoutMeasurement::Size => bytes,
+            LayoutMeasurement::Alignment => alignment,
         };
         Some(ScalarValue::Integer(bignum::BigInt::from_u64(bytes)))
     };
