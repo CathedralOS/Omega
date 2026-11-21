@@ -122,12 +122,13 @@ impl CheckedPrefix<'_> {
         .map(|t| t.id)
     }
 
-    fn check_argument(
+    pub(super) fn check_argument(
         &self,
+        machine: &TerminalMachine,
         old: &StructuralArgument,
         new: &mut StructuralArgument,
     ) -> Result<(), &'static str> {
-        if !self.same_argument(old, new) {
+        if !self.same_argument(machine, old, new) {
             return Err("successor changed a projected argument");
         }
         new.path.clone_from_slice(&old.path);
@@ -196,14 +197,14 @@ impl CheckedPrefix<'_> {
         };
         match (&op.kind, &mut *other) {
             (StoreStructuralField { value: a, .. }, StoreStructuralField { value: b, .. }) => {
-                self.check_argument(a, b)?
+                self.check_argument(machine, a, b)?
             }
             (
                 EstablishStructuralArray { elements: a },
                 EstablishStructuralArray { elements: b },
             ) => {
                 for (x, y) in a.iter().zip(b) {
-                    self.check_argument(x, y)?;
+                    self.check_argument(machine, x, y)?;
                 }
             }
             (
@@ -227,7 +228,7 @@ impl CheckedPrefix<'_> {
                     if let (RecordFieldValue::Structural(old), RecordFieldValue::Structural(new)) =
                         (&x.value, &mut y.value)
                     {
-                        self.check_argument(old, new)?;
+                        self.check_argument(machine, old, new)?;
                     }
                 }
             }
@@ -361,14 +362,14 @@ impl CheckedPrefix<'_> {
                     return Err("successor changed the element type of a view");
                 }
                 *y = *x;
-                self.check_argument(a, b)?;
+                self.check_argument(machine, a, b)?;
             }
             (ByteSequenceLength { source: a }, ByteSequenceLength { source: b })
             | (ElementViewLength { source: a }, ElementViewLength { source: b })
             | (ElementViewSubslice { source: a, .. }, ElementViewSubslice { source: b, .. })
             | (ElementViewRead { source: a, .. }, ElementViewRead { source: b, .. })
             | (ElementViewWrite { destination: a, .. }, ElementViewWrite { destination: b, .. }) => {
-                self.check_argument(a, b)?
+                self.check_argument(machine, a, b)?
             }
             _ => {}
         }

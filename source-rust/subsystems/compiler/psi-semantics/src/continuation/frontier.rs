@@ -86,9 +86,9 @@ fn image_literal<'a>(
 }
 
 impl CheckedPrefix<'_> {
-    fn same_live_place(&self, left: &Place, right: &Place) -> bool {
+    fn same_live_place(&self, machine: &TerminalMachine, left: &Place, right: &Place) -> bool {
         match (left, right) {
-            (Place::Structural(a), Place::Structural(b)) => self.same_argument(a, b),
+            (Place::Structural(a), Place::Structural(b)) => self.same_argument(machine, a, b),
             (Place::Scalar(a), Place::Scalar(b)) => a == b,
             _ => false,
         }
@@ -123,7 +123,8 @@ impl CheckedPrefix<'_> {
                 .live_values
                 .iter()
                 .find(|v| {
-                    self.same_live_place(&v.place, &target.place) && v.storage == target.storage
+                    self.same_live_place(left, &v.place, &target.place)
+                        && v.storage == target.storage
                 })
                 .or_else(|| {
                     // The full suffix can keep using a receiver after the call
@@ -132,7 +133,7 @@ impl CheckedPrefix<'_> {
                     (same_parameter && target.storage == Storage::Parameter)
                         .then(|| {
                             first.live_values.iter().find(|v| {
-                                self.same_live_place(&v.place, &target.place)
+                                self.same_live_place(left, &v.place, &target.place)
                                     && v.storage == Storage::CallArgument
                             })
                         })
@@ -176,13 +177,14 @@ impl CheckedPrefix<'_> {
             {
                 continue;
             }
-            self.value_loans(first, second, source, target, same_parameter)?;
+            self.value_loans(left, first, second, source, target, same_parameter)?;
         }
         Ok(())
     }
 
     fn value_loans(
         &self,
+        machine: &TerminalMachine,
         old: &Plan,
         new: &Plan,
         a: &Live,
@@ -219,7 +221,7 @@ impl CheckedPrefix<'_> {
                         .occurrences
                         .try_get(right)
                         .ok_or("missing successor loan occurrence")?;
-                    self.loan(old, new, l, r)?;
+                    self.loan(machine, old, new, l, r)?;
                 }
                 Ok(())
             }
@@ -229,6 +231,7 @@ impl CheckedPrefix<'_> {
 
     fn loan(
         &self,
+        machine: &TerminalMachine,
         old: &Plan,
         new: &Plan,
         a: &TerminalSuspensionLoan,
@@ -239,7 +242,8 @@ impl CheckedPrefix<'_> {
                 .get(x as usize)
                 .zip(new.live_values.get(y as usize))
                 .is_some_and(|(left, right)| {
-                    self.same_live_place(&left.place, &right.place) && left.storage == right.storage
+                    self.same_live_place(machine, &left.place, &right.place)
+                        && left.storage == right.storage
                 })
         };
         if a.access != b.access
@@ -295,7 +299,7 @@ impl CheckedPrefix<'_> {
             (
                 Backing::IncomingReferent { argument: x },
                 Backing::IncomingReferent { argument: y },
-            ) => self.same_argument(x, y),
+            ) => self.same_argument(machine, x, y),
             _ => false,
         };
         if !captured || !backing {
@@ -328,6 +332,23 @@ mod tests {
             block: BlockId::new(1).unwrap(),
             operation: OperationId::new(1).unwrap(),
             index: 0,
+        };
+        let machine = TerminalMachine {
+            id: cut.machine,
+            entry: cut.block,
+            contract: terminal_psi::MachineContract::empty(
+                semantic_vocabulary::ContractId::new(1).unwrap(),
+            ),
+            call_formations: Vec::new(),
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            attachment: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            blocks: Vec::new(),
         };
         let proof = CheckedPrefix {
             old: &module,
@@ -383,17 +404,21 @@ mod tests {
             active_at_call: true,
             ..Default::default()
         };
-        assert!(proof.loan(&plan, &plan, &loan, &loan).is_ok());
+        assert!(proof.loan(&machine, &plan, &plan, &loan, &loan).is_ok());
         let mut redirected = loan.clone();
         let Capture::Reference { source_path, .. } = &mut redirected.capture else {
             unreachable!()
         };
         *source_path = sibling;
-        assert!(proof.loan(&plan, &plan, &loan, &redirected).is_err());
+        assert!(
+            proof
+                .loan(&machine, &plan, &plan, &loan, &redirected)
+                .is_err()
+        );
         let wrong = TerminalSuspensionLoan {
             backing: Backing::RetainedOwner { live_value: 1 },
             ..loan.clone()
         };
-        assert!(proof.loan(&plan, &plan, &loan, &wrong).is_err());
+        assert!(proof.loan(&machine, &plan, &plan, &loan, &wrong).is_err());
     }
 }

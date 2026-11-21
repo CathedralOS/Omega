@@ -788,8 +788,8 @@ fn a_completed_helper_cannot_acquire_an_unproved_guarantee() {
     assert!(CheckedPrefix::check(&original, cut, &successor, cut).is_err());
 }
 
-#[test]
-fn a_selector_without_a_parent_requires_every_candidate_to_agree() {
+mod case_projections {
+    use super::*;
     use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
     use terminal_psi::{
         StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
@@ -838,29 +838,143 @@ fn a_selector_without_a_parent_requires_every_candidate_to_agree() {
         module
     }
 
-    let (_, site) = program();
-    let old = choices(&[("First", 9, 21), ("Second", 9, 21)]);
-    let original_case = StructuralCaseId::new(9).unwrap();
-    let original_field = StructuralFieldId::new(21).unwrap();
-    let new_case = StructuralCaseId::new(11).unwrap();
-    let new_field = StructuralFieldId::new(24).unwrap();
-    let owner = StructuralTypeId::new(1).unwrap();
-    for (new, agreed) in [
-        (choices(&[("First", 11, 24), ("Second", 11, 24)]), true),
-        (choices(&[("First", 11, 24), ("Second", 12, 25)]), false),
-        (choices(&[("First", 11, 24)]), false),
-    ] {
-        let checked = CheckedPrefix::check(&old, site, &new, site).unwrap();
-        assert_eq!(checked.case_id(owner, original_case), Some(new_case));
-        assert_eq!(checked.field_id(owner, original_field), Some(new_field));
-        assert_eq!(
-            checked.unambiguous_case_id(original_case),
-            agreed.then_some(new_case)
-        );
-        assert_eq!(
-            checked.unambiguous_field_id(original_field),
-            agreed.then_some(new_field)
-        );
+    #[test]
+    fn a_selector_without_a_parent_requires_every_candidate_to_agree() {
+        let (_, site) = program();
+        let old = choices(&[("First", 9, 21), ("Second", 9, 21)]);
+        let original_case = StructuralCaseId::new(9).unwrap();
+        let original_field = StructuralFieldId::new(21).unwrap();
+        let new_case = StructuralCaseId::new(11).unwrap();
+        let new_field = StructuralFieldId::new(24).unwrap();
+        let owner = StructuralTypeId::new(1).unwrap();
+        for (new, agreed) in [
+            (choices(&[("First", 11, 24), ("Second", 11, 24)]), true),
+            (choices(&[("First", 11, 24), ("Second", 12, 25)]), false),
+            (choices(&[("First", 11, 24)]), false),
+        ] {
+            let checked = CheckedPrefix::check(&old, site, &new, site).unwrap();
+            assert_eq!(checked.case_id(owner, original_case), Some(new_case));
+            assert_eq!(checked.field_id(owner, original_field), Some(new_field));
+            assert_eq!(
+                checked.unambiguous_case_id(original_case),
+                agreed.then_some(new_case)
+            );
+            assert_eq!(
+                checked.unambiguous_field_id(original_field),
+                agreed.then_some(new_field)
+            );
+        }
+    }
+
+    #[test]
+    fn a_call_selects_a_case_from_the_type_behind_its_reference() {
+        use semantic_vocabulary::PlaceId;
+        use terminal_psi::{
+            BoundaryParameterKind, StructuralAccess, StructuralArgument,
+            StructuralParameterDeclaration, StructuralPathSegment as Step,
+        };
+
+        fn passing_case(first: u64, alternate: u64, second: u64, variant: u64) -> TerminalModule {
+            let mut module = choices(&[("First", first, 21), ("Second", second, 21)]);
+            let owner = module.types.structural_types[0].id;
+            let reference = StructuralTypeId::new(3).unwrap();
+            let flag = StructuralTypeId::new(4).unwrap();
+            let access = StructuralAccess::SharedBorrow;
+            let mut names = std::mem::take(&mut module.identities).into_builder();
+            for (id, name, shape) in [
+                (
+                    reference,
+                    "&First",
+                    StructuralTypeShape::Reference {
+                        referent: owner,
+                        access,
+                    },
+                ),
+                (
+                    flag,
+                    "bool",
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                ),
+            ] {
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        id,
+                        identity: names.intern(name),
+                        declaration_identity: names.intern(name),
+                        shape,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        owns_linear_claim: false,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        quotient_carrier: None,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+            }
+            let StructuralTypeShape::Sum { cases } = &mut module.types.structural_types[0].shape
+            else {
+                unreachable!()
+            };
+            cases[0].fields[0].inline_carrier = Some(flag);
+            let mut sibling = cases[0].clone();
+            sibling.id = StructuralCaseId::new(alternate).unwrap();
+            sibling.identity = names.intern("alternate");
+            sibling.declaration_identity = names.intern("First::alternate");
+            sibling.fields[0].id = StructuralFieldId::new(22).unwrap();
+            sibling.fields[0].declaration_identity = names.intern("First::alternate::ready");
+            cases.push(sibling);
+            let ready = names.intern("ready");
+            module.identities = names.build();
+            let place = PlaceId::new(1).unwrap();
+            for (machine, ty) in module.machines.iter_mut().zip([reference, flag]) {
+                machine
+                    .contract
+                    .structural_parameters
+                    .push(StructuralParameterDeclaration {
+                        place,
+                        position: 0,
+                        structural_type: ty,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        access,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                machine
+                    .contract
+                    .parameter_order
+                    .push(BoundaryParameterKind::Structural);
+            }
+            let call = &mut module.machines[0].blocks[0].operations[0];
+            call.kind
+                .structural_arguments_mut()
+                .unwrap()
+                .push(StructuralArgument {
+                    place,
+                    path: vec![
+                        Step::Referent,
+                        Step::Case(StructuralCaseId::new(variant).unwrap()),
+                        Step::Field(ready),
+                    ],
+                    access,
+                });
+            module
+        }
+
+        let (_, site) = program();
+        let old = passing_case(9, 10, 9, 9);
+        let renamed = passing_case(11, 9, 12, 11);
+        CheckedPrefix::check(&old, site, &renamed, site).unwrap();
+        for changed in [9, 12] {
+            let wrong_case = passing_case(11, 9, 12, changed);
+            assert_eq!(
+                CheckedPrefix::check(&old, site, &wrong_case, site).err(),
+                Some("successor changed a projected argument")
+            );
+        }
     }
 }
 
