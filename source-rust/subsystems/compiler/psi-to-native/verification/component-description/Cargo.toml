@@ -14,5 +14,5 @@ test-support = []
 wire = { path = "../../../../../foundation/wire" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }

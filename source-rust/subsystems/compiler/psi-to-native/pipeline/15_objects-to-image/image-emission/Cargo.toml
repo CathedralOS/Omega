@@ -13,8 +13,8 @@ test-support = []
 
 [dependencies]
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
-psi-publication-records = { path = "../../../../psi-artifact/publication" }
-psi-entry-memory = { path = "../../../../psi-execution-inputs/entry-memory" }
+psi-publication-records = { path = "../../../../psi/artifact/publication" }
+psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }
 sha2 = "0.10.9"
 physical-recipes = { path = "../../../representations/selected-instructions/physical-recipes" }
 physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }

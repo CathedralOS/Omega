@@ -25,13 +25,13 @@ const BOUND_FRAMED_MACHINE: &str = "source-rust/subsystems/compiler/psi-to-nativ
 const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer";
 
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
-const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi-artifact";
-const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi-execution-inputs";
+const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi/artifact";
+const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi/execution-inputs";
 const PSI_SEMANTICS: &str = "source-rust/subsystems/compiler/psi-semantics";
 const NUMERICS: &str = "source-rust/subsystems/compiler/foundation/numerics";
 const INTERPRETER: &str = "source-rust/subsystems/interpreter";
 // Each of these owners is available to both pipelines. None may call either compiler.
-const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, NUMERICS];
+const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_SEMANTICS, NUMERICS];
 const PSI_CONSUMERS: &[&str] = &[PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, INTERPRETER];
 
 // The native driver's own package is admitted separately. Runtime consumers
@@ -43,8 +43,6 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets",
     "source-rust/subsystems/compiler/psi-to-native/representations",
     PSI_RECORDS,
-    PSI_ARTIFACT,
-    PSI_EXECUTION_INPUTS,
     PSI_SEMANTICS,
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
@@ -189,7 +187,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         ..rule(vec![""], vec![], "only source publication and native input admission exchange completed Build provider demand")
     });
     rules.push(rule(
-        vec!["source-rust/subsystems/compiler/psi-execution-inputs/providers"],
+        vec!["source-rust/subsystems/compiler/psi/execution-inputs/providers"],
         vec!["source-rust/subsystems/compiler/build"],
         "portable provider selection reads the artifact and receiving installation",
     ));
@@ -369,7 +367,7 @@ const AFTER_PREPARATION: &[&str] = &[
 /// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
-    "source-rust/subsystems/compiler/psi-artifact/codec";
+    "source-rust/subsystems/compiler/psi/artifact/codec";
 
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
@@ -582,7 +580,10 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                     && (under(&dependency, &[SOURCE, BUILD]) || dependency == PRODUCT_COORDINATOR)
                 {
                     violations.push(format!("{} -> {}: a Psi test imports compilation or Build ({dependency})", package.name, dep.name));
-                } else if under(&owner, &[PSI_RECORDS]) && under(&dependency, PSI_CONSUMERS) {
+                } else if under(&owner, &[PSI_RECORDS])
+                    && !under(&owner, PSI_CONSUMERS)
+                    && under(&dependency, PSI_CONSUMERS)
+                {
                     violations.push(format!("{} -> {}: a Psi record test imports an artifact or execution owner ({dependency})", package.name, dep.name));
                 }
             } else {
@@ -590,16 +591,18 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
             }
         }
     }
-    for (owners, forbidden, forbidden_packages) in [
-        (&[SOURCE][..], &[NATIVE][..], &[][..]),
-        (SHARED_PSI, &[SOURCE, NATIVE, BUILD][..], &[PRODUCT_COORDINATOR][..]),
-        (&[PSI_RECORDS][..], PSI_CONSUMERS, &[][..]),
-        (&[NATIVE][..], &[SOURCE][..], &[][..]),
+    // Psi records and their readers share a directory. Readers may use other readers
+    // while the program records, including their nested crates, must remain independent.
+    for (owners, excluded_owners, forbidden, forbidden_packages) in [
+        (&[SOURCE][..], &[][..], &[NATIVE][..], &[][..]),
+        (SHARED_PSI, &[][..], &[SOURCE, NATIVE, BUILD][..], &[PRODUCT_COORDINATOR][..]),
+        (&[PSI_RECORDS][..], PSI_CONSUMERS, PSI_CONSUMERS, &[][..]),
+        (&[NATIVE][..], &[][..], &[SOURCE][..], &[][..]),
     ] {
         let mut pending = VecDeque::new();
         let mut seen = BTreeSet::new();
         for (path, name) in &packages {
-            if under(path, owners) {
+            if under(path, owners) && !under(path, excluded_owners) {
                 pending.push_back((path.as_str(), name.to_string()));
                 seen.insert(path.as_str());
             }
@@ -1381,7 +1384,7 @@ mod tests {
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
             (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
-            ("source-rust/subsystems/compiler/psi-execution-inputs/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
+            ("source-rust/subsystems/compiler/psi/execution-inputs/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
             ("source-rust/subsystems/compiler/build/inputs", linear_pipeline::PSI_STAGES[7], None, false),
             ("source-rust/subsystems/compiler/build/inputs", stages[0], None, false),
             (library, stages[2], None, false),
@@ -1581,7 +1584,7 @@ mod tests {
         let plan =
             "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let wire = "source-rust/subsystems/compiler/psi-artifact/wire";
+        let wire = "source-rust/subsystems/compiler/psi/artifact/wire";
         assert!(native_forms().contains(&plan));
         let metadata = |dependency: &str, kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
@@ -1823,7 +1826,7 @@ mod tests {
                 false,
             ),
             (
-                "source-rust/subsystems/compiler/psi-artifact/codec",
+                "source-rust/subsystems/compiler/psi/artifact/codec",
                 None,
                 false,
             ),
@@ -2064,7 +2067,7 @@ mod tests {
             packages: vec![
                 pkg("psi", PSI_RECORDS, &[]),
                 pkg("codec", &codec, &[("psi", PSI_RECORDS, None)]),
-                pkg("entry-memory", &entry, &[("psi", PSI_RECORDS, None)]),
+                pkg("entry-memory", &entry, &[("psi", PSI_RECORDS, None), ("codec", &codec, None)]),
                 pkg("source", SOURCE_COMPILER, &[]),
                 pkg("native", native_stages::DRIVER, &[]),
                 pkg("helper", "shared/helper", &[("codec", &codec, None)]),
@@ -2078,6 +2081,13 @@ mod tests {
         assert_eq!(violations.len(), 2, "{violations:?}");
         assert!(violations.iter().any(|row| row.contains("psi -> helper -> codec")));
         assert!(violations.iter().any(|row| row.contains("psi -> entry-memory")));
+
+        let records = format!("{PSI_RECORDS}/types/reflection");
+        metadata.packages[0] = pkg("psi", PSI_RECORDS, &[]);
+        metadata.packages.push(pkg("reflection", &records, &[("codec", &codec, None)]));
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("reflection -> codec"));
     }
 
     #[test]

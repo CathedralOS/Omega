@@ -23,5 +23,5 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 symbols = { path = "../../../foundation/declaration-identity" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 wire = { path = "../../../../../foundation/wire" }

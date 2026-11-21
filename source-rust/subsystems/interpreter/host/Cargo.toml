@@ -5,12 +5,12 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-psi-publication-records = { path = "../../compiler/psi-artifact/publication" }
+psi-publication-records = { path = "../../compiler/psi/artifact/publication" }
 interpreter-numeric-imports = { path = "../numeric-imports" }
 target-provider-admission = { path = "../../compiler/psi-to-native/verification/target-providers" }
-psi-provider-selections = { path = "../../compiler/psi-execution-inputs/providers" }
-psi-entry-memory = { path = "../../compiler/psi-execution-inputs/entry-memory" }
-psi-target-layouts = { path = "../../compiler/psi-execution-inputs/target-layouts" }
+psi-provider-selections = { path = "../../compiler/psi/execution-inputs/providers" }
+psi-entry-memory = { path = "../../compiler/psi/execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../../compiler/psi/execution-inputs/target-layouts" }
 published-runtime-input = { path = "../../compiler/psi-to-native/verification/runtime-publication" }
 access-vocabulary = { path = "../../compiler/psi/access/policies" }
 storage-access = { path = "../memory/storage-access" }
@@ -21,7 +21,7 @@ runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
 target = { path = "../../compiler/psi-to-native/targets/target" }
 terminal-psi = { path = "../../compiler/psi" }
-terminal-codec = { path = "../../compiler/psi-artifact/codec" }
+terminal-codec = { path = "../../compiler/psi/artifact/codec" }
 terminal-semantics = { path = "../../compiler/psi-semantics" }
 terminal-work = { path = "../../compiler/psi-semantics/work" }
 terminal-interpreter = { path = ".." }

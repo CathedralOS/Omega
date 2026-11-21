@@ -12,7 +12,7 @@ native-artifact = { path = "../../psi-to-native/pipeline/15_objects-to-image/nat
 optimization-requests = { path = "../settings/optimizations" }
 platform-custody = { path = "../../../../foundation/filesystem" }
 target = { path = "../../psi-to-native/targets/target" }
-terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-codec = { path = "../../psi/artifact/codec" }
 verified-optimization-input = { path = "../../psi-to-native/representations/abstract-operations/verified-optimization-input" }
 
 [dev-dependencies]

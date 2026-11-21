@@ -1,9 +1,6 @@
-# Terminal wire
+# Psi wire format
 
-Public contract: [Terminal product](../../../../../../../wiki/spec/terminal-psi/product.md).
-The [canonical encoding contract](../../../../../../../wiki/spec/terminal-psi/encoding.md)
-defines canonical form and section identity. Per-operation wire payloads stay
-in the vocabulary reference until that part is merged.
+The wire codec turns a [Psi program](../../../../../../wiki/spec/terminal-psi/product.md) into bytes and checks the structure of a program it reads. The [encoding specification](../../../../../../wiki/spec/terminal-psi/encoding.md) defines the canonical form and identifies each section. The individual operation payloads currently live in the vocabulary reference.
 
 This crate holds the canonical `PSITERM\0` encoding, fingerprints,
 structural-foundation validation, the companion sections and the encoders of
@@ -23,7 +20,7 @@ check-boundary` enforces that.
 - [closed_types.rs](src/closed_types.rs) records the closed integer types one
   complete encoding retains.
 
-The [Psi product contract](../../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+The [Psi product contract](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 lets a host reuse checker verdicts when it trusts the producer of that exact
 artifact. Canonical decoding shows valid encoding and structure, not true
 claims or permission to run. The receiver need not rediscover theorems or
@@ -34,7 +31,7 @@ theorem roots, including the `PSICORE` framing. Keep those canonical encodings;
 they grant nothing at acceptance. The local proof kernel and the interpreter's
 closed evaluation are separate from byte transport.
 
-The [implementation plan](../../../../../../../wiki/drafts/designs/psi_claim_admission.md)
+The [implementation plan](../../../../../../wiki/drafts/designs/psi_claim_admission.md)
 separates canonical and structural checks from run-only preparation.
 Today decoding also runs module-foundation and dynamic-result analyses,
 including descriptor and entailment work. The split keeps structural
@@ -47,7 +44,7 @@ The other modules under [sections.rs](src/sections.rs) encode manifest, debug an
 Do not infer one section's identity from another section's current version.
 
 Current markers live with their users: semantic format in [semantic_module.rs](src/semantic_module.rs),
-vocabulary in [VocabularyMarker](../../psi/identities/program/identity.rs),
+vocabulary in [VocabularyMarker](../../identities/program/identity.rs),
 [canonical_artifact.rs](../codec/src/canonical_artifact.rs), and manifest in
 [sections.rs](src/sections.rs). Installation section commitments are separate from
 semantic identity and grant a receiver no installation rights.
@@ -83,11 +80,11 @@ match, and source verdicts are reused only when the host trusts the producer.
 ## Observation profile
 
 No code builds or checks the
-[TerminalTraceV1 observation profile](../../../../../../../wiki/spec/terminal-psi/observations.md):
+[TerminalTraceV1 observation profile](../../../../../../wiki/spec/terminal-psi/observations.md):
 no stage derives the profile from a validated module, the encoder writes no
 profile section and acceptance compares none. The earlier unused profile types
 in `observation.rs` were deleted. **OBSERVATION-PROFILE** in
-[TASKS.md](../../../../../../../TASKS.md#observation-profile) tracks the deriver,
+[TASKS.md](../../../../../../TASKS.md#observation-profile) tracks the deriver,
 codec and acceptance comparison.
 
 ## Current-only decoding

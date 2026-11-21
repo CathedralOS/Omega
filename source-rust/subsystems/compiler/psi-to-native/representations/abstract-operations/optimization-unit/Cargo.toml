@@ -19,4 +19,4 @@ language-core = { path = "../../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 
-terminal-codec = { path = "../../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }

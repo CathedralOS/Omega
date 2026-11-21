@@ -7,4 +7,4 @@ The source checker, interpreter and native compiler must agree on the meaning of
 - [Storage bounds](storage-bounds/) compose activation requirements. [Default integer layouts](default-integer-layouts/integer_defaults.rs) give standalone integers and record fields their conventional storage geometry.
 - [Work accounting](work/) assigns costs to executed operations and taken edges.
 
-[Execution inputs](../psi-execution-inputs/) check the concrete layouts, providers, memory and scalar observations supplied for an execution.
+[Execution inputs](../psi/execution-inputs/) check the concrete layouts, providers, memory and scalar observations supplied for an execution.

@@ -16,9 +16,9 @@ native-intrinsics = { path = "../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 provider-plans = { path = "../../../../build/providers/plans" }
-psi-scalar-applications = { path = "../../../../psi-execution-inputs/scalar-applications" }
-psi-provider-selections = { path = "../../../../psi-execution-inputs/providers" }
-psi-entry-memory = { path = "../../../../psi-execution-inputs/entry-memory" }
+psi-scalar-applications = { path = "../../../../psi/execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
+psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 published-runtime-input = { path = "../../../verification/runtime-publication" }
 wire = { path = "../../../../../../foundation/wire" }
@@ -44,7 +44,7 @@ optimization-core = { path = "../../../representations/optimization-records" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi-semantics" }
-terminal-codec = { path = "../../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }
 sha2 = "0.10.9"
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../../verification/provider-admission" }

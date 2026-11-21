@@ -21,10 +21,10 @@ shows which records its operations produce and what the next operation reads.
 When a dependency's Build chooses a provider or a native binding, the package stores the [declarations and arguments it selected](retained-product-selections/selections.rs). Build reads [provider choices](../../build/inputs/package/provider_selection_codec.rs) and [native bindings](../../build/inputs/package/native_output_codec.rs) from those records. The source compiler checks them against the consuming program.
 
 The [Terminal interpreter](../../../interpreter/README.md) runs the published
-program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi-artifact/optimization-selections/src/lib.rs)
+program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/artifact/optimization-selections/src/lib.rs)
 defines pass selections and their identities.
 
-The shared Psi representation has companion packages for [canonical encoding](../../psi-artifact/codec/), [operation semantics](../../psi-semantics/) and [logical work bounds](../../psi-semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
+The shared Psi representation has companion packages for [canonical encoding](../../psi/artifact/codec/), [operation semantics](../../psi-semantics/) and [logical work bounds](../../psi-semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
 
 ## Records and facts
 
