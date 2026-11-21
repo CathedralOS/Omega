@@ -82,6 +82,7 @@ pub(super) fn checked_service(
 /// contracts and its Build-selected physical entry. The supplier itself gets no
 /// authority merely for declaring a service with one of the discovery names.
 fn host_services(
+    source_services: &[super::services::ReviewedService],
     input: &PolicySource<'_>,
     selected: &compiler::SelectedProviderResult,
     policy: &PackagePolicyBaseline,
@@ -115,20 +116,8 @@ fn host_services(
         let machine = module
             .machine(entry.entry)
             .ok_or_else(|| unavailable("the checked physical entry machine"))?;
-        let origins = super::callables::service_origins(
-            input.typed(),
-            module,
-            input.sources().exact_toolchain_sources(),
-            source_provenance::DependencyScope::Product,
-        )?;
-        let ids = super::callables::service_identities(
-            input.typed(),
-            module,
-            input.sources().exact_toolchain_sources(),
-            &origins,
-        )?;
         if let Some(reach) = &machine.contract.declared_service_reach {
-            services.extend(super::callables::reviewed_services(&ids, reach)?);
+            services.extend(super::services::reviewed_services(source_services, reach)?);
         }
     }
     let mut rows = Vec::new();
@@ -179,6 +168,7 @@ fn host_services(
 }
 
 pub(super) fn candidates(
+    source_services: &[super::services::ReviewedService],
     input: &PolicySource<'_>,
     selected: &compiler::SelectedProviderResult,
     policy: &PackagePolicyBaseline,
@@ -193,7 +183,7 @@ pub(super) fn candidates(
 > {
     let source = input.typed();
     let accepted = input.accepted();
-    let mut rows = host_services(input, selected, policy, target)?;
+    let mut rows = host_services(source_services, input, selected, policy, target)?;
     rows.extend(super::hosted_services::nominations(input, selected)?);
     // Consent can constrain an active role. Only a new nomination produces
     // a candidate; replaying an old binding must not nominate its supplier.

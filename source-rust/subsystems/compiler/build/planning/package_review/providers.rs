@@ -2,10 +2,10 @@
 //! A package may disclose its public requirement without installing a
 //! realization.
 
-use super::callables::reviewed_services;
 use super::declarations::unavailable;
 use super::input::PolicySource;
 use super::provider_rows::{ChoiceKey, ProviderChoice};
+use super::services::{ReviewedService, reviewed_services};
 use diagnostics::Diagnostic;
 use provider_plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -25,7 +25,6 @@ use review_evidence::record::{
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
 use source_compiler::compile_product::provider_declarations::ProviderSelectionSubject;
 use source_compiler::representations::source_state::signature::StateSignature;
-use source_compiler::representations::source_state::trait_definition::TraitDefinition;
 use symbols::SymbolHandle;
 use target::TargetProfile;
 use terminal_psi::{
@@ -75,7 +74,7 @@ impl ReviewedProviders {
             );
         }
         let mut applications = BTreeMap::new();
-        for (id, identity) in declarations.service_names {
+        for ReviewedService { id, identity, .. } in declarations.services {
             if referenced.contains(identity) {
                 applications
                     .entry(identity)
@@ -84,19 +83,20 @@ impl ReviewedProviders {
             }
         }
         let cited: BTreeSet<_> = applications.into_values().flatten().collect();
-        for &(service, owner) in declarations.service_origins {
-            let index = declarations
-                .service_names
-                .binary_search_by_key(&service, |(id, _)| *id)
-                .map_err(|_| unavailable("the accepted service's checked identity"))?;
-            let declared_slot = declarations.service_names[index].1.application.is_none()
+        for ReviewedService {
+            id: service,
+            owner,
+            identity,
+        } in declarations.services
+        {
+            let declared_slot = identity.application.is_none()
                 && self
                     .slots
-                    .binary_search_by_key(&symbol_key(owner), |slot| symbol_key(*slot))
+                    .binary_search_by_key(&symbol_key(*owner), |slot| symbol_key(*slot))
                     .is_ok();
-            if self.services.binary_search(&service).is_err()
+            if self.services.binary_search(service).is_err()
                 && !declared_slot
-                && !cited.contains(&service)
+                && !cited.contains(service)
             {
                 return Err(unavailable(format!(
                     "the checked service inventory for {}",
@@ -104,7 +104,7 @@ impl ReviewedProviders {
                         .accepted
                         .source()
                         .symbols
-                        .display_path(owner, "::")
+                        .display_path(*owner, "::")
                 )));
             }
         }
@@ -147,15 +147,13 @@ pub(super) struct AcceptedDeclarations<'module> {
     bodies: Vec<&'module TerminalMachine>,
     behaviors: Vec<&'module UnoptimizedMachineBehavior>,
     authored_reach_owners: Vec<SymbolHandle>,
-    service_origins: &'module [(ServiceId, SymbolHandle)],
-    service_names: &'module [(ServiceId, PackageReviewServiceIdentity)],
+    services: &'module [ReviewedService],
 }
 
 impl<'module> AcceptedDeclarations<'module> {
     pub(super) fn new(
         accepted: &'module source_compiler::publication::AcceptedTerminalSource,
-        service_origins: &'module [(ServiceId, SymbolHandle)],
-        service_names: &'module [(ServiceId, PackageReviewServiceIdentity)],
+        services: &'module [ReviewedService],
         has_providers: bool,
     ) -> Self {
         let module = accepted.module();
@@ -196,8 +194,7 @@ impl<'module> AcceptedDeclarations<'module> {
             bodies,
             behaviors,
             authored_reach_owners,
-            service_origins,
-            service_names,
+            services,
         }
     }
 
@@ -207,37 +204,31 @@ impl<'module> AcceptedDeclarations<'module> {
             .is_ok()
     }
 
-    fn source_service(&self, service: ServiceId) -> Result<&TraitDefinition, Vec<Diagnostic>> {
-        let index = self
-            .service_origins
-            .binary_search_by_key(&service, |(id, _)| *id)
-            .map_err(|_| unavailable("the selected service's exact source"))?;
-        self.accepted
-            .source()
-            .trait_definition_by_symbol(self.service_origins[index].1)
-            .ok_or_else(|| unavailable("the selected service's authored name"))
+    fn service(&self, id: ServiceId) -> Result<&ReviewedService, Vec<Diagnostic>> {
+        self.services
+            .binary_search_by_key(&id, |row| row.id)
+            .map(|index| &self.services[index])
+            .map_err(|_| unavailable("the checked source and application of a published service"))
     }
 
-    fn surface_service_name(&self, service: ServiceId) -> Result<String, Vec<Diagnostic>> {
-        let position = self
-            .service_names
-            .binary_search_by_key(&service, |(id, _)| *id)
-            .map_err(|_| unavailable("a published service's exact application"))?;
-        match &self.service_names[position].1.application {
-            Some(application) => Ok(application.canonical.clone()),
-            None => Ok(self
-                .accepted
-                .source()
-                .trait_declaration_path(self.source_service(service)?)),
+    fn surface_service_name(&self, id: ServiceId) -> Result<String, Vec<Diagnostic>> {
+        let service = self.service(id)?;
+        if let Some(application) = &service.identity.application {
+            return Ok(application.canonical.clone());
         }
+        let source = self.accepted.source();
+        let declaration = source
+            .trait_definition_by_symbol(service.owner)
+            .ok_or_else(|| unavailable("the service's authored declaration"))?;
+        Ok(source.trait_declaration_path(declaration))
     }
 }
 
-struct PreparedProviders {
+struct PreparedProviders<'a> {
     review: ReviewedProviders,
     choices: Vec<PreparedProvider>,
     numeric: Option<super::numeric::PreparedNumeric>,
-    service_names: Vec<(ServiceId, PackageReviewServiceIdentity)>,
+    services: &'a [ReviewedService],
     service_ids: Vec<(String, ServiceId)>,
 }
 
@@ -256,7 +247,7 @@ struct PreparedRow {
     upper_bound: Vec<ServiceId>,
 }
 
-impl PreparedProviders {
+impl PreparedProviders<'_> {
     fn finish(
         self,
         checked: &compiler::SelectedProviderResult,
@@ -285,7 +276,7 @@ impl PreparedProviders {
                     plan,
                     row,
                     &self.service_ids,
-                    &self.service_names,
+                    self.services,
                 )?);
             }
             rows.sort_by(|a, b| a.requirement.cmp(&b.requirement));
@@ -335,7 +326,7 @@ impl PreparedRow {
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
-        services: &[(ServiceId, PackageReviewServiceIdentity)],
+        services: &[ReviewedService],
     ) -> Result<PackagePolicyProviderRow, Vec<Diagnostic>> {
         let ProviderBinding::CheckedAdapter {
             machine_identity,
@@ -375,7 +366,7 @@ impl PreparedRow {
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
-        services: &[(ServiceId, PackageReviewServiceIdentity)],
+        services: &[ReviewedService],
     ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
         let matches = selected
             .installation_reach_resolutions()
@@ -426,7 +417,6 @@ impl PolicySource<'_> {
         native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
         choices: Vec<ProviderChoice>,
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
-        let service_origins = declarations.service_origins;
         let accepted = declarations.accepted;
         let module = accepted.module();
         let mut review = ReviewedProviders {
@@ -501,12 +491,7 @@ impl PolicySource<'_> {
         let numeric = super::numeric::prepare(self, target, provider_bodies)?;
         review.boundaries.extend(numeric.boundaries());
         review.boundaries.sort_unstable();
-        self.project_remaining_requirements(
-            declarations,
-            service_origins,
-            native_bindings,
-            &mut review,
-        )?;
+        self.project_remaining_requirements(declarations, native_bindings, &mut review)?;
         self.project_declared_services(package, &mut review)?;
         review.boundaries.sort_unstable();
         // Source publication has already judged each parent application. The
@@ -553,7 +538,7 @@ impl PolicySource<'_> {
             review,
             choices: providers,
             numeric: Some(numeric),
-            service_names: declarations.service_names.to_vec(),
+            services: declarations.services,
         }
         .finish(checked, target, self.declarations.root_grants())
     }
@@ -561,7 +546,6 @@ impl PolicySource<'_> {
     fn project_remaining_requirements(
         &self,
         declarations: &AcceptedDeclarations<'_>,
-        service_origins: &[(ServiceId, SymbolHandle)],
         native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
         review: &mut ReviewedProviders,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -575,10 +559,7 @@ impl PolicySource<'_> {
             let Some(service) = boundary.owning_service else {
                 continue;
             };
-            let index = service_origins
-                .binary_search_by_key(&service, |(id, _)| *id)
-                .map_err(|_| unavailable("the exact service of an active boundary"))?;
-            let owner = service_origins[index].1;
+            let owner = declarations.service(service)?.owner;
             let original = *originals
                 .get(boundary.id)
                 .ok_or_else(|| unavailable("the declaration of an active boundary"))?;
@@ -1043,11 +1024,7 @@ impl PolicySource<'_> {
         let owner = boundary
             .owning_service
             .ok_or_else(|| unavailable("the selected requirement's owning service"))?;
-        let owner_index = declarations
-            .service_names
-            .binary_search_by_key(&owner, |(service, _)| *service)
-            .map_err(|_| unavailable("the selected requirement's own service"))?;
-        let published_owner = &declarations.service_names[owner_index].1;
+        let published_owner = &declarations.service(owner)?.identity;
         if published_owner.declaration != requirement_owner
             || published_owner.application.as_ref().is_some_and(|term| {
                 schema.root_application_identity() != Some(term.canonical.as_str())
@@ -1059,7 +1036,7 @@ impl PolicySource<'_> {
         }
 
         let reach = &boundary.published_service_ceiling;
-        let authority = reviewed_services(declarations.service_names, reach)?;
+        let authority = reviewed_services(declarations.services, reach)?;
         let mut surface_reach = reach
             .iter()
             .map(|service| declarations.surface_service_name(*service))
@@ -1330,10 +1307,8 @@ impl PolicySource<'_> {
                 "the boundary requirement's authored service ceiling",
             ));
         }
-        let declared_reach = reviewed_services(
-            declarations.service_names,
-            &boundary.published_service_ceiling,
-        )?;
+        let declared_reach =
+            reviewed_services(declarations.services, &boundary.published_service_ceiling)?;
         let unresolved_installation_reaches = signature
             .service_reach_is_installation_bound
             .then(|| PackageReviewInstallationReach {
@@ -1369,7 +1344,7 @@ impl PolicySource<'_> {
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
             unresolved_installation_reaches,
             declared_synchronous_invocations: Some(super::callables::reviewed_invocations(
-                declarations.service_names,
+                declarations.services,
                 declarations
                     .accepted
                     .module()

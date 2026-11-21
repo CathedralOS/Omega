@@ -17,6 +17,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub(super) fn project(
+    services: &[super::services::ReviewedService],
     input: &PolicySource<'_>,
     checked: &compiler::SelectedProviderResult,
     target: TargetProfile,
@@ -34,24 +35,8 @@ pub(super) fn project(
     }
     let accepted = input.accepted();
     let choices = provider_rows::from_review(checked)?;
-    let origins = super::callables::service_origins(
-        input.typed(),
-        accepted.module(),
-        input.sources().exact_toolchain_sources(),
-        source_provenance::DependencyScope::Product,
-    )?;
-    let services = super::callables::service_identities(
-        input.typed(),
-        accepted.module(),
-        input.sources().exact_toolchain_sources(),
-        &origins,
-    )?;
-    let census = super::providers::AcceptedDeclarations::new(
-        accepted,
-        &origins,
-        &services,
-        !choices.is_empty(),
-    );
+    let census =
+        super::providers::AcceptedDeclarations::new(accepted, services, !choices.is_empty());
     let native = super::native_bindings::prepare(input, package, target, &census)?;
     let providers = input.providers(
         checked,
@@ -69,7 +54,7 @@ pub(super) fn project(
         input,
         target,
         package,
-        &services,
+        services,
         input.public_traits(package)?,
     )?;
     providers.validate_service_inventory(&census, &source.callables, &source.public_api.traits)?;
@@ -149,7 +134,7 @@ fn declaration_policy(
     declarations: &PolicySource<'_>,
     target: TargetProfile,
     package: PackageKeyIdentity,
-    services: &[(semantic_vocabulary::ServiceId, PackageReviewServiceIdentity)],
+    services: &[super::services::ReviewedService],
     ordinary_traits: Vec<review_evidence::record::PackagePolicyTraitShape>,
 ) -> Result<PolicyDeclarations, Vec<Diagnostic>> {
     // The owned declaration census above refuses unserved admission claims,
