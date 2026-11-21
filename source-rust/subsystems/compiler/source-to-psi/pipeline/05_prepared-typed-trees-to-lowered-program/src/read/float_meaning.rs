@@ -13,7 +13,7 @@ use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind a
 use semantic_vocabulary::{
     FloatMeaningClause, FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
     FloatMeaningSlot as Slot, IeeeFloatFormat as Format, IntegerType, MachineId, Proposition,
-    ScalarTerm, ScalarType, ValueId,
+    ScalarType,
 };
 use symbols::{FixedCoreDeclaration, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal};
@@ -312,16 +312,13 @@ impl Program<'_> {
         )
     }
 
-    /// A pure wrapper may supply the same proof value. Read its actual body
-    /// and verify its guarantees for independent formal parameters.
-    fn unfold_meaning(
+    fn meaning_definition(
         &mut self,
         id: MachineId,
-        scope: &ClauseScope<'_>,
-        call: &TableCallExpression,
-        values: &mut Vec<Value>,
-    ) -> Checked<Slot> {
-        let unfolded = self.unfold_as(id, scope, call, |program, declaration, state| {
+        target: SymbolHandle,
+        machine: SymbolHandle,
+    ) -> Checked<Unfolded<(SymbolHandle, Vec<ExpressionHandle>)>> {
+        self.unfold_definition(id, target, machine, |program, declaration, state| {
             let typed = program.typed;
             // Library namespace membership can identify a candidate target
             // operation. Only a checked body can implement an ordinary view.
@@ -365,15 +362,46 @@ impl Program<'_> {
             // Stage 02 binds reserved result in a machine contract to its
             // entry state, as it does for the ordinary signature reader.
             Ok((state.symbol, guarantees))
+        })
+    }
+
+    /// A proof-only declaration still owes its own body and guarantees in
+    /// whole-package review, even when no executable entry calls it.
+    pub(super) fn float_meaning_subject(
+        &mut self,
+        id: MachineId,
+        machine: SymbolHandle,
+    ) -> Checked<bool> {
+        let (_, entry) = self.declaration(id, machine)?;
+        if !self.returns_float_meaning(entry.return_type) {
+            return Ok(false);
+        }
+        let form = self.meaning_definition(id, machine, machine)?;
+        self.verify_meaning_wrapper(id, &form)?;
+        Ok(true)
+    }
+
+    pub(super) fn returns_float_meaning(&self, reference: TypeReferenceHandle) -> bool {
+        self.meaning_type(reference)
+            .and_then(|name| self.typed.core_vocabulary(name))
+            == Some(CoreVocabulary::FloatMeaning)
+    }
+
+    fn unfold_meaning(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &TableCallExpression,
+        values: &mut Vec<Value>,
+    ) -> Checked<Slot> {
+        let machine = self.clause_call_machine(id, call)?;
+        let mut unfolded = self.meaning_definition(id, call.target_symbol, machine)?;
+        self.verify_meaning_wrapper(id, &unfolded)?;
+        self.bind_call_arguments(id, scope, call, &mut unfolded.bound)?;
+        let (slot, _) = self.within_unfolding(id, machine, unfolded.bound.len(), |program| {
+            let actual = callee_scope(&unfolded.bound, machine);
+            program.meaning_term(id, &actual, unfolded.body, values, None)
         })?;
-        let (slot, _) =
-            self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
-                if !unfolded.result.1.is_empty() {
-                    program.verify_meaning_wrapper(id, &unfolded)?;
-                }
-                let actual = callee_scope(&unfolded.bound, unfolded.machine);
-                program.meaning_term(id, &actual, unfolded.body, values, None)
-            })?;
         self.retain_call_arguments(id, unfolded.bound)?;
         Ok(slot)
     }
@@ -386,77 +414,74 @@ impl Program<'_> {
         id: MachineId,
         unfolded: &Unfolded<(SymbolHandle, Vec<ExpressionHandle>)>,
     ) -> Checked<()> {
-        let formals = unfolded
-            .bound
-            .iter()
-            .enumerate()
-            .map(|(position, (name, actual))| {
-                let formal = ValueId::new(position as u64 + 1)
-                    .ok_or_else(|| unavailable(id, "too many float meaning wrapper parameters"))?;
-                Ok((*name, ScalarTerm::value(formal, actual.scalar_type())))
-            })
-            .collect::<Checked<Vec<_>>>()?;
-        let mut nested = callee_scope(&formals, unfolded.machine);
-        let (proof, pending) = self.with_clause_arguments(id, |program| {
-            let mut values = Vec::new();
-            let body = program.meaning_term(id, &nested, unfolded.body, &mut values, None)?;
-            nested.owner = unfolded.result.0;
-            nested.formal_fields = true;
-            for &expression in &unfolded.result.1 {
-                let typed = program.typed;
-                let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
-                else {
-                    return Err(unavailable(
-                        id,
-                        "float meaning wrapper has an unserved guarantee",
-                    ));
-                };
-                if typed
-                    .symbols
-                    .fixed_core_declaration_for_symbol(call.target_symbol)
-                    != Some(FixedCoreDeclaration::Identity)
-                {
-                    return Err(unavailable(
-                        id,
-                        "float meaning guarantee has no exact identity",
-                    ));
-                }
-                let (ty, [left, right], _) =
-                    program.identity_inputs(id, &nested, expression, call)?;
-                if typed.core_vocabulary(ty) != Some(CoreVocabulary::FloatMeaning) {
-                    return Err(unavailable(
-                        id,
-                        "float meaning guarantee changes its subject type",
-                    ));
-                }
-                let left = program.meaning_term(id, &nested, left, &mut values, Some(body))?;
-                let right = program.meaning_term(id, &nested, right, &mut values, Some(body))?;
-                if left != right {
-                    return Err(unavailable(
-                        id,
-                        "float meaning wrapper does not establish its result identity",
-                    ));
-                }
-            }
-            Ok(FloatMeaningClause {
-                values,
-                left: body,
-                right: body,
-            })
-        })?;
-        // The established identities may reuse the body's terms. A guarantee
-        // introducing independent terms needs a separate formation proof.
-        proof.validate().map_err(|detail| unavailable(id, detail))?;
-        if !pending.is_empty()
-            || proof
-                .sources()
-                .any(super::contracts::needs_call_argument_formation)
-        {
-            return Err(unavailable(
-                id,
-                "float meaning wrapper requires a separate scalar formation proof",
-            ));
+        if self.admitted_bodies.contains(unfolded.machine) {
+            return Ok(());
         }
+        self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
+            let mut nested = callee_scope(&unfolded.bound, unfolded.machine);
+            let (proof, pending) = program.with_clause_arguments(id, |program| {
+                let mut values = Vec::new();
+                let body = program.meaning_term(id, &nested, unfolded.body, &mut values, None)?;
+                nested.owner = unfolded.result.0;
+                nested.formal_fields = true;
+                for &expression in &unfolded.result.1 {
+                    let typed = program.typed;
+                    let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+                    else {
+                        return Err(unavailable(
+                            id,
+                            "float meaning wrapper has an unserved guarantee",
+                        ));
+                    };
+                    if typed
+                        .symbols
+                        .fixed_core_declaration_for_symbol(call.target_symbol)
+                        != Some(FixedCoreDeclaration::Identity)
+                    {
+                        return Err(unavailable(
+                            id,
+                            "float meaning guarantee has no exact identity",
+                        ));
+                    }
+                    let (ty, [left, right], _) =
+                        program.identity_inputs(id, &nested, expression, call)?;
+                    if typed.core_vocabulary(ty) != Some(CoreVocabulary::FloatMeaning) {
+                        return Err(unavailable(
+                            id,
+                            "float meaning guarantee changes its subject type",
+                        ));
+                    }
+                    let left = program.meaning_term(id, &nested, left, &mut values, Some(body))?;
+                    let right =
+                        program.meaning_term(id, &nested, right, &mut values, Some(body))?;
+                    if left != right {
+                        return Err(unavailable(
+                            id,
+                            "float meaning wrapper does not establish its result identity",
+                        ));
+                    }
+                }
+                Ok(FloatMeaningClause {
+                    values,
+                    left: body,
+                    right: body,
+                })
+            })?;
+            // The established identities may reuse the body's terms. A guarantee
+            // introducing independent terms needs a separate formation proof.
+            proof.validate().map_err(|detail| unavailable(id, detail))?;
+            if !pending.is_empty()
+                || proof
+                    .sources()
+                    .any(super::contracts::needs_call_argument_formation)
+            {
+                return Err(unavailable(
+                    id,
+                    "float meaning wrapper requires a separate scalar formation proof",
+                ));
+            }
+            Ok(())
+        })?;
         Ok(())
     }
 }
