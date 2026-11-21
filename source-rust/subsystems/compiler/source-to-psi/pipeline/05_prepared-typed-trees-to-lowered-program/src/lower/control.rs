@@ -420,13 +420,8 @@ impl Lowering<'_> {
                 // whether any arrival can take (`MachineSources::branches`):
                 // this arm, and the arm after it when that one takes
                 // whatever this guard turned away.
-                self.sources.branches.push(crate::lowering::Branch {
-                    block: arm,
-                    decided_in,
-                    arm: (*source).into(),
-                    condition: guard.source.into(),
-                });
-                self.fallthrough = Some(crate::lowering::Branch {
+                self.authored_arm(arm, decided_in, *source, guard.source);
+                self.fallthrough = self.owns_body.then_some(crate::lowering::Branch {
                     block: rest,
                     decided_in,
                     arm: (*source).into(),
@@ -850,7 +845,8 @@ impl Lowering<'_> {
             self.selected.clone_from(&selected);
             self.path.truncate(path);
         }
-        if let Some((_, source)) = default
+        if self.owns_body
+            && let Some((_, source)) = default
             && !default_used
         {
             self.sources.dead_wildcards.push(source.into());
@@ -924,6 +920,9 @@ impl Lowering<'_> {
         arm: SourceOrigin,
         condition: SourceOrigin,
     ) {
+        if !self.owns_body {
+            return;
+        }
         self.sources.branches.push(crate::lowering::Branch {
             block,
             decided_in,
