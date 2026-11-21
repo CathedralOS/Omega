@@ -7,7 +7,7 @@ use omega\language\core\ProcessExit;
 // sum((count / factor - mean)^2 - mean / factor). No runnable sample observes
 // that fused residual through a local, a field, a parameter, and a call result.
 //
-// The cancelling pair is the same binary64 values as the check-only probe
+// The cancelling pair uses the same binary64 values as the executable probe
 // samples/cli/probes/fma_rounding. Separate rounding is multiply_then_add.
 // The three stored differences 0.5, 1.5, 2.5 accumulate with fused squaring
 // to 8.75. An exact 2 * 3 + 4 agrees under both roundings. x86 builds admit
@@ -39,7 +39,7 @@ machine difference(moment: @Moment, index: i32 in Wrapping) -> f64 {
     }
     machine read(moment: @Moment, index: i32 in Wrapping) -> f64
     requires index >= 0 && index < 3 {
-        moment.differences[index]
+        moment.differences[(index as -Wrapping) as u64]
     }
 }
 

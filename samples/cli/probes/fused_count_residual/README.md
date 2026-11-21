@@ -11,7 +11,8 @@ product `2 * 3 + 4` is `10` under both operations.
 `differential_expression` estimates dispersion with
 `sum((count / factor - mean)^2 - mean / factor)`. Those two terms can cancel
 under separate roundings. This sample is the runnable observation of the fused
-residual that estimator needs. The smaller `probes/fma_rounding` program checks the exact cancellation residual in both precisions.
+residual that estimator needs. The smaller `probes/fma_rounding` program
+checks the exact cancellation residual in both precisions.
 
 On agreement the program prints `PASS` and exits 0.
 
