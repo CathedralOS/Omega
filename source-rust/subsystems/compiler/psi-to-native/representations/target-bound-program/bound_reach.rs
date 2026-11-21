@@ -2,7 +2,10 @@
 #![forbid(unsafe_code)]
 
 pub mod builtins;
+mod provider_bindings;
 mod scalar_demand;
+
+pub use provider_bindings::ScopedProviderBindings;
 
 use native_execution_reach::ExecutionReach;
 use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};

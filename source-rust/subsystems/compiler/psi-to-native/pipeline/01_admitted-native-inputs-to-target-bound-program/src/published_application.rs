@@ -8,7 +8,8 @@ mod program_entry;
 use crate::{PublishedSelection, SelectedExecution, select_published_providers};
 use diagnostics::Diagnostic;
 use program_entry::PublishedNativeEntry;
-use provider_admission::{CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy};
+use provider_admission::TerminalAuthorityPermissionPolicy;
+use provider_correspondence::CompilerIntrinsicPlanProvenance;
 use std::sync::Arc;
 
 struct PublishedApplicationInputs<'a, Publisher> {

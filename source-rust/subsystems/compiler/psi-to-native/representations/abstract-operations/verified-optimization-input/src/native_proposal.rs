@@ -74,6 +74,40 @@ impl TerminalNativeRealizationProposal {
         &self.program_entry
     }
 
+    /// Target callable named by the checked program entry and its optional physical adapter.
+    pub fn target_program_entry(&self) -> terminal_psi::TargetMachineCallable {
+        let entry = self.program_entry();
+        terminal_psi::TargetMachineCallable::Machine(entry.physical_adapter().map_or(
+            entry.checked_entry().terminal_entry(),
+            |adapter| adapter.machine(),
+        ))
+    }
+
+    pub fn settle_scoped_boundary_applications(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        scope: &crate::NativeExecutionScope,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+        provenance: &[provider_correspondence::CompilerIntrinsicPlanProvenance<'_>],
+    ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
+        let coverage = crate::settlement::boundary_application_settlement::settle(
+            artifact,
+            selection,
+            provenance,
+            &self.boundary_applications().calling,
+            &self.providers().native_bindings,
+            Some(self.target_profile()),
+            scope,
+        )?;
+        crate::settlement::comparison_settlement::settle_comparison_occurrences(
+            artifact.semantic_module(),
+            selection,
+            &coverage,
+            scope.reach().machines(),
+        )?;
+        Ok(coverage)
+    }
+
     pub const fn post_terminal_optimizations(
         &self,
     ) -> &optimization_selections::PostTerminalOptimizationSelectionProjection {
@@ -562,24 +596,4 @@ impl RetainedTerminalArtifact {
     pub const fn native_realization_proposal(&self) -> &TerminalNativeRealizationProposal {
         &self.native_realization_proposal
     }
-}
-
-/// Validate the complete in-memory bundle before selecting executable machines.
-/// A foreign or damaged dormant seal cannot disappear through scope filtering.
-pub(crate) fn validate_operation_evidence(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    evidence: &terminal_codec::EvidenceSeals,
-) -> Result<(), Vec<Diagnostic>> {
-    if evidence.module != artifact.view().identity() {
-        return Err(vec![Diagnostic::error(
-            "operation evidence belongs to another canonical artifact",
-        )]);
-    }
-    terminal_codec::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
-        .validate_all()
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "canonical operation evidence: {error}"
-            ))]
-        })
 }

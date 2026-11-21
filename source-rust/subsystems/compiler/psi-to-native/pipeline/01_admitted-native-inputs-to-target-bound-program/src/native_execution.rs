@@ -1,30 +1,89 @@
 //! Issue the target-selected reach before the driver requests scalar values or lowers a body.
 use diagnostics::Diagnostic;
 use native_execution_scope::{NativeScopeEntry, derive_native_scope};
+use std::collections::BTreeSet;
+use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
 use verified_optimization_input::{
-    NativeExecutionFacts, NativeExecutionScope,
-    TerminalNativeRealizationProposal,
+    NativeExecutionScope, ScopedProviderSelection, TerminalNativeRealizationProposal,
 };
 
 mod provider_bindings;
 
 /// A native program whose reachable provider bindings stage 01 completed.
-pub struct PreparedNativeExecution(NativeExecutionFacts);
-
-impl std::ops::Deref for PreparedNativeExecution {
-    type Target = NativeExecutionFacts;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+pub struct PreparedNativeExecution {
+    checked: ScopedProviderSelection,
+    providers: ScopedProviderBindings,
 }
 
 impl PreparedNativeExecution {
-    pub fn with_operation_evidence(
-        self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    fn from_scoped_providers(
+        checked: ScopedProviderSelection,
+        providers: ScopedProviderBindings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        self.0.with_operation_evidence(artifact, evidence).map(Self)
+        if providers.boundary_application_coverage.demands()
+            != checked.scope().reach().boundary_application_demands()
+        {
+            return Err(vec![Diagnostic::error(
+                "native provider coverage belongs to another execution scope",
+            )]);
+        }
+        let artifact = checked.authorization().artifact();
+        if let Some(evidence) = artifact.published_evidence() {
+            // Validate even dormant seals before any lowering filters the module.
+            if evidence.module != artifact.view().identity() {
+                return Err(vec![Diagnostic::error(
+                    "operation evidence belongs to another canonical artifact",
+                )]);
+            }
+            terminal_codec::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
+                .validate_all()
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!("canonical operation evidence: {error}"))]
+                })?;
+        }
+        Ok(Self { checked, providers })
+    }
+
+    pub const fn checked_providers(&self) -> &ScopedProviderSelection {
+        &self.checked
+    }
+
+    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+        self.checked.authorization()
+    }
+
+    pub fn evidence(&self) -> Option<&std::sync::Arc<terminal_codec::EvidenceSeals>> {
+        self.authorization().artifact().published_evidence()
+    }
+
+    pub fn selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
+        self.checked.selection()
+    }
+
+    pub const fn scope(&self) -> &NativeExecutionScope {
+        self.checked.scope()
+    }
+
+    pub fn external_bindings(&self) -> &[calling_conventions::ExternalBindingRow] {
+        &self.providers.external_bindings
+    }
+
+    pub fn demands(&self) -> &BTreeSet<String> {
+        &self.providers.demands
+    }
+
+    pub fn compiler_builtins(&self) -> &[SelectedCompilerBuiltin] {
+        &self.providers.compiler_builtins
+    }
+
+    pub fn local_adapters(&self) -> &[provider_admission::SelectedProviderAdapter] {
+        self.scope().local_adapters()
+    }
+
+    pub fn boundary_application_coverage(
+        &self,
+    ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
+        &self.providers.boundary_application_coverage
     }
 }
 
