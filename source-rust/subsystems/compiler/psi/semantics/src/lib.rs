@@ -356,3 +356,4 @@ pub(crate) use structural::structural_declarations::{structural_declaration, str
 pub mod provider_candidates;
 
 pub mod logical_providers;
+pub mod program_storage_entry;

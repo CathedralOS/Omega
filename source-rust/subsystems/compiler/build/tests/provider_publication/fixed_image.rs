@@ -291,4 +291,30 @@ reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abo
     assert!(image.path.is_empty() && storage.path.is_empty());
     assert_eq!(image.domain, storage.domain);
     assert!(boundary.program_local_root_introductions.is_empty());
+    let select = |module: &terminal_psi::TerminalModule| {
+        ClosedLogicalProviders::select(module, artifact.view().identity(), target.target_name(), &[boundary.id])
+    };
+    let logical = select(module).unwrap();
+    let realized = realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
+        module, &logical, TargetSupplyExecutionInputs {
+            components: None,
+            calling_applications: vec![],
+            external_bindings: vec![],
+            evaluated_native_bindings: vec![],
+            evaluated_binding_identities: Default::default(),
+            terminal_authority_permissions: vec![],
+            terminal_authority_permission_identities: Default::default(),
+        },
+    )).unwrap();
+    assert_eq!(realized.row_executions().next().unwrap(), [Some(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry)]);
+    for substitute in [false, true] {
+        let mut changed = module.clone();
+        let required = changed.interfaces.boundary_machines.iter_mut().find(|row| row.id == boundary.id).unwrap();
+        if substitute {
+            required.requires[1].argument_index = 0;
+        } else {
+            required.requires.pop();
+        }
+        assert!(select(&changed).unwrap_err().diagnostic(&changed).contains("differs from its checked Core member"));
+    }
 }
