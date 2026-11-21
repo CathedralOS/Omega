@@ -7,6 +7,7 @@
 // publishing the materialization context.
 
 use super::CallingPolicySignature;
+use super::callback_layouts::{CallbackStorageRoot, TerminalCallbackLayouts};
 use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
 use calling_conventions::validate_fresh_native_parameter_identity;
 use calling_conventions::{
@@ -138,7 +139,7 @@ impl CanonicalCallingSignature {
         let mut parameters = Vec::with_capacity(telescope.parameters.len());
         let mut native_formals =
             Vec::<BoundaryNativeParameterGeometry>::with_capacity(telescope.parameters.len());
-        let mut callback_storage = layout::TerminalCallbackLayouts::new(module, target, extents);
+        let mut callback_storage = TerminalCallbackLayouts::new(module, target, extents);
         let mut private_layouts = Vec::new();
         let mut callback_paths = Vec::new();
         for (formal_ordinal, (parameter, formal)) in storage
@@ -148,7 +149,7 @@ impl CanonicalCallingSignature {
             .enumerate()
         {
             if let Some(storage_root) = parameter.callback_backing {
-                for layout in callback_storage.for_parameter(layout::CallbackStorageRoot {
+                for layout in callback_storage.for_parameter(CallbackStorageRoot {
                     record: storage_root,
                     parameter: formal.identity,
                     formal_ordinal: u32::try_from(formal_ordinal)

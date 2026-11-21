@@ -11,12 +11,12 @@ use crate::wire_fields::{
 };
 use semantic_vocabulary::CallableInvocationSite;
 use terminal_psi::ResolvedStructuralPathSegment;
-use terminal_semantics::callable_values::{
+use terminal_psi::execution::callable_reach::{
     CallableFormalInput, CallableInvocation, CallableInvocationTarget, CallableParameter,
     CallableValuePossibilities, ReachableCallableInvocation, ReachableCallableInvocations,
     ReachedCallableTarget,
 };
-use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+use terminal_psi::types::descriptor_locations::DescriptorLocation;
 
 // Positions are counts in the portable program, not host-sized wire values.
 struct Position;

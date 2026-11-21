@@ -1,26 +1,10 @@
-//! A change of presentation still addresses the original bytes. Keep exact
-//! path transport separate from this conservative storage overlap judgment.
-
-use terminal_psi::ResolvedStructuralPathSegment as Segment;
-
-pub fn may_overlap(left: &[Segment], right: &[Segment]) -> bool {
-    for (left, right) in left.iter().zip(right) {
-        if left == right {
-            continue;
-        }
-        return !matches!(
-            (left, right),
-            (Segment::Field(_), Segment::Field(_))
-                | (Segment::FixedIndex(_), Segment::FixedIndex(_))
-        );
-    }
-    true
-}
+pub use terminal_psi::types::descriptor_locations::may_overlap;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId, ValueId};
+    use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
     #[test]
     fn views_overlap_original_fields_but_preserve_disjoint_outer_siblings() {

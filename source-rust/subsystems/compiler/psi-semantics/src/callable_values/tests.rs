@@ -319,8 +319,8 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
     );
     assert!(!reached.reached_machines.contains(&machine_id(5)));
     assert!(
-        reached
-            .checked_operation(&projected, machine_id(2), operation_id(2))
+        projected
+            .checked_operation(&reached, machine_id(2), operation_id(2))
             .unwrap()
             .is_none()
     );
@@ -333,8 +333,8 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
             )
     });
     assert!(
-        missing
-            .checked_operation(&projected, machine_id(2), operation_id(1))
+        projected
+            .checked_operation(&missing, machine_id(2), operation_id(1))
             .is_err()
     );
     assert!(

@@ -40,6 +40,7 @@ evaluation-contracts = { path = "../../../build/evaluation/accounting/contracts"
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
 optimization = { path = "../../../psi/artifact/optimization-selections" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 program-entry-contracts = { path = "../../representations/program-entry-contracts" }

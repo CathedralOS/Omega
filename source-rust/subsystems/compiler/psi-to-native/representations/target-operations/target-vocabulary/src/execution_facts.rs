@@ -10,8 +10,8 @@ use ::wire::digest_encoder::DomainDigestEncoder;
 use optimization_core::{OptimizationUnitIdentity, PrePhysicalOptimizationManifestIdentity};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
-pub use terminal_semantics::callable_values::ReachableCallableInvocations;
-use terminal_semantics::callable_values::{CallableValuePossibilities, ReachedCallableTarget};
+pub use terminal_psi::execution::callable_reach::ReachableCallableInvocations;
+use terminal_psi::execution::callable_reach::{CallableValuePossibilities, ReachedCallableTarget};
 
 pub const NATIVE_EXECUTION_FACTS_DOMAIN: &[u8] = b"omega.native-execution-facts.v1\0";
 

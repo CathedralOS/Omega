@@ -1,5 +1,8 @@
-use semantic_vocabulary::{BlockId, EdgeId, ObligationId, PlaceId};
+use semantic_vocabulary::{EdgeId, ObligationId};
 use std::collections::{BTreeMap, BTreeSet};
+pub use terminal_psi::types::descriptor_locations::{
+    DescriptorLocation, DescriptorPathSegment, DescriptorPosition,
+};
 
 pub(crate) mod arrivals;
 pub use arrivals::{
@@ -13,62 +16,6 @@ pub use locations::{
     descriptor_path, fixed_runtime_index_alternatives, view_element_descriptor_prefix,
 };
 pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
-
-pub type DescriptorPosition = (BlockId, u32);
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DescriptorLocation {
-    pub root: PlaceId,
-    pub path: Vec<DescriptorPathSegment>,
-}
-
-pub use terminal_psi::ResolvedStructuralPathSegment as DescriptorPathSegment;
-
-impl DescriptorLocation {
-    /// Retain a captured address without translating its storage steps.
-    /// A runtime selector needs its capture point; an extent is metadata.
-    pub fn captured(root: PlaceId, path: &[DescriptorPathSegment]) -> Option<Self> {
-        if path.iter().any(|step| {
-            matches!(
-                step,
-                DescriptorPathSegment::RuntimeIndex { .. }
-                    | DescriptorPathSegment::Extent
-                    | DescriptorPathSegment::UnknownContents
-            )
-        }) {
-            return None;
-        }
-        Some(Self {
-            root,
-            path: path.to_vec(),
-        })
-    }
-
-    pub fn whole(root: PlaceId) -> Self {
-        Self {
-            root,
-            path: Vec::new(),
-        }
-    }
-    pub fn overlaps(&self, other: &Self) -> bool {
-        self.root == other.root
-            && crate::storage::place_paths::may_overlap(&self.path, &other.path)
-    }
-    pub fn contains(&self, other: &Self) -> bool {
-        self.root == other.root && other.path.starts_with(&self.path)
-    }
-    pub fn transported(&self, source: &Self, destination: &Self) -> Option<Self> {
-        if !source.contains(self) {
-            return None;
-        }
-        let mut path = destination.path.clone();
-        path.extend_from_slice(&self.path[source.path.len()..]);
-        Some(Self {
-            root: destination.root,
-            path,
-        })
-    }
-}
 
 /// The operand order also identifies captured constructor elements. A
 /// memory operation belongs to its original typed source, not to aliases

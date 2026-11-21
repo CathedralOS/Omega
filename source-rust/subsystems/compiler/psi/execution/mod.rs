@@ -1,5 +1,6 @@
 //! Callable declarations, dispatch, suspension and task activation.
 
+pub mod callable_reach;
 pub mod callable_values;
 mod contracts;
 mod declarations;

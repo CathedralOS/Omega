@@ -3311,6 +3311,7 @@ pub(crate) mod hosted_scalar {
 }
 pub(crate) mod normalized_foreign {
     use super::{PsiOptimizationFunction, TargetUnitOperation};
+    use crate::descriptor_input::descriptor_input_guard_for_call_with_closed_scalars;
     use crate::preparation::LegalizationError;
     use crate::preparation::legalization::scalar_graph_input::normalized_foreign::{
         native_callbacks_at, result_at, structural_argument_at,
@@ -3356,7 +3357,7 @@ pub(crate) mod normalized_foreign {
         else {
             return Err(LegalizationError::custody());
         };
-        let required = target_operations::descriptor_input_guard_for_call_with_closed_scalars(
+        let required = descriptor_input_guard_for_call_with_closed_scalars(
             binding,
             plan.geometry(),
             scalar_arguments,

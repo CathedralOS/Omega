@@ -20,30 +20,34 @@ profiles such as Windows and UEFI).
 /*
 `boundary_values` constructs bounded native signature graphs and opaque carrier
 occurrences from Psi's closed value recipes and Terminal structural types.
-`terminal_callback_layouts` closes inline callback storage paths and slot overlap
-checks from canonical Terminal records, consuming the nominal layout identities
-and record storage resolvers defined here.
 */
 
 mod boundary_values;
-mod terminal_callback_layouts;
 
 pub use boundary_values::{
     BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueOccurrence,
     BoundaryValueLayout, TerminalBoundaryRecipes, append_boundary_value_shape,
 };
-pub use terminal_callback_layouts::{
-    CallbackLayoutCoordinates, CallbackStorageRoot, MaterializedCallbackLayout,
-    TerminalCallbackLayouts, callback_storage_has_slots,
-};
 
-use calling_conventions::{LayoutPlanId, callback_layout_plan_id, callback_plan_laid_layout_id};
-use semantic_vocabulary::StructuralTypeId;
+use calling_conventions::{
+    LayoutPlanId, NativePlace, callback_layout_plan_id, callback_plan_laid_layout_id,
+};
+use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use target::{NativeTarget, TargetProfile};
+use terminal_psi::layouts::record_storage::{RecordStorageResolver, StorageGeometryError};
 use terminal_psi::{
     LayoutApplicationId, NativeLayoutRealization, TargetLayoutRealization, TerminalModule,
 };
-use terminal_semantics::{RecordStorageResolver, StorageGeometryError};
+
+/// Location of a callback slot within an incoming parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackLayoutCoordinates {
+    pub destination: NativePlace,
+    pub root: StructuralTypeId,
+    pub fields: Vec<StructuralFieldId>,
+    pub terminal_record: StructuralTypeId,
+    pub slot_ordinal: u32,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
