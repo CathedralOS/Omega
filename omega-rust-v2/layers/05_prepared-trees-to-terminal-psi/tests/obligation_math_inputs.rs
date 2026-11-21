@@ -389,3 +389,44 @@ fn a_universe_membership_in_a_signature_is_the_applied_argument_and_the_template
     }
     observed("obligation-output/universe-membership");
 }
+
+/// The signature supplies the closed actuals. The field selects the next
+/// application by referring to the two binders in declaration order or in reverse.
+#[test]
+fn recursive_field_substitution_preserves_the_next_closed_application() {
+    let byte = ScalarType::Integer { signed: false, width: 8 };
+    let typed_byte = ValueType::Integer { signed: false, width: Some(8) };
+    for (field_args, use_args, actuals, slots, successor) in [
+        ("B,A", "u8,bool", [byte.clone(), ScalarType::Boolean], [1, 0], Some([ValueType::Bool, typed_byte.clone()])),
+        ("B,A", "bool,u8", [ScalarType::Boolean, byte.clone()], [1, 0], Some([typed_byte, ValueType::Bool])),
+        ("A,B", "u8,bool", [byte.clone(), ScalarType::Boolean], [0, 1], None),
+    ] {
+        let applied = format!("Link<{use_args}>");
+        let source = format!(r"data Link<A:core\Type<0>,B:core\Type<0>>{{next:@Link<{field_args}>;}} boundary let pick(x:{applied}):u8;");
+        let lowered = pipeline::lower(&source);
+        let pick = mathematics(&lowered, "pick");
+        let [template] = lowered.package.data_templates.as_slice() else { panic!("expected Link") };
+        assert_eq!(template.declaration.path, "Link");
+        let head = Ty::Named { declaration: template.declaration.clone(), argument_count: 2 };
+        let [first, second] = actuals.map(Ty::Scalar);
+        assert_eq!(pick.signature.0, [first, second, head.clone(), Ty::Scalar(byte.clone()), Ty::Function]);
+
+        let [field] = template.fields.as_slice() else { panic!("expected the recursive field") };
+        assert_eq!(field.declaration.path, "Link::next");
+        let [first, second] = slots.map(|index| Ty::GenericParameter { owner: template.declaration.clone(), index });
+        assert_eq!(field.ty.0, [first, second, head, Ty::Reference(omega_psi::TemplateAccess::Shared)]);
+
+        let rows = lowered.obligations("FormRecursiveApplication");
+        let Some(expected) = successor else {
+            assert!(rows.is_empty(), "the identity field leaves the application unchanged");
+            continue;
+        };
+        let at_signature: Vec<_> = rows.into_iter().filter(|row| within(&row.site, &pick.site)).collect();
+        let [row] = at_signature.as_slice() else { panic!("expected one recursive obligation in pick") };
+        assert_eq!(lowered.spelling(&row.site), applied);
+        let ObligationKind::FormRecursiveApplication { declaration, arguments } = &row.kind else { unreachable!() };
+        assert_eq!((&declaration.package, &declaration.path), (&template.declaration.package, &template.declaration.path));
+        assert_eq!(arguments.as_slice(), expected);
+    }
+    observed("obligation-output/recursive-field-substitution");
+}
