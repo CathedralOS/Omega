@@ -18,6 +18,7 @@ test-support = [
 ]
 
 [dependencies]
+retained-product-selections = { path = "representations/retained-product-selections" }
 artifacts = { path = "../foundation/measurements" }
 evaluation-work = { path = "../build/evaluation/accounting/work" }
 build-invocation = { path = "../build/evaluation/invocations" }

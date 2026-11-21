@@ -7,13 +7,13 @@ use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::PackageDependencyClosure;
+use retained_product_selections::RetainedProviderSelection;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::compile_time_invocations::BuildTimeSelectionAuthority;
-use source_compiler::compile_product::provider_declarations::RetainedProviderSelection;
 use source_compiler::compile_product::source_targets::SourceTarget;
 use source_compiler::compile_product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
+use source_compiler::compile_time_invocations::BuildTimeSelectionAuthority;
 use source_declarations::declaration_selection::{
     DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
 };

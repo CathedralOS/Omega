@@ -91,14 +91,6 @@ framework or a list of unimplemented features.
 - Cost: An extension cannot use the resolved artifact alone. Give the resolved declaration its reusable alias body, parameter bindings, lexical owner and diagnostic spans. Have a consumer extend a saved base using only the resolved base and new input, check the instantiated field type and reject an invalid application at its use. Then retire the old forest argument and its checkpoint storage.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
-### Build's package format imports its provider records from the Product driver
-
-- Category: Knowledge crossing a boundary.
-- Where: [driver export](source-rust/subsystems/compiler/source-to-psi/source_to_psi.rs#L20), [stored selection](source-rust/subsystems/compiler/source-to-psi/driver/compile_product/provider_declarations.rs#L29), [package encoding](source-rust/subsystems/compiler/build/inputs/package/provider_selection_codec.rs#L16), [package decoding](source-rust/subsystems/compiler/build/inputs/package/provider_selection_codec.rs#L374).
-- Saw: The Product driver defines `RetainedProviderSelection`, including the declaration, closed application, target, composition mode and origin. Build imports that type through `compile_product` and constructs it when reading a package. The same driver module also exports the operations that select and rejoin providers.
-- Cost: Changing the driver can force a package reader to change with it. Give the retained selection a home in the source representations. Let Build's codec depend on the record and let the source compiler own its construction and resolution against the receiving source. Read existing encoded selections in a consumer test. Preserve an operator family and reject a mismatched source identity, then remove the import through the driver.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Source checkpoints carry both a package permission callback and its recorded answer
 
 - Category: Knowledge crossing a boundary.

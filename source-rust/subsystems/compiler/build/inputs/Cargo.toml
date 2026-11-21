@@ -8,6 +8,9 @@ version.workspace = true
 path = "inputs.rs"
 
 [dependencies]
+retained-product-selections = { path = "../../source-to-psi/representations/retained-product-selections" }
+source-declarations = { path = "../../source-to-psi/representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "../../source-to-psi/representations/symbol-resolved-trees/symbol-table" }
 build-consent = { path = "../evaluation/authority/consent" }
 normalized-build-settings = { path = "../settings/normalized" }
 provider-acceptance = { path = "../providers/acceptance" }

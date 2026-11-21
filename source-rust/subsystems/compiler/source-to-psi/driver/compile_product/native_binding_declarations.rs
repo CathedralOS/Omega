@@ -17,7 +17,6 @@
 //! Package capture keeps its original declaration and complete argument graph;
 //! receiving it must reconstruct the same canonical closed header.
 
-use checked_program_to_psi::provider_choice_inputs;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::CapturedNativeIntent;
 use crate::declaration_selection::ExecutedNativeBinding;
@@ -28,25 +27,17 @@ use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{
     ProductDeclarationLookup, ProductRequestAuthors, native_binding_formation,
 };
+use checked_program_to_psi::provider_choice_inputs;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
-use super::retained_application::RetainedProductApplication;
+use super::retained_application;
 pub use checked_program_to_psi::provider_choice_inputs::NativeBindingSelection;
+use retained_product_selections::CapturedNativeDeclaration;
 
 pub use checked_program_to_psi::provider_choice_inputs::require_canonical_requirement;
 use checked_program_to_psi::provider_choice_inputs::requirement_owner;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapturedNativeDeclaration {
-    pub application: Option<RetainedProductApplication>,
-    pub source: crate::declaration_selection::NativeBindingSource,
-    pub requirement: source_admission::RetainedDeclaration,
-    pub requirement_identity: String,
-    pub service_declaration: [u8; 32],
-    pub dependency_alias: Option<String>,
-}
 
 /// A Build often binds several methods of the same service on several targets.
 fn service_commitments<'program>(
@@ -267,7 +258,7 @@ pub fn capture_package_intents(
                                 "native application lost its canonical identity",
                             )]
                         })?;
-                    RetainedProductApplication::capture(program, handle, identity)
+                    retained_application::capture(program, handle, identity)
                         .map_err(|reason| vec![Diagnostic::error(reason)])
                 })
                 .transpose()?;
@@ -440,14 +431,14 @@ pub fn collect_captured(
             .application
             .as_ref()
             .map(|application| {
-                application
-                    .prepare(
-                        typed,
-                        ProductOperandRole::Requirement,
-                        selected,
-                        &declaration.source.requirement_path,
-                    )
-                    .map_err(|error| vec![error])
+                retained_application::prepare(
+                    application,
+                    typed,
+                    ProductOperandRole::Requirement,
+                    selected,
+                    &declaration.source.requirement_path,
+                )
+                .map_err(|error| vec![error])
             })
             .transpose()?;
         let requirement = application.map_or(selected, |handle| {

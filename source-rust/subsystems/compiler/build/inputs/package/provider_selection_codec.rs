@@ -4,6 +4,10 @@
 //! while the wire payload retains paths needed for source admission.
 
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use retained_product_selections::{
+    RetainedOperatorCoordinate, RetainedOperatorFamily, RetainedProductApplication,
+    RetainedProviderSelection, RetainedProviderSubject,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
@@ -11,13 +15,10 @@ use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
-use source_compiler::representations::declaration_selection::BuildSelectionOrigin;
-use source_compiler::representations::declaration_selection::product_operands::ProductStaticOperandGraph;
-use source_compiler::compile_product::provider_declarations::{
-    RetainedOperatorCoordinate, RetainedOperatorFamily, RetainedProductApplication,
-    RetainedProviderSelection, RetainedProviderSubject,
-};
+use source_declarations::declaration_selection::BuildSelectionOrigin;
+use source_declarations::declaration_selection::product_operands::ProductStaticOperandGraph;
 use source_provenance::DependencyScope;
+use source_symbol_table::source_inputs::SourceMap;
 use source_text::{SourceId, Span};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -305,7 +306,7 @@ pub fn decode_package_provider_selections(
         _ => return None,
     };
     let sources = decode_sources(&mut cursor)?;
-    let application_sources = Arc::new(source_compiler::representations::source_inputs::SourceMap::from_files(
+    let application_sources = Arc::new(SourceMap::from_files(
         sources
             .iter()
             .cloned()
@@ -428,7 +429,7 @@ pub(super) fn decode_product_applications(
     bytes: &[u8],
 ) -> Option<Vec<Option<RetainedProductApplication>>> {
     let mut cursor = ObservationCursor::new(bytes);
-    let sources = Arc::new(source_compiler::representations::source_inputs::SourceMap::from_files(
+    let sources = Arc::new(SourceMap::from_files(
         decode_sources(&mut cursor)?
             .into_iter()
             .enumerate()
@@ -493,7 +494,7 @@ fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>>
 
 fn decode_application(
     cursor: &mut ObservationCursor<'_>,
-    sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
+    sources: &Arc<SourceMap>,
 ) -> Option<Option<RetainedProductApplication>> {
     match cursor.u8()? {
         0 => Some(None),
@@ -674,6 +675,16 @@ mod tests {
 
     #[test]
     fn retained_operator_rows_bind_every_overload_and_preserve_declaration_only_encoding() {
+        let read_stored = |encoded: &[u8], unix_fixture: &[u8]| {
+            // The saved package uses Unix path bytes. Windows stores its paths as UTF-16.
+            let bytes = if cfg!(unix) {
+                assert_eq!(encoded, unix_fixture);
+                unix_fixture
+            } else {
+                encoded
+            };
+            decode_package_provider_selections(bytes)
+        };
         let file = SourceFile {
             source_id: SourceId(0),
             package_root: "root".into(),
@@ -714,9 +725,13 @@ mod tests {
         let observation = Some([0x73; 32]);
         let ordinary =
             encode_package_provider_selections(std::slice::from_ref(&single), observation);
+
         assert!(ordinary.starts_with(MAGIC));
         assert_eq!(
-            decode_package_provider_selections(&ordinary),
+            read_stored(
+                &ordinary,
+                include_bytes!("../tests/fixtures/provider_selections/declaration-v3")
+            ),
             Some((vec![single.clone()], observation))
         );
         let members = vec![
@@ -739,9 +754,13 @@ mod tests {
         };
         let original = [single.clone(), family(members.clone())];
         let bytes = encode_package_provider_selections(&original, observation);
+
         assert!(bytes.starts_with(FAMILY_MAGIC));
         assert_eq!(
-            decode_package_provider_selections(&bytes),
+            read_stored(
+                &bytes,
+                include_bytes!("../tests/fixtures/provider_selections/family-v4")
+            ),
             Some((original.to_vec(), observation))
         );
         let mut changed = members;

@@ -1968,14 +1968,17 @@ dependencies = [
  "platform-custody",
  "provider-acceptance",
  "record-storage",
+ "retained-product-selections",
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",
  "source-admission",
  "source-capture",
  "source-compiler",
+ "source-declarations",
  "source-provenance",
  "source-selection",
+ "source-symbol-table",
  "source-text",
  "symbols",
  "target",
@@ -2213,6 +2216,7 @@ dependencies = [
  "psi-authorization",
  "psi-provider-selections",
  "retained-image-runtime",
+ "retained-product-selections",
  "review-evidence",
  "semantic-vocabulary",
  "source-compiler",
@@ -2664,6 +2668,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "retained-product-selections"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-symbol-table",
+ "source-text",
+ "symbols",
+]
+
+[[package]]
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
@@ -3046,6 +3062,7 @@ dependencies = [
  "psi-target-layouts",
  "rayon",
  "record-storage",
+ "retained-product-selections",
  "schema-reflection",
  "semantic-vocabulary",
  "serde",
