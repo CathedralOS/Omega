@@ -22,6 +22,7 @@ independent of installation.
 ```text
 package-manager/
 ├── package_manager.rs            library entry and public package APIs
+├── project/                      resolve dependencies and prepare Products for each target
 ├── dependencies/                 project preparation, declarations and source graphs
 ├── lockfile/                     recovery and journaled file publication
 ├── review/                       candidate evidence, comparisons and decisions
@@ -35,9 +36,12 @@ decision documents or publishes accepted files, completion needs every target
 from that admission. The original proposal handle stays borrowed throughout,
 so completion checks the file admission read, not a replacement. Binding
 discovery, exact occurrence reuse, policy comparison and cache admission live
-here. Application Build runs the admitted dependency work through one
-whole-pass executor that commands and audit share. Package policy does not
-prepare Builds, publish components or finish compiler reviews.
+here. The [project module](project/mod.rs) resolves the dependencies that Build
+requests. It reuses each workspace member's first Build result, looks up
+providers by their Build-scoped aliases, and prepares dependencies for the
+host or deployment target. Compilation calls `project::open_products`. Package
+review uses `project::resolve_build_sources` to resolve the same graph. Build
+executes the declarations and the compiler produces the requested artifacts.
 The independent [declaration](../compiler/build/inputs/declarations/README.md),
 [output](../compiler/build/inputs/trees/README.md) and [compilation-input](../compiler/build/inputs/README.md)
 packages sit below both the compiler and this crate, so the compiler does not

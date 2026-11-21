@@ -141,16 +141,16 @@ fn compile_targets(
     let plans = if active.is_empty() {
         None
     } else {
-        Some(crate::project_sources::open_products(
+        Some(package_manager::project::open_products(
             if arguments.check_only {
-                crate::project_sources::ProjectInput::PackageCheck(&arguments.root_path)
+                package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
             } else {
-                crate::project_sources::ProjectInput::File(&arguments.root_path)
+                package_manager::project::ProjectInput::File(&arguments.root_path)
             },
             &active,
             arguments.offline,
             arguments.timings,
-            Some(&base),
+            &base,
             snapshot,
         ))
     };
@@ -465,11 +465,12 @@ fn compile_target(
         wrote_output = true;
         show_summary = false;
     }
-    if let Some(outputs) = completed {
-        if !arguments.check_only && arguments.emit_psi.is_none() {
-            publish_outputs(Some(outputs), directory, &mut publications)?;
-            wrote_output = true;
-        }
+    if let Some(outputs) = completed
+        && !arguments.check_only
+        && arguments.emit_psi.is_none()
+    {
+        publish_outputs(Some(outputs), directory, &mut publications)?;
+        wrote_output = true;
     }
     if arguments.timings && !rows.is_empty() {
         eprintln!("{} validator rows", rows.len());

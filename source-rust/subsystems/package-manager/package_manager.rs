@@ -5,6 +5,7 @@
 
 pub mod dependencies;
 pub mod lockfile;
+pub mod project;
 pub mod review;
 pub mod transaction;
 

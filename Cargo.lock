@@ -2011,6 +2011,7 @@ dependencies = [
  "language-core",
  "package-compilation",
  "platform-custody",
+ "project-build",
  "provider-acceptance",
  "provider-admission",
  "provider-plans",
