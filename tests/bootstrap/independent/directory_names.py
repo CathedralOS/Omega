@@ -155,6 +155,7 @@ def cases():
     yield from nested_parameter_cases(encode)
     yield from predicate_transition_cases(encode)
     yield from slice_conjunction_cases(encode)
+    yield from slice_successor_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -891,6 +892,61 @@ def slice_conjunction_sources():
 
 def slice_conjunction_cases(encode):
     for name, source, expected in slice_conjunction_sources():
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
+
+
+def slice_successor_sources():
+    # Keep the complete construction helper unchanged; only its caller varies.
+    product = declaration((ROOT / "source/application/construction/build_sources.omg").read_bytes(),
+                          b"machine same_build_path(")
+    for name, left_view, right, right_view, expected in [
+        ("equal", b"[..]", b"[65,66]", b"[..]", 42),
+        ("changed-byte", b"[..]", b"[65,67]", b"[..]", 7),
+        ("different-length", b"[..]", b"[65,66]", b"[0..1]", 7),
+        ("empty", b"[0..0]", b"[65,66]", b"[0..0]", 42),
+    ]:
+        source = (product + b" machine main()->u8{let left:[u8;2]=[65,66];let right:[u8;2]=" + right +
+                  b";let equal:bool=same_build_path(@left" + left_view + b",@right" + right_view +
+                  b");transition equal{true->42,_ ->7}}")
+        yield "slice-successor-product-path-" + name, source, expected
+
+    prefix = b"machine next_index(items:@[u8],index:u64)->u64 requires index<items.len {"
+    call = (b"machine main()->u8{let bytes:[u8;2]=[41,42];"
+            b"let result:u64=next_index(@bytes[..],0);transition result==1{true->42,_ ->7}}")
+    yield "slice-successor-first", prefix + b"index+1}" + call, 42
+    yield "slice-successor-last", (prefix + b"index+1}" + call).replace(b"@bytes[..],0)", b"@bytes[..],1)").replace(b"result==1", b"result==2"), 42
+    yield "slice-successor-two", prefix + b"index+2}" + call, (2, b"+2")
+    yield "slice-successor-unbounded", (prefix + b"index+1}" + call).replace(b"requires index<items.len ",b""), (2, b"+1")
+    wrong = (prefix + b"other+1}" + call).replace(b"index:u64)",b"index:u64,other:u64)").replace(b"@bytes[..],0)",b"@bytes[..],0,0)")
+    yield "slice-successor-wrong-index", wrong, (2, b"+1")
+    inclusive = (prefix + b"index+1}" + call).replace(b"index<items.len",b"index<=items.len")
+    yield "slice-successor-inclusive", inclusive, (2, b"+1")
+    read = (b"machine read(items:@[u8],index:u64)->u8 requires index<items.len {items[index+1]} "
+            b"machine main()->u8{let bytes:[u8;1]=[42];let result:u8=read(@bytes[..],0);result}")
+    yield "slice-successor-is-not-an-index-proof", read, (2, b"items[index")
+
+
+def successor_order_sources():
+    prefix = (b"machine step(path:@[u8],start:u64,index:u64)->u8 "
+              b"requires start<=index && index<path.len {transition {_->finish(path,")
+    callee = b"machine finish(path:@[u8],a:u64,b:u64)->u8 requires "
+    entry = b"machine main()->u8{let path:[u8;1]=[42];step(@path[..],0,0)}"
+    for name, args, condition, expected in [
+        ("slice-successor-endpoint", b"start,index+1", b"a<b && b<=path.len", 42),
+        ("slice-successor-equal-endpoints", b"index+1,index+1", b"a<=b && b<=path.len", 42),
+        ("slice-successor-equal-is-not-strict", b"index+1,index+1", b"a<b", (2, b"machine step")),
+        ("slice-successor-cannot-read-end", b"start,index+1", b"b<path.len", (2, b"machine step")),
+        ("slice-successor-order-reversed", b"index+1,start", b"a<=b", (2, b"machine step")),
+    ]:
+        yield name, prefix + args + b")}" + callee + condition + b"{42}}" + entry, expected
+
+
+def slice_successor_cases(encode):
+    for name, source, expected in (*slice_successor_sources(), *successor_order_sources()):
         request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
         if isinstance(expected, tuple):
             status, spelling = expected
