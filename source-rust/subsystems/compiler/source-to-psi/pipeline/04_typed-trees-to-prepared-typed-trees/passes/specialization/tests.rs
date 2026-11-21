@@ -1901,7 +1901,7 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
     let mut generated = GeneratedMachines::default();
     for (order, &(template, n)) in requests.iter().enumerate() {
         generated
-            .get_or_generate(template, arguments(n), || {
+            .get_or_generate(template, None, arguments(n), || {
                 Ok(Generated {
                     machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
                     state: SymbolHandle::from_parts(20_000 + order as u32, 1),
@@ -1911,12 +1911,31 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
     }
     for (order, &(template, n)) in requests.iter().enumerate() {
         let made = generated
-            .get_or_generate(template, arguments(n), || {
+            .get_or_generate(template, None, arguments(n), || {
                 panic!("an equal application tried to generate a second machine")
             })
             .unwrap();
-        assert_eq!(made.machine, SymbolHandle::from_parts(10_000 + order as u32, 1));
-        assert_eq!(made.state, SymbolHandle::from_parts(20_000 + order as u32, 1));
+        assert_eq!(
+            made.machine,
+            SymbolHandle::from_parts(10_000 + order as u32, 1)
+        );
+        assert_eq!(
+            made.state,
+            SymbolHandle::from_parts(20_000 + order as u32, 1)
+        );
+    }
+    // Two public contracts served by the same body still need their own registrations.
+    for contract in templates {
+        let requirement = Some(contract);
+        let made = generated
+            .get_or_generate(templates[0], requirement, arguments(0), || {
+                Ok(Generated {
+                    machine: contract,
+                    state: contract,
+                })
+            })
+            .unwrap();
+        assert_eq!(made.machine, contract);
     }
     // Same payload, different template, generation or argument kind: unseen.
     let unseen = [
@@ -1929,7 +1948,8 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         (templates[0], Vec::new()),
     ];
     for (template, key) in unseen {
-        let result = generated.get_or_generate(template, key, || Err(super::unserved("unseen")));
+        let result =
+            generated.get_or_generate(template, None, key, || Err(super::unserved("unseen")));
         assert!(matches!(result, Err(super::Stop::Unserved(message)) if message == "unseen"));
     }
 }

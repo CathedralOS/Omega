@@ -212,12 +212,13 @@ impl CheckedBuildInvocation {
             },
         }
         .judge(terminal_codec::TerminalPublication::Invocation)?;
+        let constants = judged.accepted.constants_read();
         Ok(BuildInvocationJudgment {
             invocation: Self {
                 accepted: judged.accepted,
                 invocation_sources,
             },
-            constants: judged.constants,
+            constants,
             accounting: judged.accounting,
         })
     }
@@ -293,7 +294,7 @@ impl crate::StageSource<'_> {
             roster.supplies.push(supply);
         }
         let supplied = judge_lowered_source::SourcePublication::judge(
-            accepted.source().clone(),
+            accepted.prepared().clone(),
             roster,
             publication.optimizations().clone(),
         )?;

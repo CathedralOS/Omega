@@ -16,6 +16,7 @@ use crate::record::PackageReviewCallableSupply;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewNominalOwner;
 use crate::record::PackageReviewSemanticDependencyExposure;
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use crate::record::validation::ordered;
 
@@ -253,28 +254,9 @@ impl PackagePolicyBaseline {
 
 pub(super) fn exposes(
     callable: &PackagePolicyCallable,
-    service: &PackageReviewNominalIdentity,
+    service: &PackageReviewServiceIdentity,
 ) -> bool {
     callable
-        .published_service_reach()
-        .is_some_and(|values| values.contains(service))
-        || callable
-            .checked_service_reach()
-            .realized()
-            .is_some_and(|values| values.contains(service))
-        || callable
-            .checked_service_reach()
-            .concrete()
-            .is_some_and(|values| values.contains(service))
-        || callable
-            .unresolved_installation_reaches()
-            .iter()
-            .any(|value| value.upper_bound().contains(service))
-        || callable
-            .declared_synchronous_invocations()
-            .is_some_and(|values| values.iter().any(|value| value.service() == Some(service)))
-        || callable
-            .realized_synchronous_invocations()
-            .iter()
-            .any(|value| value.service() == Some(service))
+        .exposed_services()
+        .any(|candidate| candidate == service)
 }

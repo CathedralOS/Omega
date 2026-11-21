@@ -1,5 +1,6 @@
 // Public policy type parameters, machine parameter contracts, and signature telescopes.
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
@@ -44,7 +45,7 @@ pub struct PackagePolicyMachineParameterSignature {
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     pub(crate) published_crash: Vec<PackagePolicyCrashRoute>,
-    pub(crate) service_reach: Vec<PackageReviewNominalIdentity>,
+    pub(crate) service_reach: Vec<PackageReviewServiceIdentity>,
     pub(crate) service_reach_is_installation_bound: bool,
     pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     pub(crate) suspends: bool,

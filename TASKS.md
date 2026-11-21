@@ -6,8 +6,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
-  - Bind `FilesystemHost` and direct foreign services to the exact operation and owner. [Native review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/host_cohorts.rs) still classifies non-Windows filesystem and Console operations from their method names. Check the selected operation itself and refuse insufficient or installation-dependent evidence.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
@@ -64,6 +62,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
+  - A UEFI Build selects the checked `ProgramImageNativeProvider` member for its image address. To emit the UEFI application, derive its two visible entry grants from the installed arrival contract. For `ProgramStorageEntryNativeProvider`, check and retain the two `Extent in Granted` parameter requirements before publishing the external conformance.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
   - Add checked-machine realization to [the target float table](source-rust/subsystems/compiler/psi-to-native/targets/target/src/float_realization.rs) and exercise it on a selected target. Measure remaining provider-selection cost separately.

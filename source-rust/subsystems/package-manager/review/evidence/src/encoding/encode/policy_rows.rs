@@ -74,7 +74,7 @@ pub(crate) fn runtime_permission_rows(
         };
         components::terminal_permission(
             &mut builder,
-            &nominal(&row.service_path),
+            &nominal(&row.service_path).into(),
             &PackagePolicyTerminalPermission {
                 requirement: nominal(&row.requirement_path),
                 permitted: row.permitted.clone(),

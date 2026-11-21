@@ -10,13 +10,14 @@ use super::super::{
 };
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyMachineParameterContract;
 use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewTypeIdentity;
 
 macro_rules! encode_callable_shape {
-    ($encoder:expr, $parameters:expr, $return_type:expr) => {
+    ($encoder:expr, $parameters:expr, $return_type:expr, $lifetimes:expr) => {
         ($encoder).field("parameters", |encoder| {
             encoder.sequence($parameters, |encoder, parameter| {
                 formal(
@@ -25,11 +26,18 @@ macro_rules! encode_callable_shape {
                     &parameter.type_identity,
                     parameter.is_const,
                     parameter.is_mutable,
+                    $lifetimes,
                 )
             })
         })?;
         ($encoder).field("return_type", |encoder| {
-            encoder.option($return_type, encode_type_identity)
+            encoder.option($return_type, |encoder, identity| {
+                $crate::encoding::encode::type_identity_in_scope(
+                    encoder,
+                    identity,
+                    Some($lifetimes),
+                )
+            })
         })?;
     };
 }
@@ -50,7 +58,7 @@ macro_rules! encode_callable_behavior_tail {
             encode_callable_behavior_tail!(@ceiling encoder, &$record.published_crash, crash_route $(, $optional)?)
         })?;
         ($encoder).field("service_reach", |encoder| {
-            encode_callable_behavior_tail!(@ceiling encoder, &$record.service_reach, encode_nominal $(, $optional)?)
+            encode_callable_behavior_tail!(@ceiling encoder, &$record.service_reach, encode_service $(, $optional)?)
         })?;
         ($encoder).field("service_reach_is_installation_bound", |encoder| {
             encoder.boolean($record.service_reach_is_installation_bound);
@@ -141,7 +149,8 @@ pub(in crate::encoding) fn machine_contract(
             encode_callable_shape!(
                 encoder,
                 &signature.parameters,
-                signature.return_type.as_ref()
+                signature.return_type.as_ref(),
+                signature.lifetime_parameter_count
             );
             encode_callable_behavior_tail!(encoder, signature)
         }
@@ -168,9 +177,12 @@ pub(in crate::encoding) fn formal(
     value: &PackageReviewTypeIdentity,
     is_const: bool,
     is_mutable: bool,
+    lifetimes: usize,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(name))?;
-    encoder.field_by("type_identity", value, encode_type_identity)?;
+    encoder.field_by("type_identity", value, |encoder, identity| {
+        super::super::type_identity_in_scope(encoder, identity, Some(lifetimes))
+    })?;
     encoder.boolean_field("is_const", is_const)?;
     encoder.boolean_field("is_mutable", is_mutable)?;
     Ok(())

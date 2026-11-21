@@ -45,10 +45,18 @@ pub struct SourceFormCorrespondence {
     pub selection_questions: Option<crate::lowering::selection_questions::RawSelectionQuestions>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An effect retains its source owner across check forms. Applied terms also
+/// carry the checked, package-qualified application with its complete arguments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementService {
+    pub declaration: symbols::SymbolHandle,
+    pub application: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequirementInvocation {
     Parameter(u32),
-    Service(symbols::SymbolHandle),
+    Service(RequirementService),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,9 +67,10 @@ pub struct RequirementReviewMetadata {
     pub result_type: Option<String>,
     pub lifetime_parameter_count: usize,
     /// None is an open ceiling; Some(empty) is a closed empty ceiling.
-    pub service_reach: Option<Vec<symbols::SymbolHandle>>,
+    pub service_reach: Option<Vec<RequirementService>>,
     pub synchronous_invocations: Vec<RequirementInvocation>,
-    pub crash_is_open: bool,
+    /// None is open. A closed declaration owns all of its checked crash routes.
+    pub published_crash_routes: Option<Vec<terminal_psi::CrashRouteBucket>>,
     pub returned_parameters: Vec<u32>,
     pub parameter_qualifications: Vec<(u32, symbols::SymbolHandle)>,
     pub suspends: bool,

@@ -1101,15 +1101,6 @@ fn check_canonical_publication(
         native.physical_evidence().unwrap().children().len(),
         usize::from(through_boundary)
     );
-    assert!(
-        native.image().output().compiler_text_validation.is_none()
-            && native
-                .image()
-                .output()
-                .compiler_function_validation
-                .is_none(),
-        "ordinary emission does not replay the final image"
-    );
     let receipt = native_artifact::PreparedExecutablePublication::new(&native)
         .expect("fresh emission can be published without replay reports")
         .into_receipt(std::path::PathBuf::from("published-program"))

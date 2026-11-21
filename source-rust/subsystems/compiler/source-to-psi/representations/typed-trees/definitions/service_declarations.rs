@@ -66,8 +66,7 @@ pub mod provider_declarations {
             .filter(|receipt| receipt.template == template.symbol)
             .filter_map(|receipt| typed.machine(receipt.instance))
             .filter(|instance| {
-                instance.supply_mode
-                    == source_declarations::MachineSupplyMode::TopLevelRequirement
+                instance.supply_mode == source_declarations::MachineSupplyMode::TopLevelRequirement
             })
             .map(|instance| typed.machine_callable_identity(instance))
             .filter(|identity| identity.is_valid())
@@ -351,12 +350,13 @@ pub mod provider_declarations {
                         || machine.target.is_none())
             })
             .filter_map(|machine| {
-                machine.authored_target.as_ref().map(|target| {
-                    SelectedTargetMachineOrigin {
+                machine
+                    .authored_target
+                    .as_ref()
+                    .map(|target| SelectedTargetMachineOrigin {
                         machine: machine.symbol,
                         target: target.as_str().to_owned(),
-                    }
-                })
+                    })
             })
             .collect()
     }
@@ -467,9 +467,9 @@ pub mod provider_declarations {
 pub mod projection {
     pub(crate) mod applied_receivers {
         use crate::source_state::trait_definition::AppliedTraitScope;
+        use diagnostics::Diagnostic;
         use service_surface::ServiceReceiverApplication;
         use service_surface::identities::ProviderIdentityTable;
-        use diagnostics::Diagnostic;
 
         pub fn collect_scopes<'program>(
             program: &'program crate::source_state::TypedTrees,
@@ -979,19 +979,17 @@ pub mod projection {
                         .symbol_package_identity(operator.symbol),
                     requirement_identity,
                     parameter_count: program.operator_parameters(operator).len(),
-                    declared_type_signature:
-                        service_surface::declared_type_signature(
-                            program
-                                .operator_parameters(operator)
-                                .iter()
-                                .map(|parameter| {
-                                    program.package_qualified_type_identity_text(
-                                        parameter.type_reference,
-                                    )
-                                }),
-                            &program.package_qualified_type_identity_text(operator.return_type),
-                        )
-                        .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
+                    declared_type_signature: service_surface::declared_type_signature(
+                        program
+                            .operator_parameters(operator)
+                            .iter()
+                            .map(|parameter| {
+                                program
+                                    .package_qualified_type_identity_text(parameter.type_reference)
+                            }),
+                        &program.package_qualified_type_identity_text(operator.return_type),
+                    )
+                    .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
                     parameter_type_identities: program
                         .operator_parameters(operator)
                         .iter()
@@ -1147,12 +1145,11 @@ pub mod projection {
                     requirement_owner_package_identity: package_identity,
                     requirement_identity: requirement_identity_id,
                     parameter_count: parameters.len(),
-                    declared_type_signature:
-                        service_surface::declared_type_signature(
-                            parameter_types.iter(),
-                            &result_type,
-                        )
-                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    declared_type_signature: service_surface::declared_type_signature(
+                        parameter_types.iter(),
+                        &result_type,
+                    )
+                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     parameter_type_identities: parameters
                         .iter()
                         .map(|parameter| {
@@ -1177,8 +1174,12 @@ pub mod projection {
                     )
                     .collect(entry.symbol, entry.contracts, None)
                     .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
-                    service_reach: service_reach_names(program, None, requirement.service_reach_row)
-                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    service_reach: service_reach_names(
+                        program,
+                        None,
+                        requirement.service_reach_row,
+                    )
+                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     synchronous_invocations: machine_synchronous_invocations(program, requirement)
                         .ok_or_else(|| {
                             projection_failure(
@@ -1238,12 +1239,11 @@ pub mod projection {
                     .symbol_package_identity(trait_definition.symbol),
                 requirement_identity,
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
-                declared_type_signature:
-                    service_surface::declared_type_signature(
-                        parameter_types.iter(),
-                        &result_type,
-                    )
-                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                declared_type_signature: service_surface::declared_type_signature(
+                    parameter_types.iter(),
+                    &result_type,
+                )
+                .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 parameter_type_identities: program
                     .state_signature_parameters(signature)
                     .iter()
@@ -1276,8 +1276,12 @@ pub mod projection {
                 normal_result_memberships: normal_memberships
                     .collect(signature.symbol, signature.contracts, Some(scope))
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
-                service_reach: service_reach_names(program, Some(scope), signature.service_reach_row)
-                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                service_reach: service_reach_names(
+                    program,
+                    Some(scope),
+                    signature.service_reach_row,
+                )
+                .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 synchronous_invocations: synchronous_invocations(program, scope, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
@@ -1546,9 +1550,7 @@ pub mod projection {
             boundary_trait,
             requirement,
             &mut |_, domain| {
-                if domain.predicate_presence
-                    != language_core::DomainPredicatePresence::Absent
-                {
+                if domain.predicate_presence != language_core::DomainPredicatePresence::Absent {
                     return;
                 }
                 claims.push(ServiceResultClaim {
@@ -1662,11 +1664,13 @@ pub mod projection {
         let mut entries = targets
             .into_iter()
             .map(|target| match target {
-                InvocationTarget::Parameter(position) => ((position as usize)
-                    < parameter_count)
+                InvocationTarget::Parameter(position) => ((position as usize) < parameter_count)
                     .then_some(ServiceSynchronousInvocation::Parameter(position)),
-                InvocationTarget::AppliedService(id) => program.service_effect_scope(id, receiver).ok()
-                    .and_then(|scope| service_surface_name(program, &scope)).map(ServiceSynchronousInvocation::Service),
+                InvocationTarget::AppliedService(id) => program
+                    .service_effect_scope(id, receiver)
+                    .ok()
+                    .and_then(|scope| service_surface_name(program, &scope))
+                    .map(ServiceSynchronousInvocation::Service),
                 InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
@@ -1693,9 +1697,9 @@ pub(crate) mod catalog {
     use crate::source_state::type_identity::TypeIdentityId;
     use crate::source_state::types::TypeReferenceHandle;
     use arena::{Arena, Handle, HandleSpan};
-    use service_surface::ServiceSurface;
     use diagnostics::Diagnostic;
     use semantic_vocabulary::PackageKeyIdentity;
+    use service_surface::ServiceSurface;
     use std::sync::Arc;
     use symbols::SymbolHandle;
 
@@ -2342,6 +2346,7 @@ pub(crate) mod catalog {
 }
 pub mod signatures {
     use crate::source_state::TypedTrees;
+    use crate::source_state::invocations::InvocationTarget;
     use crate::source_state::provider_declarations::ProviderPlanningContext;
     use crate::source_state::types::TypeReferenceHandle;
     use application_identity::callback_declarations::BOUNDARY_NATIVE_PARAMETER_CAPACITY;
@@ -2354,7 +2359,6 @@ pub mod signatures {
         PackageKeyIdentity, callback_requirement_id, nominal_callback_binder_id,
         nominal_callback_native_parameter_id,
     };
-    use crate::source_state::invocations::InvocationTarget;
     use symbols::SymbolHandle;
 
     pub(crate) mod abi_signatures {
@@ -2481,38 +2485,8 @@ pub mod signatures {
                                 .to_owned(),
                         });
                     }
-                    let scope = closed
-                        .trait_scope
-                        .scope(typed)
-                        .ok_or("declaration ABI lost its retained declaring scope")?;
-                    let logical = typed
-                        .applied_callable_signature(&scope, closed.template)
-                        .or_else(|| {
-                            (scope.substitutions.is_empty()
-                                && scope.declaration.lifetime_parameters.is_empty())
-                            .then_some(signature)
-                        })
-                        .ok_or("declaration ABI lost its callback-independent logical signature")?;
-                    let substitutions = parameters
-                        .iter()
-                        .zip(closed.local_arguments)
-                        .filter(|(parameter, _)| callback_binder(declaration, parameter).is_none())
-                        .filter_map(|(parameter, actual)| {
-                            actual.static_operand().map(|actual| (parameter, actual))
-                        })
-                        .map(|(parameter, actual)| {
-                            let formal = typed
-                                .applied_signature_parameter(signature, logical, parameter.symbol)
-                                .ok_or(
-                                    "declaration ABI lost a non-callback formal correspondence",
-                                )?;
-                            Ok((formal, actual))
-                        })
-                        .collect::<Result<Vec<_>, &str>>()?;
-                    let runtime_projection = closed
-                        .local_arguments
-                        .iter()
-                        .any(|argument| argument.static_operand().is_none());
+                    // Storage must use the same closed header as the checked call.
+                    // Reapplying root substitutions leaves nested array extents open.
                     Ok(insert(
                         typed,
                         &mut rows,
@@ -2521,24 +2495,12 @@ pub mod signatures {
                         operands,
                         Ok(PreparedAbiStorage {
                             parameters: typed
-                                .state_signature_parameters(if runtime_projection {
-                                    closed.signature
-                                } else {
-                                    logical
-                                })
+                                .state_signature_parameters(closed.signature)
                                 .iter()
                                 .map(|parameter| parameter.type_reference)
                                 .collect(),
-                            result: if runtime_projection {
-                                closed.signature.return_type
-                            } else {
-                                logical.return_type
-                            },
-                            substitutions: if runtime_projection {
-                                Vec::new()
-                            } else {
-                                substitutions
-                            },
+                            result: closed.signature.return_type,
+                            substitutions: Vec::new(),
                         }),
                     ))
                 })();
@@ -3457,10 +3419,8 @@ pub mod signatures {
 
     impl PreparedBoundarySignatures {
         pub(crate) fn prepare(typed: &TypedTrees) -> Self {
-            let product = ProviderPlanningContext::new(
-                typed,
-                source_provenance::DependencyScope::Product,
-            );
+            let product =
+                ProviderPlanningContext::new(typed, source_provenance::DependencyScope::Product);
             let mut declarations = Arena::new();
             for definition in typed.traits() {
                 for signature in typed.trait_machine_signatures(definition) {

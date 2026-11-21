@@ -189,44 +189,6 @@ impl Program<'_> {
         components: &crate::lowering::components::Components,
     ) -> Checked<()> {
         let declaration_policies = self.declaration_policies()?;
-        // Open requirements keep their unknown axes. They prevent executable
-        // callable publication, but do not prevent independent bodies from
-        // completing their own contracts.
-        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
-            self.symbols
-                .get(*id)
-                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
-                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
-                && !self
-                    .declared_envelope_policies
-                    .get(*id)
-                    .and_then(Option::as_ref)
-                    .is_some_and(Policy::is_complete)
-        }) {
-            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
-                return Err(unavailable(
-                    requirement,
-                    "runtime callable needs the abstract requirement's complete operational contract",
-                ));
-            }
-            for (contract, policy) in declaration_policies.iter() {
-                if policy.reach.is_none()
-                    || policy.invokes.is_none()
-                    || policy.suspends.is_none()
-                    || policy.blocks.is_none()
-                {
-                    let caller = self
-                        .declaration_selections
-                        .get(contract)
-                        .and_then(Option::as_ref)
-                        .map_or(requirement, |selected| selected.0);
-                    return Err(unavailable(
-                        caller,
-                        "selected public contract needs completion in its open abstract operational context",
-                    ));
-                }
-            }
-        }
         let mut abstract_requirements = self.requirements.clone();
         abstract_requirements.sort_unstable();
         let mut known = IdTable::default();
@@ -341,9 +303,14 @@ impl Program<'_> {
                 let mut reached = empty();
                 let mut reached_known = KnownAxes::ALL;
                 for invocation in uses {
-                    if invocation.required_contract.is_none()
-                        && let CallTarget::Machine(callee) = invocation.target
-                    {
+                    if let Some(required) = invocation.required_contract {
+                        reached_known.intersect(self.declaration_axes(
+                            id,
+                            required,
+                            &declaration_policies,
+                            &known,
+                        )?);
+                    } else if let CallTarget::Machine(callee) = invocation.target {
                         reached_known.intersect(*known.get(*callee).ok_or_else(|| {
                             unavailable(id, "callee lost its operational inference state")
                         })?);
@@ -539,6 +506,20 @@ impl Program<'_> {
                 break;
             }
         }
+        // Public invocation contracts must be finite at publication. An open
+        // static requirement elsewhere in the body graph is independent.
+        for (contract, selected) in self.declaration_selections.iter() {
+            if let Some((caller, ..)) = selected
+                && !self
+                    .declaration_axes(*caller, contract, &declaration_policies, &known)?
+                    .is_complete()
+            {
+                return Err(unavailable(
+                    *caller,
+                    "selected public contract depends on an unknown operational bound of its implementation",
+                ));
+            }
+        }
         // The completed envelopes are carried into Terminal Psi. Its checker
         // validates acknowledgements, source positions and suspension evidence
         // on the actual emitted calls.
@@ -661,6 +642,34 @@ impl Program<'_> {
         }
         self.checking_envelopes = checking_envelopes;
         Ok(())
+    }
+
+    fn declaration_axes(
+        &self,
+        caller: MachineId,
+        contract: ContractId,
+        policies: &IdTable<ContractId, Policy>,
+        known: &IdTable<MachineId, KnownAxes>,
+    ) -> Checked<KnownAxes> {
+        let policy = policies.get(contract).ok_or_else(|| {
+            unavailable(caller, "selected public contract lost its declared policy")
+        })?;
+        match self.declaration_selections.get(contract) {
+            Some(Some((_, selected, ..))) => known
+                .get(*selected)
+                .map(|axes| axes.with_policy(policy))
+                .ok_or_else(|| {
+                    unavailable(
+                        caller,
+                        "selected public contract lost its implementation bounds",
+                    )
+                }),
+            Some(None) => Ok(KnownAxes::of_policy(policy)),
+            None => Err(unavailable(
+                caller,
+                "public contract lost its selection coordinate",
+            )),
+        }
     }
 
     fn declaration_policies(&self) -> Checked<IdTable<ContractId, Policy>> {
@@ -951,13 +960,6 @@ pub(super) struct Policy {
     termination: TerminalCallableTermination,
 }
 impl Policy {
-    fn is_complete(&self) -> bool {
-        self.reach.is_some()
-            && self.invokes.is_some()
-            && self.suspends.is_some()
-            && self.blocks.is_some()
-    }
-
     fn initial(&self) -> SourceEnvelope {
         SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or_default(),
@@ -1170,7 +1172,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }
         | E::CollectionView { base, .. }
-        | E::LocationAlignment { place: base, .. }
+        | E::StorageLocation { place: base, .. }
         | E::CollectionMeasure { base, .. }
         | E::ByteSequencePredicate { base, .. }
         | E::Establish { operand: base, .. }

@@ -60,7 +60,7 @@ mod publication;
 use publication::PreparedProgram;
 pub use publication::{
     DesignatedOperands, RequirementInvocation, RequirementReview, RequirementReviewMetadata,
-    SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+    RequirementService, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]
@@ -907,8 +907,9 @@ fn witness_call(
 ) -> Checked<IdTable<MachineId, Body>> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
-    let supplied =
+    let mut supplied =
         terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?.clone();
+    program.apply_forwarded_array_lengths(entry, callee, &required, &mut supplied);
     let supplied_machine = program
         .symbols
         .get(callee)

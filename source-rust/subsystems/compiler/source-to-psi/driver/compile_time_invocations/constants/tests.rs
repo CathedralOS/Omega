@@ -13,6 +13,7 @@ use source_provenance::DependencyScope;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::typing;
 use syntax_trees_to_symbol_resolved_trees::resolution;
+use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, prepare_typed_trees};
 
 fn typed_source(text: &str) -> TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x52; 32]).unwrap();
@@ -78,10 +79,15 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
         &mut accounting,
     )
     .unwrap();
-    assert_eq!(demanded.len(), 1);
+    let [input] = demanded.as_slice() else {
+        panic!("one demanded constant")
+    };
+    let PreparedValue::Constant(demanded) = input.value else {
+        panic!("named initializer")
+    };
     assert!(
         typed
-            .const_declaration_by_symbol(demanded[0])
+            .const_declaration_by_symbol(demanded)
             .unwrap()
             .evaluated_value
             .is_some()
@@ -113,17 +119,94 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
 }
 
 #[test]
+fn a_closed_arithmetic_extent_settles_at_its_original_array() {
+    let source = |expression: &str| {
+        typed_source(&format!(
+            "machine read(bytes: @[u8; {expression}]) -> u8 {{ bytes[3u64] }}"
+        ))
+    };
+    let mut program = source("3u64 + 1u64");
+    let reader = program.realized_machine_named("read").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let values = evaluate_const_arguments(
+        &mut program,
+        request(&[reader]),
+        None,
+        None,
+        &mut accounting,
+    )
+    .unwrap();
+    let [input] = values.as_slice() else {
+        panic!("the written addition is one input")
+    };
+    assert!(matches!(input.value, PreparedValue::StaticArgument { owner, .. } if owner == reader));
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(program.deferred_refusal(reader).is_none());
+    assert!(
+        program
+            .type_reference_table
+            .type_reference_rows()
+            .any(|(_, ty)| matches!(
+                ty,
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Literal(4),
+                    ..
+                }
+            ))
+    );
+    let mut invalid = source("18446744073709551615u64 + 1u64");
+    let reader = invalid.realized_machine_named("read").unwrap().symbol;
+    let failure = evaluate_const_arguments(
+        &mut invalid,
+        request(&[reader]),
+        None,
+        None,
+        &mut Default::default(),
+    )
+    .expect_err("an exact addition outside its u64 carrier cannot supply an extent");
+    assert!(diagnostics::join_messages(&failure).contains("computed array extent"));
+}
+
+#[test]
 fn only_a_reader_of_an_array_requests_its_extent() {
     let base = typed_source(
-        "machine extent() -> u64 { 4u64 } data Packet { bytes: [u8; extent()]; }
+        "const WIDTH: u64 = 4u64; const UNUSED: u64 = 4u64;
+        machine extent() -> u64 { WIDTH } data Packet { bytes: [u8; extent()]; }
         machine reader(packet: @Packet) -> u64 { 0u64 } machine unrelated() -> u64 { 0u64 }",
     );
     for (entry, computes_extent) in [("reader", true), ("unrelated", false)] {
         let mut typed = base.clone();
         let entry = typed.realized_machine_named(entry).unwrap().symbol;
         let mut accounting = SourceCompletionAccounting::default();
-        evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
-            .unwrap();
+        let values =
+            evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
+                .unwrap();
+        let prepared = prepare_typed_trees(typed.clone(), &values, &[]).unwrap();
+        assert_eq!(prepared.values().len(), usize::from(computes_extent));
+        assert_eq!(
+            prepared
+                .constants()
+                .map(|constant| typed.symbols.name(constant.symbol))
+                .collect::<Vec<_>>(),
+            if computes_extent {
+                vec!["WIDTH"]
+            } else {
+                Vec::new()
+            }
+        );
+        if computes_extent {
+            assert!(matches!(
+                values[0].value,
+                PreparedValue::StaticArgument { .. }
+            ));
+            assert_eq!(values[0].targets, TargetInputs::None);
+            let other = typed_source("const WIDTH:u64 = 4u64; machine main() -> u64 { WIDTH }");
+            assert!(
+                prepare_typed_trees(other, &values, &[]).unwrap_err()[0]
+                    .message
+                    .contains("another source program")
+            );
+        }
         assert_eq!(accounting.receipts().len(), usize::from(computes_extent));
         accounting.validate_charges().unwrap();
         let packet = typed.data_definition_by_name_str("Packet").unwrap();
@@ -277,7 +360,17 @@ fn a_supplied_requirement_only_evaluates_its_provider_member() {
         if succeeds {
             let demanded = result.unwrap();
             assert_eq!(demanded.len(), 1);
-            assert_eq!(typed.symbols.name(demanded[0]), "GOOD");
+            assert_eq!(
+                demanded[0].value,
+                typed_trees_to_prepared_typed_trees::PreparedValue::Constant(
+                    typed
+                        .const_declarations()
+                        .iter()
+                        .find(|row| typed.symbols.name(row.symbol) == "GOOD")
+                        .unwrap()
+                        .symbol
+                )
+            );
             let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
                 panic!("only the selected member's initializer runs")
             };

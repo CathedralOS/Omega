@@ -17,6 +17,7 @@ use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicyTerminalPermissions;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
+use crate::record::PackageReviewServiceIdentity;
 
 mod component_assumptions;
 pub use component_assumptions::PackagePolicyComponentAssumption;
@@ -26,7 +27,6 @@ mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
-use crate::record::PackageReviewNominalIdentity;
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -48,15 +48,15 @@ pub struct PackagePolicyBaseline {
     pub semantic_dependencies: Vec<PackagePolicySemanticDependency>,
     pub boundary_applications: PackagePolicyBoundaryApplications,
     pub assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
-    pub service_audits: Vec<PackageReviewNominalIdentity>,
+    pub service_audits: Vec<PackageReviewServiceIdentity>,
     pub restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
     pub component_assumptions: Vec<PackagePolicyComponentAssumption>,
 }
 
 impl PackagePolicyBaseline {
-    field_projection_accessors!(sliced service_audits: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced service_audits: &[PackageReviewServiceIdentity]);
 
-    pub fn apply_service_audit_policy(&mut self, services: &[PackageReviewNominalIdentity]) {
+    pub fn apply_service_audit_policy(&mut self, services: &[PackageReviewServiceIdentity]) {
         use crate::record::PackageReviewDangerousAuthorityClass;
         self.service_audits = services.to_vec();
         self.service_audits.sort();
@@ -79,7 +79,7 @@ impl PackagePolicyBaseline {
     pub fn apply_service_classes(
         &mut self,
         classes: &[(
-            PackageReviewNominalIdentity,
+            PackageReviewServiceIdentity,
             crate::record::PackageReviewDangerousAuthorityClass,
         )],
     ) {

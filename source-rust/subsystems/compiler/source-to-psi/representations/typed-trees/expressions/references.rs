@@ -2393,13 +2393,8 @@ fn visit_service_reach(
         return;
     };
     visit_symbol(retained, row.symbol);
-    if let Some(application) = &row.application
-        && let Some(scope) = application.arguments.scope(program)
-    {
-        for (parameter, actual) in scope.substitutions {
-            visit_symbol(retained, parameter);
-            visit_type_reference(program, retained, actual);
-        }
+    if let Some(application) = &row.application {
+        application.arguments.visit_references(program, retained);
     }
 }
 

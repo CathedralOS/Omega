@@ -9,14 +9,15 @@ use diagnostics::Diagnostic;
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
-    PackagePolicySelectedProviders, PackageReviewNominalIdentity,
-    PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
-    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
+    PackagePolicySelectedProviders, PackageReviewRepresentationArchitecture,
+    PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
+    PackageReviewRepresentationTargetProfile, PackageReviewServiceIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub(super) fn project(
+    services: &[super::services::ReviewedService],
     input: &PolicySource<'_>,
     checked: &compiler::SelectedProviderResult,
     target: TargetProfile,
@@ -34,19 +35,8 @@ pub(super) fn project(
     }
     let accepted = input.accepted();
     let choices = provider_rows::from_review(checked)?;
-    let origins =
-        super::callables::service_origins(accepted, source_provenance::DependencyScope::Product)?;
-    let services = super::callables::service_identities(
-        accepted.source(),
-        input.sources().exact_toolchain_sources(),
-        &origins,
-    )?;
-    let census = super::providers::AcceptedDeclarations::new(
-        accepted,
-        &origins,
-        &services,
-        !choices.is_empty(),
-    );
+    let census =
+        super::providers::AcceptedDeclarations::new(accepted, services, !choices.is_empty());
     let native = super::native_bindings::prepare(input, package, target, &census)?;
     let providers = input.providers(
         checked,
@@ -64,7 +54,7 @@ pub(super) fn project(
         input,
         target,
         package,
-        &services,
+        services,
         input.public_traits(package)?,
     )?;
     providers.validate_service_inventory(&census, &source.callables, &source.public_api.traits)?;
@@ -125,7 +115,8 @@ pub(super) fn project(
         restricted_build_requests: source.restricted_build_requests,
         component_assumptions,
     };
-    policy.apply_service_classes(&super::authority::critical_services(input, checked)?);
+    let classes = super::authority::critical_services(input, checked, &policy)?;
+    policy.apply_service_classes(&classes);
     policy.apply_service_audit_policy(&source.audits);
     policy.validate_canonical_structure().map_err(unavailable)?;
     Ok(policy)
@@ -136,14 +127,14 @@ struct PolicyDeclarations {
     callables: Vec<review_evidence::record::PackagePolicyCallable>,
     representation: PackageReviewRepresentationTarget,
     restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
-    audits: Vec<PackageReviewNominalIdentity>,
+    audits: Vec<PackageReviewServiceIdentity>,
 }
 
 fn declaration_policy(
     declarations: &PolicySource<'_>,
     target: TargetProfile,
     package: PackageKeyIdentity,
-    services: &[(semantic_vocabulary::ServiceId, PackageReviewNominalIdentity)],
+    services: &[super::services::ReviewedService],
     ordinary_traits: Vec<review_evidence::record::PackagePolicyTraitShape>,
 ) -> Result<PolicyDeclarations, Vec<Diagnostic>> {
     // The owned declaration census above refuses unserved admission claims,
@@ -222,7 +213,7 @@ fn declaration_policy(
         .declarations
         .service_audits()
         .iter()
-        .map(|symbol| declarations.nominal(*symbol))
+        .map(|symbol| declarations.unapplied_service(*symbol))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PolicyDeclarations {
         public_api,

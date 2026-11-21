@@ -4,7 +4,7 @@ use super::{CanonicalSourceClosureSubject, Name, Output};
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyCallable, PackagePolicyRepresentation,
     PackagePolicySelectedProviders, PackagePolicyServiceMethod, PackageReviewCallableContract,
-    PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
+    PackageReviewNominalIdentity, PackageReviewServiceIdentity, PackageReviewSynchronousInvocation,
 };
 use std::fmt::{self, Write};
 
@@ -114,7 +114,7 @@ pub(super) fn render(
             output,
             "    {:?} {}",
             danger.class(),
-            names.name(danger.service())
+            names.service(danger.service())
         )?;
     }
     writeln!(
@@ -127,7 +127,7 @@ pub(super) fn render(
             output,
             "    {:?} {} declared but absent from checked reach of {}",
             slack.class(),
-            names.name(slack.service()),
+            names.service(slack.service()),
             names.name(slack.callable())
         )?;
     }
@@ -147,7 +147,7 @@ pub(super) fn render(
         policy.terminal_permissions().services().len()
     )?;
     for service in policy.terminal_permissions().services() {
-        writeln!(output, "    service {}", names.name(service.service()))?;
+        writeln!(output, "    service {}", names.service(service.service()))?;
         for permission in service.permissions() {
             writeln!(
                 output,
@@ -213,6 +213,16 @@ pub(super) fn render(
 struct Names<'a>(&'a CanonicalSourceClosureSubject);
 
 impl Names<'_> {
+    fn service<'a>(&'a self, service: &'a PackageReviewServiceIdentity) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |out| {
+            write!(out, "{}", self.name(&service.declaration))?;
+            if let Some(application) = &service.application {
+                write!(out, " ({})", application.canonical())?;
+            }
+            Ok(())
+        })
+    }
+
     fn name<'a>(&'a self, identity: &'a PackageReviewNominalIdentity) -> Name<'a> {
         Name {
             source: self.0,

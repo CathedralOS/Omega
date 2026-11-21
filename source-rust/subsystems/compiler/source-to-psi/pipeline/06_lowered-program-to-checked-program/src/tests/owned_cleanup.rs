@@ -27,12 +27,12 @@ const DECOMPOSE: &str =
     "let { dropped, valid, value as _ } = move resource; dropped.value = valid;";
 
 fn prepared(text: &str) -> crate::preparation::PreparedTypedTrees {
-    crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+    crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[])
         .expect("ordinary typed preparation must preserve this source program")
 }
 
 fn judged(text: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
-    super::entryless::judged_typed_result(&prepared(text), false)
+    super::entryless::judged_typed_result(prepared(text).trees(), false)
 }
 
 fn accepted() -> terminal_check_tables::program::Elaboration {
@@ -147,7 +147,7 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
     // Generated call rows are formed once before any untrusted mutation.
     let typed = prepared(&program(1, "Resource", DECOMPOSE, ""));
     let mut unjudged = crate::lowering::elaborate_for(
-        &typed,
+        typed.trees(),
         crate::lowering::Compilation {
             calling: None,
             providers: None,

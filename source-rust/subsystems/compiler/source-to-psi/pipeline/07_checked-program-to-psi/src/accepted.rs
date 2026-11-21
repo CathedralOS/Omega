@@ -143,6 +143,24 @@ pub struct ConstantRead {
     pub value: Option<numeric_literals::EvaluatedConstant>,
 }
 
+impl ConstantRead {
+    pub fn from_preparation(prepared: &crate::lowering::PreparedTypedTrees) -> Vec<Self> {
+        let source = prepared.trees();
+        prepared
+            .constants()
+            .map(|constant| Self {
+                name: source.symbols.name(constant.symbol).to_owned(),
+                declaration: crate::source_symbols::retain_declaration(
+                    &source.symbols,
+                    constant.symbol,
+                )
+                .ok(),
+                value: constant.evaluated_value.clone(),
+            })
+            .collect()
+    }
+}
+
 /// One boundary requirement an accepted module declares.
 ///
 /// `boundary` is the callable the module declares for it, `requirement` the
@@ -175,7 +193,7 @@ impl AcceptedTerminalSource {
     /// }
     /// fn splice(input: LoweredSourcePublication, other: TerminalCompilation) {
     ///     let (_, source) = input.into_program_and_source();
-    ///     let replaced = judge_publication(Replacement(other, source)).unwrap();
+    ///     let replaced = judge_publication(Replacement(other, source), Default::default()).unwrap();
     ///     let _ = AcceptedTerminalSource::from_judgment(replaced);
     /// }
     /// ```
@@ -188,7 +206,7 @@ impl AcceptedTerminalSource {
     pub(crate) fn accept_judgment(
         judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
     ) -> Result<(Self, Option<crate::SourceCompilationRoster>), Vec<Diagnostic>> {
-        let (mut source, closure, additional) = judgment.into_source_and_closures();
+        let (mut source, closure, additional, original) = judgment.into_source_and_closures();
         if source.correspondence.forms.len() != 1 + additional.len()
             || source.correspondence.forms.iter().any(Option::is_none)
         {
@@ -213,7 +231,7 @@ impl AcceptedTerminalSource {
                 requirement_reviews,
                 publication: source.publication,
                 package_review_numeric: Default::default(),
-                advisories: DeferredAdvisories::new(additional),
+                advisories: DeferredAdvisories::new(original, additional),
             },
             source.roster,
         ))
@@ -279,9 +297,9 @@ impl AcceptedTerminalSource {
                 )]
             })?;
             let span = self
-                .source
+                .source()
                 .symbols
-                .symbol_source_span(self.source.symbols.authored_origin(*symbol));
+                .symbol_source_span(self.source().symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
         // A declaration module has no entry: every machine keeps its name,
@@ -311,63 +329,10 @@ impl AcceptedTerminalSource {
             .publish(custody.applications, timings)
     }
 
-    /// The constants the declarations of this accepted module name, each
-    /// declaration once and in the order the declarations name them.
-    ///
-    /// The declarations are the ones the elaboration lowered: its machines,
-    /// its boundary requirements and the records it declares. They are read
-    /// in the judged source, so the answer is about this artifact and does
-    /// not rest on the reader having refused constants on the way here. A
-    /// Build admission settles nothing for a module that names none.
+    /// Constant inputs of this judged preparation, including the expressions that
+    /// became type arguments or array extents before lowering.
     pub fn constants_read(&self) -> Vec<ConstantRead> {
-        let elaboration = self.closure.elaboration();
-        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let mut lowered = elaboration
-            .machines
-            .iter()
-            .map(|(_, symbol)| *symbol)
-            .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
-            .chain(
-                self.correspondence()
-                    .records
-                    .iter()
-                    .map(|record| record.declaration),
-            )
-            .collect::<Vec<_>>();
-        lowered.sort_unstable_by_key(|symbol| key(*symbol));
-        let constants = self
-            .source
-            .const_declarations()
-            .iter()
-            .map(|declaration| declaration.symbol)
-            .collect();
-        let mut uses =
-            crate::source_state::references::ConstantUses::new(constants, |declaration| {
-                lowered
-                    .binary_search_by_key(&key(declaration), |symbol| key(*symbol))
-                    .is_ok()
-            });
-        crate::source_state::references::visit_program(&self.source, &mut uses);
-        let mut read = Vec::<symbols::SymbolHandle>::new();
-        for found in uses.into_uses() {
-            if !read.contains(&found.constant) {
-                read.push(found.constant);
-            }
-        }
-        read.into_iter()
-            .map(|constant| ConstantRead {
-                name: self.source.symbols.name(constant).to_owned(),
-                declaration: crate::source_symbols::retain_declaration(
-                    &self.source.symbols,
-                    constant,
-                )
-                .ok(),
-                value: self
-                    .source
-                    .const_declaration_by_symbol(constant)
-                    .and_then(|declaration| declaration.evaluated_value.clone()),
-            })
-            .collect()
+        ConstantRead::from_preparation(self.prepared())
     }
 
     /// Exact lowered boundary declarations whose source owns an installation bound.
@@ -429,7 +394,7 @@ impl AcceptedTerminalSource {
                 continue;
             }
             let (owner, requirement) = self
-                .source
+                .source()
                 .trait_machine_signature(*symbol)
                 .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
                 .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
@@ -507,7 +472,7 @@ impl AcceptedTerminalSource {
         declaration_path: &str,
     ) -> Result<crate::production::ProducedBuildProvider, Vec<Diagnostic>> {
         let refuse = |reason: &str| vec![Diagnostic::error(reason)];
-        let source = &*self.source;
+        let source = self.source();
         let selected = build_backing(source, package, declaration_path)?;
         let scope = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
             source, selected,
@@ -580,10 +545,10 @@ impl AcceptedTerminalSource {
         &self,
         slot: symbols::SymbolHandle,
     ) -> Option<Arc<service_surface::ServiceSurface>> {
-        let declaration = self.source.trait_definition_by_symbol(slot)?;
+        let declaration = self.source().trait_definition_by_symbol(slot)?;
         crate::source_state::service_declarations::projection::from_typed(
             crate::source_state::provider_declarations::ProviderPlanningContext::new(
-                &self.source,
+                self.source(),
                 source_provenance::DependencyScope::Product,
             ),
             declaration,
@@ -610,7 +575,11 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration().module
     }
 
-    pub fn source(&self) -> &crate::lowering::PreparedTypedTrees {
+    pub fn source(&self) -> &Arc<FrozenTypedTrees> {
+        self.source.trees()
+    }
+
+    pub fn prepared(&self) -> &crate::lowering::PreparedTypedTrees {
         &self.source
     }
 
@@ -624,7 +593,7 @@ impl AcceptedTerminalSource {
         &self,
         declaration: symbols::SymbolHandle,
     ) -> Result<&crate::lowering::RequirementReviewMetadata, String> {
-        if self.source.trait_machine_signature(declaration).is_none() {
+        if self.source().trait_machine_signature(declaration).is_none() {
             return Err("requirement review names a foreign declaration".to_owned());
         }
         let key = (declaration.arena_index(), declaration.generation());
@@ -714,8 +683,16 @@ fn advisories<'part>(parts: impl Iterator<Item = &'part AcceptedClosure>) -> Vec
 /// proof searches just to discard the diagnostics. Keep every accepted part
 /// until the first read, then release the additional forms after aggregation.
 struct DeferredAdvisories {
-    additional: Mutex<Vec<Box<AcceptedClosure>>>,
+    pending: Mutex<AdvisoryParts>,
     cached: OnceLock<Vec<Diagnostic>>,
+}
+
+#[derive(Default)]
+struct AdvisoryParts {
+    // A transformation may expose new constants. Source warnings must still
+    // describe the program as written, from its first judgment.
+    original: Option<Box<AcceptedClosure>>,
+    additional: Vec<Box<AcceptedClosure>>,
 }
 
 impl std::fmt::Debug for DeferredAdvisories {
@@ -728,25 +705,26 @@ impl std::fmt::Debug for DeferredAdvisories {
 }
 
 impl DeferredAdvisories {
-    fn new(additional: Vec<Box<AcceptedClosure>>) -> Self {
+    fn new(original: Option<Box<AcceptedClosure>>, additional: Vec<Box<AcceptedClosure>>) -> Self {
         Self {
-            additional: Mutex::new(additional),
+            pending: Mutex::new(AdvisoryParts { original, additional }),
             cached: OnceLock::new(),
         }
     }
 
     fn get(&self, primary: &AcceptedClosure) -> &[Diagnostic] {
         self.cached.get_or_init(|| {
-            let mut additional = self
-                .additional
+            let mut pending = self
+                .pending
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             // Retain the parts if a diagnostic search panics, just as each
             // accepted closure retains its own deferred warning inputs.
             let result = advisories(
-                std::iter::once(primary).chain(additional.iter().map(|part| part.as_ref())),
+                std::iter::once(pending.original.as_deref().unwrap_or(primary))
+                    .chain(pending.additional.iter().map(|part| part.as_ref())),
             );
-            additional.clear();
+            *pending = AdvisoryParts::default();
             result
         })
     }
@@ -878,7 +856,7 @@ mod tests {
             .find(|machine| machine.name.as_str() == "main")
             .unwrap()
             .symbol;
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         crate::judge_fixture(
             frozen,
             Compilation {
@@ -906,7 +884,7 @@ mod tests {
             terminal_codec::TerminalPublication::Invocation,
         );
         assert!(accepted.advisories.cached.get().is_none());
-        assert!(!accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(!accepted.advisories.pending.lock().unwrap().additional.is_empty());
         let diagnostics = accepted.advisories();
         let warnings: Vec<_> = diagnostics
             .iter()
@@ -918,7 +896,7 @@ mod tests {
         assert_eq!(warnings.len(), 1, "{diagnostics:?}");
         assert!(warnings[0].message.contains("machine `pick`"));
         assert!(warnings[0].source_span.is_some());
-        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
         assert!(std::ptr::eq(
             diagnostics.as_ptr(),
             accepted.advisories().as_ptr()
@@ -935,7 +913,7 @@ mod tests {
         assert!(accepted.advisories.cached.get().is_none());
         assert!(accepted.advisories().is_empty());
         assert!(accepted.advisories.cached.get().is_some());
-        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
         assert!(accepted.advisories().is_empty());
     }
 }

@@ -51,7 +51,7 @@ pub trait CompilationForPublication {
     fn into_program_and_source(self) -> (TerminalCompilation, Self::Source);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GenericForms {
     pub template: SymbolHandle,
     /// Diagnostic spelling only; dependencies use positions and exact identities.
@@ -62,7 +62,7 @@ pub struct GenericForms {
 }
 
 /// A source-authenticated formal and its exact installed-argument projection.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallableInputOrigin {
     pub occurrence: symbols::ParameterOccurrence,
     pub projected_from: usize,
@@ -70,7 +70,7 @@ pub struct CallableInputOrigin {
 
 /// The source meaning of a nominal atom, beyond its local proposition number.
 /// Applied domains are not approximated by this unapplied declaration receipt.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NominalPremiseOrigin {
     pub atom: semantic_vocabulary::PropositionId,
     pub occurrence: symbols::ParameterOccurrence,
@@ -81,7 +81,7 @@ pub struct NominalPremiseOrigin {
 /// An ordinary symbolic call under the complete installed source premises.
 /// Hidden inputs remain in this proof telescope, independently of executable
 /// parameter projection. The member arena belongs only to these source paths.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallableArrivalWitness {
     /// Diagnostic label; the retained declarations and model own identity.
     pub slot: String,

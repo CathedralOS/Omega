@@ -28,5 +28,5 @@ mod frontend_fixture;
 
 #[cfg(test)]
 fn prepare_fixture(typed: source_state::TypedTrees) -> preparation::PreparedTypedTrees {
-    preparation::prepare_typed_trees(typed, &[]).expect("prepare checker fixture")
+    preparation::prepare_typed_trees(typed, &[], &[]).expect("prepare checker fixture")
 }

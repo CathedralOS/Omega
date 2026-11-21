@@ -1699,26 +1699,15 @@ fn adapt_flow(
                                         {
                                             continue;
                                         }
-                                        let inputs = DescriptorSlotKind::BorrowedStorage
-                                            .owned_inventory(
+                                        for origin in DescriptorSlotKind::BorrowedStorage
+                                            .input_contents_origins(
                                                 &module.types.structural_types,
-                                                formal.place,
-                                                formal.structural_type,
-                                            )?;
-                                        let locations = inputs.slots.into_iter().chain(
-                                            inputs
-                                                .unknown_contents
-                                                .into_iter()
-                                                .map(|packet| packet.location),
-                                        );
-                                        for location in locations {
-                                            lifetime_dependencies
-                                                .push(DescriptorLifetimeDebt {
-                                                origin:
-                                                    DescriptorStoredOrigin::IncomingSlot {
-                                                        position,
-                                                        path: location.path,
-                                                    },
+                                                formal,
+                                                position,
+                                            )?
+                                        {
+                                            lifetime_dependencies.push(DescriptorLifetimeDebt {
+                                                origin,
                                                 access: formal.access,
                                             });
                                         }

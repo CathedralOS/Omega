@@ -247,9 +247,11 @@ mod contents {
                 (20, 7),
             ]);
         }
-        dynamic.push((0x6fff_fff0, version_offset as u64));
+        // The loader indexes its version records when DT_VERSYM is present.
+        // Unversioned component imports have no records to index.
         if !tables.verneed.is_empty() {
             dynamic.extend([
+                (0x6fff_fff0, version_offset as u64),
                 (0x6fff_fffe, need_offset as u64),
                 (0x6fff_ffff, tables.verneed.len() as u64),
             ]);

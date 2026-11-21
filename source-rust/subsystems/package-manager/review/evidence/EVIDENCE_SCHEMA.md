@@ -16,6 +16,14 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+Whole-package baseline version 42 records a service application in reach,
+synchronous entry, installation and permission evidence. An applied service
+stores the checked declaration and the complete normalized receiver, including
+its static and lifetime arguments. A previous baseline retains its nominal
+identities. Only rows that encode an application use the new row version.
+Standalone callable, selected-provider and terminal-permission policies use
+versions 20, 29 and 16 respectively when they contain an application.
+
 Whole-package baseline version 41 records a carried nominal type by its supplier,
 exact declaration path, complete supplier source commitment and public or private
 exposure. Earlier versions support only their original declaration dependencies.

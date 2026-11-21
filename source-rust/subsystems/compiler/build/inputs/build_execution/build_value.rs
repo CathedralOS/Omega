@@ -17,8 +17,6 @@ use source_compiler::representations::source_state::{TypedTrees, data::DataMembe
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildValueAdmission {
-    optimization: optimization::BuildOptimizationAdmission, // Admitted optimization field vocabulary.
-    has_toolchain_build_activation: bool,
     identifier: bool,
     log: bool,
     product: bool,
@@ -30,18 +28,12 @@ pub struct BuildValueAdmission {
 
 impl BuildValueAdmission {
     pub fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
-        let optimization = optimization::BuildOptimizationAdmission::admit(typed)?;
         let build = activation::admit_toolchain_build_activation(typed)?;
-        let identifier = build.is_some_and(|build| {
-            typed.data_members(build).iter().any(|member| {
-                matches!(member, DataMember::Field(field)
-                if field.name.as_str() == "identifier")
-            })
+        let identifier = typed.data_members(build).iter().any(|member| {
+            matches!(member, DataMember::Field(field) if field.name.as_str() == "identifier")
         });
         let has = |name| vocabulary::has_exact_toolchain_build_facet(typed, name);
         Ok(Self {
-            optimization,
-            has_toolchain_build_activation: build.is_some(),
             identifier,
             log: has("BuildLog"),
             product: has("BuildProduct"),
@@ -66,10 +58,6 @@ impl BuildValueAdmission {
         ),
         String,
     > {
-        configuration::extract_build_settings(
-            value,
-            self.optimization,
-            self.has_toolchain_build_activation,
-        )
+        configuration::extract_build_settings(value)
     }
 }

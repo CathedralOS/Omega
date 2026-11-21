@@ -55,7 +55,7 @@ fn recover_component<Policy>(
 }
 
 macro_rules! recover_canonical_component {
-    ($magic:expr, $version:expr, $decode:expr, validate $(,)?) => {
+    ($magic:expr, $version:expr, $decode:expr, validate $(, also $earlier:expr)? $(,)?) => {
         pub fn recover_canonical(
             bytes: &[u8],
             limits: PackagePolicyRecoveryLimits,
@@ -64,7 +64,7 @@ macro_rules! recover_canonical_component {
                 bytes,
                 limits,
                 $magic,
-                |version| version == $version,
+                |version| version == $version $(|| version == $earlier)?,
                 $decode,
                 |policy| {
                     policy

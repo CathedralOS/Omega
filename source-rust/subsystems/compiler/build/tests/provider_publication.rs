@@ -1,6 +1,8 @@
 //! Cross-target provider authority on the public source and saved-Psi paths.
 #[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
+#[path = "provider_publication/fixed_image.rs"]
+mod fixed_image;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
 
@@ -973,7 +975,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             .unwrap();
         let reach = callable.declared_service_reach.as_deref().unwrap();
         assert_eq!(reach.len(), 1);
-        assert_eq!(reach[0].path, "ProcessOutput");
+        assert_eq!(reach[0].path(), "ProcessOutput");
         assert_eq!(
             checked.policy.dangerous_capabilities.len(),
             usize::from(critical)
@@ -983,6 +985,62 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
         assert!(checked.policy.terminal_permissions.services.is_empty());
         assert!(checked.semantic_binding_candidates.is_empty());
     }
+}
+
+#[test]
+fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
+    use provider_acceptance::AcceptedSemanticBindingRole;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-hosted-exit-product",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"use omega\language\core\ProcessExit;
+        machine build(builder: @mut Build) {
+            Build::package(builder, "exit_provider");
+            Build::select_provider::<ProcessExit, LeafExit>(builder, linux_x86_64);
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"use omega\language\core\Never;
+        use omega\language\core\ProcessExit;
+        use omega\language\core\ProcessExitPrimitive;
+        public LeafExit satisfies ProcessExit {
+            machine exit_process(code: i32) -> Never reaches ProcessExit crashes none terminates {
+                ProcessExitPrimitive(code);
+            }
+        }
+        public machine finish(code: i32) -> Never reaches ProcessExit crashes none terminates {
+            ProcessExit::exit_process(code);
+        }"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let checked = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let [exit] = checked.semantic_binding_candidates.as_slice() else {
+        panic!("expected the selected process-exit nomination");
+    };
+    assert_eq!(
+        exit.binding().role(),
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+    );
+    assert_eq!(exit.binding().terminal_authority_permissions().len(), 1);
+    assert!(checked.policy.terminal_permissions.services.is_empty());
 }
 
 #[test]
@@ -1111,12 +1169,13 @@ public boundary trait TimeHost {
             .iter()
             .any(|callable| callable.identity() == frequency)
     );
+    assert!(service.service.application.is_none());
     let host = checked
         .policy
         .public_api
         .traits
         .iter()
-        .find(|item| item.identity == service.service)
+        .find(|item| item.identity == service.service.declaration)
         .unwrap();
     assert!(
         host.requirements
@@ -1190,6 +1249,95 @@ data LocalAlias = i64;
     assert_eq!(same.expansion, word.expansion);
     assert_ne!(pair.expansion, word.expansion);
     assert!(policy.public_data().is_empty());
+}
+
+#[test]
+fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
+    use review_evidence::record::{
+        PackagePolicyCrashGuard, PackagePolicyCrashRoute, PackageReviewCrashCause,
+    };
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-scalar-lending",
+        false,
+    )
+    .unwrap();
+    let source = fixture_repository::root()
+        .join("samples/cli/support/fact_dependencies/scalar_lending_producer");
+    for file in ["build.omg", "main.omg"] {
+        std::fs::copy(source.join(file), temporary.path().join(file)).unwrap();
+    }
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&temporary.path().join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let reviewed = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let policy = &reviewed.policy;
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .expect("elided reference regions must belong to the reviewed requirement");
+    for (service, causes, suspends) in [
+        (
+            "Lending",
+            vec![PackagePolicyCrashRoute {
+                cause: PackageReviewCrashCause::Trap,
+                alternative_guards: vec![PackagePolicyCrashGuard::Truth],
+            }],
+            true,
+        ),
+        ("Observation", vec![], false),
+    ] {
+        let declared = policy
+            .public_api
+            .traits
+            .iter()
+            .find(|item| item.identity.path == service)
+            .unwrap();
+        let [requirement] = declared.requirements.as_slice() else {
+            panic!("one requirement in {service}");
+        };
+        assert_eq!(
+            requirement.published_crash.as_deref(),
+            Some(causes.as_slice())
+        );
+        let callable = policy
+            .callables
+            .callables()
+            .iter()
+            .find(|item| item.identity() == &requirement.identity)
+            .unwrap();
+        assert_eq!(callable.checked_crash.published, causes);
+        assert_eq!(callable.declared_may_suspend, Some(suspends));
+        let selected = policy
+            .selected_providers
+            .plans
+            .iter()
+            .find(|plan| plan.schema_declaration == declared.identity)
+            .unwrap();
+        let [method] = selected.methods.as_slice() else {
+            panic!("one selected method in {service}");
+        };
+        assert_eq!(method.requirement, requirement.identity);
+        assert_eq!(method.may_suspend, suspends);
+    }
+    let mut narrowed = policy.clone();
+    let lending = narrowed
+        .public_api
+        .traits
+        .iter_mut()
+        .find(|service| service.identity.path == "Lending")
+        .unwrap();
+    lending.requirements[0].lifetime_parameter_count = 0;
+    assert_eq!(
+        narrowed
+            .validate_package_membership(|key| key == policy.package, Default::default())
+            .unwrap_err()
+            .error(),
+        review_evidence::encoding::PackagePolicyMembershipError::MalformedIdentity
+    );
 }
 
 #[test]

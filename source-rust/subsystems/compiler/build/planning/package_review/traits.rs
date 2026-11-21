@@ -276,7 +276,7 @@ impl PolicySource<'_> {
             .map(|services| {
                 services
                     .iter()
-                    .map(|symbol| self.nominal(*symbol))
+                    .map(|service| self.reviewed_requirement_service(service))
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
@@ -313,7 +313,11 @@ impl PolicySource<'_> {
                     canonical: canonical.clone(),
                 }),
             contracts,
-            published_crash: (!metadata.crash_is_open).then(Vec::new),
+            published_crash: metadata
+                .published_crash_routes
+                .as_deref()
+                .map(super::callables::published_crash_routes)
+                .transpose()?,
             service_reach,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             synchronous_invocations: {
@@ -324,7 +328,9 @@ impl PolicySource<'_> {
                     .iter()
                     .map(|invocation| match invocation {
                         Invocation::Parameter(position) => Ok(Reviewed::Parameter(*position)),
-                        Invocation::Service(symbol) => self.nominal(*symbol).map(Reviewed::Service),
+                        Invocation::Service(service) => self
+                            .reviewed_requirement_service(service)
+                            .map(Reviewed::Service),
                     })
                     .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
                 invocations.sort();

@@ -302,19 +302,25 @@ impl TypedReferences for References {
 fn request_references(program: &TypedTrees, expression: ExpressionHandle) -> References {
     let mut references = References::default();
     crate::source_state::references::visit_expression(program, &mut references, expression);
-    let mut visited = Vec::new();
-    while let Some(callee) = references.calls.pop() {
-        let Some(machine) = program
-            .machine_by_symbol(callee)
-            .or_else(|| program.machine_holding_state(callee))
-        else {
-            continue;
-        };
-        if insert(&mut visited, machine.symbol) {
-            crate::source_state::references::visit_machine(program, &mut references, machine);
+    references.follow_calls(program)
+}
+
+impl References {
+    fn follow_calls(mut self, program: &TypedTrees) -> Self {
+        let mut visited = Vec::new();
+        while let Some(callee) = self.calls.pop() {
+            let Some(machine) = program
+                .machine_by_symbol(callee)
+                .or_else(|| program.machine_holding_state(callee))
+            else {
+                continue;
+            };
+            if insert(&mut visited, machine.symbol) {
+                crate::source_state::references::visit_machine(program, &mut self, machine);
+            }
         }
+        self
     }
-    references
 }
 
 /// Decode the evaluator's snapshot against the constant's exact carrier.

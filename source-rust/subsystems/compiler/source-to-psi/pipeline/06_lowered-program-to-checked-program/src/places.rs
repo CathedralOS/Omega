@@ -1148,7 +1148,7 @@ impl<'a> Storage<'a> {
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
-        storage.log = storage.stores(references, value_types, tables)?;
+        storage.log = storage.stores(references, value_types)?;
         storage.cleanup_writes =
             crate::checking::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
@@ -1184,6 +1184,13 @@ impl<'a> Storage<'a> {
                     continue;
                 };
                 let concerns = Construct::Operation(operation.id);
+                // A read through a provider's shared reference yields a fresh scalar.
+                // Its public permission identifies no address for a later read to observe.
+                if let Some(at) = storage.descriptor_position((block.id, before))
+                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
+                {
+                    continue;
+                }
                 let leaf = storage.backing(references, &leaf, block.id, before, concerns)?;
                 let value = operation
                     .result
@@ -8186,6 +8193,7 @@ mod observation_tests {
         let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(source);
         let typed = crate::prepare_fixture(typed);
         let root = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "entry")
@@ -8499,8 +8507,11 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             ));
         }
         source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x, false -> hop0(p, choose) }} }}\n"));
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(&source));
+        let typed = crate::prepare_fixture(
+            crate::checking::tests::rankings::typed_with_ranking_catalog(&source),
+        );
         let entry = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "hop0")
@@ -8854,8 +8865,11 @@ machine entry() {
     #[test]
     fn block_entry_snapshots_keep_arrivals_sound_across_vacated_single_and_merged_paths() {
         let prepare_storage = |source: &str| {
-            let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
+            let typed = crate::prepare_fixture(
+                crate::checking::tests::rankings::typed_with_ranking_catalog(source),
+            );
             let root = typed
+                .trees()
                 .machines()
                 .iter()
                 .find(|machine| machine.name.as_str() == "entry")

@@ -26,17 +26,13 @@ requires value <= 37 && Count <= 37
 ensures result <= 37
 { Count }
 trait Traversal {
-    machine traverse<machine Step, machine Ignored>(value: u64) -> u64
-    requires machine Step satisfies StepContract::step;
-    requires machine Ignored satisfies StepContract::step;
+    machine traverse<const Step: StepContract::step, const Ignored: StepContract::step>(value: u64) -> u64
     reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 TraversalCode satisfies Traversal {
-    machine traverse<machine Step, machine Ignored>(value: u64) -> u64
-    requires machine Step satisfies StepContract::step;
-    requires machine Ignored satisfies StepContract::step;
+    machine traverse<const Step: StepContract::step, const Ignored: StepContract::step>(value: u64) -> u64
     terminates
     requires value <= 37
     ensures result <= 37
@@ -45,9 +41,7 @@ TraversalCode satisfies Traversal {
         Step::<3>(first)
     }
 }
-machine ordinary<machine Step, machine Ignored>(value: u64) -> u64
-requires machine Step satisfies StepContract::step;
-requires machine Ignored satisfies StepContract::step;
+machine ordinary<const Step: StepContract::step, const Ignored: StepContract::step>(value: u64) -> u64
 terminates
 requires value <= 37
 ensures result <= 37

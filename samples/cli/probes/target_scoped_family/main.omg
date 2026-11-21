@@ -1,20 +1,21 @@
-// Per-target bodies of the same machine name: every target-scoped family is
-// checked by Psi even though only the bound profile supplies the call.
-// `Helper::delta` exists only for windows_x86_64 and linux_x86_64, so the
-// build binds exactly those entries: a bound profile without a body for a
-// called machine is refused, which is the scoping rule this probe relies on.
 data Helper { seed: i32; }
-windows_x86_64 machine Helper::pick(helper: @Helper) -> i32 { 63 }
-macos_arm64 machine Helper::pick(helper: @Helper) -> i32 { 63 }
-linux_x86_64 machine Helper::pick(helper: @Helper) -> i32 { 63 }
-linux_arm64 machine Helper::pick(helper: @Helper) -> i32 { 63 }
-windows_x86_64 machine Helper::delta(helper: @Helper) -> i32 { 7 }
-linux_x86_64 machine Helper::delta(helper: @Helper) -> i32 { 7 }
+
+boundary trait Picker {
+    machine pick(helper: @Helper) -> i32 reaches none crashes none;
+}
+
+boundary trait Delta {
+    machine delta(helper: @Helper) -> i32 reaches none crashes none;
+}
+
+SharedPick satisfies Picker { machine pick(helper: @Helper) -> i32 { 63 } }
+SharedDelta satisfies Delta { machine delta(helper: @Helper) -> i32 { 7 } }
+
 data Main { helper: Helper; }
-machine Main::main(main: @mut Main) {
+machine run(main: @mut Main) {
     main.helper = Helper { seed: 1 };
-    let picked: i32 = Helper::pick(@main.helper);
-    let delta: i32 = Helper::delta(@main.helper);
+    let picked: i32 = Picker::pick(@main.helper);
+    let delta: i32 = Delta::delta(@main.helper);
     transition picked == 63 && delta == 7 {
         (true) -> good(main, picked),
         _ -> bad(main)
@@ -26,5 +27,5 @@ machine Main::main(main: @mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    run(@mut entry_storage);
 }

@@ -91,7 +91,7 @@ mod facts {
         use selected_instructions::{
             MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
             MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedConstraintKeys,
+            MachineSemanticKind, PreparedMachineEffectCatalog,
             SelectedFunction, SelectedInstruction, SelectedInstructionKind,
         };
 
@@ -200,131 +200,13 @@ mod facts {
             if catalog.catalog().register_constraints != constraints.identity() {
                 return Err(MachineEffectError::CatalogConstraintMismatch);
             }
-            if catalog.catalog().selected_keys != terminal_selected_keys(selected_keys) {
+            let catalog_keys = &catalog.catalog().selected_keys;
+            if catalog_keys.rows != *selected_keys
+                || catalog_keys.invoke_no_normal != catalog_keys.ordinary_call_constraints()
+            {
                 return Err(MachineEffectError::CatalogSelectedKeysMismatch);
             }
             Ok(())
-        }
-
-        fn terminal_selected_keys(
-            keys: &TargetRegisterEnvironmentConstraintKeys,
-        ) -> SelectedConstraintKeys {
-            {
-                let rows = TargetRegisterEnvironmentConstraintKeys {
-                    port_write: keys.port_write,
-                    system_register_read: keys.system_register_read,
-                    system_register_write: keys.system_register_write,
-                    control_register_read: keys.control_register_read,
-                    control_register_write: keys.control_register_write,
-                    global_descriptor_table: keys.global_descriptor_table,
-                    task_register_activate: keys.task_register_activate,
-                    task_register_read: keys.task_register_read,
-                    installed_interrupt_cpu_check: keys.installed_interrupt_cpu_check,
-                    installed_interrupt_task_commit: keys.installed_interrupt_task_commit,
-                    installed_interrupt_table_publication: keys
-                        .installed_interrupt_table_publication,
-                    code_segment_reload: keys.code_segment_reload,
-                    data_segment_reload: keys.data_segment_reload,
-                    segment_selector_read: keys.segment_selector_read,
-                    port_register_read: keys.port_register_read,
-                    port_register_write: keys.port_register_write,
-                    model_specific_read: keys.model_specific_read,
-                    model_specific_write: keys.model_specific_write,
-                    processor_halt: keys.processor_halt,
-                    interrupt_control: keys.interrupt_control,
-                    memory_fence: keys.memory_fence,
-                    atomic_fence: keys.atomic_fence,
-                    access_read: keys.access_read,
-                    access_write: keys.access_write,
-                    atomic_load: keys.atomic_load,
-                    atomic_store: keys.atomic_store,
-                    atomic_update: keys.atomic_update,
-                    atomic_bitwise_update: keys.atomic_bitwise_update,
-                    atomic_compare_exchange: keys.atomic_compare_exchange,
-                    atomic_compare_exchange_once: keys.atomic_compare_exchange_once,
-                    crash: keys.crash,
-                    privileged_crash: keys.privileged_crash,
-                    hosted_write_byte_i32: keys.hosted_write_byte_i32,
-                    save_floating_control: keys.save_floating_control,
-                    restore_floating_control: keys.restore_floating_control,
-                    hosted_read_byte: keys.hosted_read_byte,
-                    hosted_exit_process_i32: keys.hosted_exit_process_i32,
-                    load64: keys.load64,
-                    load_packed: keys.load_packed,
-                    store_packed: keys.store_packed,
-                    load8: keys.load8,
-                    load16: keys.load16,
-                    load32: keys.load32,
-                    load8_indexed: keys.load8_indexed,
-                    copy_bytes: keys.copy_bytes,
-                    zero_bytes: keys.zero_bytes,
-                    scan_byte_sequence: keys.scan_byte_sequence,
-                    load_encoded_scalar: keys.load_encoded_scalar,
-                    store_encoded_scalar: keys.store_encoded_scalar,
-                    compare_byte_sequences: keys.compare_byte_sequences,
-                    store: keys.store,
-                    address_offset: keys.address_offset,
-                    store64: keys.store64,
-                    frame_address: keys.frame_address,
-                    byte_literal_image_address: keys.byte_literal_image_address,
-                    call_unit: keys.call_unit.clone(),
-                    call_unit_mixed: keys.call_unit_mixed.clone(),
-                    call_scalar: keys.call_scalar.clone(),
-                    call_aggregate: keys.call_aggregate.clone(),
-                    call_normalized_foreign: keys.call_normalized_foreign.clone(),
-                    return_aggregate: keys.return_aggregate.clone(),
-                    materialize_i64: keys.materialize_i64,
-                    materialize_boolean: keys.materialize_boolean,
-                    copy_i64: keys.copy_i64,
-                    float32_to_bits: keys.float32_to_bits,
-                    float64_to_bits: keys.float64_to_bits,
-                    bits_to_float32: keys.bits_to_float32,
-                    bits_to_float64: keys.bits_to_float64,
-                    ieee_float_arithmetic: keys.ieee_float_arithmetic,
-                    ieee_float_directed_binary: keys.ieee_float_directed_binary,
-                    ieee_float_directed_unary: keys.ieee_float_directed_unary,
-                    ieee_float_unary: keys.ieee_float_unary,
-                    ieee_float_conversion_control: keys.ieee_float_conversion_control,
-                    ieee_float_ternary: keys.ieee_float_ternary,
-                    add_i64: keys.add_i64,
-                    subtract_i64: keys.subtract_i64,
-                    multiply_i64: keys.multiply_i64,
-                    saturating_subtract_unsigned: keys.saturating_subtract_unsigned,
-                    saturating_add_u64: keys.saturating_add_u64,
-                    divide_u64: keys.divide_u64,
-                    remainder_u64: keys.remainder_u64,
-                    remainder_i64: keys.remainder_i64,
-                    divide_i64: keys.divide_i64,
-                    saturating_add_clamped: keys.saturating_add_clamped,
-                    saturating_subtract_clamped: keys.saturating_subtract_clamped,
-                    saturating_divide_signed: keys.saturating_divide_signed,
-                    saturating_multiply_clamped: keys.saturating_multiply_clamped,
-                    saturating_multiply_u64: keys.saturating_multiply_u64,
-                    trapping_binary: keys.trapping_binary,
-                    trapping_fixed_pair: keys.trapping_fixed_pair,
-                    trapping_shift: keys.trapping_shift,
-                    trapping_convert: keys.trapping_convert,
-                    float_result_trapping: keys.float_result_trapping,
-                    float_result_saturating: keys.float_result_saturating,
-                    shift_i64: keys.shift_i64,
-                    add_i64_immediate: keys.add_i64_immediate,
-                    subtract_i64_immediate: keys.subtract_i64_immediate,
-                    compare_i64_zero: keys.compare_i64_zero,
-                    compare_i64: keys.compare_i64,
-                    compare_i64_immediate: keys.compare_i64_immediate,
-                    conditional_branch: keys.conditional_branch,
-                    jump: keys.jump,
-                    return_float: keys.return_float.clone(),
-                    return_i64: keys.return_i64,
-                    return_unit: keys.return_unit,
-                };
-                let mut completed = SelectedConstraintKeys {
-                    rows,
-                    invoke_no_normal: Vec::new(),
-                };
-                completed.invoke_no_normal = completed.ordinary_call_constraints();
-                completed
-            }
         }
 
         fn check_operands(

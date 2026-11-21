@@ -1103,7 +1103,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::LocationAlignment { place, home, .. } => {
+        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::StorageLocation { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 let slot = match place.kind {
                     ExpressionKind::Slot(slot) => Some(slot),
@@ -2849,7 +2849,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::LocationAlignment { .. }
+            | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
@@ -4433,11 +4433,12 @@ impl<'a> Lowering<'a> {
         Ok(Reached::Value(result))
     }
 
-    pub(super) fn location_alignment(
+    pub(super) fn storage_location(
         &mut self,
+        query: terminal_psi::StorageLocationQuery,
         place: &Expression,
         first_element: Option<StructuralTypeId>,
-        count: ScalarType,
+        result: ScalarType,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         let (root, steps) = if let Some(element) = first_element {
@@ -4446,7 +4447,7 @@ impl<'a> Lowering<'a> {
             let zero = Expression {
                 call_context: None,
                 source,
-                result: Some(ValueType::plain(count)),
+                result: Some(ValueType::plain(result)),
                 kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
             };
             let first = continuing!(self.index_step(at.record, element, &zero));
@@ -4469,8 +4470,11 @@ impl<'a> Lowering<'a> {
         };
         self.emit(
             operation,
-            Some(count),
-            OperationKind::StorageAlignment { source: argument },
+            Some(result),
+            match query {
+                terminal_psi::StorageLocationQuery::Address => OperationKind::StorageAddress { source: argument },
+                terminal_psi::StorageLocationQuery::Alignment => OperationKind::StorageAlignment { source: argument },
+            },
         )
         .map(Reached::Value)
     }

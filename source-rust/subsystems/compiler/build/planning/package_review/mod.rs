@@ -13,6 +13,7 @@ mod provider_grants;
 mod provider_rows;
 mod providers;
 mod semantic_bindings;
+mod services;
 mod telescope;
 mod terminal_permissions;
 mod traits;
@@ -83,9 +84,15 @@ impl crate::ProductStage<'_> {
         let input =
             input::PolicySource::checked(&declarations, &sources, evaluation, inputs, profile)?;
         let package = inputs.root();
-        let policy = policy::project(&input, &selected, profile, package, component_assumptions)?;
+        let services = services::identities(
+            input.typed(),
+            input.accepted().module(),
+            input.sources().exact_toolchain_sources(),
+            source_provenance::DependencyScope::Product,
+        )?;
+        let policy = policy::project(&services, &input, &selected, profile, package, component_assumptions)?;
         let (semantic_binding_candidates, target_entry_candidate) =
-            semantic_bindings::candidates(&input, &selected, &policy, profile, package)?;
+            semantic_bindings::candidates(&services, &input, &selected, &policy, profile, package)?;
         let selected_build_machine_identity = evaluation
             .configuration
             .selected_machine_identity(input.typed())?

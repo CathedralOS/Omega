@@ -1,5 +1,6 @@
 //! Only a completely accepted compilation can issue its source for publication.
 mod accepted_closure;
+mod optimization;
 pub use accepted_closure::AcceptedClosure;
 
 use super::verdict::{CompilationRefusal, RouteVerdict, judge_compilation};
@@ -11,6 +12,7 @@ use terminal_check_tables::compilation::CompilationForPublication;
 pub struct CheckedPublication<Input: CompilationForPublication> {
     source: Input::Source,
     accepted: AcceptedCompilation,
+    original_for_diagnostics: Option<Box<AcceptedClosure>>,
 }
 
 impl<Input: CompilationForPublication> CheckedPublication<Input> {
@@ -20,17 +22,54 @@ impl<Input: CompilationForPublication> CheckedPublication<Input> {
         Input::Source,
         Box<AcceptedClosure>,
         Vec<Box<AcceptedClosure>>,
+        Option<Box<AcceptedClosure>>,
     ) {
-        (self.source, self.accepted.closure, self.accepted.additional)
+        (
+            self.source,
+            self.accepted.closure,
+            self.accepted.additional,
+            self.original_for_diagnostics,
+        )
     }
 }
 
 pub fn judge_publication<Input: CompilationForPublication>(
     input: Input,
+    selections: ::optimization::PsiOptimizationSelections,
 ) -> Result<CheckedPublication<Input>, Vec<Diagnostic>> {
     let (program, source) = input.into_program_and_source();
-    let accepted = accept_compilation(judge_compilation(program))?;
-    Ok(CheckedPublication { source, accepted })
+    // Preserve the unsealed lowering only when there is a transformation to run.
+    // Neither run of the checker receives evidence from the other.
+    let candidate = (!selections.is_empty()).then(|| program.clone());
+    let mut accepted = accept_compilation(judge_compilation(program))?;
+    let mut original_for_diagnostics = None;
+    if let Some(candidate) = candidate {
+        let input = terminal_codec::terminal_psi_identity(&accepted.closure.elaboration.module)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        original_for_diagnostics = Some(accepted.closure);
+        drop(accepted.additional);
+        let optimized = optimization::apply(candidate, &selections)?;
+        accepted = accept_compilation(judge_compilation(optimized)).map_err(|mut findings| {
+            for finding in &mut findings {
+                finding.message = format!(
+                    "compiler defect: optimized Psi failed the lowered-form check: {}",
+                    finding.message
+                );
+            }
+            findings
+        })?;
+        let output = terminal_codec::terminal_psi_identity(&accepted.closure.elaboration.module)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        accepted.closure.optimization = Some(
+            terminal_codec::PsiOptimizationExecutionRecord::new(selections, input, output)
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?,
+        );
+    }
+    Ok(CheckedPublication {
+        source,
+        accepted,
+        original_for_diagnostics,
+    })
 }
 
 /// All semantic verdicts accepted. Additional parts supply only their

@@ -76,9 +76,9 @@ machine build_entry() -> u64 { make().len }"
 
 fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
-    crate::lowering::elaborate_generic(&typed, entry).unwrap()
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[]).unwrap();
+    let entry = super::boundary_calls::entry(typed.trees());
+    crate::lowering::elaborate_generic(typed.trees(), entry).unwrap()
 }
 
 #[test]
@@ -141,8 +141,8 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
 
 fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[]).unwrap();
+    let entry = super::boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -647,9 +647,10 @@ fn sized_boundary_program(
 machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
         )),
         &[],
+        &[],
     )
     .unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -706,6 +707,32 @@ machine entry() -> u64 {
     let wrong_byte = array_subject(&different);
     assert!(wrong_byte.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { unproved, .. })
         if !unproved.is_empty())), "{wrong_byte:?}");
+}
+
+#[test]
+fn a_generic_array_implementation_can_return_one_of_its_elements() {
+    let typed = crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(
+            "boundary trait Elements {
+                machine last<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
+                    reaches none requires Count > 0 crashes none;
+            }
+            Selected satisfies Elements {
+                machine last<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
+                    requires Count > 0 { items[Count - 1] }
+            }
+            machine entry() {}",
+        ),
+        &[],
+        &[],
+    )
+    .unwrap();
+    let verdicts = super::boundary_calls::compilation_results_for_subjects(&typed, &[None]);
+    assert!(
+        verdicts.len() > 1,
+        "the requirement and its implementation must be checked"
+    );
+    assert!(verdicts.iter().all(accepted), "{verdicts:?}");
 }
 
 #[test]

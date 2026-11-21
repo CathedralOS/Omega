@@ -268,8 +268,8 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/inferred_branch_inputs/main.omg"
     ));
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
-    let entry = super::build_purpose::symbol(&typed, "main");
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
+    let entry = super::build_purpose::symbol(typed.trees(), "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         super::build_purpose::roster(

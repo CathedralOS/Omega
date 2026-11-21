@@ -703,12 +703,11 @@ pub fn reference_loan_parent<'a>(
 ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
     match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
         BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
-        BorrowedLoanSource::Incoming => Ok(None),
+        // Both resources were authenticated above and neither was formed by a
+        // local loan obligation. Provider keepalive dependencies have their own ends.
+        BorrowedLoanSource::Incoming | BorrowedLoanSource::Provider => Ok(None),
         BorrowedLoanSource::Owner => {
             Err("owned view backing is not an incoming reference occurrence")
-        }
-        BorrowedLoanSource::Provider => {
-            Err("provider backing is not an incoming reference occurrence")
         }
     }
 }
@@ -1226,7 +1225,7 @@ pub fn reference_call_lifetimes(
                             "selected reference input unexpectedly uses provider storage",
                         ));
                     };
-                    usize::try_from(argument_index).map_err(|_| {
+                    usize::try_from(argument_index).map(Some).map_err(|_| {
                         refuse("selected reference input ordinal exceeds host positions")
                     })
                 })
@@ -1238,11 +1237,10 @@ pub fn reference_call_lifetimes(
                 .sources
                 .iter()
                 .map(|origin| {
-                    let formal = origin.parameter().ok_or_else(|| {
-                        refuse("returned reference has no formal input origin")
-                    })?;
-                    terminal_psi::structural_parameter_position(parameters, formal.place)
-                        .ok_or_else(|| refuse("returned reference names no formal input"))
+                    origin.parameter().map(|formal|
+                        terminal_psi::structural_parameter_position(parameters, formal.place)
+                            .ok_or_else(|| refuse("returned reference names no formal input"))
+                    ).transpose()
                 })
                 .collect::<Result<Vec<_>, _>>()?
         };
@@ -1260,14 +1258,13 @@ pub fn reference_call_lifetimes(
         )
         .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
         for (position, bound) in source_positions.into_iter().zip(binding.sources) {
-            let ReferenceCallOrigin::Parameter {
-                source,
-                transfers_existing,
-            } = bound.origin
-            else {
-                return Err(refuse(
-                    "returned invocation reference needs its admitted resource",
-                ));
+            let (position, source, transfers_existing) = match (position, bound.origin) {
+                (Some(position), ReferenceCallOrigin::Parameter { source, transfers_existing }) =>
+                    (position, source, transfers_existing),
+                // The producing call establishes its own address. Its reconstructed
+                // provider debts below still retain every required input loan.
+                (None, ReferenceCallOrigin::Invocation { .. }) => continue,
+                _ => return Err(refuse("returned reference binding changes its origin")),
             };
             if transfers_existing {
                 // The existing descriptor flow transports that input

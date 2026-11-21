@@ -1,11 +1,10 @@
 # nominal_callback_reach
 
-A nominal `satisfies`-bound machine binder contributes its selected callback's
-reach row and exact result through a generic traversal. `walk<Step>` binds
-`Step` to `bump` under `StepContract::step`; the same fact is transported
-through all nine places: the callback's value arrives as a local binding, a
-record field, a callee parameter, a call result, a match join arm, a const-named
-argument, another state, another machine, and per-target caller bodies.
+The parameter `const Step: StepContract::step` carries the selected callback's
+reach and result through a generic traversal. `walk::<bump>` selects the
+implementation. The nine cases carry the callback's value through a local
+binding, a record field, a callee parameter, a call result, a match join arm,
+a const-named argument, another state, another machine, and per-target caller bodies.
 
 Parent task: STATIC-CALLBACK-REACH-RETENTION — the closed reach application
 retains the original binder telescope, the nominal requirement identity, the
