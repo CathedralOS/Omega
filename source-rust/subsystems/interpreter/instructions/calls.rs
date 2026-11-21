@@ -3382,7 +3382,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                 reason: "opaque host provider requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt",
             });
         }
-        let requirements = handler.storage_requirements(boundary, &scalar_arguments);
+        // The evaluator owns an issued snapshot. Its shared argument requires
+        // no host storage, readiness, or externally visible effect.
+        let layout_snapshot =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|declaration| {
+                    declaration.execution
+                        == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+                });
+        let requirements = if layout_snapshot {
+            Default::default()
+        } else {
+            handler.storage_requirements(boundary, &scalar_arguments)
+        };
         let original_storage = requirements.original;
         let mut boundary_arguments = self
             .resolve_boundary_arguments(
@@ -3478,13 +3492,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             remaining_claims,
             effect,
         };
-        if boundary_declaration
-            .declaration
-            .as_ref()
-            .is_some_and(|row| {
-                row.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
-            })
-        {
+        if layout_snapshot {
             return self.complete_boundary_effect(operation, handler, pending);
         }
         if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
@@ -3560,12 +3568,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         } = pending;
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(boundary)?;
-        let returned = if boundary_declaration
-            .declaration
-            .as_ref()
-            .is_some_and(|row| {
-                row.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
-            }) {
+        let layout_snapshot =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|declaration| {
+                    declaration.execution
+                        == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+                });
+        let returned = if layout_snapshot {
             self.issued_layout_target
                 .as_ref()
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -3695,7 +3706,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             .map_err(|error| error.in_argument_preparation("commit captured host storage"))?;
         let loan_completions = self.loan_completions_for_operation(operation.id)?;
         self.complete_loan_custody(&loan_completions)?;
-        self.effects.push(effect);
+        if !layout_snapshot {
+            self.effects.push(effect);
+        }
         Ok(OperationFlow::Advance)
     }
 
