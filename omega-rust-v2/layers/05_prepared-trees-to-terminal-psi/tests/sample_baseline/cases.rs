@@ -167,9 +167,9 @@ impl Expectation {
 }
 
 pub const MISSING_IMPORT: &str = "L2\tmain.omg:4:30\tunresolved name A";
-/// Ratified decision `no-data-code-attachment` retires `machine Main::main`.
-pub const CROSS_WIDTH_OWNER: &str = "L2\tmain.omg:20:9\ta data carrier cannot own a machine";
-pub const RATIONAL_LANDING_OWNER: &str = "L2\tmain.omg:25:9\ta data carrier cannot own a machine";
+/// The historical receivers use the retired `@mut Main` spelling.
+const CROSS_WIDTH_RECEIVER: &str = "L1\tmain.omg:20:31\texpected `,` or `)` (bytes 497..501)";
+const RATIONAL_LANDING_RECEIVER: &str = "L1\tmain.omg:25:31\texpected `,` or `)` (bytes 742..746)";
 /// The pinned premise samples use V1's `crash Trap;`, which the V2 parser refuses on purpose.
 pub const ABSTRACT_PREMISE_CRASH: &str = "L1\tmain.omg:37:27\texpected `;` (bytes 772..776)";
 /// The `false` premise is one byte longer, so the same token starts one byte later.
@@ -178,8 +178,8 @@ pub const ABSTRACT_PREMISE_V2: (&str, &[u8]) = ("main.omg", include_bytes!("../f
 pub const FALSE_ABSTRACT_PREMISE_V2: (&str, &[u8]) = ("main.omg", include_bytes!("../fixtures/abstract_signature_call/invalid_local/main.omg"));
 pub const IMPORT_A: (&str, &[u8]) = ("m/a.omg", include_bytes!("../fixtures/direct_file_imports/m/a.omg"));
 pub const IMPORT_B: (&str, &[u8]) = ("m/b.omg", include_bytes!("../fixtures/direct_file_imports/m/b.omg"));
-/// The historical sample imports `m\a` by its filename. A filename names no namespace component.
-pub const FILE_IMPORT: &str = "L2\tm/b.omg:1:5\tunavailable import m\\a";
+/// Parsing the historical receiver precedes resolving the sample’s filename import.
+const DIRECT_IMPORT_RECEIVER: &str = "L1\tmain.omg:13:31\texpected `,` or `)` (bytes 285..289)";
 /// The historical sample imports the dependency file `other.omg` by its name under the admitted alias.
 pub const DEPENDENCY_FILE_IMPORT: &str = "L2\tmain.omg:3:5\tunavailable import kit\\other";
 /// The lawful twin's import when `kit` does not select `mod_kernel`.
@@ -428,7 +428,7 @@ const HOST_START: &str = r"linux_x86_64\ProgramEntry, entry_start)";
 const FREESTANDING: &str = "builder.freestanding = true;";
 const DIRECT: &str = "probes/direct_file_imports";
 pub const NONMAIN: &str = "probes/build_nonmain_module";
-const KIT_ALIAS: &str = r#"with_alias(@mutable kit_dependency, "kit")"#;
+const KIT_ALIAS: &str = r#"with_alias(@mut kit_dependency, "kit")"#;
 const DEPENDENCY: &str = "mod_kernel";
 const DEPENDENCY_PACKAGE: &str = r#"Build::package(builder, "mod_kernel")"#;
 /// `probes/build_nonmain_module/build.omg` registers `dep` under the alias `kit`.
@@ -476,7 +476,7 @@ pub const CASES: &[Case] = &[
         migrated: None,
         configuration: HOST_START,
         dependencies: &[],
-        expectation: Expectation::MustRefuse(CROSS_WIDTH_OWNER),
+        expectation: Expectation::MustRefuse(CROSS_WIDTH_RECEIVER),
     },
     Case {
         id: "rational-landing",
@@ -485,7 +485,7 @@ pub const CASES: &[Case] = &[
         migrated: None,
         configuration: HOST_START,
         dependencies: &[],
-        expectation: Expectation::MustRefuse(RATIONAL_LANDING_OWNER),
+        expectation: Expectation::MustRefuse(RATIONAL_LANDING_RECEIVER),
     },
     // The same programs with `Main::main` declared as the free machine `main` and the
     // unimported `Wrapping` removed from the unread `hits` counter.
@@ -514,7 +514,7 @@ pub const CASES: &[Case] = &[
         migrated: None,
         configuration: FREESTANDING,
         dependencies: &[],
-        expectation: Expectation::MustRefuse(FILE_IMPORT),
+        expectation: Expectation::MustRefuse(DIRECT_IMPORT_RECEIVER),
     },
     Case {
         id: "direct-imports-v2",
