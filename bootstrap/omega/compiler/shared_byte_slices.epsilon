@@ -422,7 +422,7 @@ machine OmegaScalarCompiler::slice_length_parameter(
         }
     }
     state metadata(row: OmegaExpressionSyntax, name: OmegaRelativeSpan) {
-        transition self.span_equals(source, name.start, name.end, "len") {
+        transition self.span_equals(source, name.start, name.end, "length") {
             1 -> return self.shared_slice_formal(source, state_index, before, self.parser.members[row.payload0])
             _ -> return -1
         }

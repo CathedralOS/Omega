@@ -103,13 +103,13 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p(name:@[u8]) {transition name != \".\" && name != \"\\xG0\" {true->pass(), _->fail()} machine pass() {} machine fail() {}}");
     self.check_lexical_failure();
 
-    self.parser.parse_view("machine p(path:@[u8],start:u64,index:u64) requires start <= index, index <= path.len {}");
+    self.parser.parse_view("machine p(path:@[u8],start:u64,index:u64) requires start <= index, index <= path.length {}");
     self.check_complete();
     self.check_state_requirement_range(0, 0, 2);
     assert self.parser.binary_expression_count == 2;
     assert self.parser.requirements[0].end == 65;
     assert self.parser.requirements[1].start == 67;
-    assert self.parser.requirements[1].end == 84;
+    assert self.parser.requirements[1].end == 87;
     let relation: OmegaBinaryExpressionSyntax = self.parser.binary_expressions[0];
     assert self.parser.members[self.parser.expressions[relation.left].payload0].start == 51;
     assert self.parser.members[self.parser.expressions[relation.right].payload0].start == 60;

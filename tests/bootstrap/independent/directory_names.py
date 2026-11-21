@@ -208,8 +208,8 @@ def invokes_cases(packet):
 
 def quoted_byte_cases(packet):
     # Read through the descriptor at runtime, including an empty view with no byte to read.
-    first = (b"machine first(s:@[u8])->u8{transition s.len>0{true->yes(s),_->0}"
-             b"machine yes(s:@[u8])->u8 requires s.len>0{s[0]}}")
+    first = (b"machine first(s:@[u8])->u8{transition s.length>0{true->yes(s),_->0}"
+             b"machine yes(s:@[u8])->u8 requires s.length>0{s[0]}}")
     for name, literal, expected in [
         ("ascii", b'"."', 46), ("empty", b'""', 0), ("nul", br'"\0"', 0),
         ("tab", br'"\t"', 9), ("hex", br'"\xFF"', 255), ("utf8", '"é"'.encode(), 195),
@@ -222,7 +222,7 @@ def quoted_byte_cases(packet):
     caller = b'machine main()->u8{read("A")}'
     later = first + b'machine read(s:@[u8])->u8{first("B")}'
     yield "quoted-image-cross-unit", packet([caller, later], ["main.omg", "later.omg"])[0], 66
-    index = b"machine read(s:@[u8],i:u64)->u8 requires i<s.len{s[i]}"
+    index = b"machine read(s:@[u8],i:u64)->u8 requires i<s.length{s[i]}"
     yield "quoted-image-required-length", packet([b'machine main()->u8{read("ab",1)}' + index], ["main.omg"])[0], 98
 
     # Both complete product helpers use their original contracts and nested machines.
@@ -499,12 +499,12 @@ machine main()->u8{
 
 def evaluated_guard_cases(encode):
     array = (b"machine main()->u8{let bytes:[u8;1]=[42];choose(@bytes[..],0)}"
-             b"machine inspect(bytes:@[u8])->bool{bytes.len>0}")
+             b"machine inspect(bytes:@[u8])->bool{bytes.length>0}")
     signature = b"machine choose(bytes:@[u8],i:u64)->u8 "
     transfer = b"{transition inspect(bytes){true->read(bytes,i),_ ->0}"
-    read = b"machine read(bytes:@[u8],i:u64)->u8 requires i<bytes.len {bytes[i]}}"
+    read = b"machine read(bytes:@[u8],i:u64)->u8 requires i<bytes.length {bytes[i]}}"
     cases = [
-        ("guard-call-preserved-slice", signature + b"requires i<bytes.len " + transfer + read + array, 42),
+        ("guard-call-preserved-slice", signature + b"requires i<bytes.length " + transfer + read + array, 42),
         ("guard-call-without-bound", signature + transfer + read + array, (2, b"machine choose")),
     ]
     header = (b"data Cell{value:u8;}"
@@ -693,9 +693,9 @@ def parameter_order_cases(encode):
     # The original build-path scanner passes both relations together. The
     # strict byte reader needs fresh evidence before it may index at an endpoint.
     signature = b"machine scan(path:@[u8],start:u64,index:u64)->u8 "
-    bounded = b"requires start<=index && index<=path.len "
-    reader = b"machine byte(path:@[u8],start:u64,index:u64)->u8 requires start<=index && index<path.len {path[index]}"
-    dispatcher = signature + bounded + b"{transition index<path.len {true->byte(path,start,index),_ ->7}" + reader + b"}"
+    bounded = b"requires start<=index && index<=path.length "
+    reader = b"machine byte(path:@[u8],start:u64,index:u64)->u8 requires start<=index && index<path.length {path[index]}"
+    dispatcher = signature + bounded + b"{transition index<path.length {true->byte(path,start,index),_ ->7}" + reader + b"}"
     entry = b"machine main()->u8{let path:[u8;1]=[42];scan(@path[..],0,0)}"
     samples = [
         ("order-slice-first-byte", dispatcher + entry, 42),
@@ -724,10 +724,10 @@ def parameter_order_cases(encode):
                     receiver.replace(b"a<=b", b"a<b") + main, (2, b"machine pass")))
     samples.append(("order-scalar-effectful-argument", caller + b"requires x<=y {take(x,copy(y))}" + receiver +
                     b"machine copy(n:u64)->u64{n}" + main, (2, b"machine pass")))
-    two = b"machine choose(left:@[u8],right:@[u8],n:u64)->u8 requires n<=left.len {"
+    two = b"machine choose(left:@[u8],right:@[u8],n:u64)->u8 requires n<=left.length {"
     two_entry = (b"machine main()->u8{let a:[u8;1]=[42];let b:[u8;1]=[7];"
                  b"choose(@a[..],@b[..],1)}")
-    end = b"machine end(path:@[u8],n:u64)->u8 requires n<=path.len {42}"
+    end = b"machine end(path:@[u8],n:u64)->u8 requires n<=path.length {42}"
     samples.append(("order-slice-forward", two + b"end(left,n)}" + end + two_entry, 42))
     samples.append(("order-slice-wrong-length", two + b"end(right,n)}" + end + two_entry,
                     (2, b"machine choose")))
@@ -762,7 +762,7 @@ def parameter_order_cases(encode):
     samples.append(("order-u32-last-successor", top, 42))
     mixed = b"machine wrong(unit:u8,limit:u32)->u8 requires unit<limit {42}machine main()->u8{wrong(0,1)}"
     samples.append(("order-unsigned-carrier-mismatch", mixed, (2, b"machine wrong")))
-    narrow = b"machine wrong(path:@[u8],index:u32)->u8 requires index<path.len {42}" + entry.replace(b"scan(@path[..],0,0)", b"wrong(@path[..],0)")
+    narrow = b"machine wrong(path:@[u8],index:u32)->u8 requires index<path.length {42}" + entry.replace(b"scan(@path[..],0,0)", b"wrong(@path[..],0)")
     samples.append(("order-narrow-index-slice-length", narrow, (2, b"machine wrong")))
     for name, source, expected in samples:
         packet, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
@@ -797,7 +797,7 @@ def storage_window_cases(encode):
         ("storage-record-last-valid", b"data Region{left:[u8;536870912];right:[u8;536870912];}machine main()->u8{42}"),
         ("storage-payload-last-valid", b"data Region [copy]{case Value(bytes:[u8;1073741816]);}machine main()->u8{42}"),
         ("storage-arena-last-valid", b"data Reserve [copy]{bytes:[u8;1073741808];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}"),
-        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.len>=2 {bytes[1]}machine main()->u8{let mut b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
+        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.length>=2 {bytes[1]}machine main()->u8{let mut b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
     ]:
         yield name, packet(source)[0], 42
 
@@ -871,7 +871,7 @@ def nominal_array_cases(encode):
     yield "forward-product-emitter-arrays", data, 42
 
     storage = b"public data Packet{bytes:[u8;9];tail:u64;}"
-    length = b"public machine length(bytes:@[u8])->u64{bytes.len}"
+    length = b"public machine length(bytes:@[u8])->u64{bytes.length}"
     for name, end in [("borrow-retained-byte-array", b"9"), ("borrow-past-retained-byte-array", b"10")]:
         main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mut p:Packet;p.bytes[8]=42;p.tail=77;"
                 b"let n:u64=length(@p.bytes[7.." + end + b"]);"
@@ -1087,25 +1087,25 @@ def data_lifetime_cases(packet):
 def slice_conjunction_sources():
     signature = b"machine choose(left:@[u8],right:@[u8],index:u64)->u8{transition "
     read = (b"machine read(left:@[u8],right:@[u8],index:u64)->u8 "
-            b"requires index<left.len && index<right.len {left[index]}} ")
+            b"requires index<left.length && index<right.length {left[index]}} ")
     main = (b"machine main()->u8{let left:[u8;1]=[42];let right:[u8;1]=[9];"
             b"let answer:u8=choose(@left[..],@right[..],0);answer}")
     guards = [
-        ("slice-guard-conjunction", b"index<left.len && index<right.len", 42),
-        ("slice-guard-reversed-conjunction", b"index<right.len && index<left.len", 42),
-        ("slice-guard-nested-conjunction", b"true && (index<left.len && index<right.len)", 42),
-        ("slice-guard-disjunction", b"index<left.len || index<right.len", (2, b"machine choose")),
-        ("slice-guard-wrong-slice", b"index<left.len && index<left.len", (2, b"machine choose")),
+        ("slice-guard-conjunction", b"index<left.length && index<right.length", 42),
+        ("slice-guard-reversed-conjunction", b"index<right.length && index<left.length", 42),
+        ("slice-guard-nested-conjunction", b"true && (index<left.length && index<right.length)", 42),
+        ("slice-guard-disjunction", b"index<left.length || index<right.length", (2, b"machine choose")),
+        ("slice-guard-wrong-slice", b"index<left.length && index<left.length", (2, b"machine choose")),
     ]
     for name, guard, expected in guards:
         source = signature + guard + b"{true->read(left,right,index),_ ->0}" + read + main
         yield name, source, expected
-    source = (signature + b"index<left.len && index<right.len{true->0,_ ->read(left,right,index)}" + read + main)
+    source = (signature + b"index<left.length && index<right.length{true->0,_ ->read(left,right,index)}" + read + main)
     yield "slice-guard-false-arm", source, (2, b"machine choose")
-    source = (signature + b"index<left.len && index<right.len{true->read(left,right,index),_ ->0}" + read + main)
+    source = (signature + b"index<left.length && index<right.length{true->read(left,right,index),_ ->0}" + read + main)
     yield "slice-guard-empty-right", source.replace(b"@right[..]", b"@right[0..0]"), 0
     signature_other = b"machine choose(left:@[u8],right:@[u8],index:u64,other:u64)->u8{transition "
-    source = (signature_other + b"index<left.len && index<right.len{true->read(left,right,other),_ ->0}" + read + main.replace(b"@right[..],0)", b"@right[..],0,0)"))
+    source = (signature_other + b"index<left.length && index<right.length{true->read(left,right,other),_ ->0}" + read + main.replace(b"@right[..],0)", b"@right[..],0,0)"))
     yield "slice-guard-wrong-index", source, (2, b"machine choose")
 
 
@@ -1133,32 +1133,32 @@ def slice_successor_sources():
                   b");transition equal{true->42,_ ->7}}")
         yield "slice-successor-product-path-" + name, source, expected
 
-    prefix = b"machine next_index(items:@[u8],index:u64)->u64 requires index<items.len {"
+    prefix = b"machine next_index(items:@[u8],index:u64)->u64 requires index<items.length {"
     call = (b"machine main()->u8{let bytes:[u8;2]=[41,42];"
             b"let result:u64=next_index(@bytes[..],0);transition result==1{true->42,_ ->7}}")
     yield "slice-successor-first", prefix + b"index+1}" + call, 42
     yield "slice-successor-last", (prefix + b"index+1}" + call).replace(b"@bytes[..],0)", b"@bytes[..],1)").replace(b"result==1", b"result==2"), 42
     yield "slice-successor-two", prefix + b"index+2}" + call, (2, b"+2")
-    yield "slice-successor-unbounded", (prefix + b"index+1}" + call).replace(b"requires index<items.len ",b""), (2, b"+1")
+    yield "slice-successor-unbounded", (prefix + b"index+1}" + call).replace(b"requires index<items.length ",b""), (2, b"+1")
     wrong = (prefix + b"other+1}" + call).replace(b"index:u64)",b"index:u64,other:u64)").replace(b"@bytes[..],0)",b"@bytes[..],0,0)")
     yield "slice-successor-wrong-index", wrong, (2, b"+1")
-    inclusive = (prefix + b"index+1}" + call).replace(b"index<items.len",b"index<=items.len")
+    inclusive = (prefix + b"index+1}" + call).replace(b"index<items.length",b"index<=items.length")
     yield "slice-successor-inclusive", inclusive, (2, b"+1")
-    read = (b"machine read(items:@[u8],index:u64)->u8 requires index<items.len {items[index+1]} "
+    read = (b"machine read(items:@[u8],index:u64)->u8 requires index<items.length {items[index+1]} "
             b"machine main()->u8{let bytes:[u8;1]=[42];let result:u8=read(@bytes[..],0);result}")
     yield "slice-successor-is-not-an-index-proof", read, (2, b"items[index")
 
 
 def successor_order_sources():
     prefix = (b"machine step(path:@[u8],start:u64,index:u64)->u8 "
-              b"requires start<=index && index<path.len {transition {_->finish(path,")
+              b"requires start<=index && index<path.length {transition {_->finish(path,")
     callee = b"machine finish(path:@[u8],a:u64,b:u64)->u8 requires "
     entry = b"machine main()->u8{let path:[u8;1]=[42];step(@path[..],0,0)}"
     for name, args, condition, expected in [
-        ("slice-successor-endpoint", b"start,index+1", b"a<b && b<=path.len", 42),
-        ("slice-successor-equal-endpoints", b"index+1,index+1", b"a<=b && b<=path.len", 42),
+        ("slice-successor-endpoint", b"start,index+1", b"a<b && b<=path.length", 42),
+        ("slice-successor-equal-endpoints", b"index+1,index+1", b"a<=b && b<=path.length", 42),
         ("slice-successor-equal-is-not-strict", b"index+1,index+1", b"a<b", (2, b"machine step")),
-        ("slice-successor-cannot-read-end", b"start,index+1", b"b<path.len", (2, b"machine step")),
+        ("slice-successor-cannot-read-end", b"start,index+1", b"b<path.length", (2, b"machine step")),
         ("slice-successor-order-reversed", b"index+1,start", b"a<=b", (2, b"machine step")),
     ]:
         yield name, prefix + args + b")}" + callee + condition + b"{42}}" + entry, expected
