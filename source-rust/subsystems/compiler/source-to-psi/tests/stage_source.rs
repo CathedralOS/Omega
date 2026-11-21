@@ -198,6 +198,23 @@ fn const_service_terms_are_values_in_the_callers_scope() {
 }
 
 #[test]
+fn a_generic_call_forwards_the_callers_const_service_argument() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Sensor<const Id: u64> {
+            machine read() -> u64 reaches Sensor<Id> crashes none;
+        }
+        public machine poll<const K: u64>() -> u64 reaches Sensor<K> crashes none { Sensor::<K>::read() }
+        public machine first() -> u64 reaches Sensor<17u64> crashes none { poll::<17u64>() }
+        public machine second() -> u64 reaches Sensor<29u64> crashes none { poll::<29u64>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace("second() -> u64 reaches Sensor<29u64>", "second() -> u64 reaches Sensor<17u64>");
+    let (files, root) = captured(package, &wrong);
+    assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
 fn invocation_ceiling_follows_callable_parameter_aliases() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let check = |ceiling: &str, body: &str| {
