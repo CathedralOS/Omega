@@ -109,7 +109,16 @@ fn check_shared_product(
     };
     assert_eq!(&body.diagnostics.operations[recast.id.index()], site);
     assert_eq!(source.root, cell);
-    assert!(matches!(source.path.as_slice(), [PlaceProjection::Referent, PlaceProjection::Field(f)] if f.path == "Cell::value"));
+    let [PlaceProjection::Referent, PlaceProjection::Field(field)] = source.path.as_slice() else {
+        panic!("the borrow projects a field through the record reference")
+    };
+    assert_eq!(field.path, "Cell::value");
+    let Some(TypeShape::NominalReference { referent: owner, access: ReferenceAccess::Shared }) = pkg.types.get(body.places[cell.index()].ty) else {
+        panic!("the root is a shared record reference")
+    };
+    let record = pkg.data.iter().find(|data| data.id == *owner).expect("borrowed record");
+    let backing = record.fields.iter().find(|f| f.declaration == *field).expect("field belongs to the borrowed record");
+    assert_eq!(pkg.types.get(backing.carrier), Some(&TypeShape::PrimitiveScalar(source_referent)), "stored scalar behind the borrow");
     let OperationResult::Structural(borrowed) = borrow.result else {
         panic!("a borrow yields a descriptor")
     };
@@ -129,13 +138,14 @@ fn check_shared_product(
         Some((destination_referent, ReferenceAccess::Shared))
     );
     let BlockTerminator::Return {
-        result: ReturnEdge::Structural { source, .. },
+        result: ReturnEdge::Structural { source, result },
         ..
     } = body.blocks[0].terminator
     else {
         panic!("the recast view is returned")
     };
     assert_eq!(source, view);
+    assert_eq!(body.places[result.index()].origin, omega_lowering::PlaceOrigin::Result, "return transfers the view into the result home");
     (from, to)
 }
 
