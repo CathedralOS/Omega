@@ -1460,9 +1460,7 @@ fn const_argument(
     reference: crate::source_state::types::TypeReferenceHandle,
 ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
     use crate::source_state::data::TypeParameterKind;
-    use crate::source_state::expression::ExpressionNode;
     use application_identity::const_value::CanonicalConstValue;
-    use application_identity::const_value::DecodedCanonicalConstValue;
 
     let parameter = typed
         .data_type_parameter_by_symbol(binder)
@@ -1510,18 +1508,7 @@ fn const_argument(
         .primitive_type_reference(type_reference)
         .ok_or("an application's value binder needs its admitted scalar carrier")?;
     let value = typed.static_operand_from_type_reference(reference)?;
-    let decoded = match typed.prepare_callable_scalar_argument(primitive, &value)? {
-        ExpressionNode::Integer(literal) => DecodedCanonicalConstValue::Integer {
-            integer_type: primitive
-                .landed_landing_fixed()
-                .ok_or("an application's integer binding has no admitted carrier")?,
-            value: literal
-                .value_bignum()
-                .ok_or("an application's integer binding has no canonical value")?,
-        },
-        ExpressionNode::Boolean(value) => DecodedCanonicalConstValue::Boolean(value),
-        _ => return Err("an application's value binding has no admitted scalar value"),
-    };
+    let decoded = typed.callable_scalar_value(primitive, &value)?;
     let mut value = CanonicalConstValue::from_decoded(&decoded, "")
         .ok_or("an application's value binding has no canonical encoding")?;
     // The outer type names the exact source binder. The encoding retains the
