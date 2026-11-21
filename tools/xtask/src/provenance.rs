@@ -47,6 +47,9 @@ use std::time::SystemTime;
 use serde_json::Value;
 
 use crate::repo_root;
+use transcript::{Format, Transcript};
+
+mod transcript;
 
 #[derive(Debug, Default)]
 struct SessionMetrics {
@@ -231,12 +234,9 @@ struct PendingCall {
 }
 
 fn claude_pending_provenance_call(path: &Path) -> Option<PendingCall> {
-    let content = fs::read_to_string(path).ok()?;
+    let mut transcript = Transcript::open(path).ok()?;
     let mut pending: Option<(String, PendingCall)> = None;
-    for line in content.lines() {
-        let Ok(val) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
+    while let Some(val) = transcript.next_record().ok()? {
         let Some(blocks) = val["message"]["content"].as_array() else {
             continue;
         };
@@ -284,7 +284,15 @@ fn select_claude_transcript(home: &Path, root: &Path) -> Result<PathBuf, String>
     if running.len() > 1 {
         let root_text = root.to_string_lossy();
         running.retain(|(_, call)| {
-            call.command.contains(root_text.as_ref()) || Path::new(&call.cwd).starts_with(root)
+            let in_checkout = |path: &Path| {
+                path.is_absolute()
+                    && (path.starts_with(root)
+                        || path.canonicalize().is_ok_and(|path| path.starts_with(root)))
+            };
+            call.command.contains(root_text.as_ref())
+                || in_checkout(Path::new(&call.cwd))
+                || shlex::split(&call.command)
+                    .is_some_and(|words| words.iter().any(|word| in_checkout(Path::new(word))))
         });
     }
     let session = session_id
@@ -375,17 +383,14 @@ fn claude_human_message(val: &Value) -> bool {
         .any(|tag| text.starts_with(tag))
 }
 
-fn codex_transcript_matches_thread(path: &Path, thread_id: &str) -> bool {
-    if !path
-        .file_stem()
+fn codex_filename_matches(path: &Path, thread_id: &str) -> bool {
+    path.file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| {
-            name.strip_suffix(thread_id)
-                .is_some_and(|prefix| prefix.ends_with('-'))
-        })
-    {
-        return false;
-    }
+        .and_then(|name| name.strip_suffix(thread_id))
+        .is_some_and(|prefix| prefix.ends_with('-'))
+}
+
+fn codex_header_matches(path: &Path, thread_id: &str) -> bool {
     let Ok(file) = fs::File::open(path) else {
         return false;
     };
@@ -408,14 +413,23 @@ fn find_codex_transcript(home: &Path, thread_id: Option<&str>) -> Option<(PathBu
             continue;
         };
         for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() || (kind.is_symlink() && entry.path().is_dir()) {
+                stack.push(entry.path());
+                continue;
+            }
+            let name = entry.file_name();
+            let name = Path::new(&name);
+            if name.extension().and_then(|ext| ext.to_str()) != Some("jsonl")
+                || thread_id.is_some_and(|id| !codex_filename_matches(name, id))
+            {
+                continue;
+            }
             let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl")
-                && thread_id
-                    .is_none_or(|thread_id| codex_transcript_matches_thread(&path, thread_id))
-                && let Ok(meta) = fs::metadata(&path)
-                && let Ok(modified) = meta.modified()
+            if thread_id.is_none_or(|id| codex_header_matches(&path, id))
+                && let Ok(modified) = fs::metadata(&path).and_then(|meta| meta.modified())
                 && newest.as_ref().is_none_or(|(_, t)| modified > *t)
             {
                 newest = Some((path, modified));
@@ -461,10 +475,7 @@ fn extract_antigravity_settings_model(content: &str) -> Option<(String, String)>
 }
 
 fn parse_antigravity_transcript(path: &Path, since_epoch: Option<i64>) -> Option<SessionMetrics> {
-    let content = fs::read_to_string(path).ok()?;
-    if !content.contains("\"PLANNER_RESPONSE\"") && !content.contains("\"USER_INPUT\"") {
-        return None;
-    }
+    let mut transcript = Transcript::open(path).ok()?;
     let mut metrics = SessionMetrics {
         agent: "Antigravity".to_owned(),
         model: String::new(),
@@ -475,10 +486,7 @@ fn parse_antigravity_transcript(path: &Path, since_epoch: Option<i64>) -> Option
     let mut window_user_inputs = 0u64;
     let mut prev_ts: Option<i64> = None;
 
-    for line in content.lines() {
-        let Ok(val) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
+    while let Some(val) = transcript.next_record().ok()? {
         if val["type"].as_str() == Some("USER_INPUT")
             && let Some(text) = val["content"].as_str()
             && let Some((m, e)) = extract_antigravity_settings_model(text)
@@ -528,7 +536,9 @@ fn parse_antigravity_transcript(path: &Path, since_epoch: Option<i64>) -> Option
         }
     }
 
-    if metrics.steps == 0 && since_epoch.is_some() {
+    if transcript.format() != Some(Format::Antigravity)
+        || (metrics.steps == 0 && since_epoch.is_some())
+    {
         return None;
     }
 
@@ -550,10 +560,7 @@ fn parse_claude_transcript(
     home: Option<&Path>,
     since_epoch: Option<i64>,
 ) -> Option<SessionMetrics> {
-    let content = fs::read_to_string(path).ok()?;
-    if !content.contains("\"api-request\"") && !content.contains("\"parentUuid\"") {
-        return None;
-    }
+    let mut transcript = Transcript::open(path).ok()?;
     // Claude Code exports the session's effort to its tools' environment;
     // `api-request` records, when present, still override it below.
     let default_effort = std::env::var("CLAUDE_EFFORT")
@@ -572,10 +579,7 @@ fn parse_claude_transcript(
     let mut counted_responses = std::collections::HashSet::new();
     let mut prev_ts: Option<i64> = None;
 
-    for line in content.lines() {
-        let Ok(val) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
+    while let Some(val) = transcript.next_record().ok()? {
         if val["attachment"]["type"].as_str() == Some("model")
             && let Some(m) = val["attachment"]["identity"]["modelId"].as_str()
         {
@@ -637,7 +641,8 @@ fn parse_claude_transcript(
         }
     }
 
-    if metrics.steps == 0 && since_epoch.is_some() {
+    if transcript.format() != Some(Format::Claude) || (metrics.steps == 0 && since_epoch.is_some())
+    {
         return None;
     }
 
@@ -647,10 +652,7 @@ fn parse_claude_transcript(
 }
 
 fn parse_codex_transcript(path: &Path, since_epoch: Option<i64>) -> Option<SessionMetrics> {
-    let content = fs::read_to_string(path).ok()?;
-    if !content.contains("\"session_meta\"") && !content.contains("\"turn_context\"") {
-        return None;
-    }
+    let mut transcript = Transcript::open(path).ok()?;
     let mut metrics = SessionMetrics {
         agent: "Codex".to_owned(),
         model: String::new(),
@@ -660,10 +662,7 @@ fn parse_codex_transcript(path: &Path, since_epoch: Option<i64>) -> Option<Sessi
     let mut window_user_inputs = 0u64;
     let mut prev_ts: Option<i64> = None;
 
-    for line in content.lines() {
-        let Ok(val) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
+    while let Some(val) = transcript.next_record().ok()? {
         if val["type"].as_str() == Some("turn_context") {
             let payload = &val["payload"];
             if let Some(m) = payload["model"]
@@ -727,7 +726,7 @@ fn parse_codex_transcript(path: &Path, since_epoch: Option<i64>) -> Option<Sessi
         }
     }
 
-    if metrics.steps == 0 && since_epoch.is_some() {
+    if transcript.format() != Some(Format::Codex) || (metrics.steps == 0 && since_epoch.is_some()) {
         return None;
     }
 
@@ -794,10 +793,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let home = home_dir();
 
     let mut metrics = if let Some(path) = transcript_override {
-        let Some(metrics) = parse_antigravity_transcript(&path, since_epoch)
-            .or_else(|| parse_claude_transcript(&path, home.as_deref(), since_epoch))
-            .or_else(|| parse_codex_transcript(&path, since_epoch))
-        else {
+        let metrics = match Format::detect(&path) {
+            Some(Format::Antigravity) => parse_antigravity_transcript(&path, since_epoch),
+            Some(Format::Claude) => parse_claude_transcript(&path, home.as_deref(), since_epoch),
+            Some(Format::Codex) => parse_codex_transcript(&path, since_epoch),
+            None => None,
+        };
+        let Some(metrics) = metrics else {
             eprintln!(
                 "provenance: cannot read explicit transcript {}",
                 path.display()

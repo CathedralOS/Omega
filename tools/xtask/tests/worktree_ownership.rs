@@ -65,11 +65,7 @@ impl Repository {
             &root,
             &["config", "core.hooksPath", hooks.to_str().unwrap()],
         );
-        for marker in [
-            "Cargo.toml",
-            "tools/xtask/Cargo.toml",
-            "omega-rust/pipeline.md",
-        ] {
+        for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
             let path = root.join(marker);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, "").unwrap();
@@ -220,7 +216,11 @@ fn released_legacy_checkout_still_migrates_or_is_removed() {
             let output = repository.run(&repository.root, &["acquire", "repo-next"]);
             let text = String::from_utf8(output.stdout).unwrap();
             let selected = PathBuf::from(text.lines().last().unwrap());
-            assert_eq!(selected, repository.root.join(".agents/worktree/worker-2"));
+            let expected = repository.root.join(".agents/worktree/worker-2");
+            assert_eq!(
+                selected.canonicalize().unwrap(),
+                expected.canonicalize().unwrap()
+            );
             assert_eq!(
                 fs::read_to_string(selected.join("payload")).unwrap(),
                 CURRENT

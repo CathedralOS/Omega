@@ -174,6 +174,33 @@ fn explicit_transcript_overrides_active_thread_selection() {
 }
 
 #[test]
+fn a_tool_name_in_a_codex_record_does_not_select_another_transcript_format() {
+    let transcripts = Transcripts::new();
+    let path = transcripts.write("active", ACTIVE_THREAD, ACTIVE_THREAD, "active-model", 1);
+    let tool_call = serde_json::json!({
+        "type": "response_item",
+        "payload": { "type": "function_call", "name": "PLANNER_RESPONSE" }
+    });
+    writeln!(
+        File::options().append(true).open(&path).unwrap(),
+        "{tool_call}"
+    )
+    .unwrap();
+    let output = transcripts.audit(Some(ACTIVE_THREAD), Some(&path));
+    let audit = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        audit.contains("Agent: Codex | Model: active-model |"),
+        "{audit}"
+    );
+    assert!(audit.contains("Tokens: 10 in (2 cached), 1 out"), "{audit}");
+}
+
+#[test]
 fn unavailable_opt_in_never_uses_foreign_metrics() {
     let transcripts = Transcripts::new();
     transcripts.write("other", OTHER_THREAD, OTHER_THREAD, "other-model", 2);
@@ -283,12 +310,7 @@ impl WorktreeInterval {
         let transcripts = Transcripts::new();
         let repository = transcripts.0.join("repository");
         fs::create_dir_all(repository.join("tools/xtask")).unwrap();
-        fs::create_dir_all(repository.join("omega-rust")).unwrap();
-        for marker in [
-            "Cargo.toml",
-            "tools/xtask/Cargo.toml",
-            "omega-rust/pipeline.md",
-        ] {
+        for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
             fs::write(repository.join(marker), "interval fixture\n").unwrap();
         }
         fs::write(repository.join(".gitignore"), "target/\n").unwrap();
