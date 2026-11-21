@@ -104,6 +104,26 @@ fn declaration_only_library_checks_requirements_without_an_executable_machine() 
 }
 
 #[test]
+fn transparent_data_aliases_form_in_their_own_binder_scope() {
+    let typed = typed(
+        "public data Word = u32;
+         public data Pair<T> = [T; 2];
+         public data Identity<T> = T;
+         public data Nested<T> = Pair<Identity<T>>;
+         public data KeyHash<K> = machine(key: @K) -> u64;",
+    );
+    let parts = judged_parts(&typed, false);
+    assert_eq!(parts.len(), 5, "expected the closure and its four generic forms");
+    for part in parts {
+        let Ok(RouteVerdict::Accepted(accepted)) = &part else {
+            panic!("declaration-only alias form failed: {part:?}");
+        };
+        assert_eq!(accepted.elaboration.module.entry, None);
+        assert!(accepted.elaboration.module.machines.is_empty());
+    }
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);
