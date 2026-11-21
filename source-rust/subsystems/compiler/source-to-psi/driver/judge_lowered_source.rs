@@ -278,7 +278,8 @@ fn a_float_meaning_equation_keeps_the_precision_of_its_materialized_format() {
         .err()
         .expect("a binary32 rounding contract for a binary64 operation");
     assert!(
-        diagnostics::join_messages(&wrong).contains("cannot prove ensures contract"),
+        diagnostics::join_messages(&wrong)
+            .contains("float meaning equality mixes permanent formats"),
         "{wrong:?}"
     );
 }
