@@ -284,6 +284,7 @@ enum PublicationBody {
 
 pub struct CheckedPublicationModule {
     module: PublicationBody,
+    optimization: Option<terminal_codec::PsiOptimizationExecutionRecord>,
     seals: terminal_codec::EvidenceSeals,
 }
 
@@ -296,19 +297,19 @@ impl CheckedPublicationModule {
     }
 
     pub fn publish(self) -> Result<RoutePublication, PublicationError> {
-        let Self { module, seals } = self;
+        let Self { module, seals, optimization } = self;
         let PublicationBody::Complete(module) = module else {
             return Err(PublicationError::Semantic(
                 "the Build prefix still owes a checked suffix".into(),
             ));
         };
         let identity = module.identity();
-        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
-            optimization::PsiOptimizationSelections::default(),
-            identity,
-            identity,
-        )
-        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let record = match optimization {
+            Some(record) => record,
+            None => terminal_codec::PsiOptimizationExecutionRecord::new(
+                optimization::PsiOptimizationSelections::default(), identity, identity,
+            ).map_err(|error| PublicationError::Semantic(error.to_string()))?,
+        };
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
                 .map_err(PublicationError::Artifact)?;
@@ -318,7 +319,12 @@ impl CheckedPublicationModule {
     pub fn publish_invocation(
         self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
-        let Self { module, seals } = self;
+        let Self { module, seals, optimization } = self;
+        if optimization.is_some() {
+            return Err(PublicationError::Semantic(
+                "executed Psi optimizations require their portable publication record".into(),
+            ));
+        }
         let artifact = match module {
             PublicationBody::Complete(closed) => {
                 terminal_codec::InvocationTerminalCode::from_closed_module(closed)
@@ -349,7 +355,7 @@ impl AcceptedClosure {
             module: identity,
             seals: self.seals.clone(),
         };
-        Ok(CheckedPublicationModule { module, seals })
+        Ok(CheckedPublicationModule { module, seals, optimization: self.optimization.clone() })
     }
 
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
@@ -1623,6 +1629,7 @@ fn conclude(
         elaboration,
         discharge: discharged,
         seals,
+        optimization: None,
     });
     Ok(if pending {
         RouteVerdict::AcceptedPrefix(checked)
