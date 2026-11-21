@@ -243,9 +243,9 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
     judge("value", "other", "main")
         .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
     for (body, other) in [("2.0f32", "other"), ("value", "value")] {
-        let refused = judge(body, other, "main")
-            .err()
-            .expect("false wrapper guarantee");
+        let Err(refused) = judge(body, other, "main") else {
+            panic!("false wrapper guarantee");
+        };
         assert!(
             diagnostics::join_messages(&refused)
                 .contains("float meaning wrapper does not establish its result identity"),
@@ -253,9 +253,9 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
         );
     }
     // The same valid declaration cannot be chosen as an executable entry.
-    let runtime = judge("value", "other", "observe")
-        .err()
-        .expect("runtime proof result");
+    let Err(runtime) = judge("value", "other", "observe") else {
+        panic!("runtime proof result");
+    };
     assert!(
         diagnostics::join_messages(&runtime).contains("proof-only FloatMeaning has no runtime ABI"),
         "{runtime:?}"
@@ -279,9 +279,9 @@ fn a_float_meaning_equation_keeps_the_precision_of_its_materialized_format() {
     ";
     judge_authored_ieee(&source.replace("PRECISION", "BINARY64"), "main")
         .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
-    let wrong = judge_authored_ieee(&source.replace("PRECISION", "BINARY32"), "main")
-        .err()
-        .expect("a binary32 rounding contract for a binary64 operation");
+    let Err(wrong) = judge_authored_ieee(&source.replace("PRECISION", "BINARY32"), "main") else {
+        panic!("a binary32 rounding contract for a binary64 operation");
+    };
     assert!(
         diagnostics::join_messages(&wrong)
             .contains("float meaning equality mixes permanent formats"),

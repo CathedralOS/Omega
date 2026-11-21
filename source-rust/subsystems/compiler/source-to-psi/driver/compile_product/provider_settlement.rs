@@ -140,6 +140,7 @@ impl ModuleDemand {
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
         PreparedTargetSupply::prepare(TargetSupplyRequest {
+            source: accepted.source(),
             module: accepted.module(),
             declared: &self.declared,
             roots: &self.roots,
