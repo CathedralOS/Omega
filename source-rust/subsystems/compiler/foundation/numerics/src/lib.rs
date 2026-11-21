@@ -106,6 +106,9 @@ pub mod integer_bounds {
         Union,
         Interval,
         Intersect,
+        /// The possible integer indicators (zero or one) of a comparison.
+        Equal,
+        LessThan,
     }
 
     impl<Observation> IntegerBoundStep<Observation> {
@@ -128,6 +131,8 @@ pub mod integer_bounds {
                 Self::Union => IntegerBoundStep::Union,
                 Self::Interval => IntegerBoundStep::Interval,
                 Self::Intersect => IntegerBoundStep::Intersect,
+                Self::Equal => IntegerBoundStep::Equal,
+                Self::LessThan => IntegerBoundStep::LessThan,
             })
         }
     }
@@ -158,6 +163,23 @@ pub mod integer_bounds {
                         .pop()
                         .ok_or_else(|| "missing left integer bounds".to_owned())?;
                     values.push(match operation {
+                        IntegerBoundStep::Equal | IntegerBoundStep::LessThan => {
+                            let (always, possible) = if matches!(operation, IntegerBoundStep::Equal)
+                            {
+                                (
+                                    left_low == left_high
+                                        && left_low == right_low
+                                        && right_low == right_high,
+                                    left_low <= right_high && right_low <= left_high,
+                                )
+                            } else {
+                                (left_high < right_low, left_low < right_high)
+                            };
+                            (
+                                BigInt::from_u64(u64::from(always)),
+                                BigInt::from_u64(u64::from(possible)),
+                            )
+                        }
                         IntegerBoundStep::Add => {
                             (left_low.add(&right_low), left_high.add(&right_high))
                         }
@@ -249,6 +271,25 @@ pub mod integer_bounds {
             ];
             let result = evaluate(&steps, &mut |_| Err("unexpected observation".into()));
             assert_eq!(result, Ok((BigInt::from_i64(-3), BigInt::from_i64(9))));
+        }
+
+        #[test]
+        fn comparison_indicators_cover_every_pair_in_the_operand_intervals() {
+            use IntegerBoundStep::{Equal, LessThan};
+            for (left, right, op, expected) in [
+                ((2, 2), (2, 2), Equal, (1, 1)),
+                ((2, 4), (4, 5), Equal, (0, 1)),
+                ((2, 4), (5, 6), Equal, (0, 0)),
+                ((2, 4), (4, 5), LessThan, (0, 1)),
+                ((2, 4), (5, 6), LessThan, (1, 1)),
+                ((4, 5), (2, 4), LessThan, (0, 0)),
+            ] {
+                let steps = [bounds(left.0, left.1), bounds(right.0, right.1), op];
+                assert_eq!(
+                    evaluate(&steps, &mut |_| Err("unexpected observation".into())),
+                    Ok((BigInt::from_i64(expected.0), BigInt::from_i64(expected.1)))
+                );
+            }
         }
 
         #[test]

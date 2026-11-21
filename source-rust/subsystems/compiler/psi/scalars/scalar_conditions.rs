@@ -297,6 +297,8 @@ impl ScalarConditions {
                 | IntegerBoundStep::Multiply
                 | IntegerBoundStep::Union
                 | IntegerBoundStep::Interval
+                | IntegerBoundStep::Equal
+                | IntegerBoundStep::LessThan
                 | IntegerBoundStep::Intersect => {
                     if depth < 2 {
                         return Err("scalar condition has missing bound operands");

@@ -1,5 +1,6 @@
 //! Ground arithmetic that can be checked once the selected scalar values exist.
 
+mod guards;
 mod storage;
 
 use bignum::BigInt;
@@ -87,7 +88,9 @@ pub fn target_scalar_ranges(
     let index = MachineScalarIndex::new(machine);
     let storage = OnceCell::new();
     let dominators = OnceCell::new();
+    let branches = OnceCell::new();
     for block in &machine.blocks {
+        let guard_steps = OnceCell::new();
         for (position, operation) in block.operations.iter().enumerate() {
             let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, types)
                 .map_err(|_| "target arithmetic lost its canonical scalar operation")?
@@ -125,6 +128,13 @@ pub fn target_scalar_ranges(
             {
                 continue;
             }
+            // An integer carrier includes zero. Multiplication by each necessary
+            // branch indicator leaves the operation's range on reachable paths.
+            let guards = guard_steps.get_or_init(|| {
+                ground
+                    .guard_indicators(block.id, branches.get_or_init(|| guards::branches(machine)))
+            });
+            ground.steps.extend_from_slice(guards);
             ranges.push(TargetScalarRange {
                 obligation: semantics.obligation(),
                 owner: owner.ok_or("target arithmetic has no exact declaration owner")?,
@@ -158,7 +168,7 @@ struct GroundRange<'a, 'machine> {
     remaining: usize,
 }
 
-impl GroundRange<'_, '_> {
+impl<'machine> GroundRange<'_, 'machine> {
     fn visit(&mut self, depth: usize) -> Option<()> {
         self.remaining = self.remaining.checked_sub(1)?;
         (depth < 64).then_some(())
@@ -221,6 +231,31 @@ impl GroundRange<'_, '_> {
         result
     }
 
+    fn definition(&self, id: ValueId, before: Point) -> Option<(&'machine Block, usize)> {
+        let mut sites = self.index.definition_sites(id);
+        let (block, position) = sites.next()?;
+        if sites.next().is_some() {
+            return None;
+        }
+        let (owner, limit) = before;
+        let dominates = if owner == block.id {
+            position < limit
+        } else {
+            self.tree()?.dominates(block.id, owner)
+        };
+        dominates.then_some((block, position))
+    }
+
+    fn tree(&self) -> Option<&crate::control_graph::DominatorTree> {
+        self.dominators
+            .get_or_init(|| {
+                let machine = self.index.machine();
+                crate::control_graph::validate_control_graph(machine).ok()?;
+                Some(crate::control_graph::dominators(machine))
+            })
+            .as_ref()
+    }
+
     fn value_origin(
         &mut self,
         id: ValueId,
@@ -231,28 +266,8 @@ impl GroundRange<'_, '_> {
         if self.index.value_type(id)? != ty {
             return None;
         }
-        let mut sites = self.index.definition_sites(id);
-        if let Some((block, position)) = sites.next() {
-            if sites.next().is_some() {
-                return None;
-            }
-            let (owner, limit) = before;
-            let available = if owner == block.id {
-                position < limit
-            } else {
-                let tree = self
-                    .dominators
-                    .get_or_init(|| {
-                        let machine = self.index.machine();
-                        crate::control_graph::validate_control_graph(machine).ok()?;
-                        Some(crate::control_graph::dominators(machine))
-                    })
-                    .as_ref()?;
-                tree.dominates(block.id, owner)
-            };
-            if !available {
-                return None;
-            }
+        if self.index.definition_sites(id).next().is_some() {
+            let (block, position) = self.definition(id, before)?;
             return self.operation(&block.operations[position], block, position, ty, depth);
         }
         if let Some(incoming) = self.index.incoming_values(id) {

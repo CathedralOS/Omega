@@ -3333,6 +3333,8 @@ pub(crate) mod scalar_condition_wire {
                     IntegerBoundStep::Union => writer.u8(6),
                     IntegerBoundStep::Interval => writer.u8(7),
                     IntegerBoundStep::Intersect => writer.u8(8),
+                    IntegerBoundStep::Equal => writer.u8(9),
+                    IntegerBoundStep::LessThan => writer.u8(10),
                 }
             }
         }
@@ -3386,6 +3388,8 @@ pub(crate) mod scalar_condition_wire {
                     6 => IntegerBoundStep::Union,
                     7 => IntegerBoundStep::Interval,
                     8 => IntegerBoundStep::Intersect,
+                    9 => IntegerBoundStep::Equal,
+                    10 => IntegerBoundStep::LessThan,
                     tag => return Err(CodecError::InvalidTag("IntegerBoundStep", tag)),
                 };
                 steps.push(step);
@@ -3530,6 +3534,8 @@ pub(crate) mod scalar_condition_wire {
                 IntegerBoundStep::Union,
                 IntegerBoundStep::Interval,
                 IntegerBoundStep::Intersect,
+                IntegerBoundStep::Equal,
+                IntegerBoundStep::LessThan,
             ] {
                 steps.push(IntegerBoundStep::Observation(entry_result.clone()));
                 steps.push(operation);

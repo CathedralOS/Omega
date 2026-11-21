@@ -191,3 +191,50 @@ fn record_geometry_carries_layout_values_through_copies_calls_and_arrivals() {
     let result = super::entryless::judged_typed_result(&typed, false).unwrap();
     assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
 }
+
+#[test]
+fn conditional_target_arithmetic_owes_the_range_on_its_own_branch() {
+    use bignum::BigInt;
+    use terminal_psi::ScalarRangeObservation;
+
+    for (guard, expected) in [("==", 0u128), (">", u128::from(u64::MAX) + 16)] {
+        let source = format!(
+            "data Row {{ tag: u8; count: u64; }}
+            machine guarded() -> u64 {{
+                let bytes: u64 = size_of::<Row>();
+                match bytes {guard} 0u64 {{
+                    true -> bytes + 18446744073709551615u64, _ -> 0u64
+                }}
+            }}"
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+        let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+        let RouteVerdict::Accepted(closure) = verdict else {
+            panic!("expected a portable conditional arithmetic check: {verdict:?}");
+        };
+        let conditions = &closure
+            .elaboration
+            .module
+            .scalars
+            .scalar_applications
+            .conditions;
+        let [range] = conditions.ranges() else {
+            panic!("expected a single arithmetic range")
+        };
+        let actual = numerics::integer_bounds::evaluate(
+            conditions.steps(range).unwrap(),
+            &mut |observation| match observation {
+                ScalarRangeObservation::Literal(value) => Ok(value.clone()),
+                ScalarRangeObservation::Application(_) => Ok(BigInt::from_u64(16)),
+                _ => Err("unknown observation in a closed layout condition".to_owned()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            actual,
+            (BigInt::from_u128(expected), BigInt::from_u128(expected)),
+            "{guard}"
+        );
+    }
+}
