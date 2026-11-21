@@ -4,6 +4,7 @@
 use diagnostics::Diagnostic;
 mod calling_plans;
 mod published;
+mod visible_parameters;
 pub use calling_plans::{ProgramEntryCallingPlanRequest, entry_calling_policy};
 pub use provider_acceptance::program_entry_semantic_binding_role;
 pub use program_entry_contracts::ProgramEntryPhysicalContractPackageSourceDigest;
@@ -40,35 +41,8 @@ impl SelectedCompilerProgramEntry {
         if body.result != terminal_psi::TerminalMachineResult::Unit {
             return Err(refuse("the selected program entry must return Unit".into()));
         }
-        // The installed contract, rather than a receiver's shape, determines
-        // which source arguments the environment must establish.
-        if slot.visible_parameters != target::ProgramEntryVisibleParameters::None {
-            return Err(refuse(format!(
-                "no product route yet: entry `{}` needs its installed visible storage arguments derived from the checked arrival contract",
-                module
-                    .identities
-                    .text(checked.machine.identity())
-                    .unwrap_or("<absent>"),
-            )));
-        }
-        let entry_block = body
-            .blocks
-            .iter()
-            .find(|block| block.id == body.entry)
-            .ok_or_else(|| refuse("the selected entry has no entry block".into()))?;
-        if !body.parameters.is_empty()
-            || !entry_block.parameters.is_empty()
-            || !entry_block.structural_parameters.is_empty()
-            || !entry_block.erased_scalar_formals.is_empty()
-            || !entry_block.erased_proof_formals.is_empty()
-            || !body.structural_parameters.is_empty()
-            || !body.parameter_order.is_empty()
-            || !checked.parameter_types.is_empty()
-        {
-            return Err(refuse(
-                "the selected hosted entry exposes arguments its slot does not provide".into(),
-            ));
-        }
+        let visible = visible_parameters::from_terminal(module, body, checked, slot)
+            .map_err(refuse)?;
         let declaration = module
             .identities
             .text(checked.machine.identity())
@@ -91,7 +65,7 @@ impl SelectedCompilerProgramEntry {
                     .ok_or_else(|| refuse("selected entry lost its checked state identity".into()))?
                     .to_owned(),
                 checked.callable,
-                Vec::new(),
+                visible,
                 module.identities.clone(),
             )
             .map_err(refuse)?;

@@ -4099,7 +4099,19 @@
       "kind": "checker",
       "meaning": "Resolve exactly one method in the selected service schema.",
       "producer": "target-bound program planning",
-      "signature": "93877d4796fb151c0f5fc7b3fa37a882049a5bc0db940c04cf4ebda44c9c529d"
+      "signature": "7ab0eee78021eec90ed8570187028402649a91fb539e5b24425f4cc0bdbdb351"
+    },
+    {
+      "consumers": [
+        "published entry calling plans",
+        "native visible entry parameter capture"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/program_entry/published.rs",
+      "item": "function:selected_method#1",
+      "kind": "checker",
+      "meaning": "Selects the unique qualified arrival requirement from the installed target service surface.",
+      "producer": "selected target service schema",
+      "signature": "c9c66e396549b9250341ed788d1b2fa61d4317d1b3a377c6a4e1b424fe3f7435"
     },
     {
       "consumers": [

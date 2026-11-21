@@ -8,6 +8,7 @@ version.workspace = true
 path = "program_entry.rs"
 
 [dependencies]
+service-surface = { path = "../../../psi/interfaces/service-surface" }
 psi-publication-records = { path = "../../../psi/artifact/publication" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
