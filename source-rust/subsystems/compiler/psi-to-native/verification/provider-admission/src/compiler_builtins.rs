@@ -38,7 +38,7 @@ use terminal_semantics::AccessorScalarBoundaryDemand;
 pub(super) fn reached_builtins<'request>(
     input: &AdmissionSource,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    request: &ProviderAdmissionRequest<'_, 'request>,
+    request: &ProviderAdmissionRequest<'request, '_>,
 ) -> Result<Vec<&'request SelectedCompilerBuiltin>, Vec<Diagnostic>> {
     if request.compiler_builtins.is_empty() {
         return Ok(Vec::new());
@@ -80,7 +80,7 @@ pub(super) fn reached_builtins<'request>(
 pub(super) fn settle_compiler_builtins<'request>(
     input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
-    compiler_builtins: &[&'request SelectedCompilerBuiltin],
+    compiler_builtins: &[&SelectedCompilerBuiltin],
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
