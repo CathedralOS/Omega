@@ -96,7 +96,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state index_unit(unit: i32, eligible: i32) {
-        transition (eligible == 1) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count + self.parser.data_count) &&
+        // Lifetime arguments refer to their owner's binder spans in the pooled syntax tables.
+        transition (eligible == 1) && (self.parser.first_data_lifetime < 0) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count + self.parser.data_count) &&
             (self.parser.data_count <= 4096 - self.construction.total.data_count) &&
             (self.parser.data_member_count <= 16384 - self.construction.total.field_count - self.construction.total.case_count) &&
             (self.parser.data_payload_field_count <= 16384 - self.construction.total.payload_count) &&

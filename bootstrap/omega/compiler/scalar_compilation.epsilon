@@ -891,10 +891,7 @@ machine OmegaScalarCompiler::primitive_type(
         _ -> return 0
     }
     state named(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "bool") {
-            1 -> return 1
-            _ -> return self.integer_carrier(source, row.payload0, row.payload1)
-        }
+        return self.scalar_name(source, row.payload0, row.payload1);
     }
     state constrained(row: OmegaTypeReferenceSyntax) {
         let base: OmegaTypeReferenceSyntax = self.parser.type_references[row.payload0];
@@ -903,6 +900,13 @@ machine OmegaScalarCompiler::primitive_type(
                 self.word_policy(source, row.payload1, row.payload2))
             _ -> return 0
         }
+    }
+}
+
+machine OmegaScalarCompiler::scalar_name(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition self.span_equals(source, start, end, "bool") {
+        1 -> return 1
+        _ -> return self.integer_carrier(source, start, end)
     }
 }
 
@@ -3733,7 +3737,19 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state data_names(index: i32) {
         transition index < self.parser.data_count {
             true -> data_name(index, self.parser.data_items[index].name)
-            _ -> layouts(0)
+            _ -> data_lifetimes()
+        }
+    }
+    state data_lifetimes() {
+        transition self.parser.first_data_lifetime < 0 {
+            true -> layouts(0)
+            _ -> check_lifetime_fields()
+        }
+    }
+    state check_lifetime_fields() {
+        transition self.check_data_lifetimes(source) {
+            1 -> incomplete(4, self.parser.first_data_lifetime)
+            _ -> return
         }
     }
     state data_name(index: i32, name: OmegaRelativeSpan) {

@@ -26,6 +26,8 @@ def cases():
                                   0, b"main", paths=paths)
         return data, rows
 
+    yield from data_lifetime_cases(packet)
+
     # A callee in another file owns its parameter's element type and count.
     paths = ["main.omg", "later/api.omg"]
     wire, _ = packet([array_caller, array_reader], paths)
@@ -775,6 +777,28 @@ def predicate_transition_cases(encode):
             status, spelling = expected
             expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
         yield name, request, expected
+
+
+def data_lifetime_cases(packet):
+    # The field names may be forwarded, repeated, or permuted. Each must bind
+    # in the declaring item, and the application must match the target's arity.
+    pair = b"public data Pair<'left,'right> { x: @'left u8; y: @'right u8; }"
+    consumer = b"data Result<'a,'b> { case Stored(value: [Pair<'b,'a>; 2]); }"
+    main = b"machine main()->u8{42}"
+    for name, source, status, anchor in [
+        ("valid-field-lifetime-application", consumer, 2, b"a,'b"),
+        ("repeated-field-lifetime-argument", consumer.replace(b"'b,'a>;", b"'a,'a>;"), 2, b"a,'b"),
+        ("undeclared-payload-lifetime", consumer.replace(b"'a>;", b"'unbound>;"), 1, b"unbound"),
+        ("too-few-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b>;"), 1, b"Pair<"),
+        ("too-many-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b,'a,'a>;"), 1, b"Pair<"),
+        ("omitted-field-lifetimes", consumer.replace(b"<'b,'a>;", b";"), 1, b"Pair;"),
+        ("scalar-with-field-lifetimes", b"data Result<'a> { value: bool<'a>; }", 1, b"bool<"),
+        ("undeclared-reference-lifetime", b"data Result<'a> { value: @'missing [u8]; }", 1, b"missing"),
+        ("duplicate-data-lifetime", b"data Result<'a,'a> {}", 1, b"a>"),
+    ]:
+        sources = [main, source, pair]
+        request, rows = packet(sources, ["main.omg", "result.omg", "pair.omg"])
+        yield name, request, struct.pack("<BII", 0, status, rows[1][1] + source.index(anchor))
 
 
 def main():

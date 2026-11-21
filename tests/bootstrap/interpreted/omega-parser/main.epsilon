@@ -19,6 +19,18 @@ machine Main::main(&mut self) {
     self.check_syntax_refused(13, 14);
     self.parser.parse_view("domain u8::D requires ;");
     self.check_syntax_refused(22, 23);
+    self.check_data_lifetime_names("public data CallingPolicyRejection<'reason> { reason: @'reason [u8] in Utf8; } public data BoundaryPlanResult<'other, 'chosen> { case Rejected(reason: CallingPolicyRejection<'chosen>); case Again(reason: CallingPolicyRejection<'other>); } data Plain { n: u8; }");
+    self.check_field_lifetime_order("data Uses<'a, 'b> { p: [Pair<'b, 'a>; 2]; }");
+    self.parser.parse_view("data A<'left,'left> {}");
+    self.check_syntax_refused(14, 18);
+    self.parser.parse_view("data A<'a 'b> {}");
+    self.check_syntax_refused(10, 11);
+    self.parser.parse_view("data A<'");
+    self.check_syntax_refused(8, 8);
+    self.parser.parse_view("data A<'a");
+    self.check_syntax_refused(9, 9);
+    self.parser.parse_view("data A<'a, T> {}");
+    self.check_incomplete(11, 12);
     self.parser.parse_view("domain u8 D;");
     self.check_syntax_refused(10, 11);
     self.parser.parse_view("domain u8::");
@@ -1657,5 +1669,63 @@ machine Main::check_arm_condition(&mut self, source: &[u8]) {
             OmegaTransitionGuardKind::Always -> return
             _ -> self.console.exit_process(1)
         }
+    }
+}
+
+machine Main::check_data_lifetime_names(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    assert self.parser.data_count == 3;
+    let rejection: OmegaDataSyntax = self.parser.data_items[0];
+    let result: OmegaDataSyntax = self.parser.data_items[1];
+    assert rejection.lifetime_count == 1;
+    assert result.lifetime_count == 2;
+    assert self.parser.data_items[2].lifetime_count == 0;
+    self.check_span(source, self.parser.members[rejection.first_lifetime], "reason");
+    self.check_span(source, self.parser.members[result.first_lifetime], "other");
+    self.check_span(source, self.parser.members[result.first_lifetime + 1], "chosen");
+    self.check_lifetime_payload(source, self.parser.data_payload_fields[0].type_reference, "chosen");
+    self.check_lifetime_payload(source, self.parser.data_payload_fields[1].type_reference, "other");
+    let reference: OmegaTypeReferenceSyntax = self.parser.type_references[self.parser.data_fields[0].type_reference];
+    transition reference.kind {
+        OmegaTypeReferenceKind::Reference -> reference_name(reference)
+        _ -> self.console.exit_process(1)
+    }
+    state reference_name(row: OmegaTypeReferenceSyntax) {
+        assert row.payload2 == 1;
+        assert self.parser.scan.span_equals(source, row.payload3, row.payload4, "reason") == 1;
+    }
+}
+machine Main::check_lifetime_payload(&mut self, source: &[u8], type_reference: i32, expected: &[u8]) {
+    let row: OmegaTypeReferenceSyntax = self.parser.type_references[type_reference];
+    transition row.kind {
+        OmegaTypeReferenceKind::NamedWithLifetimes -> check(row)
+        _ -> self.console.exit_process(1)
+    }
+    state check(application: OmegaTypeReferenceSyntax) {
+        assert self.parser.scan.span_equals(source, application.payload0, application.payload1, "CallingPolicyRejection") == 1;
+        assert application.payload3 == 1;
+        self.check_span(source, self.parser.members[application.payload2], expected);
+    }
+}
+
+machine Main::check_field_lifetime_order(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    let array: OmegaTypeReferenceSyntax = self.parser.type_references[self.parser.data_fields[0].type_reference];
+    transition array.kind {
+        OmegaTypeReferenceKind::FixedArray -> element(self.parser.type_references[array.payload0])
+        _ -> self.console.exit_process(1)
+    }
+    state element(row: OmegaTypeReferenceSyntax) {
+        transition row.kind {
+            OmegaTypeReferenceKind::NamedWithLifetimes -> order(row)
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state order(application: OmegaTypeReferenceSyntax) {
+        assert application.payload3 == 2;
+        self.check_span(source, self.parser.members[application.payload2], "b");
+        self.check_span(source, self.parser.members[application.payload2 + 1], "a");
     }
 }
