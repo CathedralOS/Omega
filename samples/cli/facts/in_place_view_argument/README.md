@@ -71,6 +71,6 @@ local owns a statement loan.
   the Linux x86-64 native image with exit 0 (`omega run --both`).
 
 All four hosted `ProgramEntry` rows are authored; executions were observed on Linux
-x86-64 only. A mutable `&mut [u8]` field formed in place (`fill(Output { bytes: &mut
+x86-64 only. A mutable `&mutable [u8]` field formed in place (`fill(Output { bytes: &mutable
 packet })`) and a view nested two records deep were checked by probes but are not
 pinned rows.

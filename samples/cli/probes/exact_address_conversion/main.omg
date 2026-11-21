@@ -32,7 +32,7 @@ machine model_count(context: @Main) -> u64
 requires addr::Bound == 18446744073709551616
 { context.base as u64 }
 
-machine from_snapshot(cell: @mut Cell, witness: addr) -> addr
+machine from_snapshot(cell: @mutable Cell, witness: addr) -> addr
 requires embed(cell.value) == embed(witness)
 {
     let saved: u64 = cell.value;
@@ -40,7 +40,7 @@ requires embed(cell.value) == embed(witness)
     saved as addr
 }
 
-machine Main::main(context: @mut Main) crashes Trap
+machine Main::main(context: @mutable Main) crashes Trap
 requires addr::Bound == 18446744073709551616
 {
     let witness: addr = 4096;
@@ -50,8 +50,8 @@ requires addr::Bound == 18446744073709551616
     context.base = in_state(4096, witness);
     let restored: u64 = to_count(witness, 4096);
     let model_restored: u64 = model_count(context);
-    let mut snapshot: Cell = Cell { value: 4096 };
-    let saved_address: addr = from_snapshot(@mut snapshot, witness);
+    let mutable snapshot: Cell = Cell { value: 4096 };
+    let saved_address: addr = from_snapshot(@mutable snapshot, witness);
     transition first == 4095 && second == witness &&
                context.base == witness && restored == 4096 && model_restored == 4096 &&
                saved_address == witness && snapshot.value == 18446744073709551615 {
@@ -66,6 +66,6 @@ requires addr::Bound == 18446744073709551616
 machine entry_start() crashes Trap
 requires addr::Bound == 18446744073709551616
 {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

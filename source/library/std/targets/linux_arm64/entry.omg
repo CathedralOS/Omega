@@ -86,7 +86,7 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine build_physical() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 1;
         // The kernel arrival places the argument count as the first word of
         // the initial process-stack image; it is an input observation, not a
@@ -132,7 +132,7 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine build_semantic() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four AAPCS64 integer registers.
@@ -144,7 +144,7 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     machine finish(output: BoundaryEntryPlan, supervisor: bool)
         -> BoundaryPlanResult
     {
-        let mut plan: BoundaryEntryPlan = output;
+        let mutable plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::Aapcs64;
         plan.call.stack_alignment = 16;
         transition supervisor {
@@ -154,7 +154,7 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine finish_supervisor(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // The kernel supplies no return continuation; the physical contract
         // completes through exit_group (x8 = 94) with status in w0.
         output.call.entry_control = EntryControl::SupervisorCall {
@@ -165,13 +165,13 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine finish_call(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         output.call.entry_control = EntryControl::CallReturn;
         transition { _ -> seal(output) }
     }
 
     machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // Standard AAPCS64 volatile banks; x18 is platform-reserved. The
         // bridge may also observe the incoming stack pointer before switching
         // to its private stack.
@@ -244,7 +244,7 @@ machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
 }
 
 machine linux_arm64_entry_named_word(bytes: u64, register: u64) -> ValuePlacement {
-    let mut value: ValuePlacement;
+    let mutable value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;
@@ -260,7 +260,7 @@ machine linux_arm64_entry_stack_word(bytes: u64) -> ValuePlacement {
     // The kernel places the argument count at the base of the incoming
     // process-stack image; a stack location names that delivery without a
     // stack-pointer register the value vocabulary does not carry.
-    let mut value: ValuePlacement;
+    let mutable value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;

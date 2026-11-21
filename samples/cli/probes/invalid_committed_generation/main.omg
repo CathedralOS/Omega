@@ -33,10 +33,10 @@ data Main {
     grid: Grid;
 }
 
-machine store_unbounded(context: @mut Main, bit: i32) {
+machine store_unbounded(context: @mutable Main, bit: i32) {
     context.grid.board[0] = bit;
 }
 
-machine Main::main(context: @mut Main) {
+machine Main::main(context: @mutable Main) {
     store_unbounded(context, 1);
 }

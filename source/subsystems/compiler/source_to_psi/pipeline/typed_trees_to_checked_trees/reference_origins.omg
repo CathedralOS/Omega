@@ -82,7 +82,7 @@ crashes Trap
 
 // Zone restore does not restore descriptor captures. An arm may preserve an
 // existing identity, but cannot establish a new identity for its siblings.
-public machine record_reference_origin(checker: @mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+public machine record_reference_origin(checker: @mutable Checker, index: u64 in Trapping, origin: ReferenceOrigin)
 requires index < 256
 crashes Trap
 {
@@ -92,7 +92,7 @@ crashes Trap
         true -> capture(checker, index, origin),
         false -> capture(checker, index, ReferenceOrigin::Unknown)
     }
-    machine capture(checker: @mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+    machine capture(checker: @mutable Checker, index: u64 in Trapping, origin: ReferenceOrigin)
     requires index < 256
     { checker.reference_origins[index] = origin; }
 }
@@ -153,7 +153,7 @@ crashes Trap
 
 // An owned copy carries descriptor identities, never frozen pointee facts.
 // Capture incoming descriptors before rebasing them to a local destination.
-public machine copy_reference_origin(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping)
+public machine copy_reference_origin(checker: @mutable Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
     let origin: ReferenceOrigin = reference_origin(checker, source);
@@ -161,24 +161,24 @@ crashes Trap
         ReferenceOrigin::Unrecorded -> incoming(checker, typing, target, source),
         _ -> captured(checker, target, origin)
     }
-    machine incoming(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping) {
+    machine incoming(checker: @mutable Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping) {
         let value: Value = reference_value(checker, typing, source);
         let origin: ReferenceOrigin = exact_reference_origin(checker, value.place);
         copy_captured_reference(checker, target, origin);
     }
-    machine captured(checker: @mut Checker, target: u64 in Trapping, origin: ReferenceOrigin) {
+    machine captured(checker: @mutable Checker, target: u64 in Trapping, origin: ReferenceOrigin) {
         copy_captured_reference(checker, target, origin);
     }
 }
 
-machine copy_captured_reference(checker: @mut Checker, target: u64 in Trapping, origin: ReferenceOrigin)
+machine copy_captured_reference(checker: @mutable Checker, target: u64 in Trapping, origin: ReferenceOrigin)
 crashes Trap
 {
     transition target > 0 && target <= 256 {
         true -> write(checker, target - 1, origin),
         false -> {}
     }
-    machine write(checker: @mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+    machine write(checker: @mutable Checker, index: u64 in Trapping, origin: ReferenceOrigin)
     requires index < 256
     { record_reference_origin(checker, index, origin); }
 }
@@ -218,66 +218,66 @@ crashes Trap
     }
 }
 
-public machine forget_reference_origins(checker: @mut Checker, typing: @Typing, root: u64 in Trapping)
+public machine forget_reference_origins(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping)
 crashes Trap
 {
     transition root > 0 && root <= 256 {
         true -> typed(checker, typing, root),
         false -> {}
     }
-    machine typed(checker: @mut Checker, typing: @Typing, root: u64 in Trapping) {
+    machine typed(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping) {
         let entry: Place = place_at(checker, root - 1);
         let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
         forget_reference_storage(checker, typing, root, row.kind != TypeKind::Reference && entry.kind != PlaceKind::View);
     }
 }
 
-machine forget_reference_descendants(checker: @mut Checker, typing: @Typing, root: u64 in Trapping)
+machine forget_reference_descendants(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping)
 crashes Trap
 { forget_reference_storage(checker, typing, root, false); }
 
-machine forget_reference_storage(checker: @mut Checker, typing: @Typing, root: u64 in Trapping, include_root: bool)
+machine forget_reference_storage(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping, include_root: bool)
 crashes Trap
 {
     transition { _ -> next(checker, typing, root, include_root, 0) }
-    machine next(checker: @mut Checker, typing: @Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping) {
+    machine next(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping) {
         transition index < checker.place_count && index < 256 {
             true -> inspect(checker, typing, root, include_root, index),
             false -> {}
         }
     }
-    machine inspect(checker: @mut Checker, typing: @Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping)
+    machine inspect(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping)
     requires index < 256
     {
         let replace: bool = (include_root || index + 1 != root) && owned_below(checker, typing, root, index + 1);
         clear(checker, index, replace);
         transition { _ -> next(checker, typing, root, include_root, index + 1) }
     }
-    machine clear(checker: @mut Checker, index: u64 in Trapping, replace: bool)
+    machine clear(checker: @mutable Checker, index: u64 in Trapping, replace: bool)
     requires index < 256
     {
         transition replace { true -> forget(checker, index), false -> {} }
     }
-    machine forget(checker: @mut Checker, index: u64 in Trapping)
+    machine forget(checker: @mutable Checker, index: u64 in Trapping)
     requires index < 256
     { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
 }
 
-public machine clear_reference_origins(checker: @mut Checker)
+public machine clear_reference_origins(checker: @mutable Checker)
 crashes Trap
 {
     checker.reference_view_count = 0;
     checker.reference_backing_count = 0;
     transition { _ -> next(checker, 0) }
 
-    machine next(checker: @mut Checker, index: u64 in Trapping) {
+    machine next(checker: @mutable Checker, index: u64 in Trapping) {
         transition index < 256 {
             true -> clear(checker, index),
             _ -> done()
         }
     }
 
-    machine clear(checker: @mut Checker, index: u64 in Trapping)
+    machine clear(checker: @mutable Checker, index: u64 in Trapping)
     requires index < 256
     {
         checker.reference_origins[index] = ReferenceOrigin::Unrecorded;

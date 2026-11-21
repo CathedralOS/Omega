@@ -45,7 +45,7 @@ public boundary trait PosixFilesystemHost {
     // Read up to `count` bytes (and at most `buffer.length`) into `buffer`. A short
     // read is a successful partial read; zero is end of file for a nonzero
     // request. A zero-length request still invokes the OS with count zero.
-    machine read(fd: i32, buffer: @mut [u8], count: u64) -> i64 reaches FilesystemContentRead
+    machine read(fd: i32, buffer: @mutable [u8], count: u64) -> i64 reaches FilesystemContentRead
     crashes none;
     // Write a prefix of `bytes`; the result counts the bytes written. A short
     // write is a successful partial write. An empty view still invokes the OS
@@ -53,7 +53,7 @@ public boundary trait PosixFilesystemHost {
     machine write(fd: i32, bytes: @[u8]) -> i64 reaches FilesystemContentWrite
     crashes none;
     // `pread`: read at an absolute offset without moving the descriptor's cursor.
-    machine read_at(fd: i32, buffer: @mut [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead
+    machine read_at(fd: i32, buffer: @mutable [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead
     crashes none;
     // `pwrite`: write at an absolute offset without moving the descriptor's
     // cursor.
@@ -103,14 +103,14 @@ public boundary trait PosixFilesystemHost {
     crashes none;
     // `readlink`: the link's target bytes, not NUL-terminated; the result counts
     // them.
-    machine read_link(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> i64 reaches FilesystemMetadataQuery
+    machine read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> i64 reaches FilesystemMetadataQuery
     crashes none;
     // Fill `buffer` with packed target directory records. Darwin returns `struct
     // direntry` records (d_reclen@16, d_namlen@18, d_type@20, d_name@21) and
     // advances `position`; Linux returns `getdents64` records (d_reclen@16,
     // d_type@18, NUL-terminated d_name@19) and ignores it. Zero means end of
     // directory.
-    machine read_dir(fd: i32, buffer: @mut [u8], count: u64, position: @mut i64) -> i64 reaches DirectoryEnumeration
+    machine read_dir(fd: i32, buffer: @mutable [u8], count: u64, position: @mutable i64) -> i64 reaches DirectoryEnumeration
     crashes none;
     // `unlink` over trusted plain bytes.
     machine remove_name(path: @[u8]) -> i32 reaches FilesystemNamespaceMutation
@@ -122,18 +122,18 @@ public boundary trait PosixFilesystemHost {
     // Darwin and x86-64 Linux, 128 on arm64 Linux) with the target record that
     // `StatLayout` decodes. Undersized output returns EINVAL before the OS call;
     // only the native record is written, not the rest of a larger caller view.
-    machine read_metadata(path: @[u8] in Path, buffer: @mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
+    machine read_metadata(path: @[u8] in Path, buffer: @mutable [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `fstat`, the same record for an open descriptor.
-    machine read_file_metadata(fd: i32, buffer: @mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
+    machine read_file_metadata(fd: i32, buffer: @mutable [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `lstat`: like `read_metadata` but a final symlink reports its own record.
-    machine read_symlink_metadata(path: @[u8] in Path, buffer: @mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
+    machine read_symlink_metadata(path: @[u8] in Path, buffer: @mutable [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `fstatat`: query a trusted listing component relative to its open
     // directory. Flags are native; no-follow classification must request the
     // target's AT_SYMLINK_NOFOLLOW. Refuse undersized output before the OS call.
-    machine read_metadata_at(directory_descriptor: i32, name: @[u8], buffer: @mut [u8; 144], flags: i32) -> i32 reaches FilesystemMetadataQuery
+    machine read_metadata_at(directory_descriptor: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `ftruncate`.
     machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation
@@ -174,13 +174,13 @@ public boundary trait PosixFilesystemHost {
 // adapter's own buffers and reaches no service.
 boundary trait PosixFilesystemTarget {
     // Translate the portable open options into this target's `open` flags.
-    machine encode_open_options(filesystem: @mut PosixFilesystem) reaches none crashes none;
+    machine encode_open_options(filesystem: @mutable PosixFilesystem) reaches none crashes none;
     // Decode the `stat` record in `filesystem.stat_buf` into portable metadata.
-    machine decode_metadata(filesystem: @mut PosixFilesystem) -> MetadataResult reaches none crashes none;
+    machine decode_metadata(filesystem: @mutable PosixFilesystem) -> MetadataResult reaches none crashes none;
     // The permission bits of the `stat` record in `filesystem.stat_buf`.
     machine permission_bits(filesystem: @PosixFilesystem) -> u32 reaches none crashes none;
     // The file kind of the `stat` record, without decoding the other fields.
-    machine decode_directory_kind(filesystem: @mut PosixFilesystem) -> PosixDirectoryKind reaches none crashes none;
+    machine decode_directory_kind(filesystem: @mutable PosixFilesystem) -> PosixDirectoryKind reaches none crashes none;
     // `AT_SYMLINK_NOFOLLOW`.
     machine metadata_no_follow_flag() -> i32 reaches none crashes none;
     // Byte offset of `d_type` in this target's directory record.
@@ -196,7 +196,7 @@ boundary trait PosixFilesystemTarget {
     // The `open` flags for descending into a directory without following links.
     machine directory_descent_flags() -> i32 reaches none crashes none;
     // The portable error kind of the stored `errno` value.
-    machine kind_of_stored_error_code(filesystem: @mut PosixFilesystem) -> ErrorKind reaches none crashes none;
+    machine kind_of_stored_error_code(filesystem: @mutable PosixFilesystem) -> ErrorKind reaches none crashes none;
     // `EWOULDBLOCK`.
     machine would_block_error() -> i32 reaches none crashes none;
 }
@@ -211,14 +211,14 @@ boundary trait PosixFilesystemTarget {
 // on the writer's own entry parameter, whose storage origin checking can
 // trace through each invocation back to the caller's buffer. Buffers cross
 // as slices; callers lend fixed local arrays.
-public machine posix_terminated_path(path: @[u8], out: @mut [u8]) -> bool {
+public machine posix_terminated_path(path: @[u8], out: @mutable [u8]) -> bool {
     posix_copy_path_from(path, out, 0, path.length);
     transition path.length < out.length {
         true -> (true),
         _ -> rejected(out)
     }
 
-    machine rejected(out: @mut [u8]) -> bool {
+    machine rejected(out: @mutable [u8]) -> bool {
         posix_put_path_byte("", out, 0);
         transition { _ -> (false) }
     }
@@ -226,7 +226,7 @@ public machine posix_terminated_path(path: @[u8], out: @mut [u8]) -> bool {
 
 // `remaining` counts the steps left (the distance the cursor may still move);
 // the loop descends it, which is the ranking the checker reads.
-machine posix_copy_path_from(path: @[u8], out: @mut [u8], index: u64, remaining: u64)
+machine posix_copy_path_from(path: @[u8], out: @mutable [u8], index: u64, remaining: u64)
 terminates by remaining
 {
     posix_put_path_byte(path, out, index);
@@ -241,13 +241,13 @@ terminates by remaining
 // Position `index` of the terminated copy: the path byte below the path's
 // length and the terminator at it, each only where the copy still leaves
 // room for the terminator.
-machine posix_put_path_byte(path: @[u8], out: @mut [u8], index: u64) {
+machine posix_put_path_byte(path: @[u8], out: @mutable [u8], index: u64) {
     transition index < path.length {
         true -> byte(path, out, index),
         _ -> terminator(out, index)
     }
 
-    machine byte(path: @[u8], out: @mut [u8], index: u64)
+    machine byte(path: @[u8], out: @mutable [u8], index: u64)
     requires index < path.length {
         transition index < out.length && out.length - index > 1 {
             true -> write_byte(path, out, index),
@@ -255,20 +255,20 @@ machine posix_put_path_byte(path: @[u8], out: @mut [u8], index: u64) {
         }
     }
 
-    machine write_byte(path: @[u8], out: @mut [u8], index: u64)
+    machine write_byte(path: @[u8], out: @mutable [u8], index: u64)
     requires index < path.length, index < out.length {
         out[index] = path[index];
         transition { _ -> done() }
     }
 
-    machine terminator(out: @mut [u8], index: u64) {
+    machine terminator(out: @mutable [u8], index: u64) {
         transition index < out.length {
             true -> write_terminator(out, index),
             _ -> done()
         }
     }
 
-    machine write_terminator(out: @mut [u8], index: u64)
+    machine write_terminator(out: @mutable [u8], index: u64)
     requires index < out.length {
         out[index] = 0;
         transition { _ -> done() }

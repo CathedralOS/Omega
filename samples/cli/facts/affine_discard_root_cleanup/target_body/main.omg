@@ -6,12 +6,12 @@ data Counter {
 }
 
 data Resource<'view> dropped by drop_resource {
-    dropped: @'view mut Counter;
+    dropped: @'view mutable Counter;
     valid: u64;
     value: u64;
 }
 
-machine drop_resource(resource: @mut Resource)
+machine drop_resource(resource: @mutable Resource)
 requires resource.valid == 1u64
 {
     resource.dropped.value = resource.valid;
@@ -52,13 +52,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedProbe {
-    machine exercise(dropped: @mut Counter) -> u64
+    machine exercise(dropped: @mutable Counter) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         ensures result <= 50u64;
 }
 
 X86Probe satisfies SelectedProbe {
-    machine exercise(dropped: @mut Counter) -> u64
+    machine exercise(dropped: @mutable Counter) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         ensures result <= 50u64
     {
@@ -69,7 +69,7 @@ X86Probe satisfies SelectedProbe {
 }
 
 ArmProbe satisfies SelectedProbe {
-    machine exercise(dropped: @mut Counter) -> u64
+    machine exercise(dropped: @mutable Counter) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         ensures result <= 50u64
     {
@@ -91,8 +91,8 @@ machine main()
     reaches SelectedProbe, SelectedBodyCheck
     crashes Trap
 {
-    let mut dropped: Counter = Counter { value: 0u64 };
-    let val: u64 = SelectedProbe::exercise(@mut dropped);
+    let mutable dropped: Counter = Counter { value: 0u64 };
+    let val: u64 = SelectedProbe::exercise(@mutable dropped);
     verify(val, @dropped);
 }
 

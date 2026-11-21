@@ -27,7 +27,7 @@ use representations\typed_trees\typing_expression_type;
 // shared but not mutably; a qualified target asks for predicates checking
 // does not compare and is unsupported unless both referents are the one
 // type.
-public machine check_recast(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, checking: bool)
+public machine check_recast(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, checking: bool)
 crashes Trap
 {
     let source_type: u64 in Trapping = typing_expression_type(typing, expression.left);
@@ -37,41 +37,41 @@ crashes Trap
         _ -> done()
     }
 
-    machine referents(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, given: TypeRow) {
+    machine referents(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, given: TypeRow) {
         let source: TypeRow = type_table_row(@typing.types, given.inner);
         let target: TypeRow = type_table_row(@typing.types, row.inner);
-        let mutable: bool = row.access != ReferenceAccess::Shared;
+        let is_exclusive: bool = row.access != ReferenceAccess::Shared;
         let source_boolean: bool = source.kind == TypeKind::Builtin && source.builtin == BuiltinType::Bool;
         let target_boolean: bool = target.kind == TypeKind::Builtin && target.builtin == BuiltinType::Bool;
         transition target.domain == DomainBinding::Declared {
             true -> fenced(checker, expression),
-            _ -> source_domain(checker, syntax, typing, expression, source.domain == DomainBinding::Declared, mutable, source_boolean, target_boolean)
+            _ -> source_domain(checker, syntax, typing, expression, source.domain == DomainBinding::Declared, is_exclusive, source_boolean, target_boolean)
         }
     }
 
-    machine source_domain(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, qualified: bool, mutable: bool, source_boolean: bool, target_boolean: bool) {
-        transition qualified && mutable {
+    machine source_domain(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, qualified: bool, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
+        transition qualified && is_exclusive {
             true -> unproven(checker, expression),
-            _ -> shapes(checker, syntax, typing, expression, mutable, source_boolean, target_boolean)
+            _ -> shapes(checker, syntax, typing, expression, is_exclusive, source_boolean, target_boolean)
         }
     }
 
-    machine shapes(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, source_boolean: bool, target_boolean: bool) {
+    machine shapes(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
         transition source_boolean == target_boolean {
             true -> done(),
-            _ -> mixed(checker, syntax, typing, expression, mutable, target_boolean)
+            _ -> mixed(checker, syntax, typing, expression, is_exclusive, target_boolean)
         }
     }
 
-    machine mixed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, target_boolean: bool) {
+    machine mixed(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, is_exclusive: bool, target_boolean: bool) {
         transition target_boolean {
             true -> bounded_field(checker, syntax, typing, expression),
-            _ -> boolean_source(checker, expression, mutable)
+            _ -> boolean_source(checker, expression, is_exclusive)
         }
     }
 
-    machine boolean_source(checker: @mut Checker, expression: Expression, mutable: bool) {
-        transition mutable {
+    machine boolean_source(checker: @mutable Checker, expression: Expression, is_exclusive: bool) {
+        transition is_exclusive {
             true -> unproven(checker, expression),
             _ -> done()
         }
@@ -79,7 +79,7 @@ crashes Trap
 
     // The borrowed place must be a field of data carrying `requires` facts,
     // and those facts must bound it to zero or one.
-    machine bounded_field(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression) {
+    machine bounded_field(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression) {
         let operand: Value = value_at(checker, expression.left);
         let owner: u64 in Trapping = window_owner(checker, syntax, typing, operand.place);
         transition owner > 0 {
@@ -88,7 +88,7 @@ crashes Trap
         }
     }
 
-    machine proved(checker: @mut Checker, expression: Expression, place: u64 in Trapping) {
+    machine proved(checker: @mutable Checker, expression: Expression, place: u64 in Trapping) {
         let referent: Value = place_value(checker, place);
         let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
         let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
@@ -100,12 +100,12 @@ crashes Trap
         }
     }
 
-    machine fenced(checker: @mut Checker, expression: Expression) {
-        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
+    machine fenced(checker: @mutable Checker, expression: Expression) {
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
-    machine unproven(checker: @mut Checker, expression: Expression) {
-        checks_reject(@mut checker.output, CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
+    machine unproven(checker: @mutable Checker, expression: Expression) {
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
     }
 
     machine done() {}

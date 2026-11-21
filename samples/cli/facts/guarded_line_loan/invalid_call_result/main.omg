@@ -7,13 +7,13 @@ data ReadOutcome {
     case Full(count: u64);
     case Invalid;
 }
-machine receive(line: @mut [u8; 64]) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64]) -> ReadOutcome {
     line[0] = 37;
     ReadOutcome::Complete { count: 5 }
 }
 machine make_line() -> [u8; 64] {
-    let mut line: [u8; 64];
-    let held: @mut [u8; 64] = @mut line;
+    let mutable line: [u8; 64];
+    let held: @mutable [u8; 64] = @mutable line;
     line[0] = 0;
     line
 }
@@ -21,9 +21,9 @@ machine observe(line: @[u8; 64], count: u64) -> u64 in Wrapping {
     ((line[0] as u64 +Wrapping) + count as +Wrapping)
 }
 machine main() crashes Trap {
-    let mut line: [u8; 64] = make_line();
-    let held: @mut [u8; 64] = @mut line;
-    let result: ReadOutcome = receive(@mut line);
+    let mutable line: [u8; 64] = make_line();
+    let held: @mutable [u8; 64] = @mutable line;
+    let result: ReadOutcome = receive(@mutable line);
     held[1] = 9;
     transition result {
         ReadOutcome::Complete { count } -> evaluate(observe(@line, count)),

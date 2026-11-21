@@ -8,7 +8,7 @@ machine prepare<'storage>(cell: @'storage write Cell) {
     update(slot);
 }
 machine main() crashes Trap {
-    let mut cell: Cell;
+    let mutable cell: Cell;
     cell.value = 19;
     cell.spare = 17;
     prepare(@write cell);

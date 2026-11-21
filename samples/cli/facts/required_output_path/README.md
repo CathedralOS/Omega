@@ -26,7 +26,7 @@ name. Neither exercises a host-produced byte view from a linear output marker.
 | Other machine | The view crosses two ordinary helpers. |
 | Selected implementation | Build selects an ordinary named implementation for the product entry. |
 
-Each readonly reject twin changes only the consumer parameter to `&mut [u8]`.
+Each readonly reject twin changes only the consumer parameter to `&mutable [u8]`.
 The [wrong-join control](controls/wrong_join_path/build.omg) selects the alternate
 path: its file cannot satisfy the original obligation. Thus an inverted join arm
 cannot silently pass. Sealing and exact settlement check the complete path, in

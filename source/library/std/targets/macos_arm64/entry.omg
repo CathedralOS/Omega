@@ -84,7 +84,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine build_physical() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // X-register identity plus a four-byte fragment denotes W0.
         output.call.parameters[0] = macos_arm64_entry_word(4, 0);
@@ -122,7 +122,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine build_semantic() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         output.call.parameters[0] = hosted_entry_arm_extent_value(0, 1);
         output.call.parameters[1] = hosted_entry_arm_extent_value(2, 3);
@@ -130,7 +130,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = output;
+        let mutable plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::Aapcs64;
         plan.call.stack_alignment = 16;
         plan.call.entry_control = EntryControl::CallReturn;
@@ -202,7 +202,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
 }
 
 machine macos_arm64_entry_word(bytes: u64, register: u64) -> ValuePlacement {
-    let mut value: ValuePlacement;
+    let mutable value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;

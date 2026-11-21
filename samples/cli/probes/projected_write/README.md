@@ -4,7 +4,7 @@ Depend-free compile-scope probe: write-only projected receivers — the
 first sample passing `&write` borrows aimed inside an aggregate through
 calls.
 
-- `forward(&mut main.pair, -43)` takes a mutable receiver and projects
+- `forward(&mutable main.pair, -43)` takes a mutable receiver and projects
   it: `&write pair.right` addresses the right Cell directly — a
   write-only borrow of a field-of-field.
 - The projected `&write cell` forwards through two relay states and lands

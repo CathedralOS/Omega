@@ -48,7 +48,7 @@ ArmExpected satisfies SelectedExpected {
 }
 
 machine main() crashes Trap {
-    let mut slot: f64;
+    let mutable slot: f64;
     store(@write slot);
     let v: f64 = slot;
     transition v == SelectedExpected::expected() { true -> done(), _ -> bad() }

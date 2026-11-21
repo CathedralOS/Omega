@@ -10,7 +10,7 @@ machine forward(slot: @write Held) -> @write Held { @write slot }
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
-    let mut held: Held = Held { target: @left, stamp: 17 };
+    let mutable held: Held = Held { target: @left, stamp: 17 };
     let slot: @write Held = forward(@write held);
     slot.target = slot.target;
     transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {

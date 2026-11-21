@@ -6,7 +6,7 @@ machine array_loop(shapes: @[Shape; 2], sibling: @[Shape; 2], index: u64,
 requires index < 2 {
     transition { _ -> selected(shapes, sibling, index, again, initial) }
     machine selected(shapes: @[Shape; 2], sibling: @[Shape; 2], index: u64,
-        again: bool, shape: @mut Shape) -> u64
+        again: bool, shape: @mutable Shape) -> u64
     requires index < 2 {
         transition { _ -> forwarded(shapes, sibling, index, again, shape) }
     }

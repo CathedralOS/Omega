@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
-machine choose(counter: @mut u64, flag: bool) -> bool
+machine choose(counter: @mutable u64, flag: bool) -> bool
 requires $counter == 0
 {
     $counter = 1;
@@ -11,15 +11,15 @@ requires $counter == 0
 }
 
 machine store(flag: bool) -> Outcome crashes Trap {
-    let mut chosen: [i64; 4] = [3, 17, 18, 19];
-    let mut other: [i64; 6] = [7, 23, 24, 25, 26, 27];
-    transition { _ -> pick(@mut chosen, @mut other, flag) }
+    let mutable chosen: [i64; 4] = [3, 17, 18, 19];
+    let mutable other: [i64; 6] = [7, 23, 24, 25, 26, 27];
+    transition { _ -> pick(@mutable chosen, @mutable other, flag) }
 
-    machine pick(chosen: @mut [i64; 4], other: @mut [i64; 6], flag: bool) -> Outcome crashes Trap {
-        let mut visits: u64 = 0;
-        let selected: @mut [i64] = match choose(@mut visits, flag) {
-            true -> @mut chosen,
-            false -> @mut other
+    machine pick(chosen: @mutable [i64; 4], other: @mutable [i64; 6], flag: bool) -> Outcome crashes Trap {
+        let mutable visits: u64 = 0;
+        let selected: @mutable [i64] = match choose(@mutable visits, flag) {
+            true -> @mutable chosen,
+            false -> @mutable other
         };
         let last: u64 = selected.length - 1;
         selected[last] = 41;

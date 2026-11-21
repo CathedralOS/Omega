@@ -54,7 +54,7 @@ WindowsAudioPlayback satisfies AudioPlayback {
 // format 1 = U8, access 3 = RW_INTERLEAVED, stream 0 = PLAYBACK.
 
 boundary trait LinuxAudioPlaybackIo {
-    machine c_open(pcm: @mut u64, name: @u8, stream: i32, mode: i32) -> i32
+    machine c_open(pcm: @mutable u64, name: @u8, stream: i32, mode: i32) -> i32
     reaches AudioPlayback crashes none;
     machine c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
     reaches AudioPlayback crashes none;
@@ -76,8 +76,8 @@ LinuxAudioPlayback satisfies AudioPlayback {
 
         machine open(pcm: @u8, frames: u32) -> i32 {
             let name: [u8; 8] = "default\0";
-            let mut handle: u64 = 0;
-            let rc: i32 = LinuxAudioPlaybackIo::c_open(@mut handle, @name[0], 0, 0);
+            let mutable handle: u64 = 0;
+            let rc: i32 = LinuxAudioPlaybackIo::c_open(@mutable handle, @name[0], 0, 0);
             transition rc >= 0 { true -> block params(handle, pcm, frames), _ -> (rc) }
         }
         machine params(handle: u64, pcm: @u8, frames: u32) -> i32 {
@@ -142,9 +142,9 @@ LinuxAudioPlayback satisfies AudioPlayback {
 boundary trait MacosAudioPlaybackIo {
     machine c_dlsym(handle: u64, name: @u8) -> u64
     reaches AudioPlayback crashes none;
-    machine c_new_output(format: @u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: @mut u64) -> i32
+    machine c_new_output(format: @u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: @mutable u64) -> i32
     reaches AudioPlayback crashes none;
-    machine c_allocate_buffer(queue: u64, byte_size: u32, buffer: @mut u64) -> i32
+    machine c_allocate_buffer(queue: u64, byte_size: u32, buffer: @mutable u64) -> i32
     reaches AudioPlayback crashes none;
     machine c_enqueue_buffer(queue: u64, buffer: u64, packet_count: u32, packet_descriptions: u64) -> i32
     reaches AudioPlayback crashes none;
@@ -156,7 +156,7 @@ boundary trait MacosAudioPlaybackIo {
     reaches AudioPlayback crashes none;
     machine c_copy_to_address(destination: u64, source: @u8, count: u64) -> u64
     reaches AudioPlayback crashes none;
-    machine c_load_pointer(source: u64, destination: @mut u64, count: u64)
+    machine c_load_pointer(source: u64, destination: @mutable u64, count: u64)
     reaches AudioPlayback crashes none;
     machine c_usleep(microseconds: u32) -> i32
     reaches AudioPlayback
@@ -191,7 +191,7 @@ MacosAudioPlayback satisfies AudioPlayback {
             // AudioStreamBasicDescription, 40 bytes of little-endian fields:
             // 8000.0 Float64, 'lpcm', kAudioFormatFlagIsPacked, 1 byte per
             // packet, 1 frame per packet, 1 byte per frame, 1 channel, 8 bits.
-            let mut format: [u8; 40] = "                                        ";
+            let mutable format: [u8; 40] = "                                        ";
             format[0] = 0; format[1] = 0; format[2] = 0; format[3] = 0;
             format[4] = 0; format[5] = 64; format[6] = 191; format[7] = 64;
             format[8] = 109; format[9] = 99; format[10] = 112; format[11] = 108;
@@ -202,14 +202,14 @@ MacosAudioPlayback satisfies AudioPlayback {
             format[28] = 1; format[29] = 0; format[30] = 0; format[31] = 0;
             format[32] = 8; format[33] = 0; format[34] = 0; format[35] = 0;
             format[36] = 0; format[37] = 0; format[38] = 0; format[39] = 0;
-            let mut queue: u64 = 0;
-            let rc: i32 = MacosAudioPlaybackIo::c_new_output(@format[0], callback, 0, 0, 0, 0, @mut queue);
+            let mutable queue: u64 = 0;
+            let rc: i32 = MacosAudioPlaybackIo::c_new_output(@format[0], callback, 0, 0, 0, 0, @mutable queue);
             transition rc == 0 { true -> block allocate(queue, pcm, frames), _ -> (macos_status(rc)) }
         }
 
         machine allocate(queue: u64, pcm: @u8, frames: u32) -> i32 {
-            let mut buffer: u64 = 0;
-            let rc: i32 = MacosAudioPlaybackIo::c_allocate_buffer(queue, frames, @mut buffer);
+            let mutable buffer: u64 = 0;
+            let rc: i32 = MacosAudioPlaybackIo::c_allocate_buffer(queue, frames, @mutable buffer);
             transition rc == 0 { true -> block fill(queue, buffer, pcm, frames), _ -> teardown(queue, rc) }
         }
 
@@ -218,11 +218,11 @@ MacosAudioPlayback satisfies AudioPlayback {
             // Foreign addresses are wrapping arithmetic: an AudioToolbox-owned
             // pointer has no provable headroom for exact `+`.
             let pointer_field: u64 = ((buffer as u64 +Wrapping) + 8) as u64;
-            let mut data: u64 = 0;
-            MacosAudioPlaybackIo::c_load_pointer(pointer_field, @mut data, 8);
+            let mutable data: u64 = 0;
+            MacosAudioPlaybackIo::c_load_pointer(pointer_field, @mutable data, 8);
             // mAudioDataByteSize (offset 16) is the frame count; then copy PCM.
             let size_field: u64 = ((buffer as u64 +Wrapping) + 16) as u64;
-            let mut bytes: [u8; 4] = [0, 0, 0, 0];
+            let mutable bytes: [u8; 4] = [0, 0, 0, 0];
             bytes[0] = narrow_u32_to_u8_wrapping(frames);
             bytes[1] = narrow_u32_to_u8_wrapping(frames / 256);
             bytes[2] = narrow_u32_to_u8_wrapping(frames / 65536);

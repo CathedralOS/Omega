@@ -24,7 +24,7 @@ public data Registers {
 public data RegPlacement {}
 
 machine RegPlacement::plan(schema: Schema) -> AccessPlan {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
         representation: FieldPlan::At { offset: 0 },
@@ -80,7 +80,7 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
     machine finish(
         access: AccessPlan
     ) -> AccessPlan {
-        let mut services: [u64; 32];
+        let mutable services: [u64; 32];
         services[0] = 7;
         AccessPlan::with_reach(
             access,
@@ -93,11 +93,11 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 }
 
 
-machine start(view: @mut Access<RegPlacement, Registers>) crashes Trap {
+machine start(view: @mutable Access<RegPlacement, Registers>) crashes Trap {
     let observed: u32 = view.status.read(@view.status);
     transition observed == 41u32 { true -> write(view), _ -> bad() }
-    machine write(view: @mut Access<RegPlacement, Registers>) {
-        view.transmit.write(@mut view.transmit, 9);
+    machine write(view: @mutable Access<RegPlacement, Registers>) {
+        view.transmit.write(@mutable view.transmit, 9);
     }
     machine bad() { crash Trap; }
 }

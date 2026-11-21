@@ -35,7 +35,7 @@ use representations\typed_trees\typing_expression_type;
 
 // Loans held by locals (wiki/spec/language/ownership.md#borrows-and-aliases).
 // A local whose type holds references holds a loan of every place its
-// initializer lends: a borrow `&place` or `&mut place`, a range slice a
+// initializer lends: a borrow `&place` or `&mutable place`, a range slice a
 // destination lends, or a reference passed on, directly or as a call's
 // argument (a call's result may borrow from any of them) or a
 // construction's field. A loan lasts until its holder's last use in the
@@ -50,21 +50,21 @@ use representations\typed_trees\typing_expression_type;
 
 // Every local's last use in the body from `first` to `end`: the index of
 // the last statement whose trees name it.
-public machine find_last_uses(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, end: u64 in Trapping)
+public machine find_last_uses(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, end: u64 in Trapping)
 crashes Trap
 {
     checker.ownership.use_count = 0;
     checker.ownership.loan_count = 0;
     transition { _ -> next(checker, syntax, resolution, first, end) }
 
-    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && checker.output.machine_accepted {
             true -> statement(checker, syntax, resolution, index, end),
             _ -> done()
         }
     }
 
-    machine statement(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping) {
+    machine statement(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping) {
         let statement: Statement = syntax_trees_statement(syntax, index);
         transition statement.kind {
             StatementKind::Let -> optional(checker, syntax, resolution, index, end, statement),
@@ -75,25 +75,25 @@ crashes Trap
         }
     }
 
-    machine optional(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
+    machine optional(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
         transition statement.has_value {
             true -> valued(checker, syntax, resolution, index, end, statement),
             _ -> next(checker, syntax, resolution, index + 1, end)
         }
     }
 
-    machine valued(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
+    machine valued(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
         record_tree_uses(checker, syntax, resolution, statement.value, index);
         transition { _ -> next(checker, syntax, resolution, index + 1, end) }
     }
 
-    machine assigned(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
+    machine assigned(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
         record_tree_uses(checker, syntax, resolution, statement.value, index);
         record_tree_uses(checker, syntax, resolution, statement.target, index);
         transition { _ -> next(checker, syntax, resolution, index + 1, end) }
     }
 
-    machine transition_uses(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
+    machine transition_uses(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, statement: Statement) {
         record_transition_uses(checker, syntax, resolution, statement, index);
         transition { _ -> next(checker, syntax, resolution, index + 1, end) }
     }
@@ -102,7 +102,7 @@ crashes Trap
 }
 
 // A transition's subject, guards and targets are uses at its statement.
-machine record_transition_uses(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping)
+machine record_transition_uses(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping)
 crashes Trap
 {
     transition statement.has_value {
@@ -110,19 +110,19 @@ crashes Trap
         _ -> arm(checker, syntax, resolution, statement, index, 0)
     }
 
-    machine subject(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping) {
+    machine subject(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping) {
         record_tree_uses(checker, syntax, resolution, statement.value, index);
         transition { _ -> arm(checker, syntax, resolution, statement, index, 0) }
     }
 
-    machine arm(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping, offset: u64 in Trapping) {
+    machine arm(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < statement.arm_count {
             true -> guarded(checker, syntax, resolution, statement, index, offset),
             _ -> done()
         }
     }
 
-    machine guarded(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping, offset: u64 in Trapping) {
+    machine guarded(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, statement: Statement, index: u64 in Trapping, offset: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_arm(syntax, statement.first_arm + offset);
         transition arm.kind == ArmPatternKind::Guard {
             true -> guard(checker, syntax, resolution, statement, index, offset, arm),
@@ -131,7 +131,7 @@ crashes Trap
     }
 
     machine guard(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         statement: Statement,
@@ -145,7 +145,7 @@ crashes Trap
 
     // An arm's `if` guard uses places as its pattern does.
     machine clause(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         statement: Statement,
@@ -160,7 +160,7 @@ crashes Trap
     }
 
     machine clause_uses(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         statement: Statement,
@@ -173,7 +173,7 @@ crashes Trap
     }
 
     machine target(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         statement: Statement,
@@ -188,7 +188,7 @@ crashes Trap
     }
 
     machine targeted(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         statement: Statement,
@@ -204,7 +204,7 @@ crashes Trap
 }
 
 // Every local a tree names is used at statement `index`.
-machine record_tree_uses(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping)
+machine record_tree_uses(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping)
 crashes Trap
 {
     let tree: Expression = syntax_trees_expression(syntax, root);
@@ -213,14 +213,14 @@ crashes Trap
         _ -> done()
     }
 
-    machine node(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine node(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root && checker.output.machine_accepted {
             true -> named(checker, syntax, resolution, root, index, handle),
             _ -> done()
         }
     }
 
-    machine named(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine named(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
         let binding: ValueBinding = value_binding(resolution, handle);
         transition expression.kind == ExpressionKind::Name {
@@ -230,7 +230,7 @@ crashes Trap
     }
 
     machine local(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         root: u64 in Trapping,
@@ -245,7 +245,7 @@ crashes Trap
     }
 
     machine used(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         root: u64 in Trapping,
@@ -253,7 +253,7 @@ crashes Trap
         handle: u64 in Trapping,
         key: u64 in Trapping
     ) {
-        use_local(@mut checker.ownership, key, index);
+        use_local(@mutable checker.ownership, key, index);
         transition { _ -> node(checker, syntax, resolution, root, index, handle + 1) }
     }
 
@@ -262,7 +262,7 @@ crashes Trap
 
 // A local initialized at statement `index` holds a loan of every place its
 // initializer lends, when its type holds references.
-public machine create_loans(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, statement: Statement)
+public machine create_loans(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, statement: Statement)
 crashes Trap
 {
     let type_handle: u64 in Trapping = typing_expression_type(typing, statement.value);
@@ -274,7 +274,7 @@ crashes Trap
     }
 
     machine node(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -289,7 +289,7 @@ crashes Trap
     }
 
     machine lends(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -305,7 +305,7 @@ crashes Trap
     }
 
     machine borrowed(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -322,7 +322,7 @@ crashes Trap
     }
 
     machine lend(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -336,17 +336,17 @@ crashes Trap
         let inherited: bool = copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = place_root(syntax, resolution, typing, place);
         let owned: bool = lends_owned(syntax, typing, handle, owner);
-        let kept: bool = add_loan(@mut checker.ownership, holder, place, exclusive, owned);
-        extend_uses(@mut checker.ownership, lender, holder);
+        let kept: bool = add_loan(@mutable checker.ownership, holder, place, exclusive, owned);
+        extend_uses(@mutable checker.ownership, lender, holder);
         transition kept {
             true -> node(checker, syntax, resolution, typing, root, holder, handle + 1),
             _ -> full(checker, syntax, handle)
         }
     }
 
-    machine full(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine full(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
     machine done() {}
@@ -357,7 +357,7 @@ crashes Trap
 // keeps loans when replacing a carrier with itself: capture precedes retiring
 // the old rows. Explicit borrows and exclusive reborrows retain their access
 // route. An originless local has no known local loan to duplicate.
-machine copy_carrier_loans(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping) -> bool
+machine copy_carrier_loans(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping) -> bool
 crashes Trap
 {
     let lender: u64 in Trapping = carrier_root(checker, syntax, resolution, typing, handle);
@@ -368,7 +368,7 @@ crashes Trap
 // Every derived loan retains the lender's complete backing roster. The new
 // direct route separately records how the derived holder may access its
 // lender; inherited rows keep their exact places, ownership and exclusivity.
-machine copy_holder_loans(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping) -> bool
+machine copy_holder_loans(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping) -> bool
 crashes Trap
 {
     transition lender > 0 {
@@ -376,14 +376,14 @@ crashes Trap
         _ -> answer(false)
     }
 
-    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
         transition index < end && checker.output.machine_accepted {
             true -> loan(checker, syntax, resolution, typing, handle, holder, lender, index, end),
             _ -> answer(true)
         }
     }
 
-    machine loan(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+    machine loan(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
         let source: u64 in Trapping = ownership_loan_holder(@checker.ownership, index);
         transition source == lender {
             true -> copy(checker, syntax, resolution, typing, handle, holder, lender, index, end),
@@ -391,22 +391,22 @@ crashes Trap
         }
     }
 
-    machine copy(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+    machine copy(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
         let place: u64 in Trapping = loan_place(@checker.ownership, index);
         let exclusive: bool = loan_exclusive(@checker.ownership, index);
         let owned: bool = loan_owned(@checker.ownership, index);
-        let kept: bool = add_loan(@mut checker.ownership, holder, place, exclusive, owned);
+        let kept: bool = add_loan(@mutable checker.ownership, holder, place, exclusive, owned);
         let backing: u64 in Trapping = path_root(syntax, resolution, typing, place, true);
-        extend_uses(@mut checker.ownership, backing, holder);
+        extend_uses(@mutable checker.ownership, backing, holder);
         transition kept {
             true -> next(checker, syntax, resolution, typing, handle, holder, lender, index + 1, end),
             _ -> full(checker, syntax, handle)
         }
     }
 
-    machine full(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) -> bool {
+    machine full(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) -> bool {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
         true
     }
 
@@ -464,7 +464,7 @@ crashes Trap
 // value. Existing loans remain available while capturing the RHS, so even
 // `reference = reference` preserves its loans. Writes through exclusive
 // references and projected stores do not replace the local's loan carrier.
-public machine capture_local_loans(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement) -> u64 in Trapping
+public machine capture_local_loans(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement) -> u64 in Trapping
 crashes Trap
 {
     let target: Expression = syntax_trees_expression(syntax, statement.target);
@@ -478,7 +478,7 @@ crashes Trap
 
     // Assigning through an exclusive reference local replaces its referent;
     // where that referent is a local, the referent is the holder replaced.
-    machine binding(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, through: bool) -> u64 in Trapping {
+    machine binding(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, through: bool) -> u64 in Trapping {
         let binding: ValueBinding = value_binding(resolution, statement.target);
         transition binding {
             ValueBinding::Local { statement as declaration } -> holder(checker, syntax, resolution, typing, statement, declaration, through),
@@ -486,14 +486,14 @@ crashes Trap
         }
     }
 
-    machine holder(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping, through: bool) -> u64 in Trapping {
+    machine holder(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping, through: bool) -> u64 in Trapping {
         transition through {
             true -> referent(checker, syntax, resolution, typing, statement, declaration),
             _ -> capture(checker, syntax, resolution, typing, statement, declaration)
         }
     }
 
-    machine referent(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
+    machine referent(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
         let place: u64 in Trapping = find_place(checker, PlaceKind::Local, declaration, 0);
         let origin: u64 in Trapping = local_origin(checker, place);
         transition origin > 0 {
@@ -502,7 +502,7 @@ crashes Trap
         }
     }
 
-    machine origin_holder(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, origin: u64 in Trapping) -> u64 in Trapping {
+    machine origin_holder(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, origin: u64 in Trapping) -> u64 in Trapping {
         let entry: Place = place_at(checker, origin - 1);
         transition entry.kind == PlaceKind::Local {
             true -> capture(checker, syntax, resolution, typing, statement, entry.handle),
@@ -510,7 +510,7 @@ crashes Trap
         }
     }
 
-    machine capture(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
+    machine capture(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
         create_loans(checker, syntax, resolution, typing, declaration, statement);
         declaration * 4 + 1
     }
@@ -545,7 +545,7 @@ crashes Trap
 // its old loans retire, and it holds whatever the call's other arguments
 // lend, as a value a call returns may. Entered at the call after its
 // arguments were walked.
-public machine replace_lent_holders(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
+public machine replace_lent_holders(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
@@ -554,14 +554,14 @@ crashes Trap
         _ -> done()
     }
 
-    machine argument(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
+    machine argument(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
         transition offset < expression.count {
             true -> lent(checker, syntax, resolution, typing, expression, offset),
             _ -> done()
         }
     }
 
-    machine lent(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
+    machine lent(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
         let node: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
         let written: Expression = syntax_trees_expression(syntax, node);
         let operand: Expression = syntax_trees_expression(syntax, written.left);
@@ -573,7 +573,7 @@ crashes Trap
         }
     }
 
-    machine local(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, name: u64 in Trapping) {
+    machine local(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, name: u64 in Trapping) {
         let binding: ValueBinding = value_binding(resolution, name);
         transition binding {
             ValueBinding::Local { statement as declaration } -> replaced(checker, syntax, resolution, typing, expression, offset, declaration * 4 + 1),
@@ -581,10 +581,10 @@ crashes Trap
         }
     }
 
-    machine replaced(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, holder: u64 in Trapping) {
+    machine replaced(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, holder: u64 in Trapping) {
         let previous_count: u64 = checker.ownership.loan_count;
         lend_arguments(checker, syntax, resolution, typing, expression, offset, holder, 0);
-        replace_loan_holder(@mut checker.ownership, holder, previous_count);
+        replace_loan_holder(@mutable checker.ownership, holder, previous_count);
         transition { _ -> argument(checker, syntax, resolution, typing, expression, offset + 1) }
     }
 
@@ -592,7 +592,7 @@ crashes Trap
 }
 
 // Every argument of `expression` but the one at `skip` lends into `holder`.
-machine lend_arguments(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping)
+machine lend_arguments(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < expression.count && checker.output.machine_accepted {
@@ -600,7 +600,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
+    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
         let node: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
         transition offset == skip {
             true -> lend_arguments_next(checker, syntax, resolution, typing, expression, skip, holder, offset),
@@ -608,12 +608,12 @@ crashes Trap
         }
     }
 
-    machine lending(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping, node: u64 in Trapping) {
+    machine lending(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping, node: u64 in Trapping) {
         lend_into(checker, syntax, resolution, typing, holder, node);
         transition { _ -> lend_arguments_next(checker, syntax, resolution, typing, expression, skip, holder, offset) }
     }
 
-    machine lend_arguments_next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
+    machine lend_arguments_next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
         transition offset + 1 < expression.count && checker.output.machine_accepted {
             true -> next(checker, syntax, resolution, typing, expression, skip, holder, offset + 1),
             _ -> done()
@@ -625,7 +625,7 @@ crashes Trap
 
 // One node lends into `holder` what it lends: its carried loans, or the
 // place it borrows or passes on.
-machine lend_into(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping)
+machine lend_into(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     let copied: bool = copy_carrier_loans(checker, syntax, resolution, typing, handle, holder);
@@ -634,7 +634,7 @@ crashes Trap
         _ -> borrowed(checker, syntax, resolution, typing, holder, handle)
     }
 
-    machine borrowed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping) {
+    machine borrowed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping) {
         let hold: Hold = lent_place(checker, syntax, typing, handle);
         transition hold {
             Hold::Shared { place } -> lend(checker, syntax, resolution, typing, holder, handle, place, false),
@@ -643,22 +643,22 @@ crashes Trap
         }
     }
 
-    machine lend(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping, place: u64 in Trapping, exclusive: bool) {
+    machine lend(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, holder: u64 in Trapping, handle: u64 in Trapping, place: u64 in Trapping, exclusive: bool) {
         let lender: u64 in Trapping = path_root(syntax, resolution, typing, place, true);
         let inherited: bool = copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = place_root(syntax, resolution, typing, place);
         let owned: bool = lends_owned(syntax, typing, handle, owner);
-        let kept: bool = add_loan(@mut checker.ownership, holder, place, exclusive, owned);
-        extend_uses(@mut checker.ownership, lender, holder);
+        let kept: bool = add_loan(@mutable checker.ownership, holder, place, exclusive, owned);
+        extend_uses(@mutable checker.ownership, lender, holder);
         transition kept {
             true -> done(),
             _ -> full(checker, syntax, handle)
         }
     }
 
-    machine full(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine full(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
     machine done() {}
@@ -666,19 +666,19 @@ crashes Trap
 
 // Retire only the old carrier's loans, keeping the replacement captured after
 // `previous_count` and every independent holder's earlier captured loans.
-public machine replace_loan_holder(ownership: @mut Ownership, holder: u64 in Trapping, previous_count: u64)
+public machine replace_loan_holder(ownership: @mutable Ownership, holder: u64 in Trapping, previous_count: u64)
 crashes Trap
 {
     transition { _ -> next(ownership, holder, previous_count, 0, 0) }
 
-    machine next(ownership: @mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping) {
+    machine next(ownership: @mutable Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping) {
         transition index < ownership.loan_count && index < 64 && written < 64 {
             true -> loan(ownership, holder, previous_count, index, written),
             _ -> done(ownership, written)
         }
     }
 
-    machine loan(ownership: @mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
+    machine loan(ownership: @mutable Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
     requires index < 64, written < 64
     {
         let source: u64 = ownership.loan_holders[index];
@@ -688,7 +688,7 @@ crashes Trap
         }
     }
 
-    machine keep(ownership: @mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
+    machine keep(ownership: @mutable Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
     requires index < 64, written < 64
     {
         ownership.loan_holders[written] = ownership.loan_holders[index];
@@ -698,7 +698,7 @@ crashes Trap
         transition { _ -> next(ownership, holder, previous_count, index + 1, written + 1) }
     }
 
-    machine done(ownership: @mut Ownership, written: u64 in Trapping) {
+    machine done(ownership: @mutable Ownership, written: u64 in Trapping) {
         ownership.loan_count = written as u64;
     }
 }
@@ -770,15 +770,15 @@ crashes Trap
         let row: TypeRow = type_table_row(@typing.types, node_type);
         let place: bool = expression.kind == ExpressionKind::Name || expression.kind == ExpressionKind::Field
             || expression.kind == ExpressionKind::Index;
-        let mutable: bool = row.access != ReferenceAccess::Shared;
+        let is_exclusive: bool = row.access != ReferenceAccess::Shared;
         transition place && role == UseRole::Value && row.kind == TypeKind::Reference {
-            true -> reference(handle, mutable),
+            true -> reference(handle, is_exclusive),
             _ -> answer(Hold::Released)
         }
     }
 
-    machine reference(handle: u64 in Trapping, mutable: bool) -> Hold {
-        transition mutable {
+    machine reference(handle: u64 in Trapping, is_exclusive: bool) -> Hold {
+        transition is_exclusive {
             true -> answer(Hold::Exclusive { place: handle }),
             _ -> answer(Hold::Shared { place: handle })
         }
@@ -797,21 +797,21 @@ public machine holds_references(syntax: @SyntaxTrees, typing: @Typing, handle: u
 crashes Trap
 {
     let zero: u64 in Trapping = 0 as +Trapping;
-    let mut handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
-    let mut offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
+    let mutable handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
+    let mutable offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
     handles[0] = handle;
-    walk_reference_types(syntax, typing, @mut handles, @mut offsets)
+    walk_reference_types(syntax, typing, @mutable handles, @mutable offsets)
 }
 
 // The caller owns the traversal buffers for this entire ordinary call.
 // Each nested state forwards the same two exclusive loans.
 machine walk_reference_types(syntax: @SyntaxTrees, typing: @Typing,
-    handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9]) -> bool
+    handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9]) -> bool
 crashes Trap
 {
     transition { _ -> visit(syntax, typing, handles, offsets, 0 as +Trapping) }
 
-    machine visit(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
+    machine visit(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
     requires depth < 9
     {
         let index: u64 = depth as -Trapping;
@@ -826,14 +826,14 @@ crashes Trap
         }
     }
 
-    machine array(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
+    machine array(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
         transition depth < 8 {
             true -> element(syntax, typing, handles, offsets, depth, offset, row),
             _ -> answer(true)
         }
     }
 
-    machine element(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool
+    machine element(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool
     requires depth < 8
     {
         transition offset == 0 {
@@ -842,7 +842,7 @@ crashes Trap
         }
     }
 
-    machine data(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
+    machine data(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
         let item: DataItem = syntax_trees_data_item(syntax, row.item);
         transition depth < 8 {
             true -> field(syntax, typing, handles, offsets, depth, offset, row, item),
@@ -850,7 +850,7 @@ crashes Trap
         }
     }
 
-    machine field(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, item: DataItem) -> bool
+    machine field(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, item: DataItem) -> bool
     requires depth < 8
     {
         transition offset < item.field_count {
@@ -859,7 +859,7 @@ crashes Trap
         }
     }
 
-    machine field_type(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, item: DataItem) -> bool
+    machine field_type(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, item: DataItem) -> bool
     requires depth < 8
     {
         let field: DataField = syntax_trees_field(syntax, item.first_field + offset);
@@ -867,7 +867,7 @@ crashes Trap
         transition { _ -> descend(syntax, typing, handles, offsets, depth, offset, handle) }
     }
 
-    machine argument(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, fields: u64 in Trapping) -> bool
+    machine argument(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, fields: u64 in Trapping) -> bool
     requires depth < 8
     {
         let argument: u64 in Trapping = offset - fields;
@@ -877,14 +877,14 @@ crashes Trap
         }
     }
 
-    machine argument_type(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, argument: u64 in Trapping) -> bool
+    machine argument_type(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, argument: u64 in Trapping) -> bool
     requires depth < 8
     {
         let handle: u64 in Trapping = type_table_argument(@typing.types, row.first_argument + argument);
         transition { _ -> descend(syntax, typing, handles, offsets, depth, offset, handle) }
     }
 
-    machine descend(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool
+    machine descend(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool
     requires depth < 8
     {
         let index: u64 = depth as -Trapping;
@@ -896,7 +896,7 @@ crashes Trap
         transition { _ -> visit(syntax, typing, handles, offsets, next_depth) }
     }
 
-    machine finished(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
+    machine finished(syntax: @SyntaxTrees, typing: @Typing, handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
     requires depth < 9
     {
         transition depth > 0 {
@@ -913,7 +913,7 @@ crashes Trap
 // An access to a place while loans last: one overlapping a live loan's place,
 // not through its holder, conflicts when the loan is exclusive or the access
 // writes, moves or lends exclusively.
-public machine loan_access(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, excludes: bool)
+public machine loan_access(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, excludes: bool)
 crashes Trap
 {
     let root: u64 in Trapping = path_root(syntax, resolution, typing, handle, true);
@@ -923,7 +923,7 @@ crashes Trap
     }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -939,7 +939,7 @@ crashes Trap
     }
 
     machine loan(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -957,7 +957,7 @@ crashes Trap
     }
 
     machine overlap(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -976,9 +976,9 @@ crashes Trap
         }
     }
 
-    machine rejected(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine rejected(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::LoanConflict, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::LoanConflict, expression.source_span);
     }
 
     machine done() {}
@@ -986,7 +986,7 @@ crashes Trap
 
 // An exit's value may not lend a place the body owns, nor be a holder of
 // such a loan.
-public machine own_escape(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping)
+public machine own_escape(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping)
 crashes Trap
 {
     let type_handle: u64 in Trapping = typing_expression_type(typing, root);
@@ -997,14 +997,14 @@ crashes Trap
         _ -> done()
     }
 
-    machine node(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine node(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root && checker.output.machine_accepted {
             true -> lends(checker, syntax, resolution, typing, root, handle),
             _ -> done()
         }
     }
 
-    machine lends(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine lends(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         let carrier: u64 in Trapping = carrier_root(checker, syntax, resolution, typing, handle);
         let backed: bool = carrier_owns_loan(checker, carrier);
         transition backed {
@@ -1013,7 +1013,7 @@ crashes Trap
         }
     }
 
-    machine lent(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine lent(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         let hold: Hold = lent_place(checker, syntax, typing, handle);
         transition hold {
             Hold::Shared { place } -> owned(checker, syntax, resolution, typing, root, handle, place),
@@ -1025,7 +1025,7 @@ crashes Trap
     // A lent place the body owns, or a holder whose loans a body place
     // backs, would outlive its storage.
     machine owned(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -1042,9 +1042,9 @@ crashes Trap
         }
     }
 
-    machine escaped(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine escaped(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::LoanEscapes, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::LoanEscapes, expression.source_span);
     }
 
     machine done() {}
@@ -1113,7 +1113,7 @@ crashes Trap
 
 // Record that local `key` is used at statement `index`; statements are
 // scanned in order, so the last record is its last use.
-public machine use_local(ownership: @mut Ownership, key: u64 in Trapping, index: u64 in Trapping)
+public machine use_local(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping)
 crashes Trap
 {
     let slot: u64 in Trapping = use_slot(ownership, key);
@@ -1122,14 +1122,14 @@ crashes Trap
         _ -> add(ownership, key, index, ownership.use_count)
     }
 
-    machine update(ownership: @mut Ownership, slot: u64 in Trapping, index: u64 in Trapping) {
+    machine update(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping) {
         transition slot < 128 {
             true -> write(ownership, slot, index),
             _ -> done()
         }
     }
 
-    machine write(ownership: @mut Ownership, slot: u64 in Trapping, index: u64 in Trapping)
+    machine write(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping)
     requires slot < 128
     {
         ownership.use_last[slot] = index as u64;
@@ -1137,14 +1137,14 @@ crashes Trap
 
     // A body with more locals than the table tracks forgets the rest, whose
     // loans then never last past their statement.
-    machine add(ownership: @mut Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64) {
+    machine add(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64) {
         transition count < 128 {
             true -> append(ownership, key, index, count),
             _ -> done()
         }
     }
 
-    machine append(ownership: @mut Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64)
+    machine append(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64)
     requires count < 128
     {
         ownership.use_locals[count] = key as u64;
@@ -1214,7 +1214,7 @@ crashes Trap
 }
 
 // A holder `lender` lent to `holder` lives at least as long as it.
-public machine extend_uses(ownership: @mut Ownership, lender: u64 in Trapping, holder: u64 in Trapping)
+public machine extend_uses(ownership: @mutable Ownership, lender: u64 in Trapping, holder: u64 in Trapping)
 crashes Trap
 {
     let lender_last: u64 in Trapping = last_use(ownership, lender);
@@ -1225,14 +1225,14 @@ crashes Trap
         _ -> done()
     }
 
-    machine extended(ownership: @mut Ownership, slot: u64 in Trapping, last: u64 in Trapping) {
+    machine extended(ownership: @mutable Ownership, slot: u64 in Trapping, last: u64 in Trapping) {
         transition slot < 128 {
             true -> write(ownership, slot, last),
             _ -> done()
         }
     }
 
-    machine write(ownership: @mut Ownership, slot: u64 in Trapping, last: u64 in Trapping)
+    machine write(ownership: @mutable Ownership, slot: u64 in Trapping, last: u64 in Trapping)
     requires slot < 128
     {
         ownership.use_last[slot] = last as u64;
@@ -1242,7 +1242,7 @@ crashes Trap
 }
 
 // Record a loan; false when the table is full.
-public machine add_loan(ownership: @mut Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool) -> bool
+public machine add_loan(ownership: @mutable Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool) -> bool
 crashes Trap
 {
     transition ownership.loan_count < 64 {
@@ -1250,7 +1250,7 @@ crashes Trap
         _ -> full()
     }
 
-    machine write(ownership: @mut Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool, index: u64) -> bool
+    machine write(ownership: @mutable Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool, index: u64) -> bool
     requires index < 64
     {
         ownership.loan_holders[index] = holder as u64;

@@ -52,7 +52,7 @@ The field place stores the array in `Bundle`; the parameter place passes it to
 both windows' extents; the const-name place indexes by named constants; the
 nested and other-machine places pass it to a machine that states
 `requires windows[0].length == 1 && windows[1].length == 1`. The match-join place
-settles a flag through `&mut` so the checker cannot fold the `match`; its second
+settles a flag through `&mutable` so the checker cannot fold the `match`; its second
 arm holds the windows `packet[1..2]` and `packet[3..4]`, which read 23 and 31, so
 a join that took the wrong arm crashes `main`. The target-body place calls the
 boundary requirement `Observe::observe`, backed by four named providers with

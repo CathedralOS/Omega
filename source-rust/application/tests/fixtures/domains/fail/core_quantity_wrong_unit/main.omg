@@ -8,7 +8,7 @@ machine main() crashes Trap {
     let distance: i64 in Quantity<Units::SECOND> = kilometers_to_meters_trapping_i64(start);
 }
 
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "core_quantity_wrong_unit");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind(builder, linux_arm64\ProgramEntry, main);

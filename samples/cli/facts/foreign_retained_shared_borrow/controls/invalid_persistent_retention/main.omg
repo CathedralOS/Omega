@@ -4,7 +4,7 @@ use omega\language\core\Content;
 use omega\language\core\CountedQuantity;
 public data ByteUnit {}
 public data Buffer [linear] dropped by drop_buffer { value: u64; }
-machine drop_buffer(buffer: @mut Buffer) {}
+machine drop_buffer(buffer: @mutable Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
@@ -23,34 +23,34 @@ public boundary trait Reader {
     machine register<'source>(capacity: Capacity in Capacity::Available, buffer: @'source Buffer in Buffer::Owned) -> Pending<'source>
     reaches none
     ensures result in Pending::Retained crashes Trap;
-    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mut u64) -> Capacity
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mutable u64) -> Capacity
     reaches none
     ensures result in Capacity::Available crashes Trap;
     machine release(capacity: Capacity in Capacity::Available) reaches none crashes Trap;
 }
 data Main<'a> { stored: Pending<'a> in Pending::Retained; }
-machine store_pending<'a>(main: @mut Main<'a>, source: Pending<'a> in Pending::Retained)
+machine store_pending<'a>(main: @mutable Main<'a>, source: Pending<'a> in Pending::Retained)
 reaches Reader crashes Trap {
     let old: Pending<'a> in Pending::Retained = main.stored;
     main.stored = source;
-    let mut observed: u64 = 0;
-    let capacity: Capacity in Capacity::Available = Reader::complete(old, @mut observed);
+    let mutable observed: u64 = 0;
+    let capacity: Capacity in Capacity::Available = Reader::complete(old, @mutable observed);
     Reader::release(capacity);
 }
 machine main() reaches Reader crashes Trap {
     let first_capacity: Capacity in Capacity::Available = Reader::acquire();
     let second_capacity: Capacity in Capacity::Available = Reader::acquire();
-    let mut first_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
-    let mut second_buffer: Buffer in Buffer::Owned = Buffer { value: 91 };
+    let mutable first_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let mutable second_buffer: Buffer in Buffer::Owned = Buffer { value: 91 };
     let first: Pending in Pending::Retained = Reader::register(first_capacity, @first_buffer);
     let second: Pending in Pending::Retained = Reader::register(second_capacity, @second_buffer);
-    let mut state: Main = Main { stored: first };
-    store_pending(@mut state, second);
+    let mutable state: Main = Main { stored: first };
+    store_pending(@mutable state, second);
     first_buffer.value = 99;
     second_buffer.value = 99;
     let current: Pending in Pending::Retained = state.stored;
-    let mut observed: u64 = 0;
-    let capacity: Capacity in Capacity::Available = Reader::complete(current, @mut observed);
+    let mutable observed: u64 = 0;
+    let capacity: Capacity in Capacity::Available = Reader::complete(current, @mutable observed);
     Reader::release(capacity);
     let first_value: u64 = first_buffer.value;
     let second_value: u64 = second_buffer.value;

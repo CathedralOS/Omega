@@ -2,8 +2,8 @@
 // Expected exit: 0
 data Request { internal: u64; }
 const ZERO: u64 = 0;
-boundary trait Io { machine acquire(request: @mut Request) -> i32 reaches none requires request.internal == ZERO crashes none; }
-Actual satisfies Io { machine acquire(request: @mut Request) -> i32 requires request.internal == ZERO { request.internal = 9; 7 } }
+boundary trait Io { machine acquire(request: @mutable Request) -> i32 reaches none requires request.internal == ZERO crashes none; }
+Actual satisfies Io { machine acquire(request: @mutable Request) -> i32 requires request.internal == ZERO { request.internal = 9; 7 } }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches none crashes Trap;
 }
@@ -22,25 +22,25 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedTransport {
-    machine transport(request: @mut Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap;
+    machine transport(request: @mutable Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap;
 }
 X86Transport satisfies SelectedTransport {
-    machine transport(request: @mut Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap
+    machine transport(request: @mutable Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);     Io::acquire(request)
     }
 }
 ArmTransport satisfies SelectedTransport {
-    machine transport(request: @mut Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap
+    machine transport(request: @mutable Request) -> i32 requires request.internal == ZERO reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Io crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);     Io::acquire(request)
     }
 }
 
 machine main() crashes Trap {
-    let mut request: Request;
+    let mutable request: Request;
 
-    let status: i32 = SelectedTransport::transport(@mut request);
+    let status: i32 = SelectedTransport::transport(@mutable request);
     transition status == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

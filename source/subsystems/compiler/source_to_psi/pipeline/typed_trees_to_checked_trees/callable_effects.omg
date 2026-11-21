@@ -19,7 +19,7 @@ use representations\typed_trees\Selection;
 // row; a callee with an authored ceiling publishes exactly that row.
 data RequiredEffects [copy] { clauses: CallClauses; reach_only: bool; }
 
-public machine callable_markers_refine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, given: CallClauses, target: Selection) -> bool
+public machine callable_markers_refine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, given: CallClauses, target: Selection) -> bool
 crashes Trap
 {
     let effects: RequiredEffects = RequiredEffects { clauses: required, reach_only: false };
@@ -31,42 +31,42 @@ crashes Trap
     }
 }
 
-public machine check_service_ceilings(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution)
+public machine check_service_ceilings(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, 0) }
-    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
+    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
         transition owner < syntax.machine_count && owner < 10240 && checker.output.accepted {
             true -> check(checker, syntax, resolution, owner),
             _ -> done()
         }
     }
-    machine check(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
+    machine check(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
         let caller: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
         transition callable_has_clause(syntax, caller, ClauseKind::Reaches) {
             true -> bounded(checker, syntax, resolution, owner, caller),
             _ -> next(checker, syntax, resolution, owner + 1)
         }
     }
-    machine bounded(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses) {
+    machine bounded(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses) {
         transition checker.invocations.complete && checker.invocations.sealed && owner < checker.invocations.node_count && owner < 10240 {
             true -> outgoing(checker, syntax, resolution, owner, caller, checker.invocations.first[owner as -Trapping] as +Trapping),
             _ -> unresolved(checker, syntax, owner)
         }
     }
-    machine outgoing(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
+    machine outgoing(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
         transition handle {
             0 -> next(checker, syntax, resolution, owner + 1),
             _ -> edge(checker, syntax, resolution, owner, caller, handle)
         }
     }
-    machine edge(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
+    machine edge(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
             true -> bound(checker, syntax, resolution, owner, caller, checker.invocations.edges[((handle - 1) as -Trapping)]),
             _ -> unresolved(checker, syntax, owner)
         }
     }
-    machine bound(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, edge: InvocationEdge) {
+    machine bound(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, edge: InvocationEdge) {
         let effects: RequiredEffects = RequiredEffects { clauses: caller, reach_only: true };
         let target: Selection = service_target(edge.target);
         let covered: bool = callable_effects_within(checker, syntax, resolution, effects, target);
@@ -75,13 +75,13 @@ crashes Trap
             _ -> excess(checker, syntax, edge)
         }
     }
-    machine unresolved(checker: @mut Checker, syntax: @SyntaxTrees, owner: u64 in Trapping) {
+    machine unresolved(checker: @mutable Checker, syntax: @SyntaxTrees, owner: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, owner);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedCheck, item.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, item.source_span);
     }
-    machine excess(checker: @mut Checker, syntax: @SyntaxTrees, edge: InvocationEdge) {
+    machine excess(checker: @mutable Checker, syntax: @SyntaxTrees, edge: InvocationEdge) {
         let expression: Expression = syntax_trees_expression(syntax, edge.expression);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::ServiceOutsideCeiling, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::ServiceOutsideCeiling, expression.source_span);
     }
     machine done() {}
 }
@@ -93,7 +93,7 @@ machine service_target(target: InvocationTarget) -> Selection {
     }
 }
 
-machine callable_effects_within(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, target: Selection) -> bool
+machine callable_effects_within(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, target: Selection) -> bool
 crashes Trap
 {
     transition target {
@@ -107,19 +107,19 @@ crashes Trap
         contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, ClauseKind::Reaches))
             && callable_clause_ceiling(syntax, resolution, required, clauses)
     }
-    machine clear(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine clear(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < checker.invocations.node_count && index < 10240 {
             true -> cleared(checker, syntax, resolution, required, root, index),
             false -> seed(checker, syntax, resolution, required, root)
         }
     }
-    machine cleared(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine cleared(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 10240
     {
         checker.invocations.visited[index] = false;
         transition { _ -> clear(checker, syntax, resolution, required, root, index + 1) }
     }
-    machine seed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping) -> bool {
+    machine seed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping) -> bool {
         checker.invocations.work_count = 0;
         let queued: bool = queue_callable_effect(checker, root);
         transition checker.invocations.complete && checker.invocations.sealed && queued {
@@ -127,13 +127,13 @@ crashes Trap
             false -> false
         }
     }
-    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool {
+    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool {
         transition cursor < checker.invocations.work_count && cursor < 10240 {
             true -> node(checker, syntax, resolution, required, cursor),
             false -> true
         }
     }
-    machine node(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool
+    machine node(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool
     requires cursor < 10240
     {
         let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as +Trapping;
@@ -142,7 +142,7 @@ crashes Trap
             false -> false
         }
     }
-    machine bounded(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping) -> bool
+    machine bounded(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping) -> bool
     requires owner < 10240
     {
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
@@ -151,7 +151,7 @@ crashes Trap
             false -> false
         }
     }
-    machine published(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, clauses: CallClauses) -> bool
+    machine published(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, clauses: CallClauses) -> bool
     requires owner < 10240
     {
         let item: MachineItem = machine_item(syntax, owner);
@@ -161,7 +161,7 @@ crashes Trap
             false -> examine(checker, syntax, resolution, required, cursor, owner, item)
         }
     }
-    machine examine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, item: MachineItem) -> bool
+    machine examine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, item: MachineItem) -> bool
     requires owner < 10240
     {
         transition !required.reach_only || item.has_body {
@@ -169,19 +169,19 @@ crashes Trap
             false -> false
         }
     }
-    machine edge(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine edge(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
             true -> row(checker, syntax, resolution, required, cursor, handle - 1),
             false -> ended(checker, syntax, resolution, required, cursor, handle)
         }
     }
-    machine ended(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine ended(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == 0 {
             true -> next(checker, syntax, resolution, required, cursor + 1),
             false -> false
         }
     }
-    machine row(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine row(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 32768
     {
         let item: InvocationEdge = checker.invocations.edges[index];
@@ -190,13 +190,13 @@ crashes Trap
             InvocationTarget::Binder { parameter } -> opaque(checker, syntax, resolution, required, cursor, item.next, parameter)
         }
     }
-    machine concrete(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
+    machine concrete(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
         transition queue_callable_effect(checker, machine) {
             true -> edge(checker, syntax, resolution, required, cursor, following),
             false -> false
         }
     }
-    machine opaque(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, parameter: u64 in Trapping) -> bool {
+    machine opaque(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, parameter: u64 in Trapping) -> bool {
         let contract: BinderContract = binder_contract(resolution, parameter);
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
         transition contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, ClauseKind::Reaches)) && callable_clause_ceiling(syntax, resolution, required, clauses) {
@@ -206,14 +206,14 @@ crashes Trap
     }
 }
 
-machine queue_callable_effect(checker: @mut Checker, node: u64 in Trapping) -> bool
+machine queue_callable_effect(checker: @mutable Checker, node: u64 in Trapping) -> bool
 crashes Trap
 {
     transition node < checker.invocations.node_count && node < 10240 {
         true -> bounded(checker, node),
         false -> false
     }
-    machine bounded(checker: @mut Checker, node: u64 in Trapping) -> bool
+    machine bounded(checker: @mutable Checker, node: u64 in Trapping) -> bool
     requires node < 10240
     {
         transition checker.invocations.visited[node] {
@@ -221,10 +221,10 @@ crashes Trap
             false -> room(checker, node, checker.invocations.work_count)
         }
     }
-    machine room(checker: @mut Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine room(checker: @mutable Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < 10240 { true -> publish(checker, node, index), false -> false }
     }
-    machine publish(checker: @mut Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine publish(checker: @mutable Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
     requires node < 10240 && index < 10240
     {
         checker.invocations.visited[node] = true;

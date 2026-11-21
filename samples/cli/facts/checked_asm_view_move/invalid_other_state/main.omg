@@ -5,7 +5,7 @@ machine main() crashes Trap {
     let cells: Cells = Cells { values: [7, 9] };
     transition { _ -> write(cells) }
     machine write(cells: Cells) {
-        let mut live: Cells = cells;
+        let mutable live: Cells = cells;
         asm {
             mov eax, 37;
             mov [live.values], eax

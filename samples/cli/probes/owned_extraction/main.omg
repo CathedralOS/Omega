@@ -2,7 +2,7 @@
 // payload types through a generic wrapper and ordinary case extraction.
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: @mut Token) {}
+machine drop_token(token: @mutable Token) {}
 data OwnedExtraction<Value> { case Moved(value: Value); }
 machine retire<Value>(result: OwnedExtraction<Value>) -> Value {
     transition result { OwnedExtraction::Moved { value } -> value }

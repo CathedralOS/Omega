@@ -185,8 +185,8 @@ reaches
     ProcessOutput + ProcessExit
 invokes ObjectiveC
 {
-    let mut terminated: [u8; 256];
-    let fits: bool = posix_terminated_path(name, @mut terminated[..]);
+    let mutable terminated: [u8; 256];
+    let fits: bool = posix_terminated_path(name, @mutable terminated[..]);
     terminated[255] = 0;
     transition fits { true -> ObjectiveC::get_class(@terminated), _ -> (0) }
 }
@@ -195,8 +195,8 @@ machine macos_objc_selector(name: @[u8]) -> u64
 reaches none
 invokes ObjectiveC
 {
-    let mut terminated: [u8; 256];
-    let fits: bool = posix_terminated_path(name, @mut terminated[..]);
+    let mutable terminated: [u8; 256];
+    let fits: bool = posix_terminated_path(name, @mutable terminated[..]);
     terminated[255] = 0;
     transition fits { true -> ObjectiveC::register_selector(@terminated), _ -> (0) }
 }
@@ -238,23 +238,23 @@ invokes CoreGraphics
     let loaded: bool = AppKit::load();
     let rx: f64 = F64::from_i32(x);
     let ry: f64 = F64::from_i32(y);
-    let mut rw: f64 = F64::from_i32(width);
-    let mut rh: f64 = F64::from_i32(height);
+    let mutable rw: f64 = F64::from_i32(width);
+    let mutable rh: f64 = F64::from_i32(height);
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
-    let mut cls: u64 = macos_objc_class(@cbuf1[..]);
+    let mutable cls: u64 = macos_objc_class(@cbuf1[..]);
     let cbuf2: [u8; 18] = "sharedApplication\0";
-    let mut sel: u64 = macos_objc_selector(@cbuf2[..]);
+    let mutable sel: u64 = macos_objc_selector(@cbuf2[..]);
     let app: u64 = ObjectiveC::send(cls, sel);
     let cbuf3: [u8; 21] = "setActivationPolicy:\0";
     sel = macos_objc_selector(@cbuf3[..]);
-    let mut rc: u64 = ObjectiveC::send_scalar(app, sel, 0);
+    let mutable rc: u64 = ObjectiveC::send_scalar(app, sel, 0);
     let cbuf4: [u8; 9] = "NSWindow\0";
     cls = macos_objc_class(@cbuf4[..]);
     let cbuf5: [u8; 6] = "alloc\0";
     sel = macos_objc_selector(@cbuf5[..]);
-    let mut tmp: u64 = ObjectiveC::send(cls, sel);
+    let mutable tmp: u64 = ObjectiveC::send(cls, sel);
     let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
     sel = macos_objc_selector(@cbuf6[..]);
     let window: u64 = ObjectiveC::send_rect(tmp, sel, rx, ry, rw, rh, 15, 2, 0);
@@ -368,7 +368,7 @@ invokes CoreGraphics
 {
     let close_name: [u8; 6] = "close\0";
     let close_selector: u64 = macos_objc_selector(@close_name[..]);
-    let mut ignored: u64 = ObjectiveC::send(window.window, close_selector);
+    let mutable ignored: u64 = ObjectiveC::send(window.window, close_selector);
     ignored = ObjectiveC::send(window.window, window.relsel);
     ignored = ObjectiveC::send(window.view, window.relsel);
     ignored = ObjectiveC::send(window.mode, window.relsel);
@@ -380,7 +380,7 @@ public machine macos_window_get_dc(window_state: @Window, window: u64) -> u64
     transition { _ -> ret(window) }
     machine ret(window: u64) -> u64 { window }
 }
-public machine macos_window_msg_peek(window_state: @mut Window, message: [u64; 6]) -> u32
+public machine macos_window_msg_peek(window_state: @mutable Window, message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -485,7 +485,7 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
         let cbuf30: [u8; 8] = "NSImage\0";
         let cls: u64 = macos_objc_class(@cbuf30[..]);
         let cbuf31: [u8; 6] = "alloc\0";
-        let mut sel: u64 = macos_objc_selector(@cbuf31[..]);
+        let mutable sel: u64 = macos_objc_selector(@cbuf31[..]);
         let tmp: u64 = ObjectiveC::send(cls, sel);
         let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
         sel = macos_objc_selector(@cbuf32[..]);

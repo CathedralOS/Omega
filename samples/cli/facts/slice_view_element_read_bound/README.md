@@ -76,7 +76,7 @@ omega --check samples/cli/facts/slice_view_element_read_bound/<place>/invalid/ma
 
 ## What remains open
 
-- Mutable slice element write bounds (`&mut [T]` with `view[idx] = val`).
+- Mutable slice element write bounds (`&mutable [T]` with `view[idx] = val`).
 - Dynamic slice subslice window composition with non-constant runtime offsets (`items[low..high]`).
 - Multi-dimensional nested slice view descriptors.
 

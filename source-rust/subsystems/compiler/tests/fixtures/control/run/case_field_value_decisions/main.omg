@@ -28,29 +28,29 @@ machine first_full_case(token: @Token) -> u32 {
 machine first_wildcard(token: @Token) -> u32 {
     match token { _ -> 6, Token::Keyword { keyword: 7, item as _ } -> 99 }
 }
-machine touch(state: @mut u32) -> u8 { $state = 9; 0 }
+machine touch(state: @mutable u32) -> u8 { $state = 9; 0 }
 machine field_test_effect(token: @Token) -> u32 {
-    let mut state: u32 = 1;
+    let mutable state: u32 = 1;
     match token {
-        Token::Keyword { keyword: touch(@mut state), item as _ } -> 99,
+        Token::Keyword { keyword: touch(@mutable state), item as _ } -> 99,
         _ -> state
     }
 }
 data Outer { case Hold(value: u32); case Empty; }
-machine nested_field_effect(outer: @mut Outer, token: @Token) -> u32 {
+machine nested_field_effect(outer: @mutable Outer, token: @Token) -> u32 {
     match outer {
         Outer::Hold { value } -> match token {
-            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 99,
+            Token::Keyword { keyword: touch(@mutable outer.value), item as _ } -> 99,
             _ -> value
         },
         Outer::Empty -> 0
     }
 }
 machine second(first: u32, second: u32) -> u32 { second }
-machine payload_after_match(outer: @mut Outer, token: @Token) -> u32 {
+machine payload_after_match(outer: @mutable Outer, token: @Token) -> u32 {
     match outer {
         Outer::Hold { value } -> second(match token {
-            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 0,
+            Token::Keyword { keyword: touch(@mutable outer.value), item as _ } -> 0,
             _ -> 1
         }, value),
         Outer::Empty -> 0
@@ -75,14 +75,14 @@ machine main() crashes Trap {
     let eight: Token = Token::Keyword { keyword: 8, item: Item { value: 32 } };
     let nine: Token = Token::Keyword { keyword: 9, item: Item { value: 33 } };
     let other: Token = Token::Other;
-    let mut outer: Outer = Outer::Hold { value: 31 };
-    let mut after: Outer = Outer::Hold { value: 41 };
+    let mutable outer: Outer = Outer::Hold { value: 31 };
+    let mutable after: Outer = Outer::Hold { value: 41 };
     let held: EqualToken = EqualToken::Held { key: Key::A };
     let different: EqualToken = EqualToken::Held { key: Key::B };
-    transition nested_field_effect(@mut outer, @other) == 31
-        && nested_field_effect(@mut outer, @seven) == 9
-        && payload_after_match(@mut after, @other) == 41
-        && payload_after_match(@mut after, @seven) == 9
+    transition nested_field_effect(@mutable outer, @other) == 31
+        && nested_field_effect(@mutable outer, @seven) == 9
+        && payload_after_match(@mutable after, @other) == 41
+        && payload_after_match(@mutable after, @seven) == 9
         && declared_field_equality(@held) == 7 && declared_field_equality(@different) == 7
         && classify(@seven) == 1 && classify(@eight) == 2 && classify(@nine) == 33
         && classify(@other) == 4 && select_transition(@seven) == 31

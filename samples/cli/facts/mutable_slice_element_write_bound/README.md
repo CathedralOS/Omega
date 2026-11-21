@@ -1,11 +1,11 @@
 # Mutable slice writes preserve their extent
 
-Writing an element through a mutable slice view (`&mut [u64]`) whose length is
+Writing an element through a mutable slice view (`&mutable [u64]`) whose length is
 guarded (`view.length >= 2u64`) proves safe indexed element mutation at
 `view[1u64]` while preserving the slice extent lower bound (`view.length >= 2u64`)
 to discharge exact subtraction `view.length - 2u64` across all nine places.
 
-`storage_view(&mut backing)` returns the fixed-array field of a record as a
+`storage_view(&mutable backing)` returns the fixed-array field of a record as a
 mutable slice. Its captured origin remains that field of the original record;
 the array and slice descriptor do not acquire an equal type identity. Each
 existing transport feeds the independently checked mutation helper, whose
@@ -32,7 +32,7 @@ bind the actual optimized producer, host, sources, outputs and controls.
 | call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | helper call returns the guarded mutable slice view with preserved length contract |
 | match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | mutable slice view joins across conditional match branches |
 | const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constant `MIN_LEN: u64 = 2` defines the extent guard obligation |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | successor machine `active(view: &mut [u64])` receives and mutates the view |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | successor machine `active(view: &mutable [u64])` receives and mutates the view |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | forwarding machine passes the mutable view through an intermediate call |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | target-scoped implementations across all four platforms perform mutation and extent verification |
 

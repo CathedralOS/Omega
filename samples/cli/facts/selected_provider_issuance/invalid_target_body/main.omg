@@ -94,7 +94,7 @@ TargetTransportCode satisfies TargetTransport {
     }
 }
 data Main {}
-machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBytes + TargetTransport crashes Trap {
+machine Main::main(context: @mutable Main) reaches InitialSupply + Writer + NativeBytes + TargetTransport crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
     let original_pointer: addr = buffer.pointer;
     let restored: Buffer in Buffer::Owned = TargetTransport::transport(buffer);
@@ -107,6 +107,6 @@ machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBy
 
 // The hosted entry owns its ordinary application storage.
 machine entry_start() reaches InitialSupply + Writer + NativeBytes + TargetTransport crashes Trap {
-    let mut application: Main = Main {};
-    Main::main(@mut application);
+    let mutable application: Main = Main {};
+    Main::main(@mutable application);
 }

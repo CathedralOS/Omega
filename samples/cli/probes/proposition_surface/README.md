@@ -10,7 +10,7 @@ Compile-scope probe. No standard-library dependency.
 - trait_operator_crown: `trait Ranked<T> { machine < before }`
   crowned token, generic evidence binder `Order satisfies`,
   `Ascending::before` named call, concrete `machine <` crown.
-- mutable_loan_return: `-> &mut Room` transition-selected loan
+- mutable_loan_return: `-> &mutable Room` transition-selected loan
   return; sibling fields read before the loan forms; writes
   through the returned borrow.
 

@@ -24,7 +24,7 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
         block windows_remove_tree(path)
     }
-    machine read_link(path: @[u8] in Path, output: @mut [u8], count: u64) -> i64
+    machine read_link(path: @[u8] in Path, output: @mutable [u8], count: u64) -> i64
     reaches FilesystemMetadataQuery {
         block windows_filesystem_native_read_link(path, output, count)
     }
@@ -38,14 +38,14 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
         block windows_filesystem_native_directory_nth(path, ordinal)
     }
-    machine canonicalize(path: @[u8] in Path, output: @mut [u8]) -> i32 reaches FilesystemMetadataQuery {
+    machine canonicalize(path: @[u8] in Path, output: @mutable [u8]) -> i32 reaches FilesystemMetadataQuery {
         block windows_filesystem_native_canonicalize(path, output)
     }
     machine directory_count(path: @[u8] in Path) -> i64
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
         block windows_filesystem_native_directory_count(path)
     }
-    machine read_at(handle: u64, buffer: @mut [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead {
+    machine read_at(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead {
         block windows_filesystem_native_read_at(handle, buffer, count, offset)
     }
     machine write_at(handle: u64, bytes: @[u8], offset: i64) -> i64 reaches FilesystemContentWrite {
@@ -75,7 +75,7 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     }
     machine close_handle(handle: u64) -> i32 { block windows_filesystem_native_close_handle(handle) }
     machine last_error() -> u32 { windows_filesystem_native_last_error() }
-    machine read_file(handle: u64, buffer: @mut [u8], count: u64) -> i64 reaches FilesystemContentRead {
+    machine read_file(handle: u64, buffer: @mutable [u8], count: u64) -> i64 reaches FilesystemContentRead {
         block windows_filesystem_native_read_file(handle, buffer, count)
     }
     machine flush_file_buffers(handle: u64) -> i32 { block windows_filesystem_native_flush_file_buffers(handle) }

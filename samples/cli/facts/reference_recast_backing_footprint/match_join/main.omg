@@ -4,7 +4,7 @@
 data Pair { first: u8; second: u8; }
 machine forward(view: @Pair) -> @Pair { view }
 machine choose(selected: bool) -> bool {
-    let mut bytes: [u8; 4] = [11, 23, 37, 41];
+    let mutable bytes: [u8; 4] = [11, 23, 37, 41];
     let original: addr = address_of(@bytes[1]);
     let formed: @Pair = @bytes[1] as @Pair;
     let view: @Pair = match selected {

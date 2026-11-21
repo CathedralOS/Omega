@@ -219,7 +219,7 @@ crashes Trap
 // `typer_landing` admits: each unlanded match or array literal, parents
 // first, takes the destination peeled by its depth below the root, and each
 // anonymous number among its values lands at the innermost element type.
-public machine typer_land(typer: @mut Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
+public machine typer_land(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
 crashes Trap
 {
     let tree: Expression = syntax_trees_expression(syntax, root);
@@ -229,7 +229,7 @@ crashes Trap
     transition { _ -> node(typer, syntax, destination, scalar, depth, tree.first_row, root) }
 
     machine node(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -247,7 +247,7 @@ crashes Trap
     }
 
     machine typed(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -260,13 +260,13 @@ crashes Trap
         let own_depth: u64 in Trapping = shape_depth(typer, handle_type);
         let levels: u64 in Trapping = lesser_depth(depth, own_depth);
         let concrete: u64 in Trapping = peeled(typer, destination, levels);
-        set_expression_type(@mut typer.output, handle, concrete);
+        set_expression_type(@mutable typer.output, handle, concrete);
         let values: JoinedValues = joined_values(expression);
         transition { _ -> value(typer, syntax, destination, scalar, depth, low, handle, values, 0) }
     }
 
     machine next(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -281,7 +281,7 @@ crashes Trap
     }
 
     machine value(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -298,7 +298,7 @@ crashes Trap
     }
 
     machine number(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -319,7 +319,7 @@ crashes Trap
     }
 
     machine lands(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         destination: u64 in Trapping,
         scalar: u64 in Trapping,
@@ -330,8 +330,8 @@ crashes Trap
         offset: u64 in Trapping,
         joined: u64 in Trapping
     ) {
-        set_expression_type(@mut typer.output, joined, scalar);
-        set_adaptation(@mut typer.output, joined, Adaptation::Landed);
+        set_expression_type(@mutable typer.output, joined, scalar);
+        set_adaptation(@mutable typer.output, joined, Adaptation::Landed);
         transition { _ -> value(typer, syntax, destination, scalar, depth, low, handle, values, offset + 1) }
     }
 

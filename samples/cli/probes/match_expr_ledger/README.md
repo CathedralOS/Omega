@@ -9,7 +9,7 @@ producing values from `match` instead of dispatching transitions.
   inside the `_` arm's construction.
 - Duplicate value patterns keep authored first-match order: in `choose`,
   `0 -> 7` shadows `0 -> 99`.
-- Match results bind through `let` and through fields on `&mut`
+- Match results bind through `let` and through fields on `&mutable`
   carriers (`Holder::replace` writes `holder.category` from a match).
 
 Compile-checked only (no std dependency, no ProcessExit provider):

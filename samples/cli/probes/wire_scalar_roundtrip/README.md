@@ -5,8 +5,8 @@ codec pair. No standard-library dependency.
 
 - `data Frame { #0 code: u32; #1 level: i32; }` — numbered fields are
   the wire order; `FrameValue` is the un-tagged mirror data.
-- `Frame::encode(&value, &mut buffer, &mut written)` and
-  `Frame::decode(&mut value, &buffer, &mut read, &mut verdict)` are
+- `Frame::encode(&value, &mutable buffer, &mutable written)` and
+  `Frame::decode(&mutable value, &buffer, &mutable read, &mutable verdict)` are
   synthesized from the tags — no imports beyond the depend-free set.
 - `data WireVerdict { case Invalid; case Sound; }` — `Invalid` is the
   ZII zero case so an untouched verdict reads as failure.

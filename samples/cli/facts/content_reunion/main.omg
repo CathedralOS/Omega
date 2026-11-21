@@ -12,7 +12,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 machine issue() -> Region in Owned
 ensures result.base == 10, result.length == 48
 { Region { base: 10, length: 48 } }
-machine drop_region(region: @mut Region) {}
+machine drop_region(region: @mutable Region) {}
 data Holder { parts: Parts; }
 data Parts { left: Region in Owned; right: Region in Owned; }
 machine rebuild_region(region: Region in Owned) -> Region in Owned

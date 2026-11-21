@@ -18,7 +18,7 @@ use omega_language_std\Console;
 data Main {
 }
 
-machine main(context: @mut Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
     let coefficients: [i32 in Wrapping; 5] = [1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping, 4i32 as +Wrapping, 5i32 as +Wrapping];
     let result: i32 in Wrapping = evaluate_polynomial(@coefficients, 2i32 as +Wrapping);
@@ -26,18 +26,18 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         true -> block good(context),
         _ -> block bad(context, result)
     }
-    machine good(context: @mut Main) {
+    machine good(context: @mutable Main) {
         Console::write_line("PASS: p(2) == 57 (exit 70)");
         Console::write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block Console::read_line(@mut pause[..]);
+        let mutable pause: [u8; 256];
+        _ = block Console::read_line(@mutable pause[..]);
         ProcessExit::exit_process(70);
     }
-    machine bad(context: @mut Main, result: i32 in Wrapping) {
+    machine bad(context: @mutable Main, result: i32 in Wrapping) {
         Console::write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
         Console::write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block Console::read_line(@mut pause[..]);
+        let mutable pause: [u8; 256];
+        _ = block Console::read_line(@mutable pause[..]);
         ProcessExit::exit_process(result as i32);
     }
 }
@@ -62,6 +62,6 @@ machine evaluate_polynomial(coefficients: @[i32 in Wrapping; 5], argument: i32 i
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

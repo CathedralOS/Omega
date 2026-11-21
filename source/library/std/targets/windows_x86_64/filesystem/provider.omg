@@ -52,7 +52,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_append(path)
     }
 
-    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
     {
@@ -80,14 +80,14 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_write_all(path, bytes)
     }
 
-    machine read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
+    machine read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_read_all(path, buffer, count)
     }
 
-    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
+    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     {
@@ -173,7 +173,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         UnitResult::Error { kind: ErrorKind::Unsupported }
     }
 
-    machine read_link(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
+    machine read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemMetadataQuery
     {
@@ -280,7 +280,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_remove_dir_all(path)
     }
 
-    machine read_at(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
+    machine read_at(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
     blocks
     reaches FilesystemContentRead
     {
@@ -308,7 +308,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_set_times(file, accessed, modified)
     }
 
-    machine canonicalize(path: @[u8] in Path, buffer: @mut [u8]) -> UnitResult
+    machine canonicalize(path: @[u8] in Path, buffer: @mutable [u8]) -> UnitResult
     blocks
     reaches FilesystemMetadataQuery
     {

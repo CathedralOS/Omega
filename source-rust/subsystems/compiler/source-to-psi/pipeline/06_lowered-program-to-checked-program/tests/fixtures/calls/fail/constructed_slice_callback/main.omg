@@ -1,6 +1,6 @@
 // Expected exit: 0
 // A callback keeps a slice's exact open element type through another generic application.
-machine length<Element>(items: @mut [Element]) -> u64 { items.length }
+machine length<Element>(items: @mutable [Element]) -> u64 { items.length }
 machine apply<machine Read, Payload>(value: @Payload) -> u64
 requires machine Read(value: @Payload) -> u64;
 { Read(value) }

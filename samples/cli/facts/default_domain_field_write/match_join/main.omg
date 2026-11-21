@@ -14,8 +14,8 @@ machine consume(span: Interval) -> u64 {
     }
 }
 machine joined(flag: bool) -> u64 {
-    let mut narrow: Interval = Interval::Range { lo: 1, hi: 2 };
-    let mut wide: Interval = Interval::Range { lo: 0, hi: 1 };
+    let mutable narrow: Interval = Interval::Range { lo: 1, hi: 2 };
+    let mutable wide: Interval = Interval::Range { lo: 0, hi: 1 };
     narrow.hi = 3;
     wide.hi = 2;
     let span: Interval = match flag { true -> narrow, false -> wide };

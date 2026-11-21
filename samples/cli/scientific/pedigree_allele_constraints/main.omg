@@ -18,32 +18,32 @@ use domain\report\emit;
 
 data Main { }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut pedigree: Pedigree;
-    let accepted: bool = block read(@mut pedigree);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable pedigree: Pedigree;
+    let accepted: bool = block read(@mutable pedigree);
     transition accepted {
         true -> infer(main, @pedigree),
         _ -> invalid(main)
     }
-    machine infer(main: @mut Main, pedigree: @Pedigree) {
-        let mut result: Inference;
-        initialize(pedigree, @mut result);
-        enumerate(pedigree, @mut result);
+    machine infer(main: @mutable Main, pedigree: @Pedigree) {
+        let mutable result: Inference;
+        initialize(pedigree, @mutable result);
+        enumerate(pedigree, @mutable result);
         transition result.mass == 0 {
-            true -> impossible(main, pedigree, @mut result),
+            true -> impossible(main, pedigree, @mutable result),
             _ -> complete(main, pedigree, @result)
         }
     }
-    machine impossible(main: @mut Main, pedigree: @Pedigree, result: @mut Inference) {
+    machine impossible(main: @mutable Main, pedigree: @Pedigree, result: @mutable Inference) {
         contradiction(pedigree, result);
         emit(pedigree, result);
         ProcessExit::exit_process(2);
     }
-    machine complete(main: @mut Main, pedigree: @Pedigree, result: @Inference) {
+    machine complete(main: @mutable Main, pedigree: @Pedigree, result: @Inference) {
         emit(pedigree, result);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mut Main) {
+    machine invalid(main: @mutable Main) {
         Console::write_line("INVALID INPUT");
         ProcessExit::exit_process(64);
     }
@@ -51,6 +51,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

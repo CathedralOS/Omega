@@ -23,13 +23,13 @@ machine type_table_row(table: @TypeTable, handle: u64 in Trapping) -> TypeRow {
         _ -> empty()
     }
     machine array(inner: u64 in Trapping) -> TypeRow {
-        let mut row: TypeRow;
+        let mutable row: TypeRow;
         row.kind = TypeKind::Array;
         row.inner = inner;
         row
     }
     machine reference() -> TypeRow {
-        let mut row: TypeRow;
+        let mutable row: TypeRow;
         row.kind = TypeKind::Reference;
         row
     }

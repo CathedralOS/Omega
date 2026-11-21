@@ -1,5 +1,5 @@
 // Record cloning through states: `Worker::clone` accumulates into
-// `&mut copied` across a count-bounded state cycle, then returns a
+// `&mutable copied` across a count-bounded state cycle, then returns a
 // FRESH record — mutating the source afterward cannot bleed into
 // the copy.
 //
@@ -22,18 +22,18 @@ machine Worker::copy(source: @Cell) -> Cell {
 }
 
 machine Worker::clone(source: @Cell) -> Cell {
-    let mut copied: Cell = Worker::new();
+    let mutable copied: Cell = Worker::new();
     copied.count = source.count;
-    transition { _ -> each(@mut copied, source, 0) }
+    transition { _ -> each(@mutable copied, source, 0) }
 
-    machine each(copied: @mut Cell, source: @Cell, position: u64) -> Cell {
+    machine each(copied: @mutable Cell, source: @Cell, position: u64) -> Cell {
         transition position < 2 {
             true -> store(copied, source, position),
             false -> (Worker::copy(copied))
         }
     }
 
-    machine store(copied: @mut Cell, source: @Cell, position: u64) -> Cell
+    machine store(copied: @mutable Cell, source: @Cell, position: u64) -> Cell
         requires position < 2
     {
         copied.values[position] = source.values[position];
@@ -45,12 +45,12 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 1;
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

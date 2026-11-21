@@ -5,13 +5,13 @@
 // The caller writes the displaced backing and keeps the neighbor. The element
 // arrives as a local, a field, a parameter, and a call result.
 data Cell [copy] { value: u32; tag: u64; }
-data Window<'input> { values: @'input mut [Cell]; }
+data Window<'input> { values: @'input mutable [Cell]; }
 data Choice { slot: i32; }
 
 machine first_slot() -> i32 ensures result == 0 { 0 }
 machine last_slot() -> i32 ensures result == 1 { 1 }
 
-machine replace<'carrier, 'input>(windows: @'carrier mut [Window<'input>], slot: i32, replacement: @'input mut [Cell])
+machine replace<'carrier, 'input>(windows: @'carrier mutable [Window<'input>], slot: i32, replacement: @'input mutable [Cell])
 requires windows.length == 2 && slot == 0 {
     windows[last_slot()].values = replacement;
 }
@@ -36,7 +36,7 @@ machine unchanged(values: @[Cell]) -> bool {
     }
 }
 
-machine check(windows: @mut [Window], original: @mut [Cell; 1]) -> bool
+machine check(windows: @mutable [Window], original: @mutable [Cell; 1]) -> bool
 requires windows.length == 2
 {
     original[0].value = 9;
@@ -47,12 +47,12 @@ requires windows.length == 2
 
 machine exercise() crashes Trap {
     let selected: i32 = first_slot();
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: @mut original[..] }, Window { values: @mut neighbor[..] }];
-    windows[last_slot()].values = @mut replacement[..];
-    transition check(@mut windows[..], @mut original) {
+    let mutable original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mutable neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mutable replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mutable windows: [Window; 2] = [Window { values: @mutable original[..] }, Window { values: @mutable neighbor[..] }];
+    windows[last_slot()].values = @mutable replacement[..];
+    transition check(@mutable windows[..], @mutable original) {
         true -> done(),
         false -> bad()
     }

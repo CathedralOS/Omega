@@ -42,12 +42,12 @@ machine parse_hex(text: @[u8], start: i32 in Wrapping) -> i32 in Wrapping {
     }
 }
 
-public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
+public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
     transition text.length >= 17 && text.length <= 19 {
         true -> ending(text, cavity),
         _ -> false
     }
-    machine ending(text: @[u8], cavity: @mut Cavity) -> bool
+    machine ending(text: @[u8], cavity: @mutable Cavity) -> bool
     requires text.length >= 17
     {
         transition text.length {
@@ -57,7 +57,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
             _ -> false
         }
     }
-    machine newline(text: @[u8], cavity: @mut Cavity) -> bool
+    machine newline(text: @[u8], cavity: @mutable Cavity) -> bool
     requires text.length >= 18
     {
         transition text[17] == 10 {
@@ -65,7 +65,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
             _ -> false
         }
     }
-    machine carriage(text: @[u8], cavity: @mut Cavity) -> bool
+    machine carriage(text: @[u8], cavity: @mutable Cavity) -> bool
     requires text.length >= 19
     {
         transition text[17] == 13 && text[18] == 10 {
@@ -73,7 +73,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
             _ -> false
         }
     }
-    machine separators(text: @[u8], cavity: @mut Cavity) -> bool
+    machine separators(text: @[u8], cavity: @mutable Cavity) -> bool
     requires text.length >= 17
     {
         transition text[4] == 32 && text[9] == 32 && text[14] == 32 {
@@ -81,7 +81,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
             _ -> false
         }
     }
-    machine numbers(text: @[u8], cavity: @mut Cavity) -> bool
+    machine numbers(text: @[u8], cavity: @mutable Cavity) -> bool
     requires text.length >= 17
     {
         let walls: i32 in Wrapping = parse_hex(text, 0);
@@ -95,7 +95,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
             _ -> false
         }
     }
-    machine store(cavity: @mut Cavity, walls: i32 in Wrapping, gates: i32 in Wrapping,
+    machine store(cavity: @mutable Cavity, walls: i32 in Wrapping, gates: i32 in Wrapping,
                 vents: i32 in Wrapping, budget: i32 in Wrapping) -> bool {
         cavity.walls = walls;
         cavity.gates = gates;

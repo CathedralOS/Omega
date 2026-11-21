@@ -9,26 +9,26 @@ data Digits { bytes: [i32; 20]; count: u64; }
 public machine integer(value: i64 in Saturating) reaches ProcessExit + Console
 invokes Console
 {
-    let mut output: Digits;
-    transition value < 0 { true -> negative(value, @mut output), false -> collect(value, @mut output) }
-    machine negative(value: i64 in Saturating, output: @mut Digits) {
+    let mutable output: Digits;
+    transition value < 0 { true -> negative(value, @mutable output), false -> collect(value, @mutable output) }
+    machine negative(value: i64 in Saturating, output: @mutable Digits) {
         Console::write("-");
         transition { _ -> collect(value, output) }
     }
-    machine collect(value: i64 in Saturating, output: @mut Digits) {
+    machine collect(value: i64 in Saturating, output: @mutable Digits) {
         transition output.count < 20 {
             true -> remainder(value, output, value % 10),
             false -> failed()
         }
     }
-    machine remainder(value: i64 in Saturating, output: @mut Digits, digit: i64 in Saturating)
+    machine remainder(value: i64 in Saturating, output: @mutable Digits, digit: i64 in Saturating)
     {
         transition digit < 0 {
             true -> store(value, output, 0 - digit),
             false -> store(value, output, digit)
         }
     }
-    machine store(value: i64 in Saturating, output: @mut Digits, digit: i64 in Saturating)
+    machine store(value: i64 in Saturating, output: @mutable Digits, digit: i64 in Saturating)
     {
         let count: u64 = output.count;
         transition count < 20 && digit >= 0 && digit <= 9 {
@@ -36,7 +36,7 @@ invokes Console
             false -> failed()
         }
     }
-    machine write_stored(value: i64 in Saturating, output: @mut Digits, digit: i64 in Saturating, index: u64)
+    machine write_stored(value: i64 in Saturating, output: @mutable Digits, digit: i64 in Saturating, index: u64)
     requires index < 20 && digit >= 0 && digit <= 9
     {
         output.bytes[index] = (digit + 48) as i32;

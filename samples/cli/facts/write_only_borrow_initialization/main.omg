@@ -17,7 +17,7 @@ machine initialize_slot(destination: @write BoxedSlot) {
 machine probe() -> u64
 ensures
     result == 0u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 100u64 };
     initialize_slot(@write slot);
     let current: u64 = slot.value;
     current - 100u64

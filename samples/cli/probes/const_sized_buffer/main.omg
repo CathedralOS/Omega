@@ -34,7 +34,7 @@ data Ledger {
 }
 
 machine const_sized_buffer() {
-    let mut ledger: Ledger = Ledger {};
+    let mutable ledger: Ledger = Ledger {};
     ledger.buf[9] = 7;
     transition ledger.buf[9] == 7 && table_size() == 10 {
         true -> done(70),

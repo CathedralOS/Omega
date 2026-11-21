@@ -48,7 +48,7 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
 }
 
 machine windows_filesystem_transfer_entry() -> BoundaryEntryPlan {
-    let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
+    let mutable plan: BoundaryEntryPlan = windows_x64_call_entry();
     plan.call.parameter_count = 4;
     plan.call.parameters[0] = windows_x64_register_place(8, MachineRegister::X86Rcx);
     plan.call.parameters[1].shape = AbiValueShape {

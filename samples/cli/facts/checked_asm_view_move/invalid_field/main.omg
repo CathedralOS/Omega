@@ -2,7 +2,7 @@
 // Expected exit: 0.
 data Holder { values: [u32; 2]; }
 machine main() crashes Trap {
-    let mut holder: Holder = Holder { values: [7, 9] };
+    let mutable holder: Holder = Holder { values: [7, 9] };
     asm {
         mov eax, 37;
         mov [holder.values], eax

@@ -22,59 +22,59 @@ use domain\verify\verify;
 
 data Main { }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut input: Input;
-    let received: LineReadResult = block Console::read_line(@mut input.bytes[..]);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable input: Input;
+    let received: LineReadResult = block Console::read_line(@mutable input.bytes[..]);
     transition received {
         LineReadResult::LineComplete { count } -> length(main, @input, count),
         LineReadResult::EndOfInput { count } -> length(main, @input, count),
         _ -> invalid(main)
     }
-    machine length(main: @mut Main, input: @Input, count: u64) {
+    machine length(main: @mutable Main, input: @Input, count: u64) {
         transition count <= 256 {
             true -> parse_request(main, input, count as i32 +Wrapping),
             _ -> invalid(main)
         }
     }
-    machine parse_request(main: @mut Main, input: @Input, count: i32 in Wrapping) {
-        let mut tokens: Tokens;
-        let accepted: bool = parse(input, count, @mut tokens);
+    machine parse_request(main: @mutable Main, input: @Input, count: i32 in Wrapping) {
+        let mutable tokens: Tokens;
+        let accepted: bool = parse(input, count, @mutable tokens);
         transition accepted {
             true -> model(main, @tokens),
             _ -> invalid(main)
         }
     }
-    machine model(main: @mut Main, tokens: @Tokens) {
-        let mut problem: Problem;
-        let valid: bool = decode(tokens, @mut problem);
+    machine model(main: @mutable Main, tokens: @Tokens) {
+        let mutable problem: Problem;
+        let valid: bool = decode(tokens, @mutable problem);
         transition valid {
             true -> schedule(main, @problem),
             _ -> invalid(main)
         }
     }
-    machine schedule(main: @mut Main, problem: @Problem) {
-        let mut result: Schedule;
-        let possible: bool = solve(problem, @mut result);
+    machine schedule(main: @mutable Main, problem: @Problem) {
+        let mutable result: Schedule;
+        let possible: bool = solve(problem, @mutable result);
         transition possible {
             true -> verify_result(main, problem, @result),
             _ -> impossible(main)
         }
     }
-    machine verify_result(main: @mut Main, problem: @Problem, result: @Schedule) {
+    machine verify_result(main: @mutable Main, problem: @Problem, result: @Schedule) {
         let valid: bool = verify(problem, result);
         transition valid {
             true -> render(main, problem, result, 0),
             _ -> internal_failure(main)
         }
     }
-    machine render(main: @mut Main, problem: @Problem, result: @Schedule,
+    machine render(main: @mutable Main, problem: @Problem, result: @Schedule,
                   index: i32 in Wrapping) {
         transition index >= 0 && index < problem.count && index < 4 {
             true -> row(main, problem, result, index),
             _ -> finish(main, result)
         }
     }
-    machine row(main: @mut Main, problem: @Problem, result: @Schedule,
+    machine row(main: @mutable Main, problem: @Problem, result: @Schedule,
                index: i32 in Wrapping) {
         Console::write("TASK ");
         print_number(main, index);
@@ -85,34 +85,34 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         transition { _ -> render(main, problem, result, index + 1) }
     }
-    machine finish(main: @mut Main, result: @Schedule) {
+    machine finish(main: @mutable Main, result: @Schedule) {
         Console::write("MAKESPAN ");
         print_number(main, result.makespan);
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mut Main) {
+    machine invalid(main: @mutable Main) {
         Console::write_line("INVALID");
         ProcessExit::exit_process(2);
     }
-    machine impossible(main: @mut Main) {
+    machine impossible(main: @mutable Main) {
         Console::write_line("IMPOSSIBLE");
         ProcessExit::exit_process(3);
     }
-    machine internal_failure(main: @mut Main) {
+    machine internal_failure(main: @mutable Main) {
         Console::write_line("INVARIANT_FAILURE");
         ProcessExit::exit_process(4);
     }
 }
 // The public caller prints only IDs and verified times (0..20). Two digits
 // make output comparisons unambiguous without a shared formatting dependency.
-machine print_number(main: @mut Main, value: i32 in Wrapping) reaches Console {
+machine print_number(main: @mutable Main, value: i32 in Wrapping) reaches Console {
     Console::write_byte((48 + value / 10) as i32);
     Console::write_byte((48 + value % 10) as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

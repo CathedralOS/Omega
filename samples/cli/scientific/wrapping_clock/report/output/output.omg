@@ -10,22 +10,22 @@ use clock\model\Acquisition;
 public machine number(value: i64 in Wrapping) reaches Console
 crashes Trap
 {
-    let mut digits: [i32 in Wrapping; 19];
+    let mutable digits: [i32 in Wrapping; 19];
     transition value < 0 {
-        true -> negative(@mut digits, value),
-        false -> fill(@mut digits, 0, value)
+        true -> negative(@mutable digits, value),
+        false -> fill(@mutable digits, 0, value)
     }
-    machine negative(digits: @mut [i32 in Wrapping; 19], value: i64 in Wrapping) {
+    machine negative(digits: @mutable [i32 in Wrapping; 19], value: i64 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> fill(digits, 0, 0 - value) }
     }
-    machine fill(digits: @mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
+    machine fill(digits: @mutable [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
         transition count >= 0 && count < 19 {
             true -> append(digits, count, value),
             false -> invalid()
         }
     }
-    machine append(digits: @mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping)
+    machine append(digits: @mutable [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping)
     requires count >= 0 && count < 19
     {
         let digit: i64 in Wrapping = value % 10 + 48;

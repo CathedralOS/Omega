@@ -20,7 +20,7 @@ specification retired source-visible `Binding<R>`
 (`wiki/spec/build/component_publication.md:198`), so the carrier is gone and the
 calls are requirement applications with ordinary arguments:
 `Character::store(output, letter())` and
-`Character::echo(ordinary_argument(&mut context.phase))`. The authority lane now
-returns the phase borrow it took (`&'loan mut i32`) rather than forwarding a
+`Character::echo(ordinary_argument(&mutable context.phase))`. The authority lane now
+returns the phase borrow it took (`&'loan mutable i32`) rather than forwarding a
 carrier reference, and the projected receiver is the plain `context.value` this
 program actually operated on.

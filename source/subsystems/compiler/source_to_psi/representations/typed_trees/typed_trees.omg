@@ -22,7 +22,7 @@ public data TypeKind [copy] {
     case Builtin;
     // A data declaration (`item`), applied to the argument run.
     case Data;
-    // `&T` or `&mut T`: `access` over `inner`.
+    // `&T` or `&mutable T`: `access` over `inner`.
     case Reference;
     // `[inner; length]`, with its `in` qualifier; `length` is the handle of
     // its extent's type, a static integer or a `const` generic parameter
@@ -225,7 +225,7 @@ requires
     accepted: bool;
 }
 
-public machine typing_reject(typing: @mut Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
+public machine typing_reject(typing: @mutable Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
     typing.accepted = false;
     typing.diagnostic.code = code;
     typing.diagnostic.source_span = source_span;
@@ -251,7 +251,7 @@ crashes Trap
     }
 }
 
-public machine set_reference_type(typing: @mut Typing, row: u64 in Trapping, handle: u64 in Trapping)
+public machine set_reference_type(typing: @mutable Typing, row: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition row < typing.reference_count {
@@ -259,7 +259,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mutable Typing, row: u64 in Trapping, handle: u64 in Trapping) {
         typing.reference_types[row] = handle as u64;
     }
 
@@ -285,7 +285,7 @@ crashes Trap
     }
 }
 
-public machine set_expression_type(typing: @mut Typing, index: u64 in Trapping, handle: u64 in Trapping)
+public machine set_expression_type(typing: @mutable Typing, index: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -293,7 +293,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, handle: u64 in Trapping) {
         typing.expression_types[index] = handle as u64;
     }
 
@@ -319,7 +319,7 @@ crashes Trap
     }
 }
 
-public machine set_selection(typing: @mut Typing, index: u64 in Trapping, selection: Selection)
+public machine set_selection(typing: @mutable Typing, index: u64 in Trapping, selection: Selection)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -327,7 +327,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, selection: Selection) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, selection: Selection) {
         typing.selections[index] = selection;
     }
 
@@ -353,7 +353,7 @@ crashes Trap
     }
 }
 
-public machine set_adaptation(typing: @mut Typing, index: u64 in Trapping, adaptation: Adaptation)
+public machine set_adaptation(typing: @mutable Typing, index: u64 in Trapping, adaptation: Adaptation)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -361,7 +361,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, adaptation: Adaptation) {
         typing.adaptations[index] = adaptation;
     }
 
@@ -441,7 +441,7 @@ crashes Trap
     }
 }
 
-public machine set_roster(typing: @mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
+public machine set_roster(typing: @mutable Typing, index: u64 in Trapping, roster: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -449,7 +449,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, roster: u64 in Trapping) {
         typing.rosters[index] = roster as u64;
     }
 
@@ -502,7 +502,7 @@ crashes Trap
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-public machine set_rational(typing: @mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
+public machine set_rational(typing: @mutable Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -510,7 +510,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
         typing.values[index] = value.numerator;
         typing.denominators[index] = value.denominator as u64;
         transition origin > 0 || value.denominator <= 1 {
@@ -519,11 +519,11 @@ crashes Trap
         }
     }
 
-    machine inherited(typing: @mut Typing, index: u64 in Trapping, origin: u64 in Trapping) {
+    machine inherited(typing: @mutable Typing, index: u64 in Trapping, origin: u64 in Trapping) {
         typing.fractional_origins[index] = origin as u64;
     }
 
-    machine fractional(typing: @mut Typing, index: u64 in Trapping) {
+    machine fractional(typing: @mutable Typing, index: u64 in Trapping) {
         typing.fractional_origins[index] = (index + 1) as u64;
     }
 
@@ -532,7 +532,7 @@ crashes Trap
     }
 }
 
-public machine typing_set_value(typing: @mut Typing, index: u64 in Trapping, value: ExactInteger)
+public machine typing_set_value(typing: @mutable Typing, index: u64 in Trapping, value: ExactInteger)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -540,7 +540,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, index: u64 in Trapping, value: ExactInteger) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
         typing.denominators[index] = 0;
         typing.fractional_origins[index] = 0;
@@ -568,7 +568,7 @@ crashes Trap
     }
 }
 
-public machine set_construct_target(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_construct_target(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -576,7 +576,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.construct_targets[field] = target;
     }
 
@@ -602,7 +602,7 @@ crashes Trap
     }
 }
 
-public machine set_binder_member(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_binder_member(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -610,7 +610,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.binder_members[field] = target;
     }
 
@@ -636,7 +636,7 @@ crashes Trap
     }
 }
 
-public machine set_binder_type(typing: @mut Typing, field: u64 in Trapping, handle: u64 in Trapping)
+public machine set_binder_type(typing: @mutable Typing, field: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -644,7 +644,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mutable Typing, field: u64 in Trapping, handle: u64 in Trapping) {
         typing.binder_types[field] = handle as u64;
     }
 
@@ -705,7 +705,7 @@ crashes Trap
 
 // Append one argument to the tentative run at the arguments tail; false when
 // the table is full.
-public machine type_table_push_argument(table: @mut TypeTable, argument: u64 in Trapping) -> bool
+public machine type_table_push_argument(table: @mutable TypeTable, argument: u64 in Trapping) -> bool
 crashes Trap
 {
     transition table.argument_count < 4096 {
@@ -713,7 +713,7 @@ crashes Trap
         _ -> full()
     }
 
-    machine push(table: @mut TypeTable, argument: u64 in Trapping) -> bool {
+    machine push(table: @mutable TypeTable, argument: u64 in Trapping) -> bool {
         table.arguments[table.argument_count] = argument as u64;
         table.argument_count = table.argument_count + 1;
         true
@@ -727,19 +727,19 @@ crashes Trap
 // Intern `row`. An argument run must be the tentative run the caller just
 // appended at the arguments tail: an equal existing row releases it. Zero
 // when the table is full.
-public machine type_table_intern(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping
+public machine type_table_intern(table: @mutable TypeTable, row: TypeRow) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> scan(table, row, 1) }
 
-    machine scan(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine scan(table: @mutable TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition index < table.row_count {
             true -> compare(table, row, index),
             _ -> append(table, row)
         }
     }
 
-    machine compare(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(table: @mutable TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         let existing: TypeRow = type_table_row(table, index);
         let same: bool = same_row(table, existing, row);
         transition same {
@@ -750,28 +750,28 @@ crashes Trap
 
     // The tentative run ends the argument table, so releasing it moves the
     // count back to where the run starts.
-    machine found(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine found(table: @mutable TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition row.argument_count > 0 && row.first_argument <= table.argument_count {
             true -> release(table, row.first_argument, index),
             _ -> result(index)
         }
     }
 
-    machine release(table: @mut TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    machine release(table: @mutable TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires first_argument <= 4096
     {
         table.argument_count = first_argument as u64;
         transition { _ -> result(index) }
     }
 
-    machine append(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine append(table: @mutable TypeTable, row: TypeRow) -> u64 in Trapping {
         transition table.row_count < 8192 {
             true -> store(table, row),
             _ -> full()
         }
     }
 
-    machine store(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine store(table: @mutable TypeTable, row: TypeRow) -> u64 in Trapping {
         let handle: u64 in Trapping = table.row_count as u64 +Trapping;
         table.rows[handle] = row;
         table.row_count = table.row_count + 1;
@@ -831,7 +831,7 @@ crashes Trap
 
 // `row` with its domain qualifier removed: the carrier it qualifies.
 public machine type_row_carrier(row: TypeRow) -> TypeRow {
-    let mut carrier: TypeRow = row;
+    let mutable carrier: TypeRow = row;
     carrier.domain = DomainBinding::Unqualified;
     carrier.domain_item = 0;
     carrier

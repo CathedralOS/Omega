@@ -3,7 +3,7 @@
 use assert_kit\main\Assert;
 data Main {
 }
-machine Main::main(main: @mut Main)
+machine Main::main(main: @mutable Main)
 reaches Assert
 crashes Trap
 {
@@ -15,6 +15,6 @@ machine entry_start()
 reaches Assert
 crashes Trap
 {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

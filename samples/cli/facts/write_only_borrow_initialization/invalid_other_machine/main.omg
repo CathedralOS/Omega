@@ -23,7 +23,7 @@ machine forward_slot(slot: @BoxedSlot) -> u64 {
 }
 
 machine probe() -> u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 99u64 };
     initialize_slot(@write slot);
     forward_slot(@slot)
 }

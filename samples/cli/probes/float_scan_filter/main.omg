@@ -23,28 +23,28 @@ Decreased satisfies Retain<Reading> {
     machine test(value: @Reading) -> bool { decode(@value.current[..]) < decode(@value.previous[..]) }
 }
 
-machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [T])
-    -> @'input mut [T]
+machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mutable [T])
+    -> @'input mutable [T]
 {
     transition { _ -> scan(selected, values, 0, 0) }
-    machine scan(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine scan(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor <= values.length {
         transition cursor < values.length {
             true -> visit(selected, values, cursor, retained),
-            false -> (@mut values[..retained])
+            false -> (@mutable values[..retained])
         }
     }
-    machine visit(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine visit(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor < values.length {
         transition Retain::test(selected, @values[cursor]) {
             true -> keep(selected, values, cursor, retained),
             false -> scan(selected, values, cursor + 1, retained)
         }
     }
-    machine keep(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine keep(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor < values.length {
         values[retained] = values[cursor];
         transition { _ -> scan(selected, values, cursor + 1, retained + 1) }
@@ -69,7 +69,7 @@ machine signature(values: @[Reading]) -> u64 {
 }
 
 machine exercise(selected: dyn Retain<Reading>, expected: u64, repeated: u64) -> bool {
-    let mut readings: [Reading; 7] = [
+    let mutable readings: [Reading; 7] = [
         Reading { address: 91, previous: [0, 0, 0, 0, 0, 0, 34, 64], current: [0, 0, 0, 0, 0, 0, 36, 64] },
         Reading { address: 10, previous: [0, 0, 0, 0, 0, 0, 0, 128], current: [0, 0, 0, 0, 0, 0, 0, 0] },
         Reading { address: 20, previous: [0, 0, 0, 0, 0, 0, 240, 63], current: [0, 0, 0, 0, 0, 0, 0, 64] },
@@ -78,11 +78,11 @@ machine exercise(selected: dyn Retain<Reading>, expected: u64, repeated: u64) ->
         Reading { address: 50, previous: [0, 0, 0, 0, 0, 0, 20, 64], current: [0, 0, 0, 0, 0, 0, 20, 64] },
         Reading { address: 92, previous: [0, 0, 0, 0, 0, 0, 36, 64], current: [0, 0, 0, 0, 0, 0, 34, 64] }
     ];
-    let first: @mut [Reading] = compact(selected, @mut readings[1..6]);
+    let first: @mutable [Reading] = compact(selected, @mutable readings[1..6]);
     let first_signature: u64 = signature(first);
-    let second: @mut [Reading] = compact(Increased as dyn Retain<Reading>, first);
+    let second: @mutable [Reading] = compact(Increased as dyn Retain<Reading>, first);
     let second_signature: u64 = signature(second);
-    let empty: @mut [Reading] = compact(Decreased as dyn Retain<Reading>, second);
+    let empty: @mutable [Reading] = compact(Decreased as dyn Retain<Reading>, second);
     let empty_count: u64 = empty.length;
     first_signature == expected && second_signature == repeated && empty_count == 0
         && readings[0].address == 91 && readings[6].address == 92

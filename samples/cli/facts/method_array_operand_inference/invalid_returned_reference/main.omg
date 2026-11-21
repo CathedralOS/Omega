@@ -14,7 +14,7 @@ machine pick<'a>(first: @'a Ticket, second: @'a Ticket, third: @'a Ticket) -> @'
 machine main() crashes Trap {
     let one: Ticket = Ticket { number: 7 };
     let two: Ticket = Ticket { number: 11 };
-    let mut three: Ticket = Ticket { number: 13 };
+    let mutable three: Ticket = Ticket { number: 13 };
     let observed: @Ticket = pick(@one, @two, @three);
     three.number = 21;
     transition observed.number == 13 { true -> done(), _ -> bad() }

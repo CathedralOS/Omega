@@ -16,7 +16,7 @@ machine instantiate() { close::<Indexed<Sizes::SIZE>>(); }
 machine complete() {}
 machine fail() crashes Trap { crash Trap; }
 machine main() crashes Trap {
-    let mut item: Indexed<Sizes::SIZE>;
+    let mutable item: Indexed<Sizes::SIZE>;
     item.value = 9;
     transition keep(item).value == 9 && before_local(item).value == 9 {
         true -> complete(),

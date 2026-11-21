@@ -13,7 +13,7 @@ machine positive_zero64(value: f64) -> bool requires true {
     value == 0.0f64 && 1.0f64 / value > 0.0f64
 }
 machine probe() -> bool requires true {
-    let mut defaults: Defaults;
+    let mutable defaults: Defaults;
     let narrow: f32;
     let wide: f64;
     defaults.before = 37u64;

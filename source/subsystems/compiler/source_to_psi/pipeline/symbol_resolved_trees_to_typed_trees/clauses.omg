@@ -45,25 +45,25 @@ use representations\typed_trees\typing_reject;
 // parameters of its own, or a trait with parameters other than types and
 // lifetimes, rejects as unsupported. The `via` payload and a `terminates by`
 // witness's subjects and view type like any expression.
-public machine type_clauses(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
+public machine type_clauses(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
 {
     transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
 
-    machine next_machine(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
+    machine next_machine(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
             true -> machine(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
 
-    machine machine(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
+    machine machine(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition { _ -> next_clause(typer, sources, syntax, resolution, index, item, 0) }
     }
 
     machine next_clause(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -78,7 +78,7 @@ crashes Trap
     }
 
     machine clause(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -96,7 +96,7 @@ crashes Trap
     }
 
     machine satisfies(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -112,7 +112,7 @@ crashes Trap
     }
 
     machine terminates(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -132,7 +132,7 @@ crashes Trap
 // One `satisfies` clause of `satisfier`: bind the trait's parameters to the
 // clause's arguments, compare the signatures, then type the `via` payload.
 machine type_satisfied_requirement(
-    typer: @mut Typer,
+    typer: @mutable Typer,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
@@ -148,7 +148,7 @@ crashes Trap
     }
 
     machine requirement(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -165,7 +165,7 @@ crashes Trap
     }
 
     machine owned(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -179,7 +179,7 @@ crashes Trap
     }
 
     machine bindings(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -195,7 +195,7 @@ crashes Trap
     // The trait's parameters in order, lifetimes aside, each bound to the
     // clause's next static argument.
     machine parameter(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -213,7 +213,7 @@ crashes Trap
     }
 
     machine parameter_kind(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -234,7 +234,7 @@ crashes Trap
     }
 
     machine argument(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -253,7 +253,7 @@ crashes Trap
     }
 
     machine bound(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -272,7 +272,7 @@ crashes Trap
     }
 
     machine counted(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -288,7 +288,7 @@ crashes Trap
     }
 
     machine signature(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -303,19 +303,19 @@ crashes Trap
         }
     }
 
-    machine payload(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
+    machine payload(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
         transition clause.has_expression {
             true -> typed_payload(typer, sources, syntax, resolution, clause),
             _ -> done()
         }
     }
 
-    machine typed_payload(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
+    machine typed_payload(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
         type_tree(typer, sources, syntax, resolution, clause.expression);
     }
 
-    machine reject(typer: @mut Typer, code: TypeDiagnosticCode, source_span: SourceSpan) {
-        typing_reject(@mut typer.output, code, source_span);
+    machine reject(typer: @mutable Typer, code: TypeDiagnosticCode, source_span: SourceSpan) {
+        typing_reject(@mutable typer.output, code, source_span);
     }
 
     machine invalid() {
@@ -328,7 +328,7 @@ crashes Trap
 // Whether `satisfier`'s parameters and result are `required`'s under the
 // live bindings.
 machine same_satisfied_signature(
-    typer: @mut Typer,
+    typer: @mutable Typer,
     syntax: @SyntaxTrees,
     satisfier: MachineItem,
     required: MachineItem,
@@ -342,7 +342,7 @@ crashes Trap
     }
 
     machine parameter(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         satisfier: MachineItem,
         required: MachineItem,
@@ -356,7 +356,7 @@ crashes Trap
     }
 
     machine compared(
-        typer: @mut Typer,
+        typer: @mutable Typer,
         syntax: @SyntaxTrees,
         satisfier: MachineItem,
         required: MachineItem,
@@ -374,7 +374,7 @@ crashes Trap
         }
     }
 
-    machine result(typer: @mut Typer, satisfier: MachineItem, required: MachineItem, source_span: SourceSpan) -> bool {
+    machine result(typer: @mutable Typer, satisfier: MachineItem, required: MachineItem, source_span: SourceSpan) -> bool {
         let own_result: u64 in Trapping = declared_result(typer, satisfier.has_return_type, satisfier.return_type, typer.output.unit);
         let written: u64 in Trapping = declared_result(typer, required.has_return_type, required.return_type, typer.output.unit);
         let owed_result: u64 in Trapping = substitute_bound(typer, written, source_span);
@@ -387,7 +387,7 @@ crashes Trap
 }
 
 // A `terminates by` witness: its subjects, then its view.
-machine type_ranking(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause)
+machine type_ranking(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause)
 crashes Trap
 {
     transition clause.has_range {
@@ -397,19 +397,19 @@ crashes Trap
 
     // A rank range's endpoints are integers, an anonymous literal landing at
     // `u64` as an index range's does (wiki/spec/language/termination.md#ranking).
-    machine ranged(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
+    machine ranged(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
         type_tree(typer, sources, syntax, resolution, clause.range);
         transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, 0) }
     }
 
-    machine subject(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
+    machine subject(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         transition offset < clause.argument_count && typer.output.accepted {
             true -> typed_subject(typer, sources, syntax, resolution, handle, clause, offset),
             _ -> view(typer, sources, syntax, resolution, handle, clause)
         }
     }
 
-    machine typed_subject(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
+    machine typed_subject(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         let root: u64 in Trapping = syntax_trees_argument(syntax, clause.first_argument + offset);
         type_tree(typer, sources, syntax, resolution, root);
         transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, offset + 1) }
@@ -417,7 +417,7 @@ crashes Trap
 
     // The view names the ranking vocabulary, not a value; only
     // `Nat::IncreasingTo`'s limit is an expression.
-    machine view(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
+    machine view(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
         let view: RankingView = ranking_view(resolution, handle);
         transition view {
             RankingView::IncreasingTo -> limit(typer, sources, syntax, resolution, clause),
@@ -429,7 +429,7 @@ crashes Trap
     // A declared measure ranks one subject: of its parameter's type, or of
     // the data a lexicographic measure's owner names
     // (wiki/spec/language/termination.md#ranking).
-    machine measured(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
+    machine measured(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, clause: Clause) {
         let measure: MachineItem = machine_item(syntax, ranking_measure(resolution, handle));
         let root: u64 in Trapping = syntax_trees_argument(syntax, clause.first_argument);
         transition clause.argument_count == 1 {
@@ -438,20 +438,20 @@ crashes Trap
         }
     }
 
-    machine subject_kind(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+    machine subject_kind(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
         transition measure.component_count > 0 {
             true -> owned_subject(typer, sources, syntax, measure, root),
             _ -> admitted_subject(typer, syntax, measure, root)
         }
     }
 
-    machine admitted_subject(typer: @mut Typer, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+    machine admitted_subject(typer: @mutable Typer, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
         let parameter: Parameter = syntax_trees_parameter(syntax, measure.first_parameter);
         let wanted: u64 in Trapping = reference_type(@typer.output, parameter.type_reference);
         let admitted: bool = typer_admit(typer, syntax, wanted, root, false);
     }
 
-    machine owned_subject(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+    machine owned_subject(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
         let subject: u64 in Trapping = typing_expression_type(@typer.output, root);
         let row: TypeRow = type_table_row(@typer.output.types, subject);
         transition row.kind == TypeKind::Data {
@@ -460,7 +460,7 @@ crashes Trap
         }
     }
 
-    machine owned_data(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping, item: u64 in Trapping) {
+    machine owned_data(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, measure: MachineItem, root: u64 in Trapping, item: u64 in Trapping) {
         let data: DataItem = syntax_trees_data_item(syntax, item);
         let same: bool = spans_equal(sources, data.name.source_span, measure.owner.source_span);
         transition same {
@@ -469,12 +469,12 @@ crashes Trap
         }
     }
 
-    machine mismatched(typer: @mut Typer, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine mismatched(typer: @mutable Typer, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let written: Expression = syntax_trees_expression(syntax, handle);
-        typing_reject(@mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
+        typing_reject(@mutable typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 
-    machine limit(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
+    machine limit(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, clause: Clause) {
         let written: Expression = syntax_trees_expression(syntax, clause.expression);
         let root: u64 in Trapping = syntax_trees_argument(syntax, written.first);
         type_tree(typer, sources, syntax, resolution, root);

@@ -3,7 +3,7 @@
 machine probe(input: u64) -> bool requires input < 2 {
     transition { _ -> observe(input) }
     machine observe(index: u64) -> bool requires index < 2 {
-    let mut items: [u64; 2] = [7, 11];
+    let mutable items: [u64; 2] = [7, 11];
     let selected: addr = address_of(@items[index]);
     let again: addr = address_of(@items[index]);
     let first: addr = address_of(@items[0]);

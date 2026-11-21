@@ -21,7 +21,7 @@ machine issue() -> Region in Owned
 ensures result.base == BASE, result.length == LENGTH
 { Region { base: BASE, length: LENGTH } }
 
-machine drop_region(region: @mut Region) {}
+machine drop_region(region: @mutable Region) {}
 
 data Parts { left: Region in Owned; right: Region in Owned; }
 

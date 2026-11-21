@@ -61,7 +61,7 @@ machine observed(found: Optional<@i32>) -> i32 {
 
 machine main() crashes Trap {
     let values: [i32; 5] = [-3, 7, 0, -1, 9];
-    let mut selected: dyn Scan<i32> = AtLeast as dyn Scan<i32>;
+    let mutable selected: dyn Scan<i32> = AtLeast as dyn Scan<i32>;
     let high: Optional<@i32> = scan(selected, @values, 6);
     selected = Below as dyn Scan<i32>;
     let low: Optional<@i32> = scan(selected, @values, 0);

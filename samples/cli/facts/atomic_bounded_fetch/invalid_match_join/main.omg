@@ -23,7 +23,7 @@ machine run_case(branch: bool, expected_path: u64) -> bool {
     let cell: Cell;
     cell.value.store(127, NoOrdering);
     let prior: u32 = mutate(@cell, 63);
-    let mut path: u64 = 0u64;
+    let mutable path: u64 = 0u64;
     let observed: u32 = join(cell.value.load(NoOrdering), branch, @write path);
     let remaining: u32 = 100 - observed;
     prior == 99 && observed == 35 && remaining == 65 && path == expected_path

@@ -8,7 +8,7 @@ ensures cell in Before {
 }
 machine initial() -> Cell in Before { Cell { value: 0 } }
 machine observed_exit() -> u32 {
-    let mut cell: Cell = initial();
+    let mutable cell: Cell = initial();
     overwrite(@write cell);
     transition cell.value == 73 { true -> 0, _ -> 1 }
 }

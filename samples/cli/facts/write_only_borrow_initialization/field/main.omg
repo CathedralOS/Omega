@@ -21,7 +21,7 @@ data Carrier {
 machine probe() -> u64
 ensures
     result == 0u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 100u64 };
     initialize_slot(@write slot);
     let carrier: Carrier = Carrier { item: slot.value };
     carrier.item - 100u64

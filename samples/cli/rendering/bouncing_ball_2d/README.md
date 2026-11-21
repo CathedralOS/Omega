@@ -1,7 +1,7 @@
 # Bouncing ball in 2D
 
 Animate a ball under gravity for 70 frames in a 24-column, 12-row terminal
-area. The entry receives an explicit `main: &mut Main` context and forwards
+area. The entry receives an explicit `main: &mutable Main` context and forwards
 it to each nested machine. From the repository root:
 
 ```text

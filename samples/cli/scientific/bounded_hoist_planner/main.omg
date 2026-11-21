@@ -20,37 +20,37 @@ data Clearance {
     certificate: Certificate;
 }
 
-machine main(clearance: @mut Clearance) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(@mut clearance.input[..]);
+machine main(clearance: @mutable Clearance) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(@mutable clearance.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> newline(clearance, count),
         LineReadResult::EndOfInput { count } -> eof(clearance, count),
         _ -> invalid(clearance)
     }
-    machine newline(clearance: @mut Clearance, count: u64) {
+    machine newline(clearance: @mutable Clearance, count: u64) {
         transition count == 11 && clearance.input[10] == 10 {
             true -> decode(clearance),
             false -> invalid(clearance)
         }
     }
-    machine eof(clearance: @mut Clearance, count: u64) {
+    machine eof(clearance: @mutable Clearance, count: u64) {
         transition count == 10 {
             true -> decode(clearance),
             false -> invalid(clearance)
         }
     }
-    machine decode(clearance: @mut Clearance) {
-        let valid: bool = parse(@clearance.input, @mut clearance.plan);
+    machine decode(clearance: @mutable Clearance) {
+        let valid: bool = parse(@clearance.input, @mutable clearance.plan);
         transition valid {
             true -> route(clearance),
             false -> invalid(clearance)
         }
     }
-    machine route(clearance: @mut Clearance) {
-        solve(@clearance.plan, @mut clearance.certificate);
+    machine route(clearance: @mutable Clearance) {
+        solve(@clearance.plan, @mutable clearance.certificate);
         report(@clearance.certificate);
     }
-    machine invalid(clearance: @mut Clearance) {
+    machine invalid(clearance: @mutable Clearance) {
         Console::write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
         ProcessExit::exit_process(64);
     }
@@ -58,6 +58,6 @@ machine main(clearance: @mut Clearance) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Clearance;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Clearance;
+    block main(@mutable entry_storage);
 }

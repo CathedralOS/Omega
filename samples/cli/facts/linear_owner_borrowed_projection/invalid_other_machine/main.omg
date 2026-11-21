@@ -10,10 +10,10 @@ machine observe_cell(cell: @Cell in Cell::Issued) -> u64 { cell.value }
 public data Buffer<'cells, 'cleanup> [linear] dropped by cleanup_buffer<'cells, 'cleanup> {
     marker: u64;
     route: u64;
-    cells: @'cells mut [Cell in Cell::Issued; 3];
-    cleanup: @'cleanup mut [u64; 3];
+    cells: @'cells mutable [Cell in Cell::Issued; 3];
+    cleanup: @'cleanup mutable [u64; 3];
 }
-machine cleanup_buffer<'cells, 'cleanup>(buffer: @mut Buffer<'cells, 'cleanup>) {
+machine cleanup_buffer<'cells, 'cleanup>(buffer: @mutable Buffer<'cells, 'cleanup>) {
     let next: u64 = match buffer.cleanup[1] == 0 { true -> 73, false -> 99 };
     buffer.cleanup[1] = next;
 }
@@ -26,11 +26,11 @@ machine consume_buffer<'cells, 'cleanup>(buffer: Buffer<'cells, 'cleanup>) -> Ob
     Observation { value: value, marker: marker, route: route }
 }
 machine exercise_case(initial_cleanup: u64, expected_cleanup: u64, choose: bool, expected_route: u64) crashes Trap {
-    let mut cells: [Cell in Cell::Issued; 3] = [mint_cell(305419896), mint_cell(37), mint_cell(1515863100)];
+    let mutable cells: [Cell in Cell::Issued; 3] = [mint_cell(305419896), mint_cell(37), mint_cell(1515863100)];
     let original: u64 = cells[1].value;
     let before: u64 = observe_cell(@cells[1]);
-    let mut cleanup_slots: [u64; 3] = [287454020, initial_cleanup, 1432778632];
-    let mut buffer: Buffer = Buffer { marker: 91, route: expected_route, cells: @mut cells, cleanup: @mut cleanup_slots };
+    let mutable cleanup_slots: [u64; 3] = [287454020, initial_cleanup, 1432778632];
+    let mutable buffer: Buffer = Buffer { marker: 91, route: expected_route, cells: @mutable cells, cleanup: @mutable cleanup_slots };
     let forbidden_live: u64 = cells[1].value;
     let observed: Observation = consume_buffer(buffer);
     let after: u64 = observe_cell(@cells[1]);

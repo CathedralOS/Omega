@@ -19,22 +19,22 @@ use output\report\number;
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut bytes: [u8; 128];
-    let mut problem: Problem;
-    let observed: LineReadResult = block Console::read_line(@mut bytes[..]);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable bytes: [u8; 128];
+    let mutable problem: Problem;
+    let observed: LineReadResult = block Console::read_line(@mutable bytes[..]);
     transition observed {
-        LineReadResult::EndOfInput { count } -> input(@bytes, count, @mut problem),
-        LineReadResult::LineComplete { count } -> input(@bytes, count, @mut problem),
+        LineReadResult::EndOfInput { count } -> input(@bytes, count, @mutable problem),
+        LineReadResult::LineComplete { count } -> input(@bytes, count, @mutable problem),
         _ -> invalid()
     }
-    machine input(bytes: @[u8], count: u64, problem: @mut Problem) {
+    machine input(bytes: @[u8], count: u64, problem: @mutable Problem) {
         transition count <= bytes.length {
             true -> admitted(bytes, count, problem),
             false -> invalid()
         }
     }
-    machine admitted(bytes: @[u8], count: u64, problem: @mut Problem)
+    machine admitted(bytes: @[u8], count: u64, problem: @mutable Problem)
     requires count <= bytes.length
     {
         transition count == 0 {
@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             false -> decode(bytes[..count], problem)
         }
     }
-    machine demo(problem: @mut Problem) {
+    machine demo(problem: @mutable Problem) {
         // Three exact circles through (3,4): radii 5,5,3.
         problem.values[0] = -8; problem.values[1] = 8;
         problem.values[2] = -8; problem.values[3] = 8;
@@ -55,7 +55,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         problem.values[15] = 3; problem.values[16] = 3;
         transition { _ -> search(problem, problem.values[0], problem.values[2], 0) }
     }
-    machine decode(bytes: @[u8], problem: @mut Problem) {
+    machine decode(bytes: @[u8], problem: @mutable Problem) {
         let parsed: bool = parse(bytes, problem);
         transition parsed {
             true -> validate(problem),
@@ -124,6 +124,6 @@ reaches Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

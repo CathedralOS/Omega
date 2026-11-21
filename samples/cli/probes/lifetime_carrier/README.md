@@ -3,7 +3,7 @@
 First sample with lifetime-parameterized data
 (`Carrier<'storage>` holding a `&'storage i32`), lifetime
 pass-through signatures on `transform`/`repair`, and a whole
-extract-and-restore repair through `&mut`.
+extract-and-restore repair through `&mutable`.
 
 ## Learnings
 

@@ -40,7 +40,7 @@ public data Word { prefix: u64; value: u64; suffix: u64; }
 public data WordPlacement {}
 
 machine WordPlacement::plan(schema: Schema) -> AccessPlan {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
@@ -56,7 +56,7 @@ machine WordPlacement::plan(schema: Schema) -> AccessPlan {
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     machine profile(storage: @Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
-        let mut regions: [ResourceRegion; 32];
+        let mutable regions: [ResourceRegion; 32];
         regions[0] = ResourceRegion {
             range: RelativeRange { offset: 0, length: storage.length },
             peer: PeerWritability::Exclusive,
@@ -123,10 +123,10 @@ machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vaca
     }
 
     machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>) -> Extent in Granted & Vacant {
-        let mut retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
-        let view: @mut Access<WordPlacement, Word> = Access::view_resident_mut::<WordPlacement, Word>(@mut retained);
+        let mutable retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
+        let view: @mutable Access<WordPlacement, Word> = Access::view_resident_mut::<WordPlacement, Word>(@mutable retained);
         let before: u64 = read(@view.value);
-        write(@mut view.value, 29u64);
+        write(@mutable view.value, 29u64);
         transition NativeAccess::<WordPlacement, Word, TestMemory>::move_out(retained) {
             AccessExtraction::Moved { storage, value } -> finish(storage, value, before)
         }

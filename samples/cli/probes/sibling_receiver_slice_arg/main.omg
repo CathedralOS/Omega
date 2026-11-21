@@ -1,11 +1,11 @@
-// Two `&mut` arguments from sibling fields of the same
-// owner in one call: `Sink::fill(&mut main.sink,
-// &mut main.buf[..])` — the receiver and a whole-array
+// Two `&mutable` arguments from sibling fields of the same
+// owner in one call: `Sink::fill(&mutable main.sink,
+// &mutable main.buf[..])` — the receiver and a whole-array
 // mutable byte slice are disjoint loans coexisting for
 // the call's duration.
 //
-//   * `&mut main.buf[..]` — `[..]` projects a fixed byte
-//     array as a `&mut [u8]` argument rooted at a field
+//   * `&mutable main.buf[..]` — `[..]` projects a fixed byte
+//     array as a `&mutable [u8]` argument rooted at a field
 //     path.
 //   * The callee mutates both sides: `bytes[0] = 9`
 //     through the slice, `sink.filled` on the receiver.
@@ -17,16 +17,16 @@ data Sink {
     filled: u64;
 }
 
-machine Sink::fill(sink: @mut Sink, bytes: @mut [u8]) {
+machine Sink::fill(sink: @mutable Sink, bytes: @mutable [u8]) {
     transition bytes.length >= 1 {
         true -> filled(sink, bytes),
         _ -> skipped(sink)
     }
-    machine filled(sink: @mut Sink, bytes: @mut [u8]) {
+    machine filled(sink: @mutable Sink, bytes: @mutable [u8]) {
         bytes[0] = 9;
         sink.filled = bytes.length;
     }
-    machine skipped(sink: @mut Sink) {
+    machine skipped(sink: @mutable Sink) {
         sink.filled = 0;
     }
 }
@@ -37,19 +37,19 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    Sink::fill(@mut main.sink, @mut main.buf[..]);
+    Sink::fill(@mutable main.sink, @mutable main.buf[..]);
     transition main.sink.filled == 4 && main.buf[0] == 9 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

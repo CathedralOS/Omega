@@ -6,7 +6,7 @@ machine store(view: @write Viewed) { view.value = 73; }
 machine forward(view: @write Viewed) { store(view); }
 machine overwrite(storage: @write Original) { forward(storage as @write Viewed); }
 machine main() crashes Trap {
-    let mut original: Original = Original { value: 0 };
+    let mutable original: Original = Original { value: 0 };
     overwrite(@write original);
     transition original.value == 73 { true -> done(), _ -> bad() }
     machine done() {}

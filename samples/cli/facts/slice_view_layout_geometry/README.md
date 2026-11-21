@@ -123,7 +123,7 @@ revision is `e73cff353a52`, which is what the rows are stamped with.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA arithmetic instructions (`sub`, `shl`/`imul` or constant-folded subtraction of 16), register moves, and comparison branches. Low-level register allocators assign register homes and disjoint activation stack-frame slots, and entry prologues and multi-return epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions and transition displacements encode into machine bytes, basic blocks and jump targets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
-- **What remains open:** Dynamic mutable slice view descriptors (`&mut [u64]`), wide slice pointers to dynamically sized types (DST), and custom slice metadata representations.
+- **What remains open:** Dynamic mutable slice view descriptors (`&mutable [u64]`), wide slice pointers to dynamically sized types (DST), and custom slice metadata representations.
 
 ## Build-owned target-body migration
 

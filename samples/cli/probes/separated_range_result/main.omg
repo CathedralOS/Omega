@@ -64,7 +64,7 @@ requires embed(self.base) + embed(self.length) <= 18446744073709551615;
 data RangeChecked { value: Range in Bounded; }
 machine mutation_cycle(value: Range) -> bool {
     transition { _ -> inspect(value, false) }
-    machine inspect(mut value: Range, repeated: bool) -> bool {
+    machine inspect(mutable value: Range, repeated: bool) -> bool {
         let base: u64 = value.base;
         let length: u64 = value.length;
         transition base <= 18446744073709551615 - length {
@@ -81,7 +81,7 @@ machine mutation_cycle(value: Range) -> bool {
             _ -> replace(result.value as Range)
         }
     }
-    machine replace(mut value: Range) -> bool {
+    machine replace(mutable value: Range) -> bool {
         value.base = 18446744073709551615;
         value.length = 1;
         transition { _ -> inspect(value, true) }

@@ -16,7 +16,7 @@ OtherPolicy satisfies FixedLayout<Record> {
 data Holder [copy] { value: CLayout<Record>; }
 machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
 machine main() crashes Trap {
-    let mut record: CLayout<Record>;
+    let mutable record: CLayout<Record>;
     record.first = 17u8;
     record.second = 42u64;
     record.last = 9u16;
@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let holder: Holder = Holder { value: same };
     // All raw words, including future record padding, are initialized. The
     // shared record view reads only its scalar fields and grants no new writes.
-    let mut words: [u64; 3];
+    let mutable words: [u64; 3];
     words[0] = 17u64;
     words[1] = 42u64;
     words[2] = 9u64;

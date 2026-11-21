@@ -9,7 +9,7 @@ use omega\language\core\Schema;
 data Payload [copy] { first: u64; value: u64; }
 Policy<const Marker: u64> satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        let mut entries: [FieldEntry; 64];
+        let mutable entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
         let selected_size: u64 = match Marker == 11u64 { true -> 24u64, _ -> 16u64 };
@@ -21,7 +21,7 @@ boundary trait ReadValue {
 }
 DefaultRead satisfies ReadValue {
     machine read<const Value: u64>() -> u64 {
-        let mut storage: LayoutStorage<Payload, Policy<Value>>;
+        let mutable storage: LayoutStorage<Payload, Policy<Value>>;
         storage.first = 9u64;
         storage.value = Value;
         storage.value

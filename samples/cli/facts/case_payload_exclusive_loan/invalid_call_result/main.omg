@@ -3,7 +3,7 @@
 // The source is used while the result loan is live.
 data Slot { case Absent; case Present(value: i64); }
 
-machine choose(counter: @mut u64) -> bool
+machine choose(counter: @mutable u64) -> bool
 requires $counter == 0
 {
     $counter = 1;
@@ -15,12 +15,12 @@ machine present(value: i64) -> Slot {
 }
 
 machine main() crashes Trap {
-    let mut chosen: Slot = present(17);
-    let mut other: Slot = present(0);
-    let mut visits: u64 = 0;
-    let selected: @mut i64 = match choose(@mut visits) {
-        true -> @mut chosen.value,
-        false -> @mut other.value
+    let mutable chosen: Slot = present(17);
+    let mutable other: Slot = present(0);
+    let mutable visits: u64 = 0;
+    let selected: @mutable i64 = match choose(@mutable visits) {
+        true -> @mutable chosen.value,
+        false -> @mutable other.value
     };
     chosen = Slot::Present { value: 7 };
     $selected = 41;

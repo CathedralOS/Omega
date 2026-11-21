@@ -1,13 +1,13 @@
-// A plain `let` binding (no `mut`) still lends `&mut`
-// into a callee's out-parameter: `mut` gates rebinding of
+// A plain `let` binding (no `mutable`) still lends `&mutable`
+// into a callee's out-parameter: `mutable` gates rebinding of
 // the NAME, not the mutability of loans from the owned
-// storage. `find(2, &mut found)` writes through the loan
+// storage. `find(2, &mutable found)` writes through the loan
 // and the caller's binding observes both writes.
 //
-//   * `machine find(key: i32, out: &mut Item)` — whole-
-//     place `&mut` out-param.
+//   * `machine find(key: i32, out: &mutable Item)` — whole-
+//     place `&mutable` out-param.
 //   * `let found: Item = Item { key: 0, val: 0 }` then
-//     `find(2, &mut found)` — no `mut` needed on the
+//     `find(2, &mutable found)` — no `mutable` needed on the
 //     binding.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -18,27 +18,27 @@ data Item {
     val: i32;
 }
 
-machine find(key: i32, out: @mut Item) {
+machine find(key: i32, out: @mutable Item) {
     out.key = key;
     out.val = 5;
 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let mut found: Item = Item { key: 0, val: 0 };
-    find(2, @mut found);
+    let mutable found: Item = Item { key: 0, val: 0 };
+    find(2, @mutable found);
     transition found.key == 2 && found.val == 5 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

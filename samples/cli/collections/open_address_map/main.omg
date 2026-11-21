@@ -21,11 +21,11 @@ data Table<K, V> { slots: [Slot<K, V>; 16]; live: u64 in Wrapping; }
 
 // blank fills every slot with a placeholder so borrowed reads of empty
 // slots observe initialized storage; tag 0 keeps them unreachable.
-machine blank<K [copy], V [copy]>(table: @mut Table<K, V>, key: @K, value: @V) {
+machine blank<K [copy], V [copy]>(table: @mutable Table<K, V>, key: @K, value: @V) {
     table.live = 0;
     transition { _ -> wipe(table, key, value, 0) }
 
-    machine wipe(table: @mut Table<K, V>, key: @K, value: @V, slot: u64)
+    machine wipe(table: @mutable Table<K, V>, key: @K, value: @V, slot: u64)
     requires slot < 16
     {
         table.slots[slot].key = $key;
@@ -110,12 +110,12 @@ machine probe<K, V, const H: KeyHash<K>, const E: KeyEquality<K>>(table: @Table<
 
 // insert writes `key -> value`; an existing live key updates in place and
 // a tombstone or empty slot fills. A full table leaves the row unchanged.
-machine insert<K [copy], V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mut Table<K, V>, key: @K, value: @V)
+machine insert<K [copy], V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mutable Table<K, V>, key: @K, value: @V)
 {
     let slot: u64 = probe::<H, E>(table, key);
     transition slot < 16 { true -> place(table, key, value, slot), _ -> full() }
 
-    machine place(table: @mut Table<K, V>, key: @K, value: @V, slot: u64)
+    machine place(table: @mutable Table<K, V>, key: @K, value: @V, slot: u64)
     requires slot < 16
     {
         transition table.slots[slot].tag == 1 {
@@ -124,13 +124,13 @@ machine insert<K [copy], V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>
         }
     }
 
-    machine update(table: @mut Table<K, V>, value: @V, slot: u64)
+    machine update(table: @mutable Table<K, V>, value: @V, slot: u64)
     requires slot < 16
     {
         table.slots[slot].value = $value;
     }
 
-    machine fill(table: @mut Table<K, V>, key: @K, value: @V, slot: u64)
+    machine fill(table: @mutable Table<K, V>, key: @K, value: @V, slot: u64)
     requires slot < 16
     {
         table.live = table.live + 1;
@@ -143,18 +143,18 @@ machine insert<K [copy], V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>
 }
 
 // remove tombstones a live key; absent keys leave the table unchanged.
-machine remove<K, V, const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mut Table<K, V>, key: @K)
+machine remove<K, V, const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mutable Table<K, V>, key: @K)
 {
     let slot: u64 = probe::<H, E>(table, key);
     transition slot < 16 { true -> kill(table, slot), _ -> {} }
 
-    machine kill(table: @mut Table<K, V>, slot: u64)
+    machine kill(table: @mutable Table<K, V>, slot: u64)
     requires slot < 16
     {
         transition table.slots[slot].tag == 1 { true -> drop_(table, slot), _ -> {} }
     }
 
-    machine drop_(table: @mut Table<K, V>, slot: u64)
+    machine drop_(table: @mutable Table<K, V>, slot: u64)
     requires slot < 16
     {
         table.live = table.live - 1;
@@ -181,27 +181,27 @@ machine lookup<K, V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>(table:
 
 data Main { }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut ints: Table<u64, u64>;
-    blank(@mut ints, @0, @0);
-    insert::<int_hash, int_same>(@mut ints, @5, @50);
-    insert::<int_hash, int_same>(@mut ints, @21, @210);
-    insert::<int_hash, int_same>(@mut ints, @37, @370);
-    remove::<int_hash, int_same>(@mut ints, @21);
-    insert::<int_hash, int_same>(@mut ints, @53, @530);
-    insert::<int_hash, int_same>(@mut ints, @37, @371);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable ints: Table<u64, u64>;
+    blank(@mutable ints, @0, @0);
+    insert::<int_hash, int_same>(@mutable ints, @5, @50);
+    insert::<int_hash, int_same>(@mutable ints, @21, @210);
+    insert::<int_hash, int_same>(@mutable ints, @37, @370);
+    remove::<int_hash, int_same>(@mutable ints, @21);
+    insert::<int_hash, int_same>(@mutable ints, @53, @530);
+    insert::<int_hash, int_same>(@mutable ints, @37, @371);
 
     let r5: u64 = lookup::<int_hash, int_same>(@ints, @5, @999);
     let r21: u64 = lookup::<int_hash, int_same>(@ints, @21, @999);
     let r37: u64 = lookup::<int_hash, int_same>(@ints, @37, @999);
     let r53: u64 = lookup::<int_hash, int_same>(@ints, @53, @999);
 
-    let mut bytes: Table<[u8; 8], u64>;
-    blank(@mut bytes, @[0, 0, 0, 0, 0, 0, 0, 0], @0);
-    insert::<byte_hash, byte_same>(@mut bytes, @[65, 0, 0, 0, 0, 0, 0, 66], @11);
-    insert::<byte_hash, byte_same>(@mut bytes, @[66, 0, 0, 0, 0, 0, 0, 65], @22);
-    remove::<byte_hash, byte_same>(@mut bytes, @[65, 0, 0, 0, 0, 0, 0, 66]);
-    insert::<byte_hash, byte_same>(@mut bytes, @[4, 0, 0, 0, 0, 0, 0, 4], @33);
+    let mutable bytes: Table<[u8; 8], u64>;
+    blank(@mutable bytes, @[0, 0, 0, 0, 0, 0, 0, 0], @0);
+    insert::<byte_hash, byte_same>(@mutable bytes, @[65, 0, 0, 0, 0, 0, 0, 66], @11);
+    insert::<byte_hash, byte_same>(@mutable bytes, @[66, 0, 0, 0, 0, 0, 0, 65], @22);
+    remove::<byte_hash, byte_same>(@mutable bytes, @[65, 0, 0, 0, 0, 0, 0, 66]);
+    insert::<byte_hash, byte_same>(@mutable bytes, @[4, 0, 0, 0, 0, 0, 0, 4], @33);
 
     let rb: u64 = lookup::<byte_hash, byte_same>(@bytes, @[66, 0, 0, 0, 0, 0, 0, 65], @999);
     let ra: u64 = lookup::<byte_hash, byte_same>(@bytes, @[65, 0, 0, 0, 0, 0, 0, 66], @999);
@@ -220,6 +220,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

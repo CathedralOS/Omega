@@ -16,7 +16,7 @@ The discharge chain is pure contract chaining — no runtime checks:
 and GUARANTEES non-emptiness plus the predecessor bound, `get` and `pop`
 CONSUME those guarantees. Mutating calls invalidate carried facts, so each
 proof-obligated call is fed by the call before it; the reads go through
-whole-window borrows (`&bucket.items[..]`, `&mut bucket.items[..]`), which
+whole-window borrows (`&bucket.items[..]`, `&mutable bucket.items[..]`), which
 name the same storage as the array, so the array's index facts hold for the
 view.
 

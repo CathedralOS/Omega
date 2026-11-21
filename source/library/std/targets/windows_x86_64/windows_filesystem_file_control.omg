@@ -46,8 +46,8 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
 
 machine windows_filesystem_native_set_path_readonly(path: @[u8] in Path, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
-    let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path as -Path, @mut wide);
+    let mutable wide: [u16; 4096];
+    let count: i64 = windows_wide_path(path as -Path, @mutable wide);
     wide[4095] = 0;
     transition count > 0 { true -> block acquire(wide as +WindowsNativePath, readonly), false -> (-87) }
     machine acquire(wide: [u16; 4096] in WindowsNativePath, readonly: bool) -> i32 {
@@ -72,8 +72,8 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     transition (classified as -WindowsDiskFileOrAbsent) != 0 { true -> block query(classified, readonly), false -> failed() }
     machine failed() -> i32 { windows_filesystem_native_failure_i32() }
     machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires (handle as -WindowsDiskFileOrAbsent) != 0 {
-        let mut current: WindowsNativeFileBasicInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, @mut current, 40);
+        let mutable current: WindowsNativeFileBasicInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, @mutable current, 40);
         // The classifier authorizes the typed query. The setter accepts the
         // ordinary HANDLE contract and reports incompatible objects as errors.
         transition succeeded != 0 { true -> block select(handle as -WindowsDiskFileOrAbsent, current.attributes, readonly), false -> failed() }

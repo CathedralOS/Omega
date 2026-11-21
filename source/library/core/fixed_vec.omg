@@ -70,7 +70,7 @@ boundary trait FixedVecAccess {
     // Append a value. Requires provable spare room — there is no growth
     // path and no trap; a call without a discharged capacity fact is a
     // compile error.
-    machine push<T, const N: u64>(items: @mut FixedVec<T, N>, value: T)
+    machine push<T, const N: u64>(items: @mutable FixedVec<T, N>, value: T)
     reaches none
     requires
         items.length < items.items.length
@@ -81,7 +81,7 @@ boundary trait FixedVecAccess {
     // stage 1 is an obligation, not a fallback — a
     // `try_pop -> Optional<T>` belongs to the dynamic-failure stage-2
     // vocabulary.
-    machine pop<T, const N: u64>(items: @mut FixedVec<T, N>) -> T
+    machine pop<T, const N: u64>(items: @mutable FixedVec<T, N>) -> T
     reaches none
     requires
         items.length > 0

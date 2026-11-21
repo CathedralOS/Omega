@@ -22,7 +22,7 @@ ensures
 }
 
 machine probe() -> u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 99u64 };
     initialize_slot(@write slot);
     let extracted: u64 = read_slot(@slot);
     extracted - 100u64

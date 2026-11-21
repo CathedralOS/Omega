@@ -1,16 +1,16 @@
 // Expected exit: 0.
 // Advancing a stored window preserves its original backing and updates its extent.
 data Reading [copy] { address: u64; value: u32; }
-data Window<'input> { values: @'input mut [Reading]; }
+data Window<'input> { values: @'input mutable [Reading]; }
 
-machine advance(window: @mut Window, consumed: u64) -> bool {
+machine advance(window: @mutable Window, consumed: u64) -> bool {
     transition consumed <= window.values.length {
         true -> valid(window, consumed),
         false -> false
     }
-    machine valid(window: @mut Window, consumed: u64) -> bool
+    machine valid(window: @mutable Window, consumed: u64) -> bool
     requires consumed <= window.values.length {
-        window.values = @mut window.values[consumed..];
+        window.values = @mutable window.values[consumed..];
         true
     }
 }
@@ -27,19 +27,19 @@ machine verify(values: @[Reading]) -> bool {
 }
 
 machine main() crashes Trap {
-    let mut readings: [Reading; 5] = [
+    let mutable readings: [Reading; 5] = [
         Reading { address: 999, value: 99 },
         Reading { address: 10, value: 11 },
         Reading { address: 20, value: 22 },
         Reading { address: 30, value: 33 },
         Reading { address: 888, value: 88 }
     ];
-    let mut window: Window = Window { values: @mut readings[1..4] };
-    let advanced: bool = advance(@mut window, 1);
+    let mutable window: Window = Window { values: @mutable readings[1..4] };
+    let advanced: bool = advance(@mutable window, 1);
     let first: bool = verify(window.values);
-    let retained: bool = advance(@mut window, 0);
+    let retained: bool = advance(@mutable window, 0);
     let second: bool = verify(window.values);
-    let emptied: bool = advance(@mut window, 2);
+    let emptied: bool = advance(@mutable window, 2);
     let exhausted: bool = window.values.length == 0;
     transition advanced && first && retained && second && emptied && exhausted
         && readings[0].value == 99 && readings[4].value == 88 {

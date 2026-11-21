@@ -32,12 +32,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedInspect {
-    machine inspect(application: @mut Application, line: @[u8; 64], count: u64) -> bool
+    machine inspect(application: @mutable Application, line: @[u8; 64], count: u64) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Inspect satisfies SelectedInspect {
-    machine inspect(application: @mut Application, line: @[u8; 64], count: u64) -> bool
+    machine inspect(application: @mutable Application, line: @[u8; 64], count: u64) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -47,7 +47,7 @@ X86Inspect satisfies SelectedInspect {
 }
 
 ArmInspect satisfies SelectedInspect {
-    machine inspect(application: @mut Application, line: @[u8; 64], count: u64) -> bool
+    machine inspect(application: @mutable Application, line: @[u8; 64], count: u64) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -57,15 +57,15 @@ ArmInspect satisfies SelectedInspect {
 }
 
 
-machine receive(line: @mut [u8; 64], end: bool) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64], end: bool) -> ReadOutcome {
     line[0] = 37;
     match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
 }
-machine exercise(application: @mut Application, end: bool) -> bool {
+machine exercise(application: @mutable Application, end: bool) -> bool {
     transition { _ -> read(application, end) }
-    machine read(application: @mut Application, end: bool) -> bool {
-        let mut line: [u8; 64];
-        let result: ReadOutcome = receive(@mut line, end);
+    machine read(application: @mutable Application, end: bool) -> bool {
+        let mutable line: [u8; 64];
+        let result: ReadOutcome = receive(@mutable line, end);
         transition result {
             ReadOutcome::Complete { count } -> observe(application, @line, count),
             ReadOutcome::End { count } -> observe(application, @line, count),
@@ -73,17 +73,17 @@ machine exercise(application: @mut Application, end: bool) -> bool {
             ReadOutcome::Invalid -> (false)
         }
     }
-    machine observe(application: @mut Application, line: @[u8; 64], count: u64) -> bool {
+    machine observe(application: @mutable Application, line: @[u8; 64], count: u64) -> bool {
         SelectedInspect::inspect(application, line, count)
     }
 }
 machine main() crashes Trap {
-    let mut application: Application;
+    let mutable application: Application;
     application.ledger.count = 99;
-    let complete: bool = exercise(@mut application, false);
+    let complete: bool = exercise(@mutable application, false);
     let completed_count: u64 in Wrapping = application.ledger.count;
     application.ledger.count = 99;
-    let ended: bool = exercise(@mut application, true);
+    let ended: bool = exercise(@mutable application, true);
     transition complete && completed_count == 5 && ended && application.ledger.count == 5 {
         true -> done(),
         false -> wrong()

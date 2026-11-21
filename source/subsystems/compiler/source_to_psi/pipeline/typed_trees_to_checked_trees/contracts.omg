@@ -159,7 +159,7 @@ crashes Trap
 // Assume a body's `requires` facts as it opens: its callers and
 // predecessors established them.
 public machine assume_requirements(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -174,7 +174,7 @@ crashes Trap
 // A normal return owes its machine's `ensures` facts, `result` standing for
 // the returned value.
 public machine require_guarantees(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -196,8 +196,8 @@ crashes Trap
         _ -> unproven(checker, source_span)
     }
 
-    machine unproven(checker: @mut Checker, source_span: SourceSpan) {
-        checks_reject(@mut checker.output, CheckDiagnosticCode::GuaranteeUnproven, source_span);
+    machine unproven(checker: @mutable Checker, source_span: SourceSpan) {
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::GuaranteeUnproven, source_span);
     }
 
     machine done() {}
@@ -208,7 +208,7 @@ crashes Trap
 // argument's place was released by the call, so a fact about it describes
 // what the callee left there.
 public machine assume_guarantees(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -230,14 +230,14 @@ crashes Trap
 // Decide a call's or jump's target facts of `kind`: while they are decided,
 // each target parameter stands for its argument's value at the call.
 public machine decide_call_facts(
-    checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution,
+    checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution,
     typing: @Typing, clauses: CallClauses, call: Expression, kind: ClauseKind,
     proving: bool
 ) -> bool
 crashes Trap
 {
-    let mut arguments: ArgumentValues;
-    capture_call_arguments(checker, syntax, call, @mut arguments);
+    let mutable arguments: ArgumentValues;
+    capture_call_arguments(checker, syntax, call, @mutable arguments);
     decide_bound_facts(checker, syntax, resolution, typing, clauses, @arguments, kind, proving)
 }
 
@@ -279,7 +279,7 @@ crashes Trap
 // `proving`, report whether every one is proved. An untyped fact is not
 // assumed and is never proved.
 public machine decide_facts(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -293,7 +293,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, kind, proving) }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -310,7 +310,7 @@ crashes Trap
     }
 
     machine fact(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -335,7 +335,7 @@ crashes Trap
 // membership inside them is an unknown Boolean, so deciding a membership
 // through its domain never recurs.
 public machine decide_predicates(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -348,7 +348,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, proving) }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -364,7 +364,7 @@ crashes Trap
     }
 
     machine fact(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -384,7 +384,7 @@ crashes Trap
     }
 }
 
-machine set_argument(checker: @mut Checker, offset: u64 in Trapping, value: Value)
+machine set_argument(checker: @mutable Checker, offset: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition offset < 64 {
@@ -392,7 +392,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(checker: @mut Checker, offset: u64 in Trapping, value: Value)
+    machine write(checker: @mutable Checker, offset: u64 in Trapping, value: Value)
     requires offset < 64
     {
         checker.arguments[offset] = value;

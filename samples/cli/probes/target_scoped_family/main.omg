@@ -12,7 +12,7 @@ SharedPick satisfies Picker { machine pick(helper: @Helper) -> i32 { 63 } }
 SharedDelta satisfies Delta { machine delta(helper: @Helper) -> i32 { 7 } }
 
 data Main { helper: Helper; }
-machine run(main: @mut Main) {
+machine run(main: @mutable Main) {
     main.helper = Helper { seed: 1 };
     let picked: i32 = Picker::pick(@main.helper);
     let delta: i32 = Delta::delta(@main.helper);
@@ -20,12 +20,12 @@ machine run(main: @mut Main) {
         (true) -> good(main, picked),
         _ -> bad(main)
     }
-    machine good(main: @mut Main, kept: i32) { let value: i32 = kept; }
-    machine bad(main: @mut Main) { let value: i32 = 0; }
+    machine good(main: @mutable Main, kept: i32) { let value: i32 = kept; }
+    machine bad(main: @mutable Main) { let value: i32 = 0; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    run(@mut entry_storage);
+    let mutable entry_storage: Main;
+    run(@mutable entry_storage);
 }

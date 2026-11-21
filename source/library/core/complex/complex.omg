@@ -52,12 +52,12 @@ public data ComplexMagnitude<T [copy]> [copy] {
     case Overflow;
 }
 
-public machine ComplexF32::add(destination: @mut Complex<f32>, left: @Complex<f32>, right: @Complex<f32>) {
+public machine ComplexF32::add(destination: @mutable Complex<f32>, left: @Complex<f32>, right: @Complex<f32>) {
     destination.real = left.real + right.real;
     destination.imaginary = left.imaginary + right.imaginary;
 }
 
-public machine ComplexF32::multiply(destination: @mut Complex<f32>, left: @Complex<f32>, right: @Complex<f32>) {
+public machine ComplexF32::multiply(destination: @mutable Complex<f32>, left: @Complex<f32>, right: @Complex<f32>) {
     let real_real: f32 = left.real * right.real;
     let imaginary_imaginary: f32 = left.imaginary * right.imaginary;
     let real_imaginary: f32 = left.real * right.imaginary;
@@ -66,7 +66,7 @@ public machine ComplexF32::multiply(destination: @mut Complex<f32>, left: @Compl
     destination.imaginary = real_imaginary + imaginary_real;
 }
 
-public machine ComplexF32::conjugate(destination: @mut Complex<f32>, input: @Complex<f32>) {
+public machine ComplexF32::conjugate(destination: @mutable Complex<f32>, input: @Complex<f32>) {
     destination.real = input.real;
     destination.imaginary = F32::negate(input.imaginary);
 }
@@ -112,12 +112,12 @@ public machine ComplexF32::try_magnitude(input: @Complex<f32>) -> ComplexMagnitu
     }
 }
 
-public machine ComplexF64::add(destination: @mut Complex<f64>, left: @Complex<f64>, right: @Complex<f64>) {
+public machine ComplexF64::add(destination: @mutable Complex<f64>, left: @Complex<f64>, right: @Complex<f64>) {
     destination.real = left.real + right.real;
     destination.imaginary = left.imaginary + right.imaginary;
 }
 
-public machine ComplexF64::multiply(destination: @mut Complex<f64>, left: @Complex<f64>, right: @Complex<f64>) {
+public machine ComplexF64::multiply(destination: @mutable Complex<f64>, left: @Complex<f64>, right: @Complex<f64>) {
     let real_real: f64 = left.real * right.real;
     let imaginary_imaginary: f64 = left.imaginary * right.imaginary;
     let real_imaginary: f64 = left.real * right.imaginary;
@@ -126,7 +126,7 @@ public machine ComplexF64::multiply(destination: @mut Complex<f64>, left: @Compl
     destination.imaginary = real_imaginary + imaginary_real;
 }
 
-public machine ComplexF64::conjugate(destination: @mut Complex<f64>, input: @Complex<f64>) {
+public machine ComplexF64::conjugate(destination: @mutable Complex<f64>, input: @Complex<f64>) {
     destination.real = input.real;
     destination.imaginary = F64::negate(input.imaginary);
 }

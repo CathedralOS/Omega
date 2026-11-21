@@ -7,7 +7,7 @@ boundary trait SelectedMain {
 X86Main satisfies SelectedMain {
     machine run() crashes Trap {
         let source: u32 = 37;
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             mov loaded, source
         }
@@ -23,7 +23,7 @@ X86Main satisfies SelectedMain {
 ArmMain satisfies SelectedMain {
     machine run() crashes Trap {
         let source: u32 = 37;
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             ldr loaded, source
         }

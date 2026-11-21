@@ -47,7 +47,7 @@ data Main {
     dash: Dashboard;
 }
 
-machine Main::main(main: @mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("nested_diagnostics: read engine + battery through nested receivers");
     main.dash.engine.rpm = 3000;
     main.dash.battery.percent = 85;
@@ -60,19 +60,19 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         false -> fault(main)
     }
 
-    machine check_battery(main: @mut Main, batt: i32) {
+    machine check_battery(main: @mutable Main, batt: i32) {
         transition batt == 85 {
             true -> nominal(main),
             false -> fault(main)
         }
     }
 
-    machine nominal(main: @mut Main) {
+    machine nominal(main: @mutable Main) {
         Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
         ProcessExit::exit_process(85);
     }
 
-    machine fault(main: @mut Main) {
+    machine fault(main: @mutable Main) {
         Console::write_line("reading mismatch -> fault (exit 1)");
         ProcessExit::exit_process(1);
     }
@@ -80,6 +80,6 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

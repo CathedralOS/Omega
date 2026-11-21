@@ -1,13 +1,13 @@
-machine retain(input: @mut @mut [u8]) {}
+machine retain(input: @mutable @mutable [u8]) {}
 
 machine main() crashes Trap {
-    let mut backing: [u8; 2] = [41u8, 19u8];
-    let mut window: @mut [u8] = @mut backing[..];
+    let mutable backing: [u8; 2] = [41u8, 19u8];
+    let mutable window: @mutable [u8] = @mutable backing[..];
     transition window.length == 2 {
         true -> inspect(window),
         false -> wrong()
     }
-    machine inspect(input: @mut [u8]) requires input.length == 2 {
+    machine inspect(input: @mutable [u8]) requires input.length == 2 {
         transition input[0] == 41u8 && input[2] == 19u8 {
             true -> done(),
             false -> wrong()

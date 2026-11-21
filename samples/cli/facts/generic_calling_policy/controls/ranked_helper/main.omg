@@ -75,7 +75,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow), _ -> reject() }
     }
     machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan;
+        let mutable plan: BoundaryEntryPlan;
         plan.call.convention = convention;
         plan.call.has_result = true;
         plan.call.result.shape.class = AbiValueClass::Integer;

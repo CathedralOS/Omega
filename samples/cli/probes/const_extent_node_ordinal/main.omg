@@ -32,7 +32,7 @@ requires index < 4
 
 data Main { }
 
-machine Main::main(main: @mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
     let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
     let paired: i64 in Wrapping = coordinate(@roadmap, 1) + coordinate(@roadmap, 3);
@@ -43,38 +43,38 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         true -> report(main, paired),
         false -> ProcessExit::exit_process(1)
     }
-    machine report(main: @mut Main, paired: i64 in Wrapping) {
+    machine report(main: @mutable Main, paired: i64 in Wrapping) {
         number(main, paired);
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
 }
 
-machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 100 {
         true -> tens(main, value, value / 10),
         false -> ProcessExit::exit_process(1)
     }
-    machine tens(main: @mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
+    machine tens(main: @mutable Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
         transition ten > 0 {
             true -> emit(main, value, ten + 48),
             false -> ones(main, value)
         }
     }
-    machine emit(main: @mut Main, value: i64 in Wrapping, byte: i64 in Wrapping)
+    machine emit(main: @mutable Main, value: i64 in Wrapping, byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57
     {
         Console::write_byte(byte as i32);
         transition { _ -> ones(main, value) }
     }
-    machine ones(main: @mut Main, value: i64 in Wrapping) {
+    machine ones(main: @mutable Main, value: i64 in Wrapping) {
         let byte: i64 in Wrapping = value % 10 + 48;
         transition byte >= 48 && byte <= 57 {
             true -> finish(main, byte),
             false -> ProcessExit::exit_process(1)
         }
     }
-    machine finish(main: @mut Main, byte: i64 in Wrapping)
+    machine finish(main: @mutable Main, byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57
     {
         Console::write_byte(byte as i32);
@@ -83,6 +83,6 @@ machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Co
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

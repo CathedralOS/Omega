@@ -44,7 +44,7 @@ public boundary trait BuildBindingOperations {
 }
 // The ordinary call establishes exclusive activation access and retains that
 // loan through the returned original view, without granting an opaque host writes.
-public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mut Build<'storage>) -> @'activation mut Build<'storage> {
+public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mutable Build<'storage>) -> @'activation mutable Build<'storage> {
     builder
 }
 public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {

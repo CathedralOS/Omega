@@ -2,33 +2,33 @@ public machine resolve(output: @BuildOutput, relative: @[u8]) -> BuildPath reach
     BuildFilesystemOperations::resolve_output(output, relative)
 }
 
-public machine create(output: @mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine create(output: @mutable BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::create(output, path, mode)
 }
 
-public machine write(output: @mut BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine write(output: @mutable BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::write(output, descriptor, bytes)
 }
 
-public machine close(output: @mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine close(output: @mutable BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::close_output(output, descriptor)
 }
 
-public machine include_source(output: @mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine include_source(output: @mutable BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::include_source(output, generated);
 }
 
-public machine require(output: @mut BuildOutput, name: @[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine require(output: @mutable BuildOutput, name: @[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::require(output, name)
 }
 
-public machine fail(output: @mut BuildOutput, obligation: RequiredOutput, diagnostic: @[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine fail(output: @mutable BuildOutput, obligation: RequiredOutput, diagnostic: @[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::fail(output, obligation, diagnostic);
 }
 
 // The ordinary Omega branch retains both owned inputs on Retry. The host
 // rechecks the same sealed file and pending obligation when issuing a receipt.
-public machine complete(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine complete(output: @mutable BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     let ready: bool = BuildFilesystemOperations::can_complete(output, @obligation, file);
     transition ready {
         true -> BuildOutput::seal(output, obligation, file),
@@ -36,7 +36,7 @@ public machine complete(output: @mut BuildOutput, obligation: RequiredOutput, fi
     }
 }
 
-machine seal(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations {
+machine seal(output: @mutable BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations {
     let receipt: OutputReceipt = BuildFilesystemOperations::complete(output, obligation, file);
     OutputCompletion::Sealed { receipt: receipt }
 }

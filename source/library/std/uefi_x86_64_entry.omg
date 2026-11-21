@@ -78,7 +78,7 @@ machine uefi_x86_64_plan(
         initial_storage: u64
     ) -> BoundaryPlanResult
     requires image < 256 && initial_storage < 256 {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
 
@@ -156,7 +156,7 @@ machine uefi_x86_64_plan(
         status: u64
     ) -> BoundaryPlanResult
     requires image_handle < 256 && system_table < 256 && status < 256 {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
 

@@ -11,7 +11,7 @@ machine demand(result: bool) crashes Trap {
 data Envelope [copy] { before: u32; text: [u8; 8]; after: u32; }
 machine start() crashes Trap {
     let envelope: Envelope = Envelope { before: 1701, text: "omega\0xy", after: 1801 };
-    let mut text: [u8; 8] = envelope.text;
+    let mutable text: [u8; 8] = envelope.text;
     let selected: @u8 = @text[0];
     text[0] = 0;
     let measured: u64 = Text::length(selected);

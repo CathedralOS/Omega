@@ -37,7 +37,7 @@ public boundary trait Console {
     // byte, including CR and the terminating LF; callers interpret the prefix.
     // Hosted input may occupy the worker while waiting and traps on a failed
     // host read, so callers acknowledge `block` and cover the `Trap` route.
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches
         Console
     blocks
@@ -69,50 +69,50 @@ trait ConsoleByteOperations {
 
 // Shared checked POSIX adaptation depends on an explicit ordinary raw map.
 trait PosixConsoleRawOperations {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none;
 }
 
 // Raw count/status ABI for linux_x86_64; read/write move one byte through a cell.
 boundary trait LinuxX86ConsoleIo: Calling<LinuxX86ByteViewCalling> {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none;
 }
 
 // Raw count/status ABI for linux_arm64; read/write move one byte through a cell.
 boundary trait LinuxArm64ConsoleIo: Calling<LinuxArm64ByteViewCalling> {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none;
 }
 
 // Raw count/status ABI for macos_arm64; read/write move one byte through a cell.
 boundary trait DarwinArm64ConsoleIo: Calling<DarwinArm64ByteViewCalling> {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none;
 }
 
 // Raw count/status ABI for macos_x86_64; read/write move one byte through a cell.
 boundary trait DarwinX86ConsoleIo: Calling<SystemVByteViewCalling> {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none;
 }
@@ -124,7 +124,7 @@ public WindowsConsole satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<WindowsConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<WindowsConsoleBytes>(out_line)
     }
@@ -145,7 +145,7 @@ public AlphaConsole satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<AlphaConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<AlphaConsoleBytes>(out_line)
     }
@@ -165,7 +165,7 @@ public LinuxX86Console satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<LinuxX86ConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<LinuxX86ConsoleBytes>(out_line)
     }
@@ -186,7 +186,7 @@ public LinuxArm64Console satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<LinuxArm64ConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<LinuxArm64ConsoleBytes>(out_line)
     }
@@ -207,7 +207,7 @@ public DarwinArm64Console satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<DarwinArm64ConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<DarwinArm64ConsoleBytes>(out_line)
     }
@@ -228,7 +228,7 @@ public DarwinX86Console satisfies Console {
     machine write(text: @[u8]) reaches Console {
         console_write_bytes::<DarwinX86ConsoleBytes>(text, false);
     }
-    machine read_line(out_line: @mut [u8]) -> LineReadResult
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
         block console_read_line::<DarwinX86ConsoleBytes>(out_line)
     }
@@ -243,12 +243,12 @@ public DarwinX86Console satisfies Console {
 }
 
 LinuxX86ConsoleRaw satisfies PosixConsoleRawOperations {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block LinuxX86ConsoleIo::read(descriptor, buffer, count)
     }
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         LinuxX86ConsoleIo::write(descriptor, buffer, count)
@@ -267,12 +267,12 @@ LinuxX86ConsoleBytes satisfies ConsoleByteOperations {
 }
 
 LinuxArm64ConsoleRaw satisfies PosixConsoleRawOperations {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block LinuxArm64ConsoleIo::read(descriptor, buffer, count)
     }
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         LinuxArm64ConsoleIo::write(descriptor, buffer, count)
@@ -291,12 +291,12 @@ LinuxArm64ConsoleBytes satisfies ConsoleByteOperations {
 }
 
 DarwinArm64ConsoleRaw satisfies PosixConsoleRawOperations {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block DarwinArm64ConsoleIo::read(descriptor, buffer, count)
     }
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         DarwinArm64ConsoleIo::write(descriptor, buffer, count)
@@ -315,12 +315,12 @@ DarwinArm64ConsoleBytes satisfies ConsoleByteOperations {
 }
 
 DarwinX86ConsoleRaw satisfies PosixConsoleRawOperations {
-    machine read(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block DarwinX86ConsoleIo::read(descriptor, buffer, count)
     }
-    machine write(descriptor: i32, buffer: @mut i32, count: u64) -> i64
+    machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         DarwinX86ConsoleIo::write(descriptor, buffer, count)
@@ -343,8 +343,8 @@ DarwinX86ConsoleBytes satisfies ConsoleByteOperations {
 // traps, even when an invalid foreign provider returns a positive count.
 machine posix_console_read_byte<const Raw: PosixConsoleRawOperations>() -> ByteRead
 reaches Console blocks crashes Trap {
-    let mut cell: i32 = 0;
-    let count: i64 = block Raw::read(0, @mut cell, 1);
+    let mutable cell: i32 = 0;
+    let count: i64 = block Raw::read(0, @mutable cell, 1);
     transition count {
         1 -> byte(cell),
         0 -> end(),
@@ -360,24 +360,24 @@ reaches Console blocks crashes Trap {
 
 machine posix_console_write_byte<const Raw: PosixConsoleRawOperations>(byte: i32)
 reaches Console {
-    let mut cell: i32 = byte;
-    let written: i64 = Raw::write(1, @mut cell, 1);
+    let mutable cell: i32 = byte;
+    let written: i64 = Raw::write(1, @mutable cell, 1);
 }
 
 // Shared bounded input uses this exact provider's byte leaf, not recursive
 // service redispatch. Check capacity before reading: Full consumes no lookahead
 // and an empty destination returns Full(0). LF in the last slot still completes
 // the line. Finite storage does not promise a bound on waiting for host input.
-machine console_read_line<const Bytes: ConsoleByteOperations>(out_line: @mut [u8]) -> LineReadResult
+machine console_read_line<const Bytes: ConsoleByteOperations>(out_line: @mutable [u8]) -> LineReadResult
 reaches Console {
     transition { _ -> block scan(out_line, 0) }
-    machine scan(out_line: @mut [u8], position: u64) -> LineReadResult {
+    machine scan(out_line: @mutable [u8], position: u64) -> LineReadResult {
         transition position < out_line.length {
             true -> block read(out_line, position, position + 1),
             false -> full(position)
         }
     }
-    machine read(out_line: @mut [u8], position: u64, next: u64) -> LineReadResult
+    machine read(out_line: @mutable [u8], position: u64, next: u64) -> LineReadResult
     requires position < out_line.length {
         let observed: ByteRead = block Bytes::read_byte();
         transition observed {
@@ -385,7 +385,7 @@ reaches Console {
             ByteRead::Eof -> end(position)
         }
     }
-    machine store(out_line: @mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
+    machine store(out_line: @mutable [u8], position: u64, next: u64, value: i32) -> LineReadResult
     requires position < out_line.length && value >= 0 && value <= 255
     {
         out_line[position] = value as u8;
@@ -417,7 +417,7 @@ reaches
 
     machine emit(byte: u8, bytes: @[u8], newline: bool)
     terminates by bytes -> Slice::Length {
-        let mut output: u8 = byte;
+        let mutable output: u8 = byte;
         Bytes::write_byte(output as i32);
         transition bytes.length > 0 {
             true -> emit(bytes[0], bytes[1..], newline),
@@ -433,7 +433,7 @@ reaches
     }
 
     machine emit_newline(byte: u8) {
-        let mut output: u8 = byte;
+        let mutable output: u8 = byte;
         Bytes::write_byte(output as i32);
     }
 

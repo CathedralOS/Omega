@@ -1,4 +1,4 @@
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_swapped_output");
     builder.output = BuildOutput {};
     let p: BuildPath = BuildOutput::resolve(@builder.output, "out.bin");

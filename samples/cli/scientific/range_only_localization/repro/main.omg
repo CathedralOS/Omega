@@ -7,7 +7,7 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     let bytes: [u8; 4] = [51, 52, 53, 54];
     transition true {
         true -> emit(@bytes),
@@ -22,6 +22,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

@@ -11,7 +11,7 @@ machine read(nodes: @Nodes<6>, index: u64) -> i64 in Wrapping {
 
 data Main { }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     let nodes: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let _value: i64 in Wrapping = read(@nodes, 1);
 }

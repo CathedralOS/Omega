@@ -57,7 +57,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
     main.arr[0] = 5 as +Wrapping;
@@ -75,14 +75,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         _ -> block bad_sum(main)
     }
 
-    machine bad_sum(main: @mut Main) {
+    machine bad_sum(main: @mutable Main) {
         Console::write_line("FAIL: recursive sum did not equal 50 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine check_count(main: @mut Main) {
+    machine check_count(main: @mutable Main) {
         // Compute count via recursive value-returning call.
         let s2: @[i32 in Wrapping] = @main.arr[..];
         let cnt: i32 = count(s2, 0 as +Wrapping);
@@ -94,23 +94,23 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_count(main: @mut Main) {
+    machine bad_count(main: @mutable Main) {
         Console::write_line("FAIL: recursive count did not equal 4 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
-    machine good(main: @mut Main) {
+    machine good(main: @mutable Main) {
         Console::write_line("PASS: sum=50 and count=4 both verified (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

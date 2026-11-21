@@ -10,7 +10,7 @@ Compile-scope probe. No standard-library dependency.
 
 ## Gaps found while authoring (filed)
 
-- The identical calls inside a carrier entry `Main::main(main: &mut
+- The identical calls inside a carrier entry `Main::main(main: &mutable
   Main)` are REJECTED — 'cannot prove requires contract: choice ==
   Choice::Cell' at every call site. A free `machine main()` caller
   proves them. Saved-result case guarantees don't reach carrier-entry

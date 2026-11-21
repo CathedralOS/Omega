@@ -38,7 +38,7 @@ machine scalar_values() crashes Trap {
 
 // Expected exit: 0
 machine invalid_length(length: u64) -> bool {
-    let mut record: WindowsDirectoryEntry;
+    let mutable record: WindowsDirectoryEntry;
     record.name_len = length;
     let result: DirEntryResult = windows_filesystem_directory_entry(record);
     transition result {

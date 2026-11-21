@@ -107,7 +107,7 @@ surviving folding. The halves below separate those.
   ```
 
   The control shows this is about access mode rather than a general write
-  defect: the identical write through `&mut Window` is accepted and runs green
+  defect: the identical write through `&mutable Window` is accepted and runs green
   in both engines, and making that mutable write observable (`transition diff ==
   49`) while asserting the un-mutated value (`diff == 50`) traps at runtime in
   both engines — `native signal 5` / `interp crash: Trap (host presentation

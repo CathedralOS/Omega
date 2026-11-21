@@ -255,7 +255,7 @@ crashes Trap
     }
 }
 
-public machine checker_set_value(checker: @mut Checker, handle: u64 in Trapping, value: Value)
+public machine checker_set_value(checker: @mutable Checker, handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -263,7 +263,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine offset(checker: @mut Checker, offset: u64 in Trapping, value: Value) {
+    machine offset(checker: @mutable Checker, offset: u64 in Trapping, value: Value) {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
             true -> write(checker, index, value),
@@ -271,7 +271,7 @@ crashes Trap
         }
     }
 
-    machine write(checker: @mut Checker, index: u64 in Trapping, value: Value)
+    machine write(checker: @mutable Checker, index: u64 in Trapping, value: Value)
     requires index < 4096
     {
         checker.values[index] = value;

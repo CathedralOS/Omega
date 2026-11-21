@@ -10,7 +10,7 @@ byte and no byte changes.
 
 `Text::length` is C `strlen`, bound by `Build::bind` on each hosted target
 (msvcrt, glibc 2.2.5 and 2.17, libSystem). The consumer copies the transported
-`[u8; 8]` value `omega\0xy` into its own `let mut text`, lends `&text[0]` and
+`[u8; 8]` value `omega\0xy` into its own `let mutable text`, lends `&text[0]` and
 `&text[2]`, and checks both counts (5 and 3) and the bytes after the terminator.
 A reader that saw only the lent cell, or a copy of it, could not find the
 terminator three or five bytes later. Native code passes the address of the
@@ -33,7 +33,7 @@ Before the repair, on the `bb4c4d50387` producer (the content merged as
 `c58a7b2c593`), every positive place exited 0 natively while Terminal failed
 with `StructuralPrimitiveStorageMissing` in `realize original host storage`.
 The same failure stopped the Terminal leg of `samples/cli/audio/sine_tone` at
-ALSA `snd_pcm_open(&mut handle, &name[0], ...)`, whose device name is a frame
+ALSA `snd_pcm_open(&mutable handle, &name[0], ...)`, whose device name is a frame
 byte array.
 
 ## Requirement evidence
@@ -57,7 +57,7 @@ byte array.
 - Omega 00–02: each target's Build row selects its own `strlen`; locator
   lengths are inferred.
 - Omega 03–09: the native image passes the frame array's address and exits 0.
-- Open: `&mut` element loans of frame arrays and multi-dimensional or non-u8
+- Open: `&mutable` element loans of frame arrays and multi-dimensional or non-u8
   frame arrays take the same path but have no witness here.
 
 Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each

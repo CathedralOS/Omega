@@ -86,7 +86,7 @@ reaches
     macos_window_get_dc(window_state, window)
 }
 
-public windows_x86_64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+public windows_x86_64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -110,7 +110,7 @@ reaches
     }
     machine result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
 }
-public macos_arm64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+public macos_arm64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -124,7 +124,7 @@ reaches
 // One Windows pump removes, translates and dispatches; the application keeps
 // the decomposed peek/translate/dispatch contract of the Gui row. The peeked
 // message is copied out so close detection still reads the raw fields.
-public windows_x86_64 machine app_msg_peek(window_state: @mut Window, mut message: [u64; 6]) -> u32
+public windows_x86_64 machine app_msg_peek(window_state: @mutable Window, mutable message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -132,8 +132,8 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit invokes WindowsGuiHost {
-    let mut native: WindowsMessage;
-    let pumped: bool = WindowsGuiHost::pump_message(@mut native);
+    let mutable native: WindowsMessage;
+    let pumped: bool = WindowsGuiHost::pump_message(@mutable native);
     // The row contract's caller buffer keeps the window/kind/wParam layout the
     // close-detection reads; lParam/time/pt stay zero (the sample reads none).
     message[0] = windows_message_window(@native);
@@ -144,7 +144,7 @@ reaches
     message[5] = 0;
     transition pumped { true -> (1), _ -> (0) }
 }
-public macos_arm64 machine app_msg_peek(window_state: @mut Window, mut message: [u64; 6]) -> u32
+public macos_arm64 machine app_msg_peek(window_state: @mutable Window, mutable message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +

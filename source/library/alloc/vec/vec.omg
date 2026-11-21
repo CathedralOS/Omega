@@ -43,7 +43,7 @@ public domain VecCell::Controlled
     access VecCellPolicy;
 public VecCellLayout satisfies FixedLayout<VecCell> {
     public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none crashes none terminates {
-        let mut entries: [FieldEntry; 64];
+        let mutable entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         LayoutPlan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
     }
@@ -51,8 +51,8 @@ public VecCellLayout satisfies FixedLayout<VecCell> {
 
 public VecCellPolicy satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = access\new_plan(@schema, Issuance::Unrestricted);
-        access\observe(@mut plan, field(VecCell::value),
+        let mutable plan: AccessPlan = access\new_plan(@schema, Issuance::Unrestricted);
+        access\observe(@mutable plan, field(VecCell::value),
             FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
         plan
     }
@@ -60,15 +60,15 @@ public VecCellPolicy satisfies AccessPolicy {
 
 data Observed { storage: Extent in Granted & Vacant; value: u32; }
 
-machine store_cell<Role>(storage: @mut Extent in Granted & Vacant, value: u32)
+machine store_cell<Role>(storage: @mutable Extent in Granted & Vacant, value: u32)
 crashes Trap
 {
-    transition access\view_extent_mut::<VecCellStorage in VecCell::Controlled, Role>(storage as @mut Extent in Granted) {
+    transition access\view_extent_mut::<VecCellStorage in VecCell::Controlled, Role>(storage as @mutable Extent in Granted) {
         AccessOutcome::Ready { view } -> change(view, value),
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
-    machine change(view: @mut VecCellStorage in VecCell::Controlled, value: u32) {
-        write(@mut view.value, value);
+    machine change(view: @mutable VecCellStorage in VecCell::Controlled, value: u32) {
+        write(@mutable view.value, value);
     }
     machine bad() { crash Trap; }
 }
@@ -80,8 +80,8 @@ crashes Trap
 {
     let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
     let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
-    let mut cell: Extent in Granted & Vacant = element.taken;
-    store_cell::<Role>(@mut cell, value);
+    let mutable cell: Extent in Granted & Vacant = element.taken;
+    store_cell::<Role>(@mutable cell, value);
     let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
     let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
     whole

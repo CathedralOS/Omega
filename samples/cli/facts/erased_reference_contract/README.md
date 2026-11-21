@@ -85,6 +85,6 @@ permits copying.
 ## Remaining scope
 
 Array referents, sums, records with erased or address fields, a record with
-several scalar fields passed through a nested-machine transition, and a `mut`
+several scalar fields passed through a nested-machine transition, and a `mutable`
 formal or a temporary used as an erased record actual are refused.
 This row does not close the broader PROOF-KERNEL-CORE acceptance.

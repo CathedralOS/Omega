@@ -11,14 +11,14 @@ use omega_language_std\Console;
 data Main {
 }
 
-machine main(context: @mut Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
     let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
     let maximum: i32 = array_maximum(@numbers);
     Console::write_line("result: the maximum, 42 for this dataset (the exit code)");
     Console::write_line("[press Enter to close]");
-    let mut pause: [u8; 256];
-    _ = block Console::read_line(@mut pause[..]);
+    let mutable pause: [u8; 256];
+    _ = block Console::read_line(@mutable pause[..]);
     ProcessExit::exit_process(maximum);
 }
 
@@ -66,6 +66,6 @@ machine array_maximum(numbers: @[i32; 6]) -> i32 {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

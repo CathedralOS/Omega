@@ -81,7 +81,7 @@ public boundary trait WindowsFilesystemHost {
     // Stored target bytes, not the display PrintName. Writes at most count,
     // excludes NUL, and returns that byte count; a full buffer may be a prefix.
     // Zero or out-of-buffer count refuses before opening the path.
-    machine read_link(path: @[u8] in Path, output: @mut [u8], count: u64) -> i64
+    machine read_link(path: @[u8] in Path, output: @mutable [u8], count: u64) -> i64
     reaches FilesystemMetadataQuery blocks
     crashes none;
     // Same-object synchronous whole-file range locking, including future
@@ -94,7 +94,7 @@ public boundary trait WindowsFilesystemHost {
     machine directory_nth(path: @[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery blocks
     crashes none;
-    machine canonicalize(path: @[u8] in Path, output: @mut [u8]) -> i32
+    machine canonicalize(path: @[u8] in Path, output: @mutable [u8]) -> i32
     reaches FilesystemMetadataQuery blocks
     crashes none;
     // Counts every non-dot native name without UTF-8 decoding or metadata
@@ -104,7 +104,7 @@ public boundary trait WindowsFilesystemHost {
     crashes none;
     // Reopen an independent synchronous file object without increasing the
     // pinned original's granted data rights. The original cursor is untouched.
-    machine read_at(handle: u64, buffer: @mut [u8], count: u64, offset: i64) -> i64
+    machine read_at(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64
     reaches FilesystemContentRead blocks
     crashes none;
     machine write_at(handle: u64, bytes: @[u8], offset: i64) -> i64
@@ -143,7 +143,7 @@ public boundary trait WindowsFilesystemHost {
     crashes none;
     // Byte counts must fit DWORD and the caller's live buffer. Invalid extents
     // refuse with -ERROR_INVALID_PARAMETER before entering the OS.
-    machine read_file(handle: u64, buffer: @mut [u8], count: u64) -> i64 reaches FilesystemContentRead
+    machine read_file(handle: u64, buffer: @mutable [u8], count: u64) -> i64 reaches FilesystemContentRead
     blocks
     crashes none;
     machine flush_file_buffers(handle: u64) -> i32 reaches none blocks

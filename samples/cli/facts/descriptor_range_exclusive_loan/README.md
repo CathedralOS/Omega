@@ -4,9 +4,9 @@ A match on one evaluation of a copyable flag selects a subrange of the chosen de
 the join records that selected range, and the consumer writes 41 through the first element of that
 recorded range, leaving the unselected payload unchanged.
 
-`choose(counter: &mut u64)` requires `counter == 0` and increments it, so the flag subject is
-evaluated exactly once per run; the join takes `&mut` subranges of the two `Slot::Present`
-payloads — `&mut chosen.value[0..2]` on the true arm and `&mut other.value[2..4]` on the false
+`choose(counter: &mutable u64)` requires `counter == 0` and increments it, so the flag subject is
+evaluated exactly once per run; the join takes `&mutable` subranges of the two `Slot::Present`
+payloads — `&mutable chosen.value[0..2]` on the true arm and `&mutable other.value[2..4]` on the false
 arm. The consumer writes 41 through the first element of the recorded range and reads it back, so
 exit 0 holds exactly when the recorded range is the selected one and the flag ran once
 (`observed == 41 && visits == 1`).
@@ -32,7 +32,7 @@ same requirements and still replace a source while its selected loan is live.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness running the same join and consumer |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both `Slot` payloads are locals and the join takes `&mut` subranges of them |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both `Slot` payloads are locals and the join takes `&mutable` subranges of them |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | both payloads live in a `Pair` record's fields (`pair.chosen`, `pair.other`) |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | both slots and the call counter arrive as parameters of `apply` |
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | both slots are produced by `present(...)` call results |
@@ -97,8 +97,8 @@ The sample and the fixtures cannot drift apart.
   with interpreter agreement. This row supplies the case/descriptor-bearing referent and range part of that acceptance.
 
 1. **Establishment:** the selected range is established by the join itself — one evaluation of
-   `choose(&mut visits)` (its `requires counter == 0` rules out a second evaluation) selects
-   `&mut chosen.value[0..2]` or `&mut other.value[2..4]`; `visits == 1` in the transition proves
+   `choose(&mutable visits)` (its `requires counter == 0` rules out a second evaluation) selects
+   `&mutable chosen.value[0..2]` or `&mutable other.value[2..4]`; `visits == 1` in the transition proves
    the once-only subject evaluation at runtime.
 2. **Identity and lifetime:** the recorded range names one exact payload subrange; the write and
    the read-back go through that recorded range, and the twin shows that reassigning the source
@@ -111,7 +111,7 @@ The sample and the fixtures cannot drift apart.
    obligation (a write to the source while the range loan is live).
 4. **Soundness boundaries:** every twin rejects during proof checking with its authored
    ``mutates … while local borrow `selected` is still active`` fragment; access authority of the
-   `&mut` payload loans and the flag counter are preserved.
+   `&mutable` payload loans and the flag counter are preserved.
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the case-tagged `Slot` payloads, the
    subrange loans and the indexed write lower without loss into Terminal Psi and execute in the
    interpreter in agreement with native execution on all nine places plus the root.

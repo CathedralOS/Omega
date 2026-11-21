@@ -1,5 +1,5 @@
 // An entry requires on main.player transfers through a local alias.
-// `let mut copy: Player` carries Alive into inspect's requires.
+// `let mutable copy: Player` carries Alive into inspect's requires.
 // Expected exit: 0
 
 data Player [copy] {
@@ -22,19 +22,19 @@ requires
     player.health
 }
 
-machine Main::main(main: @mut Main)
+machine Main::main(main: @mutable Main)
 requires
     main.player in Player::Alive
 {
-    let mut copy: Player = main.player;
+    let mutable copy: Player = main.player;
     main.observed = Main::inspect(copy);
 }
 
 machine entry() crashes Trap {
-    let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(@mut a);
-    let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(@mut b);
+    let mutable a: Main = Main { player: Player { health: 42 }, observed: 0 };
+    Main::main(@mutable a);
+    let mutable b: Main = Main { player: Player { health: 1 }, observed: 0 };
+    Main::main(@mutable b);
     transition a.observed == 42 && b.observed == 1 {
         true -> done(),
         _ -> bad()

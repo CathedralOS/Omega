@@ -30,7 +30,7 @@ use representations\typed_trees\typing_selection;
 
 // The places one call holds together (wiki/spec/language/ownership.md#borrows-and-aliases).
 // A call evaluates its arguments in order. An argument that lends a place
-// (`&mut place`, `&place`, an implicit shared loan, or a reference value)
+// (`&mutable place`, `&place`, an implicit shared loan, or a reference value)
 // holds it until the call returns; a copied read or a computed value holds
 // nothing once the next argument begins. A place lent to a nested call
 // inside an argument stays held when that call, and every call around it,
@@ -54,7 +54,7 @@ public data Hold [copy] {
 
 // A call's arguments, pairwise: an earlier argument's hold against every
 // access of a later one.
-public machine check_holds(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
+public machine check_holds(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
@@ -63,7 +63,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine called(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine called(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
         let selection: Selection = typing_selection(typing, handle);
         let first_parameter: u64 in Trapping = callee_parameters(syntax, selection);
         let terminal: bool = terminal_call(checker, handle);
@@ -71,7 +71,7 @@ crashes Trap
     }
 
     machine earlier(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -87,7 +87,7 @@ crashes Trap
     }
 
     machine held(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -109,7 +109,7 @@ crashes Trap
     }
 
     machine whole(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -126,7 +126,7 @@ crashes Trap
     }
 
     machine retained(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -145,7 +145,7 @@ crashes Trap
 // Argument `index`'s hold of `place` against every access of each later
 // argument of the call.
 machine pair_hold(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -161,7 +161,7 @@ crashes Trap
     transition { _ -> later(checker, syntax, resolution, typing, expression, terminal, place, exclusive, forwards, index + 1) }
 
     machine later(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -179,7 +179,7 @@ crashes Trap
     }
 
     machine paired(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -195,7 +195,7 @@ crashes Trap
     }
 
     machine scanned(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -220,7 +220,7 @@ crashes Trap
 // while the call runs, each against the later arguments: a lend inside
 // nested calls whose results all hold references.
 machine retained_holds(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -235,7 +235,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, expression, terminal, index, argument, tree.first_row) }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -252,7 +252,7 @@ crashes Trap
     }
 
     machine lends(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -271,7 +271,7 @@ crashes Trap
     }
 
     machine lent(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -291,7 +291,7 @@ crashes Trap
     }
 
     machine held(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -402,15 +402,15 @@ crashes Trap
     machine referenced(typing: @Typing, argument: u64 in Trapping) -> Hold {
         let argument_type: u64 in Trapping = typing_expression_type(typing, argument);
         let row: TypeRow = type_table_row(@typing.types, argument_type);
-        let mutable: bool = row.access != ReferenceAccess::Shared;
+        let is_exclusive: bool = row.access != ReferenceAccess::Shared;
         transition row.kind == TypeKind::Reference {
-            true -> reference(argument, mutable),
+            true -> reference(argument, is_exclusive),
             _ -> answer(Hold::Released)
         }
     }
 
-    machine reference(argument: u64 in Trapping, mutable: bool) -> Hold {
-        transition mutable {
+    machine reference(argument: u64 in Trapping, is_exclusive: bool) -> Hold {
+        transition is_exclusive {
             true -> answer(Hold::Exclusive { place: argument }),
             _ -> answer(Hold::Shared { place: argument })
         }
@@ -437,7 +437,7 @@ crashes Trap
 // Every access inside a later argument against an earlier argument's hold
 // of `place`: an overlapping access conflicts when either is exclusive.
 machine scan_accesses(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -452,7 +452,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, argument, place, exclusive, copied, tree.first_row) }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -469,7 +469,7 @@ crashes Trap
     }
 
     machine access(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -488,7 +488,7 @@ crashes Trap
     }
 
     machine overlapping(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -510,15 +510,15 @@ crashes Trap
         }
     }
 
-    machine rejected(checker: @mut Checker, syntax: @SyntaxTrees, node: u64 in Trapping) {
+    machine rejected(checker: @mutable Checker, syntax: @SyntaxTrees, node: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, node);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::OverlappingArguments, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::OverlappingArguments, expression.source_span);
     }
 
     machine done() {}
 }
 
-// Whether a place access is exclusive: lent `&mut`, or an exclusive
+// Whether a place access is exclusive: lent `&mutable`, or an exclusive
 // reference passed on rather than read.
 machine exclusive_access(typing: @Typing, node: u64 in Trapping, role: UseRole) -> bool
 crashes Trap
@@ -591,56 +591,56 @@ crashes Trap
 // they still have an enclosing evaluation to resume. The expression arena is
 // child-before-parent, so one reverse pass propagates completion without a
 // recursive parser stack or any lexical/state-specific call permission.
-public machine initialize_terminal_calls(checker: @mut Checker, syntax: @SyntaxTrees)
+public machine initialize_terminal_calls(checker: @mutable Checker, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> clear(checker, syntax, 0) }
-    machine clear(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine clear(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.expression_count && index < 131072 {
             true -> cleared(checker, syntax, index),
             false -> arm(checker, syntax, 0)
         }
     }
-    machine cleared(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping)
+    machine cleared(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping)
     requires index < 131072
     {
         checker.terminal_calls[index] = false;
         transition { _ -> clear(checker, syntax, index + 1) }
     }
-    machine arm(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine arm(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.arm_count {
             true -> target(checker, syntax, index),
             false -> initialized(checker, syntax)
         }
     }
-    machine target(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine target(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_arm(syntax, index);
         transition arm.target_kind == ArmTargetKind::Unit {
             true -> arm(checker, syntax, index + 1),
             false -> seed(checker, syntax, index, arm.target)
         }
     }
-    machine seed(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
+    machine seed(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
         mark(checker, syntax, target);
         transition { _ -> arm(checker, syntax, index + 1) }
     }
-    machine initialized(checker: @mut Checker, syntax: @SyntaxTrees) {
+    machine initialized(checker: @mutable Checker, syntax: @SyntaxTrees) {
         let remaining: u64 in Trapping = syntax.expression_count as +Trapping;
         transition { _ -> propagate(checker, syntax, remaining) }
     }
-    machine propagate(checker: @mut Checker, syntax: @SyntaxTrees, remaining: u64 in Trapping) {
+    machine propagate(checker: @mutable Checker, syntax: @SyntaxTrees, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> position(checker, syntax, remaining - 1),
             false -> done()
         }
     }
-    machine position(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine position(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < 131072 {
             true -> selected(checker, syntax, index),
             false -> done()
         }
     }
-    machine selected(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping)
+    machine selected(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping)
     requires index < 131072
     {
         transition checker.terminal_calls[index] {
@@ -648,7 +648,7 @@ crashes Trap
             false -> propagate(checker, syntax, index)
         }
     }
-    machine expression(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine expression(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, index);
         let acknowledged: bool = expression.kind == ExpressionKind::Unary
             && (expression.operator == OperatorKind::Suspend || expression.operator == OperatorKind::Block || expression.operator == OperatorKind::SuspendBlock);
@@ -657,41 +657,41 @@ crashes Trap
             false -> dispatch(checker, syntax, index, expression)
         }
     }
-    machine wrapped(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
+    machine wrapped(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
         mark(checker, syntax, target);
         transition { _ -> propagate(checker, syntax, index) }
     }
-    machine dispatch(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine dispatch(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         transition expression.kind == ExpressionKind::Match {
             true -> alternative(checker, syntax, index, expression, 0),
             false -> propagate(checker, syntax, index)
         }
     }
-    machine alternative(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+    machine alternative(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
         transition offset < expression.count {
             true -> result(checker, syntax, index, expression, offset),
             false -> propagate(checker, syntax, index)
         }
     }
-    machine result(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+    machine result(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
         transition arm.target_kind == ArmTargetKind::Unit {
             true -> alternative(checker, syntax, index, expression, offset + 1),
             false -> valued(checker, syntax, index, expression, offset, arm.target)
         }
     }
-    machine valued(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, target: u64 in Trapping) {
+    machine valued(checker: @mutable Checker, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, target: u64 in Trapping) {
         mark(checker, syntax, target);
         transition { _ -> alternative(checker, syntax, index, expression, offset + 1) }
     }
     // A malformed/missing coordinate gains no terminal borrowing permission.
-    machine mark(checker: @mut Checker, syntax: @SyntaxTrees, target: u64 in Trapping) {
+    machine mark(checker: @mutable Checker, syntax: @SyntaxTrees, target: u64 in Trapping) {
         transition target < syntax.expression_count && target < 131072 {
             true -> bounded(checker, target),
             false -> done()
         }
     }
-    machine bounded(checker: @mut Checker, target: u64 in Trapping)
+    machine bounded(checker: @mutable Checker, target: u64 in Trapping)
     requires target < 131072
     {
         checker.terminal_calls[target] = true;

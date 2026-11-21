@@ -7,7 +7,7 @@ data ReadOutcome {
     case Full(count: u64);
     case Invalid;
 }
-machine receive(line: @mut [u8; 64]) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64]) -> ReadOutcome {
     line[0] = 37;
     ReadOutcome::Complete { count: 5 }
 }
@@ -19,8 +19,8 @@ machine read_joined(line: @[u8; 64], count: u64, choice: bool) -> u64 in Wrappin
     observe(peek, count)
 }
 machine main() crashes Trap {
-    let mut line: [u8; 64];
-    let result: ReadOutcome = receive(@mut line);
+    let mutable line: [u8; 64];
+    let result: ReadOutcome = receive(@mutable line);
     transition result {
         ReadOutcome::Complete { count } -> evaluate(read_joined(@line, count, true)),
         ReadOutcome::End { count } -> evaluate(read_joined(@line, count, false)),

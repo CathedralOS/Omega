@@ -525,11 +525,11 @@ public trait Readable<Field, T> {
 }
 
 public trait DestructiveRead<Field, T> {
-    machine take(accessor: @mut Field) -> T;
+    machine take(accessor: @mutable Field) -> T;
 }
 
 public trait Writable<Field, T> {
-    machine write(accessor: @mut Field, value: T);
+    machine write(accessor: @mutable Field, value: T);
 }
 
 // Exact compiler-supplied primitives, not blanket conformance evidence. The
@@ -539,7 +539,7 @@ public trait Writable<Field, T> {
 // an unconstrained type parameter cannot acquire field access by forwarding.
 public boundary machine read<Accessor, Value>(field: @Accessor) -> Value
 satisfies Readable<Accessor, Value>::read;
-public boundary machine write<Accessor, Value>(field: @mut Accessor, value: Value)
+public boundary machine write<Accessor, Value>(field: @mutable Accessor, value: Value)
 satisfies Writable<Accessor, Value>::write;
 
 public boundary data Accessor<T>;
@@ -547,10 +547,10 @@ public boundary data Accessor<T>;
 boundary machine Accessor::read<T>(accessor: @Accessor<T>) -> T
 satisfies Readable<Accessor<T>, T>::read;
 
-boundary machine Accessor::take<T>(accessor: @mut Accessor<T>) -> T
+boundary machine Accessor::take<T>(accessor: @mutable Accessor<T>) -> T
 satisfies DestructiveRead<Accessor<T>, T>::take;
 
-boundary machine Accessor::write<T>(accessor: @mut Accessor<T>, value: T)
+boundary machine Accessor::write<T>(accessor: @mutable Accessor<T>, value: T)
 satisfies Writable<Accessor<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE

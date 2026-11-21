@@ -14,7 +14,7 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
 public machine issue() -> Region in Owned ensures result.length == 48 {
     Region { length: 48 }
 }
-public machine drop_region(region: @mut Region) {}
+public machine drop_region(region: @mutable Region) {}
 public data Parts { taken: Region in Owned; rest: Region in Owned; }
 public data Strategy requires remaining == tail.length {
     tail: Region in Owned;
@@ -29,7 +29,7 @@ ensures result.taken.length == requested,
     let { length } = whole;
     Parts { taken: Region { length: requested }, rest: Region { length: length - requested } }
 }
-public machine carve(strategy: @mut Strategy, remaining: u64, requested: u64) -> Region in Owned
+public machine carve(strategy: @mutable Strategy, remaining: u64, requested: u64) -> Region in Owned
 requires remaining == strategy.tail.length && requested <= remaining
 ensures result.length == requested,
     strategy.tail.length == remaining - requested,

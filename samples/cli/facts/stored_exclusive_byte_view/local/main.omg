@@ -2,9 +2,9 @@
 // Place: local.
 // Expected exit: 0
 machine main() crashes Trap {
-    let mut backing: [u8; 1] = [19];
-    let windows: [@mut [u8]; 1] = [@mut backing[..]];
-    let selected: [@mut [u8]; 1] = windows;
+    let mutable backing: [u8; 1] = [19];
+    let windows: [@mutable [u8]; 1] = [@mutable backing[..]];
+    let selected: [@mutable [u8]; 1] = windows;
     let length: u64 = selected[0].length;
     let observed: bool = selected[0][0] == 19 && length == 1;
     transition observed {

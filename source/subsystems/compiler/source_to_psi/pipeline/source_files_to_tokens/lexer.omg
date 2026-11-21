@@ -45,25 +45,25 @@ data DecodedScalar [copy] {
     valid: bool;
 }
 
-public machine lexer_initialize(lexer: @mut Lexer, source_id: u32 in Trapping) {
-    source_unit_clear(@mut lexer.source, SourceId { value: source_id });
-    token_stream_clear(@mut lexer.output, SourceId { value: source_id });
+public machine lexer_initialize(lexer: @mutable Lexer, source_id: u32 in Trapping) {
+    source_unit_clear(@mutable lexer.source, SourceId { value: source_id });
+    token_stream_clear(@mutable lexer.output, SourceId { value: source_id });
     lexer.cursor = 0;
     lexer.literal_magnitude = 0;
     lexer.literal_exact = true;
 }
 
-public machine append_source_byte(lexer: @mut Lexer, byte: u8) {
-    source_unit_append(@mut lexer.source, byte);
+public machine append_source_byte(lexer: @mutable Lexer, byte: u8) {
+    source_unit_append(@mutable lexer.source, byte);
 }
 
 public machine lexer_reject(
-    lexer: @mut Lexer,
+    lexer: @mutable Lexer,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) {
-    token_stream_reject(@mut lexer.output, lexer.source.id, code, start, end);
+    token_stream_reject(@mutable lexer.output, lexer.source.id, code, start, end);
 }
 
 // Decode one Unicode scalar at an exact byte coordinate. The source buffer is
@@ -335,18 +335,18 @@ machine is_identifier_continue(scalar: u32 in Trapping) -> bool {
     machine digit(scalar: u32 in Trapping) -> bool { transition scalar >= 48 && scalar <= 57 { true -> true, _ -> false } }
 }
 
-machine validate_utf8(lexer: @mut Lexer) {
+machine validate_utf8(lexer: @mutable Lexer) {
     lexer.cursor = 0;
     transition { _ -> step(lexer) }
 
-    machine step(lexer: @mut Lexer) {
+    machine step(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> decode(lexer),
             _ -> complete()
         }
     }
 
-    machine decode(lexer: @mut Lexer) {
+    machine decode(lexer: @mutable Lexer) {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         transition decoded.valid {
             true -> advance(lexer, decoded.width),
@@ -354,12 +354,12 @@ machine validate_utf8(lexer: @mut Lexer) {
         }
     }
 
-    machine advance(lexer: @mut Lexer, width: u64 in Trapping) {
+    machine advance(lexer: @mutable Lexer, width: u64 in Trapping) {
         lexer.cursor = lexer.cursor + width;
         transition { _ -> step(lexer) }
     }
 
-    machine invalid(lexer: @mut Lexer) {
+    machine invalid(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.cursor;
         let end: u64 in Trapping = lexer.cursor + 1;
         lexer_reject(lexer, LexDiagnosticCode::InvalidUtf8, start, end);
@@ -368,11 +368,11 @@ machine validate_utf8(lexer: @mut Lexer) {
     machine complete() {}
 }
 
-machine push_token(lexer: @mut Lexer, kind: TokenKind) {
+machine push_token(lexer: @mutable Lexer, kind: TokenKind) {
     retain_token(lexer, kind);
 }
 
-machine retain_token(lexer: @mut Lexer, kind: TokenKind) {
+machine retain_token(lexer: @mutable Lexer, kind: TokenKind) {
     let retained_decoded_start: u64 in Trapping = lexer.decoded_start;
     let retained_decoded_end: u64 in Trapping =
         lexer.output.decoded_length as +Trapping;
@@ -386,12 +386,12 @@ machine retain_token(lexer: @mut Lexer, kind: TokenKind) {
         decoded_start: retained_decoded_start,
         decoded_length: retained_decoded_length
     };
-    token_stream_push(@mut lexer.output, token);
+    token_stream_push(@mutable lexer.output, token);
     transition lexer.output.last_retained {
         true -> done(),
         _ -> full(lexer)
     }
-    machine full(lexer: @mut Lexer) {
+    machine full(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.token_end;
         lexer_reject(lexer, LexDiagnosticCode::TokenCapacityExceeded, start, end);
@@ -399,13 +399,13 @@ machine retain_token(lexer: @mut Lexer, kind: TokenKind) {
     machine done() {}
 }
 
-machine lexer_push_decoded(lexer: @mut Lexer, byte: u8) {
-    token_stream_push_decoded(@mut lexer.output, byte);
+machine lexer_push_decoded(lexer: @mutable Lexer, byte: u8) {
+    token_stream_push_decoded(@mutable lexer.output, byte);
     transition lexer.output.last_retained {
         true -> done(),
         _ -> full(lexer)
     }
-    machine full(lexer: @mut Lexer) {
+    machine full(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.cursor;
         lexer_reject(lexer, LexDiagnosticCode::DecodedCapacityExceeded, start, end);
@@ -416,7 +416,7 @@ machine lexer_push_decoded(lexer: @mut Lexer, byte: u8) {
 // Whether the current token's source span spells `candidate`. The span is
 // read here rather than passed: a caller that lends the lexer exclusively may
 // not also read its fields as later operands.
-machine token_equals(lexer: @mut Lexer, candidate: @[u8]) -> bool {
+machine token_equals(lexer: @mutable Lexer, candidate: @[u8]) -> bool {
     let start: u64 in Trapping = lexer.token_start;
     let end: u64 in Trapping = lexer.token_end;
     transition end - start == candidate.length {
@@ -424,14 +424,14 @@ machine token_equals(lexer: @mut Lexer, candidate: @[u8]) -> bool {
         _ -> false
     }
 
-    machine scan(lexer: @mut Lexer, start: u64 in Trapping, candidate: @[u8], index: u64 in Trapping) -> bool {
+    machine scan(lexer: @mutable Lexer, start: u64 in Trapping, candidate: @[u8], index: u64 in Trapping) -> bool {
         transition index < candidate.length {
             true -> compare(lexer, start, candidate, index),
             _ -> true
         }
     }
 
-    machine compare(lexer: @mut Lexer, start: u64 in Trapping, candidate: @[u8], index: u64 in Trapping) -> bool {
+    machine compare(lexer: @mutable Lexer, start: u64 in Trapping, candidate: @[u8], index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = start + index;
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, at);
         let candidate_byte: u8 = candidate[index];
@@ -442,58 +442,58 @@ machine token_equals(lexer: @mut Lexer, candidate: @[u8]) -> bool {
     }
 }
 
-machine classify_keyword(lexer: @mut Lexer) {
+machine classify_keyword(lexer: @mutable Lexer) {
     let matched: bool = token_equals(lexer, "as");
     transition matched { true -> yes(lexer, KeywordKind::As), _ -> calling_convention_kw(lexer) }
-    machine calling_convention_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "calling_convention"); transition matched { true -> yes(lexer, KeywordKind::CallingConvention), _ -> capability_kw(lexer) } }
-    machine capability_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "capability"); transition matched { true -> yes(lexer, KeywordKind::Capability), _ -> contains_kw(lexer) } }
-    machine contains_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "contains"); transition matched { true -> yes(lexer, KeywordKind::Contains), _ -> data_kw(lexer) } }
-    machine data_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "data"); transition matched { true -> yes(lexer, KeywordKind::Data), _ -> else_kw(lexer) } }
-    machine else_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "else"); transition matched { true -> yes(lexer, KeywordKind::Else), _ -> false_kw(lexer) } }
-    machine false_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "false"); transition matched { true -> yes(lexer, KeywordKind::False), _ -> foreign_kw(lexer) } }
-    machine foreign_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "foreign"); transition matched { true -> yes(lexer, KeywordKind::Foreign), _ -> host_kw(lexer) } }
-    machine host_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "host"); transition matched { true -> yes(lexer, KeywordKind::Host), _ -> if_kw(lexer) } }
-    machine if_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "if"); transition matched { true -> yes(lexer, KeywordKind::If), _ -> let_kw(lexer) } }
-    machine let_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "let"); transition matched { true -> yes(lexer, KeywordKind::Let), _ -> library_kw(lexer) } }
-    machine library_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "library"); transition matched { true -> yes(lexer, KeywordKind::Library), _ -> loop_kw(lexer) } }
-    machine loop_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "loop"); transition matched { true -> yes(lexer, KeywordKind::Loop), _ -> machine_kw(lexer) } }
-    machine machine_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "machine"); transition matched { true -> yes(lexer, KeywordKind::Machine), _ -> match_kw(lexer) } }
-    machine match_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "match"); transition matched { true -> yes(lexer, KeywordKind::Match), _ -> owns_kw(lexer) } }
-    machine owns_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "owns"); transition matched { true -> yes(lexer, KeywordKind::Owns), _ -> platform_kw(lexer) } }
-    machine platform_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "platform"); transition matched { true -> yes(lexer, KeywordKind::Platform), _ -> public_kw(lexer) } }
-    machine public_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "public"); transition matched { true -> yes(lexer, KeywordKind::Public), _ -> return_kw(lexer) } }
-    machine return_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "return"); transition matched { true -> yes(lexer, KeywordKind::Return), _ -> self_value_kw(lexer) } }
-    machine self_value_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "self"); transition matched { true -> yes(lexer, KeywordKind::SelfValue), _ -> struct_kw(lexer) } }
-    machine struct_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "struct"); transition matched { true -> yes(lexer, KeywordKind::Struct), _ -> target_kw(lexer) } }
-    machine target_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "target"); transition matched { true -> yes(lexer, KeywordKind::Target), _ -> transition_kw(lexer) } }
-    machine transition_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "transition"); transition matched { true -> yes(lexer, KeywordKind::Transition), _ -> true_kw(lexer) } }
-    machine true_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "true"); transition matched { true -> yes(lexer, KeywordKind::True), _ -> use_kw(lexer) } }
-    machine use_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "use"); transition matched { true -> yes(lexer, KeywordKind::Use), _ -> when_kw(lexer) } }
-    machine when_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "when"); transition matched { true -> yes(lexer, KeywordKind::When), _ -> while_kw(lexer) } }
-    machine while_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "while"); transition matched { true -> yes(lexer, KeywordKind::While), _ -> case_kw(lexer) } }
-    machine case_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "case"); transition matched { true -> yes(lexer, KeywordKind::Case), _ -> copy_kw(lexer) } }
-    machine copy_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "copy"); transition matched { true -> yes(lexer, KeywordKind::Copy), _ -> linear_kw(lexer) } }
-    machine linear_kw(lexer: @mut Lexer) { let matched: bool = token_equals(lexer, "linear"); transition matched { true -> yes(lexer, KeywordKind::Linear), _ -> identifier(lexer) } }
+    machine calling_convention_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "calling_convention"); transition matched { true -> yes(lexer, KeywordKind::CallingConvention), _ -> capability_kw(lexer) } }
+    machine capability_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "capability"); transition matched { true -> yes(lexer, KeywordKind::Capability), _ -> contains_kw(lexer) } }
+    machine contains_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "contains"); transition matched { true -> yes(lexer, KeywordKind::Contains), _ -> data_kw(lexer) } }
+    machine data_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "data"); transition matched { true -> yes(lexer, KeywordKind::Data), _ -> else_kw(lexer) } }
+    machine else_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "else"); transition matched { true -> yes(lexer, KeywordKind::Else), _ -> false_kw(lexer) } }
+    machine false_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "false"); transition matched { true -> yes(lexer, KeywordKind::False), _ -> foreign_kw(lexer) } }
+    machine foreign_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "foreign"); transition matched { true -> yes(lexer, KeywordKind::Foreign), _ -> host_kw(lexer) } }
+    machine host_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "host"); transition matched { true -> yes(lexer, KeywordKind::Host), _ -> if_kw(lexer) } }
+    machine if_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "if"); transition matched { true -> yes(lexer, KeywordKind::If), _ -> let_kw(lexer) } }
+    machine let_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "let"); transition matched { true -> yes(lexer, KeywordKind::Let), _ -> library_kw(lexer) } }
+    machine library_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "library"); transition matched { true -> yes(lexer, KeywordKind::Library), _ -> loop_kw(lexer) } }
+    machine loop_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "loop"); transition matched { true -> yes(lexer, KeywordKind::Loop), _ -> machine_kw(lexer) } }
+    machine machine_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "machine"); transition matched { true -> yes(lexer, KeywordKind::Machine), _ -> match_kw(lexer) } }
+    machine match_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "match"); transition matched { true -> yes(lexer, KeywordKind::Match), _ -> owns_kw(lexer) } }
+    machine owns_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "owns"); transition matched { true -> yes(lexer, KeywordKind::Owns), _ -> platform_kw(lexer) } }
+    machine platform_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "platform"); transition matched { true -> yes(lexer, KeywordKind::Platform), _ -> public_kw(lexer) } }
+    machine public_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "public"); transition matched { true -> yes(lexer, KeywordKind::Public), _ -> return_kw(lexer) } }
+    machine return_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "return"); transition matched { true -> yes(lexer, KeywordKind::Return), _ -> self_value_kw(lexer) } }
+    machine self_value_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "self"); transition matched { true -> yes(lexer, KeywordKind::SelfValue), _ -> struct_kw(lexer) } }
+    machine struct_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "struct"); transition matched { true -> yes(lexer, KeywordKind::Struct), _ -> target_kw(lexer) } }
+    machine target_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "target"); transition matched { true -> yes(lexer, KeywordKind::Target), _ -> transition_kw(lexer) } }
+    machine transition_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "transition"); transition matched { true -> yes(lexer, KeywordKind::Transition), _ -> true_kw(lexer) } }
+    machine true_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "true"); transition matched { true -> yes(lexer, KeywordKind::True), _ -> use_kw(lexer) } }
+    machine use_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "use"); transition matched { true -> yes(lexer, KeywordKind::Use), _ -> when_kw(lexer) } }
+    machine when_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "when"); transition matched { true -> yes(lexer, KeywordKind::When), _ -> while_kw(lexer) } }
+    machine while_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "while"); transition matched { true -> yes(lexer, KeywordKind::While), _ -> case_kw(lexer) } }
+    machine case_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "case"); transition matched { true -> yes(lexer, KeywordKind::Case), _ -> copy_kw(lexer) } }
+    machine copy_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "copy"); transition matched { true -> yes(lexer, KeywordKind::Copy), _ -> linear_kw(lexer) } }
+    machine linear_kw(lexer: @mutable Lexer) { let matched: bool = token_equals(lexer, "linear"); transition matched { true -> yes(lexer, KeywordKind::Linear), _ -> identifier(lexer) } }
 
-    machine yes(lexer: @mut Lexer, keyword: KeywordKind) { push_token(lexer, TokenKind::Keyword { keyword: keyword }); }
-    machine identifier(lexer: @mut Lexer) { push_token(lexer, TokenKind::Identifier); }
+    machine yes(lexer: @mutable Lexer, keyword: KeywordKind) { push_token(lexer, TokenKind::Keyword { keyword: keyword }); }
+    machine identifier(lexer: @mutable Lexer) { push_token(lexer, TokenKind::Identifier); }
 }
 
-machine lex_identifier(lexer: @mut Lexer) {
+machine lex_identifier(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     let first: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
     lexer.cursor = lexer.cursor + first.width;
     transition { _ -> continue_scan(lexer) }
 
-    machine continue_scan(lexer: @mut Lexer) {
+    machine continue_scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> decode_next(lexer),
             _ -> finish(lexer)
         }
     }
 
-    machine decode_next(lexer: @mut Lexer) {
+    machine decode_next(lexer: @mutable Lexer) {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         let continues: bool = is_identifier_continue(decoded.scalar);
         transition continues {
@@ -502,14 +502,14 @@ machine lex_identifier(lexer: @mut Lexer) {
         }
     }
 
-    machine advance(lexer: @mut Lexer, width: u64 in Trapping) {
+    machine advance(lexer: @mutable Lexer, width: u64 in Trapping) {
         lexer.cursor = lexer.cursor + width;
         transition { _ -> continue_scan(lexer) }
     }
 
     // A word's spelling is its decoded bytes, so contextual words such as the
     // `in` of a qualified type compare against `TokenStream::decoded`.
-    machine finish(lexer: @mut Lexer) {
+    machine finish(lexer: @mutable Lexer) {
         lexer.token_end = lexer.cursor;
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.token_end;
@@ -520,26 +520,26 @@ machine lex_identifier(lexer: @mut Lexer) {
         }
     }
 
-    machine classify(lexer: @mut Lexer) {
+    machine classify(lexer: @mutable Lexer) {
         classify_keyword(lexer);
     }
 
     machine rejected() {}
 }
 
-machine lex_whitespace(lexer: @mut Lexer) {
+machine lex_whitespace(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     transition { _ -> scan(lexer) }
 
-    machine scan(lexer: @mut Lexer) {
+    machine scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> decode(lexer),
             _ -> finish(lexer)
         }
     }
 
-    machine decode(lexer: @mut Lexer) {
+    machine decode(lexer: @mutable Lexer) {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         let whitespace: bool = is_whitespace(decoded.scalar);
         transition whitespace {
@@ -548,26 +548,26 @@ machine lex_whitespace(lexer: @mut Lexer) {
         }
     }
 
-    machine advance(lexer: @mut Lexer, width: u64 in Trapping) {
+    machine advance(lexer: @mutable Lexer, width: u64 in Trapping) {
         lexer.cursor = lexer.cursor + width;
         transition { _ -> scan(lexer) }
     }
 
-    machine finish(lexer: @mut Lexer) {}
+    machine finish(lexer: @mutable Lexer) {}
 }
 
-machine lex_line_comment(lexer: @mut Lexer) {
+machine lex_line_comment(lexer: @mutable Lexer) {
     lexer.cursor = lexer.cursor + 2;
     transition { _ -> scan(lexer) }
 
-    machine scan(lexer: @mut Lexer) {
+    machine scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> byte(lexer),
             _ -> finish(lexer)
         }
     }
 
-    machine byte(lexer: @mut Lexer) {
+    machine byte(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         transition source_byte == 10 {
             true -> consume_newline(lexer),
@@ -575,31 +575,31 @@ machine lex_line_comment(lexer: @mut Lexer) {
         }
     }
 
-    machine advance(lexer: @mut Lexer) {
+    machine advance(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         transition { _ -> scan(lexer) }
     }
 
-    machine consume_newline(lexer: @mut Lexer) {
+    machine consume_newline(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
     }
 
-    machine finish(lexer: @mut Lexer) {}
+    machine finish(lexer: @mutable Lexer) {}
 }
 
-machine lex_block_comment(lexer: @mut Lexer) {
+machine lex_block_comment(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.cursor = lexer.cursor + 2;
     transition { _ -> scan(lexer, 1) }
 
-    machine scan(lexer: @mut Lexer, depth: u64 in Trapping) {
+    machine scan(lexer: @mutable Lexer, depth: u64 in Trapping) {
         transition lexer.cursor < lexer.source.length {
             true -> pair_bound(lexer, depth),
             _ -> unterminated(lexer)
         }
     }
 
-    machine pair_bound(lexer: @mut Lexer, depth: u64 in Trapping) {
+    machine pair_bound(lexer: @mutable Lexer, depth: u64 in Trapping) {
         let index1: u64 in Trapping = lexer.cursor + 1;
         transition index1 < lexer.source.length {
             true -> open_check(lexer, depth, index1),
@@ -607,7 +607,7 @@ machine lex_block_comment(lexer: @mut Lexer) {
         }
     }
 
-    machine open_check(lexer: @mut Lexer, depth: u64 in Trapping, index1: u64 in Trapping) {
+    machine open_check(lexer: @mutable Lexer, depth: u64 in Trapping, index1: u64 in Trapping) {
         let first_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let second_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1);
         transition first_byte == 47 && second_byte == 42 {
@@ -616,20 +616,20 @@ machine lex_block_comment(lexer: @mut Lexer) {
         }
     }
 
-    machine open(lexer: @mut Lexer, depth: u64 in Trapping) {
+    machine open(lexer: @mutable Lexer, depth: u64 in Trapping) {
         let deeper: u64 in Trapping = depth + 1;
         lexer.cursor = lexer.cursor + 2;
         transition { _ -> scan(lexer, deeper) }
     }
 
-    machine close_check(lexer: @mut Lexer, depth: u64 in Trapping, first_byte: u8, second_byte: u8) {
+    machine close_check(lexer: @mutable Lexer, depth: u64 in Trapping, first_byte: u8, second_byte: u8) {
         transition first_byte == 42 && second_byte == 47 {
             true -> close(lexer, depth),
             _ -> advance(lexer, depth)
         }
     }
 
-    machine close(lexer: @mut Lexer, depth: u64 in Trapping) {
+    machine close(lexer: @mutable Lexer, depth: u64 in Trapping) {
         let shallower: u64 in Trapping = depth - 1;
         lexer.cursor = lexer.cursor + 2;
         transition shallower == 0 {
@@ -638,14 +638,14 @@ machine lex_block_comment(lexer: @mut Lexer) {
         }
     }
 
-    machine advance(lexer: @mut Lexer, depth: u64 in Trapping) {
+    machine advance(lexer: @mutable Lexer, depth: u64 in Trapping) {
         lexer.cursor = lexer.cursor + 1;
         transition { _ -> scan(lexer, depth) }
     }
 
-    machine finish(lexer: @mut Lexer) {}
+    machine finish(lexer: @mutable Lexer) {}
 
-    machine unterminated(lexer: @mut Lexer) {
+    machine unterminated(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.source.length as +Trapping;
         lexer_reject(lexer, LexDiagnosticCode::UnterminatedBlockComment, start, end);
@@ -653,16 +653,16 @@ machine lex_block_comment(lexer: @mut Lexer) {
 }
 
 // Append the source bytes `start..end` to the decoded stream.
-machine copy_source_to_decoded(lexer: @mut Lexer, start: u64 in Trapping, end: u64 in Trapping) {
+machine copy_source_to_decoded(lexer: @mutable Lexer, start: u64 in Trapping, end: u64 in Trapping) {
     transition { _ -> scan(lexer, start, end) }
 
-    machine scan(lexer: @mut Lexer, at: u64 in Trapping, end: u64 in Trapping) {
+    machine scan(lexer: @mutable Lexer, at: u64 in Trapping, end: u64 in Trapping) {
         transition at < end {
             true -> copy(lexer, at, end),
             _ -> done()
         }
     }
-    machine copy(lexer: @mut Lexer, at: u64 in Trapping, end: u64 in Trapping) {
+    machine copy(lexer: @mutable Lexer, at: u64 in Trapping, end: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, at);
         lexer_push_decoded(lexer, source_byte);
         let next: u64 in Trapping = at + 1;
@@ -671,20 +671,20 @@ machine copy_source_to_decoded(lexer: @mut Lexer, start: u64 in Trapping, end: u
     machine done() {}
 }
 
-machine lex_cooked_string(lexer: @mut Lexer) {
+machine lex_cooked_string(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     lexer.cursor = lexer.cursor + 1;
     transition { _ -> scan(lexer) }
 
-    machine scan(lexer: @mut Lexer) {
+    machine scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> decode(lexer),
             _ -> unterminated(lexer)
         }
     }
 
-    machine decode(lexer: @mut Lexer) {
+    machine decode(lexer: @mutable Lexer) {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         transition decoded.scalar == 34 {
             true -> finish(lexer),
@@ -692,21 +692,21 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         }
     }
 
-    machine newline_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
+    machine newline_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
         transition scalar == 10 || scalar == 13 {
             true -> outside_profile_line(lexer),
             _ -> slash(lexer, scalar, width)
         }
     }
 
-    machine slash(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
+    machine slash(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
         transition scalar == 92 {
             true -> escape_begin(lexer),
             _ -> copy_scalar(lexer, width)
         }
     }
 
-    machine copy_scalar(lexer: @mut Lexer, width: u64 in Trapping) {
+    machine copy_scalar(lexer: @mutable Lexer, width: u64 in Trapping) {
         let start: u64 in Trapping = lexer.cursor;
         let end: u64 in Trapping = lexer.cursor + width;
         copy_source_to_decoded(lexer, start, end);
@@ -714,7 +714,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         transition lexer.output.accepted { true -> scan(lexer), _ -> done() }
     }
 
-    machine escape_begin(lexer: @mut Lexer) {
+    machine escape_begin(lexer: @mutable Lexer) {
         let escape_start: u64 in Trapping = lexer.cursor;
         lexer.cursor = lexer.cursor + 1;
         transition lexer.cursor < lexer.source.length {
@@ -723,7 +723,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         }
     }
 
-    machine escape_byte(lexer: @mut Lexer, escape_start: u64 in Trapping) {
+    machine escape_byte(lexer: @mutable Lexer, escape_start: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let escape: u32 in Trapping = source_byte as u32 +Trapping;
         transition escape {
@@ -739,14 +739,14 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         }
     }
 
-    machine escaped_quote(lexer: @mut Lexer) { lexer_push_decoded(lexer, 34); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
-    machine escaped_slash(lexer: @mut Lexer) { lexer_push_decoded(lexer, 92); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
-    machine escaped_n(lexer: @mut Lexer) { lexer_push_decoded(lexer, 10); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
-    machine escaped_r(lexer: @mut Lexer) { lexer_push_decoded(lexer, 13); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
-    machine escaped_t(lexer: @mut Lexer) { lexer_push_decoded(lexer, 9); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
-    machine escaped_zero(lexer: @mut Lexer) { lexer_push_decoded(lexer, 0); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_quote(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 34); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_slash(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 92); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_n(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 10); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_r(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 13); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_t(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 9); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
+    machine escaped_zero(lexer: @mutable Lexer) { lexer_push_decoded(lexer, 0); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer), _ -> done() } }
 
-    machine hex_begin(lexer: @mut Lexer, escape_start: u64 in Trapping) {
+    machine hex_begin(lexer: @mutable Lexer, escape_start: u64 in Trapping) {
         let index1: u64 in Trapping = lexer.cursor + 1;
         let index2: u64 in Trapping = lexer.cursor + 2;
         transition index2 < lexer.source.length {
@@ -755,7 +755,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         }
     }
 
-    machine hex_first(lexer: @mut Lexer, index1: u64 in Trapping, index2: u64 in Trapping) {
+    machine hex_first(lexer: @mutable Lexer, index1: u64 in Trapping, index2: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1);
         let high: u32 in Trapping = hex_digit_value(source_byte as u32 +Trapping);
         transition high < 16 {
@@ -764,7 +764,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         }
     }
 
-    machine hex_second(lexer: @mut Lexer, index2: u64 in Trapping, high: u32 in Trapping)
+    machine hex_second(lexer: @mutable Lexer, index2: u64 in Trapping, high: u32 in Trapping)
     requires high < 16
     {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index2);
@@ -777,7 +777,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
 
     // Each caller has checked its digit. Retain those bounds across the
     // private calls so exact narrowing follows the actual hexadecimal value.
-    machine hex_emit(lexer: @mut Lexer, high: u32 in Trapping, low: u32 in Trapping)
+    machine hex_emit(lexer: @mutable Lexer, high: u32 in Trapping, low: u32 in Trapping)
     requires high < 16, low < 16
     {
         let byte: u8 = ((high * 16 + low) as -Trapping) as u8;
@@ -786,23 +786,23 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         transition lexer.output.accepted { true -> scan(lexer), _ -> done() }
     }
 
-    machine finish(lexer: @mut Lexer) {
+    machine finish(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         lexer.token_end = lexer.cursor;
         push_token(lexer, TokenKind::StringLiteral);
     }
 
-    machine unterminated(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringLiteral, start, end); }
-    machine unterminated_escape(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringEscape, start, end); }
-    machine unsupported_escape(lexer: @mut Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.cursor + 1; lexer_reject(lexer, LexDiagnosticCode::UnsupportedEscape, escape_start, end); }
-    machine hex_unterminated(lexer: @mut Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedHexEscape, escape_start, end); }
-    machine hex_invalid_first(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.cursor + 1; let end: u64 in Trapping = lexer.cursor + 2; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
-    machine hex_invalid_second(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.cursor + 2; let end: u64 in Trapping = lexer.cursor + 3; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
-    machine outside_profile_escape(lexer: @mut Lexer, escape_start: u64 in Trapping) {
+    machine unterminated(lexer: @mutable Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringLiteral, start, end); }
+    machine unterminated_escape(lexer: @mutable Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringEscape, start, end); }
+    machine unsupported_escape(lexer: @mutable Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.cursor + 1; lexer_reject(lexer, LexDiagnosticCode::UnsupportedEscape, escape_start, end); }
+    machine hex_unterminated(lexer: @mutable Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedHexEscape, escape_start, end); }
+    machine hex_invalid_first(lexer: @mutable Lexer) { let start: u64 in Trapping = lexer.cursor + 1; let end: u64 in Trapping = lexer.cursor + 2; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
+    machine hex_invalid_second(lexer: @mutable Lexer) { let start: u64 in Trapping = lexer.cursor + 2; let end: u64 in Trapping = lexer.cursor + 3; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
+    machine outside_profile_escape(lexer: @mutable Lexer, escape_start: u64 in Trapping) {
         let end: u64 in Trapping = lexer.cursor + 1;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, escape_start, end);
     }
-    machine outside_profile_line(lexer: @mut Lexer) {
+    machine outside_profile_line(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.cursor;
         let end: u64 in Trapping = lexer.cursor + 1;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, start, end);
@@ -815,7 +815,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
 // (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).
 // A float's fraction and exponent digits also pass through here; a float
 // token never reads the result.
-machine lexer_accumulate_digit(lexer: @mut Lexer, base: NumericBase, byte: u32 in Trapping) {
+machine lexer_accumulate_digit(lexer: @mutable Lexer, base: NumericBase, byte: u32 in Trapping) {
     let value: u64 in Wrapping = lexer_digit_value(byte);
     let room: u64 in Wrapping = 18446744073709551615 - value;
     transition base {
@@ -825,16 +825,16 @@ machine lexer_accumulate_digit(lexer: @mut Lexer, base: NumericBase, byte: u32 i
         NumericBase::Hexadecimal -> fold(lexer, 16, value, room / 16)
     }
     // `magnitude * radix + value` fits exactly when `magnitude <= limit`.
-    machine fold(lexer: @mut Lexer, radix: u64 in Wrapping, value: u64 in Wrapping, limit: u64 in Wrapping) {
+    machine fold(lexer: @mutable Lexer, radix: u64 in Wrapping, value: u64 in Wrapping, limit: u64 in Wrapping) {
         transition lexer.literal_exact && lexer.literal_magnitude <= limit {
             true -> fits(lexer, radix, value),
             _ -> overflows(lexer)
         }
     }
-    machine fits(lexer: @mut Lexer, radix: u64 in Wrapping, value: u64 in Wrapping) {
+    machine fits(lexer: @mutable Lexer, radix: u64 in Wrapping, value: u64 in Wrapping) {
         lexer.literal_magnitude = lexer.literal_magnitude * radix + value;
     }
-    machine overflows(lexer: @mut Lexer) {
+    machine overflows(lexer: @mutable Lexer) {
         lexer.literal_exact = false;
     }
 }
@@ -889,15 +889,15 @@ crashes Trap
 
 // Consume the digits of `base` and their `_` separators at the cursor. The
 // result is whether at least one digit was consumed.
-machine consume_digits(lexer: @mut Lexer, base: NumericBase) -> bool {
+machine consume_digits(lexer: @mutable Lexer, base: NumericBase) -> bool {
     transition { _ -> scan(lexer, base, false) }
-    machine scan(lexer: @mut Lexer, base: NumericBase, saw_digit: bool) -> bool {
+    machine scan(lexer: @mutable Lexer, base: NumericBase, saw_digit: bool) -> bool {
         transition lexer.cursor < lexer.source.length {
             true -> byte(lexer, base, saw_digit),
             _ -> done(saw_digit)
         }
     }
-    machine byte(lexer: @mut Lexer, base: NumericBase, saw_digit: bool) -> bool {
+    machine byte(lexer: @mutable Lexer, base: NumericBase, saw_digit: bool) -> bool {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let current: u32 in Trapping = source_byte as u32 +Trapping;
         transition current == 95 {
@@ -905,15 +905,15 @@ machine consume_digits(lexer: @mut Lexer, base: NumericBase) -> bool {
             _ -> digit(lexer, base, saw_digit, current)
         }
     }
-    machine underscore(lexer: @mut Lexer, base: NumericBase, saw_digit: bool) -> bool { lexer.cursor = lexer.cursor + 1; transition { _ -> scan(lexer, base, saw_digit) } }
-    machine digit(lexer: @mut Lexer, base: NumericBase, saw_digit: bool, current: u32 in Trapping) -> bool {
+    machine underscore(lexer: @mutable Lexer, base: NumericBase, saw_digit: bool) -> bool { lexer.cursor = lexer.cursor + 1; transition { _ -> scan(lexer, base, saw_digit) } }
+    machine digit(lexer: @mutable Lexer, base: NumericBase, saw_digit: bool, current: u32 in Trapping) -> bool {
         let digit: bool = lexer_digit_in_base(current, base);
         transition digit {
             true -> consume(lexer, base, current),
             _ -> done(saw_digit)
         }
     }
-    machine consume(lexer: @mut Lexer, base: NumericBase, current: u32 in Trapping) -> bool {
+    machine consume(lexer: @mutable Lexer, base: NumericBase, current: u32 in Trapping) -> bool {
         lexer_accumulate_digit(lexer, base, current);
         lexer.cursor = lexer.cursor + 1;
         transition { _ -> scan(lexer, base, true) }
@@ -923,12 +923,12 @@ machine consume_digits(lexer: @mut Lexer, base: NumericBase) -> bool {
 
 // Consume an identifier-shaped literal suffix at the cursor. The result is
 // whether one was present.
-machine consume_suffix(lexer: @mut Lexer) -> bool {
+machine consume_suffix(lexer: @mutable Lexer) -> bool {
     transition lexer.cursor < lexer.source.length {
         true -> decode_first(lexer),
         _ -> false
     }
-    machine decode_first(lexer: @mut Lexer) -> bool {
+    machine decode_first(lexer: @mutable Lexer) -> bool {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         let starts: bool = is_identifier_start(decoded.scalar);
         transition starts {
@@ -936,11 +936,11 @@ machine consume_suffix(lexer: @mut Lexer) -> bool {
             _ -> false
         }
     }
-    machine consume(lexer: @mut Lexer, width: u64 in Trapping) -> bool {
+    machine consume(lexer: @mutable Lexer, width: u64 in Trapping) -> bool {
         lexer.cursor = lexer.cursor + width;
         transition lexer.cursor < lexer.source.length { true -> decode_next(lexer), _ -> true }
     }
-    machine decode_next(lexer: @mut Lexer) -> bool {
+    machine decode_next(lexer: @mutable Lexer) -> bool {
         let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
         let continues: bool = is_identifier_continue(decoded.scalar);
         transition continues { true -> consume(lexer, decoded.width), _ -> true }
@@ -949,12 +949,12 @@ machine consume_suffix(lexer: @mut Lexer) -> bool {
 
 // Whether the `.` at the cursor continues a float: not when it begins `..`
 // or a member name.
-machine dot_starts_float(lexer: @mut Lexer) -> bool {
+machine dot_starts_float(lexer: @mutable Lexer) -> bool {
     transition lexer.cursor + 1 < lexer.source.length {
         true -> decode_after(lexer),
         _ -> true
     }
-    machine decode_after(lexer: @mut Lexer) -> bool {
+    machine decode_after(lexer: @mutable Lexer) -> bool {
         let after: u64 in Trapping = lexer.cursor + 1;
         let decoded: DecodedScalar = decode_scalar(@lexer.source, after);
         transition decoded.scalar >= 48 && decoded.scalar <= 57 {
@@ -974,7 +974,7 @@ machine dot_starts_float(lexer: @mut Lexer) -> bool {
     }
 }
 
-machine lex_number(lexer: @mut Lexer) {
+machine lex_number(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     lexer.literal_magnitude = 0;
@@ -985,13 +985,13 @@ machine lex_number(lexer: @mut Lexer) {
         _ -> integer_begin(lexer)
     }
 
-    machine leading_dot(lexer: @mut Lexer) {
+    machine leading_dot(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         _ = consume_digits(lexer, NumericBase::Decimal);
         transition { _ -> exponent_check(lexer, true) }
     }
 
-    machine integer_begin(lexer: @mut Lexer) {
+    machine integer_begin(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let first: u32 in Trapping = source_byte as u32 +Trapping;
         lexer.cursor = lexer.cursor + 1;
@@ -1002,14 +1002,14 @@ machine lex_number(lexer: @mut Lexer) {
         }
     }
 
-    machine prefix_bound(lexer: @mut Lexer) {
+    machine prefix_bound(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> prefix(lexer),
             _ -> dot_check(lexer)
         }
     }
 
-    machine prefix(lexer: @mut Lexer) {
+    machine prefix(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let marker: u32 in Trapping = source_byte as u32 +Trapping;
         transition marker == 98 || marker == 66 {
@@ -1017,39 +1017,39 @@ machine lex_number(lexer: @mut Lexer) {
             _ -> octal_check(lexer, marker)
         }
     }
-    machine octal_check(lexer: @mut Lexer, marker: u32 in Trapping) { transition marker == 111 || marker == 79 { true -> based_digits(lexer, NumericBase::Octal), _ -> hex_check(lexer, marker) } }
-    machine hex_check(lexer: @mut Lexer, marker: u32 in Trapping) { transition marker == 120 || marker == 88 { true -> based_digits(lexer, NumericBase::Hexadecimal), _ -> decimal_digits(lexer) } }
+    machine octal_check(lexer: @mutable Lexer, marker: u32 in Trapping) { transition marker == 111 || marker == 79 { true -> based_digits(lexer, NumericBase::Octal), _ -> hex_check(lexer, marker) } }
+    machine hex_check(lexer: @mutable Lexer, marker: u32 in Trapping) { transition marker == 120 || marker == 88 { true -> based_digits(lexer, NumericBase::Hexadecimal), _ -> decimal_digits(lexer) } }
     // Consume the base marker, then the digits it selects.
-    machine based_digits(lexer: @mut Lexer, base: NumericBase) {
+    machine based_digits(lexer: @mutable Lexer, base: NumericBase) {
         lexer.cursor = lexer.cursor + 1;
         lexer.literal_magnitude = 0;
         let saw_digit: bool = consume_digits(lexer, base);
         let empty_digits: bool = !saw_digit;
         transition { _ -> finish_integer(lexer, base, empty_digits) }
     }
-    machine decimal_digits(lexer: @mut Lexer) { _ = consume_digits(lexer, NumericBase::Decimal); transition { _ -> dot_check(lexer) } }
+    machine decimal_digits(lexer: @mutable Lexer) { _ = consume_digits(lexer, NumericBase::Decimal); transition { _ -> dot_check(lexer) } }
 
-    machine dot_check(lexer: @mut Lexer) {
+    machine dot_check(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> dot_byte(lexer),
             _ -> exponent_check(lexer, false)
         }
     }
-    machine dot_byte(lexer: @mut Lexer) {
+    machine dot_byte(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         transition source_byte == 46 {
             true -> dot_decision(lexer),
             _ -> exponent_check(lexer, false)
         }
     }
-    machine dot_decision(lexer: @mut Lexer) {
+    machine dot_decision(lexer: @mutable Lexer) {
         let starts: bool = dot_starts_float(lexer);
         transition starts {
             true -> dot_consume(lexer),
             _ -> exponent_check(lexer, false)
         }
     }
-    machine dot_consume(lexer: @mut Lexer) {
+    machine dot_consume(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         _ = consume_digits(lexer, NumericBase::Decimal);
         transition { _ -> exponent_check(lexer, true) }
@@ -1057,13 +1057,13 @@ machine lex_number(lexer: @mut Lexer) {
 
     // Only decimal literals reach the exponent: a based literal ends at its
     // digits. `is_float` is whether a `.` was consumed.
-    machine exponent_check(lexer: @mut Lexer, is_float: bool) {
+    machine exponent_check(lexer: @mutable Lexer, is_float: bool) {
         transition lexer.cursor < lexer.source.length {
             true -> exponent_byte(lexer, is_float),
             _ -> no_exponent(lexer, is_float)
         }
     }
-    machine exponent_byte(lexer: @mut Lexer, is_float: bool) {
+    machine exponent_byte(lexer: @mutable Lexer, is_float: bool) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let marker: u32 in Trapping = source_byte as u32 +Trapping;
         transition marker == 101 || marker == 69 {
@@ -1071,29 +1071,29 @@ machine lex_number(lexer: @mut Lexer) {
             _ -> no_exponent(lexer, is_float)
         }
     }
-    machine no_exponent(lexer: @mut Lexer, is_float: bool) {
+    machine no_exponent(lexer: @mutable Lexer, is_float: bool) {
         transition is_float {
             true -> finish_float(lexer, false, false),
             _ -> finish_integer(lexer, NumericBase::Decimal, false)
         }
     }
-    machine exponent_begin(lexer: @mut Lexer) {
+    machine exponent_begin(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         transition lexer.cursor < lexer.source.length { true -> exponent_sign(lexer), _ -> exponent_digits(lexer) }
     }
-    machine exponent_sign(lexer: @mut Lexer) {
+    machine exponent_sign(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         let sign: u32 in Trapping = source_byte as u32 +Trapping;
         transition sign == 43 || sign == 45 { true -> exponent_sign_consume(lexer), _ -> exponent_digits(lexer) }
     }
-    machine exponent_sign_consume(lexer: @mut Lexer) { lexer.cursor = lexer.cursor + 1; transition { _ -> exponent_digits(lexer) } }
-    machine exponent_digits(lexer: @mut Lexer) {
+    machine exponent_sign_consume(lexer: @mutable Lexer) { lexer.cursor = lexer.cursor + 1; transition { _ -> exponent_digits(lexer) } }
+    machine exponent_digits(lexer: @mutable Lexer) {
         let saw_digit: bool = consume_digits(lexer, NumericBase::Decimal);
         let empty_exponent: bool = !saw_digit;
         transition { _ -> finish_float(lexer, true, empty_exponent) }
     }
 
-    machine finish_float(lexer: @mut Lexer, has_exponent: bool, empty_exponent: bool) {
+    machine finish_float(lexer: @mutable Lexer, has_exponent: bool, empty_exponent: bool) {
         let has_suffix: bool = consume_suffix(lexer);
         lexer.token_end = lexer.cursor;
         let float: TokenKind = TokenKind::Float {
@@ -1103,7 +1103,7 @@ machine lex_number(lexer: @mut Lexer) {
         };
         push_token(lexer, float);
     }
-    machine finish_integer(lexer: @mut Lexer, base: NumericBase, empty_digits: bool) {
+    machine finish_integer(lexer: @mutable Lexer, base: NumericBase, empty_digits: bool) {
         let suffix_start: u64 in Trapping = lexer.cursor;
         let has_suffix: bool = consume_suffix(lexer);
         lexer.token_end = lexer.cursor;
@@ -1122,7 +1122,7 @@ machine lex_number(lexer: @mut Lexer) {
 
 // `scalar_width` is the encoded width of the scalar at the cursor, which
 // bounds the span an unsupported scalar rejects.
-machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
+machine lex_punctuation(lexer: @mutable Lexer, scalar_width: u64 in Trapping) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     let first_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
@@ -1131,7 +1131,7 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
     let index2: u64 in Trapping = lexer.cursor + 2;
     transition index1 < lexer.source.length { true -> second(lexer, scalar_width, byte0, index1, index2), _ -> classify(lexer, scalar_width, byte0, 4294967295, 4294967295) }
     machine second(
-        lexer: @mut Lexer,
+        lexer: @mutable Lexer,
         scalar_width: u64 in Trapping,
         byte0: u32 in Trapping,
         index1: u64 in Trapping,
@@ -1142,7 +1142,7 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
         transition index2 < lexer.source.length { true -> third(lexer, scalar_width, byte0, byte1, index2), _ -> classify(lexer, scalar_width, byte0, byte1, 4294967295) }
     }
     machine third(
-        lexer: @mut Lexer,
+        lexer: @mutable Lexer,
         scalar_width: u64 in Trapping,
         byte0: u32 in Trapping,
         byte1: u32 in Trapping,
@@ -1154,7 +1154,7 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
     }
 
     machine classify(
-        lexer: @mut Lexer,
+        lexer: @mutable Lexer,
         scalar_width: u64 in Trapping,
         byte0: u32 in Trapping,
         byte1: u32 in Trapping,
@@ -1193,92 +1193,92 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
         }
     }
 
-    machine ampersand(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 38 { true -> and_and(lexer), _ -> single_ampersand(lexer) } }
-    machine colon(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 58 { true -> colon_colon(lexer), _ -> single_colon(lexer) } }
-    machine dot(lexer: @mut Lexer, byte1: u32 in Trapping, byte2: u32 in Trapping) { transition byte1 == 46 { true -> dotdot(lexer, byte2), _ -> single_dot(lexer) } }
-    machine dotdot(lexer: @mut Lexer, byte2: u32 in Trapping) { transition byte2 == 61 { true -> dotdot_equal(lexer), _ -> dotdot_plain(lexer) } }
-    machine equal(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> equal_equal(lexer), _ -> single_equal(lexer) } }
-    machine exclamation(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> exclamation_equal(lexer), _ -> single_exclamation(lexer) } }
+    machine ampersand(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 38 { true -> and_and(lexer), _ -> single_ampersand(lexer) } }
+    machine colon(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 58 { true -> colon_colon(lexer), _ -> single_colon(lexer) } }
+    machine dot(lexer: @mutable Lexer, byte1: u32 in Trapping, byte2: u32 in Trapping) { transition byte1 == 46 { true -> dotdot(lexer, byte2), _ -> single_dot(lexer) } }
+    machine dotdot(lexer: @mutable Lexer, byte2: u32 in Trapping) { transition byte2 == 61 { true -> dotdot_equal(lexer), _ -> dotdot_plain(lexer) } }
+    machine equal(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> equal_equal(lexer), _ -> single_equal(lexer) } }
+    machine exclamation(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> exclamation_equal(lexer), _ -> single_exclamation(lexer) } }
     // `>>` stays two `>` tokens: nested static argument lists close one `>`
     // at a time, and the expression grammar reads adjacent `>` `>` as a shift.
-    machine greater(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> greater_equal(lexer), _ -> single_greater(lexer) } }
-    machine less(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 60 { true -> less_less(lexer), _ -> less_equal_check(lexer, byte1) } }
-    machine less_equal_check(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> less_equal(lexer), _ -> single_less(lexer) } }
-    machine minus(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 62 { true -> arrow(lexer), _ -> minus_equal_check(lexer, byte1) } }
-    machine minus_equal_check(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> minus_equal(lexer), _ -> single_minus(lexer) } }
-    machine percent(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> percent_equal(lexer), _ -> single_percent(lexer) } }
-    machine pipe(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 124 { true -> pipe_pipe(lexer), _ -> single_pipe(lexer) } }
-    machine plus(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> plus_equal(lexer), _ -> single_plus(lexer) } }
-    machine asterisk(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> asterisk_equal(lexer), _ -> single_asterisk(lexer) } }
-    machine slash(lexer: @mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> slash_equal(lexer), _ -> single_slash(lexer) } }
+    machine greater(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> greater_equal(lexer), _ -> single_greater(lexer) } }
+    machine less(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 60 { true -> less_less(lexer), _ -> less_equal_check(lexer, byte1) } }
+    machine less_equal_check(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> less_equal(lexer), _ -> single_less(lexer) } }
+    machine minus(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 62 { true -> arrow(lexer), _ -> minus_equal_check(lexer, byte1) } }
+    machine minus_equal_check(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> minus_equal(lexer), _ -> single_minus(lexer) } }
+    machine percent(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> percent_equal(lexer), _ -> single_percent(lexer) } }
+    machine pipe(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 124 { true -> pipe_pipe(lexer), _ -> single_pipe(lexer) } }
+    machine plus(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> plus_equal(lexer), _ -> single_plus(lexer) } }
+    machine asterisk(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> asterisk_equal(lexer), _ -> single_asterisk(lexer) } }
+    machine slash(lexer: @mutable Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> slash_equal(lexer), _ -> single_slash(lexer) } }
 
-    machine single_ampersand(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Ampersand, 1); }
-    machine and_and(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::AndAnd, 2); }
-    machine single_apostrophe(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Apostrophe, 1); }
-    machine arrow(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Arrow, 2); }
-    machine single_asterisk(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Asterisk, 1); }
-    machine single_caret(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Caret, 1); }
-    machine single_colon(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Colon, 1); }
-    machine colon_colon(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::ColonColon, 2); }
-    machine single_comma(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Comma, 1); }
-    machine single_dot(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Dot, 1); }
-    machine dotdot_plain(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDot, 2); }
-    machine dotdot_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDotEqual, 3); }
-    machine single_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Equal, 1); }
-    machine equal_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::EqualEqual, 2); }
-    machine single_exclamation(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Exclamation, 1); }
-    machine exclamation_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2); }
-    machine single_greater(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Greater, 1); }
-    machine greater_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2); }
-    machine single_hash(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Hash, 1); }
-    machine single_left_brace(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBrace, 1); }
-    machine single_left_bracket(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBracket, 1); }
-    machine single_left_paren(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftParen, 1); }
-    machine single_less(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Less, 1); }
-    machine less_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessEqual, 2); }
-    machine less_less(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessLess, 2); }
-    machine single_minus(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Minus, 1); }
-    machine minus_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::MinusEqual, 2); }
-    machine single_percent(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Percent, 1); }
-    machine percent_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::PercentEqual, 2); }
-    machine single_pipe(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Pipe, 1); }
-    machine pipe_pipe(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::PipePipe, 2); }
-    machine single_plus(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Plus, 1); }
-    machine plus_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::PlusEqual, 2); }
-    machine asterisk_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::AsteriskEqual, 2); }
-    machine slash_equal(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::SlashEqual, 2); }
-    machine single_right_brace(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBrace, 1); }
-    machine single_right_bracket(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBracket, 1); }
-    machine single_right_paren(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightParen, 1); }
-    machine single_semicolon(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Semicolon, 1); }
-    machine single_slash(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Slash, 1); }
-    machine single_tilde(lexer: @mut Lexer) { emit_punctuation(lexer, PunctuationKind::Tilde, 1); }
-    machine unsupported(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
+    machine single_ampersand(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Ampersand, 1); }
+    machine and_and(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::AndAnd, 2); }
+    machine single_apostrophe(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Apostrophe, 1); }
+    machine arrow(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Arrow, 2); }
+    machine single_asterisk(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Asterisk, 1); }
+    machine single_caret(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Caret, 1); }
+    machine single_colon(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Colon, 1); }
+    machine colon_colon(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::ColonColon, 2); }
+    machine single_comma(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Comma, 1); }
+    machine single_dot(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Dot, 1); }
+    machine dotdot_plain(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::DotDot, 2); }
+    machine dotdot_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::DotDotEqual, 3); }
+    machine single_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Equal, 1); }
+    machine equal_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::EqualEqual, 2); }
+    machine single_exclamation(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Exclamation, 1); }
+    machine exclamation_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2); }
+    machine single_greater(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Greater, 1); }
+    machine greater_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2); }
+    machine single_hash(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Hash, 1); }
+    machine single_left_brace(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBrace, 1); }
+    machine single_left_bracket(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBracket, 1); }
+    machine single_left_paren(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::LeftParen, 1); }
+    machine single_less(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Less, 1); }
+    machine less_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::LessEqual, 2); }
+    machine less_less(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::LessLess, 2); }
+    machine single_minus(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Minus, 1); }
+    machine minus_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::MinusEqual, 2); }
+    machine single_percent(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Percent, 1); }
+    machine percent_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::PercentEqual, 2); }
+    machine single_pipe(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Pipe, 1); }
+    machine pipe_pipe(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::PipePipe, 2); }
+    machine single_plus(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Plus, 1); }
+    machine plus_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::PlusEqual, 2); }
+    machine asterisk_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::AsteriskEqual, 2); }
+    machine slash_equal(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::SlashEqual, 2); }
+    machine single_right_brace(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::RightBrace, 1); }
+    machine single_right_bracket(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::RightBracket, 1); }
+    machine single_right_paren(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::RightParen, 1); }
+    machine single_semicolon(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Semicolon, 1); }
+    machine single_slash(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Slash, 1); }
+    machine single_tilde(lexer: @mutable Lexer) { emit_punctuation(lexer, PunctuationKind::Tilde, 1); }
+    machine unsupported(lexer: @mutable Lexer, scalar_width: u64 in Trapping) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.token_start + scalar_width;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, start, end);
     }
 }
 
-machine emit_punctuation(lexer: @mut Lexer, kind: PunctuationKind, length: u64 in Trapping) {
+machine emit_punctuation(lexer: @mutable Lexer, kind: PunctuationKind, length: u64 in Trapping) {
     lexer.cursor = lexer.cursor + length;
     lexer.token_end = lexer.cursor;
     push_token(lexer, TokenKind::Punctuation { punctuation: kind });
 }
 
-machine reject_raw_string_candidate(lexer: @mut Lexer) {
+machine reject_raw_string_candidate(lexer: @mutable Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.cursor = lexer.cursor + 1;
     transition { _ -> scan(lexer) }
 
-    machine scan(lexer: @mut Lexer) {
+    machine scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> byte(lexer),
             _ -> reject_prefix(lexer)
         }
     }
 
-    machine byte(lexer: @mut Lexer) {
+    machine byte(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         transition source_byte == 35 {
             true -> hash(lexer),
@@ -1286,12 +1286,12 @@ machine reject_raw_string_candidate(lexer: @mut Lexer) {
         }
     }
 
-    machine hash(lexer: @mut Lexer) {
+    machine hash(lexer: @mutable Lexer) {
         lexer.cursor = lexer.cursor + 1;
         transition { _ -> scan(lexer) }
     }
 
-    machine quote(lexer: @mut Lexer) {
+    machine quote(lexer: @mutable Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
         transition source_byte == 34 {
             true -> reject_quote(lexer),
@@ -1299,13 +1299,13 @@ machine reject_raw_string_candidate(lexer: @mut Lexer) {
         }
     }
 
-    machine reject_quote(lexer: @mut Lexer) {
+    machine reject_quote(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.cursor + 1;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, start, end);
     }
 
-    machine reject_prefix(lexer: @mut Lexer) {
+    machine reject_prefix(lexer: @mutable Lexer) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.cursor;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, start, end);
@@ -1313,18 +1313,18 @@ machine reject_raw_string_candidate(lexer: @mut Lexer) {
 }
 
 // Whether the `r` at the cursor begins a raw string: `r`, any `#`s, then `"`.
-machine is_raw_string_candidate(lexer: @mut Lexer) -> bool {
+machine is_raw_string_candidate(lexer: @mutable Lexer) -> bool {
     let after: u64 in Trapping = lexer.cursor + 1;
     transition { _ -> scan(lexer, after) }
 
-    machine scan(lexer: @mut Lexer, at: u64 in Trapping) -> bool {
+    machine scan(lexer: @mutable Lexer, at: u64 in Trapping) -> bool {
         transition at < lexer.source.length {
             true -> byte(lexer, at),
             _ -> false
         }
     }
 
-    machine byte(lexer: @mut Lexer, at: u64 in Trapping) -> bool {
+    machine byte(lexer: @mutable Lexer, at: u64 in Trapping) -> bool {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, at);
         transition source_byte == 35 {
             true -> hash(lexer, at),
@@ -1332,7 +1332,7 @@ machine is_raw_string_candidate(lexer: @mut Lexer) -> bool {
         }
     }
 
-    machine hash(lexer: @mut Lexer, at: u64 in Trapping) -> bool {
+    machine hash(lexer: @mutable Lexer, at: u64 in Trapping) -> bool {
         transition { _ -> scan(lexer, at + 1) }
     }
 
@@ -1344,79 +1344,79 @@ machine is_raw_string_candidate(lexer: @mut Lexer) -> bool {
     }
 }
 
-machine lex_next(lexer: @mut Lexer) {
+machine lex_next(lexer: @mutable Lexer) {
     let decoded: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
     transition decoded.scalar >= 128 {
         true -> outside_profile_syntax(lexer, decoded.width),
         _ -> whitespace_check(lexer, decoded.scalar, decoded.width)
     }
-    machine outside_profile_syntax(lexer: @mut Lexer, width: u64 in Trapping) {
+    machine outside_profile_syntax(lexer: @mutable Lexer, width: u64 in Trapping) {
         let start: u64 in Trapping = lexer.cursor;
         let end: u64 in Trapping = lexer.cursor + width;
         lexer_reject(lexer, LexDiagnosticCode::OutsideLexicalProfile, start, end);
     }
-    machine whitespace_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
+    machine whitespace_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
         let whitespace: bool = is_whitespace(scalar);
         transition whitespace {
             true -> whitespace(lexer),
             _ -> line_comment_bound(lexer, scalar, width)
         }
     }
-    machine whitespace(lexer: @mut Lexer) { lex_whitespace(lexer); }
-    machine line_comment_bound(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 47 && index1 < lexer.source.length { true -> comment_second(lexer, scalar, width, index1), _ -> raw_check(lexer, scalar, width) } }
-    machine comment_second(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) {
+    machine whitespace(lexer: @mutable Lexer) { lex_whitespace(lexer); }
+    machine line_comment_bound(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 47 && index1 < lexer.source.length { true -> comment_second(lexer, scalar, width, index1), _ -> raw_check(lexer, scalar, width) } }
+    machine comment_second(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1);
         let second: u32 in Trapping = source_byte as u32 +Trapping;
         transition second == 47 { true -> line_comment(lexer), _ -> block_comment_check(lexer, scalar, width, second) }
     }
-    machine line_comment(lexer: @mut Lexer) { lex_line_comment(lexer); }
-    machine block_comment_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, second: u32 in Trapping) { transition second == 42 { true -> block_comment(lexer), _ -> raw_check(lexer, scalar, width) } }
-    machine block_comment(lexer: @mut Lexer) { lex_block_comment(lexer); }
-    machine raw_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
+    machine line_comment(lexer: @mutable Lexer) { lex_line_comment(lexer); }
+    machine block_comment_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping, second: u32 in Trapping) { transition second == 42 { true -> block_comment(lexer), _ -> raw_check(lexer, scalar, width) } }
+    machine block_comment(lexer: @mutable Lexer) { lex_block_comment(lexer); }
+    machine raw_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
         transition scalar == 114 {
             true -> raw_candidate(lexer, scalar, width),
             _ -> identifier_check(lexer, scalar, width)
         }
     }
-    machine raw_candidate(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
+    machine raw_candidate(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) {
         let candidate: bool = is_raw_string_candidate(lexer);
         transition candidate {
             true -> raw(lexer),
             _ -> identifier_check(lexer, scalar, width)
         }
     }
-    machine raw(lexer: @mut Lexer) { reject_raw_string_candidate(lexer); }
-    machine identifier_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let starts: bool = is_identifier_start(scalar); transition starts { true -> identifier(lexer), _ -> number_check(lexer, scalar, width) } }
-    machine identifier(lexer: @mut Lexer) { lex_identifier(lexer); }
-    machine number_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> number(lexer), _ -> leading_dot_check(lexer, scalar, width) } }
-    machine leading_dot_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 46 && index1 < lexer.source.length { true -> leading_dot_second(lexer, scalar, width, index1), _ -> string_check(lexer, scalar, width) } }
-    machine leading_dot_second(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1); let second: u32 in Trapping = source_byte as u32 +Trapping; transition second >= 48 && second <= 57 { true -> number(lexer), _ -> string_check(lexer, scalar, width) } }
-    machine number(lexer: @mut Lexer) { lex_number(lexer); }
-    machine string_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar == 34 { true -> string(lexer), _ -> punctuation(lexer, width) } }
-    machine string(lexer: @mut Lexer) { lex_cooked_string(lexer); }
-    machine punctuation(lexer: @mut Lexer, width: u64 in Trapping) { lex_punctuation(lexer, width); }
+    machine raw(lexer: @mutable Lexer) { reject_raw_string_candidate(lexer); }
+    machine identifier_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let starts: bool = is_identifier_start(scalar); transition starts { true -> identifier(lexer), _ -> number_check(lexer, scalar, width) } }
+    machine identifier(lexer: @mutable Lexer) { lex_identifier(lexer); }
+    machine number_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> number(lexer), _ -> leading_dot_check(lexer, scalar, width) } }
+    machine leading_dot_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 46 && index1 < lexer.source.length { true -> leading_dot_second(lexer, scalar, width, index1), _ -> string_check(lexer, scalar, width) } }
+    machine leading_dot_second(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1); let second: u32 in Trapping = source_byte as u32 +Trapping; transition second >= 48 && second <= 57 { true -> number(lexer), _ -> string_check(lexer, scalar, width) } }
+    machine number(lexer: @mutable Lexer) { lex_number(lexer); }
+    machine string_check(lexer: @mutable Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar == 34 { true -> string(lexer), _ -> punctuation(lexer, width) } }
+    machine string(lexer: @mutable Lexer) { lex_cooked_string(lexer); }
+    machine punctuation(lexer: @mutable Lexer, width: u64 in Trapping) { lex_punctuation(lexer, width); }
 }
 
 // Bounded array reads carry their collection's Trapping policy, so tokenizing
 // publishes the same crash route its callees do.
-public machine tokenize(lexer: @mut Lexer)
+public machine tokenize(lexer: @mutable Lexer)
 crashes Trap
 {
-    token_stream_clear(@mut lexer.output, lexer.source.id);
-    validate_utf8(@mut lexer);
+    token_stream_clear(@mutable lexer.output, lexer.source.id);
+    validate_utf8(@mutable lexer);
     transition lexer.output.accepted {
         true -> begin(lexer),
         _ -> done()
     }
-    machine begin(lexer: @mut Lexer) { lexer.cursor = 0; transition { _ -> scan(lexer) } }
-    machine scan(lexer: @mut Lexer) {
+    machine begin(lexer: @mutable Lexer) { lexer.cursor = 0; transition { _ -> scan(lexer) } }
+    machine scan(lexer: @mutable Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> token(lexer),
             _ -> done()
         }
     }
-    machine token(lexer: @mut Lexer) {
-        lex_next(@mut lexer);
+    machine token(lexer: @mutable Lexer) {
+        lex_next(@mutable lexer);
         transition lexer.output.accepted { true -> scan(lexer), _ -> done() }
     }
     machine done() {}

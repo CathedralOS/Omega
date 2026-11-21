@@ -7,7 +7,7 @@ machine overwrite(cell: @write Cell in Before) {
 }
 data Holder { cell: Cell; }
 machine observed_exit() -> u32 {
-    let mut holder: Holder = Holder { cell: Cell { value: 0 } };
+    let mutable holder: Holder = Holder { cell: Cell { value: 0 } };
     overwrite(@write holder.cell);
     transition holder.cell.value == 73 { true -> 0, _ -> 1 }
 }

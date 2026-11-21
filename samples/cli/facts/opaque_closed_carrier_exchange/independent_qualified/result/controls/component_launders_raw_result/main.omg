@@ -5,7 +5,7 @@ public data AddressBox { value: InternetAddress in Classified; }
 public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }
 
 machine consume(first: InternetAddress in Classified, second: InternetAddress) -> bool reaches AddressParts, AddressBridge, UncheckedFactory {
-    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let mutable pair: AddressPair = AddressPair { first: first, second: second };
     let old_host: u32 = AddressBridge::classified_host(pair.first);
     pair.first = classify(AddressBridge::make(10, 1027));
     let sibling_host: u32 = AddressBridge::host(pair.second);

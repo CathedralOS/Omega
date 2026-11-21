@@ -26,12 +26,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedProbe {
-    machine exercise(cell: @mut Cell in Before) -> u32
+    machine exercise(cell: @mutable Cell in Before) -> u32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
-    machine exercise(cell: @mut Cell in Before) -> u32
+    machine exercise(cell: @mutable Cell in Before) -> u32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -41,7 +41,7 @@ X86Probe satisfies SelectedProbe {
 }
 
 ArmProbe satisfies SelectedProbe {
-    machine exercise(cell: @mut Cell in Before) -> u32
+    machine exercise(cell: @mutable Cell in Before) -> u32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -57,8 +57,8 @@ ArmProbe satisfies SelectedProbe {
 machine observed_exit() -> u32
     reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let mut cell: Cell = Cell { value: 0 };
-    SelectedProbe::exercise(@mut cell)
+    let mutable cell: Cell = Cell { value: 0 };
+    SelectedProbe::exercise(@mutable cell)
 }
 machine main()
     reaches SelectedProbe, SelectedBodyCheck

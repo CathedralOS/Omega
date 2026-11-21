@@ -33,7 +33,7 @@ X86Choose satisfies SelectedChoose {
         let left: u32 = 37;
         let right: u32 = 37;
         let source: u32 = match branch { true -> left, false -> right };
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             mov loaded, [source]
         }
@@ -54,7 +54,7 @@ ArmChoose satisfies SelectedChoose {
         let left: u32 = 37;
         let right: u32 = 37;
         let source: u32 = match branch { true -> left, false -> right };
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             ldr loaded, [source]
         }

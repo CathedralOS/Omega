@@ -88,7 +88,7 @@ reaches Writer ensures result.pointer == buffer.pointer {
     round_trip(buffer)
 }
 data Main {}
-machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
+machine Main::main(context: @mutable Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
     let original_pointer: addr = buffer.pointer;
     let restored: Buffer in Buffer::Owned = transport(buffer);
@@ -101,6 +101,6 @@ machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBy
 
 // The hosted entry owns its ordinary application storage.
 machine entry_start() reaches InitialSupply + Writer + NativeBytes crashes Trap {
-    let mut application: Main = Main {};
-    Main::main(@mut application);
+    let mutable application: Main = Main {};
+    Main::main(@mutable application);
 }

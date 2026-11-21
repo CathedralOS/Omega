@@ -6,9 +6,9 @@ requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 data Box { bytes: [u8; 1]; }
 machine probe() -> u8 {
-    let mut holder: Box = Box { bytes: [65u8] };
-    let mut other: [u8; 1] = [65u8];
-    let view: @mut [u8] = @mut holder.bytes[0..1];
+    let mutable holder: Box = Box { bytes: [65u8] };
+    let mutable other: [u8; 1] = [65u8];
+    let view: @mutable [u8] = @mutable holder.bytes[0..1];
     let saved: bool = ascii_only(view);
     view[0] = 255u8;
     transition saved { true -> inspect(view), false -> 0u8 }

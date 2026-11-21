@@ -43,7 +43,7 @@ boundary trait WindowsGuiIo {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit
     crashes none;
-    machine peek_message(message: @mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
+    machine peek_message(message: @mutable WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -67,7 +67,7 @@ boundary trait WindowsGuiIo {
     machine key_state(virtual_key: u32) -> i32
     reaches GlobalInputObservation
     crashes none;
-    machine adjust_rectangle(rectangle: @mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
+    machine adjust_rectangle(rectangle: @mutable WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
     reaches WindowManagement
     crashes none;
     machine get_dc(window: u64) -> u64 reaches
@@ -80,7 +80,7 @@ boundary trait WindowsGuiIo {
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
         FilesystemNamespaceMutation
     crashes none;
-    machine client_rectangle(window: u64, rectangle: @mut WindowsRectangle) -> i32 reaches WindowManagement
+    machine client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32 reaches WindowManagement
     crashes none;
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
@@ -116,10 +116,10 @@ invokes WindowsGuiIo {
     }
     machine terminated(class_name: @[u8], title: @[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
     requires class_name.length > 0 && title.length > 0 {
-        let mut class_copy: [u8; 4096];
-        let mut title_copy: [u8; 4096];
-        let class_fits: bool = posix_terminated_path(class_name, @mut class_copy[..]);
-        let title_fits: bool = posix_terminated_path(title, @mut title_copy[..]);
+        let mutable class_copy: [u8; 4096];
+        let mutable title_copy: [u8; 4096];
+        let class_fits: bool = posix_terminated_path(class_name, @mutable class_copy[..]);
+        let title_fits: bool = posix_terminated_path(title, @mutable title_copy[..]);
         transition class_name[class_name.length - 1] == 0 && title[title.length - 1] == 0
             && class_fits && title_fits {
             true -> create(class_copy, title_copy, style, x, y, width, height),
@@ -153,7 +153,7 @@ invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::destroy_window(window);
     answer != 0
 }
-machine windows_gui_native_pump_message(message: @mut WindowsMessage) -> bool
+machine windows_gui_native_pump_message(message: @mutable WindowsMessage) -> bool
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -191,7 +191,7 @@ invokes WindowsGuiIo {
     WindowsGuiIo::release_dc(window, device)
 }
 
-machine windows_gui_native_client_rectangle(window: u64, rectangle: @mut WindowsRectangle) -> i32
+machine windows_gui_native_client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32
 reaches WindowManagement
 invokes WindowsGuiIo {
     WindowsGuiIo::client_rectangle(window, rectangle)
@@ -215,8 +215,8 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
 invokes WindowsGuiIo {
-    let mut rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
-    let adjusted: i32 = WindowsGuiIo::adjust_rectangle(@mut rectangle, style, 0, 0);
+    let mutable rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
+    let adjusted: i32 = WindowsGuiIo::adjust_rectangle(@mutable rectangle, style, 0, 0);
     let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
     let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
     transition adjusted != 0 && width > 0 && height > 0
@@ -258,7 +258,7 @@ NativeWindowsGui satisfies WindowsGuiHost {
         ProcessOutput + ProcessExit {
         windows_gui_native_window_destroy(window)
     }
-    machine pump_message(message: @mut WindowsMessage) -> bool reaches
+    machine pump_message(message: @mutable WindowsMessage) -> bool reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -279,7 +279,7 @@ NativeWindowsGui satisfies WindowsGuiHost {
         FilesystemNamespaceMutation {
         windows_gui_native_release_dc(window, device)
     }
-    machine client_rectangle(window: u64, rectangle: @mut WindowsRectangle) -> i32 reaches WindowManagement {
+    machine client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32 reaches WindowManagement {
         windows_gui_native_client_rectangle(window, rectangle)
     }
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,

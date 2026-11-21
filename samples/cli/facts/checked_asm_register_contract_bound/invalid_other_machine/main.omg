@@ -30,7 +30,7 @@ X86ReadAsm satisfies SelectedReadAsm {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 97u64
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut val: u32 = 0;
+        let mutable val: u32 = 0;
         asm {
         entry:
             mov eax, 97;

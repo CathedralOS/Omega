@@ -44,10 +44,10 @@ machine windows_directory_entry_error() -> WindowsDirectoryEntryResult {
 machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
-    let mut output: WindowsNativeDirectoryEntryInfo;
-    transition { _ -> block next(handle, ordinal, @mut output, 0) }
+    let mutable output: WindowsNativeDirectoryEntryInfo;
+    transition { _ -> block next(handle, ordinal, @mutable output, 0) }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, output, 0);
         transition step {
@@ -57,7 +57,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         }
     }
     machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
             true -> block next(handle, ordinal, output, position),
@@ -65,7 +65,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         }
     }
     machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition position < ordinal {
             true -> block next(handle, ordinal, output, position + 1),
@@ -75,11 +75,11 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
 }
 
 machine windows_directory_next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
-    output: @mut WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
+    output: @mutable WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && restart <= 1
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
-    let mut completion: WindowsFilesystemIoStatus;
-    let status: i32 = block WindowsFilesystemDirectoryIo::next_entry(handle, 0, 0, 0, @mut completion, output, 8256, 1, 1, 0, restart);
+    let mutable completion: WindowsFilesystemIoStatus;
+    let status: i32 = block WindowsFilesystemDirectoryIo::next_entry(handle, 0, 0, 0, @mutable completion, output, 8256, 1, 1, 0, restart);
     transition status == 0 {
         true -> (windows_directory_decode_entry(output, completion.information)),
         false -> other(status)
@@ -128,10 +128,10 @@ machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo,
     }
     machine encode(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
     requires characters > 0 && characters <= 255 {
-        let mut encoded: [u8; 765];
+        let mutable encoded: [u8; 765];
         let native_count: i32 = narrow_u64_to_i32_exact(characters);
         let written: i32 = WindowsFilesystemUtf8Io::utf8::<4096, 765>(65001, 128, @source.characters,
-            native_count, @mut encoded, 765, 0, 0);
+            native_count, @mutable encoded, 765, 0, 0);
         transition written > 0 {
             true -> extent(@encoded, written, source.attributes),
             false -> (windows_directory_entry_error())
@@ -149,21 +149,21 @@ machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo,
 
 machine windows_directory_copy_entry(source: @[u8; 765], count: u64, attributes: u32) -> WindowsDirectoryEntryResult
 requires count <= 765 {
-    let mut selected: WindowsDirectoryEntry;
+    let mutable selected: WindowsDirectoryEntry;
     selected.name_len = count;
     selected.attributes = attributes;
-    windows_directory_copy_name(source, count, @mut selected.name);
+    windows_directory_copy_name(source, count, @mutable selected.name);
     WindowsDirectoryEntryResult::Entry { entry: selected }
 }
 
-machine windows_directory_copy_name(source: @[u8; 765], count: u64, name: @mut [u8; 765])
+machine windows_directory_copy_name(source: @[u8; 765], count: u64, name: @mutable [u8; 765])
 requires count <= 765 {
     transition { _ -> copy(source, count, name, 0) }
-    machine copy(source: @[u8; 765], count: u64, name: @mut [u8; 765], position: u64)
+    machine copy(source: @[u8; 765], count: u64, name: @mutable [u8; 765], position: u64)
     requires count <= 765 {
         transition position < count { true -> store(source, count, name, position), false -> complete() }
     }
-    machine store(source: @[u8; 765], count: u64, name: @mut [u8; 765], position: u64)
+    machine store(source: @[u8; 765], count: u64, name: @mutable [u8; 765], position: u64)
     requires count <= 765 && position < count {
         name[position] = source[position];
         transition { _ -> copy(source, count, name, position + 1) }

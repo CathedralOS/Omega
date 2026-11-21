@@ -42,15 +42,15 @@ boundary trait WindowsFilesystemMetadataIo {
         && (flags == 34603008 || flags == 36700160) && template == 0
     reaches FilesystemMetadataQuery blocks
     crashes none;
-    machine basic(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mut WindowsNativeFileBasicInfo, size: u32) -> i32
+    machine basic(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileBasicInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 0 && size == 40
     reaches FilesystemMetadataQuery blocks
     crashes none;
-    machine standard(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mut WindowsNativeFileStandardInfo, size: u32) -> i32
+    machine standard(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileStandardInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 1 && size == 24
     reaches FilesystemMetadataQuery blocks
     crashes none;
-    machine attribute_tag(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mut WindowsNativeFileAttributeTagInfo, size: u32) -> i32
+    machine attribute_tag(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileAttributeTagInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 9 && size == 8
     reaches FilesystemMetadataQuery blocks
     crashes none;

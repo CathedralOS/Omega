@@ -24,8 +24,8 @@ public LinuxArm64TimeHost satisfies TimeHost {
     reaches TimeHost
     invokes LinuxArm64TimeRead
     {
-        let mut instant: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxArm64TimeRead::clock_gettime(1, @mut instant);
+        let mutable instant: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxArm64TimeRead::clock_gettime(1, @mutable instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()
@@ -47,8 +47,8 @@ public LinuxArm64TimeHost satisfies TimeHost {
     reaches TimeHost
     invokes LinuxArm64TimeRead
     {
-        let mut instant: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxArm64TimeRead::clock_gettime(0, @mut instant);
+        let mutable instant: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxArm64TimeRead::clock_gettime(0, @mutable instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()

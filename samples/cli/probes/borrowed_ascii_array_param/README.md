@@ -2,7 +2,7 @@
 
 First sample lending a sized-array domain mutably:
 `domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes)`
-with `&mut [u8; 8] in Ascii` params — writes through the
+with `&mutable [u8; 8] in Ascii` params — writes through the
 borrow must preserve the ASCII predicate, and the
 `value < 128` guard keeps the failing arm domain-clean.
 

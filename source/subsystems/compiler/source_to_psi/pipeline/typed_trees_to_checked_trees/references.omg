@@ -77,7 +77,7 @@ crashes Trap
 
 // Initialization writes binding storage; later assignments through a
 // reference use the referent returned by reference_value instead.
-public machine initialize_place(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, value: Value)
+public machine initialize_place(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -85,7 +85,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine typed(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, value: Value) {
+    machine typed(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, value: Value) {
         let entry: Place = place_at(checker, place - 1);
         let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
@@ -94,14 +94,14 @@ crashes Trap
         }
     }
 
-    machine capture(checker: @mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
+    machine capture(checker: @mutable Checker, index: u64 in Trapping, origin: u64 in Trapping)
     requires index < 256
     {
         let captured: ReferenceOrigin = exact_reference_origin(checker, origin);
         record_reference_origin(checker, index, captured);
     }
 
-    machine owned(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, value: Value) {
+    machine owned(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, value: Value) {
         bind_place(checker, typing, place, value);
     }
 
@@ -111,7 +111,7 @@ crashes Trap
 // Shared-reference local assignment replaces the binding (exclusive names
 // instead denote their referent). Other reference binding storage is not
 // represented by the local-origin table and remains an explicit refusal.
-public machine replace_reference(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, value: Value) -> bool
+public machine replace_reference(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, value: Value) -> bool
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, statement.target);
@@ -122,7 +122,7 @@ crashes Trap
         _ -> other()
     }
 
-    machine binding(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
+    machine binding(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
         let binding: ValueBinding = value_binding(resolution, statement.target);
         transition binding {
             ValueBinding::Local { statement as declaration } -> local(checker, syntax, resolution, typing, statement, declaration, value, type_handle),
@@ -130,7 +130,7 @@ crashes Trap
         }
     }
 
-    machine local(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
+    machine local(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
         let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
         // Replaying a condition through this binding would now read the
         // replacement referent. Existing captured references keep theirs.
@@ -140,8 +140,8 @@ crashes Trap
         true
     }
 
-    machine unknown(checker: @mut Checker, statement: Statement) -> bool {
-        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
+    machine unknown(checker: @mutable Checker, statement: Statement) -> bool {
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
         true
     }
 
@@ -156,7 +156,7 @@ crashes Trap
 // (flow.omg), as a direct store to the element would, and a read through
 // it is unknown. `type_handle` is the local's declared type.
 public machine capture_footprint(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -173,7 +173,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine located(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
+    machine located(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
         let footprint: u64 in Trapping = written_origin(checker, syntax, resolution, typing, initializer);
         transition footprint > 0 {
             true -> captured(checker, place - 1, footprint),
@@ -181,7 +181,7 @@ crashes Trap
         }
     }
 
-    machine captured(checker: @mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
+    machine captured(checker: @mutable Checker, index: u64 in Trapping, footprint: u64 in Trapping)
     requires index < 256
     {
         record_reference_origin(checker, index, ReferenceOrigin::Footprint { place: footprint });
@@ -315,7 +315,7 @@ crashes Trap
 // A reference expression's value denotes its live referent. Parameter roots
 // are incoming storage; a local has only its captured origin. Neither the
 // type nor a call's postcondition proves where a returned reference points.
-public machine reference_value(checker: @mut Checker, typing: @Typing, place: u64 in Trapping) -> Value
+public machine reference_value(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping) -> Value
 crashes Trap
 {
     transition place > 0 {
@@ -323,25 +323,25 @@ crashes Trap
         _ -> unknown()
     }
 
-    machine typed(checker: @mut Checker, typing: @Typing, place: u64 in Trapping) -> Value {
+    machine typed(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping) -> Value {
         let entry: Place = place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Call {
             true -> publication(checker, typing, place, entry),
             false -> value(checker, typing, place, entry)
         }
     }
-    machine publication(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine publication(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
         let origin: ReferenceOrigin = reference_origin(checker, place);
         transition origin {
             ReferenceOrigin::View { place as home, backing } -> published(checker, typing, home),
             _ -> value(checker, typing, place, entry)
         }
     }
-    machine published(checker: @mut Checker, typing: @Typing, home: u64 in Trapping) -> Value {
+    machine published(checker: @mutable Checker, typing: @Typing, home: u64 in Trapping) -> Value {
         let entry: Place = place_at(checker, home - 1);
         transition { _ -> value(checker, typing, home, entry) }
     }
-    machine value(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine value(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
         let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
             true -> reference(checker, typing, place, entry),
@@ -354,7 +354,7 @@ crashes Trap
     // loans the holder carries (loans.omg) keep that storage from being
     // read or written another way while the reference is used
     // (wiki/spec/language/lifetimes.md#returned-views).
-    machine reference(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine reference(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition entry.kind {
             PlaceKind::Local -> local(checker, typing, place - 1, entry.type_handle),
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle),
@@ -387,7 +387,7 @@ crashes Trap
         }
     }
 
-    machine field(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine field(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
         let origin: ReferenceOrigin = reference_origin(checker, place);
         transition origin {
             ReferenceOrigin::Exact { place as captured } -> viewed(checker, typing, captured, entry.type_handle),
@@ -397,7 +397,7 @@ crashes Trap
         }
     }
 
-    machine incoming(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine incoming(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition incoming_reference_field(checker, entry.parent) {
             true -> parameter(checker, typing, place, entry.type_handle),
             _ -> unknown()
@@ -426,7 +426,7 @@ crashes Trap
     // Scalar reference parameters need an ordinary subject for their
     // contents. Enter it lazily, after the state's by-value parameter
     // subjects, whose numbering the arrival projection owns.
-    machine parameter(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine parameter(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let read: u64 in Trapping = checker_read_type(typing, type_handle);
         let carrier: BuiltinType = checker_carrier(typing, read);
         let scalar: bool = has_subject(carrier);
@@ -436,7 +436,7 @@ crashes Trap
         }
     }
 
-    machine scalar_referent(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine scalar_referent(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let referent: u64 in Trapping = checker_place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
         let value: Value = place_value(checker, referent);
         value

@@ -4,11 +4,11 @@ data Original { value: u32; }
 data Viewed { value: u32; }
 data Envelope<'view> { view: @'view write Viewed; }
 machine overwrite(storage: @write Original) {
-    let mut envelope: Envelope = Envelope { view: storage as @write Viewed };
+    let mutable envelope: Envelope = Envelope { view: storage as @write Viewed };
     envelope.view.value = 73;
 }
 machine main() crashes Trap {
-    let mut original: Original = Original { value: 0 };
+    let mutable original: Original = Original { value: 0 };
     overwrite(@write original);
     transition original.value == 73 { true -> done(), _ -> bad() }
     machine done() {}

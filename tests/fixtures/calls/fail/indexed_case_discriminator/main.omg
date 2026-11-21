@@ -11,7 +11,7 @@ requires index < 3
 }
 
 machine main() crashes Trap {
-    let mut table: Table;
+    let mutable table: Table;
     table.before = 11;
     table.choices[0] = Choice::First;
     table.choices[1] = Choice::Second;

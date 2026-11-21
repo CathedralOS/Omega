@@ -1,16 +1,16 @@
 // An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
 // Place: call_result.
 // Expected rejection: the empty descriptor does not satisfy the read's live bound.
-machine relay<'storage>(windows: [@'storage mut [u8]; 1]) -> [@'storage mut [u8]; 1]
+machine relay<'storage>(windows: [@'storage mutable [u8]; 1]) -> [@'storage mutable [u8]; 1]
 ensures result[0].length == windows[0].length
 {
     windows
 }
 
 machine main() crashes Trap {
-    let mut backing: [u8; 1] = [19];
-    let windows: [@mut [u8]; 1] = [@mut backing[0..0]];
-    let selected: [@mut [u8]; 1] = relay(windows);
+    let mutable backing: [u8; 1] = [19];
+    let windows: [@mutable [u8]; 1] = [@mutable backing[0..0]];
+    let selected: [@mutable [u8]; 1] = relay(windows);
     let length: u64 = selected[0].length;
     let observed: bool = selected[0][0] == 19 && length == 1;
     transition observed {

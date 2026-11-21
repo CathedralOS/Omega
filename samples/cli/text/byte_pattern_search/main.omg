@@ -63,11 +63,11 @@ machine absent(result: @Optional<u64>) -> bool {
     }
 }
 
-machine collect_matches(bytes: @[u8], pattern: @[u8], output: @mut [u64]) -> u64
+machine collect_matches(bytes: @[u8], pattern: @[u8], output: @mutable [u64]) -> u64
 requires pattern.length > 0
 {
     transition { _ -> scan(bytes, pattern, output, 0, 0) }
-    machine scan(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
+    machine scan(bytes: @[u8], pattern: @[u8], output: @mutable [u64], position: u64, count: u64) -> u64
     requires position <= bytes.length && count <= output.length
     {
         transition position < bytes.length && count < output.length {
@@ -75,7 +75,7 @@ requires pattern.length > 0
             false -> (count)
         }
     }
-    machine examine(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
+    machine examine(bytes: @[u8], pattern: @[u8], output: @mutable [u64], position: u64, count: u64) -> u64
     requires position < bytes.length && count < output.length
     {
         let matches: bool = starts_with(bytes[position..], pattern);
@@ -84,7 +84,7 @@ requires pattern.length > 0
             false -> scan(bytes, pattern, output, position + 1, count)
         }
     }
-    machine record(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
+    machine record(bytes: @[u8], pattern: @[u8], output: @mutable [u64], position: u64, count: u64) -> u64
     requires position < bytes.length && count < output.length
     {
         output[count] = position;
@@ -101,13 +101,13 @@ machine main() crashes Trap {
     let empty: Optional<u64> = find("", "");
     let empty_pattern: Optional<u64> = find("abc", "");
     let empty_input: Optional<u64> = find("", "x");
-    let mut positions: [u64; 4];
+    let mutable positions: [u64; 4];
     positions[3] = 99;
-    let count: u64 = collect_matches("aaaa", "aa", @mut positions[..]);
+    let count: u64 = collect_matches("aaaa", "aa", @mutable positions[..]);
     let all_matches: bool = count == 3 && positions[0] == 0 && positions[1] == 1
         && positions[2] == 2 && positions[3] == 99;
-    let limited: u64 = collect_matches("aaaa", "aa", @mut positions[..2]);
-    let no_input: u64 = collect_matches("", "aa", @mut positions[..]);
+    let limited: u64 = collect_matches("aaaa", "aa", @mutable positions[..2]);
+    let no_input: u64 = collect_matches("", "aa", @mutable positions[..]);
     transition found_at(@offset, 4) && found_at(@overlapping, 2)
         && found_at(@zero, 1) && absent(@missing) && absent(@truncated)
         && found_at(@empty, 0) && found_at(@empty_pattern, 0) && absent(@empty_input)

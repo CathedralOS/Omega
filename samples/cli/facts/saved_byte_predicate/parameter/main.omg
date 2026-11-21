@@ -4,17 +4,17 @@
 machine inspect(bytes: @[u8]) -> u8
 requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
-machine probe(bytes: @mut [u8], other: @mut [u8]) -> u8
+machine probe(bytes: @mutable [u8], other: @mutable [u8]) -> u8
 requires bytes.length >= 1 && other.length >= 1 {
-    let view: @mut [u8] = @mut bytes[0..1];
+    let view: @mutable [u8] = @mutable bytes[0..1];
     let saved: bool = ascii_only(view);
     other[0] = 255u8;
     transition saved { true -> inspect(view), false -> 0u8 }
 }
 machine main() crashes Trap {
-    let mut bytes: [u8; 1] = [65u8];
-    let mut other: [u8; 1] = [65u8];
-    transition probe(@mut bytes[..], @mut other[..]) == 65u8 && other[0] == 255u8 {
+    let mutable bytes: [u8; 1] = [65u8];
+    let mutable other: [u8; 1] = [65u8];
+    transition probe(@mutable bytes[..], @mutable other[..]) == 65u8 && other[0] == 255u8 {
         true -> done(), false -> bad()
     }
     machine done() {}

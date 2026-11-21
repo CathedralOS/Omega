@@ -2,12 +2,12 @@
 // Expected exit: 0
 data Token dropped by drop_token { ready: bool; value: u64; }
 
-machine drop_token(token: @mut Token)
+machine drop_token(token: @mutable Token)
 requires token.ready {
     token.ready = false;
 }
 
-machine make_token(count: @mut u64) -> Token
+machine make_token(count: @mutable u64) -> Token
 ensures result.ready == true {
     $count = (($count as u64 +Wrapping) + 1) as u64;
     Token { ready: true, value: 7 }
@@ -16,8 +16,8 @@ ensures result.ready == true {
 machine read(token: @Token) -> u64 { token.value }
 
 machine main() crashes Trap {
-    let mut count: u64 = 0;
-    let answer: u64 = read(@make_token(@mut count));
+    let mutable count: u64 = 0;
+    let answer: u64 = read(@make_token(@mutable count));
     transition answer == 7 && count == 1 {
         true -> done(),
         false -> bad()

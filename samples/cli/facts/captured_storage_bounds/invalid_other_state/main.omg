@@ -10,28 +10,28 @@ requires self.pumped >= 0 && self.pumped <= 16,
     marker: u32;
     origin: u32;
 }
-public machine update(counter: @mut Counter, choose: bool) crashes Trap {
+public machine update(counter: @mutable Counter, choose: bool) crashes Trap {
     transition { _ -> pump_loop(counter, choose) }
-    machine pump_loop(counter: @mut Counter, choose: bool) {
+    machine pump_loop(counter: @mutable Counter, choose: bool) {
         counter.have = 1;
         transition choose { true -> left(counter, choose), _ -> right(counter, choose) }
     }
-    machine left(counter: @mut Counter, choose: bool) {
+    machine left(counter: @mutable Counter, choose: bool) {
         counter.marker = 11;
         transition { _ -> pump_handle(counter, choose) }
     }
-    machine right(counter: @mut Counter, choose: bool) {
+    machine right(counter: @mutable Counter, choose: bool) {
         counter.marker = 13;
         transition { _ -> pump_handle(counter, choose) }
     }
-    machine pump_handle(counter: @mut Counter, choose: bool) {
+    machine pump_handle(counter: @mutable Counter, choose: bool) {
         transition counter.pumped <= 16 { true -> pump_next(counter, choose), _ -> finish(counter) }
     }
-    machine pump_next(counter: @mut Counter, choose: bool) {
+    machine pump_next(counter: @mutable Counter, choose: bool) {
         counter.pumped = counter.pumped + 1;
         transition { _ -> pump_loop(counter, choose) }
     }
-    machine finish(counter: @mut Counter) {
+    machine finish(counter: @mutable Counter) {
         transition counter.pumped == 16 { true -> done(), _ -> failed() }
     }
     machine done() {}
@@ -45,8 +45,8 @@ machine intact(counter: @Counter, origin: u32, marker: u32) -> bool {
 
 machine enter(counter: Counter, choose: bool) -> Counter crashes Trap {
     transition { _ -> nested(counter, choose) }
-    machine nested(mut counter: Counter, choose: bool) -> Counter {
-        update(@mut counter, choose);
+    machine nested(mutable counter: Counter, choose: bool) -> Counter {
+        update(@mutable counter, choose);
         counter
     }
 }

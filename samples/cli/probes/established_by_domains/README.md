@@ -8,7 +8,7 @@ Compile-scope probe. No standard-library dependency.
   `Folder {}` construction inside the impl body.
 - multi_effect_reaches: `reaches Net Allocator` multi-service
   trait surface; caller spells `reaches Net + Allocator`.
-- worker_copy_states: record clone through a `&mut copied` state
+- worker_copy_states: record clone through a `&mutable copied` state
   cycle + `requires position < 2` + whole-array-field literal
   copy + `-> (Worker::copy(copied))` state call result.
 - deep_nested_writes: `main.nested.second.b`, sum-into-field

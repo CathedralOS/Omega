@@ -8,7 +8,7 @@ A mutable foreign registration retains the original fixed-array view in Buffer u
 
 `Cell.value` carries `ResidentValue`: `0..=2147483647`, excluding 42.
 `mint_cell` establishes each exact `Cell::Issued`; the stored reference is
-`&mut [Cell in Cell::Issued; 3]`. After completion, `observe_cell` consumes that
+`&mutable [Cell in Cell::Issued; 3]`. After completion, `observe_cell` consumes that
 membership before any runtime guard, and `observed_gap` consumes the complete
 field predicate. After retiring Buffer, another qualified observation reaches
 the original caller array. The captured scalar must still equal 37 while

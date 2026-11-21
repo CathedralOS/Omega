@@ -12,15 +12,15 @@ data ReadOutcome {
     case Full(count: u64);
 }
 machine view<'buffer>(line: @'buffer [u8; 64]) -> @'buffer [u8; 64] { line }
-machine receive(line: @mut [u8; 64], end: bool) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64], end: bool) -> ReadOutcome {
     line[0] = 37;
     match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
 }
 machine exercise(application: @Application, end: bool) -> bool {
     transition { _ -> read(application, end) }
     machine read(application: @Application, end: bool) -> bool {
-        let mut line: [u8; 64];
-        let result: ReadOutcome = receive(@mut line, end);
+        let mutable line: [u8; 64];
+        let result: ReadOutcome = receive(@mutable line, end);
         transition result {
             ReadOutcome::Complete { count } -> observe(application, view(@line), count),
             ReadOutcome::End { count } -> observe(application, view(@line), count),
@@ -34,7 +34,7 @@ machine exercise(application: @Application, end: bool) -> bool {
     }
 }
 machine main() crashes Trap {
-    let mut application: Application;
+    let mutable application: Application;
     application.ledger.count = 99;
     let complete: bool = exercise(@application, false);
     let completed_count: u64 in Wrapping = application.ledger.count;

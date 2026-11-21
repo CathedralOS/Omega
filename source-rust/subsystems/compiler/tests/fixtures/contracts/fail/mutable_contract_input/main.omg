@@ -1,4 +1,4 @@
-machine counter(mut position: u32, step: u32) -> u32
+machine counter(mutable position: u32, step: u32) -> u32
 requires position <= 100 && step <= 100
 ensures result == position
 {
@@ -6,21 +6,21 @@ ensures result == position
     position
 }
 
-machine clear(position: @mut u32) { $position = 0; }
+machine clear(position: @mutable u32) { $position = 0; }
 
-machine through_helper(mut position: u32, step: u32) -> u32
+machine through_helper(mutable position: u32, step: u32) -> u32
 requires position <= 100 && step <= 100
 ensures embed(result) == embed(position) + embed(step)
 {
     let answer: u32 = position + step;
     position = answer;
-    clear(@mut position);
+    clear(@mutable position);
     answer
 }
 
 machine keep(value: u32) -> u32 ensures result == value { value }
 
-machine forward(mut position: u32, step: u32) -> u32
+machine forward(mutable position: u32, step: u32) -> u32
 requires position <= 100 && step <= 100
 ensures embed(result) == embed(position) + embed(step)
 {
@@ -31,7 +31,7 @@ ensures embed(result) == embed(position) + embed(step)
 data Token { marker: u32; }
 machine consume(token: Token) {}
 
-machine token_step(mut position: u32, token: Token) -> u32
+machine token_step(mutable position: u32, token: Token) -> u32
 requires position <= 100
 ensures embed(result) == embed(position) + 1
 {

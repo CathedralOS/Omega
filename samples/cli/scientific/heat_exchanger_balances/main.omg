@@ -9,22 +9,22 @@ use io\report;
 use model\stages;
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut raw: io\input\Raw;
-    let mut input: io\input\Input;
-    let mut solution: model\stages\Solution;
-    let parsed: bool = block io\input\parse(@mut raw);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable raw: io\input\Raw;
+    let mutable input: io\input\Input;
+    let mutable solution: model\stages\Solution;
+    let parsed: bool = block io\input\parse(@mutable raw);
     transition parsed {
-        true -> validate_input(@raw, @mut input, @mut solution),
+        true -> validate_input(@raw, @mutable input, @mutable solution),
         false -> invalid()
     }
-    machine validate_input(raw: @io\input\Raw, input: @mut io\input\Input, solution: @mut model\stages\Solution) {
+    machine validate_input(raw: @io\input\Raw, input: @mutable io\input\Input, solution: @mutable model\stages\Solution) {
         transition io\input\validate(raw, input) {
             true -> calculate(input, solution),
             false -> invalid()
         }
     }
-    machine calculate(input: @io\input\Input, solution: @mut model\stages\Solution) {
+    machine calculate(input: @io\input\Input, solution: @mutable model\stages\Solution) {
         transition model\stages\solve(input, solution) {
             true -> output(input, solution),
             false -> failed()
@@ -46,6 +46,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

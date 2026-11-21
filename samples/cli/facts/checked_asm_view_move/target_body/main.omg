@@ -31,7 +31,7 @@ X86Fill satisfies SelectedFill {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut values: [u32; 2] = [7, 9];
+        let mutable values: [u32; 2] = [7, 9];
         asm {
             mov eax, 37;
             mov values[0], eax
@@ -50,7 +50,7 @@ ArmFill satisfies SelectedFill {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut values: [u32; 2] = [7, 9];
+        let mutable values: [u32; 2] = [7, 9];
         asm {
             mov eax, 37;
             mov values[0], eax

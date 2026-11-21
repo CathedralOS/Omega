@@ -25,7 +25,7 @@ through both arms, through a copy, or at the wrong field offset traps.
 | --- | --- | --- | --- |
 | local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | both cells are locals of `store` |
 | field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | both cells are fields of a `Pair` record (`&write pair.chosen.value`) |
-| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both cells and the counter arrive as `&mut` parameters of `apply` |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both cells and the counter arrive as `&mutable` parameters of `apply` |
 | call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | both cells are produced by `make(...)` call results |
 | match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | both cells are produced by `match true` joins |
 | const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | both cells are copies of the named constants `CHOSEN` and `UNSELECTED` |
@@ -37,7 +37,7 @@ Every twin differs from its positive by one statement: it reads the joined loan
 (`let previous: i64 = selected;`) before the store, and rejects with
 ``reads write-only parameter `selected`; `&write` permits replacement or exact
 `&write` forwarding, never observation``. A join that weakened the two
-write-only arms to a readable `&mut` or shared loan would accept that read.
+write-only arms to a readable `&mutable` or shared loan would accept that read.
 
 ## Nearest rows
 
@@ -47,9 +47,9 @@ write-only arms to a readable `&mut` or shared loan would accept that read.
   both candidate origins and the write-only mode.
 - [`match_computed_root`](../match_computed_root/README.md) and
   [`descriptor_range_exclusive_loan`](../descriptor_range_exclusive_loan/README.md):
-  the same join shape over exclusive `&mut` loans. Their twins write the source
+  the same join shape over exclusive `&mutable` loans. Their twins write the source
   while the join is live (`while local borrow ... is still active`); no twin
-  there can check the join's access mode, because `&mut` permits the read this
+  there can check the join's access mode, because `&mutable` permits the read this
   row's twins add.
 
 ## Requirements and evidence

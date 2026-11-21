@@ -1,12 +1,12 @@
 // Build-log observability through the CLI: `BuildLog::write_line` needs
-// `&mut builder.log` and each activation's lines surface in `--check`
+// `&mutable builder.log` and each activation's lines surface in `--check`
 // output in evaluation order — the requesting activation first, then the
 // dep's own activation.
 
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "build_log_observability");
-    let mut kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mut kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
+    dependency\with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
-    BuildLog::write_line(@mut builder.log, "requester: activation observed");
+    BuildLog::write_line(@mutable builder.log, "requester: activation observed");
 }

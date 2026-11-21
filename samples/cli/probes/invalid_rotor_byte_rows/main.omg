@@ -14,7 +14,7 @@ data Main {
     wiring: Wiring;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     let byte: u8 = read_past_alphabet(@main.wiring, 0);
     main.wiring.rows[0][0] = byte;
 }

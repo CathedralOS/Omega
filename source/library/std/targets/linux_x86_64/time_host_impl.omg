@@ -29,7 +29,7 @@ use omega\language\core\narrow_i64_to_u64_saturating;
 // Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
 // one-member clock-wait traits; this trait owns the time-host read and wait.
 boundary trait LinuxX64TimeRead {
-    machine clock_gettime(clock_id: u32, instant: @mut LinuxX64TimeHostInstant) -> i64
+    machine clock_gettime(clock_id: u32, instant: @mutable LinuxX64TimeHostInstant) -> i64
     reaches TimeHost
     crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32

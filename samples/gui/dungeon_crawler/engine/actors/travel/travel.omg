@@ -74,14 +74,14 @@ requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4
     }
 }
 
-machine face<const Rooms: u64>(mut actor: Actor<Rooms>, direction: i32) -> Actor<Rooms>
+machine face<const Rooms: u64>(mutable actor: Actor<Rooms>, direction: i32) -> Actor<Rooms>
 terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
     actor
 }
 
-machine locate<const Rooms: u64>(mut actor: Actor<Rooms>, direction: i32, position: Position) -> Actor<Rooms>
+machine locate<const Rooms: u64>(mutable actor: Actor<Rooms>, direction: i32, position: Position) -> Actor<Rooms>
 terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
@@ -103,7 +103,7 @@ requires Rooms >= 1 && direction >= 0 && direction < 4 {
         _ -> install(actor, direction, destination, Position { x: ROOM_WIDTH - ARRIVAL_INSET - 2, y: actor.position.y })
     }
     }
-    machine install(mut actor: Actor<Rooms>, direction: i32, destination: u64, position: Position) -> Actor<Rooms>
+    machine install(mutable actor: Actor<Rooms>, direction: i32, destination: u64, position: Position) -> Actor<Rooms>
     requires Rooms >= 1 && direction >= 0 && direction < 4 && destination < Rooms {
         actor.room = destination;
         actor.facing = direction;

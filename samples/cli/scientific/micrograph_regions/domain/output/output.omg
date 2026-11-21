@@ -80,8 +80,8 @@ reaches Console {
         }
     }
     machine report(image: @Image, label: i32 in Wrapping) {
-        let mut measured: Region;
-        measure(image, label, @mut measured);
+        let mutable measured: Region;
+        measure(image, label, @mutable measured);
         number(label); Console::write(" "); number(measured.area);
         Console::write(" "); number(measured.sum_x); Console::write("/"); number(measured.area);
         Console::write(" "); number(measured.sum_y); Console::write("/"); number(measured.area);

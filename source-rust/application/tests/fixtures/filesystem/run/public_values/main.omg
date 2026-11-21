@@ -41,16 +41,16 @@ crashes Trap
         transition count(written, 2) { true -> block read_positioned(file), false -> bad() }
     }
     machine read_positioned(file: File) crashes Trap {
-        let mut bytes: [u8; 5] = [91, 7, 8, 9, 92];
-        let read: IoResult = block FilesystemService::read_at(file, @mut bytes[1..4], 3, 0);
+        let mutable bytes: [u8; 5] = [91, 7, 8, 9, 92];
+        let read: IoResult = block FilesystemService::read_at(file, @mutable bytes[1..4], 3, 0);
         transition count(read, 3) && bytes[0] == 91 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 92 {
-            true -> block invalid_read(file, @mut bytes),
+            true -> block invalid_read(file, @mutable bytes),
             false -> bad()
         }
     }
-    machine invalid_read(file: File, bytes: @mut [u8; 5]) crashes Trap {
-        let refused: IoResult = block FilesystemService::read_at(file, @mut bytes[1..4], 4, 0);
+    machine invalid_read(file: File, bytes: @mutable [u8; 5]) crashes Trap {
+        let refused: IoResult = block FilesystemService::read_at(file, @mutable bytes[1..4], 4, 0);
         transition invalid(refused) && bytes[0] == 91 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 92 {
             true -> block invalid_offset(file),
@@ -74,16 +74,16 @@ crashes Trap
         transition opened { OpenResult::Ok { file } -> block read(file), _ -> bad() }
     }
     machine read(file: File) crashes Trap {
-        let mut bytes: [u8; 5] = [93, 7, 8, 9, 94];
-        let read: IoResult = block FilesystemService::read(file, @mut bytes[1..4], 3);
+        let mutable bytes: [u8; 5] = [93, 7, 8, 9, 94];
+        let read: IoResult = block FilesystemService::read(file, @mutable bytes[1..4], 3);
         transition count(read, 3) && bytes[0] == 93 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 94 {
-            true -> block invalid_plain_read(file, @mut bytes),
+            true -> block invalid_plain_read(file, @mutable bytes),
             false -> bad()
         }
     }
-    machine invalid_plain_read(file: File, bytes: @mut [u8; 5]) crashes Trap {
-        let refused: IoResult = block FilesystemService::read(file, @mut bytes[1..4], 4);
+    machine invalid_plain_read(file: File, bytes: @mutable [u8; 5]) crashes Trap {
+        let refused: IoResult = block FilesystemService::read(file, @mutable bytes[1..4], 4);
         transition invalid(refused) && bytes[0] == 93 && bytes[4] == 94 {
             true -> block metadata(file),
             false -> bad()
@@ -101,8 +101,8 @@ crashes Trap
         }
     }
     machine copy() crashes Trap {
-        let mut bytes: [u8; 5] = [95, 7, 8, 9, 96];
-        let copied: IoResult = block FilesystemService::copy("portable_source.tmp" as +Path, "portable_copy.tmp" as +Path, @mut bytes[1..4], 3);
+        let mutable bytes: [u8; 5] = [95, 7, 8, 9, 96];
+        let copied: IoResult = block FilesystemService::copy("portable_source.tmp" as +Path, "portable_copy.tmp" as +Path, @mutable bytes[1..4], 3);
         transition count(copied, 3) && bytes[0] == 95 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 96 {
             true -> block copy_readback(),
@@ -110,8 +110,8 @@ crashes Trap
         }
     }
     machine copy_readback() crashes Trap {
-        let mut bytes: [u8; 3];
-        let read: IoResult = block FilesystemService::read_all("portable_copy.tmp" as +Path, @mut bytes[..], 3);
+        let mutable bytes: [u8; 3];
+        let read: IoResult = block FilesystemService::read_all("portable_copy.tmp" as +Path, @mutable bytes[..], 3);
         transition count(read, 3) && bytes[0] == 65 && bytes[1] == 120 && bytes[2] == 121 {
             true -> block cleanup(),
             false -> bad()

@@ -35,7 +35,7 @@ data Main {
     bag: Bag;
 }
 
-machine fill(cells: @mut [i32], at: u64, value: i32)
+machine fill(cells: @mutable [i32], at: u64, value: i32)
 requires at < cells.length
 requires cells_valid(cells) == true
 requires value >= 0 && value <= 255
@@ -57,12 +57,12 @@ ensures result >= 0 && result <= 1020
     transition { _ -> total }
 }
 
-machine Main::main(main: @mut Main) -> i32 {
-    let cells: @mut [i32] = @mut main.bag.cells[..];
+machine Main::main(main: @mutable Main) -> i32 {
+    let cells: @mutable [i32] = @mutable main.bag.cells[..];
     cells[0] = 3;
     cells[1] = 5;
-    fill(@mut main.bag.cells[..], 2, 7);
-    fill(@mut main.bag.cells[..], 3, 9);
+    fill(@mutable main.bag.cells[..], 2, 7);
+    fill(@mutable main.bag.cells[..], 3, 9);
 
     let total: i32 = tally(@main.bag.cells[..]);
     cell_is_byte(@main.bag.cells[..], 2);
@@ -72,8 +72,8 @@ machine Main::main(main: @mut Main) -> i32 {
 }
 
 machine main() crashes Trap {
-    let mut context: Main;
-    let observed: i32 = Main::main(@mut context);
+    let mutable context: Main;
+    let observed: i32 = Main::main(@mutable context);
     transition observed == 31 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

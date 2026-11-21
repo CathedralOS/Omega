@@ -4,7 +4,7 @@
 data Holder { before: u64; items: [u64; 2]; after: u64; }
 data Packet { current: Holder; previous: [u64; 2]; marker: u64; }
 machine installed(values: @[u64; 2]) -> bool { values[0] == 7 && values[1] == 4 }
-machine install(holder: @mut Holder, incoming: [u64; 2])
+machine install(holder: @mutable Holder, incoming: [u64; 2])
 requires holder.items[0] == 3 && holder.items[1] == 1 && installed(@incoming) == true
 ensures installed(@holder.items) == true
 {
@@ -27,9 +27,9 @@ crashes Trap
     machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
-    let mut holder: Holder = Holder { before: 11, items: [3, 1], after: 13 };
+    let mutable holder: Holder = Holder { before: 11, items: [3, 1], after: 13 };
     let previous: [u64; 2] = holder.items;
-    install(@mut holder, [7, 4]);
+    install(@mutable holder, [7, 4]);
     let packet: Packet = Packet { current: holder, previous: previous, marker: 11 };
     accept(packet);
 }

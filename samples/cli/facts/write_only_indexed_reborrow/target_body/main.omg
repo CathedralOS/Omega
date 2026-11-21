@@ -36,13 +36,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedProbe {
-    machine exercise(storage: @mut Storage)
+    machine exercise(storage: @mutable Storage)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires storage.position == 1;
 }
 
 X86Probe satisfies SelectedProbe {
-    machine exercise(storage: @mut Storage)
+    machine exercise(storage: @mutable Storage)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires storage.position == 1
     {
@@ -57,7 +57,7 @@ X86Probe satisfies SelectedProbe {
 }
 
 ArmProbe satisfies SelectedProbe {
-    machine exercise(storage: @mut Storage)
+    machine exercise(storage: @mutable Storage)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires storage.position == 1
     {
@@ -79,13 +79,13 @@ machine main()
     reaches SelectedProbe, SelectedBodyCheck
     crashes Trap
 {
-    let mut storage: Storage;
+    let mutable storage: Storage;
     storage.cells[0].padding = 11;
     storage.cells[0].value = 85;
     storage.cells[1].padding = 23;
     storage.cells[1].value = 29;
     storage.position = 1;
-    SelectedProbe::exercise(@mut storage);
+    SelectedProbe::exercise(@mutable storage);
     verify(@storage);
 }
 

@@ -4,14 +4,14 @@
 // Place: local.
 // Expected exit: 0
 boundary trait Mark {
-    machine record<T>(value: @T, label: u64, hits: @mut u64) reaches none crashes none;
+    machine record<T>(value: @T, label: u64, hits: @mutable u64) reaches none crashes none;
 }
 
 Counting satisfies Mark {
-    machine record<T>(value: @T, label: u64, hits: @mut u64) { $hits = label; }
+    machine record<T>(value: @T, label: u64, hits: @mutable u64) { $hits = label; }
 }
 
-machine notify<T>(value: @T, label: u64, hits: @mut u64) {
+machine notify<T>(value: @T, label: u64, hits: @mutable u64) {
     let held: @T = value;
     Mark::record::<T>(held, label, hits);
 }
@@ -19,10 +19,10 @@ machine notify<T>(value: @T, label: u64, hits: @mut u64) {
 machine main() crashes Trap {
     let subject: i32 = 7;
     let other: u8 = 3;
-    let mut first: u64 = 0;
-    let mut second: u64 = 0;
-    notify::<i32>(@subject, 9, @mut first);
-    notify::<u8>(@other, 5, @mut second);
+    let mutable first: u64 = 0;
+    let mutable second: u64 = 0;
+    notify::<i32>(@subject, 9, @mutable first);
+    notify::<u8>(@other, 5, @mutable second);
     transition first == 9 && second == 5 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

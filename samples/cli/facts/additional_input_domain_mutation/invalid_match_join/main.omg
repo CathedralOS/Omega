@@ -7,7 +7,7 @@ ensures cell in Before {
     cell.value = 73;
 }
 machine observed_neighbor(first: bool) -> u32 {
-    let mut cell: Cell = match first {
+    let mutable cell: Cell = match first {
         true -> Cell { value: 0, neighbor: 41 },
         false -> Cell { value: 0, neighbor: 43 }
     };

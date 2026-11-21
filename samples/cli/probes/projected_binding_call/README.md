@@ -13,7 +13,7 @@ Compile-checked only: no standard-library dependency and no
 Until 2026-10-20 the two receiver spellings were
 `context.services.settlement.settle(...)` through a nested
 `Binding<Settlement>` field and `binding.settle(...)` through a
-`&mut Binding<Settlement>` parameter. The specification retired
+`&mutable Binding<Settlement>` parameter. The specification retired
 source-visible `Binding<R>`
 (`wiki/spec/build/component_publication.md:198`), so both carrier
 lanes are gone: the requirement is called directly as

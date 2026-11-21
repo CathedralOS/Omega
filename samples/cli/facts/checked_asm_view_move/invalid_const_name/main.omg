@@ -2,7 +2,7 @@
 // Expected exit: 0.
 const SLOT: u64 = 0;
 machine main() crashes Trap {
-    let mut values: [u32; 2] = [7, 9];
+    let mutable values: [u32; 2] = [7, 9];
     asm {
         mov eax, 37;
         mov [values], eax

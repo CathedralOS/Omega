@@ -139,16 +139,16 @@ public machine permissions_readonly(permissions: @Permissions) -> bool {
     }
 }
 
-public machine permissions_set_readonly(permissions: @mut Permissions, readonly: bool) {
+public machine permissions_set_readonly(permissions: @mutable Permissions, readonly: bool) {
     transition permissions {
         Permissions::Posix { mode } -> posix(permissions, mode, readonly),
         _ -> portable(permissions, readonly)
     }
-    machine posix(permissions: @mut Permissions, mode: u32, readonly: bool) {
+    machine posix(permissions: @mutable Permissions, mode: u32, readonly: bool) {
         let updated: u32 = posix_mode_with_readonly(mode, readonly);
         $permissions = Permissions::Posix { mode: updated };
     }
-    machine portable(permissions: @mut Permissions, readonly: bool) {
+    machine portable(permissions: @mutable Permissions, readonly: bool) {
         $permissions = Permissions::Readonly { value: readonly };
     }
 }
@@ -290,7 +290,7 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
     crashes none;
@@ -306,11 +306,11 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
+    machine read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
+    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     crashes none;
@@ -358,7 +358,7 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
-    machine read_link(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
+    machine read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
@@ -418,7 +418,7 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     crashes none;
-    machine read_at(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
+    machine read_at(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
     blocks
     reaches FilesystemContentRead
     crashes none;
@@ -434,7 +434,7 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemMetadataMutation
     crashes none;
-    machine canonicalize(path: @[u8] in Path, buffer: @mut [u8]) -> UnitResult
+    machine canonicalize(path: @[u8] in Path, buffer: @mutable [u8]) -> UnitResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;

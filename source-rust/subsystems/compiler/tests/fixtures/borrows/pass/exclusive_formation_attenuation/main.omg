@@ -4,51 +4,51 @@ data Cell { value: u64; }
 data Pair { first: Cell; second: Cell; }
 
 machine observe(cell: @Cell) -> u64 { cell.value }
-machine update(value: @mut u64) { $value = 11; }
+machine update(value: @mutable u64) { $value = 11; }
 
 machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
 
 machine array_view() -> bool {
-    let mut bytes: [u8; 3] = [17, 42, 99];
+    let mutable bytes: [u8; 3] = [17, 42, 99];
     let view: @[u8] = @bytes[..];
     let before: u8 = middle(view);
-    let after: u8 = middle(@mut bytes[..]);
+    let after: u8 = middle(@mutable bytes[..]);
     before == 42 && after == 42
 }
 
-machine through_descriptor(pair: @mut Pair) -> bool {
-    let parent: @mut Pair = pair;
+machine through_descriptor(pair: @mutable Pair) -> bool {
+    let parent: @mutable Pair = pair;
     let view: @Cell = @parent.first;
-    let sibling: u64 = observe(@mut parent.second);
+    let sibling: u64 = observe(@mutable parent.second);
     let retained: u64 = observe(view);
     sibling == 11 && retained == 7
 }
 
-machine incoming(pair: @mut Pair) -> bool {
+machine incoming(pair: @mutable Pair) -> bool {
     let view: @Cell = @pair.first;
     let before: u64 = observe(view);
-    let after: u64 = observe(@mut pair.first);
+    let after: u64 = observe(@mutable pair.first);
     let cohort: @Cell = @pair.first;
-    let sibling: u64 = observe(@mut pair.second);
-    update(@mut pair.second.value);
+    let sibling: u64 = observe(@mutable pair.second);
+    update(@mutable pair.second.value);
     let shared: u64 = observe(@pair.first);
     let retained: u64 = observe(cohort);
-    let attenuated: @Cell = @mut pair.second;
+    let attenuated: @Cell = @mutable pair.second;
     let persistent: u64 = observe(attenuated);
     before == 7 && after == 7 && sibling == 11
         && shared == 7 && retained == 7 && persistent == 11
 }
 
 machine main() crashes Trap {
-    let mut pair: Pair = Pair {
+    let mutable pair: Pair = Pair {
         first: Cell { value: 7 },
         second: Cell { value: 11 }
     };
     let view: @Cell = @pair.first;
     let before: u64 = observe(view);
-    let after: u64 = observe(@mut pair.first);
-    let result: bool = incoming(@mut pair);
-    let descriptor_result: bool = through_descriptor(@mut pair);
+    let after: u64 = observe(@mutable pair.first);
+    let result: bool = incoming(@mutable pair);
+    let descriptor_result: bool = through_descriptor(@mutable pair);
     let byte_result: bool = array_view();
     transition before == 7 && after == 7 && result && descriptor_result && byte_result {
         true -> good(),

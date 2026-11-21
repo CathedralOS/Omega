@@ -41,7 +41,7 @@ or borrow permission still refuses; no source spelling grants a new address.
 
 Every positive, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for all four hosted targets. Every invalid program keeps the same
-caller and store, but requests a readable `&mut` view from write-only storage.
+caller and store, but requests a readable `&mutable` view from write-only storage.
 That access increase must reject.
 
 The match example executes both choices. Only its helper branch writes a separate

@@ -4,11 +4,11 @@ data Moment {
     differences: [f64; 3];
 }
 
-machine store_past_end(moment: @mut Moment, value: f64) {
+machine store_past_end(moment: @mutable Moment, value: f64) {
     moment.differences[3] = value;
 }
 
 machine entry_start() {
-    let mut moment: Moment;
-    store_past_end(@mut moment, 1.0);
+    let mutable moment: Moment;
+    store_past_end(@mutable moment, 1.0);
 }

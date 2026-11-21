@@ -27,7 +27,7 @@ ensures
 machine probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
+    let mutable slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(@write slot);
     forward_destination(@slot)
 }

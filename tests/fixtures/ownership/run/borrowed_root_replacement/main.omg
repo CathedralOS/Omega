@@ -1,12 +1,12 @@
 data Item { value: u32; }
-machine replace(owner: @mut Item) {
+machine replace(owner: @mutable Item) {
     let replacement: Item = Item { value: 7 };
     $owner = replacement;
 }
 machine consume(item: Item) { }
 machine main() crashes Trap {
-    let mut item: Item = Item { value: 3 };
-    replace(@mut item);
+    let mutable item: Item = Item { value: 3 };
+    replace(@mutable item);
     transition item.value == 7 {
         true -> consume(item),
         false -> bad()

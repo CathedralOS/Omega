@@ -25,7 +25,7 @@ machine transform(choice: Choice, increment: bool) -> Choice {
     }
 }
 
-machine repair(choice: @mut Choice, increment: bool) {
+machine repair(choice: @mutable Choice, increment: bool) {
     let detached: Choice = $choice;
     $choice = transform(detached, increment);
 }
@@ -44,12 +44,12 @@ machine consume(choice: Choice) -> u64 {
 }
 
 machine main() crashes Trap {
-    let mut holder: Holder = Holder {
+    let mutable holder: Holder = Holder {
         marker: 19,
         choice: Choice::Failure { token: Token { value: 41 } },
     };
-    repair(@mut holder.choice, false);
-    repair(@mut holder.choice, true);
+    repair(@mutable holder.choice, false);
+    repair(@mutable holder.choice, true);
     let marker: u64 = holder.marker;
     let result: u64 = consume(holder.choice);
     transition marker == 19 && result == 42 {

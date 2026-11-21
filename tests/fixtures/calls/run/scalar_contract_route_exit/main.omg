@@ -18,7 +18,7 @@ machine settle(total: u32) {
 machine report_large() { }
 machine report_small(total: u32) requires total <= 9000 { }
 machine main() {
-    let mut total: u32 = 20;
+    let mutable total: u32 = 20;
     total = total + 11;
     let product: u32 = scaled(total, 3);
     let accepted: bool = within(1, 100, product) && total != 0;

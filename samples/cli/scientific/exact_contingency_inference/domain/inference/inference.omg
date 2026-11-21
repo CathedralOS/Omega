@@ -11,12 +11,12 @@ use domain\statistics\association_score;
 // Enumerate the first two cells; margins determine the remaining four.
 // At most 81 candidates. Structural-zero conditioning renormalizes factorial weights.
 public machine analyze(model: @Model) -> Inference {
-    let mut result: Inference;
+    let mutable result: Inference;
     transition margins_valid(model) {
         true -> prepare(model, result),
         false -> rejected(result, 1)
     }
-    machine rejected(mut result: Inference, status: i32) -> Inference {
+    machine rejected(mutable result: Inference, status: i32) -> Inference {
         result.status = status;
         result
     }
@@ -26,7 +26,7 @@ public machine analyze(model: @Model) -> Inference {
             false -> outer(model, result, 0)
         }
     }
-    machine seed(model: @Model, mut result: Inference) -> Inference {
+    machine seed(model: @Model, mutable result: Inference) -> Inference {
         result.observed_weight = table_weight(@model.observed, model.rows[0] + model.rows[1]);
         result.score = association_score(model, @model.observed);
         result.denominator = score_denominator(model);
@@ -71,7 +71,7 @@ public machine analyze(model: @Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    machine accumulate(model: @Model, mut result: Inference, first: u64, second: u64, table: Table) -> Inference
+    machine accumulate(model: @Model, mutable result: Inference, first: u64, second: u64, table: Table) -> Inference
     requires first < 9 && second < 9 {
         let weight: u64 in Wrapping = table_weight(@table, model.rows[0] + model.rows[1]);
         let score: u64 in Wrapping = association_score(model, @table);
@@ -82,7 +82,7 @@ public machine analyze(model: @Model) -> Inference {
             false -> association(model, result, first, second, weight, score)
         }
     }
-    machine probability(model: @Model, mut result: Inference, first: u64, second: u64,
+    machine probability(model: @Model, mutable result: Inference, first: u64, second: u64,
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         result.probability_tail = result.probability_tail + weight;
@@ -96,7 +96,7 @@ public machine analyze(model: @Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    machine tail(model: @Model, mut result: Inference, first: u64, second: u64,
+    machine tail(model: @Model, mutable result: Inference, first: u64, second: u64,
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         result.association_tail = result.association_tail + weight;
@@ -105,7 +105,7 @@ public machine analyze(model: @Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    machine tie(model: @Model, mut result: Inference, first: u64, second: u64) -> Inference
+    machine tie(model: @Model, mutable result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 && second < 9 {
         result.ties = result.ties + 1;
         transition { _ -> inner(model, result, first, second + 1) }

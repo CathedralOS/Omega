@@ -9,15 +9,15 @@ use omega_language_std\Console;
 data Occupancy { cells: [i32 in Wrapping; 4]; }
 data Main { }
 
-machine Main::main(main: @mut Main) reaches ProcessExit + Console {
-    let mut occupancy: Occupancy;
+machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable occupancy: Occupancy;
     occupancy.cells = [0, 0, 0, 0];
     let ready: bool = true;
     transition ready {
-        true -> field_windows(main, @mut occupancy.cells[0..2], @mut occupancy.cells[2..4]),
+        true -> field_windows(main, @mutable occupancy.cells[0..2], @mutable occupancy.cells[2..4]),
         _ -> bad(main)
     }
-    machine field_windows(main: @mut Main, left: @mut [i32 in Wrapping], right: @mut [i32 in Wrapping])
+    machine field_windows(main: @mutable Main, left: @mutable [i32 in Wrapping], right: @mutable [i32 in Wrapping])
     requires left.length >= 1 && right.length >= 1
     {
         left[0] = 3;
@@ -28,11 +28,11 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         Console::write(" ");
         transition { _ -> build(main) }
     }
-    machine build(main: @mut Main) {
-        let mut row: [i32 in Wrapping; 4] = [0, 0, 0, 0];
-        transition { _ -> local_windows(main, @mut row[0..2], @mut row[2..4]) }
+    machine build(main: @mutable Main) {
+        let mutable row: [i32 in Wrapping; 4] = [0, 0, 0, 0];
+        transition { _ -> local_windows(main, @mutable row[0..2], @mutable row[2..4]) }
     }
-    machine local_windows(main: @mut Main, left: @mut [i32 in Wrapping], right: @mut [i32 in Wrapping])
+    machine local_windows(main: @mutable Main, left: @mutable [i32 in Wrapping], right: @mutable [i32 in Wrapping])
     requires left.length >= 1 && right.length >= 1
     {
         left[0] = 5;
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
-    machine bad(main: @mut Main) {
+    machine bad(main: @mutable Main) {
         Console::write_line("BAD");
         ProcessExit::exit_process(2);
     }
@@ -51,6 +51,6 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

@@ -1,7 +1,7 @@
 // An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
 // Place: other_machine.
 // Expected exit: 0
-machine observe(windows: [@mut [u8]; 1]) -> bool
+machine observe(windows: [@mutable [u8]; 1]) -> bool
 requires windows[0].length == 1
 {
     let length: u64 = windows[0].length;
@@ -9,15 +9,15 @@ requires windows[0].length == 1
     observed
 }
 
-machine forward(windows: [@mut [u8]; 1]) -> bool
+machine forward(windows: [@mutable [u8]; 1]) -> bool
 requires windows[0].length == 1
 {
     observe(windows)
 }
 
 machine main() crashes Trap {
-    let mut backing: [u8; 1] = [19];
-    let windows: [@mut [u8]; 1] = [@mut backing[..]];
+    let mutable backing: [u8; 1] = [19];
+    let windows: [@mutable [u8]; 1] = [@mutable backing[..]];
     let observed: bool = forward(windows);
     transition observed {
         true -> done(),

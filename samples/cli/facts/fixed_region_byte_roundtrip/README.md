@@ -41,7 +41,7 @@ result passed to another, and a Build-selected implementation's ensured result.
 Recast checking and place lowering read that endpoint through one
 `window_coordinate` routine, so a window admitted by checking is the window
 lowering places. The match-join program calls its copy with both subject values.
-The selected implementations return the end rather than take `&mut` storage,
+The selected implementations return the end rather than take `&mutable` storage,
 because exclusive-loan arguments behind a selected implementation remain open
 under **BUILD-OWNED-TARGET-SELECTION**.
 

@@ -9,7 +9,7 @@ X86Main satisfies SelectedMain {
         let source: u32 = 37;
         transition { _ -> read_place(source) }
         machine read_place(source: u32) crashes Trap {
-            let mut loaded: u32 = 0;
+            let mutable loaded: u32 = 0;
             asm {
                 mov loaded, [source]
             }
@@ -28,7 +28,7 @@ ArmMain satisfies SelectedMain {
         let source: u32 = 37;
         transition { _ -> read_place(source) }
         machine read_place(source: u32) crashes Trap {
-            let mut loaded: u32 = 0;
+            let mutable loaded: u32 = 0;
             asm {
                 ldr loaded, [source]
             }

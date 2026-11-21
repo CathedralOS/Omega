@@ -1,9 +1,9 @@
 # Borrowed Array Carry
 
-Compile-scope probe: `&mut [u8; 17]` borrowed closed arrays across
+Compile-scope probe: `&mutable [u8; 17]` borrowed closed arrays across
 state re-entry edges. No standard-library dependency.
 
-- `write_bytes(out: &mut [u8; 17], ...)` — a sized-array borrow
+- `write_bytes(out: &mutable [u8; 17], ...)` — a sized-array borrow
   parameter (not a slice): the referent stays caller-owned while the
   graph forwards the same borrow on each loop edge.
 - `out[position] = value` through the borrow; `out.length` known at

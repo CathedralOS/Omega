@@ -36,7 +36,7 @@ machine mismatch(cells: @Cells, branch: bool, path: @write u64) -> bool {
 }
 machine main() crashes Trap {
     let cells: Cells;
-    let mut path: u64 = 0;
+    let mutable path: u64 = 0;
     let first: bool = probe(@cells, true, @write path);
     let first_path: u64 = path;
     path = 0;

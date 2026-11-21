@@ -8,7 +8,7 @@ machine main() crashes Trap {
 machine copy(branch: bool) crashes Trap {
     let left: Cells = Cells { values: [7, 9] };
     let right: Cells = Cells { values: [7, 9] };
-    let mut cells: Cells = match branch { true -> left, false -> right };
+    let mutable cells: Cells = match branch { true -> left, false -> right };
     asm {
         mov eax, 37;
         mov cells.values[0], eax

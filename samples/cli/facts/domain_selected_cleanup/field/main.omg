@@ -3,8 +3,8 @@
 // Expected exit: 0.
 data Seed [copy] { code: u64; }
 data Counter { value: u64; invocations: u64 in Wrapping; }
-data Keeper<'storage> dropped by release_keeper<'storage> { output: @'storage mut Counter; code: u64; }
-machine release_keeper<'storage>(keeper: @mut Keeper<'storage>) requires keeper.code == 7 {
+data Keeper<'storage> dropped by release_keeper<'storage> { output: @'storage mutable Counter; code: u64; }
+machine release_keeper<'storage>(keeper: @mutable Keeper<'storage>) requires keeper.code == 7 {
     keeper.output.value = keeper.code;
     keeper.output.invocations = keeper.output.invocations + 1;
 }
@@ -17,7 +17,7 @@ machine check(output: @Counter) crashes Trap {
 data Envelope { keeper: Keeper; }
 machine consume(envelope: Envelope) requires envelope.keeper.code == 7 {}
 machine main() crashes Trap {
-    let mut output: Counter = Counter { value: 0, invocations: 0 };
-    consume(Envelope { keeper: Keeper { output: @mut output, code: 7 } });
+    let mutable output: Counter = Counter { value: 0, invocations: 0 };
+    consume(Envelope { keeper: Keeper { output: @mutable output, code: 7 } });
     check(@output);
 }

@@ -10,7 +10,7 @@ machine demand(result: bool) crashes Trap {
 }
 machine supplied() -> [u8; 8] { "omega\0xy" }
 machine start() crashes Trap {
-    let mut text: [u8; 8] = supplied();
+    let mutable text: [u8; 8] = supplied();
     let selected: @u8 = @text[0];
     text[0] = 0;
     let measured: u64 = Text::length(selected);

@@ -1,19 +1,19 @@
 machine main() -> u8 crashes Trap {
-    let mut emitter: AlphaEmitter;
+    let mutable emitter: AlphaEmitter;
     emitter.length = 0;
     emitter.layout = false;
     emitter.complete = true;
-    alpha_byte(@mut emitter, 173);
+    alpha_byte(@mutable emitter, 173);
     emitter.layout = true;
     emitter.bytes[1] = 87;
-    alpha_byte(@mut emitter, 15);
+    alpha_byte(@mutable emitter, 15);
     let initial: bool = emitter.complete && emitter.length == 2
         && emitter.bytes[0] == 173 && emitter.bytes[1] == 87;
     emitter.layout = false;
     emitter.length = 2097151;
-    alpha_byte(@mut emitter, 201);
+    alpha_byte(@mutable emitter, 201);
     let full: bool = emitter.complete && emitter.length == 2097152 && emitter.bytes[2097151] == 201;
-    alpha_byte(@mut emitter, 0);
+    alpha_byte(@mutable emitter, 0);
     transition initial && full && emitter.complete == false
         && emitter.length == 2097152 && emitter.bytes[2097151] == 201 {
         true -> pass(),

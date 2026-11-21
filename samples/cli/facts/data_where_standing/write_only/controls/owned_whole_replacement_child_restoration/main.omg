@@ -6,7 +6,7 @@ public data Counter [copy] requires self.cell.value <= 60 && self.peer <= 60 { b
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
-    let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47, child: Child { number: 19 } };
+    let mutable counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47, child: Child { number: 19 } };
     let other: Counter = counter;
     counter = other;
     counter.cell.value = 61;

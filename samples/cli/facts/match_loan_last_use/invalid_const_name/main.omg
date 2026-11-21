@@ -6,7 +6,7 @@ const DECIDE: bool = true;
 
 data Slot { case Absent; case Present(value: [i64; 4]); }
 
-machine choose(counter: @mut u64) -> bool
+machine choose(counter: @mutable u64) -> bool
 requires $counter == 0
 {
     $counter = 1;
@@ -14,12 +14,12 @@ requires $counter == 0
 }
 
 machine main() crashes Trap {
-    let mut chosen: Slot = Slot::Present { value: [17, 0, 5, 6] };
-    let mut other: Slot = Slot::Present { value: [0, 0, 8, 9] };
-    let mut visits: u64 = 0;
-    let selected: @mut [i64] = match choose(@mut visits) {
-        true -> @mut chosen.value[0..2],
-        false -> @mut other.value[2..4]
+    let mutable chosen: Slot = Slot::Present { value: [17, 0, 5, 6] };
+    let mutable other: Slot = Slot::Present { value: [0, 0, 8, 9] };
+    let mutable visits: u64 = 0;
+    let selected: @mutable [i64] = match choose(@mutable visits) {
+        true -> @mutable chosen.value[0..2],
+        false -> @mutable other.value[2..4]
     };
     chosen = Slot::Present { value: [7, 0, 7, 0] };
     selected[0] = 41;

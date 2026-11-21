@@ -12,9 +12,9 @@ requires packet.bytes.length >= 4 {
     machine zero() -> u8 { 0 }
 }
 machine choose(first: bool) -> u8 {
-    let mut left: [u8; 3];
+    let mutable left: [u8; 3];
     left[2] = 29;
-    let mut right: [u8; 4];
+    let mutable right: [u8; 4];
     right[2] = 31;
     read_third(match first {
         true -> Input { tag: 5, bytes: @left, tail: 9 },
@@ -24,7 +24,7 @@ machine choose(first: bool) -> u8 {
 machine main() crashes Trap {
     let third: u8 = choose(true);
     let second: u8 = choose(false);
-    let mut packet: [u8; 4];
+    let mutable packet: [u8; 4];
     let other: u8 = read_third(Input { tag: 6, bytes: @packet, tail: 9 });
     transition third == 29 && second == 31 && other == 0 {
         true -> done(),

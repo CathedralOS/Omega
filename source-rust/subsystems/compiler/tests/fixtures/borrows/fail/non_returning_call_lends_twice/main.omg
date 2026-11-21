@@ -1,12 +1,12 @@
 use omega\language\core\ProcessExit;
 data Main { status: i32; }
 
-machine finish(first: @mut Main, second: @mut Main) reaches ProcessExit {
+machine finish(first: @mutable Main, second: @mutable Main) reaches ProcessExit {
     ProcessExit::exit_process(0);
 }
 
 machine entry_start() reaches ProcessExit {
-    let mut first: Main;
-    let mut second: Main;
-    finish(@mut first, @mut first);
+    let mutable first: Main;
+    let mutable second: Main;
+    finish(@mutable first, @mutable first);
 }

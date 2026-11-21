@@ -7,9 +7,9 @@ Ticket: `65fd83b08dbb466891e09aaa82e9fea1`
 
 ## Requirement and Evidence
 
-Under `wiki/spec/resources/storage.md#compiler-owned-stack-accesses`, every compiler-owned stack slot in an activation frame occupies a disjoint byte interval within the validated frame extent. Mutating one stack-backed home through an exclusive borrow (`&mut`) must never overwrite or alias an adjacent stack-backed home. Furthermore, under `wiki/spec/terminal-psi/structural_access.md#referent-identity`, borrowed arguments pass the original referent's storage address (`ValueClass::BorrowedReference`), forcing the referent local into an addressable stack frame home.
+Under `wiki/spec/resources/storage.md#compiler-owned-stack-accesses`, every compiler-owned stack slot in an activation frame occupies a disjoint byte interval within the validated frame extent. Mutating one stack-backed home through an exclusive borrow (`&mutable`) must never overwrite or alias an adjacent stack-backed home. Furthermore, under `wiki/spec/terminal-psi/structural_access.md#referent-identity`, borrowed arguments pass the original referent's storage address (`ValueClass::BorrowedReference`), forcing the referent local into an addressable stack frame home.
 
-This fact row exercises three co-resident local `SlotPair` records (`slot_a`, `slot_b`, `slot_c`) allocated within the same activation frame. Mutating `slot_b` exclusively via `&mut slot_b` must preserve `slot_a` and `slot_c` uncorrupted. The combined sum of fields `slot_a.left + slot_a.right + slot_b.left + slot_b.right + slot_c.left + slot_c.right` equals 100u64 and is transported through each of the nine canonical places:
+This fact row exercises three co-resident local `SlotPair` records (`slot_a`, `slot_b`, `slot_c`) allocated within the same activation frame. Mutating `slot_b` exclusively via `&mutable slot_b` must preserve `slot_a` and `slot_c` uncorrupted. The combined sum of fields `slot_a.left + slot_a.right + slot_b.left + slot_b.right + slot_c.left + slot_c.right` equals 100u64 and is transported through each of the nine canonical places:
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -50,7 +50,7 @@ such diagnostics, the others one each).
 
 The oracle is proven to discriminate on the values themselves rather than to
 hold for any program of this shape. A positive probe (`all three homes intact`,
-`write_slot(&mut slot_b, 15, 25)`) observes `native exit 0` and `interp exit: 0`.
+`write_slot(&mutable slot_b, 15, 25)`) observes `native exit 0` and `interp exit: 0`.
 Changing **only the construct's own write value**, `15` to `14`, and nothing
 else — the caller's `transition` guards and the `run_check` `requires` clause
 still expect `15` — flips the observation to `native signal 5` and
@@ -63,10 +63,10 @@ while the others stayed live could not have changed the observed result.
 ## Requirements and Evidence
 
 - **Establishment:** `write_slot` carries `ensures target.left == next_left && target.right == next_right`, so the post-state of the borrowed referent is established by the call rather than re-derived by a caller equality guard. Initializing disjoint local stack-backed bindings (`slot_a`, `slot_b`, `slot_c`) establishes independent value and range facts on each slot directly without any post-hoc caller equality guard; each place's `evaluate` proves `requires isolated == 100` from the transported sum and establishes `ensures result == 0` on `isolated - 100u64`.
-- **Identity and lifetime:** The fact names three distinct storage versions (`slot_a`, `slot_b`, `slot_c`) that are live across the same call; mutating `slot_b` exclusively through `&mut slot_b` preserves the static facts and values of provably disjoint sibling locals throughout their lifetimes, as confirmed by discrimination observations.
+- **Identity and lifetime:** The fact names three distinct storage versions (`slot_a`, `slot_b`, `slot_c`) that are live across the same call; mutating `slot_b` exclusively through `&mutable slot_b` preserves the static facts and values of provably disjoint sibling locals throughout their lifetimes, as confirmed by discrimination observations.
 - **Composition:** Isolated stack-frame slot facts compose through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation (`isolated - 100u64`); `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the target slot's bound or mutation (producing a 99u64 sum), never in a caller guard.
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time (`exact arithmetic in machine ... may overflow \`u64\``), strictly preventing unproved subtraction when a write to the consumed slot weakens its bound or causes an underflow.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Distinct local storage roots, exclusive borrows (`&mut`), and mutations lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Distinct local storage roots, exclusive borrows (`&mutable`), and mutations lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), local carrier layout geometry (`SlotPair` size 16, align 8) evaluates and validates, and `CallPlan`/`StatePlan` lower carriers across target registers and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering assigns non-overlapping byte intervals (`[offset, offset + size)`) in the activation frame for disjoint locals, composes worst-case stack usage (WCSU), and inserts entry prologues and multi-return epilogues honoring the `StatePlan`.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Distinct symbolic stack-frame displacements resolve into non-aliasing `[rsp + disp]` / `[sp, #imm]` memory operands, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.

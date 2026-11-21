@@ -6,8 +6,8 @@ machine main() reaches MachineControl crashes Trap {
 }
 
 machine join(branch: bool) reaches MachineControl crashes Trap {
-    let mut left: u64 = 0;
-    let mut right: u64 = 0;
+    let mutable left: u64 = 0;
+    let mutable right: u64 = 0;
     asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;

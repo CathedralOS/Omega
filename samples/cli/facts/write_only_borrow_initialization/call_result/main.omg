@@ -24,7 +24,7 @@ ensures
 machine probe() -> u64
 ensures
     result == 0u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 100u64 };
     initialize_slot(@write slot);
     let extracted: u64 = read_slot(@slot);
     extracted - 100u64

@@ -10,17 +10,17 @@ data Holder {
     pair: Pair;
 }
 
-machine touch_left(left: @mut u64) {
+machine touch_left(left: @mutable u64) {
     $left = 999u64;
 }
 
 machine exercise() -> u64
 ensures result == 50u64
 {
-    let mut holder: Holder = Holder {
+    let mutable holder: Holder = Holder {
         pair: Pair { left: 10u64, right: 25u64 }
     };
-    touch_left(@mut holder.pair.left);
+    touch_left(@mutable holder.pair.left);
     let diff: u64 = 75u64 - holder.pair.right;
     diff
 }

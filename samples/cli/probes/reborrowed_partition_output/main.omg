@@ -1,24 +1,24 @@
 // Expected exit: 0.
 // A local borrowed partition window preserves the checked capacity and backing.
 data Match [copy] { position: u64; value: i32; }
-data Partition<'storage> { records: @'storage mut [Match]; count: u64; }
+data Partition<'storage> { records: @'storage mutable [Match]; count: u64; }
 
-machine append<'storage>(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool {
+machine append<'storage>(partitions: @mutable [Partition<'storage>], selected: u64, record: Match) -> bool {
     transition selected < partitions.length {
         true -> capacity(partitions, selected, record),
         false -> false
     }
-    machine capacity(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine capacity(partitions: @mutable [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.length {
         transition partitions[selected].count < partitions[selected].records.length {
             true -> store(partitions, selected, record),
             false -> false
         }
     }
-    machine store(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine store(partitions: @mutable [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.length
         && partitions[selected].count < partitions[selected].records.length {
-        let output: @mut [Partition<'storage>] = @mut partitions[..];
+        let output: @mutable [Partition<'storage>] = @mutable partitions[..];
         output[selected].records[output[selected].count] = record;
         output[selected].count = output[selected].count + 1;
         true
@@ -26,19 +26,19 @@ machine append<'storage>(partitions: @mut [Partition<'storage>], selected: u64, 
 }
 
 machine main() crashes Trap {
-    let mut first: [Match; 3] = [
+    let mutable first: [Match; 3] = [
         Match { position: 91, value: -1 }, Match { position: 92, value: -2 },
         Match { position: 93, value: -3 }
     ];
-    let mut second: [Match; 2] = [Match { position: 81, value: -4 }, Match { position: 82, value: -5 }];
-    let mut partitions: [Partition; 2] = [
-        Partition { records: @mut first[1..2], count: 0 },
-        Partition { records: @mut second[1..2], count: 0 }
+    let mutable second: [Match; 2] = [Match { position: 81, value: -4 }, Match { position: 82, value: -5 }];
+    let mutable partitions: [Partition; 2] = [
+        Partition { records: @mutable first[1..2], count: 0 },
+        Partition { records: @mutable second[1..2], count: 0 }
     ];
-    let one: bool = append(@mut partitions[..], 1, Match { position: 17, value: 19 });
-    let two: bool = append(@mut partitions[..], 0, Match { position: 23, value: 29 });
-    let full: bool = append(@mut partitions[..], 1, Match { position: 31, value: 37 });
-    let absent: bool = append(@mut partitions[..0], 0, Match { position: 41, value: 43 });
+    let one: bool = append(@mutable partitions[..], 1, Match { position: 17, value: 19 });
+    let two: bool = append(@mutable partitions[..], 0, Match { position: 23, value: 29 });
+    let full: bool = append(@mutable partitions[..], 1, Match { position: 31, value: 37 });
+    let absent: bool = append(@mutable partitions[..0], 0, Match { position: 41, value: 43 });
     transition one && two && !full && !absent
         && partitions[0].count == 1 && partitions[1].count == 1
         && first[0].position == 91 && first[0].value == -1

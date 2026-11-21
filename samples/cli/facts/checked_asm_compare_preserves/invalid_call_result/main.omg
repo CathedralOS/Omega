@@ -30,7 +30,7 @@ X86Compare satisfies SelectedCompare {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut output: u32 = 0;
+        let mutable output: u32 = 0;
         asm clobbers rax, rflags {
         entry:
             mov eax, seed;
@@ -53,7 +53,7 @@ ArmCompare satisfies SelectedCompare {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut output: u32 = 0;
+        let mutable output: u32 = 0;
         asm clobbers x0, nzcv {
         entry:
             mov w0, seed;

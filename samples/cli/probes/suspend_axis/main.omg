@@ -1,5 +1,5 @@
 // `suspends` is a declared machine axis: `machine
-// Main::main(main: &mut Main) suspends; reaches
+// Main::main(main: &mutable Main) suspends; reaches
 // Scheduler` — and `suspend Scheduler::park()`
 // performs the suspension at a call site, after the
 // last use of a borrow-carrying record.
@@ -38,7 +38,7 @@ machine read(cell: @Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(main: @mut Main) suspends reaches Scheduler {
+machine Main::main(main: @mutable Main) suspends reaches Scheduler {
     main.hits = 0;
     main.cell.value = 5;
     let message: Message = Message { body: @main.cell };
@@ -47,14 +47,14 @@ machine Main::main(main: @mut Main) suspends reaches Scheduler {
         true -> park_last(main),
         _ -> fail(main)
     }
-    machine park_last(main: @mut Main) {
+    machine park_last(main: @mutable Main) {
         suspend Scheduler::park();
     }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() suspends reaches Scheduler {
-    let mut entry_storage: Main;
-    suspend Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    suspend Main::main(@mutable entry_storage);
 }

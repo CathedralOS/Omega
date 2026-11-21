@@ -8,7 +8,7 @@ public data Web {
     outgoing: [i32 in Saturating; 3];
     loss: i32 in Saturating;
 }
-public machine transfer(web: @mut Web, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
+public machine transfer(web: @mutable Web, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
 requires source < 3 requires destination < 3 {
     let raw: i32 in Saturating = intake * 100;
     let converted: i32 in Saturating = intake * efficiency;

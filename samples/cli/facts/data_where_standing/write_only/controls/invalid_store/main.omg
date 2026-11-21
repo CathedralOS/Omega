@@ -9,7 +9,7 @@ requires replacement <= 61
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
-    let mut counter: Counter = Counter { before: 31, value: 0, peer: 13, after: 47 };
+    let mutable counter: Counter = Counter { before: 31, value: 0, peer: 13, after: 47 };
     fill(@write counter, replacement);
     counter
 }

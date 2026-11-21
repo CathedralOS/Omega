@@ -20,19 +20,19 @@ use representations\syntax_trees\syntax_trees_statement;
 // Visit enclosing arms before nested matches. Each binder marks only names
 // in its guard and target. Expression rows are postorder, so larger match
 // handles come first when an arm contains a second match.
-machine mark_subject_patterns(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine mark_subject_patterns(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> statement(resolver, sources, syntax, 0) }
 
-    machine statement(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine statement(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.statement_count && resolver.output.accepted {
             true -> statement_arms(resolver, sources, syntax, index),
             _ -> expression(resolver, sources, syntax, syntax.expression_count as +Trapping)
         }
     }
 
-    machine statement_arms(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine statement_arms(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: Statement = syntax_trees_statement(syntax, index);
         transition item.kind == StatementKind::Transition && item.has_value {
             true -> transition_arms(resolver, sources, syntax, index, item),
@@ -40,19 +40,19 @@ crashes Trap
         }
     }
 
-    machine transition_arms(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: Statement) {
+    machine transition_arms(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: Statement) {
         mark_arm_range(resolver, sources, syntax, item.value, ArmRange { matched: false, first: item.first_arm, count: item.arm_count });
         transition { _ -> statement(resolver, sources, syntax, index + 1) }
     }
 
-    machine expression(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, end: u64 in Trapping) {
+    machine expression(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, end: u64 in Trapping) {
         transition end > 0 && resolver.output.accepted {
             true -> expression_arms(resolver, sources, syntax, end - 1),
             _ -> done()
         }
     }
 
-    machine expression_arms(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine expression_arms(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: Expression = syntax_trees_expression(syntax, index);
         transition item.kind == ExpressionKind::Match {
             true -> match_arms(resolver, sources, syntax, index, item),
@@ -60,7 +60,7 @@ crashes Trap
         }
     }
 
-    machine match_arms(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: Expression) {
+    machine match_arms(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: Expression) {
         mark_arm_range(resolver, sources, syntax, item.left, ArmRange { matched: true, first: item.first, count: item.count });
         transition { _ -> expression(resolver, sources, syntax, index) }
     }
@@ -68,31 +68,31 @@ crashes Trap
     machine done() {}
 }
 
-machine mark_arm_range(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange)
+machine mark_arm_range(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, subject, range, 0) }
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping) {
+    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping) {
         transition offset < range.count && resolver.output.accepted {
             true -> arm(resolver, sources, syntax, subject, range, offset),
             _ -> done()
         }
     }
-    machine arm(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping) {
+    machine arm(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping) {
         let row: TransitionArm = range_arm(syntax, range, offset);
         transition row.kind == ArmPatternKind::Binder {
             true -> binder(resolver, sources, syntax, subject, range, offset, row),
             _ -> next(resolver, sources, syntax, subject, range, offset + 1)
         }
     }
-    machine binder(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping, row: TransitionArm) {
+    machine binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, range: ArmRange, offset: u64 in Trapping, row: TransitionArm) {
         mark_subject_binder(resolver, sources, syntax, subject, row);
         transition { _ -> next(resolver, sources, syntax, subject, range, offset + 1) }
     }
     machine done() {}
 }
 
-machine mark_subject_binder(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm)
+machine mark_subject_binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm)
 crashes Trap
 {
     let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
@@ -102,10 +102,10 @@ crashes Trap
         _ -> declare(resolver, sources, syntax, subject, arm, pattern.name)
     }
 
-    machine duplicate(resolver: @mut Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
+    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
+        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
     }
-    machine declare(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
+    machine declare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
         resolver_set_role(resolver, arm.pattern, NameRole::WholeSubjectBinder);
         mark_subject_name(resolver, arm.pattern, subject);
         transition arm.has_guard {
@@ -113,11 +113,11 @@ crashes Trap
             _ -> target(resolver, sources, syntax, subject, arm, name)
         }
     }
-    machine guard(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
+    machine guard(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
         mark_subject_uses(resolver, sources, syntax, subject, name, arm.guard);
         transition { _ -> target(resolver, sources, syntax, subject, arm, name) }
     }
-    machine target(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
+    machine target(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, arm: TransitionArm, name: IdentifierSpan) {
         transition arm.target_kind == ArmTargetKind::Unit {
             true -> done(),
             _ -> mark_subject_uses(resolver, sources, syntax, subject, name, arm.target)
@@ -126,18 +126,18 @@ crashes Trap
     machine done() {}
 }
 
-machine mark_subject_uses(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, root: u64 in Trapping)
+machine mark_subject_uses(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, root: u64 in Trapping)
 crashes Trap
 {
     let tree: Expression = syntax_trees_expression(syntax, root);
     transition { _ -> next(resolver, sources, syntax, subject, name, tree.first_row, root) }
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
+    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
         transition index <= root {
             true -> node(resolver, sources, syntax, subject, name, index, root),
             _ -> done()
         }
     }
-    machine node(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
+    machine node(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, index);
         let role: NameRole = resolver_role(resolver, index);
         transition expression.kind == ExpressionKind::Name && role == NameRole::Value {
@@ -145,28 +145,28 @@ crashes Trap
             _ -> next(resolver, sources, syntax, subject, name, index + 1, root)
         }
     }
-    machine named(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping, candidate: IdentifierSpan) {
+    machine named(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping, candidate: IdentifierSpan) {
         let equal: bool = spans_equal(sources, name.source_span, candidate.source_span);
         transition equal {
             true -> mark(resolver, sources, syntax, subject, name, index, root),
             _ -> next(resolver, sources, syntax, subject, name, index + 1, root)
         }
     }
-    machine mark(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
+    machine mark(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, subject: u64 in Trapping, name: IdentifierSpan, index: u64 in Trapping, root: u64 in Trapping) {
         mark_subject_name(resolver, index, subject);
         transition { _ -> next(resolver, sources, syntax, subject, name, index + 1, root) }
     }
     machine done() {}
 }
 
-machine mark_subject_name(resolver: @mut Resolver, index: u64 in Trapping, subject: u64 in Trapping)
+machine mark_subject_name(resolver: @mutable Resolver, index: u64 in Trapping, subject: u64 in Trapping)
 crashes Trap
 {
     transition index < 131072 {
         true -> store(resolver, index, subject),
         _ -> invalid()
     }
-    machine store(resolver: @mut Resolver, index: u64 in Trapping, subject: u64 in Trapping)
+    machine store(resolver: @mutable Resolver, index: u64 in Trapping, subject: u64 in Trapping)
     requires index < 131072
     {
         resolver.output.value_bindings[index] = ValueBinding::MatchedSubject { subject: subject };

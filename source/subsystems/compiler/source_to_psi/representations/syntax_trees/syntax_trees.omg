@@ -38,7 +38,7 @@ public data ReferenceAccess [copy] {
 // its own run begins. `Named` carries its `name`; an application
 // (`Pair<i32, u8>`) also carries `argument_count` argument rows listed in
 // `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`&T`,
-// `&mut T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
+// `&mutable T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
 // its length row, a `Literal` or a `Named` static value, in `length`.
 // `Literal` is an integer static argument or length spelled by `name`, its
@@ -232,7 +232,7 @@ public data ErasedBinding [copy] {
 public data Parameter [copy] {
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
-    // `mut name: Type`: the body may assign the parameter.
+    // `mutable name: Type`: the body may assign the parameter.
     is_mutable: bool;
     source_span: SourceSpan;
 }
@@ -1080,7 +1080,7 @@ requires
     accepted: bool;
 }
 
-public machine syntax_trees_clear(syntax_trees: @mut SyntaxTrees, source: SourceId) {
+public machine syntax_trees_clear(syntax_trees: @mutable SyntaxTrees, source: SourceId) {
     syntax_trees.root_count = 0;
     syntax_trees.use_count = 0;
     syntax_trees.member_count = 0;
@@ -1123,7 +1123,7 @@ public machine syntax_trees_clear(syntax_trees: @mut SyntaxTrees, source: Source
 }
 
 public machine syntax_trees_reject(
-    syntax_trees: @mut SyntaxTrees,
+    syntax_trees: @mutable SyntaxTrees,
     code: ParseDiagnosticCode,
     source: SourceId,
     start: u64 in Trapping,

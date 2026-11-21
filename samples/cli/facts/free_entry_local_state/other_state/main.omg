@@ -2,8 +2,8 @@
 // Place: other_state.
 // Expected exit: 0
 data Tally { total: u64; }
-data Mark<'view> dropped by drop_mark { slot: @'view mut Tally; code: u64; }
-machine drop_mark(mark: @mut Mark) requires mark.code == 7 {
+data Mark<'view> dropped by drop_mark { slot: @'view mutable Tally; code: u64; }
+machine drop_mark(mark: @mutable Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
 machine settle(mark: @Mark) {}
@@ -15,8 +15,8 @@ machine check(tally: @Tally) crashes Trap {
 machine start() crashes Trap {
     transition { _ -> finish(7) }
     machine finish(code: u64) requires code == 7 {
-        let mut tally: Tally = Tally { total: 0 };
-        settle(@Mark { slot: @mut tally, code: code });
+        let mutable tally: Tally = Tally { total: 0 };
+        settle(@Mark { slot: @mutable tally, code: code });
         check(@tally);
     }
 }

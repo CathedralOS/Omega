@@ -20,7 +20,7 @@ machine read_destination(slot: @DestinationSlot) -> u64 in WrittenBound {
 machine probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
+    let mutable slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(@write slot);
     let extracted: u64 in WrittenBound = read_destination(@slot);
     95u64 - extracted

@@ -1,7 +1,7 @@
 // A left operand proved false skips the right-hand bump call: the conjunction is false and the counter stays 0.
 // Place: match_join. The left operand is the join of a match whose arms both produce the Boolean.
 // Expected exit: 0
-machine bump(counter: @mut u64) -> bool
+machine bump(counter: @mutable u64) -> bool
 requires $counter <= 1000u64
 {
     $counter = $counter + 1u64;
@@ -17,13 +17,13 @@ ensures result == 0u64
 
 
 machine main() crashes Trap {
-    let mut counter: u64 = 0u64;
+    let mutable counter: u64 = 0u64;
     let mode: u64 = 2u64;
     let ready: bool = match mode {
         1u64 -> false,
         _ -> false
     };
-    let first: bool = ready && bump(@mut counter);
+    let first: bool = ready && bump(@mutable counter);
     let kept: u64 = untouched(counter);
     transition first {
         true -> bad(),

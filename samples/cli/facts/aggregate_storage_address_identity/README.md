@@ -32,7 +32,7 @@ Both match arms execute. Each invalid twin changes only the query operand from
 a storage reference to the Pair value. It must reject with `storage address_of
 requires exactly one ordinary storage reference and no static arguments`.
 
-An additional `controls/exclusive_reference` control holds `&mut value` live
+An additional `controls/exclusive_reference` control holds `&mutable value` live
 across the shared address operand. It must still reject the overlapping loan.
 
 Reproduce one positive and its control:

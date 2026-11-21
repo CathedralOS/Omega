@@ -34,11 +34,11 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.direction = Direction::Right;
     main.result = Outcome::Hit;
-    let mut approved: bool = false;
+    let mutable approved: bool = false;
     transition (main.direction, main.result, approved) {
         (Direction::Horizontal, _, _) -> right(main),
         (Direction::Up, Outcome::Hit, true) -> wrong(main),
@@ -46,12 +46,12 @@ machine Main::main(main: @mut Main) {
         (Direction::Up, Outcome::Miss, true) -> wrong(main),
         (Direction::Up, Outcome::Miss, false) -> wrong(main)
     }
-    machine right(main: @mut Main) { main.hits = 1; }
-    machine wrong(main: @mut Main) { main.hits = -1; }
+    machine right(main: @mutable Main) { main.hits = 1; }
+    machine wrong(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

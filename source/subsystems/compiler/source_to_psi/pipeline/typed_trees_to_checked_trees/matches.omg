@@ -28,7 +28,7 @@ use representations\typed_trees\typing_expression_type;
 // facts.
 
 // Record a match the tree's scan met, its first event pending.
-public machine checker_add_match(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping)
+public machine checker_add_match(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping)
 crashes Trap
 {
     transition checker.match_count < 16 {
@@ -36,7 +36,7 @@ crashes Trap
         _ -> full(checker, syntax, handle)
     }
 
-    machine write(checker: @mut Checker, index: u64, handle: u64 in Trapping)
+    machine write(checker: @mutable Checker, index: u64, handle: u64 in Trapping)
     requires index < 16
     {
         checker.matches[index] = handle as u64;
@@ -44,16 +44,16 @@ crashes Trap
         checker.match_count = index + 1;
     }
 
-    machine full(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+    machine full(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 }
 
 // Fire every match event that begins at `handle`: an enclosing match's
 // before a nested one's, whose handle is lower.
 public machine advance_matches(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -65,7 +65,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, handle, checker.match_count, checking) }
 
     machine next(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -80,7 +80,7 @@ crashes Trap
     }
 
     machine record(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -102,7 +102,7 @@ crashes Trap
 // Fire the events of the match at `match_handle` that begin at `handle`,
 // from `event`, and keep the next one pending.
 machine fire_events(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -118,7 +118,7 @@ crashes Trap
     transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking) }
 
     machine pending(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -137,7 +137,7 @@ crashes Trap
     }
 
     machine fire(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -152,14 +152,14 @@ crashes Trap
         transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event + 1, checking) }
     }
 
-    machine keep(checker: @mut Checker, index: u64, event: u64 in Trapping) {
+    machine keep(checker: @mutable Checker, index: u64, event: u64 in Trapping) {
         transition index < 16 {
             true -> write(checker, index, event),
             _ -> done()
         }
     }
 
-    machine write(checker: @mut Checker, index: u64, event: u64 in Trapping)
+    machine write(checker: @mutable Checker, index: u64, event: u64 in Trapping)
     requires index < 16
     {
         checker.match_events[index] = event as u64;
@@ -205,7 +205,7 @@ crashes Trap
 // starts from those facts with the earlier pattern passed over; an arm's
 // value begins with its own pattern selected.
 machine match_event(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -225,7 +225,7 @@ crashes Trap
     }
 
     machine begun(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -241,7 +241,7 @@ crashes Trap
         }
     }
 
-    machine opened(checker: @mut Checker, match_handle: u64 in Trapping, expression: Expression) {
+    machine opened(checker: @mutable Checker, match_handle: u64 in Trapping, expression: Expression) {
         let joined: bool = save_zone(checker, match_handle + 1);
         transition joined {
             true -> unreached(checker, match_handle, expression),
@@ -249,7 +249,7 @@ crashes Trap
         }
     }
 
-    machine unreached(checker: @mut Checker, match_handle: u64 in Trapping, expression: Expression) {
+    machine unreached(checker: @mutable Checker, match_handle: u64 in Trapping, expression: Expression) {
         unreach_saved(checker);
         let saved: bool = save_zone(checker, match_handle + 1);
         transition saved {
@@ -259,13 +259,13 @@ crashes Trap
     }
 
     // Only the join was saved: drop it, so no later arm or join meets it.
-    machine half_saved(checker: @mut Checker, expression: Expression) {
+    machine half_saved(checker: @mutable Checker, expression: Expression) {
         drop_saved(checker);
         transition { _ -> overflow(checker, expression) }
     }
 
     machine following(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -282,7 +282,7 @@ crashes Trap
     }
 
     machine passed_over(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -299,21 +299,21 @@ crashes Trap
         resave_zone(checker);
     }
 
-    machine selected(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
+    machine selected(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
         transition held {
             true -> chosen(checker, syntax, resolution, typing, expression, offset),
             _ -> done()
         }
     }
 
-    machine chosen(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
+    machine chosen(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
         let pattern: Value = checker_pattern_value(checker, arm);
         arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, true);
     }
 
-    machine overflow(checker: @mut Checker, expression: Expression) {
-        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+    machine overflow(checker: @mutable Checker, expression: Expression) {
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
     machine done() {}
@@ -342,7 +342,7 @@ crashes Trap
 // The match node: its last arm ends, the facts after it are its arms'
 // join, and its value is already their hull. A match the checker could not
 // track has already been rejected; its value is its type's.
-public machine close_match(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, checking: bool)
+public machine close_match(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, checking: bool)
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
@@ -352,12 +352,12 @@ crashes Trap
         _ -> untracked(checker, typing, handle)
     }
 
-    machine closed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, checking: bool) {
+    machine closed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, checking: bool) {
         end_arm(checker, syntax, resolution, typing, handle, expression, expression.count - 1, checking);
         checker_take_join(checker);
     }
 
-    machine untracked(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping) {
+    machine untracked(checker: @mutable Checker, typing: @Typing, handle: u64 in Trapping) {
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
         let row: TypeRow = type_table_row(@typing.types, type_handle);
         let value: Value = value_typed(row);
@@ -369,7 +369,7 @@ crashes Trap
 // qualification, its facts join the arms that have ended, and its interval
 // widens the match's value.
 machine end_arm(
-    checker: @mut Checker,
+    checker: @mutable Checker,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
     typing: @Typing,
@@ -388,7 +388,7 @@ crashes Trap
     }
 
     machine qualified(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
         typing: @Typing,
@@ -403,7 +403,7 @@ crashes Trap
         transition { _ -> joined(checker, match_handle, offset, value) }
     }
 
-    machine joined(checker: @mut Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
+    machine joined(checker: @mutable Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
         join_arms(checker);
         transition offset == 0 {
             true -> first(checker, match_handle, value),
@@ -411,12 +411,12 @@ crashes Trap
         }
     }
 
-    machine first(checker: @mut Checker, match_handle: u64 in Trapping, value: Value) {
+    machine first(checker: @mutable Checker, match_handle: u64 in Trapping, value: Value) {
         let interval: Value = value_interval(value);
         checker_set_value(checker, match_handle, interval);
     }
 
-    machine widened(checker: @mut Checker, match_handle: u64 in Trapping, value: Value) {
+    machine widened(checker: @mutable Checker, match_handle: u64 in Trapping, value: Value) {
         let so_far: Value = value_at(checker, match_handle);
         let hull: Value = value_hull(so_far, value);
         checker_set_value(checker, match_handle, hull);
@@ -447,7 +447,7 @@ crashes Trap
 }
 
 // Mark the top saved zone unreached: the join of no arms.
-machine unreach_saved(checker: @mut Checker)
+machine unreach_saved(checker: @mutable Checker)
 crashes Trap
 {
     transition checker.saved_count > 0 && checker.saved_count <= 8 {
@@ -455,7 +455,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine mark(checker: @mut Checker, index: u64)
+    machine mark(checker: @mutable Checker, index: u64)
     requires index < 8
     {
         checker.merged = checker.saved[index];
@@ -469,7 +469,7 @@ crashes Trap
 }
 
 // Join the zone into the match's arms so far, the saved zone below the top.
-machine join_arms(checker: @mut Checker)
+machine join_arms(checker: @mutable Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
@@ -477,17 +477,17 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine join(checker: @mut Checker, index: u64)
+    machine join(checker: @mutable Checker, index: u64)
     requires index < 8
     {
         checker.merged = checker.saved[index];
         let current_live: bool = !checker.merged.infeasible;
         let other_live: bool = !checker.zone.infeasible;
-        let mut aliases: AliasTable = checker.saved_aliases[index];
+        let mutable aliases: AliasTable = checker.saved_aliases[index];
         let other: AliasTable = checker.aliases;
-        alias_table_join(@mut aliases, @other, current_live, other_live);
+        alias_table_join(@mutable aliases, @other, current_live, other_live);
         checker.saved_aliases[index] = aliases;
-        let changed: bool = zone_join(@mut checker.merged, @checker.zone);
+        let changed: bool = zone_join(@mutable checker.merged, @checker.zone);
         checker.saved[index] = checker.merged;
     }
 
@@ -497,7 +497,7 @@ crashes Trap
 }
 
 // The facts after the match: its arms' join, both its saved zones dropped.
-machine checker_take_join(checker: @mut Checker)
+machine checker_take_join(checker: @mutable Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
@@ -505,7 +505,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine take(checker: @mut Checker, index: u64)
+    machine take(checker: @mutable Checker, index: u64)
     requires index < 8
     {
         checker.zone = checker.saved[index];

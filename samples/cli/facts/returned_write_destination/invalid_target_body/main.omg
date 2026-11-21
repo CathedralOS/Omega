@@ -38,7 +38,7 @@ ArmLendWrite satisfies SelectedLendWrite {
     }
 }
 machine main() crashes Trap {
- let mut value: i32 = 7;
+ let mutable value: i32 = 7;
  let neighbor: i32 = 19;
  let destination: @write i32 = SelectedLendWrite::lend_write(@write value);
  destination = destination;

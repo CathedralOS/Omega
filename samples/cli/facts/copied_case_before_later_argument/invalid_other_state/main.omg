@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Slot [copy] { case Absent; case Present(value: u64); }
 
-machine set_to_absent(slot: @mut Slot) -> u64 {
+machine set_to_absent(slot: @mutable Slot) -> u64 {
     $slot = Slot::Absent {};
     0
 }
@@ -15,10 +15,10 @@ requires before in Slot::Present
 }
 
 machine main() crashes Trap {
-    let mut chosen: Slot = Slot::Absent {};
+    let mutable chosen: Slot = Slot::Absent {};
     transition { _ -> inspect(chosen) }
-    machine inspect(mut chosen: Slot) {
-        let observed: u64 = read_payload(chosen, set_to_absent(@mut chosen));
+    machine inspect(mutable chosen: Slot) {
+        let observed: u64 = read_payload(chosen, set_to_absent(@mutable chosen));
         transition observe_replacement(observed, chosen) == 7 {
             true -> done(),
             false -> wrong()

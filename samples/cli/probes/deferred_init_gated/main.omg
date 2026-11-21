@@ -1,7 +1,7 @@
 // deferred_init_gated: deferred locals and gated nested records — the
 // first sample declaring a primitive local without an initializer.
 //
-//   * `let mut total: i32 in Wrapping;` binds storage first and assigns
+//   * `let mutable total: i32 in Wrapping;` binds storage first and assigns
 //     later; the local keeps its own storage through assignment and
 //     observation, then takes a compound `+=` step.
 //   * `Session` is a gated record (`retries <= 3`) nested inside
@@ -20,7 +20,7 @@ data Registry { session: Session; }
 
 machine deferred_init_gated() {
     let registry: Registry = Registry {};
-    let mut total: i32 in Wrapping;
+    let mutable total: i32 in Wrapping;
     total = 10;
     total += 60;
     transition total == 70 && registry.session.retries == 0 && registry.session.score == 0 {

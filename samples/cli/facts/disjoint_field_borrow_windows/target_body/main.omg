@@ -6,7 +6,7 @@ data Pair {
     right: u64;
 }
 
-machine touch_left(left: @mut u64) {
+machine touch_left(left: @mutable u64) {
     $left = 999u64;
 }
 
@@ -43,33 +43,33 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedProbe {
-    machine exercise(pair: @mut Pair)
+    machine exercise(pair: @mutable Pair)
         reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 75u64
     crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
-    machine exercise(pair: @mut Pair)
+    machine exercise(pair: @mutable Pair)
         reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 75u64
     crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        touch_left(@mut pair.left);
+        touch_left(@mutable pair.left);
         let diff: u64 = 75u64 - pair.right;
         verify(diff);
     }
 }
 
 ArmProbe satisfies SelectedProbe {
-    machine exercise(pair: @mut Pair)
+    machine exercise(pair: @mutable Pair)
         reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 75u64
     crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        touch_left(@mut pair.left);
+        touch_left(@mutable pair.left);
         let diff: u64 = 75u64 - pair.right;
         verify(diff);
     }
@@ -79,8 +79,8 @@ machine main()
     reaches SelectedProbe, SelectedBodyCheck
     crashes Trap
 {
-    let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
-    SelectedProbe::exercise(@mut pair);
+    let mutable pair: Pair = Pair { left: 10u64, right: 25u64 };
+    SelectedProbe::exercise(@mutable pair);
 }
 
 machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {

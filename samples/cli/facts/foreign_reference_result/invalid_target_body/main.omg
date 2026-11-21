@@ -3,29 +3,29 @@
 // Expected exit: 0
 public data Cell { value: u64; before: u64; after: u64; }
 public boundary trait Memory {
- machine fill<'source>(value: @'source Cell, byte: i32, count: u64) -> @'source mut Cell reaches none requires count == 8 crashes none;
+ machine fill<'source>(value: @'source Cell, byte: i32, count: u64) -> @'source mutable Cell reaches none requires count == 8 crashes none;
 }
-machine apply(cell: @mut Cell) -> bool {
+machine apply(cell: @mutable Cell) -> bool {
  let filled: bool = cell.value == 2676586395008836901;
  cell.value = 41;
  let observed: bool = cell.value == 41;
  cell.value = 73;
  filled && observed
 }
-machine journey(cell: @mut Cell, first: bool) -> bool reaches Memory {
- let selected: @mut Cell = Memory::fill(cell, 37, 8);
+machine journey(cell: @mutable Cell, first: bool) -> bool reaches Memory {
+ let selected: @mutable Cell = Memory::fill(cell, 37, 8);
  apply(selected)
 }
 machine main() crashes Trap { crash Trap; }
 trait Entry { machine enter() reaches Memory crashes Trap; }
 SelectedEntry satisfies Entry {
  machine enter() reaches Memory crashes Trap {
- let mut left: Cell = Cell { value: 37, before: 11, after: 17 };
- let mut right: Cell = Cell { value: 37, before: 23, after: 29 };
- let first: bool = journey(@mut left, true);
+ let mutable left: Cell = Cell { value: 37, before: 11, after: 17 };
+ let mutable right: Cell = Cell { value: 37, before: 23, after: 29 };
+ let first: bool = journey(@mutable left, true);
  let first_correct: bool = first && left.value == 73 && right.value == 37
   && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29;
- let second: bool = journey(@mut right, false);
+ let second: bool = journey(@mutable right, false);
  transition first_correct && second && left.value == 73 && right.value == 73
   && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
   true -> done(), _ -> bad()

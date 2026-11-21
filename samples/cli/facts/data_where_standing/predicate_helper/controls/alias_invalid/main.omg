@@ -6,15 +6,15 @@ data Counter [copy] {
     value: i32;
     after: i32;
 }
-machine replace(slot: @mut i32, replacement: i32)
+machine replace(slot: @mutable i32, replacement: i32)
 requires replacement <= 60
 ensures $slot <= 60
 { $slot = replacement; }
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
-    let mut counter: Counter = Counter { before: 17, value: 0, after: 53 };
-    replace(@mut counter.value, replacement);
+    let mutable counter: Counter = Counter { before: 17, value: 0, after: 53 };
+    replace(@mutable counter.value, replacement);
     counter
 }
 const NAMED: Counter = produce(60);

@@ -3,11 +3,11 @@
 data Original { value: u32; }
 data Viewed { value: u32; }
 machine overwrite(storage: @write Original) {
-    let view: @mut Viewed = storage as @mut Viewed;
+    let view: @mutable Viewed = storage as @mutable Viewed;
     view.value = 73;
 }
 machine main() crashes Trap {
-    let mut original: Original = Original { value: 0 };
+    let mutable original: Original = Original { value: 0 };
     overwrite(@write original);
     transition original.value == 73 { true -> done(), _ -> bad() }
     machine done() {}

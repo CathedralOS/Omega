@@ -91,21 +91,21 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 // Match the portable bounded-read contract: a short read is a successful
 // initialized prefix, not a promise to fill the caller's entire buffer.
-machine windows_filesystem_read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
+machine windows_filesystem_read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     transition count <= buffer.length {
         true -> block acquire(path, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
-    machine acquire(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult {
+    machine acquire(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(path);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind }),
             OpenResult::Ok { file } -> block read(file, buffer, count)
         }
     }
-    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult {
+    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult {
         let outcome: IoResult = block windows_filesystem_read(file, buffer, count);
         let released: UnitResult = block windows_filesystem_close(file);
         windows_filesystem_finish_read(outcome, released)

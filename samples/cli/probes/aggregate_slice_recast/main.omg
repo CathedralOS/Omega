@@ -10,7 +10,7 @@
 // proves element stride.
 //
 //   * `&main.source as &[Wide]` — read-side weakening.
-//   * `&mut main.source as &mut [Exact]` — mutable
+//   * `&mutable main.source as &mutable [Exact]` — mutable
 //     re-view, exact sets.
 //   * Recast-carried views index like arrays
 //     (`read[0].unsigned_value`) — unlike whole-collection
@@ -48,7 +48,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.source[0].signed_value = 7;
     main.source[0].enabled = false;
@@ -59,7 +59,7 @@ machine Main::main(main: @mut Main) {
         true -> inspect(main, read),
         _ -> fail(main)
     }
-    machine inspect(main: @mut Main, read: @[Wide]) {
+    machine inspect(main: @mutable Main, read: @[Wide]) {
         transition read[0].unsigned_value == 7
             && !read[0].active
             && read[1].unsigned_value == 11
@@ -68,14 +68,14 @@ machine Main::main(main: @mut Main) {
             _ -> fail(main)
         }
     }
-    machine mutate(main: @mut Main) {
-        let write: @mut [Exact] = @mut main.source as @mut [Exact];
+    machine mutate(main: @mutable Main) {
+        let write: @mutable [Exact] = @mutable main.source as @mutable [Exact];
         transition write.length > 1 {
             true -> write_values(main, write),
             _ -> fail(main)
         }
     }
-    machine write_values(main: @mut Main, write: @mut [Exact]) {
+    machine write_values(main: @mutable Main, write: @mutable [Exact]) {
         write[0].unsigned_value = 42;
         write[1].active = false;
         transition write[0].unsigned_value == 42 && !write[1].active {
@@ -83,12 +83,12 @@ machine Main::main(main: @mut Main) {
             _ -> fail(main)
         }
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

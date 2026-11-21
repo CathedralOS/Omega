@@ -14,8 +14,8 @@ machine lend<'slot>(slot: @'slot write Held, marker: @write i64) -> @'slot write
 machine exercise(choice: bool, expected_marker: i64) -> bool {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
-    let mut held: Held = Held { target: @left, stamp: 17 };
-    let mut marker: i64 = 0;
+    let mutable held: Held = Held { target: @left, stamp: 17 };
+    let mutable marker: i64 = 0;
     let slot: @write Held = match choice {
         true -> lend(@write held, @write marker),
         false -> @write held

@@ -7,20 +7,20 @@ machine accepted(probe:@Probe,choice:i32)->bool {
  machine test(probe:@Probe)->bool {abs_f64(probe.reading-1.0) <= 0.000000001}
  machine rejected()->bool {false}
 }
-machine main(probe:@mut Probe) {
+machine main(probe:@mutable Probe) {
  probe.reading=1.0;probe.selected=0;
  transition { _ -> check(probe) }
- machine check(probe:@mut Probe) {
+ machine check(probe:@mutable Probe) {
   transition accepted(probe,probe.selected) && abs_f64(probe.reading-1.0) <= 0.000000001 {
    true -> passed(probe), _ -> failed(probe)
   }
  }
- machine passed(probe:@mut Probe) {probe.observed=1;}
- machine failed(probe:@mut Probe) {probe.observed=-1;}
+ machine passed(probe:@mutable Probe) {probe.observed=1;}
+ machine failed(probe:@mutable Probe) {probe.observed=-1;}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Probe;
-    main(@mut entry_storage);
+    let mutable entry_storage: Probe;
+    main(@mutable entry_storage);
 }

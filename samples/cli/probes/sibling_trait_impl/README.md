@@ -6,7 +6,7 @@ Compile-scope probe. No standard-library dependency.
   Canvas>` from a sibling directory file (no `module` decl needed);
   `machine Sprite::draw ... satisfies Drawable<Sprite,
   Canvas>::draw` binds it.
-- `let mut canvas: Canvas;` / `let sprite: Sprite;` zero-init
+- `let mutable canvas: Canvas;` / `let sprite: Sprite;` zero-init
   declarations accepted.
 
 Compile-checked only (no ProcessExit provider):

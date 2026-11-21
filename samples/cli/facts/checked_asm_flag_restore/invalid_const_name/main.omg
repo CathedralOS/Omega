@@ -3,7 +3,7 @@
 const FLAG_BIT: u64 = 64u64;
 
 machine main() reaches MachineControl crashes Trap {
-    let mut saved: u64 = 0;
+    let mutable saved: u64 = 0;
     asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;

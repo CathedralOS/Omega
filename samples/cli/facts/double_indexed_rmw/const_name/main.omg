@@ -10,10 +10,10 @@ const RI: u64 = 2;
 const RJ: u64 = 1;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 machine main() crashes Trap {
-    let mut grid: [[i32 in Wrapping; 4]; 3];
-    let mut rows: [Row; 3];
-    transition { _ -> rmw(@mut grid, @mut rows) }
-    machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3]) {
+    let mutable grid: [[i32 in Wrapping; 4]; 3];
+    let mutable rows: [Row; 3];
+    transition { _ -> rmw(@mutable grid, @mutable rows) }
+    machine rmw(grid: @mutable [[i32 in Wrapping; 4]; 3], rows: @mutable [Row; 3]) {
         grid[I][J] = 41;
         grid[I][J] = grid[I][J] + 1;
         let grid_got: i32 in Wrapping = grid[I][J];

@@ -19,79 +19,79 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
     main.bits = 0u32 as +Wrapping;
     main.i = 2u32 as +Wrapping;
     transition { _ -> block outer(main) }
 
-    machine outer(main: @mut Main) {
+    machine outer(main: @mutable Main) {
         transition main.i <= 30 { true -> block check_prime(main), _ -> block count_init(main) }
     }
-    machine check_prime(main: @mut Main) {
+    machine check_prime(main: @mutable Main) {
         main.m = main.bits >> main.i;
         main.m = main.m & 1;
         transition main.m == 0 { true -> block mark_init(main), _ -> block outer_next(main) }
     }
-    machine mark_init(main: @mut Main) {
+    machine mark_init(main: @mutable Main) {
         main.j = main.i + main.i;
         transition { _ -> block mark(main) }
     }
-    machine mark(main: @mut Main) {
+    machine mark(main: @mutable Main) {
         transition main.j <= 30 { true -> block set_bit(main), _ -> block outer_next(main) }
     }
-    machine set_bit(main: @mut Main) {
+    machine set_bit(main: @mutable Main) {
         main.m = 1u32 as +Wrapping;
         main.m = main.m << main.j;
         main.bits = main.bits | main.m;
         main.j = main.j + main.i;
         transition { _ -> block mark(main) }
     }
-    machine outer_next(main: @mut Main) {
+    machine outer_next(main: @mutable Main) {
         main.i = main.i + 1;
         transition { _ -> block outer(main) }
     }
 
-    machine count_init(main: @mut Main) {
+    machine count_init(main: @mutable Main) {
         main.count = 0i32 as +Wrapping;
         main.k = 2u32 as +Wrapping;
         transition { _ -> block count_loop(main) }
     }
-    machine count_loop(main: @mut Main) {
+    machine count_loop(main: @mutable Main) {
         transition main.k <= 30 { true -> block count_test(main), _ -> block done(main) }
     }
-    machine count_test(main: @mut Main) {
+    machine count_test(main: @mutable Main) {
         main.m = main.bits >> main.k;
         main.m = main.m & 1;
         transition main.m == 0 { true -> block inc(main), _ -> block count_next(main) }
     }
-    machine inc(main: @mut Main) {
+    machine inc(main: @mutable Main) {
         main.count = main.count + 1;
         transition { _ -> block count_next(main) }
     }
-    machine count_next(main: @mut Main) {
+    machine count_next(main: @mutable Main) {
         main.k = main.k + 1;
         transition { _ -> block count_loop(main) }
     }
-    machine done(main: @mut Main) {
+    machine done(main: @mutable Main) {
         transition main.count == 10 { true -> block ok(main), _ -> block bad(main) }
     }
-    machine ok(main: @mut Main) {
+    machine ok(main: @mutable Main) {
         Console::write_line("PASS: 10 primes found in 2..30 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(70);
     }
-    machine bad(main: @mut Main) {
+    machine bad(main: @mutable Main) {
         Console::write_line("FAIL: prime count != 10 -- exiting the actual count (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(main.count as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }
