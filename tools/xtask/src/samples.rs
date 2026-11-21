@@ -459,7 +459,8 @@ fn fragment_lines(text: &str) -> Vec<String> {
 /// missing fragment each fail the sample.
 fn verify_native_rejection(
     cli: &Path,
-    entry: &Path,
+    source_entry: &Path,
+    product_entry: &Path,
     target: &str,
     fragments: &[String],
     evidence: &Path,
@@ -472,7 +473,7 @@ fn verify_native_rejection(
         with_source_inputs(
             Command::new(cli)
                 .arg("--check")
-                .arg(entry)
+                .arg(source_entry)
                 .stdin(Stdio::null()),
             source_inputs,
         ),
@@ -490,7 +491,7 @@ fn verify_native_rejection(
         with_source_inputs(
             Command::new(cli)
                 .args(["--target", target])
-                .arg(entry)
+                .arg(product_entry)
                 .stdin(Stdio::null()),
             source_inputs,
         ),
@@ -704,10 +705,16 @@ pub fn verify_sample(
         &project.source_inputs,
     )?;
 
+    // The CLI selects Build from the file it is asked to run or compile.
+    // The sample's source entry carries its expected exit and output.
+    let build = project.directory.join("build.omg");
+    let product_entry = if build.is_file() { &build } else { entry };
+
     if let Some(fragments) = &project.native_rejection {
         return verify_native_rejection(
             cli,
             entry,
+            product_entry,
             target,
             fragments,
             evidence,
@@ -748,7 +755,7 @@ pub fn verify_sample(
             with_source_inputs(
                 Command::new(cli)
                     .args(["--target", target])
-                    .arg(entry)
+                    .arg(product_entry)
                     .stdin(Stdio::null()),
                 &project.source_inputs,
             ),
@@ -769,7 +776,7 @@ pub fn verify_sample(
     with_source_inputs(&mut cmd, &project.source_inputs);
     let scratch = project.directory.join("build/gate-run");
     let _ = fs::create_dir_all(&scratch);
-    cmd.arg(entry).current_dir(&scratch);
+    cmd.arg(product_entry).current_dir(&scratch);
     if has_input {
         let file = fs::File::open(&input_path)
             .map_err(|e| format!("failed opening {}: {e}", input_path.display()))?;
@@ -1318,7 +1325,7 @@ for argument do
   fi
   previous="$argument"
 done
-if [ "$main" != yes ] || [ "$build" != yes ]; then
+if [ "$main" != yes ] || { [ -f "${0%/*}/build.omg" ] && [ "$build" != yes ]; }; then
   echo 'caller inventory was lost' >&2
   exit 91
 fi
@@ -1329,7 +1336,16 @@ case "$1" in
       *) exit 92;;
     esac
     ;;
-  run) echo 'native exit 0' >&2; echo 'interp exit: 0' >&2; exit 0;;
+  run)
+    if [ -f "${0%/*}/build.omg" ]; then expected=build.omg; else expected=main.omg; fi
+    if [ "$previous" != "${0%/*}/$expected" ]; then
+      echo "expected the gate to launch $expected, got $previous" >&2
+      exit 93
+    fi
+    echo 'native exit 0' >&2
+    echo 'interp exit: 0' >&2
+    exit 0
+    ;;
   *) exit 92;;
 esac
 "#,
@@ -1341,6 +1357,23 @@ esac
             verify_sample(&cli, &project, host_target(), &directory.join("evidence"))
                 .unwrap()
                 .starts_with("pass")
+        );
+        fs::remove_file(directory.join("build.omg")).unwrap();
+        fs::write(
+            directory.join("sample.json"),
+            r#"{"role":"program","source_inputs":["main.omg"]}"#,
+        )
+        .unwrap();
+        let standalone = project_at(&directory, &directory).unwrap();
+        assert!(
+            verify_sample(
+                &cli,
+                &standalone,
+                host_target(),
+                &directory.join("standalone")
+            )
+            .unwrap()
+            .starts_with("pass")
         );
         fs::remove_dir_all(directory).unwrap();
     }
