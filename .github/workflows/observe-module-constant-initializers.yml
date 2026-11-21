@@ -1,0 +1,33 @@
+name: Build compiler for module constant controls
+on:
+  push:
+    branches: [work/observe-module-constant-initializers]
+permissions:
+  contents: read
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install the repository build tool
+        run: |
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Build the ordinary Omega CLI
+        run: |
+          mbx build --locked -p omega --bin omega
+          cp -L target/debug/omega /tmp/omega
+          sha256sum /tmp/omega
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omega-8c863bec59906a99beced8438b052fca67626ac8
+          path: /tmp/omega
+          retention-days: 1
