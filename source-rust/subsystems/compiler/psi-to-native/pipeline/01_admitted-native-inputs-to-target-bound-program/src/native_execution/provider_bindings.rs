@@ -1,16 +1,17 @@
 //! Bind the reachable boundary requirements of an authorized program or export.
 use super::PreparedNativeExecution;
 use diagnostics::Diagnostic;
+use provider_correspondence::CompilerIntrinsicPlanProvenance;
 use std::collections::BTreeSet;
+use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
 use verified_optimization_input::{
-    NativeExecutionFacts, NativeExecutionScope, ScopedProviderBindings, ScopedProviderSelection,
-    TerminalNativeRealizationProposal,
+    NativeExecutionScope, ScopedProviderSelection, TerminalNativeRealizationProposal,
 };
 
 fn selected_intrinsic_provenance<'a>(
     proposal: &'a TerminalNativeRealizationProposal,
     selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
-) -> Result<Vec<provider_admission::CompilerIntrinsicPlanProvenance<'a>>, Vec<Diagnostic>> {
+) -> Result<Vec<CompilerIntrinsicPlanProvenance<'a>>, Vec<Diagnostic>> {
     static NON_INTRINSIC_EXECUTION: [Option<
         native_intrinsics::CompilerIntrinsicExecutionIdentity,
     >; 1] = [None];
@@ -34,7 +35,7 @@ fn selected_intrinsic_provenance<'a>(
                             "native execution lost original intrinsic row custody",
                         )]
                     })?;
-                return Ok(provider_admission::CompilerIntrinsicPlanProvenance {
+                return Ok(CompilerIntrinsicPlanProvenance {
                     plan,
                     semantic_schema: &plan.schema,
                     row_executions,
@@ -59,7 +60,7 @@ fn selected_intrinsic_provenance<'a>(
                         &NON_INTRINSIC_EXECUTION
                     }
                 };
-            Ok(provider_admission::CompilerIntrinsicPlanProvenance {
+            Ok(CompilerIntrinsicPlanProvenance {
                 plan,
                 semantic_schema: &leaf.satisfied_schema,
                 row_executions,
@@ -162,11 +163,11 @@ pub(super) fn bind(
         selection,
         &intrinsic_provenance,
     )?;
-    let compiler_builtins = provider_admission::derive_selected_intrinsic_settlement_proposals(
+    let compiler_builtins = SelectedCompilerBuiltin::select(
         selection,
         intrinsic_provenance.into_iter(),
         &demands,
-        module,
+        artifact.view(),
         &proposal.providers().direct_boundary_leaves,
     )?;
     let demands = demands
@@ -229,7 +230,7 @@ pub(super) fn bind(
         }
         eprint!("{}", &text[..end]);
     }
-    NativeExecutionFacts::from_scoped_providers(
+    PreparedNativeExecution::from_scoped_providers(
         checked,
         ScopedProviderBindings {
             external_bindings,
@@ -238,5 +239,4 @@ pub(super) fn bind(
             boundary_application_coverage,
         },
     )
-    .map(PreparedNativeExecution)
 }

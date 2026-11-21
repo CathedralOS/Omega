@@ -1,43 +1,20 @@
-/*
-Native compiler-builtin admission and placed-scalar schema and backing-origin
-verification.
-
-Proposal derivation (`retained`) binds each demanded boundary to its one
-selected intrinsic row, plan, and Terminal boundary once and carries that
-binding to admission by plan index; `settle_compiler_builtins` admits it
-through the receiving policy and the local target catalog.
-*/
-
-/*
-Hosted builtins settle as call-shaped rows. Selected float arithmetic, minimum,
-maximum, negation, square root, NaN/infinity classification, two-rounding
-multiply-then-add, conversion into a float format, and Exact, Saturating, or
-Trapping conversion to an integer settle as `NearestIeeeFloatArithmetic`, which
-Omega 02 realizes inline as one IEEE semantic operation. Admission requires the
-boundary's exact signature for that operation and format so a row selected for
-another format, carrier, or shape cannot stand in.
-
-For placed caller-RAM scalar access (`AccessorScalarAccess`), we join the
-selected scalar schema to its independently admitted Terminal declaration
-(`validate_access_schema`) and verify that every reachable occurrence originates
-from captured RAM or a checked resident formation
-(`require_access_backing_origins`).
-*/
+//! Admit the selected compiler builtins reached by this native body.
+//! The receiver supplies target features and authority for each exact boundary.
 
 #[path = "compiler_builtins/catalog.rs"]
 mod catalog;
-#[path = "compiler_builtins/retained.rs"]
-mod retained;
 
 pub use catalog::SettledCompilerBuiltin;
 pub use numeric_intrinsic_admission::signature::numeric_boundary_execution;
-use numeric_intrinsic_admission::signature::{boundary_contract_matches_selected_schema,float_arithmetic_signature};
-pub use retained::{
-    AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
-    TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
-    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
-    validate_external_provider_owners,
+use numeric_intrinsic_admission::signature::{
+    boundary_contract_matches_selected_schema, float_arithmetic_signature,
 };
+pub use numeric_intrinsic_admission::{
+    AdmittedTerminalIntrinsics, admit_terminal_intrinsics,
+    selection::validate_external_provider_owners,
+};
+pub use provider_correspondence::CompilerIntrinsicPlanProvenance;
+use target_bound_program::builtins::SelectedCompilerBuiltin;
 
 use crate::AdmittedTerminalMechanism;
 use crate::{AdmissionSource, ProviderAdmissionRequest};
@@ -56,9 +33,54 @@ use target_operations::{
 use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, TerminalAccessorKind};
 use terminal_semantics::AccessorScalarBoundaryDemand;
 
+/// Boundary numbers are local to the issuing artifact. Check that identity
+/// before using a number to narrow the root's selection to a private body.
+pub(super) fn reached_builtins<'request>(
+    input: &AdmissionSource,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    request: &ProviderAdmissionRequest<'request, '_>,
+) -> Result<Vec<&'request SelectedCompilerBuiltin>, Vec<Diagnostic>> {
+    if request.compiler_builtins.is_empty() {
+        return Ok(Vec::new());
+    }
+    let subject = artifact.view().identity();
+    if subject != input.plan().psi || subject != input.closed_module().identity() {
+        return Err(vec![Diagnostic::error(
+            "compiler builtin admission requires the same Psi artifact and lowered plan",
+        )]);
+    }
+    let mut boundaries: Vec<_> = input
+        .plan()
+        .boundary_machines
+        .iter()
+        .map(|declaration| declaration.id)
+        .collect();
+    boundaries.sort_unstable();
+    let mut reached = Vec::new();
+    for builtin in request.compiler_builtins {
+        if builtin.artifact() != subject {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler builtin `{}` belongs to a different Psi artifact",
+                builtin.requirement()
+            ))]);
+        }
+        if !builtin.belongs_to(request.selected_provider_plans) {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler builtin `{}` belongs to a different provider selection",
+                builtin.requirement()
+            ))]);
+        }
+        if boundaries.binary_search(&builtin.boundary()).is_ok() {
+            reached.push(builtin);
+        }
+    }
+    Ok(reached)
+}
+
 pub(super) fn settle_compiler_builtins<'request>(
     input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
+    compiler_builtins: &[&SelectedCompilerBuiltin],
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -66,48 +88,29 @@ pub(super) fn settle_compiler_builtins<'request>(
     ),
     Vec<Diagnostic>,
 > {
-    let unsettled = request
-        .compiler_builtins
-        .iter()
-        .filter_map(|proposal| {
-            let requirement = proposal.requirement_identity;
-            let plan = &proposal.provider_plan.name;
-            match proposal.settlement {
-                TerminalCompilerBuiltinSettlement::Execution { .. } => None,
-                TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity => {
-                    Some(Diagnostic::error(format!(
-                        "selected compiler intrinsic `{plan}` for Terminal boundary `{requirement}` has no closed native catalog identity",
-                    )))
-                }
-                TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization => {
-                    Some(Diagnostic::error(format!(
-                        "selected compiler intrinsic `{plan}` for Terminal boundary `{requirement}` has no native boundary realization",
-                    )))
-                }
-            }
-        })
-        .collect::<Vec<_>>();
-    if !unsettled.is_empty() {
-        return Err(unsettled);
+    let mut resolved = Vec::with_capacity(compiler_builtins.len());
+    let mut refusals = Vec::new();
+    for &provider in compiler_builtins {
+        match ResolvedBuiltin::for_provider(provider) {
+            Ok(builtin) => resolved.push(builtin),
+            Err(reason) => refusals.push(reason),
+        }
     }
-    admit_x86_fma_features(request)?;
-    let mut admitted = Vec::with_capacity(request.compiler_builtins.len());
-    let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
-    for proposal in request.compiler_builtins {
-        let requirement = proposal.requirement_identity;
-        let TerminalCompilerBuiltinSettlement::Execution {
-            identity: mechanism,
-            execution: settled,
-        } = proposal.settlement
-        else {
-            unreachable!("unsettled compiler-builtin proposals were refused above");
-        };
+    if !refusals.is_empty() {
+        return Err(refusals);
+    }
+    admit_x86_fma_features(request, &resolved)?;
+    let mut admitted = Vec::with_capacity(resolved.len());
+    let mut mechanisms = Vec::with_capacity(resolved.len());
+    for ResolvedBuiltin {
+        provider,
+        mechanism,
+        settled,
+    } in resolved
+    {
+        let requirement = provider.requirement();
         let execution = settled.execution();
-        let boundary = terminal_psi::find_boundary_machine(
-            &input.plan().boundary_machines,
-            proposal.boundary,
-        )
-        .ok_or_else(|| {
+        let boundary = input.plan().boundary_machine(provider.boundary()).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
             ))]
@@ -115,7 +118,7 @@ pub(super) fn settle_compiler_builtins<'request>(
         if !boundary_contract_matches_selected_schema(
             input.module(),
             boundary,
-            proposal.provider_plan,
+            provider.plan(),
             requirement,
         ) {
             return Err(vec![Diagnostic::error(format!(
@@ -155,11 +158,9 @@ pub(super) fn settle_compiler_builtins<'request>(
                     "Windows process exit requires the exact checked core primitive",
                 )]);
             }
-            let physical = crate::normalized_foreign_terminal_mechanism(
-                import.locator(),
-                import.entry_plan(),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let physical =
+                crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if super::terminal_authority_policy::reviewed_windows_import(physical)
                 != Some(disposition)
             {
@@ -172,7 +173,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
                 realization: BoundarySettlementRealization::NormalizedForeignCall(import.binding(
                     requirement.to_owned(),
-                    *proposal.provider_plan.identity_digest().as_bytes(),
+                    *provider.plan().identity_digest().as_bytes(),
                 )),
             });
             mechanisms.push(AdmittedTerminalMechanism {
@@ -198,7 +199,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     .selected_program_entry_call()
                     .filter(|binding| {
                         binding.boundary() == boundary.id
-                            && binding.provider_plan() == proposal.provider_plan.identity_digest()
+                            && binding.provider_plan() == provider.plan().identity_digest()
                     })
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
@@ -249,8 +250,8 @@ pub(super) fn settle_compiler_builtins<'request>(
                 validate_access_schema(
                     input.closed_module(),
                     boundary,
-                    proposal.provider_plan,
-                    proposal.semantic_schema,
+                    provider.plan(),
+                    provider.semantic_schema(),
                     &demand,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -262,7 +263,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.operation != operation
                     || operation == TerminalAccessorKind::Take
                     || native_intrinsics::compiler_accessor_scalar_contract_identity(
-                        proposal.semantic_schema.identity_digest(),
+                        provider.semantic_schema().identity_digest(),
                         placement_commitment,
                         access_slot,
                         compiler_operation,
@@ -343,22 +344,58 @@ pub(super) fn settle_compiler_builtins<'request>(
     Ok((admitted, mechanisms))
 }
 
+struct ResolvedBuiltin<'a> {
+    provider: &'a SelectedCompilerBuiltin,
+    mechanism: native_intrinsics::CompilerIntrinsicExecutionIdentity,
+    settled: SettledCompilerBuiltin,
+}
+
+impl<'a> ResolvedBuiltin<'a> {
+    fn for_provider(provider: &'a SelectedCompilerBuiltin) -> Result<Self, Diagnostic> {
+        use native_intrinsics::CompilerIntrinsicExecutionIdentity as Intrinsic;
+        let refuse = |reason: &str| {
+            Diagnostic::error(format!(
+                "selected compiler intrinsic `{}` for Terminal boundary `{}` has {reason}",
+                provider.plan().name,
+                provider.requirement()
+            ))
+        };
+        let mechanism = provider
+            .identity()
+            .ok_or_else(|| refuse("no closed native catalog identity"))?;
+        let settled = match mechanism {
+            // These mechanisms require private lifecycle or installation evidence.
+            Intrinsic::AccessLifecycle(_)
+            | Intrinsic::EmptyRunRelease
+            | Intrinsic::StaticInterrupt(_) => None,
+            _ => SettledCompilerBuiltin::from_identity(
+                mechanism,
+                provider.boundary(),
+                provider.format(),
+            ),
+        }
+        .ok_or_else(|| refuse("no native boundary realization"))?;
+        Ok(Self {
+            provider,
+            mechanism,
+            settled,
+        })
+    }
+}
+
 fn admit_x86_fma_features(
     request: &ProviderAdmissionRequest<'_, '_>,
+    builtins: &[ResolvedBuiltin<'_>],
 ) -> Result<(), Vec<Diagnostic>> {
     let Some(requirement) = target::X86FeatureRequirement::scalar_fma(request.profile) else {
         return Ok(());
     };
     let mut diagnostics = Vec::new();
-    for proposal in request.compiler_builtins {
-        let TerminalCompilerBuiltinSettlement::Execution { execution, .. } = proposal.settlement
-        else {
-            continue;
-        };
+    for builtin in builtins {
         let CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
             operation: target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd,
             format,
-        } = execution.execution()
+        } = builtin.settled.execution()
         else {
             continue;
         };
@@ -369,7 +406,7 @@ fn admit_x86_fma_features(
         let Some(provider) = request.x86_scalar_fma_provider else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected x86 scalar FMA ProviderPlan `{}` requires explicit AVX+FMA3 admission for slot `{}`",
-                proposal.provider_plan.name,
+                builtin.provider.plan().name,
                 slot.requirement_identity(),
             )));
             continue;

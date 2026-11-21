@@ -1,9 +1,7 @@
 // Request inputs and admitted provider, interrupt, and callback carriers
 // consumed by target lowering.
 //
-// `ProviderAdmissionRequest`, `NativeProviderSettlement`,
-// `NativeBoundaryRealization`, and `NativeCompilerBuiltinSettlement` describe
-// the invocation-local inputs that native realization supplies to admission.
+// Native realization supplies the request, selected settlements and boundary realizations.
 // The admitted records (`AdmittedInstalledInterruptEntry`,
 // `AdmittedInstalledInterruptScope`, `AdmittedNativeCallbackArgument`,
 // `AdmittedCallbackEntry`, and `AdmittedBoundarySettlement`) carry sealed
@@ -60,15 +58,6 @@ pub struct NativeProviderSettlement<'execution> {
     pub realization: NativeBoundaryRealization<'execution>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct NativeCompilerBuiltinSettlement<'execution> {
-    pub requirement_identity: &'execution str,
-    pub provider_plan: &'execution provider_plans::ProviderPlan,
-    pub semantic_schema: &'execution provider_plans::ServiceSchema, // Contract authenticated by intrinsic classification before callable-identity replacement.
-    pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub settlement: crate::TerminalCompilerBuiltinSettlement,
-}
-
 #[derive(Clone, Copy)]
 pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub profile: target::TargetProfile,
@@ -81,7 +70,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
-    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    pub compiler_builtins: &'request [target_bound_program::builtins::SelectedCompilerBuiltin],
     pub native_bindings: &'request native_binding_admission::RetainedNativeBindings,
     pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
     pub installed_interrupts: &'request [crate::InstalledInterruptNativeEntryProposal],

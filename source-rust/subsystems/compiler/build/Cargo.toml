@@ -28,6 +28,8 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations" }
+provider-admission = { path = "../psi-to-native/verification/provider-admission" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 filesystem-authority = { path = "evaluation/authority/filesystem" }
 terminal-interpreter = { path = "../../interpreter" }

@@ -33,8 +33,7 @@ pub(crate) fn prepare<'input>(
     let execution = provider_realization::native_execution::prepare_program(
         proposal,
         retained.authorization(),
-    )?
-    .with_operation_evidence(artifact, artifact.published_evidence().cloned())?;
+    )?;
     let entry = proposal.program_entry().checked_entry().terminal_entry();
     let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
     for initializer in request.private_entry_ram {

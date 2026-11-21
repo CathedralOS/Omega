@@ -180,8 +180,9 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
+    let compiler_builtins = compiler_builtins::reached_builtins(input, artifact, request)?;
     let (native_settlements, native_mechanisms) =
-        crate::native_binding_settlements::settle(input, request)?;
+        crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
     require_reached_providers(
         input,
         request.profile,
@@ -202,7 +203,7 @@ pub fn admit_native_providers<'request>(
     settlements.extend(interrupt_settlements);
     mechanisms.extend(interrupt_mechanisms);
     let (builtin_settlements, builtin_mechanisms) =
-        compiler_builtins::settle_compiler_builtins(input, request)?;
+        compiler_builtins::settle_compiler_builtins(input, request, &compiler_builtins)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
     settlements.extend(native_settlements);

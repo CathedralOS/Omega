@@ -54,7 +54,7 @@ pub fn admit_terminal_intrinsics<'selection>(
     validate_external_provider_owners(module, selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut operations = Vec::new();
-    selection::visit_selected_intrinsics(
+    provider_correspondence::intrinsic_selection::visit_selected_intrinsics(
         selected,
         provenance,
         demanded,

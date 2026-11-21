@@ -32,7 +32,6 @@ pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
     RetainedComponentNativeInputs,
 };
-mod native_execution;
 mod scoped_provider_selection;
 pub use scoped_provider_selection::ScopedProviderSelection;
 mod runtime_input;
@@ -45,7 +44,6 @@ pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, PhysicalProgramEntry,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
-pub use native_execution::{NativeExecutionFacts, ScopedProviderBindings, requires_scalar_values};
 pub use native_proposal::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
 };
