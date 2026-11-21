@@ -68,13 +68,13 @@ ASSERTIONS = {
     "materialization/layout-plan": ("L4", "frozen_handoff", "materialization_pairs_the_frozen_value_with_its_exact_selected_layout", "Named reads connect", "materialization returns the selected layout plan"),
 }
 TYPED_FIXTURES = {
-    "Calls": ["generic_selection"],
-    "Numbers and operators": ["arithmetic"],
-    "Applications": ["computed_width"],
-    "Data and bindings": ["annotated_literal_binding"],
-    "Domains": ["domain_alias"],
-    "Evidence and effects": ["inherited_row"],
-    "Collection access": ["collection_access"],
+    "Calls": ["calls/accept/generic_selection.omg"],
+    "Numbers and operators": ["arithmetic/accept/arithmetic.omg"],
+    "Applications": ["computed_width/accept/computed_width.omg"],
+    "Data and bindings": ["literal_bindings/accept/annotated_literal_binding.omg"],
+    "Domains": ["domains/accept/domain_alias.omg"],
+    "Evidence and effects": ["conformances/accept/inherited_row.omg"],
+    "Collection access": ["collection_access/accept/collection_access.omg"],
 }
 
 
@@ -119,7 +119,7 @@ def record(report, suite, target, current_test, line):
             report["measurement_errors"].append(f"malformed fixture observation: {line}")
             return
         crate = DOCUMENTS[suite][0].split("/")[0]
-        _, separator, path = fields[1].replace("\\", "/").rpartition(f"/{crate}/fixtures/")
+        _, separator, path = fields[1].replace("\\", "/").rpartition(f"/{crate}/tests/fixtures/")
         if not separator or not path.endswith(".omg") or ".." in path.split("/"):
             report["measurement_errors"].append(f"unexpected fixture path: {line}")
             return
@@ -144,11 +144,11 @@ def named_lexer_requirements(cells, line):
         if cell in {"—", "every fixture", "tiling check on every fixture and spec example"}:
             continue  # Not a named case.
         for ref in cell.split(","):
-            match = re.fullmatch(r"`(byte_cases::)?([a-z][a-z0-9_]*)`", ref.strip())
-            if not match:
+            unit = re.fullmatch(r"`(byte_cases::[a-z][a-z0-9_]*)`", ref.strip())
+            fixture = re.fullmatch(rf"`([a-z][a-z0-9_]*/{group}/[a-z][a-z0-9_]*)`", ref.strip())
+            if not unit and not fixture:
                 raise ValueError(f"L0 line {line}: invalid evidence reference {ref!r}")
-            unit, name = match.groups()
-            item = {"kind": "unit test" if unit else "fixture", "name": unit + name if unit else f"{group}/{name}.omg",
+            item = {"kind": "unit test" if unit else "fixture", "name": unit[1] if unit else f"{fixture[1]}.omg",
                     "side": "direct" if group == "accept" else "refusals", "verified": False}
             if item in named:
                 raise ValueError(f"L0 line {line}: duplicate {ref}")
@@ -194,9 +194,9 @@ def document_rules(stage, source):
             fixtures = []
             if stage == "L1":
                 for kind, cell in zip(("accept", "reject"), cells[-2:]):
-                    fixtures.extend(f"{kind}/{name}.omg" for name in re.findall(r"`([a-z][a-z0-9_]*)`", cell))
+                    fixtures.extend(f"{name}.omg" for name in re.findall(rf"`([a-z][a-z0-9_]*/{kind}/[a-z][a-z0-9_]*)`", cell))
             if stage == "L3":
-                fixtures.extend(f"accept/{name}.omg" for name in TYPED_FIXTURES.get(rule, ()))
+                fixtures.extend(TYPED_FIXTURES.get(rule, ()))
             rows.append({"line": number, "section": section, "rule": rule, "description": description, "fixtures": fixtures})
             if stage == "L0":
                 rows[-1]["named_requirements"] = named_lexer_requirements(cells[-2:], number)
@@ -283,6 +283,7 @@ def finish(report, directory):
         except (OSError, ValueError) as error:
             errors.append(str(error))
             rows = []
+        fixture_dir = path.parent / "tests/fixtures"
         prefix, property_name = IDENTITY_RULES[stage]
         matching = [row for row in rows if row["rule"].startswith(prefix)]
         if len(matching) != 1:
@@ -293,14 +294,14 @@ def finish(report, directory):
             row["refusal_only_rule"] = ((stage == "L0" and row["rule"] in {"R13", "R17"})
                                         or (stage == "L4" and row["rule"].startswith("When preparation stops, its diagnosed entry point")))
             if stage == "L0":
-                unconfirmed_fixtures.update(check_lexer_fixtures(row, path.parent / "fixtures", evidence, results, errors))
+                unconfirmed_fixtures.update(check_lexer_fixtures(row, fixture_dir, evidence, results, errors))
             for fixture in row.pop("fixtures"):
-                source = path.parent / "fixtures" / fixture
+                source = fixture_dir / fixture
                 if not source.is_file() or not source.with_suffix(".expected").is_file():
                     errors.append(f"{stage} line {row['line']}: mapped fixture missing its input or expectation: {fixture}")
                     unconfirmed_fixtures.add(f"{stage}/{fixture}")
                 elif passing_fixture(stage, fixture, evidence, results):
-                    if fixture.startswith("accept/"):
+                    if "accept" in Path(fixture).parts:
                         row["direct"].append(fixture)
                     else:
                         row.setdefault("refusals", []).append(fixture)
@@ -324,9 +325,8 @@ def finish(report, directory):
                 entries[0]["direct"].append(f"{claim} ({binary}::{test})")
         outlines[stage] = rows
         if stage in GOLDEN_TESTS:
-            fixture_dir = path.parent / "fixtures"
-            for group in (("accept", "reject", "prepared/accept", "prepared/reject") if stage == "L3" else ("accept", "reject")):
-                for source in sorted((fixture_dir / group).glob("*.omg")):
+            for group in (("*/accept", "*/reject", "*/prepared/accept", "*/prepared/reject") if stage == "L3" else ("*/accept", "*/reject")):
+                for source in sorted(fixture_dir.glob(f"{group}/*.omg")):
                     key = f"{stage}/{source.relative_to(fixture_dir).as_posix()}"
                     fixture = source.relative_to(fixture_dir).as_posix()
                     if not source.with_suffix(".expected").is_file() or not passing_fixture(stage, fixture, evidence, results):

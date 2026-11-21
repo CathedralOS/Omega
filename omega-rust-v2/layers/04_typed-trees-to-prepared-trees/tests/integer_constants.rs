@@ -1,7 +1,10 @@
+#[path = "support/source_package.rs"]
+mod source_package;
+
 use num_bigint::BigInt;
 use omega_preparation::{PreparedTrees, prepare_source_package};
-use omega_resolver::{ParsedSource, StageSource};
-use omega_typer::{SourcePackage, TypeError, ValueType, resolve_source_package};
+use omega_typer::{TypeError, ValueType};
+use source_package::source_package;
 
 #[path = "integer_constants/selected_rule.rs"]
 mod selected_rule;
@@ -15,24 +18,6 @@ fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
 
 fn prepare_files<'text, const N: usize>(files: [(&'text str, &'text str); N]) -> Result<PreparedTrees<'text>, TypeError> {
     prepare_source_package(&source_package(files))
-}
-
-fn source_package<'text, const N: usize>(files: [(&'text str, &'text str); N]) -> SourcePackage<'text> {
-    let parsed = files.map(|(path, source)| {
-        let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
-        let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
-        (path, source, tokens, tree)
-    });
-    let sources = parsed.each_ref().map(|(path, text, tokens, tree)| StageSource {
-        package: "app",
-        source: ParsedSource {
-            logical_path: path,
-            text,
-            tokens,
-            tree,
-        },
-    });
-    resolve_source_package(&sources).unwrap()
 }
 
 fn assert_integer_constant(

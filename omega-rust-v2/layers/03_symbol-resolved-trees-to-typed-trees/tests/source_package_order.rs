@@ -7,9 +7,9 @@ use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{NodeSemantics, TypeError, TypedTrees, ValueType, resolve_source_package, type_source_package};
 
 const FILE_ORDERS: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
-const DRAW: &str = include_str!("../fixtures/draw.omg");
-const RENDER: &str = include_str!("../fixtures/render.omg");
-const WRONG_RENDER: &str = include_str!("../fixtures/wrong_result.omg");
+const DRAW: &str = include_str!("fixtures/overloaded_calls/draw.omg");
+const RENDER: &str = include_str!("fixtures/overloaded_calls/render.omg");
+const WRONG_RENDER: &str = include_str!("fixtures/overloaded_calls/wrong_result.omg");
 const READ: &str = "machine read(items: @[bool], i: u64) -> bool { items[i] }";
 const WRONG_READ: &str = "machine read(items: @[bool], i: u64) -> u8 { items[i] }";
 

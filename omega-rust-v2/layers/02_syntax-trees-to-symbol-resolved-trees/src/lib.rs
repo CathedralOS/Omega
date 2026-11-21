@@ -1,5 +1,9 @@
 //! L2 binds names in the parsed files and dependency scope admitted for one stage.
 //! Type-directed selections retain their candidates and the original source spans for L3.
+//!
+//! Start at [`resolve_stage_with_exports`] in `stage.rs`. It binds the parsed package files
+//! against their admitted dependencies and exports, and returns [`SymbolResolvedTrees`].
+//! Follow one binding in `tests/directory_lookup.rs` and `tests/fixtures/directory_lookup/`.
 
 #![forbid(unsafe_code)]
 

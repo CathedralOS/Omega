@@ -21,14 +21,14 @@ include!("calls/width_domain_candidates.rs");
 
 #[test]
 fn selects_by_operand_and_checks_the_selected_result() {
-    let declarations = ("draw.omg", include_str!("../fixtures/draw.omg"));
-    let caller = ("render.omg", include_str!("../fixtures/render.omg"));
+    let declarations = ("draw.omg", include_str!("fixtures/overloaded_calls/draw.omg"));
+    let caller = ("render.omg", include_str!("fixtures/overloaded_calls/render.omg"));
     let stage = check(&[caller, declarations]).unwrap();
     assert_eq!(stage, check(&[declarations, caller]).unwrap());
     assert_eq!(stage.calls.len(), 1);
     assert_eq!(stage.calls[0].machine.operands, ["bool"]);
     assert_eq!(stage.calls[0].result, ValueType::Bool);
-    let wrong = include_str!("../fixtures/wrong_result.omg");
+    let wrong = include_str!("fixtures/overloaded_calls/wrong_result.omg");
     let err = check(&[declarations, ("wrong.omg", wrong)]).unwrap_err();
     assert_eq!(err.span.slice(wrong.as_bytes()).unwrap(), b"draw(flag)");
     assert!(err.message.contains("expected u32, found bool"), "{err:?}");

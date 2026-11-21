@@ -1,11 +1,11 @@
 /*
-    Golden-file fixture runner shared by every layer's tests.
+    Golden-file comparisons for the lexer, parser and typer.
 
     A layer is a function from one representation to the next. To test it we
     keep a directory of small input files, and beside each input a text file
-    holding what the layer should print for it. `check_directory` walks the
-    directory, hands each input's bytes to the layer, and compares what comes
-    back with the stored text, byte for byte.
+    holding what the layer should print for it. The lexer, parser and typer use
+    `check_features` to read one tier across feature folders. The runner compares the layer's
+    output with the stored text, byte for byte.
 
     We compare text and not data structures on purpose: a failure then shows up
     as a readable diff of the layer's own dump, and adding a case means adding
@@ -101,20 +101,47 @@ pub fn check_directory_named(
     input_extension: &str,
     produce_output: impl Fn(&Path, &[u8]) -> Result<String, String>,
 ) -> io::Result<GoldenReport> {
-    let should_bless =
-        std::env::var_os(BLESS_ENVIRONMENT_VARIABLE).is_some_and(|value| value == "1");
-    check_directory_with_policy(fixture_directory, input_extension, produce_output, should_bless)
+    check_inputs(list_input_paths(fixture_directory, input_extension)?, produce_output, blessing_enabled())
 }
 
-fn check_directory_with_policy(
-    fixture_directory: &Path,
-    input_extension: &str,
+/// List the .omg inputs under each feature's requested tier, preserving filename order for benchmarks.
+pub fn feature_inputs(root: &Path, tier: &str) -> io::Result<Vec<PathBuf>> {
+    let mut paths = Vec::new();
+    for feature in fs::read_dir(root)? {
+        let feature = feature?;
+        if feature.file_type()?.is_dir() {
+            match list_input_paths(&feature.path().join(tier), "omg") {
+                Ok(inputs) => paths.extend(inputs),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    paths.sort_by(|a, b| a.file_name().cmp(&b.file_name()).then_with(|| a.cmp(b)));
+    Ok(paths)
+}
+
+/// Compare each feature's inputs for this tier against their sibling .expected files.
+pub fn check_features(
+    root: &Path,
+    tier: &str,
+    produce_output: impl Fn(&Path, &[u8]) -> Result<String, String>,
+) -> io::Result<GoldenReport> {
+    check_inputs(feature_inputs(root, tier)?, produce_output, blessing_enabled())
+}
+
+fn blessing_enabled() -> bool {
+    std::env::var_os(BLESS_ENVIRONMENT_VARIABLE).is_some_and(|value| value == "1")
+}
+
+fn check_inputs(
+    paths: Vec<PathBuf>,
     produce_output: impl Fn(&Path, &[u8]) -> Result<String, String>,
     should_bless: bool,
 ) -> io::Result<GoldenReport> {
     let mut report = GoldenReport::default();
 
-    for input_path in list_input_paths(fixture_directory, input_extension)? {
+    for input_path in paths {
         report.case_count += 1;
         let input_bytes = fs::read(&input_path)?;
         let expected_path = input_path.with_extension(EXPECTED_EXTENSION);
@@ -226,7 +253,7 @@ fn describe_first_difference(expected_output: &str, actual_output: &str) -> Stri
 
 #[cfg(test)]
 mod tests {
-    use super::{Path, check_directory_with_policy, describe_first_difference, fs};
+    use super::{Path, check_inputs, list_input_paths, describe_first_difference, fs};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -250,19 +277,19 @@ mod tests {
             b"refuse" => Err("wrong verdict".into()),
             _ => Ok(String::from_utf8(source.to_vec()).unwrap()),
         };
-        let report = check_directory_with_policy(&directory, "omg", |_, bytes| output(bytes), false).unwrap();
+        let report = check_inputs(list_input_paths(&directory, "omg").unwrap(), |_, bytes| output(bytes), false).unwrap();
         assert_eq!((report.case_count, report.blessed_count, report.failures.len()), (4, 0, 3));
         let details = report.describe_failures().unwrap();
         for reason in ["no expected file", "final line ending", "wrong verdict"] {
             assert!(details.contains(reason), "{details}");
         }
-        let blessed = check_directory_with_policy(&directory, "omg", |_, bytes| output(bytes), true).unwrap();
+        let blessed = check_inputs(list_input_paths(&directory, "omg").unwrap(), |_, bytes| output(bytes), true).unwrap();
         assert_eq!((blessed.case_count, blessed.blessed_count, blessed.failures.len()), (4, 2, 1));
         assert!(!directory.join("refused.expected").exists());
         assert_eq!(fs::read(directory.join("missing.expected")).unwrap(), b"new");
         assert_eq!(fs::read(directory.join("newline.expected")).unwrap(), b"line\n");
         fs::create_dir(directory.join("refused.expected")).unwrap();
-        assert!(check_directory_with_policy(&directory, "omg", |_, _| Ok(String::new()), false).is_err());
+        assert!(check_inputs(list_input_paths(&directory, "omg").unwrap(), |_, _| Ok(String::new()), false).is_err());
         fs::remove_dir(directory.join("refused.expected")).unwrap();
         for file in fs::read_dir(&directory).unwrap() {
             fs::remove_file(file.unwrap().path()).unwrap();

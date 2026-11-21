@@ -13,7 +13,7 @@ from diagnostic_fields import readable, unescape
 import typing_reason_evidence as reasons
 
 SOURCE = "layers/03_symbol-resolved-trees-to-typed-trees/src"
-FIXTURES = Path(SOURCE).parent / "fixtures"
+FIXTURES = Path(SOURCE).parent / "tests/fixtures"
 GOLDEN_TEST = "typed_fixtures_match_handwritten_expectations"
 COMMAND = ["mbx", "run", "--locked", "-p", "spec-corpus", "--features", "typing-sites", "--bin", "typing_diagnostic_sites"]
 HEADER = ["#typing-diagnostic-sites\tv1", "path\tline\tcolumn\tscope\tconstructor\tclass\ttext"]
@@ -94,7 +94,7 @@ def record_return(report, stage, target, capture, line):
         if tag not in {"OMEGA_TYPING_RETURN", "OMEGA_TYPING_RETURN_CHECKED"} or phase not in {"refused", "pending"}:
             raise ValueError("unknown record or result phase")
         path, package, file, message = [unescape(v).decode("utf-8") for v in (path, package, file, message)]
-        if fixture and ((target, capture[1]) != ("tests/expected.rs", GOLDEN_TEST) or not re.fullmatch(r"(?:prepared/)?reject/[a-zA-Z0-9_-]+\.omg", fixture)):
+        if fixture and ((target, capture[1]) != ("tests/expected.rs", GOLDEN_TEST) or not re.fullmatch(r"[a-zA-Z0-9_-]+/(?:prepared/)?reject/[a-zA-Z0-9_-]+\.omg", fixture)):
             raise ValueError("fixture observation outside its golden test or rejection directory")
         rust_line, col, start, end = map(int, (rust_line, col, start, end))
         if not path or min(rust_line, col) < 1 or not 0 <= start <= end or len(message.encode()) != int(size) or not message:
@@ -196,7 +196,7 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         if site is not None and fixture:
             checked_fixtures.setdefault(fixture, []).append((site, result))
     if statuses.get(("tests/expected.rs", GOLDEN_TEST)) == ["ok"]:
-        paths = {p.relative_to(fixture_root).as_posix(): p for pattern in ["reject/*.omg", "prepared/reject/*.omg"] for p in fixture_root.glob(pattern)}
+        paths = {p.relative_to(fixture_root).as_posix(): p for pattern in ["*/reject/*.omg", "*/prepared/reject/*.omg"] for p in fixture_root.glob(pattern)}
         for fixture in sorted(paths.keys() | checked_fixtures.keys()):
             observed = checked_fixtures.get(fixture, [])
             try:

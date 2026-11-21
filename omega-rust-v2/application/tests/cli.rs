@@ -24,7 +24,7 @@ fn accepts_a_whole_file_with_v2_reference_syntax() {
         &[
             "source",
             "parse",
-            "../layers/01_tokens-to-syntax-trees/fixtures/accept/types.omg",
+            "../layers/01_tokens-to-syntax-trees/tests/fixtures/types/accept/types.omg",
         ],
     );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -33,9 +33,9 @@ fn accepts_a_whole_file_with_v2_reference_syntax() {
 
 #[test]
 fn resolves_only_the_named_package_files_and_locates_missing_callees() {
-    let root = application_directory().join("../layers/02_syntax-trees-to-symbol-resolved-trees/fixtures");
+    let root = application_directory().join("../layers/02_syntax-trees-to-symbol-resolved-trees/tests/fixtures/directory_lookup");
     let pass = invoke(
-        &root.join("accept/sibling_machine"),
+        &root.join("sibling_machine"),
         &[
             "source",
             "resolve",
@@ -46,13 +46,13 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
     );
     assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
     let outside_package = invoke(
-        &root.join("accept/sibling_machine"),
+        &root.join("sibling_machine"),
         &["source", "resolve", "../sibling_machine/combat/main.omg"],
     );
     assert_eq!(outside_package.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&outside_package.stderr).contains("expected a path within the current package"));
     let fail = invoke(
-        &root.join("reject/child_machine"),
+        &root.join("child_machine"),
         &["source", "resolve", "combat/main.omg", "combat/ai/scoring.omg"],
     );
     assert_eq!(fail.status.code(), Some(1));
@@ -64,7 +64,7 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
 
 #[test]
 fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
-    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
+    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/overloaded_calls");
     let pass = invoke(&root, &["source", "type", "draw.omg", "render.omg"]);
     assert!(pass.status.success() && pass.stderr.is_empty() && pass.stdout.is_empty());
     let fail = invoke(&root, &["source", "type", "draw.omg", "wrong_result.omg"]);
@@ -79,7 +79,7 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
 
 #[test]
 fn prepares_a_signed_index_and_reports_exact_intermediate_overflow() {
-    let root = application_directory().join("../layers/04_typed-trees-to-prepared-trees/tests/fixtures");
+    let root = application_directory().join("../layers/04_typed-trees-to-prepared-trees/tests/fixtures/signed_arithmetic");
     let pass = invoke(&root, &["source", "prepare", "signed_wrap.omg"]);
     assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
     assert!(pass.stdout.is_empty() && pass.stderr.is_empty());
@@ -92,7 +92,7 @@ fn prepares_a_signed_index_and_reports_exact_intermediate_overflow() {
 
 #[test]
 fn types_a_computed_width_and_reports_the_overflowing_specialization() {
-    let fixtures = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
+    let fixtures = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/computed_width");
     let ok = invoke(&fixtures.join("accept"), &["source", "type", "computed_width.omg"]);
     let error = invoke(&fixtures.join("reject"), &["source", "type", "computed_width.omg"]);
     assert!(ok.status.success() && ok.stdout.is_empty() && ok.stderr.is_empty());
@@ -118,11 +118,11 @@ fn types_a_computed_width_and_reports_the_overflowing_specialization() {
 fn reports_layer_refusals_at_the_original_file_position() {
     for (path, diagnostic) in [
         (
-            "../layers/01_tokens-to-syntax-trees/fixtures/reject/ampersand_reference_type.omg",
+            "../layers/01_tokens-to-syntax-trees/tests/fixtures/types/reject/ampersand_reference_type.omg",
             ":1:18: parser: expected a type (bytes 17..18)",
         ),
         (
-            "../layers/00_bytes-to-tokens/fixtures/reject/invalid_hex_escape.omg",
+            "../layers/00_bytes-to-tokens/tests/fixtures/quoted_literals/reject/invalid_hex_escape.omg",
             ":1:10: lexer: \\x must be followed by exactly two hexadecimal digits (bytes 9..11)",
         ),
     ] {
@@ -196,7 +196,7 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
 }
 #[test]
 fn source_type_checks_inherited_rows_and_locates_ambiguous_evidence() {
-    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
+    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/conformances");
     let accepted = invoke(&root.join("accept"), &["source", "type", "inherited_row.omg"]);
     assert!(accepted.status.success(), "{}", String::from_utf8_lossy(&accepted.stderr));
     assert!(accepted.stdout.is_empty() && accepted.stderr.is_empty());
@@ -241,7 +241,7 @@ fn resolve_refuses_a_filename_that_cannot_identify_a_source_module() {
 
 #[test]
 fn lowers_prepared_array_extent_and_runtime_arithmetic() {
-    let root = application_directory().join("../layers/05_prepared-trees-to-terminal-psi/tests/fixtures");
+    let root = application_directory().join("../layers/05_prepared-trees-to-terminal-psi/tests/fixtures/array_extent");
     let ok = invoke(&root, &["source", "lower", "extent.omg"]);
     assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stderr));
     assert!(ok.stdout.is_empty() && ok.stderr.is_empty());

@@ -72,11 +72,11 @@ fn inspect_fragment(
 #[test]
 fn every_spec_fragment_has_a_preparation_outcome() {
     let examples = spec_corpus::published_examples().unwrap();
-    let resolution: BTreeMap<_, _> = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt")
+    let resolution: BTreeMap<_, _> = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/tests/spec-outcomes.txt")
         .lines()
         .map(|line| line.split_once("  ").unwrap())
         .collect();
-    let typing: BTreeMap<_, _> = include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt")
+    let typing: BTreeMap<_, _> = include_str!("../../03_symbol-resolved-trees-to-typed-trees/tests/spec-outcomes.txt")
         .lines()
         .map(|line| line.split_once("  ").unwrap())
         .collect();

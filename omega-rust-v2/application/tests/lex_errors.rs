@@ -12,7 +12,7 @@ use std::{
 
 /// Where the offending spelling of a case comes from.
 enum Golden {
-    /// A reject fixture under `layers/00_bytes-to-tokens/fixtures/reject`.
+    /// A reject fixture under `layers/00_bytes-to-tokens/tests/fixtures`.
     Fixture(&'static str),
     /// A byte-level lexer test whose input cannot be a readable fixture.
     ByteCase {
@@ -25,7 +25,7 @@ enum Golden {
 impl Golden {
     fn provenance(&self) -> String {
         match self {
-            Golden::Fixture(name) => format!("omega-lexer fixtures/reject/{name}"),
+            Golden::Fixture(name) => format!("omega-lexer tests/fixtures/{name}"),
             Golden::ByteCase { test, .. } => format!("omega-lexer {test}"),
         }
     }
@@ -76,29 +76,29 @@ fn input(kind: LexErrorKind) -> Twin {
             b"// \xff\nmachine f()->bool{true}",
         ),
         NonAsciiOutsideCommentOrQuoted => twin(
-            Fixture("non_ascii_identifier"),
+            Fixture("words/reject/non_ascii_identifier"),
             b"machine cafe()->bool{true}",
             "machine café()->bool{true}".as_bytes(),
         ),
-        UnknownCharacter => twin(Fixture("unknown_character_question"), b"machine f()->bool{true}", b"machine f()->bool{true?}"),
+        UnknownCharacter => twin(Fixture("punctuation/reject/unknown_character_question"), b"machine f()->bool{true}", b"machine f()->bool{true?}"),
         UnterminatedBlockComment => twin(
-            Fixture("unterminated_block_comment"),
+            Fixture("whitespace_and_comments/reject/unterminated_block_comment"),
             b"machine f()->bool{true}\n/* never closed */\n",
             b"machine f()->bool{true}\n/* never closed\n",
         ),
-        UnterminatedQuoted => twin(Fixture("unterminated_quoted"), br#"const S:[u8;3]="abc";"#, br#"const S:[u8;3]="abc;"#),
+        UnterminatedQuoted => twin(Fixture("quoted_literals/reject/unterminated_quoted"), br#"const S:[u8;3]="abc";"#, br#"const S:[u8;3]="abc;"#),
         NewlineInQuoted => {
             // The positive twin spells the line break as the escape `\n`: seven bytes either way.
-            twin(Fixture("newline_in_quoted"), br#"const S:[u8;7]="abc\ndef";"#, b"const S:[u8;7]=\"abc\ndef\";")
+            twin(Fixture("quoted_literals/reject/newline_in_quoted"), br#"const S:[u8;7]="abc\ndef";"#, b"const S:[u8;7]=\"abc\ndef\";")
         }
-        CodepointEscape => twin(Fixture("codepoint_escape"), br#"const S:[u8;1]="\x41";"#, br#"const S:[u8;1]="\u{41}";"#),
-        UnknownEscape => twin(Fixture("unknown_escape"), br#"const S:[u8;3]="a\tb";"#, br#"const S:[u8;3]="a\qb";"#),
-        InvalidHexEscape => twin(Fixture("invalid_hex_escape"), br#"const S:[u8;1]="\x21";"#, br#"const S:[u8;1]="\xZ1";"#),
-        RawLiteralPrefix => twin(Fixture("raw_literal_prefix"), br#"const S:[u8;3]="abc";"#, br#"const S:[u8;3]=r"abc";"#),
-        MissingRadixDigits => twin(Fixture("missing_radix_digits"), b"machine f()->u8{0x1u8}", b"machine f()->u8{0xu8}"),
-        DigitOutsideRadix => twin(Fixture("digit_outside_radix_binary"), b"machine f()->u8{0b101u8}", b"machine f()->u8{0b102u8}"),
-        MissingExponentDigits => twin(Fixture("missing_exponent_digits"), b"const A:f64=1e+5;", b"const A:f64=1e+;"),
-        InvalidLiteralSuffix => twin(Fixture("invalid_suffix_usize"), b"machine f()->u64{7u64}", b"machine f()->u64{7usize}"),
+        CodepointEscape => twin(Fixture("quoted_literals/reject/codepoint_escape"), br#"const S:[u8;1]="\x41";"#, br#"const S:[u8;1]="\u{41}";"#),
+        UnknownEscape => twin(Fixture("quoted_literals/reject/unknown_escape"), br#"const S:[u8;3]="a\tb";"#, br#"const S:[u8;3]="a\qb";"#),
+        InvalidHexEscape => twin(Fixture("quoted_literals/reject/invalid_hex_escape"), br#"const S:[u8;1]="\x21";"#, br#"const S:[u8;1]="\xZ1";"#),
+        RawLiteralPrefix => twin(Fixture("quoted_literals/reject/raw_literal_prefix"), br#"const S:[u8;3]="abc";"#, br#"const S:[u8;3]=r"abc";"#),
+        MissingRadixDigits => twin(Fixture("numbers/reject/missing_radix_digits"), b"machine f()->u8{0x1u8}", b"machine f()->u8{0xu8}"),
+        DigitOutsideRadix => twin(Fixture("numbers/reject/digit_outside_radix_binary"), b"machine f()->u8{0b101u8}", b"machine f()->u8{0b102u8}"),
+        MissingExponentDigits => twin(Fixture("numbers/reject/missing_exponent_digits"), b"const A:f64=1e+5;", b"const A:f64=1e+;"),
+        InvalidLiteralSuffix => twin(Fixture("numbers/reject/invalid_suffix_usize"), b"machine f()->u64{7u64}", b"machine f()->u64{7usize}"),
     }
 }
 
@@ -108,7 +108,7 @@ fn fixture_occurrence(
     name: &str,
     kind: LexErrorKind,
 ) -> Result<Vec<u8>, String> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../layers/00_bytes-to-tokens/fixtures/reject");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../layers/00_bytes-to-tokens/tests/fixtures");
     let source = fs::read(directory.join(format!("{name}.omg"))).map_err(|e| format!("{name}.omg: {e}"))?;
     let expected = fs::read_to_string(directory.join(format!("{name}.expected"))).map_err(|e| format!("{name}.expected: {e}"))?;
     let lines: Vec<_> = expected.lines().collect();

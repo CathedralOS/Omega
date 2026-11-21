@@ -1,4 +1,4 @@
-//! Runs the accept and reject fixtures under `fixtures/` against their expected dumps.
+//! Runs the accept and reject fixtures under `tests/fixtures/<feature>/` against their expected dumps.
 
 mod support;
 
@@ -7,16 +7,14 @@ use omega_parser::parse_file;
 use std::path::{Path, PathBuf};
 use support::{describe_tree_problem, dump_parse_error, dump_tree};
 
-fn get_fixture_directory(group: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("fixtures")
-        .join(group)
+fn fixtures() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
 /// Every accept fixture is a whole file: it must parse with `parse_file`, the strict entry point.
 #[test]
 fn accept_fixtures_parse_to_their_expected_trees() {
-    let report = golden::check_directory(&get_fixture_directory("accept"), "omg", |source_bytes| {
+    let report = golden::check_features(&fixtures(), "accept", |_, source_bytes| {
         let tokens = lex(source_bytes).map_err(|lex_error| format!("an accept fixture does not lex: {lex_error}"))?;
         let syntax_tree = parse_file(source_bytes, &tokens)
             .map_err(|parse_error| format!("an accept fixture was rejected:\n{}", dump_parse_error(source_bytes, &parse_error)))?;
@@ -42,7 +40,7 @@ fn accept_fixtures_parse_to_their_expected_trees() {
 /// Every reject fixture lexes, and then fails to parse with exactly the error its dump records.
 #[test]
 fn reject_fixtures_fail_with_their_expected_error() {
-    let report = golden::check_directory(&get_fixture_directory("reject"), "omg", |source_bytes| {
+    let report = golden::check_features(&fixtures(), "reject", |_, source_bytes| {
         let tokens = lex(source_bytes).map_err(|lex_error| format!("a reject fixture must lex, so that it is the parser refusing it: {lex_error}"))?;
 
         match parse_file(source_bytes, &tokens) {

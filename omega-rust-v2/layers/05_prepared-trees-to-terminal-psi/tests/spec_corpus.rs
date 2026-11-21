@@ -16,9 +16,9 @@ use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::resolve_source_package;
 use spec_corpus::parser_examples::{fragment_kind, parser_source};
 
-const RESOLUTION: &str = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt");
-const TYPING: &str = include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt");
-const LOWERING: &str = include_str!("../fixtures/spec-outcomes.txt");
+const RESOLUTION: &str = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/tests/spec-outcomes.txt");
+const TYPING: &str = include_str!("../../03_symbol-resolved-trees-to-typed-trees/tests/spec-outcomes.txt");
+const LOWERING: &str = include_str!("spec-outcomes.txt");
 
 /// These fences demonstrate local statements. Lowering
 /// receives packages, so the bare fragments are expected to refuse.

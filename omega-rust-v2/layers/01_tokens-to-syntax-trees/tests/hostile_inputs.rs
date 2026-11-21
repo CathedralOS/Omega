@@ -417,22 +417,13 @@ fn random_token_soup_is_refused_or_parsed_into_a_sound_tree() {
 */
 #[test]
 fn fixtures_with_one_token_removed_never_break_the_parser() {
-    let fixture_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/accept");
+    let fixture_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let mut mutant_count = 0usize;
     let mut refused_count = 0usize;
     // Which tokens a file survives losing, by spelling. Printed, so a new optional token is noticed.
     let mut survivable_spellings: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
 
-    for directory_entry in std::fs::read_dir(&fixture_directory).expect("Expected the accept fixtures to be readable.") {
-        let fixture_path = directory_entry.expect("Expected a directory entry.").path();
-
-        if fixture_path
-            .extension()
-            .is_none_or(|extension| extension != "omg")
-        {
-            continue;
-        }
-
+    for fixture_path in golden::feature_inputs(&fixture_directory, "accept").expect("read parser fixtures") {
         let source_bytes = std::fs::read(&fixture_path).expect("Expected the fixture to be readable.");
         let tokens = lex(&source_bytes).expect("Expected every accept fixture to lex.");
 

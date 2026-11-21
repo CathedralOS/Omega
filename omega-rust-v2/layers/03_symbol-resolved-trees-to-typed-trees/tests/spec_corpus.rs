@@ -7,7 +7,7 @@ use spec_corpus::parser_examples::{fragment_kind, parser_source};
 fn spec_fragments_have_reviewed_typing_outcomes() {
     let examples = spec_corpus::published_examples().unwrap();
     let mut outcomes = String::new();
-    let resolved = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt");
+    let resolved = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/tests/spec-outcomes.txt");
     assert_eq!(examples.len(), resolved.lines().count());
 
     for example in examples {
@@ -44,7 +44,7 @@ fn spec_fragments_have_reviewed_typing_outcomes() {
     }
     assert_eq!(
         outcomes.lines().collect::<Vec<_>>(),
-        include_str!("../fixtures/spec-outcomes.txt")
+        include_str!("spec-outcomes.txt")
             .lines()
             .collect::<Vec<_>>()
     );

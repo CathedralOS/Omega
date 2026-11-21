@@ -1,6 +1,9 @@
 /*
     L1: the Omega parser. Tokens in, a syntax tree out.
 
+    Start at parse_file in parsing/entry_points.rs. L2 receives the tree alongside its source and tokens.
+    Open tests/golden_fixtures.rs and tests/fixtures/operators/ to see how expressions group.
+
     This is the second layer of Omega-V2. It takes the token list the lexer
     produced for one source file and decides how the tokens group: which run of
     them is a machine, which is its header and which its body, where each
