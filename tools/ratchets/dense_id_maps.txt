@@ -41,7 +41,7 @@
 4 source-rust/subsystems/compiler/psi-semantics/src/substitution.rs
 2 source-rust/subsystems/compiler/psi-semantics/src/synchronous_calls.rs
 3 source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs
-2 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/admit_providers.rs
+1 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/admit_providers.rs
 4 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations.rs
 4 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations/scalars.rs
 3 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations/storage.rs

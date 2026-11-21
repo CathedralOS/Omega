@@ -6,6 +6,7 @@ use provider_plans::EvaluatedNativeBinding;
 pub(crate) fn settle<'execution>(
     input: &crate::AdmissionSource<'_>,
     request: &crate::ProviderAdmissionRequest<'_, 'execution>,
+    compiler_builtins: &[&target_bound_program::builtins::SelectedCompilerBuiltin],
 ) -> Result<
     (
         Vec<crate::AdmittedBoundarySettlement<'execution>>,
@@ -48,9 +49,7 @@ pub(crate) fn settle<'execution>(
             .selected_provider_plans
             .selected_requirement_row(requirement)
             .is_some()
-            || request
-                .compiler_builtins
-                .iter()
+            || compiler_builtins.iter()
                 .any(|builtin| builtin.boundary() == row.boundary)
         {
             return Err(refuse(

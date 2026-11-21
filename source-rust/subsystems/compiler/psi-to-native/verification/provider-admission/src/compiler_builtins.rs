@@ -25,7 +25,6 @@ use provider_plans::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
     BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
 };
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
@@ -37,6 +36,7 @@ use terminal_semantics::AccessorScalarBoundaryDemand;
 pub(super) fn settle_compiler_builtins<'request>(
     input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
+    compiler_builtins: &[&'request SelectedCompilerBuiltin],
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -44,30 +44,9 @@ pub(super) fn settle_compiler_builtins<'request>(
     ),
     Vec<Diagnostic>,
 > {
-    let mut resolved = Vec::with_capacity(request.compiler_builtins.len());
+    let mut resolved = Vec::with_capacity(compiler_builtins.len());
     let mut refusals = Vec::new();
-    if request.compiler_builtins.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let reached: BTreeMap<_, _> = input
-        .plan()
-        .boundary_machines
-        .iter()
-        .map(|boundary| (boundary.id, boundary))
-        .collect();
-    let published: BTreeSet<_> = input
-        .module()
-        .interfaces
-        .boundary_machines
-        .iter()
-        .map(|boundary| boundary.id)
-        .collect();
-    for provider in request.compiler_builtins {
-        // Private bodies can omit a published sibling's calls. An unknown boundary still
-        // goes through admission so that malformed selections are refused.
-        if !reached.contains_key(&provider.boundary()) && published.contains(&provider.boundary()) {
-            continue;
-        }
+    for &provider in compiler_builtins {
         match ResolvedBuiltin::for_provider(provider, request.selected_provider_plans) {
             Ok(builtin) => resolved.push(builtin),
             Err(reason) => refusals.push(reason),
@@ -87,7 +66,7 @@ pub(super) fn settle_compiler_builtins<'request>(
     {
         let requirement = provider.requirement();
         let execution = settled.execution();
-        let boundary = reached.get(&provider.boundary()).copied().ok_or_else(|| {
+        let boundary = input.plan().boundary_machine(provider.boundary()).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
             ))]
