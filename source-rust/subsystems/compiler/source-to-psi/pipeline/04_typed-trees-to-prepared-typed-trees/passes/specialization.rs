@@ -79,9 +79,13 @@ use crate::source_state::{
 
 mod callable_binder;
 mod named_conformances;
+mod provider_methods;
 mod reflected_fields;
 
-pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn prepare(
+    program: &mut TypedTrees,
+    selected_providers: &[SymbolHandle],
+) -> Result<(), Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
     // Reflection creates one potential callback branch per declared case. Lowering
@@ -90,8 +94,15 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut case_branches = std::collections::HashSet::new();
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
+    let mut selected_methods = provider_methods::SelectedMethods::new(program, selected_providers);
     let mut position = 0;
-    while position < program.machines().len() {
+    loop {
+        if position == program.machines().len() {
+            selected_methods.prepare_applications(program)?;
+            if position == program.machines().len() {
+                break;
+            }
+        }
         let holder = program.machines()[position].symbol;
         let conditional = program.machines()[position].purpose
             == crate::source_state::machine::MachinePurpose::ActiveCaseBranch
