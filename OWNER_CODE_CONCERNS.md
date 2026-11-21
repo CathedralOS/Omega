@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A workspace member loses the dependency graph of a provider it ran
-
-- Category: Knowledge crossing a boundary.
-- Where: [workspace member selection](source-rust/subsystems/package-manager/project/mod.rs), [member observation](source-rust/subsystems/package-manager/dependencies/source/workspace_acquisition.rs), [catalog review](source-rust/subsystems/package-manager/dependencies/graph/subject/catalog.rs).
-- Saw: A member can run a provider before declaring its package name. `select_workspace` passes an empty list of dependency graphs to `WorkspaceMemberObservation::new`. With a local Git workspace and a separate provider repository, preparation stopped with `workspace observation lost a demanded dependency source graph`. The [executed workspace fixture](source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace/README.md) includes a member that uses a provider to choose its name.
-- Cost: Selecting another member can fail while reading the catalog. Retain the source graph of each provider the member actually used so package review can account for it. Check that the provider stays outside the selected Product's dependencies.
-- Reported: 2026-11-20, Codex, while moving project preparation into the package manager.
-
 ### Computing native entry reach imports the optimizer's complete provider proposal
 
 - Category: Knowledge crossing a boundary.

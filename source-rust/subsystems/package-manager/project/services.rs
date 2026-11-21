@@ -1,5 +1,5 @@
 //! Acquire the exact dependency occurrences requested by a suspended Build.
-use super::SourceHost;
+use super::{PreparedRequest, SettledSource, SourceHost};
 use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
@@ -12,10 +12,12 @@ use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
 use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
 use project_build::PlanningServices;
+use std::collections::BTreeMap;
 
 pub(super) struct SourceServices<'a, 's, 'p> {
     pub host: &'a mut SourceHost<'s, 'p>,
     pub acquired: &'a AcquiredBuildSource,
+    pub requests: &'a mut BTreeMap<(DependencyPurpose, usize), PreparedRequest>,
 }
 
 fn refused(reason: impl Into<String>) -> CompileFailure {
@@ -55,6 +57,9 @@ impl SourceServices<'_, '_, '_> {
         purpose: DependencyPurpose,
         ordinal: usize,
     ) -> Result<usize, CompileFailure> {
+        if let Some(request) = self.requests.get(&(purpose, ordinal)) {
+            return Ok(request.settled);
+        }
         let selected = self
             .host
             .acquisitions
@@ -66,22 +71,34 @@ impl SourceServices<'_, '_, '_> {
                 self.host.select_workspace(workspace).map_err(failure)?
             }
         };
+        let index = self.settle_dependency(&child)?;
+        self.requests.insert(
+            (purpose, ordinal),
+            PreparedRequest {
+                settled: index,
+                acquisition: child,
+            },
+        );
+        Ok(index)
+    }
+
+    fn settle_dependency(&mut self, child: &AcquiredBuildSource) -> Result<usize, CompileFailure> {
         self.host
             .acquisitions
-            .admit_build_descent(&self.host.active, &child)
+            .admit_build_descent(&self.host.active, child)
             .map_err(refused)?;
         if let Some(i) = self
             .host
             .settled
             .iter()
-            .position(|(source, _, _)| source.same_source(&child))
+            .position(|settled| settled.source.same_source(child))
         {
             child
-                .verify_reused_capture(&self.host.settled[i].0)
+                .verify_reused_capture(&self.host.settled[i].source)
                 .map_err(refused)?;
             return Ok(i);
         }
-        let stage = self.host.member_or_execute(&child).map_err(failure)?;
+        let stage = self.host.member_or_execute(child).map_err(failure)?.stage;
         let declared = child.declare_build(stage.returned()).map_err(refused)?;
         declared.require_dependency().map_err(refused)?;
         let resolved = self.host.join(child.clone(), stage).map_err(failure)?;
@@ -90,7 +107,12 @@ impl SourceServices<'_, '_, '_> {
             .session
             .record_source_completion(settled.evaluated().source_completion_accounting.clone());
         let i = self.host.settled.len();
-        self.host.settled.push((child, declared, settled));
+        self.host.settled.push(SettledSource {
+            source: child.clone(),
+            declaration: declared,
+            build: settled,
+            graph: resolved.sources,
+        });
         Ok(i)
     }
 }
@@ -112,24 +134,24 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         request: &BuildDependencyPreparation,
     ) -> Result<ProductQueryDependency, CompileFailure> {
         let i = self.dependency(activation, request.purpose, request.request_ordinal)?;
-        let (_, declaration, settled) = &self.host.settled[i];
-        let child_build_source = settled.evaluated().base_source_consumption_commitment;
+        let settled = &self.host.settled[i];
+        let child_build_source = settled.build.evaluated().base_source_consumption_commitment;
         let alias = aliases(activation, request.purpose)
             .nth(request.request_ordinal)
             .ok_or_else(|| refused("Build preparation names no issued dependency"))?
-            .unwrap_or_else(|| declaration.package_name())
+            .unwrap_or_else(|| settled.declaration.package_name())
             .to_owned();
         if request.purpose == DependencyPurpose::Product {
             // Its Build has returned. The Product's consumer will choose its deployment.
             return Ok(ProductQueryDependency {
                 alias,
                 child_build_source,
-                inputs: settled.inputs().clone(),
+                inputs: settled.build.inputs().clone(),
                 generated: None,
             });
         }
         let product = self.host.handoffs().dependency_product(
-            settled,
+            &settled.build,
             request.purpose,
             self.host.profile,
             &mut Vec::new(),
@@ -155,13 +177,16 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .enumerate()
             .map(|(ordinal, alias)| {
                 let i = self.dependency(activation, purpose, ordinal)?;
-                let (_, declaration, settled) = &self.host.settled[i];
+                let settled = &self.host.settled[i];
                 Ok(ProductQueryDependency {
                     alias: alias
-                        .unwrap_or_else(|| declaration.package_name())
+                        .unwrap_or_else(|| settled.declaration.package_name())
                         .to_owned(),
-                    inputs: settled.inputs().clone(),
-                    child_build_source: settled.evaluated().base_source_consumption_commitment,
+                    inputs: settled.build.inputs().clone(),
+                    child_build_source: settled
+                        .build
+                        .evaluated()
+                        .base_source_consumption_commitment,
                     generated: None,
                 })
             })
@@ -184,7 +209,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
                 continue;
             }
             let i = self.dependency(activation, purpose, ordinal)?;
-            let name = self.host.settled[i].1.package_name();
+            let name = self.host.settled[i].declaration.package_name();
             if alias.unwrap_or(name) == qualifier && selected.replace((ordinal, i)).is_some() {
                 return Err(refused(format!(
                     "Build dependency qualifier `{qualifier}` is ambiguous"
@@ -196,12 +221,14 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
                 "Build provider qualifier `{qualifier}` has no issued Build dependency"
             ))
         })?;
-        let (_, declared, settled) = &self.host.settled[i];
+        let settled = &self.host.settled[i];
         let profile = self.host.profile;
-        let product =
-            self.host
-                .handoffs()
-                .dependency_product(settled, purpose, profile, &mut Vec::new())?;
+        let product = self.host.handoffs().dependency_product(
+            &settled.build,
+            purpose,
+            profile,
+            &mut Vec::new(),
+        )?;
         let provider = product
             .product_stage(&[profile])?
             .produce_build_provider(profile, path)?;
@@ -209,7 +236,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             BuildDependencySelection {
                 purpose,
                 request_ordinal,
-                package: declared.identity(),
+                package: settled.declaration.identity(),
             },
             provider,
         ))
@@ -271,12 +298,12 @@ impl HandoffSources<'_> {
                 bundles.push(handoff.clone());
                 continue;
             }
-            let (_, _, child) = self
+            let child = self
                 .settled
                 .iter()
-                .find(|(_, declared, _)| declared.identity() == package)
+                .find(|child| child.declaration.identity() == package)
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
-            let product = self.dependency_product(child, purpose, deployment, cache)?;
+            let product = self.dependency_product(&child.build, purpose, deployment, cache)?;
             let bundle = product.build_handoff(deployment)?;
             cache.push(bundle.clone());
             bundles.push(bundle);
