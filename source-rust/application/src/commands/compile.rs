@@ -5,6 +5,7 @@ use std::time::Instant;
 use crate::arguments::CompileArguments;
 use crate::diagnostic_output::DiagnosticOutput;
 use crate::saved_program::SavedProgramError;
+use artifacts::compile_timings::CompileTimings;
 use compiler::CompilerRequestOutcome;
 use compiler::stage_validators::{NativeValidationError, StageValidationRow, StageValidator};
 use compiler::{Artifact, CompileRequest};
