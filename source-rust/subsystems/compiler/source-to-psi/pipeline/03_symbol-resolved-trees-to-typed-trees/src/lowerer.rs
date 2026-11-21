@@ -1828,7 +1828,7 @@ fn complete_retained_machine_body(
     Ok(())
 }
 
-fn check_generic_binding_overlaps(
+fn check_static_value_shadowing(
     source: &SymbolResolvedTrees,
     typed: &TypedTrees,
 ) -> Result<(), Diagnostic> {
@@ -1867,7 +1867,7 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    check_generic_binding_overlaps(lowerer.source_trees, &lowerer.typed_trees)?;
+    check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::typing::runtime_callables::bind_calls(
@@ -1906,8 +1906,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    typed_trees::data_applications::prepare_from(&mut lowerer.typed_trees, cohort.typed_type_references)
-        .map_err(Diagnostic::error)?;
+    typed_trees::data_applications::prepare_from(
+        &mut lowerer.typed_trees,
+        cohort.typed_type_references,
+    )
+    .map_err(Diagnostic::error)?;
     let cast_destinations = crate::typing::expressions::construction_destinations::prepare(
         lowerer.source_trees,
         &mut lowerer.typed_trees,

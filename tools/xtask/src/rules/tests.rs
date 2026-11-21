@@ -13,7 +13,7 @@ use super::commit_metadata::{
 };
 use super::diff_hygiene::diff_hygiene_violations;
 use super::ratchets::{
-    CHECKING_STATE_ROOTS, RATCHET_SPECS, SEMANTIC_IDS, checking_interior_state_violations,
+    CHECKING_STATE_ROOTS, RATCHET_SPECS, SEMANTIC_RECORDS, checking_interior_state_violations,
     compute_ratchet_counts, count_place_transport, ratchet_violations, read_baseline,
     semantic_id_names,
 };
@@ -49,7 +49,7 @@ fn interior_state_scan_reports_an_unreadable_configured_root() {
     for dir in CHECKING_STATE_ROOTS {
         assert!(
             missing.iter().any(|violation| violation.starts_with(dir)
-                && violation.contains("could not read this root")),
+                && violation.contains("cannot read directory")),
             "{dir} missing from {missing:?}"
         );
     }
@@ -62,16 +62,48 @@ fn interior_state_scan_reports_an_unreadable_configured_root() {
     assert!(
         found
             .iter()
-            .all(|violation| !violation.contains("could not read this root")),
+            .all(|violation| !violation.contains("cannot read directory")),
         "{found:?}"
     );
     assert!(clean.is_empty(), "{clean:?}");
 }
 
 #[test]
+fn missing_source_roots_cannot_produce_an_empty_count_baseline() {
+    let repo = ScratchRepository::new();
+    let ids = Default::default();
+    for index in [0, 2, 3, 4] {
+        let error = compute_ratchet_counts(&repo.root, index, &ids).unwrap_err();
+        assert!(
+            error.contains("source-rust") && error.contains("cannot read directory"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn source_reads_count_the_live_file_after_a_move() {
+    let repo = ScratchRepository::new();
+    for directory in ["source-rust", "omega-rust", "_recycling/source-rust"] {
+        let path = repo.root.join(directory);
+        fs::create_dir_all(&path).unwrap();
+        fs::write(
+            path.join("reader.rs"),
+            r#"const CODE: &str = include_str!("main.rs");"#,
+        )
+        .unwrap();
+    }
+    let counts = compute_ratchet_counts(&repo.root, 0, &Default::default()).unwrap();
+    assert_eq!(
+        counts.into_iter().collect::<Vec<_>>(),
+        [("source-rust/reader.rs".to_owned(), 1)]
+    );
+}
+
+#[test]
 fn dense_id_scan_requires_a_populated_catalog() {
     let repo = ScratchRepository::new();
-    let path = repo.root.join(SEMANTIC_IDS);
+    let path = repo.root.join(SEMANTIC_RECORDS).join("identity.rs");
     assert!(
         semantic_id_names(&repo.root)
             .unwrap_err()
@@ -84,9 +116,15 @@ fn dense_id_scan_requires_a_populated_catalog() {
             .unwrap_err()
             .contains("no semantic_id declarations")
     );
+    fs::write(
+        path.with_file_name("declaration_contracts.rs"),
+        "semantic_id!(ServiceReachId);",
+    )
+    .unwrap();
     fs::write(path, "semantic_id!(MachineId);").unwrap();
     let ids = semantic_id_names(&repo.root).unwrap();
-    assert_eq!(ids.len(), 1);
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains("ServiceReachId"));
     assert!(ids.contains("MachineId"));
 }
 
@@ -109,7 +147,7 @@ fn ratchets_and_dangling_ids_match_checked_in_baselines() {
     let root = repo_root().expect("test runs in the Omega workspace");
     let semantic_ids = semantic_id_names(&root).expect("the dense-ID catalog must be present");
     for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
-        let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
+        let counts = compute_ratchet_counts(&root, idx, &semantic_ids).unwrap();
         let baseline_text = fs::read_to_string(root.join(spec.baseline)).unwrap();
         let baseline = read_baseline(&baseline_text);
         let violations = ratchet_violations(spec, &counts, &baseline);
@@ -124,7 +162,7 @@ fn ratchets_and_dangling_ids_match_checked_in_baselines() {
         .iter()
         .map(|b| fs::read_to_string(root.join(b)).unwrap_or_default())
         .collect();
-    let dangling = dangling_task_ids(&citing_documents(&root), &board_task_ids(&boards));
+    let dangling = dangling_task_ids(&citing_documents(&root).unwrap(), &board_task_ids(&boards));
     let dangling_baseline =
         read_dangling_baseline(&fs::read_to_string(root.join(DANGLING_BASELINE)).unwrap());
     let violations = dangling_task_violations(&dangling, &dangling_baseline);
