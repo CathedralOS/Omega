@@ -559,14 +559,6 @@ fn root_and_private_callable_require_the_same_fma_deployment() {
             .unwrap();
     let source = workspace.path().join("main.omg");
     std::fs::write(
-        &source,
-        r"use omega\language\core\F32::fused_multiply_add;
-machine fused(value: f32) -> f32 { F32::fused_multiply_add(value, value, value) }
-machine passthrough(value: f32) -> f32 { value }
-machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
-    )
-    .unwrap();
-    std::fs::write(
         workspace.path().join("build.omg"),
         r#"machine build(builder: @mut Build) {
     Build::application(builder, "fma_scope");
@@ -576,21 +568,34 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
     )
     .unwrap();
     let profile = TargetProfile::LinuxX64;
-    let product = open_project(&source, &[profile]);
-    let stage = product.product_stage(&[profile]).unwrap();
-    let Artifact::Runtime(product) = compiler::compile(
-        CompileRequest::Runtime {
-            program: stage.program(profile, vec![]).unwrap(),
-            entry_memory: &[],
-        },
-        Default::default(),
-    )
-    .unwrap()
-    .artifact
-    else {
-        panic!("expected runtime admission")
+    let publish = |literal: &str| {
+        std::fs::write(
+            &source,
+            format!(
+                r"use omega\language\core\F32::fused_multiply_add;
+machine fused(value: f32) -> f32 {{ F32::fused_multiply_add(value, value, value) }}
+machine passthrough(value: f32) -> f32 {{ value }}
+machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
+            ),
+        )
+        .unwrap();
+        let product = open_project(&source, &[profile]);
+        let stage = product.product_stage(&[profile]).unwrap();
+        let Artifact::Runtime(product) = compiler::compile(
+            CompileRequest::Runtime {
+                program: stage.program(profile, vec![]).unwrap(),
+                entry_memory: &[],
+            },
+            Default::default(),
+        )
+        .unwrap()
+        .artifact
+        else {
+            panic!("expected runtime admission")
+        };
+        product.into_retained_terminal_artifact().unwrap()
     };
-    let retained = product.into_retained_terminal_artifact().unwrap();
+    let retained = publish("1.0f32");
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal();
     let execution = prepare_program(proposal, retained.authorization()).unwrap();
@@ -601,6 +606,7 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
         .find(|row| row.requirement().contains("fused_multiply_add"))
         .expect("the FMA requirement retains its selected builtin");
     let boundary = selected.boundary();
+    assert_eq!(selected.artifact(), artifact.view().identity());
     let fused = module
         .machines
         .iter()
@@ -661,6 +667,28 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
     let settlements = providers.program_settlements();
     let policy = provider_admission::current_terminal_authority_policy();
     let base = providers.admission_request(&settlements, &policy, &None, &[]);
+    let second = publish("2.0f32");
+    let second_proposal = second.native_realization_proposal();
+    let second_execution = prepare_program(second_proposal, second.authorization()).unwrap();
+    assert_ne!(selected.artifact(), second.artifact().view().identity());
+    assert!(selected.belongs_to(second_execution.selection()));
+    assert!(
+        second_execution
+            .compiler_builtins()
+            .iter()
+            .any(|row| row.boundary() == boundary && row.requirement() == selected.requirement())
+    );
+    let second_input =
+        lower_native_execution(second_proposal, &second_execution, &[], None).unwrap();
+    let errors = admit_prepared_native_realization(second_input, second.artifact(), &base)
+        .err()
+        .expect("the same local FMA boundary cannot be replayed across Psi artifacts");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("different Psi artifact")),
+        "{errors:?}"
+    );
     let mut other_owner = base;
     other_owner.providers.selected_provider_plans = &changed;
     let root = lower_native_execution(proposal, &execution, &[], None).unwrap();
