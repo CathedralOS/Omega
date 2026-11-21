@@ -7,19 +7,14 @@ use std::collections::HashSet;
 
 use arena::NumericId;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IntegerType, OperationId, PlaceId, Proposition, ScalarTerm,
-    ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    CanonicalStructuralPathSegment, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, ExactPlaceId, ProgramPoint};
-use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_clause};
 
 use super::Lowering;
-
-struct Named {
-    leaves: Vec<Observation>,
-}
 
 struct Observation {
     root: PlaceId,
@@ -64,84 +59,27 @@ fn projection(segment: CanonicalStructuralPathSegment) -> Segment {
     }
 }
 
-impl ClauseBindings for Named {
-    type Error = &'static str;
-
-    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
-        Ok(ScalarTerm::value(id, scalar_type))
-    }
-
-    fn field(
-        &mut self,
-        version: semantic_vocabulary::ContentPlaceVersion,
-        root: PlaceId,
-        selected: &[CanonicalStructuralPathSegment],
-        scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        self.leaves.push(Observation {
-            root,
-            path: selected.to_vec(),
-            extent: false,
-            scalar_type,
-        });
-        match scalar_type {
-            ScalarType::Integer(scalar_type) => Ok(ScalarTerm::IntegerField {
-                version,
+impl Observation {
+    /// Collect every scalar leaf demanded by the declaration. This inventory
+    /// needs neither substitutions nor evidence about the current owner.
+    fn in_clause(clause: &Proposition) -> Vec<Self> {
+        let mut leaves = Vec::new();
+        clause.visit_scalar_terms(|term| {
+            let (root, path) = match term {
+                ScalarTerm::BooleanField { root, path, .. }
+                | ScalarTerm::IntegerField { root, path, .. }
+                | ScalarTerm::IeeeFloatField { root, path, .. }
+                | ScalarTerm::ViewExtent { root, path, .. } => (*root, path),
+                _ => return,
+            };
+            leaves.push(Self {
                 root,
-                path: selected.to_vec(),
-                scalar_type,
-            }),
-            ScalarType::Boolean => Ok(ScalarTerm::BooleanField {
-                version,
-                root,
-                path: selected.to_vec(),
-            }),
-            ScalarType::IeeeFloat(_) => Err("a floating-point clause observation"),
-            ScalarType::Callable(_) => Err("a machine-value clause observation"),
-        }
-    }
-
-    fn extent(
-        &mut self,
-        root: PlaceId,
-        selected: &[CanonicalStructuralPathSegment],
-        scalar_type: IntegerType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        self.leaves.push(Observation {
-            root,
-            path: selected.to_vec(),
-            extent: true,
-            scalar_type: ScalarType::Integer(scalar_type),
+                path: path.clone(),
+                extent: matches!(term, ScalarTerm::ViewExtent { .. }),
+                scalar_type: term.scalar_type(),
+            });
         });
-        Ok(ScalarTerm::ViewExtent {
-            root,
-            path: selected.to_vec(),
-            scalar_type,
-        })
-    }
-
-    fn byte_predicate(
-        &mut self,
-        predicate: semantic_vocabulary::ByteSequencePredicate,
-        root: PlaceId,
-        selected: &[CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, Self::Error> {
-        Ok(ScalarTerm::byte_sequence_predicate(
-            predicate,
-            root,
-            selected.to_vec(),
-        ))
-    }
-
-    fn case(
-        &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
-        // Leave case selection undecided so substitution visits every arm.
-        // This inventory neither decides clauses nor supplies proof evidence.
-        Err("a case test is recorded, not decided")
+        leaves
     }
 }
 
@@ -162,14 +100,12 @@ impl Lowering<'_> {
         result: Option<PlaceId>,
         argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
     ) -> Checked<()> {
-        let mut named = Named { leaves: Vec::new() };
-        let _ = substitute_clause(clause, &mut named);
         for Observation {
             root,
             mut path,
             extent,
             scalar_type,
-        } in named.leaves
+        } in Observation::in_clause(clause)
         {
             // The declared output is not an invocation input. Its actual
             // returned storage is observed at the exit, not named as an
@@ -443,10 +379,41 @@ impl Lowering<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::IntegerSign;
+    use semantic_vocabulary::{IntegerSign, IntegerType};
 
     fn integer(bits: u16) -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
+    }
+
+    #[test]
+    fn a_meaning_equation_names_both_of_its_structural_sources() {
+        use numerics::float_projection::FloatProjectionOperation;
+        use semantic_vocabulary::{
+            FloatMeaningClause, FloatMeaningClauseValue, FloatMeaningSlot, IeeeFloatFormat,
+        };
+
+        let roots = [PlaceId::new(2).unwrap(), PlaceId::new(9).unwrap()];
+        let format = IeeeFloatFormat::Binary32;
+        let values = roots
+            .into_iter()
+            .map(|root| FloatMeaningClauseValue::Projection {
+                source: ScalarTerm::ieee_float_field_path(root, Vec::new(), format),
+                contract: FloatProjectionOperation::Meaning32.contract_identity(),
+            })
+            .collect();
+        let clause = Proposition::FloatMeaningEqual(FloatMeaningClause {
+            values,
+            left: FloatMeaningSlot(0),
+            right: FloatMeaningSlot(1),
+        });
+        let found: Vec<_> = Observation::in_clause(&clause)
+            .into_iter()
+            .map(|field| (field.root, field.extent, field.scalar_type))
+            .collect();
+        assert_eq!(
+            found,
+            roots.map(|root| (root, false, ScalarType::IeeeFloat(format)))
+        );
     }
 
     #[test]

@@ -50,6 +50,15 @@ fn retain_value_carrier(
     let Some(atom) = program.symbols.builtin_type_atom(*symbol) else {
         return Ok(());
     };
+    retain_scalar_carrier(program, expression, atom, reference)
+}
+
+pub(super) fn retain_scalar_carrier(
+    program: &mut SymbolResolvedTrees,
+    expression: ExpressionHandle,
+    atom: BuiltinTypeAtom,
+    reference: SourceSpan,
+) -> Result<(), Diagnostic> {
     let integer_type = match atom {
         BuiltinTypeAtom::Integer(carrier) => Some(LandedIntegerType::Fixed(carrier)),
         BuiltinTypeAtom::Address => Some(LandedIntegerType::Addr),

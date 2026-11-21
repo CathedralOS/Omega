@@ -3810,7 +3810,13 @@ impl<'t> Program<'t> {
                 {
                     return unserved("exclusive loan of an immutable binding");
                 }
-            } else if explicit && self.typed.expression_const_declaration(operand).is_some() {
+            } else if explicit
+                && self
+                    .typed
+                    .expression_const_declaration(operand)
+                    .map_err(|detail| refuse(id, Construct::Machine, Unserved::Call(detail)))?
+                    .is_some()
+            {
                 if access != ReferenceAccess::Shared {
                     return Err(crate::lowering::reject(
                         id,

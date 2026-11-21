@@ -419,6 +419,14 @@ impl Program<'_> {
                 // (`Elaboration::generic_templates`). One whose only
                 // parameters are implementations is generic too.
                 if !self.is_generic_template(machine) {
+                    if self
+                        .float_meaning_subject(entry, machine)
+                        .map_err(|refusal| {
+                            self.read_failure_at(refusal, machine.symbol, "the proof declaration")
+                        })?
+                    {
+                        return Ok(());
+                    }
                     self.admitted_declarations.include(machine.symbol);
                     let id = self.subject_machine(machine.symbol)?;
                     self.subject_machines.push(id);

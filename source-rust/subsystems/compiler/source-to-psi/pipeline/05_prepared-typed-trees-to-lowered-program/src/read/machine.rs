@@ -463,7 +463,14 @@ impl<'t> Program<'t> {
             ));
         }
         let diagnostic = self.next_identity()?;
-        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        let (declared, entry) = self.declaration(diagnostic, symbol)?;
+        if self.returns_float_meaning(entry.return_type) {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Type("proof-only FloatMeaning has no runtime ABI"),
+            ));
+        }
         if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
             && self
                 .typed
