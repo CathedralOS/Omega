@@ -156,12 +156,15 @@ fn transparent_data_aliases_cannot_erase_a_parameter_property() {
     let accepted = format!(
         "{declarations}
                            public data A = CopyOnly<u32>;
-                           public data B = LinearOnly<Ticket>;"
+                           public data B = LinearOnly<Ticket>;
+                           public data C = CopyOnly<@u32>;"
     );
     let result = judged(&accepted, false);
     assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
     for (application, required) in [
         ("CopyOnly<Ticket>", "[copy]"),
+        ("CopyOnly<@mut u32>", "[copy]"),
+        ("CopyOnly<@write u32>", "[copy]"),
         ("LinearOnly<u32>", "[linear]"),
     ] {
         let source = format!("{declarations} public data Invalid = {application};");
