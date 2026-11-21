@@ -606,7 +606,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::Referent(operand)
             | ExpressionKind::Establish { operand, .. } => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
-            | ExpressionKind::LocationAlignment { place: base, .. }
+            | ExpressionKind::StorageLocation { place: base, .. }
             | ExpressionKind::CollectionMeasure { base, .. }
             | ExpressionKind::ByteSequencePredicate { base, .. }
             | ExpressionKind::Payload { base, .. }

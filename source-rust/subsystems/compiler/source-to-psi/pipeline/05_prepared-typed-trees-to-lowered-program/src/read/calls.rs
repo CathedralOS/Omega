@@ -715,9 +715,18 @@ impl<'t> Program<'t> {
         // A layout query names no declaration; typing kept its operand.
         if let Some(query) = &call.layout_query {
             if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
-                return self.location_alignment(id, slots, call, source);
+                return self.storage_location(id, slots, call, source, terminal_psi::StorageLocationQuery::Alignment);
             }
             return self.layout_query(id, call, query, source);
+        }
+        if call.target_symbol.is_valid()
+            && self.typed.symbols.builtin_function_for_symbol(call.target_symbol)
+                == Some(symbols::BuiltinFunction::AddressOf)
+            && !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && call.evidence_arguments.is_empty()
+        {
+            return self.storage_location(id, slots, call, source, terminal_psi::StorageLocationQuery::Address);
         }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
@@ -893,21 +902,26 @@ impl<'t> Program<'t> {
 
     /// Capture a live location once. Borrowed slices keep the first-element
     /// obligation even when no scalar value is loaded from the element.
-    fn location_alignment(
+    fn storage_location(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         call: &TableCallExpression,
         source: SourceOrigin,
+        query: terminal_psi::StorageLocationQuery,
     ) -> Checked<Expression> {
         use crate::lowering::body::StorageShape;
         use semantic_vocabulary::ScalarType;
         use terminal_psi::ByteSequenceCarrier;
+        use terminal_psi::StorageLocationQuery;
         let invalid = || {
             crate::lowering::reject(
                 id,
                 source,
-                "location alignment needs an accessible place, reference or nonempty borrowed slice",
+                match query {
+                    StorageLocationQuery::Address => "address_of needs an ordinary reference to addressable storage",
+                    StorageLocationQuery::Alignment => "location alignment needs an accessible place, reference or nonempty borrowed slice",
+                },
             )
         };
         let [operand] = self
@@ -918,16 +932,27 @@ impl<'t> Program<'t> {
             return Err(invalid());
         };
         let mut place = self.expression(id, slots, *operand, None)?;
+        // A borrowed formal is represented directly by its lent place. A named
+        // or projected descriptor in value position already crosses Referent.
+        let mut reference = match &place.kind {
+            ExpressionKind::Slot(slot) => slots[*slot].borrowed.is_some(),
+            ExpressionKind::Referent(_) => matches!(
+                self.node(id, *operand)?,
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+            ),
+            _ => false,
+        };
         let mut first_element = None;
         if let Some(ty @ ValueType::Record(record, _, _)) = place.result {
             if let Some((referent, _)) = self.reference_referent(id, ty)? {
+                reference = true;
                 place = Expression {
                     call_context: None,
                     source: place.source,
                     result: Some(referent),
                     kind: ExpressionKind::Referent(Box::new(place)),
                 };
-            } else {
+            } else if query == StorageLocationQuery::Alignment {
                 first_element = match self.data_type(id, record)?.shape {
                     StorageShape::ElementView { element, .. } => Some(element),
                     StorageShape::ByteSequence(
@@ -944,6 +969,9 @@ impl<'t> Program<'t> {
                     _ => None,
                 };
             }
+        }
+        if query == StorageLocationQuery::Address && !reference {
+            return Err(invalid());
         }
         if first_element.is_none()
             && !matches!(place.kind, ExpressionKind::Referent(_))
@@ -973,14 +1001,18 @@ impl<'t> Program<'t> {
             }
             _ => None,
         };
-        let count =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid");
+        let result = match query {
+            StorageLocationQuery::Address => semantic_vocabulary::IntegerType::supported_address_representation(),
+            StorageLocationQuery::Alignment =>
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                    .expect("u64 is valid"),
+        };
         Ok(Expression {
             call_context: None,
             source,
-            result: Some(ValueType::plain(ScalarType::Integer(count))),
-            kind: ExpressionKind::LocationAlignment {
+            result: Some(ValueType::plain(ScalarType::Integer(result))),
+            kind: ExpressionKind::StorageLocation {
+                query,
                 place: Box::new(place),
                 home,
                 first_element,
@@ -4001,7 +4033,7 @@ impl Touches<'_> {
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::CollectionView { base: operand, .. }
-            | ExpressionKind::LocationAlignment { place: operand, .. }
+            | ExpressionKind::StorageLocation { place: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
             | ExpressionKind::ByteSequencePredicate { base: operand, .. }
             | ExpressionKind::IsCase {
