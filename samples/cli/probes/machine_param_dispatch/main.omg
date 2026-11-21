@@ -1,9 +1,6 @@
-// A machine parameter bound by a trait requirement
-// dispatches statically: `machine step<T, machine
-// Increment>(subject: &mut T) requires machine Increment
-// satisfies Incrementable<T>::increment` — the
-// caller names the implementation and `Increment
-// (subject)` calls it with no runtime dictionary.
+// `step<T, const Increment: Incrementable<T>::increment>` accepts a
+// selected implementation of the named requirement. `Increment(subject)`
+// calls that implementation with the explicit mutable subject.
 //
 //   * `CounterIncrementable satisfies
 //     Incrementable<Counter>` provides the candidate
@@ -30,8 +27,7 @@ CounterIncrementable satisfies Incrementable<Counter> {
     machine increment(counter: @mut Counter) { Counter::increment(counter) }
 }
 
-machine step<T, machine Increment>(subject: @mut T)
-requires machine Increment satisfies Incrementable<T>::increment;
+machine step<T, const Increment: Incrementable<T>::increment>(subject: @mut T)
 {
     Increment(subject);
 }
