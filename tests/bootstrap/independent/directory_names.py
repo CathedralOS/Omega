@@ -146,6 +146,7 @@ def cases():
     yield from construction_unit_cases(encode)
     yield from nominal_record_cases(encode)
     yield from record_bound_cases(encode)
+    yield from parameter_order_cases(encode)
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from sum_equality_cases(encode)
@@ -153,6 +154,7 @@ def cases():
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
     yield from predicate_transition_cases(encode)
+    yield from slice_conjunction_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -564,6 +566,67 @@ def sum_equality_cases(encode):
         yield name, wire, struct.pack("<BII", 0, status, start + source.index(marker))
 
 
+def parameter_order_cases(encode):
+    # The original build-path scanner passes both relations together. The
+    # strict byte reader needs fresh evidence before it may index at an endpoint.
+    signature = b"machine scan(path:@[u8],start:u64,index:u64)->u8 "
+    bounded = b"requires start<=index && index<=path.len "
+    reader = b"machine byte(path:@[u8],start:u64,index:u64)->u8 requires start<=index && index<path.len {path[index]}"
+    dispatcher = signature + bounded + b"{transition index<path.len {true->byte(path,start,index),_ ->7}" + reader + b"}"
+    entry = b"machine main()->u8{let path:[u8;1]=[42];scan(@path[..],0,0)}"
+    samples = [
+        ("order-slice-first-byte", dispatcher + entry, 42),
+        ("order-slice-endpoint", dispatcher + entry.replace(b",0,0)", b",1,1)"), 7),
+        ("order-slice-empty", dispatcher + entry.replace(b"@path[..]", b"@path[0..0]"), 7),
+        ("order-slice-inverted", dispatcher + entry.replace(b",0,0)", b",1,0)"), (2, b"machine main")),
+        ("order-slice-past-end", dispatcher + entry.replace(b",0,0)", b",0,2)"), (2, b"machine main")),
+        ("order-slice-end-is-not-byte", signature + bounded + b"{path[index]}" + entry, (2, b"path[index]")),
+    ]
+    receiver = b"machine take(a:u64,b:u64)->u8 requires a<=b {42}"
+    caller = b"machine pass(x:u64,y:u64)->u8 "
+    main = b"machine main()->u8{pass(0,1)}"
+    for name, requirements, arguments, expected in [
+        ("order-scalar-forward", b"requires x<=y ", b"x,y", 42),
+        ("order-scalar-reverse-spelling", b"requires y>=x ", b"x,y", 42),
+        ("order-scalar-strict-implies-inclusive", b"requires x<y ", b"x,y", 42),
+        ("order-scalar-reflexive", b"", b"x,x", 42),
+        ("order-scalar-reversed-actuals", b"requires x<=y ", b"y,x", (2, b"machine pass")),
+        ("order-scalar-unproved", b"", b"x,y", (2, b"machine pass")),
+    ]:
+        samples.append((name, caller + requirements + b"{take(" + arguments + b")}" + receiver + main, expected))
+    guard = caller + b"{transition x>y {false->take(x,y),_ ->7}" + receiver + b"}"
+    samples.append(("order-scalar-negative-guard", guard + main, 42))
+    samples.append(("order-scalar-wrong-direction", guard.replace(b"x>y", b"x<y") + main, (2, b"machine pass")))
+    samples.append(("order-scalar-inclusive-is-not-strict", caller + b"requires x<=y {take(x,y)}" +
+                    receiver.replace(b"a<=b", b"a<b") + main, (2, b"machine pass")))
+    samples.append(("order-scalar-effectful-argument", caller + b"requires x<=y {take(x,copy(y))}" + receiver +
+                    b"machine copy(n:u64)->u64{n}" + main, (2, b"machine pass")))
+    two = b"machine choose(left:@[u8],right:@[u8],n:u64)->u8 requires n<=left.len {"
+    two_entry = (b"machine main()->u8{let a:[u8;1]=[42];let b:[u8;1]=[7];"
+                 b"choose(@a[..],@b[..],1)}")
+    end = b"machine end(path:@[u8],n:u64)->u8 requires n<=path.len {42}"
+    samples.append(("order-slice-forward", two + b"end(left,n)}" + end + two_entry, 42))
+    samples.append(("order-slice-wrong-length", two + b"end(right,n)}" + end + two_entry,
+                    (2, b"machine choose")))
+    for name, source, expected in samples:
+        packet, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, anchor = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(anchor))
+        yield name, packet, expected
+
+    # The callee's argument positions belong to its own file. Callers can
+    # spell and order their parameters differently.
+    provider = b"public machine take(high:u64,low:u64)->u8 requires low<=high {42}"
+    for name, actuals, accepted in [("order-cross-file", b"y,x", True),
+                                    ("order-cross-file-swapped", b"x,y", False)]:
+        client = caller + b"requires x<=y {take(" + actuals + b")}" + main
+        packet, _, _, rows = encode([("app", 0)], [], [(0, client), (0, provider)], 0,
+                                    b"main", paths=["main.omg", "limits.omg"])
+        expected = 42 if accepted else struct.pack("<BII", 0, 2, rows[0][1] + client.index(b"machine pass"))
+        yield name, packet, expected
+
+
 def nominal_array_cases(encode):
     def packet(sources, paths, library=None):
         packages = [("app", 0)]
@@ -799,6 +862,40 @@ def data_lifetime_cases(packet):
         sources = [main, source, pair]
         request, rows = packet(sources, ["main.omg", "result.omg", "pair.omg"])
         yield name, request, struct.pack("<BII", 0, status, rows[1][1] + source.index(anchor))
+
+
+def slice_conjunction_sources():
+    signature = b"machine choose(left:@[u8],right:@[u8],index:u64)->u8{transition "
+    read = (b"machine read(left:@[u8],right:@[u8],index:u64)->u8 "
+            b"requires index<left.len && index<right.len {left[index]}} ")
+    main = (b"machine main()->u8{let left:[u8;1]=[42];let right:[u8;1]=[9];"
+            b"let answer:u8=choose(@left[..],@right[..],0);answer}")
+    guards = [
+        ("slice-guard-conjunction", b"index<left.len && index<right.len", 42),
+        ("slice-guard-reversed-conjunction", b"index<right.len && index<left.len", 42),
+        ("slice-guard-nested-conjunction", b"true && (index<left.len && index<right.len)", 42),
+        ("slice-guard-disjunction", b"index<left.len || index<right.len", (2, b"machine choose")),
+        ("slice-guard-wrong-slice", b"index<left.len && index<left.len", (2, b"machine choose")),
+    ]
+    for name, guard, expected in guards:
+        source = signature + guard + b"{true->read(left,right,index),_ ->0}" + read + main
+        yield name, source, expected
+    source = (signature + b"index<left.len && index<right.len{true->0,_ ->read(left,right,index)}" + read + main)
+    yield "slice-guard-false-arm", source, (2, b"machine choose")
+    source = (signature + b"index<left.len && index<right.len{true->read(left,right,index),_ ->0}" + read + main)
+    yield "slice-guard-empty-right", source.replace(b"@right[..]", b"@right[0..0]"), 0
+    signature_other = b"machine choose(left:@[u8],right:@[u8],index:u64,other:u64)->u8{transition "
+    source = (signature_other + b"index<left.len && index<right.len{true->read(left,right,other),_ ->0}" + read + main.replace(b"@right[..],0)", b"@right[..],0,0)"))
+    yield "slice-guard-wrong-index", source, (2, b"machine choose")
+
+
+def slice_conjunction_cases(encode):
+    for name, source, expected in slice_conjunction_sources():
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
 
 
 def main():

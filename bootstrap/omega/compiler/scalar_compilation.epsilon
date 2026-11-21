@@ -50,10 +50,18 @@ data OmegaStateInvocation {
     acknowledgements: i32;
 }
 
+data OmegaEntryBoundKind {
+    case Interval;
+    case StrictOrder;
+    case InclusiveOrder;
+}
+
 data OmegaEntryBound {
-    // Nonnegative only for the relation root < slice.len. Literal bounds
-    // carry -1 here and use minimum/maximum instead.
-    slice: i32;
+    kind: OmegaEntryBoundKind;
+    // An ordered pair relates a u64 parameter to another u64 parameter
+    // (offset zero) or the length field of a shared byte slice (offset eight).
+    right: i32;
+    right_offset: i32;
     root: i32;
     offset: i32;
     field: i32;
@@ -7596,27 +7604,43 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     state literal(row: OmegaBinaryExpressionSyntax, kind: i32, right: OmegaExpressionSyntax) {
         transition right.kind {
             OmegaExpressionKind::Integer -> scan(row, kind, right)
-            OmegaExpressionKind::Path -> slice_relation(row)
+            OmegaExpressionKind::Path -> ordered(row)
             _ -> unsupported()
         }
     }
-    state slice_relation(row: OmegaBinaryExpressionSyntax) {
+    state ordered(row: OmegaBinaryExpressionSyntax) {
         transition row.operator {
-            OmegaBinaryOperatorKind::Less -> slice_parameters(row)
+            OmegaBinaryOperatorKind::Less -> pair(row.left, row.right, OmegaEntryBoundKind::StrictOrder)
+            OmegaBinaryOperatorKind::LessEqual -> pair(row.left, row.right, OmegaEntryBoundKind::InclusiveOrder)
+            OmegaBinaryOperatorKind::Greater -> pair(row.right, row.left, OmegaEntryBoundKind::StrictOrder)
+            OmegaBinaryOperatorKind::GreaterEqual -> pair(row.right, row.left, OmegaEntryBoundKind::InclusiveOrder)
             _ -> unsupported()
         }
     }
-    state slice_parameters(row: OmegaBinaryExpressionSyntax) {
-        let index: i32 = self.u64_index_parameter(source, state_index, 0, row.left);
-        let slice: i32 = self.slice_length_parameter(source, state_index, 0, row.right);
-        transition (index >= 0) && (slice >= 0) && (self.bound_total < 16384) {
-            true -> retain_slice(index, slice)
+    state pair(left: i32, right: i32, kind: OmegaEntryBoundKind) {
+        let index: i32 = self.u64_index_parameter(source, state_index, 0, left);
+        transition (index >= 0) && (self.bound_total < 16384) {
+            true -> destination(index, right, kind, self.slice_length_parameter(source, state_index, 0, right))
             _ -> unsupported()
         }
     }
-    state retain_slice(index: i32, slice: i32) {
-        self.entry_bounds[self.bound_total].root = index;
-        self.entry_bounds[self.bound_total].slice = slice;
+    state destination(index: i32, right: i32, kind: OmegaEntryBoundKind, slice: i32) {
+        transition slice >= 0 {
+            true -> retain_order(index, slice, 8, kind)
+            _ -> scalar_pair(index, self.u64_index_parameter(source, state_index, 0, right), kind)
+        }
+    }
+    state scalar_pair(left: i32, right: i32, kind: OmegaEntryBoundKind) {
+        transition (right >= 0) && (self.parameter_types[left] == 64) && (self.parameter_types[right] == 64) {
+            true -> retain_order(left, right, 0, kind)
+            _ -> unsupported()
+        }
+    }
+    state retain_order(left: i32, right: i32, offset: i32, kind: OmegaEntryBoundKind) {
+        self.entry_bounds[self.bound_total].kind = kind;
+        self.entry_bounds[self.bound_total].root = left;
+        self.entry_bounds[self.bound_total].right = right;
+        self.entry_bounds[self.bound_total].right_offset = offset;
         self.bound_total = self.bound_total + 1;
         return 1;
     }
@@ -7655,7 +7679,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state retain(row: OmegaBinaryExpressionSyntax, minimum: i32, maximum: i32) {
-        self.entry_bounds[self.bound_total].slice = -1;
+        self.entry_bounds[self.bound_total].kind = OmegaEntryBoundKind::Interval;
         self.entry_bounds[self.bound_total].root = self.place_roots[row.left];
         self.entry_bounds[self.bound_total].offset = self.place_offsets[row.left];
         self.entry_bounds[self.bound_total].field = self.place_fields[row.left];
@@ -7823,7 +7847,13 @@ machine OmegaScalarCompiler::prove_place_bound(
         }
     }
     state bound(index: i32, bound: OmegaEntryBound) {
-        transition (bound.slice < 0) && (bound.root == root) && (bound.offset == offset) &&
+        transition bound.kind {
+            OmegaEntryBoundKind::Interval -> interval(index, bound)
+            _ -> contract(index + 1)
+        }
+    }
+    state interval(index: i32, bound: OmegaEntryBound) {
+        transition (bound.root == root) && (bound.offset == offset) &&
             (bound.minimum >= minimum) &&
             ((maximum < 0) || ((bound.maximum >= 0) && (bound.maximum <= maximum))) {
             true -> return 1
@@ -8072,23 +8102,28 @@ machine OmegaScalarCompiler::check_call_bounds(
         }
     }
     state argument(index: i32, bound: OmegaEntryBound, argument: i32) {
-        transition bound.slice >= 0 {
-            true -> slice_argument(index, bound, argument,
-                bound.slice - self.state_first_parameter(target))
-            _ -> scalar_or_reference(index, bound, argument)
+        transition bound.kind {
+            OmegaEntryBoundKind::Interval -> scalar_or_reference(index, bound, argument)
+            OmegaEntryBoundKind::StrictOrder -> pair(index, bound, argument, 1)
+            OmegaEntryBoundKind::InclusiveOrder -> pair(index, bound, argument, 0)
         }
     }
-    state slice_argument(index: i32, bound: OmegaEntryBound, argument: i32, offset: i32) {
+    state pair(index: i32, bound: OmegaEntryBound, argument: i32, strict: i32) {
+        let offset: i32 = bound.right - self.state_first_parameter(target);
         transition (offset >= 0) && (offset < count) {
-            true -> compare_slice(index, argument, self.parser.call_arguments[first_argument + offset])
+            true -> order(index, argument, self.parser.call_arguments[first_argument + offset], bound.right_offset, strict)
             _ -> unsupported()
         }
     }
-    state compare_slice(index: i32, argument: i32, slice: i32) {
-        transition self.prove_actual_slice_index(source, state_index, before, argument, slice, guard, truth) {
-            1 -> requirement(index + 1)
+    state order(index: i32, left: i32, right: i32, offset: i32, strict: i32) {
+        transition offset {
+            0 -> proved_order(index, self.prove_actual_scalar_order(source, state_index, before, left, right, guard, truth, strict))
+            8 -> proved_order(index, self.prove_actual_slice_index(source, state_index, before, left, right, guard, truth, strict))
             _ -> unsupported()
         }
+    }
+    state proved_order(index: i32, proved: i32) {
+        transition proved { 1 -> requirement(index + 1) _ -> unsupported() }
     }
     state scalar_or_reference(index: i32, bound: OmegaEntryBound, argument: i32) {
         transition self.parameter_types[bound.root] >= 400000 {

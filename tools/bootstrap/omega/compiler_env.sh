@@ -18,9 +18,9 @@
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
 OMEGA_COMPILER_MANIFEST_SIZE=2905
-OMEGA_COMPILER_MANIFEST_SHA256=1dc4e01df92a5fc85b7c7eec1cc8ca5ff79a441e04c58518cad63beafbdda091
-OMEGA_COMPILER_PACKED_SIZE=1149038
-OMEGA_COMPILER_PACKED_SHA256=08022c0ac98af1a19cec5b5e14029faf4888d3584c4a13167f12d8a5aec13c14
+OMEGA_COMPILER_MANIFEST_SHA256=e29bb05dc2513e8e5cf1fe7110dd9ea3ed0ca9a44ad4d88fda061ea73803f87c
+OMEGA_COMPILER_PACKED_SIZE=1154194
+OMEGA_COMPILER_PACKED_SHA256=d31388fbd7b0dc278a1b8703247e6ae67c3aaf1de24702034c13065af5093bad
 
 # Bound gate-local entries packed on top of the bound member bytes. Each
 # omega-* gate appends its own customer entry after the packed D closure —
