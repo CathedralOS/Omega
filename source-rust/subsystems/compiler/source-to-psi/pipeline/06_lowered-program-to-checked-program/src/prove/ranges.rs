@@ -353,30 +353,25 @@ impl Prover<'_> {
         if literal != integer.zero() {
             return None;
         }
-        let equation = match value {
-            ScalarTerm::Value { id, .. } => {
-                let index = (*self.definitions.get(*id)?)?;
-                Some(self.facts[self.equations[index]].proof(&self.facts))
+        let (difference, equation) = if let ScalarTerm::Value { id, .. } = value {
+            let index = self.equations[(*self.definitions.get(*id)?)?];
+            let Proposition::Equal(result, difference @ ScalarTerm::ExactIntegerSubtract { .. }) =
+                &self.facts[index].proposition
+            else {
+                return None;
+            };
+            if result != value {
+                return None;
             }
-            _ => None,
-        };
-        let difference = match &equation {
-            Some(proof) => {
-                let Proposition::Equal(result, difference) = &proof.conclusion else {
-                    return None;
-                };
-                if result != value {
-                    return None;
-                }
-                difference
-            }
-            None => value,
+            (difference.clone(), Some(index))
+        } else {
+            (value.clone(), None)
         };
         let ScalarTerm::ExactIntegerSubtract {
             left: upper,
             right: lower,
             ..
-        } = difference
+        } = &difference
         else {
             return None;
         };
@@ -431,11 +426,11 @@ impl Prover<'_> {
             },
         );
         Some(match equation {
-            Some(equation) => node(
+            Some(index) => node(
                 goal.clone(),
                 ProofRule::ValueEqualityTransport {
                     premise: Box::new(finite),
-                    equalities: vec![equation],
+                    equalities: vec![self.facts[index].proof(&self.facts)],
                 },
             ),
             None => finite,
