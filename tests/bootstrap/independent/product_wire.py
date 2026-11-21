@@ -58,6 +58,14 @@ def signed_mask_checker_input(encode):
     return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
 
 
+def core_low_bytes_input(encode):
+    core = ROOT / "source/library/core/numeric_conversion.omg"
+    functions = [f"public machine narrow_u64_to_u{bits}_wrapping(" for bits in (8, 16, 32)]
+    cases = ROOT / "tests/bootstrap/independent/fixtures/interval/low_bytes.omg"
+    source = b"\n".join([*declarations(core, functions), cases.read_bytes()])
+    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+
+
 def check_build_source_ownership(encode, runner, work, seconds):
     packages = [("app", 0), ("core", 1), ("library", 0)]
     entries = [(0, 0), (1, 1), (2, 1)]
@@ -130,6 +138,18 @@ def main():
     if args.omega_constructor:
         runner = args.omega_constructor.resolve(strict=True)
         check_build_source_ownership(encode, runner, work, args.seconds)
+        mask_request = core_low_bytes_input(encode)
+        (work / "core-low-bytes.stdin").write_bytes(mask_request)
+        status, tape = execute(runner, mask_request, args.seconds)
+        if status:
+            raise SystemExit(f"Omega constructor refused core low-byte conversions with exit {status}")
+        check_tape(work, tape, args.seconds, "core-low-bytes")
+        too_wide = (b"machine convert(value:u64)->u8 {(value & 0x1FF) as u8} "
+                    b"machine main()->u8 {convert(0x100)}")
+        wide_request = encode([("app", 0)], [], [(0, too_wide)], 0, b"main", paths=["main.omg"])[0]
+        (work / "nine-bit-byte-cast.stdin").write_bytes(wide_request)
+        if execute(runner, wide_request, args.seconds) != (247, b""):
+            raise SystemExit("nine-bit mask must fail the u8 fit check before publication")
         status, output = execute(runner, linked, args.seconds)
         if status:
             raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")

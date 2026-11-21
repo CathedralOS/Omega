@@ -1,0 +1,16 @@
+machine mask_left(value: u64) -> u64 { 0xFFFF & value }
+
+machine main() -> u8 {
+    transition narrow_u64_to_u8_wrapping(0xFEDC_BA98_7654_3210) == 0x10
+        && narrow_u64_to_u16_wrapping(0xFEDC_BA98_7654_3210) == 0x3210
+        && narrow_u64_to_u32_wrapping(0xFEDC_BA98_7654_3210) == 0x7654_3210
+        && narrow_u64_to_u8_wrapping(0xFFFF_FFFF_FFFF_FFFF) == 255
+        && narrow_u64_to_u16_wrapping(0x1_0000) == 0
+        && narrow_u64_to_u32_wrapping(0x1_0000_0000) == 0
+        && mask_left(0x8000_0000_0000_002A) == 42 {
+        true -> yes(),
+        _ -> no()
+    }
+    machine yes() -> u8 { 42 }
+    machine no() -> u8 { 1 }
+}

@@ -1,7 +1,9 @@
 use foundation\ExactInteger;
 use representations\lowered_program\ScalarLayout;
 use representations\lowered_program\ScalarLayoutKind;
+use representations\lowered_program\ScalarOperation;
 use representations\lowered_program\ScalarOperationKind;
+use representations\lowered_program\scalar_operation;
 use representations\lowered_program\ScalarParameter;
 use representations\lowered_program\ScalarStatus;
 use representations\lowered_program\scalar_layout_at;
@@ -578,6 +580,24 @@ machine scalar_plain_unsigned(row: TypeRow) -> bool {
             || row.builtin == BuiltinType::U32 || row.builtin == BuiltinType::U64)
 }
 
+// A constant low-byte mask can use the little-endian bytes of a value's
+// existing slot. Both operands have already executed in source order.
+machine scalar_mask_width(operation: ScalarOperation) -> u64 in Trapping {
+    transition operation.kind {
+        ScalarOperationKind::IntegerConstant -> mask(operation.left as -Trapping),
+        _ -> width(0)
+    }
+    machine mask(bits: u64) -> u64 in Trapping {
+        transition bits {
+            0xFF -> width(1),
+            0xFFFF -> width(2),
+            0xFFFF_FFFF -> width(4),
+            _ -> width(0)
+        }
+    }
+    machine width(bytes: u64) -> u64 in Trapping { bytes as +Trapping }
+}
+
 machine scalar_binary(lowerer: @mut ScalarLowerer, typing: @Typing, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping
 crashes Trap
 {
@@ -639,8 +659,34 @@ crashes Trap
             OperatorKind::Multiply -> operation(lowerer, ScalarOperationKind::ExactIntegerMultiply, left, right, false),
             OperatorKind::Divide -> quotient(lowerer, row, ScalarOperationKind::ExactIntegerDivide, left, right),
             OperatorKind::Modulo -> quotient(lowerer, row, ScalarOperationKind::ExactIntegerRemainder, left, right),
+            OperatorKind::BitAnd -> masked_operands(lowerer, left, right),
             _ -> unsupported(lowerer)
         }
+    }
+    machine masked_operands(lowerer: @mut ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        transition left > 0 && right > 0 {
+            true -> mask(lowerer, left, right),
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine mask(lowerer: @mut ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        let left_value: ScalarOperation = scalar_operation(@lowerer.output, left - 1);
+        let right_value: ScalarOperation = scalar_operation(@lowerer.output, right - 1);
+        let left_width: u64 in Trapping = scalar_mask_width(left_value);
+        let right_width: u64 in Trapping = scalar_mask_width(right_value);
+        transition right_width > 0 {
+            true -> low_bytes(lowerer, left, right_width),
+            _ -> low_bytes(lowerer, right, left_width)
+        }
+    }
+    machine low_bytes(lowerer: @mut ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
+        transition width > 0 {
+            true -> emit_mask(lowerer, value, width),
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine emit_mask(lowerer: @mut ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
+        scalar_append(lowerer, ScalarOperationKind::LowBytes, value - 1, 0 as u64 +Trapping, width)
     }
     // Alpha division is signed. Stored u8/u16/u32 values fit its positive
     // signed range; full-width unsigned division needs a separate lowering.
