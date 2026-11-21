@@ -664,6 +664,7 @@ data OmegaTransitionGuardKind {
     case Integer;
     case Path;
     case Destructure;
+    case Predicate;
 }
 
 data OmegaTransitionPatternFieldKind {
@@ -697,6 +698,7 @@ data OmegaTransitionStatementSyntax {
     has_subject: i32;
     subject: i32;
     guard_kind: OmegaTransitionGuardKind;
+    guard_expression: i32;
     guard_boolean: i32;
     guard_start: i32;
     guard_end: i32;
@@ -815,7 +817,8 @@ data OmegaExpressionConsumer {
     case CallArgument;
     case AssignmentValue;
     case StructFieldValue;
-    case TransitionSubject;
+    // The subject before a block or the Boolean condition before an arm arrow.
+    case TransitionHead;
     case ExpressionStatement;
     case LocalDataInitialValue;
     case CastValue;
@@ -1413,6 +1416,7 @@ data OmegaParser {
     transition_has_subject: i32;
     transition_subject_expression: i32;
     transition_guard_kind: OmegaTransitionGuardKind;
+    transition_guard_expression: i32;
     transition_guard_boolean: i32;
     transition_guard_start: i32;
     transition_guard_end: i32;

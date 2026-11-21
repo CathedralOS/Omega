@@ -2540,6 +2540,12 @@ machine OmegaScalarCompiler::check_transition_target(
         }
     }
     state contract(row: OmegaTransitionStatementSyntax, target: i32) {
+        transition row.guard_kind {
+            OmegaTransitionGuardKind::Predicate -> prove(row, target, row.guard_expression, 1)
+            _ -> subject_contract(row, target)
+        }
+    }
+    state subject_contract(row: OmegaTransitionStatementSyntax, target: i32) {
         transition row.has_subject {
             1 -> guard(row, target)
             _ -> prove(row, target, -1, 0)
@@ -3079,6 +3085,62 @@ machine OmegaScalarCompiler::check_integer_guard(&mut self, source: &[u8], index
     state incomplete() { self.record_incomplete(4, row.guard_start); return 0; }
 }
 
+// A literal true is an unconditional predicate with no evaluation effects.
+// Other predicates retain ordinary value checking and ordered execution.
+machine OmegaScalarCompiler::predicate_is_true(&mut self, expression: i32) -> i32 {
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::Boolean -> return self.parser.expressions[expression].payload0
+        _ -> return 0
+    }
+}
+
+// This plan has checked coverage through a wildcard or literal true. Refuse
+// an exhausted plan rather than emit an implicit fallthrough to another state.
+machine OmegaScalarCompiler::emit_predicate_transition(
+    &mut self, state_index: i32, first: i32, last: i32
+) -> i32 {
+    transition true { true -> arm(first) }
+    state arm(cursor: i32) {
+        transition cursor < last {
+            true -> guard(cursor, self.parser.statements[self.parser.machine_states[
+                self.local_state_row(state_index)].first_statement + cursor].item_index)
+            _ -> return 0
+        }
+    }
+    state guard(cursor: i32, row_index: i32) {
+        transition self.parser.transition_statements[row_index].guard_kind {
+            OmegaTransitionGuardKind::Always -> return self.emit_transition_target(row_index)
+            OmegaTransitionGuardKind::Predicate -> predicate(cursor, row_index,
+                self.parser.transition_statements[row_index].guard_expression)
+            _ -> return 0
+        }
+    }
+    state predicate(cursor: i32, row_index: i32, expression: i32) {
+        transition self.predicate_is_true(expression) {
+            1 -> return self.emit_transition_target(row_index)
+            _ -> label(cursor, row_index, expression)
+        }
+    }
+    state label(cursor: i32, row_index: i32, expression: i32) {
+        self.emission_resource = 14;
+        let next: i32 = self.tape.new_label();
+        transition next >= 0 {
+            true -> value(cursor, row_index, expression, next)
+            _ -> return 0
+        }
+    }
+    state value(cursor: i32, row_index: i32, expression: i32, next: i32) {
+        self.emission_resource = 12;
+        transition (self.emit_value(expression) == 1) &&
+            (self.tape.emit_rx_label(13, 0, next) == 1) &&
+            (self.emit_transition_target(row_index) == 1) &&
+            (self.tape.define_label(next) == 1) {
+            true -> arm(cursor + 1)
+            _ -> return 0
+        }
+    }
+}
+
 // Evaluate a dynamic subject once. Every target terminates the current
 // activation; later guards are reached only by the preceding failed guard.
 machine OmegaScalarCompiler::emit_dynamic_transition(
@@ -3086,9 +3148,16 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
 ) -> i32 {
     let subject: i32 = self.parser.transition_statements[self.parser.statements[
         self.parser.machine_states[self.local_state_row(state_index)].first_statement + first].item_index].subject;
-    transition (self.emit_value(subject) == 1) && (self.emit_value_store(49152 + subject) == 1) {
-        true -> arm(first, subject)
-        _ -> return 0
+    transition self.parser.transition_statements[self.parser.statements[
+        self.parser.machine_states[self.local_state_row(state_index)].first_statement + first].item_index].has_subject {
+        0 -> return self.emit_predicate_transition(state_index, first, last)
+        _ -> subject_value(subject)
+    }
+    state subject_value(subject: i32) {
+        transition (self.emit_value(subject) == 1) && (self.emit_value_store(49152 + subject) == 1) {
+            true -> arm(first, subject)
+            _ -> return 0
+        }
     }
     state arm(cursor: i32, subject: i32) {
         transition cursor < last {
@@ -4270,36 +4339,65 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
 
-    // The admitted subjectless block is exactly one wildcard arm.
+    // Every predicate and target is checked, including arms after a wildcard.
+    // Possible call effects remain conservatively retained across arms: a
+    // later guard cannot reuse an entry fact invalidated on an earlier path.
     state subjectless(index: i32, state_index: i32, statement_offset: i32,
         run_end: i32) {
-        transition run_end == statement_offset + 1 {
-            true -> subjectless_guard(index, state_index, statement_offset)
-            _ -> incomplete(4, self.transition_anchor)
+        transition true { true -> predicate_arm(index, state_index,
+            statement_offset, run_end, statement_offset, 0) }
+    }
+    state predicate_arm(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32) {
+        transition arm < last {
+            true -> predicate_guard(index, state_index, first, last, arm, covered,
+                self.parser.statements[self.parser.machine_states[
+                    self.local_state_row(state_index)].first_statement + arm].item_index)
+            _ -> predicate_covered(index, state_index, first, last, covered)
         }
     }
-
-    state subjectless_guard(index: i32, state_index: i32,
-        statement_offset: i32) {
-        let row: OmegaTransitionStatementSyntax =
-            self.parser.transition_statements[
-                self.parser.statements[
-                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
-                    statement_offset].item_index];
+    state predicate_guard(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row_index: i32) {
+        let row: OmegaTransitionStatementSyntax = self.parser.transition_statements[row_index];
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always ->
-                subjectless_target(index, state_index, statement_offset)
-            _ -> incomplete(4, row.start)
+                predicate_target(index, state_index, first, last, arm, 1, row_index)
+            OmegaTransitionGuardKind::Predicate ->
+                predicate_value(index, state_index, first, last, arm, covered, row_index, row)
+            _ -> incomplete(4, row.guard_start)
         }
     }
-
-    state subjectless_target(index: i32, state_index: i32,
-        statement_offset: i32) {
-        let row_index: i32 = self.parser.statements[
-            self.parser.machine_states[self.local_state_row(state_index)].first_statement + statement_offset].item_index;
-        transition self.check_transition_target(source, index, state_index, statement_offset, row_index) {
-            1 -> retain_transition(index, state_index, row_index)
+    state predicate_value(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row_index: i32, row: OmegaTransitionStatementSyntax) {
+        transition self.check_value(source, index, state_index, first, row.guard_expression, 1) {
+            1 -> predicate_coverage(index, state_index, first, last, arm, covered, row_index, row.guard_expression)
             _ -> return
+        }
+    }
+    state predicate_coverage(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row_index: i32, expression: i32) {
+        transition self.predicate_is_true(expression) {
+            1 -> predicate_target(index, state_index, first, last, arm, 1, row_index)
+            _ -> predicate_target(index, state_index, first, last, arm, covered, row_index)
+        }
+    }
+    state predicate_target(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row_index: i32) {
+        self.active_boolean_arm = row_index;
+        let checked: i32 = self.check_transition_target(source, index, state_index, first, row_index);
+        self.active_boolean_arm = -1;
+        transition checked {
+            1 -> predicate_arm(index, state_index, first, last, arm + 1, covered)
+            _ -> return
+        }
+    }
+    state predicate_covered(index: i32, state_index: i32, first: i32, last: i32,
+        covered: i32) {
+        transition covered {
+            1 -> retain_dynamic(index, state_index, first, last)
+            // Complementary guards may prove coverage in Omega, but this
+            // slice requires a wildcard or a literal true, not guessed proof.
+            _ -> incomplete(4, self.transition_anchor)
         }
     }
 
@@ -6977,15 +7075,17 @@ machine OmegaScalarCompiler::check_index_bound(
     }
     state guarded(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
         transition row.guard_kind {
-            OmegaTransitionGuardKind::Boolean -> target(plan, row, index)
+            OmegaTransitionGuardKind::Boolean -> target(plan, row, index, row.subject, row.guard_boolean)
+            OmegaTransitionGuardKind::Predicate -> target(plan, row, index, row.guard_expression, 1)
             _ -> unsupported()
         }
     }
-    state target(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
-        transition (index >= 0) && (self.pure_value(row.subject) == 1) &&
+    state target(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32,
+        guard: i32, truth: i32) {
+        transition (index >= 0) && (self.pure_value(guard) == 1) &&
             (self.pure_transition_target(row) == 1) &&
             (self.guard_bound(index, 0, 0, plan.extent - 1,
-                row.subject, row.guard_boolean) == 1) {
+                guard, truth) == 1) {
             true -> retain(OmegaIndexBoundKind::BooleanArm, self.active_boolean_arm, plan.extent - 1)
             _ -> unsupported()
         }

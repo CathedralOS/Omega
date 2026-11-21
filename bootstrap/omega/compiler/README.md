@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,494 lines / 1,115,919 bytes with SHA-256
-`147fe7bfb454d329799f935e4c27da40e78b8a6d5e4b9c09100129700a2cce94`.
+The manifest materializes 28,682 lines / 1,124,386 bytes with SHA-256
+`90fa1d383813784a16361cb7c1c74a9028c8dc5475393b790db936c41e9e5500`.
 The manifest itself is 2,905 bytes, SHA-256
-`0f222b53ffe1adc829af77e53fcd4f21e6f2cbfe2db54f0f05d2a51b95b7a180`;
+`39ddd5d311c9e533338e06a37a4dea53753c4b6f83c0870cfc000b021dfdc318`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -211,7 +211,10 @@ Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards, a comma between arms and an optional trailing comma. An arm
 can transfer to a machine or produce a value. Booleans, integers, local names
 and qualified sum cases with or without named payloads use the ordinary result
-checker and Alpha emitter.
+checker and Alpha emitter. In a subjectless transition the compiler checks every
+condition as a Boolean and checks every target, including targets after an
+unconditional arm. At runtime it evaluates conditions in source order until
+one succeeds. A wildcard or literal `true` establishes coverage in this subset.
 An operand of a transition subject may use a local with a keyword spelling,
 including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
@@ -801,8 +804,8 @@ shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
 optional trailing comma. A
-subjectless block retains absence explicitly and does not manufacture a unit
-expression. Computed or multiple subjects, record/tuple patterns, renamed or
+subjectless block retains each condition as an ordinary expression with its own
+source span. A wildcard has a distinct guard kind. Computed or multiple subjects, record/tuple patterns, renamed or
 waived fields, non-path fixed values, proof selectors, richer guards, richer
 target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-

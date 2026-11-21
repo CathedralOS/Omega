@@ -21,10 +21,10 @@ machine Main::main(&mut self) {
     self.complete(80);
 
     self.compiler.compile("machine answer() -> u8 { transition { _ -> first(),_ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 2 } }", "answer");
-    self.incomplete();
+    self.complete(42);
 
     self.compiler.compile("machine answer() -> u8 { transition { 1 -> first() } machine first() -> u8 { 1 } }", "answer");
-    self.incomplete();
+    self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { transition true { 1 -> first(),_ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 0 } }", "answer");
     self.incomplete();
