@@ -20310,7 +20310,8 @@ mod structural {
             } else {
                 placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                     || (scalar_descriptor
-                        && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
+                        && placement.shape
+                            == calling_conventions::ValueShape::borrowed_scalar_reference())
             };
             if !correct_shape {
                 return Err(invalid());
@@ -20544,12 +20545,29 @@ mod structural {
                 let opaque = StructuralSourceLocation::IncomingOpaquePointer { location: incoming };
                 let mut placement = ValuePlacement {
                     shape: ValueShape::integer(8, 8),
-                    locations: vec![ValueLocation::Register { register, value_byte_offset: 0, byte_size: 8 }],
+                    locations: vec![ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                    }],
                 };
-                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque).is_ok());
-                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, borrowed(incoming)).is_err());
+                assert!(
+                    validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque)
+                        .is_ok()
+                );
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::SharedBorrow,
+                        &placement,
+                        borrowed(incoming)
+                    )
+                    .is_err()
+                );
                 placement.shape = ValueShape::borrowed_reference(16, 8);
-                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque).is_err());
+                assert!(
+                    validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque)
+                        .is_err()
+                );
             }
 
             #[test]
