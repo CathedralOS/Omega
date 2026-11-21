@@ -1176,9 +1176,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:construct_body_object#1",
       "kind": "producer",
-      "meaning": "Pass the issued stage 16 object to image emission and transfer the physical audit originals to the compilation report.",
+      "meaning": "Issue the placed body as a linkable object and pass its sections and replay evidence to image preparation.",
       "producer": "native compiler physical and object driver",
-      "signature": "0a7e2b251aaa71a0cb170741babac77f262a2c59f751c7777ac118c47377adff"
+      "signature": "6d005c45b18338dfe9747d8240f4f799af43ab4a4afe91acc26f9c32aa087084"
     },
     {
       "consumers": [
@@ -7872,24 +7872,26 @@
     },
     {
       "consumers": [
-        "stage 17 image emission"
+        "native image composition",
+        "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "PublishedFunctionObject::field:publication#1",
       "kind": "carried_record",
       "meaning": "The current object, placed code and installation facts used by the image emitter.",
-      "producer": "stage 16 object construction",
+      "producer": "native body object publication",
       "signature": "f0a08df73a606812986e33bcee933469f4a822c26322564449b1a8f7f04376ff"
     },
     {
       "consumers": [
-        "stage 17 image emission"
+        "native image composition",
+        "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "PublishedFunctionObject::field:replay#1",
       "kind": "carried_record",
       "meaning": "Holds the placement originals only when the request arrived with this body.",
-      "producer": "stage 16 object construction",
+      "producer": "native body object publication",
       "signature": "964f1fcaaa869656cad0107dcba30200ce7100b11e030e4661676c086716e630"
     },
     {
@@ -8105,7 +8107,7 @@
       "kind": "definition",
       "meaning": "Expose the original object publication, wire or placement failure.",
       "producer": "native object publication",
-      "signature": "457d37f0a69932b3a3858ebb0f22ef0621c535fdacd3cd0abd535d745db31ca1"
+      "signature": "03609d0eba6d1723cecc3e87e898e25222480ed4c2a49967006a56dd8d8d4a6b"
     },
     {
       "consumers": [
@@ -8145,19 +8147,6 @@
       "meaning": "Derive the custody receipt from the sealed object, container and manifest.",
       "producer": "native object publication",
       "signature": "2858c1a08de4d69af1178bee81ccb1a881974df9895380f55b374d1e5dcabd40"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "function:stage_optimized_relocation_free_object_container#1",
-      "kind": "producer",
-      "meaning": "Produce and seal the relocation-free object from placed code with its checked publication.",
-      "producer": "native object publication",
-      "signature": "f82a223224e56efec5abe8b59a96fc006d5b9d2a15a241d6f28048f06e300f52"
     },
     {
       "consumers": [
@@ -8316,25 +8305,27 @@
     },
     {
       "consumers": [
-        "stage 17 image emission"
+        "native image composition",
+        "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:PublishedFunctionObject::implementation#1",
       "kind": "definition",
       "meaning": "Only the object stage constructs the publication and its optional replay.",
-      "producer": "stage 16 object construction",
-      "signature": "651b3e19856eded5b07da2bd5e857e1ce149f574d8f48f485e5d88107b1f0a92"
+      "producer": "native body object publication",
+      "signature": "26be916052df74fc9d34144de0a08216ab48b3a60ef5f723a61662a0d32e8dea"
     },
     {
       "consumers": [
-        "stage 17 image emission"
+        "native image composition",
+        "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:PublishedFunctionObject::method:into_parts#1",
       "kind": "definition",
-      "meaning": "Releases the current object for emission and the matching originals for an explicit audit.",
-      "producer": "stage 16 object construction",
-      "signature": "eef9442370e72d1115e0cff5500d183ea5cf86b7a47d2223c960988adc67eb5a"
+      "meaning": "Moves the exact issued sections into image composition together with their source and any explicit replay.",
+      "producer": "native body object publication",
+      "signature": "1df895efaa7d47143c8c509a18929e3a1cb45553cb34db73090de31239acb462"
     },
     {
       "consumers": [
@@ -8347,7 +8338,7 @@
       "kind": "definition",
       "meaning": "Expose the placed code, object records and publication facts for object emission and comparison.",
       "producer": "native object publication",
-      "signature": "994fd390a0599419009a94ed1de5dbdfa97ff809f61884473e8188cf276d7eac"
+      "signature": "c60d62b3405f380920689ca2f94495b30dc3d9e6c4168e8309cdfad83da766cc"
     },
     {
       "consumers": [
@@ -8698,14 +8689,15 @@
     },
     {
       "consumers": [
-        "stage 17 image emission"
+        "native image composition",
+        "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:PublishedFunctionObject#1",
       "kind": "carried_record",
-      "meaning": "One stage 16 result pairs the current object with any requested replay.",
-      "producer": "stage 16 object construction",
-      "signature": "7180355aca025aa2b3eefc4cf725d5ff8a8fff1e9dd0153c87afd5ba04aafdcc"
+      "meaning": "A sealed body object pairs its final linkable sections with the physical origin and requested replay.",
+      "producer": "native body object publication",
+      "signature": "a55f08e69422ca4a9dadbe720cf20c4bd9ec363a3b0a55da75a4fd78b9663f8d"
     },
     {
       "consumers": [
@@ -8718,7 +8710,7 @@
       "kind": "carried_record",
       "meaning": "Retain the placed source, publication facts, encoded object, manifest and receipt for independent comparison.",
       "producer": "native object publication",
-      "signature": "db9d63683c0174a5eb00624d9fd2fb678986e7bda3582405a6efe34e4216b180"
+      "signature": "c4fe1ac3f5550da86a085e097c66fab665efcbf96529feb8c52e309350de5a6f"
     },
     {
       "consumers": [
@@ -21763,6 +21755,654 @@
       "meaning": "Compare every byte outside the declared fixup fields, then decode the published switch and compare its control flow and effects with the planned switch.",
       "producer": "native image emission",
       "signature": "c6142e537d7f43d9a4dff1210643debc92bad1b8f1bdbc0b62c20d4dff2d0436"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "Error::ForeignCalls::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Original error placing foreign-call or callback transport.",
+      "producer": "native body object publication",
+      "signature": "9ad5fead26a50b772b29d1e359b52d3aca2d17b8cc1c686f139a680dd6d0f263"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "Error::Mismatch::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Mismatch between a placed reference and its published origin.",
+      "producer": "native body object publication",
+      "signature": "bed280d0f0973d9bc712a95a1ddf3af731d87036646bef814199552958af6919"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "Error::NativeCodeLayout::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Original error deriving metadata for the native body.",
+      "producer": "native body object publication",
+      "signature": "e6b12ee587956e588644e78e6cf145b439eeea8567bcaf20d976343c5d11041a"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "Error::Unsupported::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Address form or target mode unsupported by this object format.",
+      "producer": "native body object publication",
+      "signature": "bed280d0f0973d9bc712a95a1ddf3af731d87036646bef814199552958af6919"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:byte_literal_pool#1",
+      "kind": "carried_record",
+      "meaning": "Packed literal extent and address records when the code materializes literals.",
+      "producer": "native body object publication",
+      "signature": "43c6dd42244a6c84d98d93141baf188825a716e778039696035b5aac79cc2933"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:code_descriptor_pool#1",
+      "kind": "carried_record",
+      "meaning": "Object symbols and offsets for callable and implementation-table descriptors.",
+      "producer": "native body object publication",
+      "signature": "de164c0c3aceba2eee3152b35add014ba6a7c144c725bc90e76f547aaee8feb1"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:data_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Complete descriptor and native-layout bytes before image relocation.",
+      "producer": "native body object publication",
+      "signature": "2cc086e239561e637fa5f5384fe5562b3d0ed76fcaa82ce3a797229c033ebcb9"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:foreign_calls#1",
+      "kind": "carried_record",
+      "meaning": "Foreign transport and callback materializations resolved to the actual instruction spans.",
+      "producer": "native body object publication",
+      "signature": "01ef2ed4822965940e9b14cf113e50e6c4f6368e559db6ef9e5c7cb42eda65dd"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:functions#1",
+      "kind": "carried_record",
+      "meaning": "Function symbols and extents in placement order.",
+      "producer": "native body object publication",
+      "signature": "e21acb04af337369dfe4eaaeab3307069621e397dc9694135feca320b6f802b5"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:native_code_layout_pool#1",
+      "kind": "carried_record",
+      "meaning": "Layout descriptors and their object-relative instruction regions.",
+      "producer": "native body object publication",
+      "signature": "40beeaf6911fef477404debb73968330532e0867558fc0da5d3e0c7cc6031a2e"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:object#1",
+      "kind": "carried_record",
+      "meaning": "Object section geometry, definitions, imports, private references and entry symbol.",
+      "producer": "native body object publication",
+      "signature": "4682f1202214dcba6c7fa6d771e28830034b240b8525a5d2c4e7f589a27694ef"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:relocations#1",
+      "kind": "carried_record",
+      "meaning": "Unresolved object-relative fields and their symbol destinations and addends.",
+      "producer": "native body object publication",
+      "signature": "fced494e12ac8f53c43d135ef3b6ef5a4b51d094ec935572950438c6936a4d70"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:retained_entry_storage#1",
+      "kind": "carried_record",
+      "meaning": "External symbol referenced by retained entry-storage address queries when present.",
+      "producer": "native body object publication",
+      "signature": "05ca3f666ff1f0b786058dd9f9c14c9b8b6ef75abeb30995bcc6448f36350456"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "FunctionObjectSections::field:text_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Final body machine bytes followed by its packed read-only literals.",
+      "producer": "native body object publication",
+      "signature": "56fd005e373163fc2a53db086c59379965db50467bd40a6bf9e7a601842b183e"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralAddress::field:byte_count#1",
+      "kind": "carried_record",
+      "meaning": "Length of the selected literal in bytes.",
+      "producer": "native body object publication",
+      "signature": "ab282993ad608253d81caad6f25ce25ca68c833783b480634a71c0c94daa84a7"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralAddress::field:fields#1",
+      "kind": "carried_record",
+      "meaning": "Instruction patch locations for this materialization.",
+      "producer": "native body object publication",
+      "signature": "7845079cf4693e91e7837fb8dcec4f5a73dfbd998cbbebd456acd69266db86bc"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralAddress::field:literal#1",
+      "kind": "carried_record",
+      "meaning": "Published literal operation and place that supplied the octets.",
+      "producer": "native body object publication",
+      "signature": "563941ee6bf01b02ee6796d9615999228e36285fc8530244aa1b8f3faaee2867"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralAddress::field:machine#1",
+      "kind": "carried_record",
+      "meaning": "Function owning this literal address instruction.",
+      "producer": "native body object publication",
+      "signature": "ce249d1ac1f414564900d7a3f479d62403ba2c1b923ae542d8c58af09958ff4c"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralAddress::field:pool_offset#1",
+      "kind": "carried_record",
+      "meaning": "Addend relative to the start of the pool symbol.",
+      "producer": "native body object publication",
+      "signature": "fae89e43342e59473888ecea934886ff8383926ab13e28e69660ff7e278cd207"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralPool::field:addresses#1",
+      "kind": "carried_record",
+      "meaning": "Placed references to the individual literal locations.",
+      "producer": "native body object publication",
+      "signature": "e69196dc268275757e967e781dcf86112d5786ed393947a35f7ecdc3716c9d9b"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralPool::field:byte_count#1",
+      "kind": "carried_record",
+      "meaning": "Total packed pool extent including alignment.",
+      "producer": "native body object publication",
+      "signature": "ab282993ad608253d81caad6f25ce25ca68c833783b480634a71c0c94daa84a7"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralPool::field:symbol#1",
+      "kind": "carried_record",
+      "meaning": "Object symbol for the packed literal bytes.",
+      "producer": "native body object publication",
+      "signature": "20d5feed06abcfbf79ce632ac287e51452616f1fafe67430a33d42ef86b6d69f"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectByteLiteralPool::field:text_offset#1",
+      "kind": "carried_record",
+      "meaning": "Byte position of the pool in the body text section.",
+      "producer": "native body object publication",
+      "signature": "2fa01f286f629cba771d824b5327ab87219b7b4f114cec461a5d545dee51d95d"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectFunctionLocation::field:byte_count#1",
+      "kind": "carried_record",
+      "meaning": "Extent of the placed function before any pooling or image composition.",
+      "producer": "native body object publication",
+      "signature": "ab282993ad608253d81caad6f25ce25ca68c833783b480634a71c0c94daa84a7"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectFunctionLocation::field:machine#1",
+      "kind": "carried_record",
+      "meaning": "The placed function that owns the extent.",
+      "producer": "native body object publication",
+      "signature": "ce249d1ac1f414564900d7a3f479d62403ba2c1b923ae542d8c58af09958ff4c"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectFunctionLocation::field:symbol#1",
+      "kind": "carried_record",
+      "meaning": "Function symbol used as the origin of its relocations.",
+      "producer": "native body object publication",
+      "signature": "20d5feed06abcfbf79ce632ac287e51452616f1fafe67430a33d42ef86b6d69f"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "ObjectFunctionLocation::field:text_offset#1",
+      "kind": "carried_record",
+      "meaning": "Offset of the first instruction in the object text.",
+      "producer": "native body object publication",
+      "signature": "2fa01f286f629cba771d824b5327ab87219b7b4f114cec461a5d545dee51d95d"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "enum:Error#1",
+      "kind": "definition",
+      "meaning": "Report the original missing, inconsistent or unsupported body section or relocation.",
+      "producer": "native body object publication",
+      "signature": "fb939505dd1741be139fea573be1d5fba2b5594877b5f9362950757f3bda7697"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:find_object_function#1",
+      "kind": "definition",
+      "meaning": "Resolve a semantic machine to its object-local function symbol and extent.",
+      "producer": "native body object publication",
+      "signature": "755b7eb31f962b2b52185509d6049cdc7d01a36b883edab939ba360206c5713f"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:host#1",
+      "kind": "checker",
+      "meaning": "Reject object offsets that cannot be represented as host byte indices.",
+      "producer": "native body object publication",
+      "signature": "3645f82803bcb149aa6088597d3472fcb5dfec95604664969ed849945247c84f"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:refuse_symbol_collision#1",
+      "kind": "checker",
+      "meaning": "Reject redefinition of a compiler-authored symbol name.",
+      "producer": "native body object publication",
+      "signature": "ec560fb04f84a47ee6a73ece732b094b8c6308a7a88451735308c27b25cdc2e4"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "impl:AsRef < Self > for ObjectFunctionLocation::implementation#1",
+      "kind": "definition",
+      "meaning": "Borrow the original symbol and extent when reading a function location in either an issued or composed object.",
+      "producer": "native body object publication",
+      "signature": "6d985159ca284736d623c31f2a24f2fdd0859b17cb0139ed8c3b7a6cc3f60105"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "impl:AsRef < Self > for ObjectFunctionLocation::method:as_ref#1",
+      "kind": "definition",
+      "meaning": "Borrow the original symbol and extent when reading a function location in either an issued or composed object.",
+      "producer": "native body object publication",
+      "signature": "afa61e36eff6a7d989bef752f8dd0dc10ebe711bf52f0d3d2588acfb395a3aea"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "impl:FunctionObjectSections::implementation#1",
+      "kind": "definition",
+      "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
+      "producer": "native body object publication",
+      "signature": "43232a9d6fe2989aa101ba2c0f28cc5f347d32bc5fc81e86369d2db1166fd0c3"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "impl:FunctionObjectSections::method:assemble#1",
+      "kind": "producer",
+      "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
+      "producer": "native body object publication",
+      "signature": "ce4fd53b0a0eeaebf6ffc24d457c06b21cf9662ebb41132de98446b29d9e812c"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:byte_literals#1",
+      "kind": "definition",
+      "meaning": "Packs literal octets and derives their instruction relocations.",
+      "producer": "native body object publication",
+      "signature": "be388aaa1bb79ac63a2780f33837adb7b85acb0ff3408f90831967ecd08ac345"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:code_descriptors#1",
+      "kind": "definition",
+      "meaning": "Places callable descriptors and links their data-pointer slots.",
+      "producer": "native body object publication",
+      "signature": "62e94b693998ad8b86d9eea0ed29f6ebe55b2f740e98dc89f2e07fe492a7a8b4"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:image_addresses#1",
+      "kind": "definition",
+      "meaning": "Encodes x86 relative or AArch64 paired page-address relocation fields.",
+      "producer": "native body object publication",
+      "signature": "ea645e34df4b21f783f01ad8ae2817934841752d0ef11c68205ca615df65d542"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:image_residence#1",
+      "kind": "definition",
+      "meaning": "Declares the external storage start for retained firmware entry queries.",
+      "producer": "native body object publication",
+      "signature": "0b428bea8ec936cb29e0bd719611884d3aee43e135161c3d4cdd995938f25321"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:imports#1",
+      "kind": "definition",
+      "meaning": "Matches placed foreign calls and their callback materializations with import fields.",
+      "producer": "native body object publication",
+      "signature": "eff15b4d02b0a505598ab41b58176640c334cc8c6f90ac52e5de957c6db7e807"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:native_code_layouts#1",
+      "kind": "definition",
+      "meaning": "Places native layout metadata and its machine-region relocations.",
+      "producer": "native body object publication",
+      "signature": "50db52b049a35ec1cbe4257e46396135d13fabc7ef266c72f4913fd2e5970c51"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:private_addresses#1",
+      "kind": "definition",
+      "meaning": "Declares private function references and relocations in the caller namespace.",
+      "producer": "native body object publication",
+      "signature": "b7ef967c0c4d8a819a006987bcb93bab43126d4147aa4feba2033e5e2c948dc7"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "struct:FunctionObjectSections#1",
+      "kind": "carried_record",
+      "meaning": "The complete bytes, symbol definitions and unresolved relocations for one body before any private objects or entry shims are linked.",
+      "producer": "native body object publication",
+      "signature": "c08215511457dc9aeb4598f97c4b82013f4e9e6dae5697e27a6aeb233e3e77e6"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "struct:ObjectByteLiteralAddress#1",
+      "kind": "carried_record",
+      "meaning": "One source literal occurrence, its assigned offset inside the pool and the instruction fields addressing it.",
+      "producer": "native body object publication",
+      "signature": "b549b9da426cfca5fffc613c0df71899215f89bbf8c29997e13e99af68be94cc"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "struct:ObjectByteLiteralPool#1",
+      "kind": "carried_record",
+      "meaning": "Packed, aligned literal octets stored in the text section and identified by a single object symbol.",
+      "producer": "native body object publication",
+      "signature": "89bd3f8b1fd9fd8f0b2ba4c9c45d8de157b774b5a98b9390cd9f5bd4e342a0e8"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "struct:ObjectFunctionLocation#1",
+      "kind": "carried_record",
+      "meaning": "Object-relative function extent and symbol associated with one placed machine.",
+      "producer": "native body object publication",
+      "signature": "0368ac65efa9ffc27dda940ea3576f7e6d6ccf78de99222b85af2626b1f07322"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "use:crate :: { ForeignCallPlacementError , ObjectForeignCall , ObjectPlan , ObjectPublication , ObjectSymbolHandle , RelocationPlan , SectionKind , SectionPlan , SymbolKind , SymbolPlan , SymbolSection , entry_symbol_name , }#1",
+      "kind": "definition",
+      "meaning": "Use native object-format records and entry-symbol naming.",
+      "producer": "native body object publication",
+      "signature": "b41be8dde020439fde3e12fe3ab7540e77723599277c6bfdfd37b55936b142d3"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "use:semantic_vocabulary :: MachineId#1",
+      "kind": "definition",
+      "meaning": "Use the semantic machine identity for object function locations.",
+      "producer": "native body object publication",
+      "signature": "606808e519bb32591a8203b4f440586dcd2707870a8db496797d1c31f42a45c8"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "PublishedFunctionObject::field:sections#1",
+      "kind": "carried_record",
+      "meaning": "Immutable text, data, symbols, relocations and body-relative extents from this exact issuance.",
+      "producer": "native body object publication",
+      "signature": "8cf77c36c235bb8e824342ec5aaf38d73a695a903f0763fc8f65b4e212513a9a"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "RelocationFreeObjectContainerError::Sections::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Original failure assigning object symbols, sections or relocations.",
+      "producer": "native body object publication",
+      "signature": "047bb1d8294553e028d000f18ceda2faf57539c94015d62d13d879fe913ec686"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "StagedOptimizedRelocationFreeObjectContainer::field:sections#1",
+      "kind": "carried_record",
+      "meaning": "Share the original body sections with its independently retained placement and wire record.",
+      "producer": "native body object publication",
+      "signature": "8cf77c36c235bb8e824342ec5aaf38d73a695a903f0763fc8f65b4e212513a9a"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "function:publish_function_object#1",
+      "kind": "producer",
+      "meaning": "Build the linkable section bytes, symbol table and relocations from one placed body and seal them alongside matching evidence.",
+      "producer": "native body object publication",
+      "signature": "ecc7b9236c0787b9dcc68028e51c31903b1a4fbeb84cabaabde3046bee0f085e"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "impl:PublishedFunctionObject::method:sections#1",
+      "kind": "definition",
+      "meaning": "Borrow the issued section bytes and relocation tables before any composition.",
+      "producer": "native body object publication",
+      "signature": "0c17021cf4108bcb0afa8fb220ca901265a703f76737ae5fb9c3f78b129410fe"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:published_object#1",
+      "kind": "definition",
+      "meaning": "Recover the same issued sections and physical origin for explicit readback without rerunning object construction.",
+      "producer": "native body object publication",
+      "signature": "5d86f31531dac4120702d800dd2b505a3109beef3b4b9e715bbc415ee0a6dfdb"
     }
   ],
   "roots": [
@@ -22213,6 +22853,15 @@
       "allowed_kinds": [
         "checker",
         "definition"
+      ]
+    },
+    {
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "allowed_kinds": [
+        "carried_record",
+        "checker",
+        "definition",
+        "producer"
       ]
     }
   ],

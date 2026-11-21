@@ -1,9 +1,6 @@
-/*
-We project admitted machine-code function fragments, read-only byte-literal
-pools, implementation tables, normalized imports, and structural/source replay
-evidence into a sealed `ObjectArtifact`, verifying that every abstract and
-target operation is accounted for in the final native instructions.
-*/
+//! Prepare the issued body for image composition. Its section bytes, symbols,
+//! and relocations arrive together from object construction. Semantic,
+//! transport and stack evidence refer to that object's function extents.
 
 mod current_image_selections;
 pub(crate) mod image_data;
@@ -1517,85 +1514,17 @@ mod attribution {
 }
 
 mod byte_literals {
-    use super::{Error, source};
-    use crate::object_input::ObjectEmissionInput;
-    use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
-    use machine_code::PlacedImageAddress;
-    use object_file::{
-        ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SymbolKind,
-        SymbolPlan, SymbolSection,
-    };
-    use std::borrow::Cow;
-    use std::collections::BTreeMap;
-
-    pub(super) const POOL_SYMBOL_NAME: &str = "omega_byte_literal_pool";
-    const POOL_ALIGNMENT: usize = 16;
-
-    pub(super) fn place(
-        source: &ObjectEmissionInput,
-        object: &mut ObjectPlan,
-        text_bytes: &mut Vec<u8>,
-    ) -> Result<Option<ObjectByteLiteralPool>, Error> {
-        let Some((pool_bytes, addresses)) = pool_contents(source, text_bytes.len())? else {
-            return Ok(None);
-        };
-        let text_offset = text_bytes.len();
-        if object
-            .layout
-            .symbols
-            .iter()
-            .any(|(_, symbol)| symbol.name == POOL_SYMBOL_NAME)
-        {
-            return Err(Error::Mismatch("byte-literal pool symbol name collision"));
-        }
-        let symbol = object.layout.symbols.insert(SymbolPlan {
-            name: POOL_SYMBOL_NAME.to_owned(),
-            section: SymbolSection::Section(SectionKind::Text),
-            offset: text_offset,
-            size: pool_bytes.len(),
-            kind: SymbolKind::Object,
-            import_library: String::new(),
-        });
-        text_bytes.extend_from_slice(&pool_bytes);
-        Ok(Some(ObjectByteLiteralPool {
-            symbol,
-            text_offset,
-            byte_count: pool_bytes.len(),
-            addresses,
-        }))
-    }
-
-    pub(super) fn publish_relocations(
-        pool: Option<&ObjectByteLiteralPool>,
-        functions: &[ObjectFunction],
-        relocations: &mut RelocationPlan,
-    ) -> Result<(), Error> {
-        let Some(pool) = pool else {
-            return Ok(());
-        };
-        for record in records(pool, functions)? {
-            relocations.push_record(record);
-        }
-        Ok(())
-    }
-
-    pub(super) fn records(
-        pool: &ObjectByteLiteralPool,
-        functions: &[ObjectFunction],
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let mut rows = Vec::new();
-        for address in &pool.addresses {
-            rows.extend(expected_records(pool, address, functions)?);
-        }
-        Ok(rows)
-    }
-
+    use super::Error;
+    use crate::{ObjectArtifact, object_input::ObjectEmissionInput};
+    use object_file::body_object::byte_literals::pool_contents;
+    pub(super) use object_file::body_object::byte_literals::{POOL_SYMBOL_NAME, records};
+    use object_file::{SectionKind, SymbolKind, SymbolSection};
     pub(super) fn validate(
         source: &ObjectEmissionInput,
         artifact: &ObjectArtifact,
         pool_text_offset: usize,
     ) -> Result<(), Error> {
-        let expected = pool_contents(source, pool_text_offset)?;
+        let expected = pool_contents(source.publication(), pool_text_offset)?;
         let (pool, (pool_bytes, addresses)) = match (&artifact.byte_literal_pool, expected) {
             (None, None) => {
                 if artifact.text_bytes.len() != pool_text_offset {
@@ -1636,258 +1565,10 @@ mod byte_literals {
         }
         Ok(())
     }
-
-    fn expected_records(
-        pool: &ObjectByteLiteralPool,
-        address: &ObjectByteLiteralAddress,
-        functions: &[ObjectFunction],
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let function =
-            crate::object::object_artifact::find_object_function(functions, address.machine)
-                .ok_or(Error::Mismatch("byte-literal address owner is absent"))?;
-        let origin = RelocationOrigin::SemanticOperation {
-            function_symbol_handle: function.symbol,
-            operation_identity: address.literal.operation.get(),
-        };
-        let addend = i64::try_from(address.pool_offset).map_err(|_| Error::Overflow)?;
-        super::image_addresses::records(address.fields, origin, pool.symbol, addend)
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn pool_contents(
-        source: &ObjectEmissionInput,
-        text_offset: usize,
-    ) -> Result<Option<(Vec<u8>, Vec<ObjectByteLiteralAddress>)>, Error> {
-        let placed = source
-            .text_section()
-            .unresolved_image_addresses
-            .iter()
-            .filter_map(|row| row.byte_literal().map(|literal| (row, literal)))
-            .collect::<Vec<_>>();
-        if placed.is_empty() {
-            return Ok(None);
-        }
-        let literals = placed
-            .iter()
-            .map(|(row, _)| literal_octets(source, row))
-            .collect::<Result<Vec<_>, _>>()?;
-        let entries = literals
-            .iter()
-            .map(|(octets, alignment)| (octets.as_ref(), *alignment))
-            .collect::<Vec<_>>();
-        let (pool, offsets) = pack_octets(&entries, text_offset)?;
-        let addresses = placed
-            .iter()
-            .zip(literals.iter().zip(offsets))
-            .map(
-                |((row, literal), ((octets, _), pool_offset))| ObjectByteLiteralAddress {
-                    machine: row.machine,
-                    literal: *literal,
-                    fields: row.fields,
-                    pool_offset,
-                    byte_count: octets.len(),
-                },
-            )
-            .collect();
-        Ok(Some((pool, addresses)))
-    }
-
-    /// Packs each literal at an image position aligned to its element alignment (at most the
-    /// pool's own alignment, which the text section also honors). Identical octets share an
-    /// entry when that entry is already aligned enough.
-    fn pack_octets(
-        literals: &[(&[u8], usize)],
-        text_offset: usize,
-    ) -> Result<(Vec<u8>, Vec<usize>), Error> {
-        let mut pool = Vec::new();
-        let mut entries = BTreeMap::<&[u8], usize>::new();
-        let mut offsets = Vec::with_capacity(literals.len());
-        for (octets, alignment) in literals {
-            if !alignment.is_power_of_two() || *alignment > POOL_ALIGNMENT {
-                return Err(Error::Mismatch("literal alignment exceeds the pool's"));
-            }
-            let aligned = |offset: usize| (text_offset + offset).is_multiple_of(*alignment);
-            let offset = match entries.get(octets) {
-                Some(offset) if aligned(*offset) => *offset,
-                _ => {
-                    let offset = (text_offset + pool.len())
-                        .checked_next_multiple_of(*alignment)
-                        .ok_or(Error::Overflow)?
-                        - text_offset;
-                    pool.resize(offset, 0);
-                    pool.extend_from_slice(octets);
-                    entries.insert(octets, offset);
-                    offset
-                }
-            };
-            offsets.push(offset);
-        }
-        let end = text_offset
-            .checked_add(pool.len().max(1))
-            .and_then(|end| end.checked_next_multiple_of(POOL_ALIGNMENT))
-            .ok_or(Error::Overflow)?;
-        pool.resize(end - text_offset, 0);
-        Ok((pool, offsets))
-    }
-
-    /// The exact quoted bytes named by a retained literal address.
-    fn literal_octets<'a>(
-        source: &'a ObjectEmissionInput,
-        row: &PlacedImageAddress,
-    ) -> Result<(Cow<'a, [u8]>, usize), Error> {
-        let literal = row
-            .byte_literal()
-            .ok_or(Error::Mismatch("non-literal address in literal pool"))?;
-        if row.operation != literal.operation {
-            return Err(Error::Mismatch("literal address operation changed"));
-        }
-        let current = source::publication_function(source, row.machine)?;
-        Ok((
-            Cow::Borrowed(quoted_octets(current, literal.operation, literal.place)?),
-            1,
-        ))
-    }
-
-    fn quoted_octets(
-        current: &target_vocabulary::NativeFunctionPublication,
-        operation: semantic_vocabulary::OperationId,
-        place: semantic_vocabulary::PlaceId,
-    ) -> Result<&[u8], Error> {
-        let quoted = current
-            .byte_literal(operation)
-            .filter(|quoted| quoted.place == place)
-            .ok_or(Error::Mismatch(
-                "byte-literal address names no unique retained literal",
-            ))?;
-        Ok(quoted.bytes.as_ref())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{pack_octets, quoted_octets};
-
-        #[test]
-        fn current_literal_lookup_keeps_exact_bytes_and_refuses_another_place_or_operation() {
-            use machine_code::SemanticCodeSite;
-            use semantic_vocabulary::{MachineId, OperationId, PlaceId};
-            use target_vocabulary::{
-                NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts,
-            };
-            let operation = OperationId::new(1).unwrap();
-            let place = PlaceId::new(1).unwrap();
-            let facts = NativePublicationFacts::seal(
-                vec![NativeFunctionPublication {
-                    call_targets: Vec::new(),
-                    machine: MachineId::new(1).unwrap(),
-                    operation_count: 1,
-                    sites: vec![(SemanticCodeSite::Operation(operation), 0)],
-                    byte_literals: vec![NativeByteLiteral {
-                        operation,
-                        place,
-                        bytes: std::sync::Arc::from(b"exact\0octets".as_slice()),
-                    }],
-                }],
-                Default::default(),
-            )
-            .unwrap();
-            let function = &facts.functions()[0];
-            assert_eq!(
-                quoted_octets(function, operation, place).unwrap(),
-                b"exact\0octets"
-            );
-            assert!(quoted_octets(function, OperationId::new(2).unwrap(), place).is_err());
-            assert!(quoted_octets(function, operation, PlaceId::new(2).unwrap()).is_err());
-            let mut empty = function.clone();
-            empty.byte_literals[0].bytes = std::sync::Arc::from([]);
-            let empty = NativePublicationFacts::seal(vec![empty], Default::default()).unwrap();
-            assert_eq!(
-                quoted_octets(&empty.functions()[0], operation, place).unwrap(),
-                b""
-            );
-        }
-
-        #[test]
-        fn identical_octets_share_one_entry_and_the_pool_ends_aligned() {
-            let (pool, offsets) = pack_octets(
-                &[
-                    (b"Door".as_slice(), 1),
-                    (b"Gate".as_slice(), 1),
-                    (b"Door".as_slice(), 1),
-                ],
-                20,
-            )
-            .unwrap();
-            assert_eq!(offsets, [0, 4, 0]);
-            assert_eq!(&pool[..8], b"DoorGate");
-            assert_eq!((20 + pool.len()) % 16, 0);
-            assert!(pool[8..].iter().all(|byte| *byte == 0));
-        }
-
-        #[test]
-        fn empty_literals_still_own_one_aligned_granule() {
-            let (pool, offsets) = pack_octets(&[(b"".as_slice(), 1)], 32).unwrap();
-            assert_eq!(offsets, [0]);
-            assert_eq!(pool, [0; 16]);
-            let (pool, _) = pack_octets(&[(b"".as_slice(), 1)], 33).unwrap();
-            assert_eq!(pool.len(), 15);
-        }
-
-        #[test]
-        fn an_element_roster_starts_at_its_alignment_in_the_image() {
-            let roster = 11_u32.to_le_bytes();
-            let (pool, offsets) =
-                pack_octets(&[(b"Gate".as_slice(), 1), (roster.as_slice(), 4)], 21).unwrap();
-            assert_eq!(offsets, [0, 7]);
-            assert_eq!((21 + offsets[1]) % 4, 0);
-            assert_eq!(&pool[7..11], roster);
-            assert!(pack_octets(&[(roster.as_slice(), 32)], 0).is_err());
-        }
-    }
 }
 
 mod image_addresses {
-    use super::{Error, host};
-    use machine_code::ImageAddressFields;
-    use object_file::{
-        ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
-        SectionKind,
-    };
-
-    pub(super) fn records(
-        fields: ImageAddressFields,
-        origin: RelocationOrigin,
-        destination: ObjectSymbolHandle,
-        addend: i64,
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let record = |offset, kind| -> Result<RelocationRecord, Error> {
-            Ok(RelocationRecord {
-                origin,
-                section: SectionKind::Text,
-                offset: host(offset)?,
-                byte_width: 4,
-                symbol_handle: destination,
-                addend,
-                kind,
-            })
-        };
-        match fields {
-            ImageAddressFields::X86_64Relative32 { patch_offset } => Ok(vec![record(
-                patch_offset,
-                RelocationKind::X86_64Relative32,
-            )?]),
-            ImageAddressFields::Aarch64PageAddress {
-                page_patch_offset,
-                page_offset_patch_offset,
-            } => Ok(vec![
-                record(page_patch_offset, RelocationKind::Aarch64Page21)?,
-                record(
-                    page_offset_patch_offset,
-                    RelocationKind::Aarch64PageOffset12,
-                )?,
-            ]),
-        }
-    }
-
+    use object_file::{ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord};
     pub(super) fn rows_for_symbols(
         plan: &RelocationPlan,
         symbols: impl IntoIterator<Item = ObjectSymbolHandle>,
@@ -1984,98 +1665,11 @@ mod image_addresses {
 }
 
 pub(crate) mod image_residence {
-    use super::image_addresses::rows_for_symbols;
-    use super::{Error, refuse_symbol_collision};
-    use crate::object::object_artifact::find_object_function;
-    use machine_code::{ImageAddressFields, PlacedImageAddress};
-    use object_file::{
-        ObjectPlan, ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord,
-        SymbolKind, SymbolPlan, SymbolSection,
-    };
-    use selected_instructions::SelectedImageAddressReference;
-
-    fn observes_residence(address: &PlacedImageAddress) -> bool {
-        address.reference == SelectedImageAddressReference::RetainedEntryStorageStart
-    }
-
-    pub(super) fn declare(
-        addresses: &[PlacedImageAddress],
-        object: &mut ObjectPlan,
-        profile: Option<target::TargetProfile>,
-    ) -> Result<ObjectSymbolHandle, Error> {
-        if addresses.iter().any(observes_residence) {
-            if profile != Some(target::TargetProfile::UefiX64)
-                || profile.and_then(|profile| profile.native_realization()) != Some(object.target)
-            {
-                return Err(Error::Unsupported(
-                    "image residence requires the selected UEFI image",
-                ));
-            }
-            declare_symbol(object)
-        } else {
-            Ok(Default::default())
-        }
-    }
-
-    pub(crate) fn declare_symbol(object: &mut ObjectPlan) -> Result<ObjectSymbolHandle, Error> {
-        let name = "omega_retained_entry_storage";
-        refuse_symbol_collision(object, name, "image residence symbol collision")?;
-        Ok(object.layout.symbols.insert(SymbolPlan {
-            name: name.into(),
-            section: SymbolSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Object,
-            import_library: String::new(),
-        }))
-    }
-
-    pub(super) fn publish_relocations(
-        addresses: &[PlacedImageAddress],
-        destination: ObjectSymbolHandle,
-        functions: &[crate::ObjectFunction],
-        relocations: &mut RelocationPlan,
-    ) -> Result<(), Error> {
-        for record in records(addresses, destination, functions)? {
-            relocations.push_record(record);
-        }
-        Ok(())
-    }
-
-    pub(super) fn records(
-        addresses: &[PlacedImageAddress],
-        destination: ObjectSymbolHandle,
-        functions: &[crate::ObjectFunction],
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let mut records = Vec::new();
-        for address in addresses
-            .iter()
-            .filter(|address| observes_residence(address))
-        {
-            if !destination.is_valid() {
-                return Err(Error::Mismatch("image residence has no object referent"));
-            }
-            let owner = find_object_function(functions, address.machine).ok_or(Error::Mismatch(
-                "image residence observation owner is absent",
-            ))?;
-            let ImageAddressFields::X86_64Relative32 { .. } = address.fields else {
-                return Err(Error::Unsupported(
-                    "image residence requires the UEFI x64 address form",
-                ));
-            };
-            records.extend(super::image_addresses::records(
-                address.fields,
-                RelocationOrigin::SemanticOperation {
-                    function_symbol_handle: owner.symbol,
-                    operation_identity: address.operation.get(),
-                },
-                destination,
-                0,
-            )?);
-        }
-        Ok(records)
-    }
-
+    use super::{Error, image_addresses::rows_for_symbols};
+    pub(crate) use object_file::body_object::image_residence::declare_symbol;
+    use object_file::body_object::image_residence::observes_residence;
+    pub(super) use object_file::body_object::image_residence::records;
+    use object_file::{SymbolKind, SymbolSection};
     pub(super) fn validate(
         source: &crate::object_input::ObjectEmissionInput,
         artifact: &crate::ObjectArtifact,
@@ -2117,307 +1711,19 @@ pub(crate) mod image_residence {
         }
         Ok(())
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn image_residence_requires_selected_firmware_not_matching_windows_geometry() {
-            let addresses = [PlacedImageAddress {
-                machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-                block: selected_instructions::SelectedBlockId(0),
-                instruction: selected_instructions::SelectedInstructionId(0),
-                reference: SelectedImageAddressReference::RetainedEntryStorageStart,
-                operation: semantic_vocabulary::OperationId::new(1).unwrap(),
-                instruction_function_offset: 0,
-                instruction_section_offset: 0,
-                instruction_byte_count: 7,
-                fields: ImageAddressFields::X86_64Relative32 { patch_offset: 3 },
-            }];
-            assert_eq!(
-                target::NativeTarget::windows_x64(),
-                target::NativeTarget::uefi_x64()
-            );
-            for profile in [
-                Some(target::TargetProfile::WindowsX64),
-                None,
-                Some(target::TargetProfile::UefiX64),
-            ] {
-                let mut object =
-                    ObjectPlan::with_capacity(target::NativeTarget::windows_x64(), 0, 1);
-                let result = declare(&addresses, &mut object, profile);
-                assert_eq!(
-                    result.is_ok(),
-                    profile == Some(target::TargetProfile::UefiX64)
-                );
-                match result {
-                    Ok(symbol) => assert!(symbol.is_valid()),
-                    Err(error) => assert!(matches!(
-                        error,
-                        Error::Unsupported("image residence requires the selected UEFI image")
-                    )),
-                }
-            }
-            let mut incompatible =
-                ObjectPlan::with_capacity(target::NativeTarget::linux_arm64(), 0, 1);
-            assert!(
-                declare(
-                    &addresses,
-                    &mut incompatible,
-                    Some(target::TargetProfile::UefiX64)
-                )
-                .is_err()
-            );
-            assert!(!declare(&[], &mut incompatible, None).unwrap().is_valid());
-        }
-    }
 }
 
 pub(crate) mod code_descriptors {
-    use super::{Error, refuse_symbol_collision};
-    use crate::ObjectFunction;
-    use machine_code::PlacedImageAddress;
+    use super::Error;
     use object_file::{
-        ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+        ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     };
-    use terminal_psi::TerminalDynamicDispatchCatalog;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectCodeDescriptorPool {
-        pub catalogs: target_vocabulary::NativeCodeCatalogs,
-        pub addresses: Vec<PlacedImageAddress>,
-        pub descriptors: Vec<ObjectCodeDescriptor>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectCodeDescriptor {
-        pub source: CodeDescriptorSource,
-        pub symbol: ObjectSymbolHandle,
-        pub data_offset: usize,
-        pub byte_count: usize,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum CodeDescriptorSource {
-        ImplementationTable(u32),
-        Machine(semantic_vocabulary::MachineDescriptorId),
-    }
-
-    pub(crate) fn address_source(address: &PlacedImageAddress) -> Option<CodeDescriptorSource> {
-        address
-            .implementation_table()
-            .map(CodeDescriptorSource::ImplementationTable)
-            .or_else(|| {
-                address
-                    .machine_descriptor()
-                    .map(CodeDescriptorSource::Machine)
-            })
-    }
-
-    pub(crate) fn target_entries<'catalog>(
-        catalog: &'catalog TerminalDynamicDispatchCatalog,
-        callables: &'catalog terminal_psi::TerminalCallableCatalog,
-        source: CodeDescriptorSource,
-    ) -> Result<impl Iterator<Item = Option<semantic_vocabulary::MachineId>> + 'catalog, Error>
-    {
-        let (rows, single) = match source {
-            CodeDescriptorSource::ImplementationTable(table) => {
-                let table = catalog
-                    .table(table)
-                    .filter(|row| row.id == table)
-                    .ok_or(Error::Mismatch("code descriptor table is absent"))?;
-                let interface = catalog
-                    .interface(table.interface)
-                    .ok_or(Error::Mismatch("code descriptor table interface is absent"))?;
-                if table.rows.len() != interface.slots.len() {
-                    return Err(Error::Mismatch("code descriptor table call shape changed"));
-                }
-                (
-                    Some(table.rows.as_slice()),
-                    table.rows.is_empty().then_some(None),
-                )
-            }
-            CodeDescriptorSource::Machine(descriptor) => {
-                let selected = callables
-                    .descriptor(descriptor)
-                    .ok_or(Error::Mismatch("machine descriptor is absent"))?;
-                if callables.contract(selected.contract).is_none() {
-                    return Err(Error::Mismatch(
-                        "machine descriptor has no retained contract",
-                    ));
-                }
-                (None, Some(Some(selected.machine)))
-            }
-        };
-        Ok(rows.into_iter().flatten().copied().chain(single))
-    }
-
-    pub(super) fn place(
-        catalogs: &target_vocabulary::NativeCodeCatalogs,
-        addresses: &[PlacedImageAddress],
-        object: &mut ObjectPlan,
-    ) -> Result<(Option<ObjectCodeDescriptorPool>, Vec<u8>), Error> {
-        let catalog = catalogs.dynamic_dispatch();
-        let callables = catalogs.callables();
-        let addresses = addresses
-            .iter()
-            .filter(|address| address_source(address).is_some())
-            .copied()
-            .collect::<Vec<_>>();
-        let mut selected = addresses
-            .iter()
-            .filter_map(|address| address.machine_descriptor())
-            .collect::<Vec<_>>();
-        selected.sort();
-        selected.dedup();
-        let sources = catalog
-            .tables
-            .iter()
-            .map(|table| CodeDescriptorSource::ImplementationTable(table.id))
-            .chain(selected.into_iter().map(CodeDescriptorSource::Machine))
-            .collect::<Vec<_>>();
-        if sources.is_empty() {
-            if !addresses.is_empty() {
-                return Err(Error::Mismatch(
-                    "code descriptor addresses have no retained catalog",
-                ));
-            }
-            return Ok((None, Vec::new()));
-        }
-        let mut data = Vec::new();
-        let mut descriptors = Vec::new();
-        for source in sources {
-            let byte_count = target_entries(catalog, callables, source)?
-                .count()
-                .checked_mul(8)
-                .ok_or(Error::Overflow)?;
-            let data_offset = data.len();
-            data.resize(
-                data_offset.checked_add(byte_count).ok_or(Error::Overflow)?,
-                0,
-            );
-            let name = match source {
-                CodeDescriptorSource::ImplementationTable(table) => {
-                    format!("omega_implementation_table_{table}")
-                }
-                CodeDescriptorSource::Machine(descriptor) => {
-                    format!("omega_machine_descriptor_{}", descriptor.get())
-                }
-            };
-            refuse_symbol_collision(object, &name, "code descriptor symbol collision")?;
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name,
-                section: SymbolSection::Section(SectionKind::Data),
-                offset: data_offset,
-                size: byte_count,
-                kind: SymbolKind::Object,
-                import_library: String::new(),
-            });
-            descriptors.push(ObjectCodeDescriptor {
-                source,
-                symbol,
-                data_offset,
-                byte_count,
-            });
-        }
-        object.layout.sections.insert(SectionPlan {
-            kind: SectionKind::Data,
-            size: data.len(),
-            alignment: 8,
-        });
-        Ok((
-            Some(ObjectCodeDescriptorPool {
-                catalogs: catalogs.clone(),
-                addresses,
-                descriptors,
-            }),
-            data,
-        ))
-    }
-
-    pub(super) fn publish_relocations(
-        pool: Option<&ObjectCodeDescriptorPool>,
-        functions: &[ObjectFunction],
-        relocations: &mut RelocationPlan,
-    ) -> Result<(), Error> {
-        if let Some(pool) = pool {
-            for record in records(pool, functions)? {
-                relocations.push_record(record);
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn records(
-        pool: &ObjectCodeDescriptorPool,
-        functions: &[ObjectFunction],
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        records_for_symbols(pool, |machine| {
-            crate::object::object_artifact::find_object_function(functions, machine)
-                .map(|function| function.symbol)
-        })
-    }
-
-    fn records_for_symbols(
-        pool: &ObjectCodeDescriptorPool,
-        symbol_for_machine: impl Fn(semantic_vocabulary::MachineId) -> Option<ObjectSymbolHandle>,
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let mut records = Vec::new();
-        for descriptor in &pool.descriptors {
-            for (slot, machine) in target_entries(
-                pool.catalogs.dynamic_dispatch(),
-                pool.catalogs.callables(),
-                descriptor.source,
-            )?
-            .enumerate()
-            {
-                let Some(machine) = machine else {
-                    continue;
-                };
-                let symbol = symbol_for_machine(machine)
-                    .ok_or(Error::Mismatch("code descriptor target function is absent"))?;
-                records.push(RelocationRecord {
-                    origin: RelocationOrigin::Materialization {
-                        object_symbol_handle: descriptor.symbol,
-                    },
-                    section: SectionKind::Data,
-                    offset: descriptor
-                        .data_offset
-                        .checked_add(slot.checked_mul(8).ok_or(Error::Overflow)?)
-                        .ok_or(Error::Overflow)?,
-                    byte_width: 8,
-                    symbol_handle: symbol,
-                    addend: 0,
-                    kind: RelocationKind::Absolute64,
-                });
-            }
-        }
-        for address in &pool.addresses {
-            let table = pool
-                .descriptors
-                .iter()
-                .find(|descriptor| Some(descriptor.source) == address_source(address))
-                .ok_or(Error::Mismatch(
-                    "code descriptor address names an absent cell",
-                ))?;
-            let symbol = symbol_for_machine(address.machine)
-                .ok_or(Error::Mismatch("code descriptor address owner is absent"))?;
-            let origin = RelocationOrigin::SemanticOperation {
-                function_symbol_handle: symbol,
-                operation_identity: address.operation.get(),
-            };
-            records.extend(super::image_addresses::records(
-                address.fields,
-                origin,
-                table.symbol,
-                0,
-            )?);
-        }
-        Ok(records)
-    }
-
+    use object_file::body_object::code_descriptors::place;
+    pub(super) use object_file::body_object::code_descriptors::records;
+    pub(crate) use object_file::body_object::code_descriptors::{
+        ObjectCodeDescriptorPool, address_source, target_entries,
+    };
     pub(super) fn validate(
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
@@ -2603,6 +1909,9 @@ pub(crate) mod code_descriptors {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use object_file::body_object::code_descriptors::records_for_symbols;
+        use object_file::{RelocationKind, SymbolKind, SymbolPlan, SymbolSection};
+        use terminal_psi::TerminalDynamicDispatchCatalog;
         use terminal_psi::{TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicTable};
 
         fn catalog(
@@ -2738,64 +2047,27 @@ pub(crate) mod code_descriptors {
 }
 
 mod imports {
-    use super::{Error, host};
-    use crate::{
-        ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
-    };
+    use super::Error;
+    use crate::ObjectArtifact;
 
     use crate::object_input::ObjectEmissionInput;
     use machine_code::CallbackAddressEncoding;
     use object_file::{
-        RelocationKind, SectionKind, SymbolKind, SymbolSection, invocation_relocation_origin,
-        normalized_import_symbol_name, object_function_reference,
-        object_symbol_handle_by_import_locator,
+        SymbolKind, SymbolSection, normalized_import_symbol_name, object_function_reference,
     };
 
-    pub(super) fn placed_calls<'a>(
-        source: &'a ObjectEmissionInput,
-        functions: &[ObjectFunction],
-        calls: &'a [ObjectForeignCall],
-    ) -> Result<Vec<object_file::PlacedImportCall<'a>>, Error> {
-        let import_calls = calls
-            .iter()
-            .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
-            .collect::<Vec<_>>();
-        let fields = &source.text_section().unresolved_normalized_foreign_calls;
-        if fields.len() != import_calls.len() {
-            return Err(Error::Mismatch("fragment import field roster changed"));
-        }
-        fields
-            .iter()
-            .map(|field| {
-                let (call, locator) = call_for_import_field(&import_calls, field)?;
-                let function =
-                    crate::object::object_artifact::find_object_function(functions, field.caller)
-                        .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-                Ok(object_file::PlacedImportCall {
-                    field,
-                    caller_symbol: function.symbol,
-                    locator,
-                    callbacks: &call.callback_addresses,
-                })
-            })
-            .collect()
-    }
-
+    use object_file::body_object::imports::call_for_import_field;
     pub(super) fn validate(
         source: &ObjectEmissionInput,
         artifact: &ObjectArtifact,
         private_address_records: usize,
     ) -> Result<(), Error> {
-        let calls = derive_normalized_foreign_call_custody(
-            source
-                .emission_facts()
-                .physical
-                .foreign_calls
-                .as_ref()
-                .map_err(|error| Error::ForeignCalls(error.clone().into()))?,
-            source.text_section(),
-        )
-        .map_err(Error::ForeignCalls)?;
+        let calls = object_file::body_object::imports::readback(
+            source.publication(),
+            &artifact.object,
+            &artifact.relocations,
+            &artifact.functions,
+        )?;
         let import_calls = calls
             .iter()
             .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
@@ -2884,13 +2156,7 @@ mod imports {
         if imports.next().is_some() || symbols.next().is_some() {
             return Err(Error::Mismatch("fragment import roster has extra rows"));
         }
-        let mut records = artifact.relocations.records();
-        for field in fields {
-            let (call, locator) = call_for_import_field(&import_calls, field)?;
-            let function = artifact
-                .function_on_machine(field.caller)
-                .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-            let origin = invocation_relocation_origin(function.symbol, field.invocation_site);
+        for (call, _) in &import_calls {
             for callback in &call.callback_addresses {
                 let Some((callback_symbol, callback_plan)) =
                     object_function_reference(&artifact.object, callback.target.callback_function)
@@ -2924,97 +2190,9 @@ mod imports {
                         ));
                     }
                 }
-                let mut replay_callback_relocation = |relocation_offset: usize,
-                                                      kind: RelocationKind|
-                 -> Result<(), Error> {
-                    let offset = function
-                        .text_offset
-                        .checked_add(relocation_offset)
-                        .ok_or(Error::Overflow)?;
-                    let Some((_, relocation)) = records.next() else {
-                        return Err(Error::Mismatch("fragment import relocation roster changed"));
-                    };
-                    if relocation.origin != origin
-                        || relocation.section != SectionKind::Text
-                        || relocation.offset != offset
-                        || relocation.byte_width != 4
-                        || relocation.symbol_handle != callback_symbol
-                        || relocation.addend != 0
-                        || relocation.kind != kind
-                    {
-                        return Err(Error::Mismatch(
-                            "fragment import callback relocation differs",
-                        ));
-                    }
-                    Ok(())
-                };
-                match callback.encoding {
-                    CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                        replay_callback_relocation(
-                            relocation_offset,
-                            RelocationKind::X86_64Relative32,
-                        )?
-                    }
-                    CallbackAddressEncoding::Aarch64PageAddress {
-                        page_relocation_offset,
-                        page_offset_relocation_offset,
-                    } => {
-                        replay_callback_relocation(
-                            page_relocation_offset,
-                            RelocationKind::Aarch64Page21,
-                        )?;
-                        replay_callback_relocation(
-                            page_offset_relocation_offset,
-                            RelocationKind::Aarch64PageOffset12,
-                        )?;
-                    }
-                }
-            }
-            let symbol = object_symbol_handle_by_import_locator(&artifact.object, locator);
-            let Some((_, relocation)) = records.next() else {
-                return Err(Error::Mismatch("fragment import relocation roster changed"));
-            };
-            if !layout.symbols.is_valid(symbol)
-                || relocation.origin != origin
-                || relocation.section != SectionKind::Text
-                || relocation.offset != host(field.field_section_offset)?
-                || relocation.byte_width != usize::from(field.field_byte_width)
-                || relocation.addend != field.addend
-                || relocation.kind != RelocationKind::from(field.kind)
-                || relocation.symbol_handle != symbol
-            {
-                return Err(Error::Mismatch(
-                    "fragment import relocation differs from source call",
-                ));
             }
         }
         Ok(())
-    }
-
-    fn call_for_import_field<'a>(
-        calls: &[(
-            &'a ObjectForeignCall,
-            target::NormalizedImportLocatorRef<'a>,
-        )],
-        field: &machine_code::PlacedNormalizedForeignCallResolution,
-    ) -> Result<
-        (
-            &'a ObjectForeignCall,
-            target::NormalizedImportLocatorRef<'a>,
-        ),
-        Error,
-    > {
-        let mut matches = calls.iter().copied().filter(|(call, _)| {
-            call.machine == field.caller
-                && call.owner == target_operations::CallSiteOwner::from(field.invocation_site)
-                && u64::try_from(call.text_offset) == Ok(field.field_section_offset)
-        });
-        match (matches.next(), matches.next()) {
-            (Some(call), None) => Ok(call),
-            _ => Err(Error::Mismatch(
-                "fragment import field lacks unique call custody",
-            )),
-        }
     }
 }
 
@@ -3080,241 +2258,13 @@ mod mixed_scalar_abi {
 }
 
 pub(crate) mod native_code_layouts {
-    use super::{Error, host, refuse_symbol_collision};
-    use crate::ObjectFunction;
-    use machine_code::code_layout::NativeCodeLayout;
-    use machine_code::{ImageAddressFields, PlacedImageAddress};
-    use object_file::{
-        ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-    };
+    use super::Error;
+    use object_file::{ObjectPlan, RelocationOrigin, RelocationRecord, SectionKind};
     use selected_instructions::SelectedImageAddressReference;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct NativeCodeLayoutPool {
-        pub addresses: Vec<PlacedImageAddress>,
-        pub layouts: Vec<NativeLayoutObject>,
-        pub data_start: usize,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct NativeLayoutObject {
-        pub layout: NativeCodeLayout,
-        pub symbol: ObjectSymbolHandle,
-        pub data_offset: usize,
-        pub byte_count: usize,
-    }
-
-    pub(super) fn place(
-        native_layouts: &[NativeCodeLayout],
-        addresses: &[PlacedImageAddress],
-        object: &mut ObjectPlan,
-        data: &mut Vec<u8>,
-    ) -> Result<Option<NativeCodeLayoutPool>, Error> {
-        let addresses = addresses
-            .iter()
-            .filter(|address| {
-                matches!(
-                    address.reference,
-                    SelectedImageAddressReference::NativeCodeLayout { .. }
-                )
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        if addresses.is_empty() {
-            return Ok(None);
-        }
-        let data_start = data.len();
-        if !data_start.is_multiple_of(8) {
-            return Err(Error::Mismatch("native metadata data alignment changed"));
-        }
-        let mut layouts: Vec<NativeLayoutObject> = Vec::new();
-        for address in &addresses {
-            let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-            else {
-                unreachable!()
-            };
-            if layouts.iter().any(|row| row.layout.machine == machine) {
-                continue;
-            }
-            let mut matching = native_layouts
-                .iter()
-                .filter(|layout| layout.machine == machine);
-            let layout = matching
-                .next()
-                .ok_or(Error::Mismatch(
-                    "native metadata lacks its final code layout",
-                ))?
-                .clone();
-            if matching.next().is_some() {
-                return Err(Error::Mismatch(
-                    "native metadata has competing final code layouts",
-                ));
-            }
-            let data_offset = data.len();
-            let byte_count = 24usize
-                .checked_add(
-                    layout
-                        .regions
-                        .len()
-                        .checked_mul(16)
-                        .ok_or(Error::Overflow)?,
-                )
-                .ok_or(Error::Overflow)?;
-            data.resize(
-                data_offset.checked_add(byte_count).ok_or(Error::Overflow)?,
-                0,
-            );
-            data[data_offset + 16..data_offset + 24].copy_from_slice(
-                &u64::try_from(layout.regions.len())
-                    .map_err(|_| Error::Overflow)?
-                    .to_le_bytes(),
-            );
-            for (ordinal, region) in layout.regions.iter().enumerate() {
-                let offset = data_offset + 24 + ordinal * 16;
-                data[offset + 8..offset + 16].copy_from_slice(&region.length.to_le_bytes());
-            }
-            let name = format!("omega_native_code_layout_{}", machine.get());
-            refuse_symbol_collision(object, &name, "native metadata symbol collision")?;
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name,
-                section: SymbolSection::Section(SectionKind::Data),
-                offset: data_offset,
-                size: byte_count,
-                kind: SymbolKind::Object,
-                import_library: String::new(),
-            });
-            layouts.push(NativeLayoutObject {
-                layout,
-                symbol,
-                data_offset,
-                byte_count,
-            });
-        }
-        let section = object
-            .layout
-            .sections
-            .iter()
-            .find(|(_, section)| section.kind == SectionKind::Data)
-            .map(|(handle, _)| handle);
-        if let Some(section) = section {
-            object.layout.sections.get_mut(section).size = data.len();
-        } else {
-            object.layout.sections.insert(SectionPlan {
-                kind: SectionKind::Data,
-                size: data.len(),
-                alignment: 8,
-            });
-        }
-        Ok(Some(NativeCodeLayoutPool {
-            addresses,
-            layouts,
-            data_start,
-        }))
-    }
-
-    pub(crate) fn records(
-        pool: &NativeCodeLayoutPool,
-        functions: &[ObjectFunction],
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        let mut rows = Vec::new();
-        for descriptor in &pool.layouts {
-            let function = functions
-                .iter()
-                .find(|function| function.machine == descriptor.layout.machine)
-                .ok_or(Error::Mismatch(
-                    "native descriptor exact function is absent",
-                ))?;
-            let mut data_pointer = |offset, symbol_handle, addend| {
-                rows.push(RelocationRecord {
-                    origin: RelocationOrigin::Materialization {
-                        object_symbol_handle: descriptor.symbol,
-                    },
-                    section: SectionKind::Data,
-                    offset,
-                    byte_width: 8,
-                    symbol_handle,
-                    addend,
-                    kind: RelocationKind::Absolute64,
-                })
-            };
-            data_pointer(descriptor.data_offset, function.symbol, 0);
-            data_pointer(descriptor.data_offset + 8, descriptor.symbol, 24);
-            for (ordinal, region) in descriptor.layout.regions.iter().enumerate() {
-                let offset = region
-                    .section_offset
-                    .checked_sub(u64::try_from(function.text_offset).map_err(|_| Error::Overflow)?)
-                    .ok_or(Error::Mismatch(
-                        "native region is outside its selected function attribution",
-                    ))?;
-                data_pointer(
-                    descriptor.data_offset + 24 + ordinal * 16,
-                    function.symbol,
-                    i64::try_from(offset).map_err(|_| Error::Overflow)?,
-                );
-            }
-        }
-        for address in &pool.addresses {
-            let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-            else {
-                return Err(Error::Mismatch("native address names another image object"));
-            };
-            let descriptor = pool
-                .layouts
-                .iter()
-                .find(|row| row.layout.machine == machine)
-                .ok_or(Error::Mismatch("native descriptor is absent"))?;
-            let function = functions
-                .iter()
-                .find(|function| function.machine == address.machine)
-                .ok_or(Error::Mismatch("native query owner is absent"))?;
-            let origin = RelocationOrigin::SemanticOperation {
-                function_symbol_handle: function.symbol,
-                operation_identity: address.operation.get(),
-            };
-            let mut pointer = |offset, kind| -> Result<(), Error> {
-                rows.push(RelocationRecord {
-                    origin,
-                    section: SectionKind::Text,
-                    offset: host(offset)?,
-                    byte_width: 4,
-                    symbol_handle: descriptor.symbol,
-                    addend: 0,
-                    kind,
-                });
-                Ok(())
-            };
-            match address.fields {
-                ImageAddressFields::X86_64Relative32 { patch_offset } => {
-                    pointer(patch_offset, RelocationKind::X86_64Relative32)?
-                }
-                ImageAddressFields::Aarch64PageAddress {
-                    page_patch_offset,
-                    page_offset_patch_offset,
-                } => {
-                    pointer(page_patch_offset, RelocationKind::Aarch64Page21)?;
-                    pointer(
-                        page_offset_patch_offset,
-                        RelocationKind::Aarch64PageOffset12,
-                    )?;
-                }
-            }
-        }
-        Ok(rows)
-    }
-
-    pub(super) fn publish_relocations(
-        pool: Option<&NativeCodeLayoutPool>,
-        functions: &[ObjectFunction],
-        plan: &mut RelocationPlan,
-    ) -> Result<(), Error> {
-        if let Some(pool) = pool {
-            for row in records(pool, functions)? {
-                plan.push_record(row);
-            }
-        }
-        Ok(())
-    }
-
+    pub(crate) use object_file::body_object::native_code_layouts::NativeCodeLayoutPool;
+    use object_file::body_object::native_code_layouts::place;
+    pub(super) use object_file::body_object::native_code_layouts::records;
     pub(super) fn validate(
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
@@ -3725,168 +2675,13 @@ mod port_effects {
 
 mod private_addresses {
     use super::Error;
-    use crate::{ObjectArtifact, ObjectForeignCall, ObjectFunction};
+    use crate::ObjectArtifact;
     use function_identity::MachineFunctionIdentity;
     use machine_code::PlacedImageAddress;
-    use object_file::{
-        FunctionSymbolPlan, ObjectPlan, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
-        SymbolSection,
-    };
-    use selected_instructions::SelectedImageAddressReference;
-    use terminal_psi::TerminalPsiIdentity;
+    use object_file::{ObjectPlan, RelocationRecord, SymbolKind, SymbolSection};
 
-    fn direct_identity(address: &PlacedImageAddress) -> Option<MachineFunctionIdentity> {
-        match address.reference {
-            SelectedImageAddressReference::PrivateFunction { identity } => Some(identity),
-            _ => None,
-        }
-    }
-
-    pub(super) fn identities(
-        calls: &[ObjectForeignCall],
-        addresses: &[PlacedImageAddress],
-        psi: TerminalPsiIdentity,
-    ) -> Result<Vec<MachineFunctionIdentity>, Error> {
-        unique_identities(
-            calls
-                .iter()
-                .flat_map(|call| &call.callback_addresses)
-                .map(|row| row.target.callback_function)
-                .chain(addresses.iter().filter_map(direct_identity)),
-            psi,
-        )
-    }
-
-    fn unique_identities(
-        identities: impl Iterator<Item = MachineFunctionIdentity>,
-        psi: TerminalPsiIdentity,
-    ) -> Result<Vec<MachineFunctionIdentity>, Error> {
-        let mut rows = identities
-            .enumerate()
-            .map(|(position, identity)| {
-                if !identity.is_valid() || identity.caller() != psi {
-                    return Err(Error::Mismatch(
-                        "private function reference escaped its exact caller namespace",
-                    ));
-                }
-                Ok((identity.to_bytes(), position, identity))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        rows.sort_unstable_by_key(|(key, position, _)| (*key, *position));
-        rows.dedup_by_key(|(key, _, _)| *key);
-        rows.sort_unstable_by_key(|(_, position, _)| *position);
-        Ok(rows.into_iter().map(|(_, _, identity)| identity).collect())
-    }
-
-    pub(super) fn declare(
-        identities: &[MachineFunctionIdentity],
-        object: &mut ObjectPlan,
-    ) -> Result<(), Error> {
-        if !object.layout.function_symbols.is_empty() {
-            return Err(Error::Mismatch(
-                "private function symbols were already declared",
-            ));
-        }
-        let mut existing_names = object
-            .layout
-            .symbols
-            .iter()
-            .map(|(_, row)| row.name.clone())
-            .collect::<Vec<_>>();
-        existing_names.sort_unstable();
-        for identity in identities {
-            let name = object_file::private_function_symbol_name(*identity).ok_or(
-                Error::Mismatch("private reference has no function identity"),
-            )?;
-            if existing_names.binary_search(&name).is_ok() {
-                return Err(Error::Mismatch("private function symbol name collision"));
-            }
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name,
-                kind: SymbolKind::Function,
-                ..Default::default()
-            });
-            object.layout.function_symbols.insert(FunctionSymbolPlan {
-                identity: *identity,
-                symbol,
-            });
-        }
-        Ok(())
-    }
-
-    pub(super) fn records(
-        addresses: &[PlacedImageAddress],
-        object: &ObjectPlan,
-        functions: &[ObjectFunction],
-        psi: TerminalPsiIdentity,
-    ) -> Result<Vec<RelocationRecord>, Error> {
-        if !addresses.iter().any(|row| direct_identity(row).is_some()) {
-            return Ok(Vec::new());
-        }
-        let mut symbols = object
-            .layout
-            .function_symbols
-            .iter()
-            .map(|(_, row)| (row.identity.to_bytes(), row.symbol))
-            .collect::<Vec<_>>();
-        symbols.sort_unstable_by_key(|(key, _)| *key);
-        if symbols.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err(Error::Mismatch(
-                "private function symbol identity is duplicated",
-            ));
-        }
-        let mut owners = functions
-            .iter()
-            .map(|row| (row.machine, row.symbol))
-            .collect::<Vec<_>>();
-        owners.sort_unstable_by_key(|(key, _)| *key);
-        if owners.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err(Error::Mismatch(
-                "private address has duplicate caller functions",
-            ));
-        }
-        let mut records = Vec::new();
-        for address in addresses {
-            let Some(identity) = direct_identity(address) else {
-                continue;
-            };
-            if !identity.is_valid() || identity.caller() != psi {
-                return Err(Error::Mismatch(
-                    "private address changed its caller namespace",
-                ));
-            }
-            let target = symbols
-                .binary_search_by_key(&identity.to_bytes(), |(key, _)| *key)
-                .ok()
-                .map(|position| symbols[position].1)
-                .ok_or(Error::Mismatch(
-                    "private address has no declared function symbol",
-                ))?;
-            let owner = owners
-                .binary_search_by_key(&address.machine, |(key, _)| *key)
-                .ok()
-                .map(|position| owners[position].1)
-                .ok_or(Error::Mismatch(
-                    "private address has no exact observing function",
-                ))?;
-            if !object.layout.symbols.is_valid(target) || !object.layout.symbols.is_valid(owner) {
-                return Err(Error::Mismatch(
-                    "private address has an invalid object symbol",
-                ));
-            }
-            records.extend(super::image_addresses::records(
-                address.fields,
-                RelocationOrigin::SemanticOperation {
-                    function_symbol_handle: owner,
-                    operation_identity: address.operation.get(),
-                },
-                target,
-                0,
-            )?);
-        }
-        Ok(records)
-    }
-
+    pub(super) use object_file::body_object::private_addresses::identities;
+    use object_file::body_object::private_addresses::records;
     pub(super) fn validate(
         identities: &[MachineFunctionIdentity],
         addresses: &[PlacedImageAddress],
@@ -3963,63 +2758,55 @@ mod production {
         ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarCallStack,
         ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
     };
-    use object_file::{
-        ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-        entry_symbol_name,
-    };
     use std::sync::Arc;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ProjectedObject(());
 
-    /// Project the issued body object. Original stage inputs are attached
-    /// only to the finished projection when the caller requested an audit.
-    pub fn build_function_fragment_object_artifact(
-        publication: object_file::ObjectPublication,
+    /// Carry the issued sections and relocations into image composition. The
+    /// function and stack evidence describes the object-relative coordinates.
+    /// Explicit audits retain their original stage inputs alongside this view.
+    pub fn prepare_object_for_image(
+        object: object_file::PublishedFunctionObject,
     ) -> Result<ObjectArtifact, Error> {
+        let (publication, sections, replay) = object.into_parts();
+        let object_file::FunctionObjectSections {
+            object,
+            relocations,
+            text_bytes,
+            data_bytes,
+            functions: locations,
+            foreign_calls,
+            retained_entry_storage,
+            byte_literal_pool,
+            code_descriptor_pool,
+            native_code_layout_pool,
+        } = sections;
         let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(
             publication,
         )?);
         let source = emission_input.as_ref();
-        let catalogs = source::code_catalogs(source);
         let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
         let text = source.text_section();
         let fragments = source::fragments(source);
-        let temporary_stack_bytes = if text.functions.is_empty() {
+        let temporary_stack_bytes = if locations.is_empty() {
             Vec::new()
         } else {
             source::temporary_stack_bytes_by_function(source)?
         };
-        let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());
-        let mut text_bytes = text.bytes.clone();
         let mut functions = Vec::new();
         let mut semantic_code_attribution = Vec::new();
         let mut requires_graph_storage_replay = false;
-        for placed in &text.functions {
-            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
-            let abstracted = source::function_facts(source, placed.machine)?;
-            let abi = source::function_abi(source, placed.machine)?;
+        for location in locations {
+            let machine = location.machine;
+            let (attachment, provenance) = source::fragment_metadata(source, machine)?;
+            let abstracted = source::function_facts(source, machine)?;
+            let abi = source::function_abi(source, machine)?;
             requires_graph_storage_replay |= abstracted.requires_graph_storage_replay
-                || super::structural::requires_call_graph_replay(source, placed.machine)?;
-            let offset = host(placed.section_offset)?;
-            let length = host(placed.byte_count)?;
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name: if placed.machine == text.semantic_entry {
-                    entry_symbol_name(text.target)
-                } else {
-                    format!("omega_terminal_machine_{}", placed.machine.get())
-                },
-                section: SymbolSection::Section(SectionKind::Text),
-                offset,
-                size: length,
-                kind: SymbolKind::Function,
-                import_library: String::new(),
-            });
-            if placed.machine == text.semantic_entry {
-                object.layout.entry_symbol = symbol;
-            }
-            let frame = source::frame(source, placed.machine)?;
+                || super::structural::requires_call_graph_replay(source, machine)?;
+            let offset = location.text_offset;
+            let frame = source::frame(source, machine)?;
             let frame_bytes = u32::try_from(frame.map_or(0, |frame| frame.frame_size_bytes))
                 .map_err(|_| Error::Overflow)?;
             let alignment = frame.map_or(16, |frame| u32::from(frame.abi_stack_alignment_bytes));
@@ -4033,16 +2820,15 @@ mod production {
             );
             let mut unit_call_stacks = Vec::new();
             let mut scalar_call_stacks = Vec::new();
-            fragments.function(placed.machine).ok_or(Error::Mismatch(
+            fragments.function(machine).ok_or(Error::Mismatch(
                 "missing current fragment for temporary stack replay",
             ))?;
-            let stack_index =
-                source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?;
+            let stack_index = source::temporary_stack_index(&temporary_stack_bytes, machine)?;
             let function_temporary_stack = temporary_stack_bytes[stack_index].byte_count;
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
                 .ok_or(Error::Overflow)?;
-            for call in source::stack_calls(source, placed.machine, callable_invocations)? {
+            for call in source::stack_calls(source, machine, callable_invocations)? {
                 let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
                 local_peak = local_peak.max(caller_live_bytes);
                 let owner = call.owner;
@@ -4066,7 +2852,7 @@ mod production {
                 }
             }
             functions.push(ObjectFunction {
-                machine: placed.machine,
+                location,
                 attachment,
                 scalar_abi: abi.scalar.clone(),
                 mixed_structural_scalar_abi: abi.mixed_structural_scalar.clone(),
@@ -4079,9 +2865,6 @@ mod production {
                     }
                 }),
                 provenance: provenance.clone(),
-                symbol,
-                text_offset: offset,
-                byte_count: length,
                 x86_floating_control: None,
                 unit_stack: unit.then_some(ObjectUnitStack {
                     frame_bytes,
@@ -4114,16 +2897,13 @@ mod production {
                 structural_return: None,
             });
             let fragment = fragments
-                .function(placed.machine)
+                .function(machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
             let mut rows = attribution::produce_current(
                 fragment,
-                source::publication_function(source, placed.machine)?,
+                source::publication_function(source, machine)?,
             )?;
-            rows.extend(super::structural::settlement_attributions(
-                source,
-                placed.machine,
-            )?);
+            rows.extend(super::structural::settlement_attributions(source, machine)?);
             rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
             super::structural::populate(
                 source,
@@ -4134,7 +2914,7 @@ mod production {
             )?;
             for attribution in rows {
                 semantic_code_attribution.push(ObjectCodeAttribution {
-                    machine: placed.machine,
+                    machine: machine,
                     text_offset: offset
                         .checked_add(attribution.code_offset)
                         .ok_or(Error::Overflow)?,
@@ -4142,97 +2922,11 @@ mod production {
                 });
             }
         }
-        let foreign_calls = crate::derive_normalized_foreign_call_custody(
-            source
-                .emission_facts()
-                .physical
-                .foreign_calls
-                .as_ref()
-                .map_err(|error| Error::ForeignCalls(error.clone().into()))?,
-            source.text_section(),
-        )
-        .map_err(Error::ForeignCalls)?;
-        let private_identities = super::private_addresses::identities(
-            &foreign_calls,
-            &text.unresolved_image_addresses,
-            text.psi,
-        )?;
-        super::private_addresses::declare(&private_identities, &mut object)?;
-        let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
-        let (code_descriptor_pool, mut data_bytes) = super::code_descriptors::place(
-            catalogs,
-            &source.text_section().unresolved_image_addresses,
-            &mut object,
-        )?;
         let image_data = super::image_data::ObjectImageData::prepare(source)?;
-        let native_code_layout_pool = super::native_code_layouts::place(
-            &image_data.native_layouts,
-            &source.text_section().unresolved_image_addresses,
-            &mut object,
-            &mut data_bytes,
-        )?;
-        let retained_entry_storage = super::image_residence::declare(
-            &source.text_section().unresolved_image_addresses,
-            &mut object,
-            profile,
-        )?;
-        object.layout.sections.insert(SectionPlan {
-            kind: SectionKind::Text,
-            size: text_bytes.len(),
-            alignment: host(text.section_alignment)?,
-        });
-        let calls = super::imports::placed_calls(source, &functions, &foreign_calls)?;
-        let (object, mut relocations) =
-            object
-                .with_import_relocations(&calls)
-                .map_err(|error| match error {
-                    object_file::ImportRelocationError::Mismatch(reason) => Error::Mismatch(reason),
-                    object_file::ImportRelocationError::Overflow => Error::Overflow,
-                })?;
-        super::byte_literals::publish_relocations(
-            byte_literal_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        super::code_descriptors::publish_relocations(
-            code_descriptor_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        super::native_code_layouts::publish_relocations(
-            native_code_layout_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        super::image_residence::publish_relocations(
-            &source.text_section().unresolved_image_addresses,
-            retained_entry_storage,
-            &functions,
-            &mut relocations,
-        )?;
-        for record in super::private_addresses::records(
-            &text.unresolved_image_addresses,
-            &object,
-            &functions,
-            text.psi,
-        )? {
-            relocations.push_record(record);
-        }
-        let publication = source.publication();
-        let bindings = publication.bindings();
-        object.check_bindings(bindings).map_err(Error::Mismatch)?;
-        let needs_windows_internet =
-            object.layout.normalized_imports.iter().any(|symbol| {
-                runtime_abi::imports_windows_internet_provider(symbol.locator.as_ref())
-            });
-        if needs_windows_internet != bindings.windows_internet.is_some() {
-            return Err(Error::Mismatch(
-                "Windows helper code differs from the object's import symbols",
-            ));
-        }
+        let bindings = source.publication().bindings();
         let imports = Arc::clone(&bindings.imports);
         let windows_internet = bindings.windows_internet.clone();
-        let artifact = ObjectArtifact {
+        let mut artifact = ObjectArtifact {
             emission_input: Arc::clone(&emission_input),
             image_data,
             foreign_call_plans: source
@@ -4268,6 +2962,11 @@ mod production {
             code_descriptor_pool,
             native_code_layout_pool,
         };
+        if let Some(replay) = replay {
+            artifact
+                .attach_issued_replay(replay)
+                .map_err(Error::PhysicalEntry)?;
+        }
         Ok(artifact)
     }
 }
@@ -22350,7 +21049,7 @@ mod structural {
 pub(crate) mod validation;
 
 pub(crate) use production::ProjectedObject;
-pub use production::build_function_fragment_object_artifact;
+pub use production::prepare_object_for_image;
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
@@ -22426,8 +21125,8 @@ pub enum FunctionFragmentObjectArtifactError {
         operation: semantic_vocabulary::OperationId,
         reason: &'static str,
     },
-    PrivateFunctions(crate::ObjectError),
-    ForeignCalls(crate::ObjectError),
+    PrivateFunctions(crate::ObjectStackError),
+    ForeignCalls(object_file::ForeignCallPlacementError),
     NativeEntryBridge(physical_recipes::native_entry_bridge::NativeEntryBridgeError),
     PhysicalEntry(diagnostics::Diagnostic),
     NativeCodeLayout(machine_code::code_layout::NativeCodeLayoutError),
@@ -22644,6 +21343,19 @@ impl From<installation_admission::ram::Error> for FunctionFragmentObjectArtifact
                 operation,
                 reason,
             },
+        }
+    }
+}
+
+impl From<object_file::body_object::Error> for FunctionFragmentObjectArtifactError {
+    fn from(error: object_file::body_object::Error) -> Self {
+        use object_file::body_object::Error;
+        match error {
+            Error::Mismatch(reason) => Self::Mismatch(reason),
+            Error::Unsupported(reason) => Self::Unsupported(reason),
+            Error::Overflow => Self::Overflow,
+            Error::NativeCodeLayout(error) => Self::NativeCodeLayout(error),
+            Error::ForeignCalls(error) => Self::ForeignCalls(error),
         }
     }
 }

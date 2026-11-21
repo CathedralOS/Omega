@@ -811,7 +811,7 @@ fn object_publication_rejects_placed_code_from_a_different_program() {
         .source()
         .relaxed_layout();
     let mut emitted =
-        image_emission::build_function_fragment_object_artifact(object.publication()).unwrap();
+        image_emission::prepare_object_for_image(object.published_object()).unwrap();
     assert!(emitted.fragment_replay().is_none());
     let wrong = boundary.clone().attach_to(&mut emitted).unwrap_err();
     assert!(
@@ -849,8 +849,8 @@ fn physical_publication_rejoins_emitted_object_and_receiver() {
             let (again, second, second_archive) = check_publication(through_boundary, true);
             let second = second.expect("separately retained target");
             assert_eq!(again, audited);
-            let mut emitted = image_emission::build_function_fragment_object_artifact(
-                first.fragment_source().publication(),
+            let mut emitted = image_emission::prepare_object_for_image(
+                first.fragment_source().published_object(),
             )
             .unwrap();
             assert!(second.clone().attach_to(&mut emitted).is_err());
