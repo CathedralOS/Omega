@@ -40,8 +40,9 @@ failures in what it affects; a release runs the full release matrix. An
 unrelated failing base need not block a checkpoint but does not pass a release.
 Add tests for behavior no test yet distinguishes, not combinations or counts.
 
-An agent may take **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
-a round of compiler work (see [development-health outcomes](../../TASKS.md#development-health-outcomes)).
+After a round of compiler work, an agent may take a
+[development-health outcome](../../TASKS.md#development-health-outcomes) to address
+a slow build or missing test coverage.
 Name the blocked workflow and what would be good enough, fix the bottleneck
 or test path, show the result and stop. Do not quietly turn a feature task into
 profiling or repeated broad runs.
