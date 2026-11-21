@@ -36,7 +36,6 @@ impl SourcePublication {
     /// The checker returns the exact lowered roster alongside its own verdicts.
     pub fn from_judgment(
         judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
-        optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
         let (accepted, roster) = crate::AcceptedTerminalSource::accept_judgment(judgment)?;
         let roster = roster.ok_or_else(|| {
@@ -44,6 +43,7 @@ impl SourcePublication {
                 "source publication requires the checked product roster",
             )]
         })?;
+        let optimizations = accepted.closure().optimization().map(|record| record.selections().clone()).unwrap_or_default();
         let mut publication = Self::new(optimizations);
         publication.accepted = Some((Arc::new(accepted), roster));
         Ok(publication)
@@ -93,14 +93,6 @@ impl SourcePublication {
     pub(crate) fn accepted_owner(
         &self,
     ) -> Result<&Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
-        // The factory seals the module the unoptimized check judged. A
-        // nonempty selection needs the second lowered-form check, which has
-        // no route yet.
-        if !self.optimizations.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: selected Psi optimizations have no second lowered-form check",
-            )]);
-        }
         self.accepted
             .as_ref()
             .map(|(accepted, _)| accepted)
@@ -232,16 +224,6 @@ mod tests {
         assert_eq!(
             attempts, 1,
             "a different projection cannot replace published code or its refusal"
-        );
-    }
-    #[test]
-    fn accepted_publication_refuses_unexecuted_psi_optimizations() {
-        let selected =
-            PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
-        let publication = SourcePublication::new(selected);
-        assert_eq!(
-            publication.accepted().unwrap_err()[0].message,
-            "no product route yet: selected Psi optimizations have no second lowered-form check"
         );
     }
 }

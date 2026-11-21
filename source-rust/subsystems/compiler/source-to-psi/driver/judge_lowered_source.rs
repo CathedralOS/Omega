@@ -91,6 +91,7 @@ enum SourceRoots<'a> {
 fn judge_source(
     source: PreparedTypedTrees,
     roots: SourceRoots<'_>,
+    optimizations: PsiOptimizationSelections,
 ) -> Result<CheckedPublication<LoweredSourcePublication>, Vec<Diagnostic>> {
     let lowered = match roots {
         SourceRoots::Selected(compilation, publication) => {
@@ -99,7 +100,7 @@ fn judge_source(
         SourceRoots::Product(roster) => roster.lower_for_publication(source),
     }
     .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
-    judge_publication(lowered).map_err(|rows| DiagnosticStage::Checking.attribute(rows))
+    judge_publication(lowered, optimizations).map_err(|rows| DiagnosticStage::Checking.attribute(rows))
 }
 
 pub fn judge_terminal_source(
@@ -107,7 +108,7 @@ pub fn judge_terminal_source(
     compilation: TerminalSourceCompilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-    let judgment = judge_source(source, SourceRoots::Selected(compilation, publication))?;
+    let judgment = judge_source(source, SourceRoots::Selected(compilation, publication), Default::default())?;
     AcceptedTerminalSource::from_judgment(judgment)
 }
 
@@ -128,8 +129,8 @@ impl SourcePublication {
         roster: SourceCompilationRoster,
         optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let judgment = judge_source(source, SourceRoots::Product(roster))?;
-        checked_program_to_psi::SourcePublication::from_judgment(judgment, optimizations).map(Self)
+        let judgment = judge_source(source, SourceRoots::Product(roster), optimizations)?;
+        checked_program_to_psi::SourcePublication::from_judgment(judgment).map(Self)
     }
 }
 

@@ -193,7 +193,7 @@ impl AcceptedTerminalSource {
     /// }
     /// fn splice(input: LoweredSourcePublication, other: TerminalCompilation) {
     ///     let (_, source) = input.into_program_and_source();
-    ///     let replaced = judge_publication(Replacement(other, source)).unwrap();
+    ///     let replaced = judge_publication(Replacement(other, source), Default::default()).unwrap();
     ///     let _ = AcceptedTerminalSource::from_judgment(replaced);
     /// }
     /// ```
@@ -206,7 +206,7 @@ impl AcceptedTerminalSource {
     pub(crate) fn accept_judgment(
         judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
     ) -> Result<(Self, Option<crate::SourceCompilationRoster>), Vec<Diagnostic>> {
-        let (mut source, closure, additional) = judgment.into_source_and_closures();
+        let (mut source, closure, additional, original) = judgment.into_source_and_closures();
         if source.correspondence.forms.len() != 1 + additional.len()
             || source.correspondence.forms.iter().any(Option::is_none)
         {
@@ -231,7 +231,7 @@ impl AcceptedTerminalSource {
                 requirement_reviews,
                 publication: source.publication,
                 package_review_numeric: Default::default(),
-                advisories: DeferredAdvisories::new(additional),
+                advisories: DeferredAdvisories::new(original, additional),
             },
             source.roster,
         ))
@@ -683,8 +683,16 @@ fn advisories<'part>(parts: impl Iterator<Item = &'part AcceptedClosure>) -> Vec
 /// proof searches just to discard the diagnostics. Keep every accepted part
 /// until the first read, then release the additional forms after aggregation.
 struct DeferredAdvisories {
-    additional: Mutex<Vec<Box<AcceptedClosure>>>,
+    pending: Mutex<AdvisoryParts>,
     cached: OnceLock<Vec<Diagnostic>>,
+}
+
+#[derive(Default)]
+struct AdvisoryParts {
+    // A transformation may expose new constants. Source warnings must still
+    // describe the program as written, from its first judgment.
+    original: Option<Box<AcceptedClosure>>,
+    additional: Vec<Box<AcceptedClosure>>,
 }
 
 impl std::fmt::Debug for DeferredAdvisories {
@@ -697,25 +705,26 @@ impl std::fmt::Debug for DeferredAdvisories {
 }
 
 impl DeferredAdvisories {
-    fn new(additional: Vec<Box<AcceptedClosure>>) -> Self {
+    fn new(original: Option<Box<AcceptedClosure>>, additional: Vec<Box<AcceptedClosure>>) -> Self {
         Self {
-            additional: Mutex::new(additional),
+            pending: Mutex::new(AdvisoryParts { original, additional }),
             cached: OnceLock::new(),
         }
     }
 
     fn get(&self, primary: &AcceptedClosure) -> &[Diagnostic] {
         self.cached.get_or_init(|| {
-            let mut additional = self
-                .additional
+            let mut pending = self
+                .pending
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             // Retain the parts if a diagnostic search panics, just as each
             // accepted closure retains its own deferred warning inputs.
             let result = advisories(
-                std::iter::once(primary).chain(additional.iter().map(|part| part.as_ref())),
+                std::iter::once(pending.original.as_deref().unwrap_or(primary))
+                    .chain(pending.additional.iter().map(|part| part.as_ref())),
             );
-            additional.clear();
+            *pending = AdvisoryParts::default();
             result
         })
     }

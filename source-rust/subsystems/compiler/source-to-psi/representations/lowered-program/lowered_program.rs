@@ -14,14 +14,14 @@ use program::Elaboration;
 use symbols::SymbolHandle;
 pub use tables::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TerminalCompilation {
     FormationFailures(Vec<CallableFormationFailure>),
     FormationDefect(CallableFormationDefect),
     Prepared(PreparedCompilation),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PreparedCompilation {
     pub closure: Checked<Elaboration>,
     /// Every refusal reading met after the one `closure` holds, in the order

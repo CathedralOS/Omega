@@ -41,5 +41,5 @@ fn judge_fixture(
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
     let lowered = lowering::LoweredSourcePublication::prepare(source, compilation, publication)?;
-    AcceptedTerminalSource::from_judgment(checking::judge_publication(lowered)?)
+    AcceptedTerminalSource::from_judgment(checking::judge_publication(lowered, Default::default())?)
 }
