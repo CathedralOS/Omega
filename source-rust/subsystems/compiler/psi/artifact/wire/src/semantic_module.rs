@@ -4606,6 +4606,36 @@ mod normal_qualification_tests {
             changed.interfaces.boundary_machines[0].result_lifetimes = missing;
             assert!(decode_module(&encode_module(&changed).unwrap()).is_err());
         }
+        // A provider can return a reference to its own storage with no input anchor.
+        module.types.structural_types.last_mut().unwrap().shape = StructuralTypeShape::Reference {
+            referent: type_id(1),
+            access: StructuralAccess::SharedBorrow,
+        };
+        let group = &mut module.interfaces.boundary_machines[0]
+            .result_lifetimes
+            .as_mut()
+            .unwrap()[0];
+        group.inputs.clear();
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(
+            decoded.interfaces.boundary_machines,
+            module.interfaces.boundary_machines
+        );
+
+        // The declared lifetime must still cover this exact result leaf.
+        let group = &mut module.interfaces.boundary_machines[0]
+            .result_lifetimes
+            .as_mut()
+            .unwrap()[0];
+        group.results = vec![vec![field(8)]];
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(
+            decode_module(&bytes).unwrap_err(),
+            CodecError::MalformedStructuralFoundation(
+                "boundary result leaf has no unique declared lifetime"
+            )
+        );
     }
 
     #[test]

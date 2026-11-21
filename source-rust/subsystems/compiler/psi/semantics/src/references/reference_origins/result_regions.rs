@@ -10,53 +10,8 @@ pub fn validate_dynamic_reference_regions<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     slot: &TerminalDynamicSlot,
 ) -> Result<(), &'static str> {
-    validate_reference_regions(
-        types,
-        &slot.result,
-        &slot.result_reference_regions,
-        |index| {
-            slot.structural_parameters
-                .get(index)
-                .map(|p| (p.structural_type, p.access))
-        },
-        true,
-        slot.result_reference_regions.len(),
-    )
-}
-
-pub fn validate_boundary_reference_regions(
-    types: &[StructuralTypeDeclaration],
-    boundary: &terminal_psi::BoundaryMachineDeclaration,
-) -> Result<(), &'static str> {
-    let groups = crate::boundary_result_lifetimes(types, boundary)?;
-    let maximum_leaves = crate::references::validate_result_lifetime_groups(groups)?;
-    // The logical contract inventories provider-owned views too. They
-    // consume the bounded traversal budget without requiring spatial
-    // regions that would falsely place their backing inside inputs.
-    validate_reference_regions(
-        types.iter(),
-        &boundary.result,
-        &boundary.result_reference_regions,
-        |index| {
-            boundary
-                .structural_parameters
-                .get(index)
-                .map(|p| (p.structural_type, p.access))
-        },
-        false,
-        maximum_leaves,
-    )
-}
-
-fn validate_reference_regions<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    result: &BoundaryMachineResult,
-    regions: &[terminal_psi::TerminalDynamicReferenceRegion],
-    parameter: impl Fn(usize) -> Option<(StructuralTypeId, StructuralAccess)>,
-    include_views: bool,
-    maximum_leaves: usize,
-) -> Result<(), &'static str> {
-    let BoundaryMachineResult::Structural(result) = result else {
+    let regions = &slot.result_reference_regions;
+    let BoundaryMachineResult::Structural(result) = &slot.result else {
         return if regions.is_empty() {
             Ok(())
         } else {
@@ -70,14 +25,10 @@ fn validate_reference_regions<'types>(
         types.clone(),
         result.structural_type,
         result.multiplicity,
-        maximum_leaves,
+        regions.len(),
     )?;
     if leaves
         .iter()
-        .filter(|leaf| {
-            include_views
-                || matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_))
-        })
         .any(|leaf| !regions.iter().any(|region| region.path == leaf.path))
     {
         return Err("dynamic reference regions omit a result leaf");
@@ -117,14 +68,14 @@ fn validate_reference_regions<'types>(
                 continue;
             }
         };
-        let (parameter_type, parameter_access) = usize::try_from(index)
+        let parameter = usize::try_from(index)
             .ok()
-            .and_then(&parameter)
+            .and_then(|index| slot.structural_parameters.get(index))
             .ok_or("dynamic reference region has no structural input")?;
         validate_input_region(
             types.clone(),
-            parameter_type,
-            parameter_access,
+            parameter.structural_type,
+            parameter.access,
             &region.source_path,
             region.access,
         )?;

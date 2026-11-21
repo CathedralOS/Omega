@@ -24,7 +24,7 @@ pub use descriptor_regions::{
 };
 pub use result_regions::{
     ReferenceInventory, ReferenceLeaf, UnknownReferenceContents, reference_inventory,
-    reference_leaves, validate_boundary_reference_regions, validate_dynamic_reference_regions,
+    reference_leaves, validate_dynamic_reference_regions,
 };
 use std::slice::from_ref;
 
