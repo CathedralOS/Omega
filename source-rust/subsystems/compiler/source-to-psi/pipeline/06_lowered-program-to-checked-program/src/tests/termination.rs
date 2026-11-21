@@ -186,7 +186,7 @@ fn lower_ranked(
         } else {
             Termination::Silent
         },
-        ranking,
+        ranking: ranking.map(crate::lowering::Ranking::without_range),
     });
     crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
 }
@@ -294,6 +294,28 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
 }
 
 #[test]
+fn a_private_rank_range_must_hold_on_arrival() {
+    let bounded = "machine spend(remaining: u64, cap: u64) -> u64
+        requires remaining <= cap
+        terminates by remaining in 0..=cap {
+            transition remaining > 0 { true -> spend(remaining - 1, cap), false -> 0 }
+        }";
+    accepted(bounded);
+    // Both endpoint claims are private. An admitted caller may start at
+    // zero or at the cap; it owes only the stated `requires` clause.
+    for range in ["1..=cap", "0..cap"] {
+        let invalid = bounded.replace("0..=cap", range);
+        assert!(
+            unproved(&invalid).iter().any(|row| matches!(
+                row.kind,
+                ObligationKind::ArrivalInvariant { .. }
+            ) && row.statement.contains("declared rank range")),
+            "{range}"
+        );
+    }
+}
+
+#[test]
 fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
     let looping = |header: &str, measure: &str| {
         format!(
@@ -307,11 +329,6 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         )
     };
     let scalars = "remaining: u64, limit: u64";
-    // A rank range: its lower bound would be the floor.
-    assert_eq!(
-        refused(&looping(scalars, "remaining -> Nat::Descending in 0..=16")),
-        "contract ranking view arguments and bounded ranges while reading the body of `spend`",
-    );
     // A pair without a view is refused: a tuple is not a carrier, so it
     // declares no canonical default (termination.md, "Ranking"), and
     // bounded distance and a lexicographic product would both fit it.

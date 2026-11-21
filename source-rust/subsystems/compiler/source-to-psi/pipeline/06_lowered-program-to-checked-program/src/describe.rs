@@ -153,7 +153,9 @@ pub(crate) fn unproved(
         ),
         ObligationKind::ArrivalInvariant { edge } => {
             head_arrival(elaboration, machine, tables, edge, site)
-                .or_else(|| cast_predicate_arrival(elaboration, machine, tables, edge, names, site))
+                .or_else(|| {
+                    established_predicate_arrival(elaboration, machine, tables, edge, names, site)
+                })
                 .unwrap_or_else(|| {
                     format!("cannot prove block invariant in {}", owner(names, site))
                 })
@@ -199,21 +201,9 @@ pub(crate) fn unproved(
     }
 }
 
-/// An arrival into a loop head is a call of the head's member, and the
-/// head's invariant is that member's `requires`
-/// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
-/// every invocation, including terminal and recursive calls."). It is stated
-/// over the call's requirement: the clauses over
-/// the call's actuals, then as the member wrote them, and the calling
-/// machine's state. The calling machine is the one whose names record a
-/// call at the arrival's site. `None` for a join, whose predicate the
-/// checker inferred, and for the entry's jump, which no call made.
-/// A cast's conditions were not established on arrival at its continuation.
-/// The same proof step serves domain predicates and exact representability;
-/// the refusal names which one failed, so a domain cast still says that the
-/// value is not shown to be in the domain it adds.
-/// `None` for an arrival that does not establish a cast predicate.
-fn cast_predicate_arrival(
+/// Name the authored predicate that an arrival must establish. The same
+/// invariant proof checks cast conditions and private ranking intervals.
+fn established_predicate_arrival(
     elaboration: &Elaboration,
     machine: MachineId,
     tables: &MachineTables,
@@ -226,7 +216,7 @@ fn cast_predicate_arrival(
     else {
         return None;
     };
-    use terminal_check_tables::program::CastCondition;
+    use terminal_check_tables::program::EstablishedCondition;
     let (claim, stated) = match &elaboration
         .sources
         .get(machine)?
@@ -235,10 +225,16 @@ fn cast_predicate_arrival(
         .find(|(block, _)| *block == established)?
         .1
     {
-        CastCondition::DomainMembership(stated) => {
+        EstablishedCondition::RankRange => {
+            return Some(format!(
+                "cannot prove the normalized `terminates by` measure lies in its declared rank range in {}",
+                owner(names, site)
+            ));
+        }
+        EstablishedCondition::DomainMembership(stated) => {
             ("the value of this cast is in the domain it adds", stated)
         }
-        CastCondition::ExactRepresentation(stated) => {
+        EstablishedCondition::ExactRepresentation(stated) => {
             ("the required condition of this cast", stated)
         }
     };
@@ -250,6 +246,15 @@ fn cast_predicate_arrival(
     ))
 }
 
+/// An arrival into a loop head is a call of the head's member, and the
+/// head's invariant is that member's `requires`
+/// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
+/// every invocation, including terminal and recursive calls."). It is stated
+/// over the call's requirement: the clauses over
+/// the call's actuals, then as the member wrote them, and the calling
+/// machine's state. The calling machine is the one whose names record a
+/// call at the arrival's site. `None` for a join, whose predicate the
+/// checker inferred, and for the entry's jump, which no call made.
 fn head_arrival(
     elaboration: &Elaboration,
     machine: MachineId,

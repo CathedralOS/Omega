@@ -2080,7 +2080,7 @@ impl<'a> Lowering<'a> {
         operand: &Expression,
         expression: &Expression,
         clauses: &[semantic_vocabulary::Proposition],
-        stated: Option<&terminal_check_tables::program::CastCondition>,
+        stated: Option<&terminal_check_tables::program::EstablishedCondition>,
     ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
