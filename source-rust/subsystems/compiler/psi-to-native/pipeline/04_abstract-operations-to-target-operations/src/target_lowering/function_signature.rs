@@ -376,6 +376,12 @@ pub(crate) mod structural_signature {
         ) -> Result<Self, LoweringError> {
             let mut shapes = scalar_shapes.to_vec();
             for (structural_type, access) in formals {
+                if let Some(pointer) = declarations.get(structural_type).and_then(|ty| {
+                    calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, access)
+                }) {
+                    shapes.push(pointer);
+                    continue;
+                }
                 let referent = structural_shape(structural_type, declarations)?;
                 shapes.push(Self::parameter_shape(
                     ParameterLane::Internal,
@@ -599,6 +605,33 @@ mod native_region_geometry_tests {
         StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
         StructuralTypeShape, TerminalIdentityIndex,
     };
+
+    #[test]
+    fn an_opaque_formal_transports_only_its_borrowed_pointer() {
+        use super::structural_signature::StructuralCallSignature;
+        use calling_conventions::{ValueShape, terminal_layout::StructuralLayouts};
+
+        let declaration = declaration(1, StructuralTypeShape::Opaque);
+        let layouts = StructuralLayouts::new([&declaration]).unwrap();
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let signature =
+                StructuralCallSignature::derive(&[], [(id(1), access)], None, &layouts).unwrap();
+            assert_eq!(signature.structural_shapes(), &[ValueShape::integer(8, 8)]);
+        }
+        assert!(
+            StructuralCallSignature::derive(
+                &[],
+                [(id(1), StructuralAccess::Owned)],
+                None,
+                &layouts,
+            )
+            .is_err()
+        );
+    }
 
     fn id(raw: u64) -> StructuralTypeId {
         StructuralTypeId::new(raw).unwrap()

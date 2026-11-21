@@ -428,6 +428,19 @@ pub(crate) mod places {
             StructuralStorageUse<'_>,
             Option<access_vocabulary::AccessOperation>,
         )> {
+            self.storage_uses_with_arguments(|_| true)
+        }
+
+        /// A geometry consumer can omit an argument whose existing pointer
+        /// is carried unchanged. All storage reads, writes and projections
+        /// outside simple call-argument transport remain visible.
+        pub fn storage_uses_with_arguments(
+            &self,
+            include: impl Fn(&crate::StructuralArgument) -> bool,
+        ) -> Vec<(
+            StructuralStorageUse<'_>,
+            Option<access_vocabulary::AccessOperation>,
+        )> {
             use access_vocabulary::AccessOperation::CompoundMutation;
             use access_vocabulary::AccessOperation::Read;
             use access_vocabulary::AccessOperation::Take;
@@ -729,7 +742,7 @@ pub(crate) mod places {
                     }
                 }
                 crate::call_structural_argument_variants!(structural_arguments) => {
-                    for argument in structural_arguments {
+                    for argument in structural_arguments.iter().filter(|arg| include(arg)) {
                         push(
                             argument_projection(argument).into(),
                             projected_transfer_operation(argument),
