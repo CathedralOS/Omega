@@ -219,10 +219,17 @@ machine OmegaScalarCompiler::slice_length_parameter(
     }
 }
 
-// Removing Trapping preserves the u64 value. General arithmetic, casts to
-// another carrier, locals and projected fields do not preserve this identity.
+// Slice indices use u64. Scalar order also applies to plain u32 unit
+// ordinals and u8 values. Only removing Trapping from u64 preserves the
+// identity of a cast operand in these comparisons.
 machine OmegaScalarCompiler::u64_index_parameter(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    return self.unsigned_formal(source, state_index, before, expression, 0);
+}
+
+machine OmegaScalarCompiler::unsigned_formal(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, allow_narrow: i32
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
@@ -255,8 +262,11 @@ machine OmegaScalarCompiler::u64_index_parameter(
         }
     }
     state slot(cell: i32, removed: i32) {
-        transition (cell >= 0) && ((self.parameter_types[cell] == 320) ||
-            ((removed == 0) && (self.parameter_types[cell] == 64))) {
+        transition cell >= 0 { true -> carrier(cell, removed, self.parameter_types[cell]) _ -> return -1 }
+    }
+    state carrier(cell: i32, removed: i32, kind: i32) {
+        transition (kind == 320) || ((removed == 0) && ((kind == 64) ||
+            ((allow_narrow == 1) && ((kind == 8) || (kind == 32))))) {
             true -> return cell
             _ -> return -1
         }
@@ -350,26 +360,26 @@ machine OmegaScalarCompiler::guard_parameter_order(
         }
     }
     state operands(a: i32, b: i32, evidence: i32) {
-        transition (evidence >= strict) && (self.u64_index_parameter(source, state_index, before, a) == left) {
-            true -> projection(b)
-            _ -> return 0
-        }
+        transition evidence >= strict { true -> projection(a, b) _ -> return 0 }
     }
-    state projection(b: i32) {
+    state projection(a: i32, b: i32) {
         transition offset {
-            0 -> return self.u64_index_parameter(source, state_index, before, b) == right
-            8 -> return self.slice_length_parameter(source, state_index, before, b) == right
+            0 -> return (self.unsigned_formal(source, state_index, before, a, 1) == left) &&
+                (self.unsigned_formal(source, state_index, before, b, 1) == right)
+            8 -> return (self.u64_index_parameter(source, state_index, before, a) == left) &&
+                (self.slice_length_parameter(source, state_index, before, b) == right)
             _ -> return 0
         }
     }
 }
 
-// A u64 strictly below a live length cannot overflow on an increment by one.
-// Recheck preservation of the same two places before using the entry promise.
-machine OmegaScalarCompiler::slice_successor_bound(
+// An unsigned value strictly below another value of its own type, including
+// the u64 length of a slice, can increase by one without exceeding that type.
+// The entry promise survives only while both places retain their values.
+machine OmegaScalarCompiler::formal_successor_bound(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
 ) -> i32 {
-    let index: i32 = self.u64_index_parameter(source, state_index, before, expression);
+    let index: i32 = self.unsigned_formal(source, state_index, before, expression, 1);
     transition (index >= 0) && (self.preserve_entry_place(state_index, before, index, 0) == 1) {
         true -> next(index, 0)
         _ -> return 0
@@ -387,8 +397,8 @@ machine OmegaScalarCompiler::slice_successor_bound(
         }
     }
     state pair(index: i32, cursor: i32, row: OmegaEntryBound) {
-        transition (row.root == index) && (row.right_offset == 8) &&
-            (self.preserve_entry_place(state_index, before, row.right, 8) == 1) {
+        transition (row.root == index) &&
+            (self.preserve_entry_place(state_index, before, row.right, row.right_offset) == 1) {
             true -> return 1
             _ -> next(index, cursor + 1)
         }
@@ -429,8 +439,8 @@ machine OmegaScalarCompiler::prove_actual_scalar_order(
         let needed: i32 = strict + (a != left) - (b != right);
         transition needed <= 1 {
             true -> return self.parameter_order(source, state_index, before,
-                self.u64_index_parameter(source, state_index, before, a),
-                self.u64_index_parameter(source, state_index, before, b), 0, guard, truth, needed > 0)
+                self.unsigned_formal(source, state_index, before, a, 1),
+                self.unsigned_formal(source, state_index, before, b, 1), 0, guard, truth, needed > 0)
             _ -> return 0
         }
     }

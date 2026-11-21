@@ -58,8 +58,8 @@ data OmegaEntryBoundKind {
 
 data OmegaEntryBound {
     kind: OmegaEntryBoundKind;
-    // An ordered pair relates a u64 parameter to another u64 parameter
-    // (offset zero) or the length field of a shared byte slice (offset eight).
+    // An ordered pair relates two unsigned parameters of the same type
+    // (offset zero), or a u64 index to a shared byte-slice length (offset eight).
     right: i32;
     right_offset: i32;
     root: i32;
@@ -1839,8 +1839,21 @@ machine OmegaScalarCompiler::check_value(
     state word_operands(row: OmegaBinaryExpressionSyntax) {
         transition (self.check_value(source, owner, state_index, before, row.left, 32) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, 32) == 1) {
-            true -> return self.check_exact_word(expression, row)
+            true -> word_proof(row)
             _ -> return 0
+        }
+    }
+    state word_proof(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Add -> word_sum(row)
+            _ -> return self.check_exact_word(expression, row)
+        }
+    }
+    state word_sum(row: OmegaBinaryExpressionSyntax) {
+        transition (self.interval_literal(row.right) == 1) &&
+            (self.formal_successor_bound(source, state_index, before, row.left) == 1) {
+            true -> retain(OmegaCheckedValueKind::ExactAddition, self.parser.expressions[expression].payload0)
+            _ -> return self.check_exact_word(expression, row)
         }
     }
     state exact_operator(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
@@ -1955,16 +1968,15 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state addition(row: OmegaBinaryExpressionSyntax) {
-        transition self.expression_type(source, owner, state_index, before, row.left) == 64 {
-            true -> unsigned_add(row)
+        let kind: i32 = self.expression_type(source, owner, state_index, before, row.left);
+        transition (kind == 64) || ((kind == 8) &&
+            (self.unsigned_formal(source, state_index, before, row.left, 1) >= 0)) {
+            true -> unsigned_add(row, kind)
             _ -> constant()
         }
     }
-    state unsigned_add(row: OmegaBinaryExpressionSyntax) {
-        transition expected == 64 {
-            true -> add_right(row)
-            _ -> unsupported(row.operator_start)
-        }
+    state unsigned_add(row: OmegaBinaryExpressionSyntax, kind: i32) {
+        transition expected == kind { true -> add_right(row) _ -> unsupported(row.operator_start) }
     }
     state add_right(row: OmegaBinaryExpressionSyntax) {
         transition self.parser.expressions[row.right].kind {
@@ -1973,16 +1985,16 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state add_operands(row: OmegaBinaryExpressionSyntax) {
-        transition (self.check_value(source, owner, state_index, before, row.left, 64) == 1) &&
-            (self.check_value(source, owner, state_index, before, row.right, 64) == 1) {
+        transition (self.check_value(source, owner, state_index, before, row.left, expected) == 1) &&
+            (self.check_value(source, owner, state_index, before, row.right, expected) == 1) {
             true -> add_limit(row, self.interval_literal(row.right))
             _ -> return 0
         }
     }
     state add_limit(row: OmegaBinaryExpressionSyntax, amount: i32) {
-        transition ((amount >= 0) &&
+        transition ((expected == 64) && (amount >= 0) &&
             (self.prove_ceiling(source, state_index, before, row.left, 2147483647 - amount) == 1)) ||
-            ((amount == 1) && (self.slice_successor_bound(source, state_index, before, row.left) == 1)) {
+            ((amount == 1) && (self.formal_successor_bound(source, state_index, before, row.left) == 1)) {
             true -> retain(OmegaCheckedValueKind::ExactAddition, self.parser.expressions[expression].payload0)
             _ -> unsupported(row.operator_start)
         }
@@ -7627,20 +7639,24 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state pair(left: i32, right: i32, kind: OmegaEntryBoundKind) {
-        let index: i32 = self.u64_index_parameter(source, state_index, 0, left);
-        transition (index >= 0) && (self.bound_total < 16384) {
-            true -> destination(index, right, kind, self.slice_length_parameter(source, state_index, 0, right))
+        transition self.bound_total < 16384 {
+            true -> destination(left, right, kind, self.slice_length_parameter(source, state_index, 0, right))
             _ -> unsupported()
         }
     }
-    state destination(index: i32, right: i32, kind: OmegaEntryBoundKind, slice: i32) {
+    state destination(left: i32, right: i32, kind: OmegaEntryBoundKind, slice: i32) {
         transition slice >= 0 {
-            true -> retain_order(index, slice, 8, kind)
-            _ -> scalar_pair(index, self.u64_index_parameter(source, state_index, 0, right), kind)
+            true -> slice_pair(self.u64_index_parameter(source, state_index, 0, left), slice, kind)
+            _ -> scalar_pair(self.unsigned_formal(source, state_index, 0, left, 1),
+                self.unsigned_formal(source, state_index, 0, right, 1), kind)
         }
     }
+    state slice_pair(index: i32, slice: i32, kind: OmegaEntryBoundKind) {
+        transition index >= 0 { true -> retain_order(index, slice, 8, kind) _ -> unsupported() }
+    }
     state scalar_pair(left: i32, right: i32, kind: OmegaEntryBoundKind) {
-        transition (right >= 0) && (self.parameter_types[left] == 64) && (self.parameter_types[right] == 64) {
+        transition (left >= 0) && (right >= 0) && (self.parameter_types[left] == self.parameter_types[right]) &&
+            ((self.parameter_types[left] == 8) || (self.parameter_types[left] == 32) || (self.parameter_types[left] == 64)) {
             true -> retain_order(left, right, 0, kind)
             _ -> unsupported()
         }

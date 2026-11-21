@@ -611,6 +611,39 @@ def parameter_order_cases(encode):
     samples.append(("order-slice-forward", two + b"end(left,n)}" + end + two_entry, 42))
     samples.append(("order-slice-wrong-length", two + b"end(right,n)}" + end + two_entry,
                     (2, b"machine choose")))
+    # The construction application's has_build_file passes a u32 unit and
+    # limit. Its nested file machine requires unit < limit on that arrival.
+    for carrier in (b"u32", b"u8"):
+        sig = b"machine search(unit:" + carrier + b",limit:" + carrier + b")->u8 "
+        visitor = b"machine file(unit:" + carrier + b",limit:" + carrier + b")->u8 requires unit<limit {42}"
+        body = b"{transition unit<limit {true->file(unit,limit),_ ->7}" + visitor + b"}"
+        invoke = b"machine main()->u8{search(0,1)}"
+        stem = "order-" + carrier.decode()
+        samples.append((stem + "-unit-limit", sig + body + invoke, 42))
+        samples.append((stem + "-empty", sig + body + invoke.replace(b"(0,1)", b"(1,1)"), 7))
+        samples.append((stem + "-wrong-pair", sig + body.replace(b"file(unit,limit)", b"file(limit,unit)") +
+                        invoke, (2, b"machine search")))
+        step = (b"machine step(unit:" + carrier + b",limit:" + carrier + b")->" + carrier +
+                b" requires unit<limit {unit+1}")
+        use = b"machine main()->u8{let next:" + carrier + b"=step(254,255);transition next==255{true->42,_ ->7}}"
+        samples.append((stem + "-successor", step + use, 42))
+        samples.append((stem + "-successor-inclusive", step.replace(b"unit<limit", b"unit<=limit") + use,
+                        (2, b"+1")))
+        samples.append((stem + "-successor-wrong-base", step.replace(b"{unit+1}", b"{limit+1}") + use,
+                        (2, b"+1")))
+        samples.append((stem + "-successor-two", step.replace(b"{unit+1}", b"{unit+2}") + use,
+                        (2, b"+2")))
+    # Exercise arithmetic above the bootstrap proof ledger's signed 32-bit
+    # interval range. The runtime guard supplies the precondition.
+    top = (b"machine pass(unit:u32,limit:u32)->u32{transition unit<limit{true->step(unit,limit),_ ->0}"
+           b"machine step(unit:u32,limit:u32)->u32 requires unit<limit{unit+1}}"
+           b"machine main()->u8{let next:u32=pass(4294967294,4294967295);"
+           b"transition next==4294967295{true->42,_ ->7}}")
+    samples.append(("order-u32-last-successor", top, 42))
+    mixed = b"machine wrong(unit:u8,limit:u32)->u8 requires unit<limit {42}machine main()->u8{wrong(0,1)}"
+    samples.append(("order-unsigned-carrier-mismatch", mixed, (2, b"machine wrong")))
+    narrow = b"machine wrong(path:@[u8],index:u32)->u8 requires index<path.len {42}" + entry.replace(b"scan(@path[..],0,0)", b"wrong(@path[..],0)")
+    samples.append(("order-narrow-index-slice-length", narrow, (2, b"machine wrong")))
     for name, source, expected in samples:
         packet, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
         if isinstance(expected, tuple):
