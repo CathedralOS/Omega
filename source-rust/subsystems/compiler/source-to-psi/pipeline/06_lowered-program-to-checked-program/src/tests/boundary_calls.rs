@@ -1175,6 +1175,74 @@ machine entry() -> u32 crashes none {{
     crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap()
 }
 
+#[test]
+fn a_forwarded_boundary_method_const_keeps_its_declared_binder_and_preconditions() {
+    const SOURCE: &str = r#"
+public boundary trait ObjectiveC {
+    machine send_byte_string<const Count: u64>(recv: u64, sel: u64, text: @[u8; Count]) -> u64
+    requires Count > 0
+    requires text[Count - 1] == 0
+    reaches none crashes none;
+}
+public machine entry<const Count: u64>(title: @[u8; Count]) -> u64
+requires Count > 0
+{caller_fact}
+reaches none
+invokes ObjectiveC
+{
+    ObjectiveC::send_byte_string::<Count>(7u64, 9u64, title)
+}
+"#;
+    let check = |text: &str| {
+        let prepared = crate::preparation::prepare_typed_trees(typed(text), &[], &[]).unwrap();
+        let typed = prepared.trees();
+        judge(crate::lowering::elaborate_generic(typed, entry(typed))).unwrap()
+    };
+    let source = SOURCE.replace("{caller_fact}", "requires title[Count - 1] == 0");
+    let accepted = check(&source);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let missing = check(&SOURCE.replace("{caller_fact}", ""));
+    assert!(
+        matches!(missing, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{missing:?}"
+    );
+
+    // The callee asks for a shared loan, but a write through the caller's
+    // mutable input invalidates its original value.
+    let overwritten = source
+        .replace(
+            "entry<const Count: u64>(title: @[u8;",
+            "entry<const Count: u64>(title: @mut [u8;",
+        )
+        .replace(
+            "    ObjectiveC::send_byte_string::<Count>",
+            "    title[Count - 1] = 1u8;\n    ObjectiveC::send_byte_string::<Count>",
+        );
+    let stale = check(&overwritten);
+    assert!(
+        matches!(stale, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{stale:?}"
+    );
+
+    let unrelated = source
+        .replace(
+            "entry<const Count: u64>",
+            "entry<const Count: u64, const Other: u64>",
+        )
+        .replace("send_byte_string::<Count>", "send_byte_string::<Other>");
+    let mismatch = check(&unrelated);
+    assert!(
+        matches!(mismatch, RouteVerdict::FallBack(ref refusal) if refusal.detail.contains("argument types")),
+        "{mismatch:?}"
+    );
+}
+
 /// What a native binding of `Sink::take` claims: the generic requirement,
 /// named as the Build names it.
 fn claimed(

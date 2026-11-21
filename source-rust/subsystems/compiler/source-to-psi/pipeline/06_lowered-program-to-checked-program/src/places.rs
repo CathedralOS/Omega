@@ -1451,7 +1451,10 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+        (callee_formals, extent_owner): (
+            &'s [terminal_psi::StructuralParameterDeclaration],
+            Option<MachineId>,
+        ),
         site: InvocationSite,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
@@ -1487,6 +1490,7 @@ impl<'a> Storage<'a> {
             scalars: crate::checking::scalar_actuals(actuals),
             places,
             callee_formals,
+            extent_owner,
             block,
             up_to: before,
             concerns,
@@ -1558,6 +1562,7 @@ impl<'a> Storage<'a> {
                 scalars: Vec::new(),
                 places,
                 callee_formals: formals,
+                extent_owner: None,
                 block,
                 up_to,
                 concerns,
@@ -1574,10 +1579,7 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        (formals, result): (
-            &'s [terminal_psi::StructuralParameterDeclaration],
-            crate::checking::call_contracts::ResultFormal,
-        ),
+        call: &crate::checking::call_contracts::Invocation<'s>,
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
@@ -1585,10 +1587,11 @@ impl<'a> Storage<'a> {
             references,
             tables,
             actuals,
-            formals,
+            call.structural_inputs(),
             InvocationSite::Operation(site),
             concerns,
         )?;
+        let result = call.contract.result;
         let operation = self.operation(site, concerns)?;
         use crate::checking::call_contracts::ResultFormal;
         let (structural, scalar) = match (result, &operation.result) {
@@ -1613,7 +1616,7 @@ impl<'a> Storage<'a> {
         };
         Ok(Returned {
             inputs,
-            input_formals: formals,
+            input_formals: call.contract.structural_parameters,
             storage: self,
             tables,
             structural,
@@ -6733,6 +6736,7 @@ pub(crate) struct AtCall<'s, 'a> {
     /// The record actuals, in the callee's structural lane order.
     places: Vec<Lineage>,
     callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+    extent_owner: Option<MachineId>,
     block: BlockId,
     up_to: usize,
     concerns: Construct,
@@ -6812,6 +6816,56 @@ impl<'a> AtCall<'_, 'a> {
             projections: None,
             terms: Vec::new(),
         }
+    }
+
+    /// An inline cell of a shared caller input retains its entry contents.
+    /// A clause may name that cell even if no operation captures its index.
+    fn shared_input_read(
+        &self,
+        actual: &Lineage,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Option<ScalarTerm> {
+        use semantic_vocabulary::ScalarReadProjection as Projection;
+        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.storage.lowered.structural_parameters,
+            actual.root,
+        )?;
+        if input.access != StructuralAccess::SharedBorrow
+            || path
+                .iter()
+                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
+        {
+            return None;
+        }
+        let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
+        for segment in &actual.segments {
+            rebased.push(match *segment {
+                Segment::Field(field) => {
+                    Projection::from(CanonicalStructuralPathSegment::Field(field))
+                }
+                Segment::Case(case) => Projection::from(CanonicalStructuralPathSegment::Case(case)),
+                Segment::FixedIndex(index) => {
+                    Projection::from(CanonicalStructuralPathSegment::FixedIndex(index))
+                }
+                Segment::RuntimeIndex { selector } => Projection::Index(Box::new(
+                    ScalarTerm::value(selector, self.tables.values.get(selector)?.scalar_type),
+                )),
+                _ => return None,
+            });
+        }
+        rebased.extend_from_slice(path);
+        let mut fixed_storage = true;
+        let actual_type = terminal_semantics::structural_read_type_with_extents(
+            self.storage.types.iter(),
+            input.structural_type,
+            &rebased,
+            |_, extent| fixed_storage &= extent.is_some(),
+        )?;
+        if actual_type != ty || !fixed_storage {
+            return None;
+        }
+        ScalarTerm::structural_read(actual.root, rebased, ty).ok()
     }
 
     /// Find the source named by the operation that established this actual.
@@ -7304,14 +7358,36 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                 .ok_or(crate::checking::Unbound::Unsupported(
                     "indexed contract has no structural formal",
                 ))?;
-        let actual = self.readable_actual(formal)?;
-        if self.storage.projection_type(actual, self.concerns) != Some(formal.structural_type) {
+        let actual = self.readable_actual(formal)?.clone();
+        let actual_type = self.storage.projection_type(&actual, self.concerns);
+        if actual_type != Some(formal.structural_type)
+            && !actual_type
+                .zip(self.extent_owner)
+                .is_some_and(|(actual_type, owner)| {
+                    self.storage.module.machine(owner).is_some_and(|callee| {
+                        terminal_semantics::calls::const_array_argument_matches(
+                            self.storage.module,
+                            self.storage.lowered,
+                            callee,
+                            &self.scalars,
+                            actual_type,
+                            formal.structural_type,
+                        )
+                    })
+                })
+        {
             return Err(crate::checking::Unbound::Unproved(
                 "indexed contract formal and actual need corresponding element projections",
             ));
         }
-        let leaf = indexed_place(self.storage, self.tables, actual.clone(), path)?;
-        self.held_at(&leaf).observation(&leaf, ty)
+        let observed = indexed_place(self.storage, self.tables, actual.clone(), path)
+            .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
+        match observed {
+            Err(error @ crate::checking::Unbound::Unproved(_)) => {
+                self.shared_input_read(&actual, path, ty).ok_or(error)
+            }
+            other => other,
+        }
     }
 
     fn field_alternatives(

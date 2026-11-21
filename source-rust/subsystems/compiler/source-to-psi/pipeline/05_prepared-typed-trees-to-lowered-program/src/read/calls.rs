@@ -3243,36 +3243,22 @@ impl<'t> Program<'t> {
         if aq != eq || ar != er || values.is_empty() {
             return false;
         }
+        // Arguments append scalar consts in signature order. Match an extent
+        // to its supplied value through the same formal numbering as the contract.
+        let Some(signature) = self.signatures.get(callee) else {
+            return false;
+        };
+        let formals = signature.formal_values();
+        let Some(first_const) = formals.len().checked_sub(values.len()) else {
+            return false;
+        };
+        let const_formals = &formals[first_const..];
         self.array_argument_storage_matches(actual, expected, |al, el| {
             if let terminal_psi::ArrayExtent::Parameter { owner, value } = el {
                 if *owner != callee {
                     return false;
                 }
-                let Some(inputs) = self.const_scopes.get(callee) else {
-                    return false;
-                };
-                let Some(position) = inputs.iter().position(|input| input.value == *value) else {
-                    return false;
-                };
-                // const_scope is symbol-sorted; recover declaration order.
-                let Some(symbol) = self
-                    .symbols
-                    .get(callee)
-                    .and_then(|symbol| self.typed.machine_by_symbol(*symbol))
-                else {
-                    return false;
-                };
-                let parameters = self.typed.machine_type_parameters(symbol);
-                let Some(position) = parameters
-                    .iter()
-                    .filter(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            crate::source_state::data::TypeParameterKind::Const { .. }
-                        ) && self.record_parameter(parameter.symbol).is_none()
-                    })
-                    .position(|parameter| parameter.symbol == inputs[position].symbol)
-                else {
+                let Some(position) = const_formals.iter().position(|formal| *formal == Some(*value)) else {
                     return false;
                 };
                 match (al, values.get(position).map(|value| &value.kind)) {

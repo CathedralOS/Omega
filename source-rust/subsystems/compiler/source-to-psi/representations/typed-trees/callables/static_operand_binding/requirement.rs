@@ -66,6 +66,16 @@ pub fn prepare_requirement_in_scope(
             "a requirement application needs one argument for each declared binder",
         ));
     }
+    if program
+        .expression_table
+        .static_machine_application(application)
+        .registration_operation
+        != target
+    {
+        return Err(unserved(
+            "a requirement application names a different registration operation",
+        ));
+    }
     let trait_arguments = program
         .materialize_trait_application_arguments(environment)
         .map_err(unserved)?;
@@ -93,25 +103,16 @@ pub fn prepare_requirement_in_scope(
         )?);
     }
     bind(program, application, &operands);
-    // Open at a parameter of the enclosing generic machine: closed in each
-    // machine generated from that one.
-    if operands.iter().any(|operand| operand.is_open(program)) {
-        return Ok(None);
-    }
     let table = &mut program.expression_table;
-    if table
-        .static_machine_application(application)
-        .registration_operation
-        != target
-    {
-        return Err(unserved(
-            "a requirement application names a different registration operation",
-        ));
-    }
     table
         .static_machine_application_mut(application)
         .binding_declaration = target;
     table.set_static_machine_application_lifetimes(application, target, &[]);
+    // The callee owns the tuple even when an operand names a caller binder.
+    // Only the executable header must wait for a closed application.
+    if operands.iter().any(|operand| operand.is_open(program)) {
+        return Ok(None);
+    }
     let closed = program
         .instantiate_requirement_application(environment, target, &trait_arguments, application)
         .map_err(unserved)?;

@@ -173,6 +173,26 @@ pub(crate) struct Invocation<'a> {
     pub contract: PublicContract<'a>,
 }
 
+impl<'a> Invocation<'a> {
+    pub(crate) fn structural_inputs(
+        &self,
+    ) -> (
+        &'a [StructuralParameterDeclaration],
+        Option<semantic_vocabulary::MachineId>,
+    ) {
+        // Dependent extents belong to the machine that supplied the public
+        // header. A descriptor or separate selected requirement supplies its
+        // own contract; the implementation's inputs cannot justify its shape.
+        let owner = match (self.inputs.callee, self.inputs.required_contract) {
+            (Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id)), None) => {
+                Some(id)
+            }
+            _ => None,
+        };
+        (self.contract.structural_parameters, owner)
+    }
+}
+
 /// A frame-reusing jump keeps both actual lanes and its complete callable
 /// interface. Arrival and loan checking still judge the transfer itself.
 pub(crate) struct TailCall<'a> {
