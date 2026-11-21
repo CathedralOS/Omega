@@ -531,15 +531,20 @@ pub(crate) mod alias_uses {
             };
         // A source-free symbol table retains borrowed names. Its selected alias
         // declaration still owns the exact span used by transparent expansion.
+        let alias = source
+            .type_aliases
+            .iter()
+            .find(|alias| alias.symbol == declaration)
+            .ok_or_else(|| {
+                Diagnostic::error("type alias application lost its declaration")
+                    .with_source_span(reference)
+            })?;
         let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
-            if source.symbols.source_map().is_some() {
-                return None;
-            }
             source
-                .type_aliases
-                .iter()
-                .find(|alias| alias.symbol == declaration)
-                .map(|alias| alias.name.source_span())
+                .symbols
+                .source_map()
+                .is_none()
+                .then(|| alias.name.source_span())
         });
         if source.symbols.get(declaration).kind != symbols::SymbolKind::TypeAlias
             || selected_source != Some(declaration_source)
@@ -548,6 +553,27 @@ pub(crate) mod alias_uses {
                 "type alias application does not rejoin its selected source declaration",
             )
             .with_source_span(reference));
+        }
+        let formals = source.data_type_parameters(alias.type_parameters);
+        let actuals = target.type_reference_table.type_reference_handles(arguments);
+        if actuals.len() != formals.len()
+            || lifetime_arguments.len() != alias.lifetime_parameters.len()
+        {
+            return Err(
+                Diagnostic::error("type alias application does not supply its declared arguments")
+                    .with_source_span(reference),
+            );
+        }
+        for (index, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
+            if matches!(formal.kind, resolved::data::TypeParameterKind::Type)
+                && target.type_argument_names_value(*actual)
+            {
+                return Err(Diagnostic::error(format!(
+                    "type alias argument {} requires a type but was supplied a value",
+                    index + 1
+                ))
+                .with_source_span(reference));
+            }
         }
         let supplied_operand_owner = target
             .type_reference_table

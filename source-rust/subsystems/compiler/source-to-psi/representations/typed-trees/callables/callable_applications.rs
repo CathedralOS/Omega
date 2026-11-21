@@ -469,10 +469,7 @@ impl crate::source_state::TypedTrees {
                         return Err("a callable type argument requires its resolved type");
                     }
                     let reference = self.static_operand_type_reference_in_scope(argument, owner)?;
-                    if matches!(
-                        self.type_reference_node(reference),
-                        TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    if self.type_argument_names_value(reference) {
                         return Err("a callable type argument cannot be a value");
                     }
                     reference
@@ -6020,6 +6017,29 @@ pub(crate) mod selected_operands {
                 return Err("static operand changed its retained selected application");
             }
             Ok(supplier)
+        }
+
+        /// Both callable and type-alias applications use the same type-reference
+        /// arena for type and value arguments. A type binder cannot accept a
+        /// value, including when substitution would erase the argument.
+        pub fn type_argument_names_value(&self, reference: types::TypeReferenceHandle) -> bool {
+            use symbols::SymbolKind;
+            match self.type_reference_table.type_reference(reference) {
+                types::TypeReferenceNode::ConstExpression(_) => true,
+                types::TypeReferenceNode::Named { symbol, .. } => {
+                    self.static_const_literal_from_type_reference(reference).is_some()
+                        || self.symbols.symbols().nodes().is_valid(*symbol)
+                            && matches!(
+                                self.symbols.get(*symbol).kind,
+                                SymbolKind::Const
+                                    | SymbolKind::Parameter
+                                    | SymbolKind::Machine
+                                    | SymbolKind::MachineParameter
+                                    | SymbolKind::ConformanceParameter
+                            )
+                }
+                _ => false,
+            }
         }
 
         pub fn static_operand_from_type_reference(

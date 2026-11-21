@@ -124,6 +124,16 @@ fn transparent_data_aliases_form_in_their_own_binder_scope() {
 }
 
 #[test]
+fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
+    let Err(error) = super::boundary_calls::try_typed(
+        "public data Erased<T> = u32; public data Invalid = Erased<17u64>;",
+    ) else {
+        panic!("an unused parameter still requires a type argument");
+    };
+    assert!(error.message.contains("requires a type but was supplied a value"), "{error:?}");
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);
