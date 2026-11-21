@@ -59,6 +59,20 @@ impl NativeProgram {
         self.terminal.native_realization_proposal()
     }
 
+    /// Portable supplier descriptions proposed to the receiving source Product.
+    pub fn component_descriptions(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            semantic_vocabulary::PackageKeyIdentity,
+            &component_description::VerifiedComponent,
+        ),
+    > {
+        self.suppliers
+            .iter()
+            .map(|(&package, supplier)| (package, supplier.component.as_ref()))
+    }
+
     pub fn emit(
         self,
         entry_memory: &[PrivateEntryRamInitialization],

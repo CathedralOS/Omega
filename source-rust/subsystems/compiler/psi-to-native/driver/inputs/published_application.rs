@@ -31,6 +31,7 @@ pub fn prepare_source_program(
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     components: Vec<super::components::ComponentSourcePublication>,
     target: SourceNativeTarget<'_>,
+    receive: impl FnOnce(&crate::NativeProgram) -> Result<(), Vec<Diagnostic>>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let issued = source_demand(
         &authorization,
@@ -40,14 +41,16 @@ pub fn prepare_source_program(
         target.semantic_bindings,
     )?;
     let supplied = super::components::verify(components, target.profile)?;
-    prepare_issued_program(
+    let program = prepare_issued_program(
         authorization,
         issued,
         supplied,
         target.settings,
         exclusions,
         target.installation_assumptions,
-    )
+    )?;
+    receive(&program)?;
+    Ok(program)
 }
 
 /// Determine the checked target supply for a package, including an entryless library.
@@ -56,7 +59,18 @@ pub fn review_source_providers(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     publication: provider_demand::PublishedTargetProviders,
     target: SourceNativeTarget<'_>,
-) -> Result<provider_realization::SelectedProviderResult, Vec<Diagnostic>> {
+    components: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        Arc<component_description::VerifiedComponent>,
+    >,
+    package: semantic_vocabulary::PackageKeyIdentity,
+) -> Result<
+    (
+        provider_realization::SelectedProviderResult,
+        Option<Vec<u8>>,
+    ),
+    Vec<Diagnostic>,
+> {
     let issued = source_demand(
         &authorization,
         publication,
@@ -66,9 +80,21 @@ pub fn review_source_providers(
     )?;
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    Ok(provider_realization::select_published_providers(admitted, Default::default())?
-        .result()
-        .clone())
+    let selected = provider_realization::select_published_providers(admitted, components)?;
+    let artifact = selected.published_authorization().shared_artifact();
+    let has_exports = artifact
+        .semantic_module()
+        .interfaces
+        .provider_candidates
+        .iter()
+        .any(|candidate| candidate.source_candidate_package_identity == Some(package));
+    // Publishing an independent component is optional until a receiving Product selects it.
+    let description = if has_exports {
+        native_artifact::describe_portable_component(artifact, selected.plans()).ok()
+    } else {
+        None
+    };
+    Ok((selected.result().clone(), description))
 }
 
 fn source_demand(

@@ -14,7 +14,9 @@ provider-correspondence = { path = "psi-to-native/verification/provider-correspo
 provider-acceptance = { path = "build/providers/acceptance" }
 psi-entry-memory = { path = "psi/execution-inputs/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
+component-description = { path = "psi-to-native/verification/component-description" }
 native-compiler = { path = "psi-to-native" }
+package-compilation = { path = "build/inputs" }
 product-publication = { path = "build/publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
 source-admission = { path = "source-to-psi/representations/source-files/custody" }

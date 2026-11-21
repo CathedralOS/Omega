@@ -586,8 +586,10 @@ name = "compiler"
 version = "0.1.0"
 dependencies = [
  "compiler-identity",
+ "component-description",
  "diagnostics",
  "native-compiler",
+ "package-compilation",
  "product-publication",
  "provider-acceptance",
  "provider-correspondence",

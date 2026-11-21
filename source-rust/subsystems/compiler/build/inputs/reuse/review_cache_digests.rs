@@ -61,7 +61,7 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
     for binding in inputs.accepted_semantic_bindings() {
         hash_accepted_binding(&mut digest, binding);
     }
-    for description in inputs.independent_component_descriptions() {
+    for description in inputs.independent_component_descriptions().values() {
         hash_component_description(&mut digest, description);
     }
     digest.finish()

@@ -1,7 +1,10 @@
 //! These sealed inputs were emitted by the original component publisher and
 //! provider-plan writer. Neither writer is part of the receiving dependency graph.
 use super::*;
-use crate::records::ExportSurface;
+use crate::records::{
+    ComponentEntry, ComponentEntryKind, EntryEvidence, ExportSurface, InstallationObligation,
+    ObligationKind,
+};
 use crate::retained_plan::ProviderPlanInput;
 use std::collections::BTreeSet;
 use wire::digest_encoder::content_identity;
@@ -84,5 +87,101 @@ fn retained_plan_authenticates_the_entire_preimage_and_its_schema() {
     assert_eq!(
         ProviderPlanInput::read(&changed, &content_identity(&changed)).unwrap_err(),
         "provider plan input has trailing bytes"
+    );
+}
+
+#[test]
+fn assumption_rows_bind_the_review_to_verified_description_bytes() {
+    let (mut description, artifact) =
+        decode_component_description_with_artifact(include_bytes!("tests/provider-free.component"))
+            .unwrap();
+    let assumption = [42; 32];
+    description.assumptions.push(assumption);
+    description.entries.push(ComponentEntry {
+        kind: ComponentEntryKind::Cleanup,
+        identity: "device shutdown".to_owned(),
+        evidence: EntryEvidence::AssumptionBound(assumption),
+    });
+    description.entries.sort();
+    let request = ComponentVerificationRequest {
+        expected_subject: artifact.view().identity(),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
+        accepted_assumptions: AcceptedComponentAssumptions::PendingConsumerAcceptance,
+    };
+    let bytes = encode_component_description_checked(&description).unwrap();
+    let proposed = verify_component(&bytes, &request).unwrap();
+    let rows = proposed.assumption_rows().unwrap();
+    assert_eq!(rows[&assumption].len(), 1);
+    assert!(rows[&assumption][0].contains("device shutdown"));
+    let accepted = verify_component(
+        &bytes,
+        &ComponentVerificationRequest {
+            accepted_assumptions: AcceptedComponentAssumptions::Exact(BTreeSet::from([assumption])),
+            ..request.clone()
+        },
+    )
+    .unwrap();
+    assert_eq!(accepted.assumption_rows().unwrap(), rows);
+
+    let stack = InstallationObligation {
+        kind: ObligationKind::StackProvision,
+        identity: "stack-provision:1:32:16".into(),
+        detail: "measured supplier stack".into(),
+    };
+    let locator = [19; 32];
+    let mut native = description.clone();
+    native.realization_identity = Some(locator);
+    native.obligations.push(stack.clone());
+    native.obligations.sort();
+    let native_bytes = encode_component_description_checked(&native).unwrap();
+    proposed
+        .verify_native_realization(&native_bytes, locator, &stack)
+        .unwrap();
+    assert!(
+        proposed
+            .verify_native_realization(&native_bytes, [20; 32], &stack)
+            .is_err()
+    );
+    let mut changed_stack = stack.clone();
+    changed_stack.identity = "stack-provision:1:16:16".into();
+    assert!(
+        proposed
+            .verify_native_realization(&native_bytes, locator, &changed_stack)
+            .is_err()
+    );
+    native
+        .entries
+        .iter_mut()
+        .find(|row| row.evidence == EntryEvidence::AssumptionBound(assumption))
+        .unwrap()
+        .identity
+        .push_str(" changed");
+    native.entries.sort();
+    assert!(
+        proposed
+            .verify_native_realization(
+                &encode_component_description_checked(&native).unwrap(),
+                locator,
+                &stack
+            )
+            .is_err()
+    );
+
+    description
+        .entries
+        .iter_mut()
+        .find(|row| row.evidence == EntryEvidence::AssumptionBound(assumption))
+        .unwrap()
+        .identity
+        .push_str(" v2");
+    description.entries.sort();
+    let changed = verify_component(
+        &encode_component_description_checked(&description).unwrap(),
+        &request,
+    )
+    .unwrap();
+    assert_ne!(
+        rows[&assumption],
+        changed.assumption_rows().unwrap()[&assumption]
     );
 }

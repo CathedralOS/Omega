@@ -59,9 +59,15 @@ impl crate::ProductStage<'_> {
                 "package review requires the acquired package graph",
             )]
         })?;
-        let (declarations, selected) = compiler::review_package(
+        let compiler::ReviewedPackage {
+            declarations,
+            providers: selected,
+            component,
+            component_assumptions,
+        } = compiler::review_package(
             self.source(),
             self.native_target(profile, Vec::new())?,
+            inputs,
             accounting,
         )?;
         let accepted = declarations.accepted()?;
@@ -77,22 +83,9 @@ impl crate::ProductStage<'_> {
         let input =
             input::PolicySource::checked(&declarations, &sources, evaluation, inputs, profile)?;
         let package = inputs.root();
-        let policy = policy::project(&input, &selected, profile, package)?;
+        let policy = policy::project(&input, &selected, profile, package, component_assumptions)?;
         let (semantic_binding_candidates, target_entry_candidate) =
             semantic_bindings::candidates(&input, &selected, &policy, profile, package)?;
-        if selected.realization().composition_modes().any(|mode| {
-            mode == semantic_vocabulary::source_selections::CompositionMode::Independent
-        }) || declarations.explicit_providers().iter().any(|supply| {
-            supply.composition_mode
-                == semantic_vocabulary::source_selections::CompositionMode::Independent
-                && supply
-                    .target
-                    .is_none_or(|target| target.canonical_name() == profile.target_name())
-        }) {
-            return Err(vec![Diagnostic::error(
-                "package review requires the separately verified description of its independently composed provider",
-            )]);
-        }
         let selected_build_machine_identity = evaluation
             .configuration
             .selected_machine_identity(input.typed())?
@@ -108,7 +101,7 @@ impl crate::ProductStage<'_> {
             selected_build_machine_identity,
             semantic_binding_candidates,
             target_entry_candidate,
-            component_description: None,
+            component_description: component,
         })
     }
 }

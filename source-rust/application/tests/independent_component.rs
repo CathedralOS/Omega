@@ -53,6 +53,25 @@ machine main() reaches Reading crashes Trap {
 "#,
     )
     .unwrap();
+    let review = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "packages",
+            "update",
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--dangerously-accept-all",
+            "--project",
+        ])
+        .arg(&consumer)
+        .output()
+        .unwrap();
+    assert!(
+        review.status.success() && consumer.join("omega.lock").is_file(),
+        "the receiver must be able to review its selected supplier: {} {}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
     let build = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--target", "linux_x86_64", "--build-dir"])
         .arg(&output)

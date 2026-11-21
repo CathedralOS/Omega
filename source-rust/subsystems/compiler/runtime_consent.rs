@@ -1,11 +1,36 @@
 use diagnostics::Diagnostic;
 
-/// This program supplies no independent components or imports. Its receiver still
-/// compares the complete consent inventory, so a stale component decision also fails.
+/// Project scoped, verified supplier premises into the same rows for review and execution.
+pub(super) fn component_assumptions<'a>(
+    components: impl IntoIterator<
+        Item = (
+            semantic_vocabulary::PackageKeyIdentity,
+            &'a component_description::VerifiedComponent,
+        ),
+    >,
+) -> Result<Vec<review_evidence::record::PackagePolicyComponentAssumption>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for (component, verified) in components {
+        for (assumption, bound_rows) in verified
+            .assumption_rows()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            rows.push(review_evidence::record::PackagePolicyComponentAssumption {
+                component,
+                assumption,
+                bound_rows,
+            });
+        }
+    }
+    rows.sort();
+    Ok(rows)
+}
+
 pub(super) fn compare(
     accepted: &review_evidence::permission_acceptance::TerminalPermissionAcceptance,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     program: &native_compiler::NativeProgram,
+    components: &[review_evidence::record::PackagePolicyComponentAssumption],
     bindings: &[provider_acceptance::AcceptedSemanticBinding],
     declarations: &source_compiler::RuntimePermissionDeclarations,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -69,5 +94,5 @@ pub(super) fn compare(
             },
         );
     }
-    accepted.compare_service_permissions(package, proposal.target_profile(), &rows)
+    accepted.compare_runtime_permissions(package, proposal.target_profile(), &rows, components)
 }
