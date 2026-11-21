@@ -1754,8 +1754,11 @@ impl<'a> Storage<'a> {
             up_to,
             concerns,
         };
-        crate::checking::sufficient_goal(&self.clause(owner, concerns)?, &mut bindings)
-            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+        terminal_semantics::substitution::clauses::substitute_sufficient_clause(
+            &self.clause(owner, concerns)?,
+            &mut bindings,
+        )
+        .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
     /// The goal of one `DataDomain` obligation: the clause with `self`
