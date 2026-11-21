@@ -1285,7 +1285,7 @@ fn fill_knowledge<'a>(
         } = row.site
         {
             let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
-            let formals = call.contract.structural_parameters;
+            let formals = call.structural_inputs();
             let ensures = call.contract.ensures.iter();
             let mut inputs = storage.at_cleanup_call(
                 references,
@@ -2219,7 +2219,7 @@ fn stated_goal<'a>(
                     },
                 )
             };
-            let formals = call.contract.structural_parameters;
+            let formals = call.structural_inputs();
             match row.site {
                 InvocationSite::Cleanup {
                     edge,
@@ -2237,7 +2237,7 @@ fn stated_goal<'a>(
                     references,
                     tables,
                     &row.actuals,
-                    call.structural_inputs(),
+                    formals,
                     site,
                     concerns,
                 )?),
