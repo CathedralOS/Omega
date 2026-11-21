@@ -8915,10 +8915,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             })
             .expect("a branch copies its formal");
         let destination = storage.log[row_index].backing.clone();
-        let source = match &storage.log[row_index].stored {
-            Stored::Moved(source) => source.clone(),
-            _ => unreachable!(),
-        };
         // One arrival transfers just the leaf. Its initial contents are the
         // same, but it carries no evidence for a newly enclosing record.
         let mut projected = destination.place.clone();
@@ -8969,7 +8965,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 Reached::Unestablished
             );
         }
-        storage.log[row_index].stored = Stored::Moved(source);
 
         // Disconnect the invocation's incoming edges from the equation graph.
         // Keep their identities so each cleanup still names its actual source.
