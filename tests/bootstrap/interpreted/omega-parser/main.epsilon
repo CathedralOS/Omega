@@ -11,6 +11,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.check_arm_condition("machine p(x:R) { transition { x.kind == 0 || x.ready -> pass(), _ -> fail() } }");
     self.check_declared_domains("domain u8::Raw; public domain [u8]::Utf8 requires byte_observation\\valid_utf8(@self[..]); domain u8::Checked requires true,;");
     self.parser.parse_view("domain u8::D(subject);");
     self.check_syntax_refused(12, 13);
@@ -181,7 +182,9 @@ machine Main::main(&mut self) {
     self.check_suffix_refused(16, 17);
 
     self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } machine done() {} }");
-    self.check_incomplete(29, 32);
+    self.check_complete();
+    assert self.parser.transition_statements[0].guard_start == 29;
+    assert self.parser.transition_statements[0].guard_end == 32;
 
     self.parser.parse_view("machine p() { x = self { tag: 1 }; }");
     self.check_incomplete(23, 24);
@@ -1623,5 +1626,36 @@ machine Main::check_trait_owners(&mut self, source: &[u8]) {
     transition self.parser.roots[0].kind {
         OmegaRootKind::Trait -> return
         _ -> self.console.exit_process(1)
+    }
+}
+
+machine Main::check_arm_condition(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    assert self.parser.transition_statement_count == 2;
+    let arm: OmegaTransitionStatementSyntax = self.parser.transition_statements[0];
+    assert arm.has_subject == 0;
+    assert self.parser.scan.span_equals(source, arm.guard_start, arm.guard_end, "x.kind == 0 || x.ready") == 1;
+    transition arm.guard_kind {
+        OmegaTransitionGuardKind::Predicate -> expression(self.parser.expressions[arm.guard_expression])
+        _ -> self.console.exit_process(1)
+    }
+    state expression(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Binary -> operation(self.parser.binary_expressions[row.payload0].operator)
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state operation(kind: OmegaBinaryOperatorKind) {
+        transition kind {
+            OmegaBinaryOperatorKind::Or -> wildcard()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state wildcard() {
+        transition self.parser.transition_statements[1].guard_kind {
+            OmegaTransitionGuardKind::Always -> return
+            _ -> self.console.exit_process(1)
+        }
     }
 }

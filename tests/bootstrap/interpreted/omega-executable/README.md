@@ -159,7 +159,8 @@ resolution, unresolved call
 and state targets, call and transition arity mismatches, an empty authored
 state, an unmatched subject, duplicate authored state names, an unreachable
 statement after a transition block, receiver and `self` call paths, a supported
-parameterized transfer, a multi-arm or non-wildcard subjectless block, an
+parameterized transfer, first-match selection in a multi-arm subjectless block, a
+non-Boolean subjectless condition, an
 integer arm under a Boolean subject, refused fractional anonymous division,
 unsupported shift and bitwise expressions, an ungrouped terminal call, two sequential call
 statements, a wildcard arm ahead of a matching literal arm, and a Boolean arm
@@ -193,7 +194,7 @@ top of the bound member closure, never part of the manifested members.
 | `controls_e.epsilon` | 2,795 | `881feab7746fe17185dfa163629b13c788274891f43c9ab7d72d1f07a3272d72` |
 | `controls_f.epsilon` | 4,465 | `17c38612a596bd23ec8bee9f48a43e9bf6591595ba7ec819122acd9692033fc2` |
 | `controls_g.epsilon` | 3,175 | `c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137` |
-| `controls_h.epsilon` | 3,249 | `5113940dc5134f6052ddb4766d72ff80d55d44241e05db15e11c2210445bac59` |
+| `controls_h.epsilon` | 3,247 | `f3c997c53733618e973160555d3e3427a2bb7bd013e5c7180b72a719a102359f` |
 | `controls_i.epsilon` | 3,754 | `5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4` |
 | `controls_j.epsilon` | 5,581 | `203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5` |
 
@@ -252,3 +253,16 @@ Each batch uses a fresh evaluator process to bound cumulative allocation. The fi
 the full decoder source. Each refusal batch reuses one compiler instance and
 ends with a successful compilation. The host stamps and runs every
 published tape, distinguishing Linux SIGILL from a normal process exit.
+
+
+Ordered subjectless Boolean predicates are also exercised by
+`tests/bootstrap/independent/directory_names.py --case predicate-effects-ordered`
+against an executable construction entry. The `predicate-*` cases check the
+product's three-field `same_type_form` guard shape over scalar fields with each
+answer-changing mutation, first-match order, once-only and short-circuit guard
+evaluation, checked nested arrivals, and rejection of ill-typed unselected arms.
+Every refusal requires an exact outcome and no Alpha tape. Coverage through a
+wildcard or literal `true` is supported; more general coverage proofs return
+`Incomplete`. The actual product's nominal enum comparisons remain a separate
+compiler facility, so the scalar-field execution controls do not claim complete
+compilation of the original `same_type_form` machine.

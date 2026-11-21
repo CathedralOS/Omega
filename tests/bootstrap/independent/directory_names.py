@@ -149,6 +149,7 @@ def cases():
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
+    yield from predicate_transition_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -601,6 +602,76 @@ def nested_state_cases(encode):
             group, missing = (groups - 2, b"only_final()") if name == "nested-state-wrong-owner" else (groups - 1, b"unknown_late()")
             coordinate = rows[group][1] + sources[group].index(missing)
             yield name, data, struct.pack("<BII", 0, 1, coordinate)
+
+
+def predicate_transition_sources():
+    """Ordered subjectless predicates, with the product's projected-guard shape."""
+    form = (b"data Form [copy] {kind:u8;access:u8;argument_count:u8;} "
+            b"machine same_type_form(left:Form,right:Form)->bool {transition {"
+            b"left.kind != right.kind || left.access != right.access || left.argument_count != right.argument_count -> different(),"
+            b"_ -> equal()} machine different()->bool{false} machine equal()->bool{true}} ")
+    for name, right, expected in [
+        ("same", b"Form{kind:1,access:2,argument_count:3}", 42),
+        ("changed-kind", b"Form{kind:0,access:2,argument_count:3}", 43),
+        ("changed-access", b"Form{kind:1,access:0,argument_count:3}", 43),
+        ("changed-count", b"Form{kind:1,access:2,argument_count:0}", 43),
+    ]:
+        source = (form + b"machine main()->u8 {let left:Form=Form{kind:1,access:2,argument_count:3};"
+                  b"let right:Form=" + right + b";transition same_type_form(left,right) {true->42,_ ->43}}")
+        yield "predicate-product-shape-" + name, source, expected
+
+    choose = (b"machine choose(x:u8)->u8 {transition {x==0->42,x==1->43,_ ->44}} "
+              b"machine main()->u8{choose(")
+    for value, expected in [(0, 42), (1, 43), (2, 44)]:
+        yield f"predicate-choice-{value}", choose + str(value).encode() + b")}", expected
+
+    yield "predicate-true-coverage", b"machine main()->u8{transition{true->42}}", 42
+    yield "predicate-first-wildcard", b"machine main()->u8{transition{_ ->42,true->7}}", 42
+    yield "predicate-first-true", b"machine main()->u8{transition{true->42,true->7,_ ->1}}", 42
+    yield "predicate-effects-ordered", (
+        b"data Counter {value:u8;} "
+        b"machine mark(counter:@mut Counter, expected:u8, next:u8)->bool {"
+        b"let answer:bool=counter.value==expected;counter.value=next;answer} "
+        b"machine main()->u8{let mut counter:Counter;transition{"
+        b"mark(@mut counter,9,1)->99,mark(@mut counter,1,2)->counter.value,"
+        b"mark(@mut counter,2,3)->98,_ ->97}}"), 2
+    yield "predicate-evaluated-once", (
+        b"data Counter {flipped:bool;} machine flip(counter:@mut Counter)->bool {"
+        b"let old:bool=counter.flipped;counter.flipped=!old;!old} "
+        b"machine main()->u8{let mut counter:Counter;transition{flip(@mut counter)->selected(counter.flipped),_ ->1}"
+        b"machine selected(flipped:bool)->u8{transition flipped{true->42,_ ->7}}}"), 42
+    yield "predicate-short-circuit", (
+        b"data Counter {value:u8;} machine touch(counter:@mut Counter)->bool{counter.value=9;true} "
+        b"machine main()->u8{let mut counter:Counter;transition{"
+        b"false && touch(@mut counter)->98,true || touch(@mut counter)->counter.value,_ ->97}}"), 0
+
+    # A refusal tuple is (guest status, exact source-coordinate spelling).
+    yield "predicate-nonboolean", b"machine main()->u8{transition{1->42,_ ->0}}", (1, b"1->")
+    yield "predicate-unselected-result-type", b"machine main()->u8{transition{true->42,_ ->false}}", (1, b"false")
+    yield "predicate-unselected-guard-type", b"machine main()->u8{transition{_ ->42,1->0}}", (1, b"1->")
+    yield "predicate-unselected-target", b"machine main()->u8{transition{false->missing(),_ ->42}}", (1, b"missing")
+    yield "predicate-missing-comma", b"machine main()->u8{transition{true->42 _ ->0}}", (1, b"_ ->")
+    # More general coverage proofs remain outside this bootstrap provision.
+    yield "predicate-unproved-coverage", b"machine main()->u8{transition{false->42}}", (2, b"->42")
+
+    yield "predicate-checked-arrival", (
+        b"data B {bytes:[u8;2];} machine choose(index:u64)->u8{transition{index<2->read(index),_ ->0}"
+        b"machine read(index:u64)->u8 requires index<2 {let mut b:B;b.bytes[1]=42;b.bytes[index]}}"
+        b"machine main()->u8{choose(1)}"), 42
+    yield "predicate-failed-guard-kills-entry-fact", (
+        b"data Cell requires length<=2,{bytes:[u8;2];length:u64;} "
+        b"machine mutate(cell:@mut Cell)->bool{cell.length=2;false} "
+        b"machine choose(cell:@mut Cell)->u8 requires cell.length<2 {transition{mutate(cell)->0,_ ->cell.bytes[cell.length]}} "
+        b"machine main()->u8{0}"), (2, b"machine choose")
+
+
+def predicate_transition_cases(encode):
+    for name, source, expected in predicate_transition_sources():
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
 
 
 def main():

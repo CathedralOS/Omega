@@ -615,8 +615,8 @@ shapes outside the parser's provision; the other codes identify checking coverag
 non-machine roots, machine header forms, entry and authored-state signatures,
 non-call statement kinds, call shapes (explicit value and static arguments),
 expression forms (unsupported operators and literal spellings), and
-transition forms (multi-arm subjectless blocks, non-`Always` subjectless
-guards, guard/subject class mismatches, post-block statements, and mixed
+transition forms (subjectless coverage requiring proof beyond a wildcard or
+literal `true`, guard/subject class mismatches, post-block statements, and mixed
 subjects within a block). `coverage_request_semantics` names the request
 boundary's unavailable semantic phases — package-key recomputation,
 canonical ordering, graph resolution, snapshot materialization, admission
