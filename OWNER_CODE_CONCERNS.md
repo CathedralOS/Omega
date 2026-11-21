@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: Reading the target-bound entry and its allowed callees requires importing later optimizer and provider-admission types. Give entry reach the checked entry, adapter and callback facts it reads. Preserve refusal of a foreign parent artifact or target through both root and private lowering.
 - Reported: 2026-11-20, Codex, while moving builtin selection into the target-bound program.
 
-### Checking an evaluation charge reopens the generated caller's body
-
-- Category: Re-deriving.
-- Where: [receipt fields](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L85), [recording a call](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/calls/execution.rs#L52), [charge validation](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L332), [Product accounting](source-rust/subsystems/compiler/source-to-psi/driver/compile_product.rs#L234).
-- Saw: An invocation receipt keeps the requesting typed program, the frozen caller and the published program alive. Checking its charge reads the caller's sole state and last transition to establish that it returned the recorded call. Product checks the accumulated charges after settling provider work.
-- Cost: A completed receipt keeps trees alive for later accounting. Make the source producer issue the checked association between the requester, call and emitted site while those trees are available. Bind it to the exact executed artifact, inputs, sponsor, outcome and measured work. Test a substituted site or charge and measure retained memory over many calls before removing the source-tree references from completed receipts.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Interpreter admission runs native abstract optimization to obtain borrowed storage layouts
 
 - Category: Knowledge crossing a boundary.

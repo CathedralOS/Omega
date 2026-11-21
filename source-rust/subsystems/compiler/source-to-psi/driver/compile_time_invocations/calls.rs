@@ -1,10 +1,11 @@
 //! Prepare the actual source call, with its complete arguments and selected body,
 //! through ordinary typed preparation and the checked program publisher.
-use checked_program_to_psi::production;
 use crate::driver::judge_lowered_source;
 use declaration_scope::PackageDeclarationScope;
 use crate::source_state::TypedTrees;
+use checked_program_to_psi::production;
 use diagnostics::Diagnostic;
+use source_completion_accounting::SourceInvocationInputs;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
@@ -44,10 +45,6 @@ impl PreparedBuildMachineEntry {
         self.symbol
     }
 
-    pub fn source(&self) -> &TypedTrees {
-        &self.source
-    }
-
     /// The actual caller and its arguments have already been judged together.
     /// Consumers may inspect that exact source before execution; neither the
     /// source nor a replacement argument list is accepted by the run method.
@@ -59,17 +56,25 @@ impl PreparedBuildMachineEntry {
         &self.call
     }
 
-    pub fn arguments(&self) -> &[crate::compile_time_invocations::BuildTimeValue] {
-        &self.arguments
+    pub(crate) fn source_invocation_inputs(&self) -> SourceInvocationInputs<'_> {
+        SourceInvocationInputs {
+            site: production::SourceInvocationSite {
+                accepted: &self.accepted,
+                request_source: &self.source,
+                machine: self.symbol,
+                requester: self.requester,
+                call: self.call_source,
+            },
+            arguments: &self.arguments,
+            inputs: &self.input_values,
+        }
     }
 
     pub(crate) fn accepted(&self) -> &production::AcceptedTerminalSource {
         &self.accepted
     }
 
-    pub(crate) fn produce_invocation(
-        &self,
-    ) -> Result<production::ProducedTerminalProgram, String> {
+    pub(crate) fn produce_invocation(&self) -> Result<production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(
                 production::TerminalProductionCustody {

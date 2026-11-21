@@ -160,6 +160,7 @@ impl<'request> SourcePreparationRequest<'request> {
             })?;
             Ok((program, constants))
         })();
+        accounting.release_constant_inputs();
         match result {
             Ok((program, demanded_constants)) => Ok(SettledSource {
                 program,

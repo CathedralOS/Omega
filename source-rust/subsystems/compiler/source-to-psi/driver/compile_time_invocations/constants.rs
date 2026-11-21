@@ -83,12 +83,8 @@ pub fn validate_constant_evaluations(
         let PureEvaluationRecord::Invocation(receipt) = record else {
             continue;
         };
-        if receipt
-            .request_source()
-            .const_declaration_by_symbol(receipt.requester())
-            .is_some()
-        {
-            if program.identity.get() != receipt.request_source().identity.get() {
+        if let Some(source) = accounting.constant_input(receipt)? {
+            if program.identity.get() != source.identity.get() {
                 return Err("constant receipt belongs to another source owner".into());
             }
             if family_position(&wanted, receipt.requester()).is_none() {
@@ -138,17 +134,16 @@ pub fn validate_constant_evaluations(
     // The first actual constant invocation still owns every original named
     // use, before this batch substitutes its first value. Prepare that use
     // family once and authenticate each emitted copy against its own receipt.
-    let original_source = accounting
-        .receipts()
-        .iter()
-        .find_map(|record| match record {
-            PureEvaluationRecord::Invocation(receipt)
-                if family_position(&wanted, receipt.requester()).is_some() =>
-            {
-                Some(receipt.request_source())
-            }
-            _ => None,
-        });
+    let mut original_source = None;
+    for record in accounting.receipts() {
+        if let PureEvaluationRecord::Invocation(receipt) = record
+            && family_position(&wanted, receipt.requester()).is_some()
+            && let Some(source) = accounting.constant_input(receipt)?
+        {
+            original_source = Some(source);
+            break;
+        }
+    }
     if let Some(source) = original_source
         && !program
             .expression_table
@@ -191,7 +186,10 @@ pub fn validate_constant_evaluations(
             if receipt.machine() != entry.symbol {
                 return Err("constant result has swapped invocation custody".into());
             }
-            let source = receipt.request_source();
+            let source = accounting
+                .constant_input(receipt)?
+                .ok_or("constant receipt lost its original requesting declaration")?
+                .as_ref();
             if program.identity.get() != source.identity.get() {
                 return Err("constant receipt belongs to another source owner".into());
             }

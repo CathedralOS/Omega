@@ -11,6 +11,8 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
+mod invocation_site;
+pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;
 pub use crate::lowering::Compilation as TerminalSourceCompilation;
 pub use crate::lowering::RequirementReviewMetadata;

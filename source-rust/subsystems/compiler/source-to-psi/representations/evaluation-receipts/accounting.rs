@@ -1,10 +1,10 @@
 //! Keep source completion costs joined to the published invocation and its typed caller.
 #![forbid(unsafe_code)]
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use build_time_values::BuildTimeValue;
-use checked_program_to_psi::{AcceptedTerminalSource, ProducedTerminalProgram};
+use checked_program_to_psi::{CheckedSourceCall, ProducedTerminalProgram, SourceInvocationSite};
 use typed_trees::source_state;
 
 use build_scalar_evaluation::PURE_PSI_WORK_BUDGET;
@@ -78,24 +78,13 @@ impl PureEvaluationRecord {
     }
 }
 
-/// A temporary caller can establish a real invocation without becoming a
-/// portable program. Retain its source and code together with the actual
-/// arguments and charges; saving this receipt remains explicitly unsupported.
+/// A completed invocation keeps its checked source site and execution charge.
 #[derive(Debug, Clone)]
 pub struct PureTerminalEvaluationReceipt {
-    request_source: Arc<source_state::TypedTrees>,
-    source: Arc<source_state::FrozenTypedTrees>,
-    machine: symbols::SymbolHandle,
-    requester: symbols::SymbolHandle,
-    caller: symbols::SymbolHandle,
-    call: source_state::expression::ExpressionHandle,
-    call_site: Option<(
-        semantic_vocabulary::MachineId,
-        semantic_vocabulary::InvocationSite,
-    )>,
+    site: CheckedSourceCall,
+    requested_by_constant: bool,
     arguments: Arc<[BuildTimeValue]>,
     inputs: Arc<[BuildTimeValue]>,
-    program: Arc<ProducedTerminalProgram>,
     admission: evaluation_admission::AdmittedCompilerEvaluation,
     execution: Option<build_invocation::InvocationReceipt>,
     account: evaluation_accounting::EvaluationInvocationAccount,
@@ -103,45 +92,32 @@ pub struct PureTerminalEvaluationReceipt {
     usage: terminal_work::WorkUsage,
 }
 
-/// Source facts captured for a generated invocation and its accepted lowering.
-pub struct SourceInvocationSite<'a> {
-    pub accepted: &'a AcceptedTerminalSource,
-    pub request_source: Arc<source_state::TypedTrees>,
-    pub machine: symbols::SymbolHandle,
-    pub requester: symbols::SymbolHandle,
-    pub call: source_state::expression::ExpressionHandle,
-    pub arguments: Arc<[BuildTimeValue]>,
-    pub inputs: Arc<[BuildTimeValue]>,
+/// The source site and both argument lists used to set up this invocation.
+pub struct SourceInvocationInputs<'a> {
+    pub site: SourceInvocationSite<'a>,
+    pub arguments: &'a Arc<[BuildTimeValue]>,
+    pub inputs: &'a Arc<[BuildTimeValue]>,
 }
 
 /// The interpreter's result and the evidence of the work it actually performed.
 pub struct RecordedSourceInvocation {
-    pub value: Result<build_invocation::InvocationValue, String>,
-    pub receipt: PureTerminalEvaluationReceipt,
+    value: Result<build_invocation::InvocationValue, String>,
+    receipt: PureTerminalEvaluationReceipt,
+    constant_input: Option<Arc<source_state::TypedTrees>>,
 }
 
 impl RecordedSourceInvocation {
     pub fn record(
-        site: SourceInvocationSite<'_>,
-        program: Arc<ProducedTerminalProgram>,
+        call: SourceInvocationInputs<'_>,
+        program: &ProducedTerminalProgram,
         admission: evaluation_admission::AdmittedCompilerEvaluation,
         meter: &evaluation_work::EvaluationWorkMeter,
         run: Result<build_invocation::InvocationOutcome, String>,
     ) -> Result<Self, String> {
-        let SourceInvocationSite {
-            accepted,
-            request_source,
-            machine,
-            requester,
-            call,
-            arguments,
-            inputs,
-        } = site;
-        if request_source.identity.get() != accepted.source().identity.get() {
-            return Err("source invocation belongs to a different requesting program".into());
-        }
+        let checked = call.site.check(program)?;
         let account = meter
-            .payment().invocation()
+            .payment()
+            .invocation()
             .ok_or("source invocation requires its actual sponsor")?
             .clone();
         let usage = meter.usage().clone();
@@ -166,110 +142,98 @@ impl RecordedSourceInvocation {
                 reason: reason.clone(),
             },
         };
-        let entry = accepted
-            .entry()
-            .ok_or("evaluation receipt lost its accepted entry")?;
-        let caller = *accepted
-            .closure()
-            .elaboration()
-            .machines
-            .get(entry)
-            .ok_or("evaluation receipt lost its actual caller")?;
-        if !accepted.is_invocation()
-            || &accepted.closure().elaboration().module != program.view().module()
-        {
-            return Err("evaluation receipt has another accepted code owner".into());
-        }
-        let mut sites = accepted.source_call_sites(caller, call);
-        let call_site = sites.next();
-        if sites.next().is_some() {
-            return Err("evaluation receipt has multiple sites for its actual call".into());
-        }
+        let constant_source = call
+            .site
+            .request_source
+            .const_declaration_by_symbol(call.site.requester)
+            .map(|_| Arc::clone(call.site.request_source));
         let receipt = PureTerminalEvaluationReceipt {
-            request_source,
-            source: Arc::clone(accepted.source()),
-            machine,
-            requester,
-            caller,
-            call,
-            call_site,
-            arguments,
-            inputs,
-            program,
+            site: checked,
+            requested_by_constant: constant_source.is_some(),
+            arguments: Arc::clone(call.arguments),
+            inputs: Arc::clone(call.inputs),
             admission,
             execution,
             account,
             outcome,
             usage,
         };
+        receipt.require_program(program)?;
         receipt.validate_charge()?;
-        Ok(Self { value, receipt })
+        Ok(Self {
+            value,
+            receipt,
+            constant_input: constant_source,
+        })
+    }
+
+    /// Keep the work that ran even when its caller refuses the returned observations.
+    pub fn finish<T>(
+        mut self,
+        accounting: &mut SourceCompletionAccounting,
+        complete: impl FnOnce(build_invocation::InvocationValue) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let result = self.value.and_then(complete);
+        if let Err(reason) = &result {
+            self.receipt.outcome = PureTerminalEvaluationOutcome::Failed {
+                reason: reason.clone(),
+            };
+        }
+        if let Some(source) = self.constant_input {
+            Arc::make_mut(&mut accounting.constant_inputs)
+                .insert(Arc::as_ptr(&source) as usize, source);
+        }
+        Arc::make_mut(&mut accounting.receipts)
+            .push(PureEvaluationRecord::Invocation(Arc::new(self.receipt)));
+        result
     }
 }
 
 impl PureTerminalEvaluationReceipt {
-    pub fn source(&self) -> &source_state::FrozenTypedTrees {
-        &self.source
-    }
-    pub fn request_source(&self) -> &source_state::TypedTrees {
-        &self.request_source
-    }
     pub const fn machine(&self) -> symbols::SymbolHandle {
-        self.machine
+        self.site.machine()
     }
     pub const fn requester(&self) -> symbols::SymbolHandle {
-        self.requester
+        self.site.requester()
     }
     pub const fn caller(&self) -> symbols::SymbolHandle {
-        self.caller
+        self.site.caller()
     }
-    /// The actual generated call belongs to this receipt's immutable source.
-    /// Consumers inspect its selected operand here, not a separately supplied
-    /// type handle or a later search through the structural catalogue.
-    pub fn call(&self) -> Result<&source_state::expression::TableCallExpression, String> {
-        if !self.source.expression_table.expression_is_valid(self.call) {
-            return Err("source invocation call has another source owner".into());
-        }
-        self.source
-            .expression_table
-            .call_node(self.call)
-            .ok_or_else(|| "source invocation lost its retained call".into())
+    pub const fn machine_template(&self) -> Option<symbols::SymbolHandle> {
+        self.site.machine_template()
     }
-    /// The operation is the one associated with this receipt's retained call
-    /// before execution. A source description can materialize without a call
-    /// operation; an ordinary or selected execution cannot substitute one.
-    pub fn invocation(
+    pub const fn emitted_site(
         &self,
-    ) -> Result<
-        Option<(
-            semantic_vocabulary::MachineId,
-            terminal_psi::ModuleInvocation<'_>,
-        )>,
-        String,
-    > {
-        let Some((caller, site)) = self.call_site else {
-            return Ok(None);
-        };
-        let module = self.program.view().module();
-        if module.entry != Some(semantic_vocabulary::TargetMachineCallable::Machine(caller)) {
-            return Err("source invocation receipt names another canonical caller".into());
-        }
-        let invocation = module
-            .machine(caller)
-            .and_then(|machine| {
-                machine
-                    .module_invocations()
-                    .find(|invocation| invocation.site == site)
-            })
-            .ok_or("source invocation receipt lost its exact emitted call site")?;
-        Ok(Some((caller, invocation)))
+    ) -> Option<(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::InvocationSite,
+    )> {
+        self.site.emitted_site()
     }
-
+    pub fn require_site(&self, current: &SourceInvocationInputs<'_>) -> Result<(), String> {
+        self.site.require_site(&current.site)?;
+        if !Arc::ptr_eq(&self.arguments, current.arguments)
+            || !Arc::ptr_eq(&self.inputs, current.inputs)
+        {
+            return Err("evaluation receipt belongs to another call's inputs".into());
+        }
+        Ok(())
+    }
+    pub fn require_program(&self, program: &ProducedTerminalProgram) -> Result<(), String> {
+        let code = program.view();
+        let entry = code
+            .module()
+            .entry
+            .ok_or("source invocation receipt lost its entry")?;
+        self.admission
+            .require_invocation(code, self.admission.target(), entry)?;
+        if let Some(execution) = &self.execution {
+            execution.require_admission(code, &self.admission)?;
+        }
+        Ok(())
+    }
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
-    }
-    pub fn program(&self) -> &ProducedTerminalProgram {
-        &self.program
     }
     pub fn admission(&self) -> &evaluation_admission::AdmittedCompilerEvaluation {
         &self.admission
@@ -283,7 +247,6 @@ impl PureTerminalEvaluationReceipt {
 
     pub fn validate_charge(&self) -> Result<(), String> {
         if let Some(execution) = &self.execution {
-            execution.require_admission(self.program.view(), &self.admission)?;
             execution.require_inputs(&self.arguments, &self.inputs, Some(&self.account))?;
             if execution.usage() != &self.usage {
                 return Err(
@@ -309,163 +272,6 @@ impl PureTerminalEvaluationReceipt {
         if total != Some(self.usage.total_units()) {
             return Err("source invocation attribution is inconsistent".into());
         }
-        if self.source.machine_by_symbol(self.machine).is_none()
-            || !self
-                .source
-                .symbols
-                .symbols()
-                .nodes()
-                .is_valid(self.requester)
-            || self.source.machine_by_symbol(self.caller).is_none()
-            || self.source.symbols.get(self.caller).generated_from != self.requester
-            || self
-                .program
-                .view()
-                .module()
-                .identities
-                .invocation_scope()
-                .is_none()
-            || self.program.evidence().is_none()
-        {
-            return Err("source invocation lost its accepted source/code custody".into());
-        }
-        let caller = self
-            .source
-            .machine_by_symbol(self.caller)
-            .ok_or("source invocation lost its caller declaration")?;
-        let Some([state]) = self.source.machine_states(caller).as_array() else {
-            return Err("source invocation lost its unique caller entry".into());
-        };
-        let Some(source_state::statement::StatementNode::Transition(transition)) = self
-            .source
-            .statement_table
-            .statements(state.statement_nodes)
-            .last()
-        else {
-            return Err("source invocation lost its actual return call".into());
-        };
-        if !self
-            .source
-            .statement_table
-            .transition_target_is_valid(transition.target)
-            || !matches!(
-                self.source.statement_table.transition_target(transition.target),
-                source_state::statement::TransitionTargetNode::Value(value) if *value == self.call
-            )
-        {
-            return Err("source invocation receipt names another call".into());
-        }
-        let call = self.call()?;
-        let source_view = source_state::references::StaticArgumentCall::Expression(self.call, call);
-        if source_view.applications().any(|application| {
-            !self
-                .source
-                .expression_table
-                .static_machine_application_is_valid(application)
-        }) {
-            return Err("source invocation has a stale application in its retained call".into());
-        }
-        let lexical_owner = source_view.lexical_owner(&self.source);
-        let lexical_owner = if lexical_owner.is_valid() {
-            lexical_owner
-        } else {
-            self.caller
-        };
-        if let Some((_, invocation)) = self.invocation()? {
-            let module = self.program.view().module();
-            let body = module
-                .machine(invocation.inputs.callee)
-                .ok_or("source invocation lost its actual executable body")?;
-            let declared = self
-                .source
-                .machine_by_symbol(self.machine)
-                .ok_or("source invocation lost its executable source declaration")?;
-            let expected = self
-                .source
-                .machine_callable_identity_text(declared)
-                .filter(|identity| !identity.is_empty())
-                .ok_or("source invocation body has no complete source callable identity")?;
-            if body
-                .declaration
-                .as_ref()
-                .and_then(|declaration| module.identities.text(declaration.callable))
-                != Some(expected.as_str())
-            {
-                return Err("source invocation site names another executable declaration".into());
-            }
-            match self
-                .source
-                .source_call_declaration(lexical_owner, source_view)?
-            {
-                source_state::callable_signature_shapes::CallableDeclaration::Machine(_) => {
-                    if invocation.inputs.required_contract.is_some() {
-                        return Err(
-                            "direct source invocation was replaced by a selected call".into()
-                        );
-                    }
-                }
-                source_state::callable_signature_shapes::CallableDeclaration::Signature(
-                    required,
-                ) => {
-                    let contract = invocation
-                        .inputs
-                        .required_contract
-                        .and_then(|required| {
-                            module.invocation_machine_contract(
-                                invocation.inputs.callee,
-                                Some(required),
-                            )
-                        })
-                        .ok_or("selected source invocation lost its actual public contract")?;
-                    let (owner, _) = self
-                        .source
-                        .trait_machine_signature(required.symbol)
-                        .ok_or("selected source invocation lost its public source declaration")?;
-                    let expected = self
-                        .source
-                        .trait_requirement_callable_identity_text(owner, required);
-                    if contract
-                        .declaration
-                        .as_ref()
-                        .and_then(|declaration| module.identities.text(declaration.callable))
-                        != Some(expected.as_str())
-                        || contract.selected_application.is_none()
-                    {
-                        return Err(
-                            "selected source invocation changed its exact public application"
-                                .into(),
-                        );
-                    }
-                }
-            }
-        } else {
-            if source_state::reflection::construction::declaration_query_argument_role(
-                &self.source,
-                source_view,
-            ) != source_state::references::StaticArgumentRole::DeclarationDescription
-            {
-                return Err("source invocation lost its actual emitted call association".into());
-            }
-            if call.target_symbol != self.machine
-                && self
-                    .source
-                    .machine_holding_state(call.target_symbol)
-                    .is_none_or(|machine| machine.symbol != self.machine)
-            {
-                return Err("source description call selects another declaration".into());
-            }
-        }
-        let selected = self
-            .program
-            .view()
-            .module()
-            .entry
-            .ok_or("source invocation receipt lost its entry")?;
-        self.admission.require_invocation(
-            self.program.view(),
-            self.admission.target(),
-            selected,
-        )?;
         match &self.outcome {
             PureTerminalEvaluationOutcome::Materialized { usage, .. } => {
                 usage
@@ -497,21 +303,34 @@ pub struct SourcePreparationFailure {
 pub struct SourceCompletionAccounting {
     receipts: Arc<Vec<PureEvaluationRecord>>,
     reused: bool,
+    // Materializing a named constant must also check the original expressions.
+    // Keep those inputs only until the source preparation finishes. Invocation
+    // receipts are local and already refuse serialization.
+    #[record(skip)]
+    constant_inputs: Arc<BTreeMap<usize, Arc<source_state::TypedTrees>>>,
 }
 
 impl SourceCompletionAccounting {
-    /// Keep the original charge when the caller cannot interpret its observations.
-    pub fn append_invocation(
-        &mut self,
-        mut receipt: PureTerminalEvaluationReceipt,
-        refusal: Option<String>,
-    ) {
-        if let Some(reason) = refusal {
-            receipt.outcome = PureTerminalEvaluationOutcome::Failed { reason };
+    /// Constant materialization uses the exact source of the checked call. The
+    /// pointer is local to this account and the map keeps that allocation alive.
+    pub fn constant_input(
+        &self,
+        receipt: &PureTerminalEvaluationReceipt,
+    ) -> Result<Option<&Arc<source_state::TypedTrees>>, String> {
+        if !receipt.requested_by_constant {
+            return Ok(None);
         }
-        // This constructor just completed one actual run, so its receipt is
-        // fresh. Share it when accounts later join; do not recopy its payload.
-        Arc::make_mut(&mut self.receipts).push(PureEvaluationRecord::Invocation(Arc::new(receipt)));
+        self.constant_inputs
+            .get(&(receipt.site.requesting_source().as_ptr() as usize))
+            .map(Some)
+            .ok_or_else(|| "constant validation requires its original source input".into())
+    }
+
+    /// Once preparation returns its result or diagnostics, only the charges travel on.
+    pub fn release_constant_inputs(&mut self) {
+        if !self.constant_inputs.is_empty() {
+            self.constant_inputs = Arc::default();
+        }
     }
 
     pub fn has_complete_usage(&self) -> bool {
@@ -550,6 +369,18 @@ impl Extend<CanonicalScalarEvaluationReceipt> for SourceCompletionAccounting {
 impl SourceCompletionAccounting {
     pub fn append(&mut self, other: Self) {
         self.reused |= other.reused;
+        if self.constant_inputs.is_empty() {
+            self.constant_inputs = other.constant_inputs;
+        } else if !other.constant_inputs.is_empty()
+            && !Arc::ptr_eq(&self.constant_inputs, &other.constant_inputs)
+        {
+            Arc::make_mut(&mut self.constant_inputs).extend(
+                other
+                    .constant_inputs
+                    .iter()
+                    .map(|(key, source)| (*key, Arc::clone(source))),
+            );
+        }
         if self.receipts.is_empty() {
             self.receipts = other.receipts;
         } else if !other.receipts.is_empty() && !Arc::ptr_eq(&self.receipts, &other.receipts) {

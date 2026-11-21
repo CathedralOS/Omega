@@ -191,18 +191,11 @@ fn evaluate_domain(
     else {
         return Err("the plan evaluation lost its own invocation receipt".into());
     };
-    if !std::ptr::eq(receipt.source(), entry.accepted_source())
-        || !std::ptr::eq(receipt.request_source(), entry.source())
-        || receipt.machine() != entry.symbol()
-        || receipt.requester() != domain
-        || receipt.call()? != entry.call()
-        || receipt.arguments() != entry.arguments()
-        || receipt.invocation()?.is_none()
-    {
+    if receipt.requester() != domain || receipt.emitted_site().is_none() {
         return Err("the plan result belongs to another selected invocation".into());
     }
     let normalized =
-        returned_plan::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
+        returned_plan::normalize_for_schema(&entry, receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
     if !normalized.observations.is_empty() {
