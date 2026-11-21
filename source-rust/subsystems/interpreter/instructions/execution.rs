@@ -2135,6 +2135,9 @@ pub(crate) mod execution {
     }
 
     pub struct TerminalExecution<'artifact> {
+        /// Arithmetic in an admitted compiler invocation may determine a meaning
+        /// without determining the bits that a runtime realization can choose.
+        pub(crate) compiler_evaluation: bool,
         pub(crate) issued_layout_target: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
         pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
         pub(crate) scalar_applications: Option<psi_scalar_applications::ScalarApplicationValues>,
@@ -2691,6 +2694,7 @@ pub(crate) mod execution {
                 established_erased_fields: inputs.established_erased_fields.to_vec(),
                 effects: Vec::new(),
                 call_observations: None,
+                compiler_evaluation: false,
                 issued_layout_target: None,
                 failed_call_result: None,
                 failed_return: None,
@@ -3774,7 +3778,8 @@ pub(crate) mod scalar_operations {
         use crate::boundary::values::TerminalScalarValue;
         use crate::engine::execution::{OperationFlow, TerminalExecution, dispatched_operation};
         use crate::engine::scalar_operations::{
-            ieee_float_compare, nearest_ieee_float_fused_multiply_add,
+            float_result_policy::operand_meaning, ieee_float_compare,
+            nearest_ieee_float_fused_multiply_add,
         };
         use semantic_vocabulary::ScalarType;
         use terminal_psi::OperationKind;
@@ -3799,16 +3804,13 @@ pub(crate) mod scalar_operations {
                 operation: &terminal_psi::Operation,
             ) -> Result<OperationFlow, TerminalInterpretError> {
                 dispatched_operation!(operation => IeeeFloatCompare { comparison, left, right });
-                let read_float = |operand| match self.values.get(&operand).copied() {
-                    Some(TerminalScalarValue::IeeeFloat(value)) => Ok(value),
-                    Some(_) => Err(malformed()),
-                    None => Err(TerminalInterpretError::VerifiedValueMissing(operand)),
-                };
-                let left = read_float(left)?;
-                let right = read_float(right)?;
-                if left.format() != right.format() {
+                let left = self.scalar_value(left)?;
+                let right = self.scalar_value(right)?;
+                if left.scalar_type() != right.scalar_type() {
                     return Err(malformed());
                 }
+                let left = operand_meaning(left)?;
+                let right = operand_meaning(right)?;
                 self.require_boolean_result(operation)?;
                 self.store_scalar(
                     operation,
@@ -3823,23 +3825,8 @@ pub(crate) mod scalar_operations {
                 dispatched_operation!(operation => ScalarRepresentationView { operand, .. });
                 let result = operation.result.expect_scalar();
                 let source = self.scalar_value(operand)?;
-                let (source_type, source_value) = match source {
-                    TerminalScalarValue::Callable { .. } => return Err(malformed()),
-                    TerminalScalarValue::HostAddress { .. } => {
-                        return Err(crate::boundary::errors::host_address_mixed());
-                    }
-                    TerminalScalarValue::Boolean(value) => {
-                        (ScalarType::Boolean, ScalarViewValue::Boolean(value))
-                    }
-                    TerminalScalarValue::Integer { scalar_type, value } => (
-                        ScalarType::Integer(scalar_type),
-                        ScalarViewValue::Integer(value),
-                    ),
-                    TerminalScalarValue::IeeeFloat(value) => (
-                        ScalarType::IeeeFloat(value.format()),
-                        ScalarViewValue::IeeeFloat(value),
-                    ),
-                };
+                let source_type = source.scalar_type();
+                let source_value = crate::boundary::values::scalar_view_value(source)?;
                 let viewed =
                     ScalarRepresentationViewPair::classify(source_type, result.scalar_type)
                         .and_then(|pair| pair.view(source_value))
@@ -3871,21 +3858,21 @@ pub(crate) mod scalar_operations {
                 else {
                     return Err(malformed());
                 };
-                let TerminalScalarValue::IeeeFloat(left) = self.scalar_value(left)? else {
-                    return Err(malformed());
+                let read = |id| {
+                    let operand = self.scalar_value(id)?;
+                    if operand.scalar_type() != ScalarType::IeeeFloat(format) {
+                        return Err(malformed());
+                    }
+                    operand_meaning(operand)
                 };
-                let TerminalScalarValue::IeeeFloat(right) = self.scalar_value(right)? else {
-                    return Err(malformed());
-                };
-                let TerminalScalarValue::IeeeFloat(addend) = self.scalar_value(addend)? else {
-                    return Err(malformed());
-                };
-                if left.format() != format || right.format() != format || addend.format() != format
-                {
-                    return Err(malformed());
-                }
-                let result = nearest_ieee_float_fused_multiply_add(format, left, right, addend);
-                self.store_scalar(operation, TerminalScalarValue::IeeeFloat(result))
+                let result = nearest_ieee_float_fused_multiply_add(
+                    format,
+                    read(left)?,
+                    read(right)?,
+                    read(addend)?,
+                    self.compiler_evaluation,
+                );
+                self.store_scalar(operation, result)
             }
 
             pub(crate) fn execute_boolean_constant(
@@ -3931,7 +3918,7 @@ pub(crate) mod scalar_operations {
         use crate::boundary::values::TerminalScalarValue;
         use crate::engine::execution::{OperationFlow, TerminalExecution, operation_kind};
         use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
-        use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ValueId};
+        use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType};
         use terminal_psi::{FloatResultPolicy, Operation, OperationKind};
 
         pub fn meaning(value: IeeeFloatValue) -> FloatMeaning {
@@ -3941,21 +3928,17 @@ pub(crate) mod scalar_operations {
             }
         }
 
-        impl TerminalExecution<'_> {
-            fn float_policy_operand(
-                &self,
-                value: ValueId,
-                format: IeeeFloatFormat,
-            ) -> Result<IeeeFloatValue, TerminalInterpretError> {
-                match self.values.get(&value).copied() {
-                    Some(TerminalScalarValue::IeeeFloat(payload)) if payload.format() == format => {
-                        Ok(payload)
-                    }
-                    Some(_) => Err(malformed()),
-                    None => Err(TerminalInterpretError::VerifiedValueMissing(value)),
-                }
+        pub(super) fn operand_meaning(
+            value: TerminalScalarValue,
+        ) -> Result<FloatMeaning, TerminalInterpretError> {
+            match value {
+                TerminalScalarValue::IeeeFloat(bits) => Ok(meaning(bits)),
+                TerminalScalarValue::UndeterminedNaN(_) => Ok(FloatMeaning::NaN),
+                _ => Err(malformed()),
             }
+        }
 
+        impl TerminalExecution<'_> {
             pub(crate) fn execute_float_result_policy(
                 &mut self,
                 operation: &Operation,
@@ -3967,8 +3950,11 @@ pub(crate) mod scalar_operations {
                 let Some(format) = result.scalar_type.as_ieee_float() else {
                     return Err(malformed());
                 };
-                let raw_result = self.float_policy_operand(policy.raw_result(), format)?;
-                let raw_meaning = meaning(raw_result);
+                let raw_result = self.scalar_value(policy.raw_result())?;
+                if raw_result.scalar_type() != ScalarType::IeeeFloat(format) {
+                    return Err(malformed());
+                }
+                let raw_meaning = operand_meaning(raw_result)?;
                 let adapted = match policy {
                     FloatResultPolicy::Trapping { .. } => {
                         if FloatSemantics::apply_trapping_policy(raw_meaning).is_err() {
@@ -4002,21 +3988,16 @@ pub(crate) mod scalar_operations {
                             raw_meaning
                         };
                         if was_infinite && adapted.is_finite() {
-                            match format {
-                                IeeeFloatFormat::Binary32 => {
-                                    IeeeFloatValue::Binary32(adapted.to_f32().to_bits())
-                                }
-                                IeeeFloatFormat::Binary64 => {
-                                    IeeeFloatValue::Binary64(adapted.to_f64().to_bits())
-                                }
-                            }
+                            TerminalScalarValue::IeeeFloat(match format {
+                                IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(adapted.to_f32().to_bits()),
+                                IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(adapted.to_f64().to_bits()),
+                            })
                         } else {
                             raw_result
                         }
                     }
                 };
-                self.values
-                    .insert(result.id, TerminalScalarValue::IeeeFloat(adapted))?;
+                self.values.insert(result.id, adapted)?;
                 Ok(OperationFlow::Advance)
             }
         }
@@ -4721,22 +4702,16 @@ pub(crate) mod scalar_operations {
                         address,
                     )))
             }
-            TerminalScalarValue::IeeeFloat(_) => true,
+            TerminalScalarValue::IeeeFloat(_) | TerminalScalarValue::UndeterminedNaN(_) => true,
         }
     }
 
     pub(crate) fn ieee_float_compare(
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
-        left: IeeeFloatValue,
-        right: IeeeFloatValue,
+        left: FloatMeaning,
+        right: FloatMeaning,
     ) -> bool {
         use semantic_vocabulary::IeeeFloatComparisonOperation;
-        let meaning = |value| match value {
-            IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-            IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
-        };
-        let left = meaning(left);
-        let right = meaning(right);
         match comparison {
             IeeeFloatComparisonOperation::Equal => FloatSemantics::equal(&left, &right),
             IeeeFloatComparisonOperation::NotEqual => !FloatSemantics::equal(&left, &right),
@@ -4753,42 +4728,79 @@ pub(crate) mod scalar_operations {
 
     pub(crate) fn nearest_ieee_float_fused_multiply_add(
         format: IeeeFloatFormat,
-        left: IeeeFloatValue,
-        right: IeeeFloatValue,
-        addend: IeeeFloatValue,
-    ) -> IeeeFloatValue {
-        match (format, left, right, addend) {
-            (
-                IeeeFloatFormat::Binary32,
-                IeeeFloatValue::Binary32(left),
-                IeeeFloatValue::Binary32(right),
-                IeeeFloatValue::Binary32(addend),
-            ) => IeeeFloatValue::Binary32(
-                FloatSemantics::fused_multiply_add(
-                    FloatFormat::BINARY32,
-                    &FloatMeaning::from_f32(f32::from_bits(left)),
-                    &FloatMeaning::from_f32(f32::from_bits(right)),
-                    &FloatMeaning::from_f32(f32::from_bits(addend)),
-                )
-                .to_f32()
-                .to_bits(),
-            ),
-            (
-                IeeeFloatFormat::Binary64,
-                IeeeFloatValue::Binary64(left),
-                IeeeFloatValue::Binary64(right),
-                IeeeFloatValue::Binary64(addend),
-            ) => IeeeFloatValue::Binary64(
-                FloatSemantics::fused_multiply_add(
-                    FloatFormat::BINARY64,
-                    &FloatMeaning::from_f64(f64::from_bits(left)),
-                    &FloatMeaning::from_f64(f64::from_bits(right)),
-                    &FloatMeaning::from_f64(f64::from_bits(addend)),
-                )
-                .to_f64()
-                .to_bits(),
-            ),
-            _ => unreachable!("verified IEEE FMA operands have one exact format"),
+        left: FloatMeaning,
+        right: FloatMeaning,
+        addend: FloatMeaning,
+        compiler_evaluation: bool,
+    ) -> TerminalScalarValue {
+        let arithmetic = match format {
+            IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
+            IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
+        };
+        let meaning = FloatSemantics::fused_multiply_add(arithmetic, &left, &right, &addend);
+        if compiler_evaluation && meaning.is_nan() {
+            return TerminalScalarValue::UndeterminedNaN(format);
+        }
+        TerminalScalarValue::IeeeFloat(match format {
+            IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(meaning.to_f32().to_bits()),
+            IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(meaning.to_f64().to_bits()),
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::storage::primitive_storage::scalar_reference_observation;
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+
+        #[test]
+        fn only_a_determined_nan_can_be_observed_as_integer_bits() {
+            for presented in [
+                IeeeFloatValue::Binary32(0xff80_0123),
+                IeeeFloatValue::Binary64(0xfff0_0000_0000_0123),
+            ] {
+                let (width, bits) = match presented {
+                    IeeeFloatValue::Binary32(bits) => (32, u128::from(bits)),
+                    IeeeFloatValue::Binary64(bits) => (64, u128::from(bits)),
+                };
+                let format = presented.format();
+                let integer = IntegerType::new(IntegerSign::Unsigned, width).unwrap();
+                let presented = TerminalScalarValue::IeeeFloat(presented);
+                assert_eq!(
+                    scalar_reference_observation(presented, ScalarType::Integer(integer)).unwrap(),
+                    TerminalScalarValue::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(bits)
+                    },
+                );
+                let fma = |compiler_evaluation| {
+                    nearest_ieee_float_fused_multiply_add(
+                        format,
+                        FloatMeaning::Zero { negative: false },
+                        FloatMeaning::Infinity { negative: false },
+                        FloatMeaning::Zero { negative: false },
+                        compiler_evaluation,
+                    )
+                };
+                let unknown = fma(true);
+                assert_eq!(unknown, TerminalScalarValue::UndeterminedNaN(format));
+                assert_eq!(
+                    scalar_reference_observation(unknown, ScalarType::IeeeFloat(format)).unwrap(),
+                    unknown,
+                );
+                assert!(
+                    scalar_reference_observation(unknown, ScalarType::Integer(integer)).is_err()
+                );
+                assert!(
+                    float_result_policy::operand_meaning(unknown)
+                        .unwrap()
+                        .is_nan()
+                );
+                assert!(unknown.literal().is_none());
+                assert!(
+                    scalar_reference_observation(fma(false), ScalarType::Integer(integer)).is_ok()
+                );
+            }
         }
     }
 }

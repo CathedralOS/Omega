@@ -2512,22 +2512,23 @@ pub(crate) mod values {
     }
 
     pub(crate) fn scalar_view_value(
-        value: &TerminalScalarValue,
-    ) -> Option<terminal_semantics::ScalarViewValue> {
-        Some(match value {
-            TerminalScalarValue::Callable { .. } | TerminalScalarValue::HostAddress { .. } => {
-                return None;
+        value: TerminalScalarValue,
+    ) -> Result<terminal_semantics::ScalarViewValue, crate::boundary::errors::TerminalInterpretError>
+    {
+        use crate::boundary::errors::{TerminalInterpretError, host_address_mixed, malformed};
+        use terminal_semantics::ScalarViewValue;
+        match value {
+            TerminalScalarValue::Callable { .. } => Err(malformed()),
+            TerminalScalarValue::HostAddress { .. } => Err(host_address_mixed()),
+            TerminalScalarValue::Boolean(value) => Ok(ScalarViewValue::Boolean(value)),
+            TerminalScalarValue::Integer { value, .. } => Ok(ScalarViewValue::Integer(value)),
+            TerminalScalarValue::IeeeFloat(value) => Ok(ScalarViewValue::IeeeFloat(value)),
+            TerminalScalarValue::UndeterminedNaN(_) => {
+                Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "compile-time representation observation requires determined NaN bits",
+                ))
             }
-            TerminalScalarValue::Boolean(value) => {
-                terminal_semantics::ScalarViewValue::Boolean(*value)
-            }
-            TerminalScalarValue::Integer { value, .. } => {
-                terminal_semantics::ScalarViewValue::Integer(*value)
-            }
-            TerminalScalarValue::IeeeFloat(value) => {
-                terminal_semantics::ScalarViewValue::IeeeFloat(*value)
-            }
-        })
+        }
     }
 
     #[cfg(test)]

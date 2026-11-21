@@ -1695,7 +1695,7 @@ pub(crate) mod instance {
             &self.program
         }
 
-        pub(super) fn install_compiler_observations(
+        pub(super) fn install_compiler_evaluation(
             &mut self,
             issued: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
             calls: &[crate::TerminalCallObservation],
@@ -1711,6 +1711,7 @@ pub(crate) mod instance {
                 ),
             )?;
             execution.select_call_observations(calls)?;
+            execution.compiler_evaluation = true;
             execution.issued_layout_target = issued;
             Ok(())
         }
@@ -3598,7 +3599,7 @@ pub(crate) mod program {
             };
             let mut instance = self.instantiate(request)?;
             instance
-                .install_compiler_observations(issued, calls)
+                .install_compiler_evaluation(issued, calls)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
             Ok(instance)
         }
