@@ -18,7 +18,7 @@ refuse instead of using the build checkout.
 Explicit paths such as `fmt --repository` and `rust-producer-omission --root`
 still choose their inputs. `fmt` already defaulted to the current directory.
 
-Keep a Rust test’s inputs under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners can share the same input under the repository’s `tests/fixtures/`. Shared Rust harness code lives in `tests/support/`.
+Keep a Rust test’s inputs under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. V2 layers use the layouts in [the V2 README](../../omega-rust-v2/README.md#where-a-test-program-lives). Multiple owners can share the same input under the repository’s `tests/fixtures/`. Shared Rust harness code lives in `tests/support/`.
 
 Bootstrap tests live in `tests/bootstrap/`, grouped by candidate. The `interpreted/` suite contains its rung and cross-rung gates. The portable [bootstrap checks](../../tests/bootstrap/conformance/README.md) and their expected outcomes can be copied alongside the selected chain. Retired gates and fixtures are available in [the archive](../../_recycling/tests/).
 

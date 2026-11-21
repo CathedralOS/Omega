@@ -229,7 +229,7 @@ the corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13
 ([tests/README.md](_recycling/tests/README.md) says how to recover a fixture from
 history), and nothing replaces it.
 
-A program a test reads lives under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners share an input under the repository’s `tests/fixtures/`. The
+A program a test reads lives under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. V2 layers use the layouts in [its README](omega-rust-v2/README.md#where-a-test-program-lives). Multiple owners share an input under the repository’s `tests/fixtures/`. The
 test pins the exact result the program must produce (its output or its
 error), which records what the program asks of the compiler. Do not make a test pass by changing the
 program: a different fact, a looser bound or a different operation turns it

@@ -5,6 +5,65 @@ use omega_lexer::{LineIndex, SourceSpan};
 use omega_typer::{Site, SpecializedIndexValue, TypingEnvironment, ValueType};
 use std::path::Path;
 
+/// Extension of the file that holds the static answers a fixture's typing pass receives.
+const ANSWER_EXTENSION: &str = "answer";
+
+fn integer_carrier(spelling: &str) -> Result<ValueType, String> {
+    let (signed, width) = match spelling.split_at_checked(1) {
+        Some(("u", width)) => (false, width),
+        Some(("i", width)) => (true, width),
+        _ => return Err(format!("expected an integer carrier such as u8, found `{spelling}`")),
+    };
+    let width = width.parse().map_err(|_| format!("expected an integer carrier such as u8, found `{spelling}`"))?;
+    Ok(ValueType::Integer { signed, width: Some(width) })
+}
+
+/// Typing a generic owner such as `Buffer<width(N)>` needs the value of `width(N)` for each
+/// static argument, which preparation normally evaluates. A fixture states those values in a
+/// sibling `.answer` file so its program and the answer it assumes are read together.
+///
+/// Each line is `<call text> | <carrier> | <argument> -> <value>`. The answer applies to the
+/// first place the call text appears in the fixture.
+fn supplied_answers(fixture: &Path, source: &str) -> Result<Vec<SpecializedIndexValue>, String> {
+    let path = fixture.with_extension(ANSWER_EXTENSION);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("could not read {}: {error}", path.display())),
+    };
+    let mut answers = Vec::new();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let malformed = || format!("{}: expected `<call text> | <carrier> | <argument> -> <value>`, found `{line}`", path.display());
+        let [call, carrier, integers] = line.split(" | ").collect::<Vec<_>>()[..] else {
+            return Err(malformed());
+        };
+        let (argument, value) = integers.split_once(" -> ").ok_or_else(malformed)?;
+        let argument: i128 = argument.trim().parse().map_err(|_| malformed())?;
+        let value: i128 = value.trim().parse().map_err(|_| malformed())?;
+        let carrier = integer_carrier(carrier).map_err(|reason| format!("{}: {reason}", path.display()))?;
+        let offset = source
+            .find(call)
+            .ok_or_else(|| format!("{}: the fixture does not contain `{call}`", path.display()))?;
+        answers.push(SpecializedIndexValue {
+            request: omega_typer::StaticValueRequest {
+                node: evaluation::node(source, offset, call, omega_parser::NodeKind::Call),
+                expression: Site {
+                    package: "game".into(),
+                    file: "fixture.omg".into(),
+                    span: SourceSpan::new(offset, offset + call.len()),
+                },
+                carrier: carrier.clone(),
+            },
+            arguments: vec![ValueType::StaticInteger {
+                carrier: Box::new(carrier),
+                value: argument.into(),
+            }],
+            value: omega_typer::StaticValue::Integer(value.into()),
+        });
+    }
+    Ok(answers)
+}
+
 fn types(values: &[ValueType]) -> String {
     values
         .iter()
@@ -15,44 +74,31 @@ fn types(values: &[ValueType]) -> String {
 #[test]
 fn typed_fixtures_match_handwritten_expectations() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    for (directory, accepts, evaluation) in [
-        ("accept", true, None),
-        ("reject", false, None),
-        ("prepared/accept", true, Some((7u8, 8u16))),
-        ("prepared/reject", false, Some((255, 256))),
+    for (directory, accepts, supplies_answers) in [
+        ("accept", true, false),
+        ("reject", false, false),
+        ("prepared/accept", true, true),
+        ("prepared/reject", false, true),
     ] {
         let report = golden::check_features(&root, directory, |_fixture, bytes| {
             let source = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
             let authored = |s: SourceSpan| std::str::from_utf8(s.slice(source.as_bytes()).unwrap()).unwrap();
             let mut lines = Vec::new();
             let files = [("fixture.omg", source)];
-            let checked = if let Some((input, result)) = evaluation {
-                let offset = source.find("width(N)").expect("prepared fixture calls width");
-                let receipt = SpecializedIndexValue {
-                    request: omega_typer::StaticValueRequest {
-                        node: evaluation::node(source, offset, "width(N)", omega_parser::NodeKind::Call),
-                        expression: Site {
-                            package: "game".into(),
-                            file: "fixture.omg".into(),
-                            span: SourceSpan::new(offset, offset + "width(N)".len()),
-                        },
-                        carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
-                    },
-                    arguments: vec![ValueType::StaticInteger {
-                        carrier: Box::new(ValueType::Integer { signed: false, width: Some(8) }),
-                        value: input.into(),
-                    }],
-                    value: omega_typer::StaticValue::Integer(result.into()),
-                };
+            let answers = supplied_answers(_fixture, source)?;
+            if supplies_answers && answers.is_empty() {
+                return Err(format!("a fixture under {directory}/ needs a sibling .{ANSWER_EXTENSION} file with at least one line"));
+            }
+            let checked = if answers.is_empty() {
+                support::check(&files)
+            } else {
                 support::check_in(
                     &files,
                     &TypingEnvironment {
-                        specialized_indices: &[receipt],
+                        specialized_indices: &answers,
                         ..Default::default()
                     },
                 )
-            } else {
-                support::check(&files)
             };
             match checked {
                 Err(e) if accepts => return Err(format!("unexpected refusal at {}: {}", authored(e.span), e.message)),
