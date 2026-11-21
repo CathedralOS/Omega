@@ -1,0 +1,283 @@
+//! Check how authored defaults and Build selections reach published Psi.
+#[path = "../../../../../../../tests/support/provider_choice_programs.rs"]
+mod programs;
+
+use crate::compile_product::provider_choices::{
+    PreparedProviderChoices, prepare_with_source_defaults,
+};
+use crate::compile_product::provider_declarations::{
+    ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
+};
+use crate::publication::AcceptedTerminalSource;
+use crate::test_support::TerminalSourceCompilation;
+use std::sync::Arc;
+
+const TARGET: &str = "linux_x86_64";
+const SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\ndata Other {}\n";
+const ORIGINAL_NATIVE_DEFAULT: &str = "machine Native::provider_defaults(defaults: @mut Native) {\n    Native::select_provider::<Service, Native>(defaults);\n}\n";
+
+// The named implementations supply the operations. Separate data declarations select defaults.
+const NAMED_SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\npublic Native satisfies Service {\n    machine go() reaches none crashes none {}\n}\npublic Other satisfies Service {\n    machine go() reaches none crashes none {}\n}\ndata NativeDefaults {}\ndata OtherDefaults {}\n";
+const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider::<Service, Native>(defaults);\n}\n";
+const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: @mut OtherDefaults) {\n    OtherDefaults::select_provider::<Service, Other>(defaults);\n}\n";
+const REACHES: &str = "machine main() {\n    Service::go();\n}\n";
+const REACHES_NOTHING: &str = "machine main() {\n}\n";
+
+fn package() -> semantic_vocabulary::PackageKeyIdentity {
+    semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap()
+}
+
+fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
+    diagnostics[0].message.clone()
+}
+
+struct Fixture {
+    source: crate::test_support::preparation::PreparedTypedTrees,
+    entry: symbols::SymbolHandle,
+    defaults: Vec<TargetProviderDefaults>,
+}
+
+fn typed(supplied: &str, program: &str) -> Fixture {
+    try_typed(supplied, program).expect("harvest source defaults")
+}
+
+fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
+    let mut sources = crate::representations::source_inputs::SourceMap::default();
+    let mut roots = Vec::new();
+    for (path, text, origin) in [
+        (
+            "program/main.omg",
+            program,
+            source_admission::SourceOrigin::User,
+        ),
+        (
+            "program/provider.omg",
+            supplied,
+            source_admission::SourceOrigin::Toolchain,
+        ),
+    ] {
+        let id = sources
+            .add_checked_instance(
+                path.into(),
+                text,
+                "program".into(),
+                Some(package()),
+                origin,
+                source_admission::SourceResolutionStratum::Base,
+                source_provenance::DependencyScope::Product,
+            )
+            .source_id;
+        roots.push(id);
+    }
+    let primary = roots[0];
+    let parsed = crate::ParsedStageSources::parse(Arc::new(sources), roots, Vec::new())?;
+    let request = parsed.into_request(TARGET, primary)?;
+    let typed = crate::test_support::type_authored_source_for_test(
+        request,
+        &mut crate::CompileTimings::default(),
+    )?;
+    let defaults = retain_provider_defaults(ProviderPlanningContext::new(
+        &typed,
+        source_provenance::DependencyScope::Product,
+    ))?;
+    let entry = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .expect("source main")
+        .symbol;
+    let prepared = crate::test_support::preparation::prepare_typed_trees(typed, &[])?;
+    Ok(Fixture {
+        source: prepared,
+        entry,
+        defaults,
+    })
+}
+
+fn prepare(
+    fixture: &Fixture,
+    build: &[ProviderSelection],
+    defaults: Vec<TargetProviderDefaults>,
+) -> Result<PreparedProviderChoices, String> {
+    prepare_with_source_defaults(&fixture.source, &[TARGET], build, &[], &defaults).map_err(first)
+}
+
+fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
+    crate::test_support::judge_terminal_source(
+        fixture.source.clone(),
+        TerminalSourceCompilation {
+            declaration_metadata: &[],
+            supplies: &[],
+            entries: &[fixture.entry],
+            subjects: &[Some(package())],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &choices.declaration_roots,
+            calling: Some(crate::test_support::lowering::CallingPolicySelections {
+                source: &fixture.source,
+                applications: &choices.calling_applications,
+                entries: &[],
+            }),
+            providers: Some(
+                crate::test_support::lowering::provider_selections::ProviderSelections {
+                    source: &fixture.source,
+                    choices: &choices.selections,
+                },
+            ),
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .unwrap_or_else(|refused| panic!("the source route must accept: {refused:?}"))
+}
+
+/// Native planning binds its provider choices to this published program identity.
+fn assert_published(accepted: &AcceptedTerminalSource, file_name: &str) {
+    let (artifact, _) = accepted
+        .produce(Default::default(), &mut crate::CompileTimings::default())
+        .expect("accepted source publishes")
+        .into_portable_publication()
+        .expect("portable publication");
+    if let Some(directory) = std::env::var_os("OMEGA_PROVIDER_TEST_OUTPUT") {
+        let path = std::path::Path::new(&directory)
+            .join(file_name)
+            .with_extension("new.psi");
+        std::fs::write(&path, artifact.to_bytes())
+            .unwrap_or_else(|error| panic!("could not write {}: {error}", path.display()));
+    }
+    assert_eq!(
+        artifact.view().identity(),
+        programs::open(crate::test_support::fixture_repository::root(), file_name)
+            .view()
+            .identity()
+    );
+}
+
+fn assert_unsupplied(accepted: &AcceptedTerminalSource, file_name: &str) {
+    let entry = accepted
+        .entry()
+        .expect("fixture main is an executable entry");
+    let reached = accepted
+        .boundary_calls_reached(entry, &[], Some(TARGET))
+        .unwrap();
+    let closed = accepted
+        .close_logical_provider_reach(TARGET, Some(entry), &reached)
+        .expect("the source retains the unsupplied requirement");
+    assert_eq!(closed.requirements(), reached);
+    assert_eq!(reached.len(), 1);
+    assert!(closed.selection().providers().is_empty());
+    assert_published(accepted, file_name);
+}
+
+fn selected_provider(fixture: &Fixture, choices: &PreparedProviderChoices, name: &str) {
+    let [choice] = choices.selections.as_slice() else {
+        panic!("one exact chosen provider")
+    };
+    let declared = fixture
+        .source
+        .conformances()
+        .iter()
+        .find(|declaration| fixture.source.symbols.name(declaration.symbol) == name)
+        .expect("the source declares this named map");
+    assert_eq!(
+        choice.provider,
+        fixture.source.implementation_value_head(declared.symbol)
+    );
+    assert_eq!(choice.target, TARGET);
+}
+
+#[test]
+fn changing_main_changes_the_published_program() {
+    let fixture = typed(
+        &format!("{NAMED_SLOT}{NATIVE_DEFAULT}"),
+        "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",
+    );
+    let choices = prepare(&fixture, &[], fixture.defaults.clone()).unwrap();
+    assert_published(&judge(&fixture, &choices), programs::UNREACHED_HELPER);
+}
+
+#[test]
+fn a_data_type_cannot_supply_a_provider_default() {
+    let refusal = try_typed(&format!("{SLOT}{ORIGINAL_NATIVE_DEFAULT}"), REACHES)
+        .err()
+        .expect("bodyless data supplies no provider record");
+    assert_eq!(refusal.len(), 1);
+    assert_eq!(
+        refusal[0].message,
+        "provider selection `Native` is not a static operation record from a named implementation; a data type is not a provider value"
+    );
+}
+
+#[test]
+fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
+    let fixture = typed(&format!("{NAMED_SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    assert_eq!(fixture.defaults.len(), 1);
+    let choices = prepare(&fixture, &[], fixture.defaults.clone()).unwrap();
+    selected_provider(&fixture, &choices, "Native");
+    let accepted = judge(&fixture, &choices);
+    assert!(
+        !accepted.module().interfaces.provider_candidates.is_empty(),
+        "retained conformance is real"
+    );
+    assert!(
+        accepted
+            .boundary_calls_reached(accepted.entry().unwrap(), &[], Some(TARGET))
+            .unwrap()
+            .is_empty()
+    );
+    assert_published(&accepted, programs::UNREACHED_DEFAULT);
+}
+
+#[test]
+fn a_reached_requirement_settles_to_its_one_declared_default() {
+    let fixture = typed(&format!("{NAMED_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let choices = prepare(&fixture, &[], fixture.defaults.clone()).unwrap();
+    selected_provider(&fixture, &choices, "Native");
+    let accepted = judge(&fixture, &choices);
+    assert_published(&accepted, programs::REACHED_DEFAULT);
+}
+
+#[test]
+fn a_reached_requirement_is_published_without_a_provider() {
+    let fixture = typed(SLOT, REACHES);
+    let choices = prepare(&fixture, &[], fixture.defaults.clone()).unwrap();
+    let accepted = judge(&fixture, &choices);
+    assert_unsupplied(&accepted, programs::MISSING);
+}
+
+#[test]
+fn a_reached_requirement_with_two_defaults_is_rejected_as_a_conflict() {
+    let fixture = typed(
+        &format!("{NAMED_SLOT}{NATIVE_DEFAULT}{OTHER_DEFAULT}"),
+        REACHES,
+    );
+    let refusal = prepare(&fixture, &[], fixture.defaults.clone())
+        .err()
+        .expect("source defaults conflict");
+    assert!(refusal.contains("ConflictingDefaults"), "{refusal}");
+    assert!(refusal.contains(TARGET), "{refusal}");
+}
+
+#[test]
+fn supply_is_ranked_by_authority_and_keyed_by_target() {
+    let fixture = typed(
+        &format!("{NAMED_SLOT}{NATIVE_DEFAULT}{OTHER_DEFAULT}"),
+        REACHES,
+    );
+    let mut defaults = fixture.defaults.clone();
+    assert_eq!(defaults.len(), 1);
+    let other = defaults[0].selections.pop().expect("the second default");
+    assert_eq!(other.provider_type.authored_path, "Other");
+    let choices = prepare(&fixture, std::slice::from_ref(&other), defaults.clone()).unwrap();
+    selected_provider(&fixture, &choices, "Other");
+    let accepted = judge(&fixture, &choices);
+    assert_published(&accepted, programs::OVERRIDE);
+
+    defaults[0].target = Some("windows_x86_64".to_owned());
+    let choices = prepare(&fixture, &[], defaults).unwrap();
+    assert!(
+        choices.selections.is_empty(),
+        "another target's default supplies no Linux row"
+    );
+    let accepted = judge(&fixture, &choices);
+    assert_unsupplied(&accepted, programs::FOREIGN_DEFAULT);
+}

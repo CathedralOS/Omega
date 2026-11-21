@@ -22,13 +22,3 @@ source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/artifact/codec" }
 psi-authorization = { path = "psi/artifact/authorization" }
-
-[dev-dependencies]
-symbols = { path = "foundation/declaration-identity" }
-terminal-psi = { path = "psi" }
-source-compiler = { path = "source-to-psi", features = ["test-support"] }
-target-provider-admission = { path = "psi-to-native/verification/target-providers" }
-source-provenance = { path = "foundation/source-provenance" }
-native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
-optimization-selections = { path = "foundation/optimization-selections" }
-provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }

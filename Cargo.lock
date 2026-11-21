@@ -117,6 +117,7 @@ dependencies = [
  "layout-plans",
  "native-execution-scope",
  "native-intrinsics",
+ "native-scalar-inputs",
  "optimization",
  "optimization-core",
  "optimization-selections",
@@ -582,12 +583,9 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
- "admitted-native-inputs-to-target-bound-program",
  "compiler-identity",
  "diagnostics",
  "native-compiler",
- "native-scalar-inputs",
- "optimization-selections",
  "product-publication",
  "provider-acceptance",
  "psi-authorization",
@@ -596,13 +594,9 @@ dependencies = [
  "semantic-vocabulary",
  "source-admission",
  "source-compiler",
- "source-provenance",
  "source-text",
- "symbols",
  "target",
- "target-provider-admission",
  "terminal-codec",
- "terminal-psi",
 ]
 
 [[package]]

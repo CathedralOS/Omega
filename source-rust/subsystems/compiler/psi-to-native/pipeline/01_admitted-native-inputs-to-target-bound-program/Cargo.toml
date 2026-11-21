@@ -57,3 +57,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/semantics/work" }
 wire = { path = "../../../../../foundation/wire" }
+
+[dev-dependencies]
+native-scalar-inputs = { path = "../00_psi-to-admitted-native-inputs/scalar-applications" }
