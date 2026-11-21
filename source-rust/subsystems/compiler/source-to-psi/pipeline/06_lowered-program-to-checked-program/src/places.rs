@@ -6142,8 +6142,7 @@ fn indexed_place(
     mut actual: Lineage,
     path: &[semantic_vocabulary::ScalarReadProjection],
 ) -> Result<Lineage, crate::checking::Unbound> {
-    use crate::checking::Unbound;
-    use semantic_vocabulary::{IntegerValue, ScalarReadProjection};
+    use semantic_vocabulary::ScalarReadProjection;
     for step in path {
         let segment = match step {
             ScalarReadProjection::Static(segment) => {
@@ -6152,42 +6151,50 @@ fn indexed_place(
             }
             ScalarReadProjection::Referent => Segment::Referent,
             ScalarReadProjection::Extent => Segment::Extent,
-            ScalarReadProjection::Index(term) => {
-                let value = match term.as_ref() {
-                    ScalarTerm::Value { id, .. } => Some(*id),
-                    _ => None,
-                };
-                let literal = term.integer_value().or_else(|| {
-                    let value = value?;
-                    let row = tables.values.get(value)?;
-                    let ValueOrigin::Operation(id) = row.origin else {
-                        return None;
-                    };
-                    let op = storage.lowered.operation(id)?;
-                    let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
-                    Some((ty.as_integer()?, literal))
-                });
-                if let Some((_, literal)) = literal {
-                    let position = match literal {
-                        IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
-                        IntegerValue::Signed(value) => u64::try_from(value).ok(),
-                    }
-                    .ok_or(Unbound::Unproved(
-                        "contract selector is outside the collection index range",
-                    ))?;
-                    Segment::FixedIndex(position)
-                } else if let Some(selector) = value {
-                    Segment::RuntimeIndex { selector }
-                } else {
-                    return Err(Unbound::Unproved(
-                        "no captured storage selector names the indexed contract expression",
-                    ));
-                }
-            }
+            ScalarReadProjection::Index(term) => index_segment(storage, tables, term)?,
         };
         actual.segments.push(segment);
     }
     Ok(actual)
+}
+
+fn index_segment(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    term: &ScalarTerm,
+) -> Result<Segment, crate::checking::Unbound> {
+    use crate::checking::Unbound;
+    use semantic_vocabulary::IntegerValue;
+    let value = match term {
+        ScalarTerm::Value { id, .. } => Some(*id),
+        _ => None,
+    };
+    let literal = term.integer_value().or_else(|| {
+        let value = value?;
+        let row = tables.values.get(value)?;
+        let ValueOrigin::Operation(id) = row.origin else {
+            return None;
+        };
+        let op = storage.lowered.operation(id)?;
+        let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
+        Some((ty.as_integer()?, literal))
+    });
+    Ok(if let Some((_, literal)) = literal {
+        let position = match literal {
+            IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+            IntegerValue::Signed(value) => u64::try_from(value).ok(),
+        }
+        .ok_or(Unbound::Unproved(
+            "contract selector is outside the collection index range",
+        ))?;
+        Segment::FixedIndex(position)
+    } else if let Some(selector) = value {
+        Segment::RuntimeIndex { selector }
+    } else {
+        return Err(Unbound::Unproved(
+            "no captured storage selector names the indexed contract expression",
+        ));
+    })
 }
 
 impl<'a> Held<'_, 'a> {
@@ -7328,6 +7335,38 @@ pub(crate) struct AtJoin<'s, 'a> {
 }
 
 impl<'a> AtJoin<'_, 'a> {
+    /// Rebind the root and each index of the destination snapshot together.
+    fn incoming_snapshot(
+        &self,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+        path: &[Segment],
+    ) -> Result<Lineage, crate::checking::Unbound> {
+        let mut leaf = self.inputs.readable_actual(formal)?.clone();
+        for &step in path {
+            let segment = if let Segment::RuntimeIndex { selector } = step {
+                let actual = self
+                    .renaming
+                    .iter()
+                    .find(|(from, _)| *from == selector)
+                    .map_or(selector, |(_, to)| *to);
+                let row = self.inputs.tables.values.get(actual).ok_or(
+                    crate::checking::Unbound::Unsupported(
+                        "an incoming snapshot has no index value",
+                    ),
+                )?;
+                index_segment(
+                    self.inputs.storage,
+                    self.inputs.tables,
+                    &ScalarTerm::value(actual, row.scalar_type),
+                )?
+            } else {
+                step
+            };
+            leaf.segments.push(segment);
+        }
+        Ok(leaf)
+    }
+
     /// A direct arrival from machine entry may carry its original storage
     /// snapshots unchanged. Check the operations and cleanup on this actual
     /// edge before using an entry requirement as a current storage fact.
@@ -7402,14 +7441,13 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
                 // Each incoming edge proves the destination predicate about
                 // its own actual. It may not use the destination's snapshot
                 // as if that binding already existed on the edge.
-                let mut leaf = self.inputs.readable_actual(formal)?.clone();
                 if let Some((Segment::Extent, parent)) = observed.segments.split_last()
                     && let ScalarType::Integer(integer) = scalar_type
                 {
-                    leaf.segments.extend_from_slice(parent);
+                    let leaf = self.incoming_snapshot(formal, parent)?;
                     return self.inputs.held_at(&leaf).extent_of(&leaf, integer);
                 }
-                leaf.segments.extend_from_slice(&observed.segments);
+                let leaf = self.incoming_snapshot(formal, &observed.segments)?;
                 return self.inputs.held_at(&leaf).observation(&leaf, scalar_type);
             }
         }
@@ -7456,8 +7494,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         .ok_or(crate::checking::Unbound::Unproved(
             "the join snapshot names no destination formal",
         ))?;
-        let mut leaf = self.inputs.readable_actual(formal)?.clone();
-        leaf.segments.extend_from_slice(&observed.segments);
+        let leaf = self.incoming_snapshot(formal, &observed.segments)?;
         self.inputs
             .held_at(&leaf)
             .observation_alternatives(&leaf, scalar_type)

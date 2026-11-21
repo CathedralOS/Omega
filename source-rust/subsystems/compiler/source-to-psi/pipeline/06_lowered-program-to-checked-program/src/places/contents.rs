@@ -162,9 +162,19 @@ impl<'a> Storage<'a> {
             };
             let concerns = Construct::Value(value);
             let leaf = lineage(self.machine, &tables.places, place)?;
+            let owner = self.root_kind(leaf.root, concerns)?;
+            let bound_at_entry = || {
+                leaf.segments.iter().all(|&segment| {
+                    terminal_check_tables::bindings::entry_snapshot_segment(
+                        segment,
+                        owner,
+                        &tables.values,
+                    )
+                })
+            };
             let (supported, block_entry) = match after {
-                None => match self.root_kind(leaf.root, concerns)? {
-                    StructuralPlaceKind::Parameter { .. } => (true, None),
+                None => match owner {
+                    StructuralPlaceKind::Parameter { .. } => (bound_at_entry(), None),
                     StructuralPlaceKind::BlockParameter { block, .. } => (
                         terminal_psi::StructuralParameterDeclaration::find_by_place(
                             &self.block(block)?.structural_parameters,
@@ -175,16 +185,7 @@ impl<'a> Storage<'a> {
                                 formal.access,
                                 terminal_psi::StructuralAccess::SharedBorrow,
                             )
-                        }) && leaf.segments.iter().all(|segment| {
-                            matches!(
-                                segment,
-                                Segment::Field(_)
-                                    | Segment::Case(_)
-                                    | Segment::FixedIndex(_)
-                                    | Segment::Referent
-                                    | Segment::Extent
-                            )
-                        }),
+                        }) && bound_at_entry(),
                         Some(block),
                     ),
                     _ => (false, None),
