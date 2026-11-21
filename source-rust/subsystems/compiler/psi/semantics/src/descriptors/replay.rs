@@ -530,13 +530,20 @@ impl DescriptorSlotKind {
         .fully_enumerated()
     }
 
-    fn entry_inventory(
+    pub(crate) fn entry_inventory(
         self,
         types: &[StructuralTypeDeclaration],
+        machine: &DescriptorMachine,
         root: PlaceId,
-        structural_type: StructuralTypeId,
-        shared_input: bool,
     ) -> Option<DescriptorSlotInventory> {
+        let structural_type = *machine.place_types.get(&root)?;
+        let shared_input = matches!(
+            machine.place_definition(root)?,
+            DescriptorDefinition::Parameter {
+                access: StructuralAccess::SharedBorrow,
+                ..
+            }
+        );
         let scope = if self.tracks_references() {
             DescriptorStorageScope::Owned
         } else {

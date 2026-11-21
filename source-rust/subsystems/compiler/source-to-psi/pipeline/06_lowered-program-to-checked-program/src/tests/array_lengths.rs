@@ -82,6 +82,16 @@ fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
 }
 
 #[test]
+fn a_shared_array_element_keeps_its_generic_contents_when_returned() {
+    let form = rigid_array_form(
+        "machine entry<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
+         requires Count > 0 { items[Count - 1] }",
+    );
+    let result = judge(Ok(form)).unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
+
+#[test]
 fn a_rigid_array_extent_names_its_const_input_without_requiring_positivity() {
     for carrier in ["u64", "u32"] {
         let mut form = rigid_array_form(&format!(

@@ -598,16 +598,17 @@ fn reference_backing_uses(
             );
         }
         for input in inputs {
-            let ty = *graph.place_types.get(&input.root).ok_or(Error::malformed(
-                "reference observation lost its source type",
-            ))?;
             let inventory = DescriptorSlotKind::References
-                .owned_inventory(types, input.root, ty)
+                .entry_inventory(types, graph, input.root)
                 .ok_or(Error::unsupported(
                     "reference observation has no owned contents inventory",
                 ))?;
             for unknown in inventory.unknown_contents {
-                if input.contains(&unknown.location) || unknown.location.contains(&input) {
+                let mut carrier = unknown.location;
+                if carrier.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                    carrier.path.pop();
+                }
+                if input.contains(&carrier) || carrier.contains(&input) {
                     // An unknown packet has no address we can resolve. Keep
                     // its entire carrier live; this supplies no access to its
                     // hidden referents and does not authorize their release.
