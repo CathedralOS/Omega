@@ -529,11 +529,11 @@ pub(crate) mod alias_uses {
                     ));
                 }
             };
-        // A source-free symbol table retains borrowed names. Its selected alias
-        // declaration still owns the exact span used by transparent expansion.
+        // A selected dependency can be absent from the live package roots.
+        // Its retained declaration still owns the argument telescope and span.
         let alias = source
             .type_aliases
-            .iter()
+            .retained_records()
             .find(|alias| alias.symbol == declaration)
             .ok_or_else(|| {
                 Diagnostic::error("type alias application lost its declaration")
