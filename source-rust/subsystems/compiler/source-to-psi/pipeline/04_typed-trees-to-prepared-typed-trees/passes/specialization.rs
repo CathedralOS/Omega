@@ -191,52 +191,34 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     Ok(())
 }
 
-/// One generated machine: the generic machine, the declaration each of its
-/// parameters was bound to, and the generated machine and its one state.
+// Newer slots sort first so ascending applications need fewer comparisons within each tree node.
+type ApplicationKey = std::cmp::Reverse<((u32, u32), Vec<Identity>)>;
+
 struct Generated {
-    template: SymbolHandle,
-    arguments: Vec<Identity>,
     machine: SymbolHandle,
     state: SymbolHandle,
 }
 
-/// Every machine this pass generated, in the order the applications were
-/// first met, and an index answering "has this application already been
-/// generated?" without reading rows of other applications.
-///
-/// One application makes one machine, so a closed application is looked up
-/// before it is generated. Scanning `rows` for that made the pass quadratic
-/// in the number of distinct closed applications, across unrelated
-/// templates too. `by_application` holds row numbers ordered by template,
-/// then by the complete argument key; a lookup is a binary search comparing
-/// whole keys, never a digest. Rows stay in encounter order: nothing reads a
-/// row's position as anything but a stable name.
+/// A closed application generates its machine on first use. The program records
+/// machines in that encounter order. This lookup only answers repeated calls.
 #[derive(Default)]
 struct GeneratedMachines {
-    rows: Vec<Generated>,
-    by_application: Vec<u32>,
+    applications: std::collections::BTreeMap<ApplicationKey, Generated>,
 }
 
 impl GeneratedMachines {
-    /// The row generated for `template` at `arguments`, or the place in
-    /// `by_application` where that application belongs.
-    fn search(&self, template: SymbolHandle, arguments: &[Identity]) -> Result<usize, usize> {
-        let wanted = (symbol_order(template), arguments);
-        self.by_application
-            .binary_search_by(|&row| {
-                let row = &self.rows[row as usize];
-                (symbol_order(row.template), row.arguments.as_slice()).cmp(&wanted)
-            })
-            .map(|slot| self.by_application[slot] as usize)
-    }
-
-    /// Append `made` and index it at `slot`, the place [`Self::search`]
-    /// reported for its application.
-    fn insert(&mut self, slot: usize, made: Generated) -> &Generated {
-        let row = u32::try_from(self.rows.len()).expect("generated machines fit a u32 row");
-        self.rows.push(made);
-        self.by_application.insert(slot, row);
-        &self.rows[row as usize]
+    fn get_or_generate(
+        &mut self,
+        template: SymbolHandle,
+        arguments: Vec<Identity>,
+        generate: impl FnOnce() -> Served<Generated>,
+    ) -> Served<&Generated> {
+        use std::collections::btree_map::Entry;
+        let key = std::cmp::Reverse((symbol_order(template), arguments));
+        match self.applications.entry(key) {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => Ok(entry.insert(generate()?)),
+        }
     }
 }
 
@@ -595,18 +577,9 @@ fn specialize_application(
         .iter()
         .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
-    let entry = match generated.search(callee, &key) {
-        Ok(row) => &generated.rows[row],
-        Err(slot) => {
-            let made = generate(program, callee, application, &operands)?;
-            if made.template != callee || made.arguments != key {
-                return Err(Stop::Defect(
-                    "a generated machine changed the application it was generated for",
-                ));
-            }
-            generated.insert(slot, made)
-        }
-    };
+    let entry = generated.get_or_generate(callee, key, || {
+        generate(program, callee, application, &operands)
+    })?;
     Ok(Some((entry.machine, entry.state)))
 }
 
@@ -1918,11 +1891,6 @@ fn generate(
         });
     }
     Ok(Generated {
-        template: template_symbol,
-        arguments: operands
-            .iter()
-            .map(|operand| operand.identity.clone())
-            .collect(),
         machine: copied.machine,
         state: copied.state,
     })
