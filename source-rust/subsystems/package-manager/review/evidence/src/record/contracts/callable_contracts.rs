@@ -32,8 +32,8 @@ pub enum PackageReviewContractFact {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewResultCaseIdentity {
-    pub(crate) result_data: PackageReviewNominalIdentity,
-    pub(crate) result_case: PackageReviewNominalIdentity,
+    pub result_data: PackageReviewNominalIdentity,
+    pub result_case: PackageReviewNominalIdentity,
 }
 
 impl PackageReviewResultCaseIdentity {
@@ -43,11 +43,11 @@ impl PackageReviewResultCaseIdentity {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewCallableContract {
-    pub(crate) kind: PackageReviewContractKind,
-    pub(crate) result_case: Option<PackageReviewResultCaseIdentity>,
-    pub(crate) binding: Option<String>,
-    pub(crate) evidence_lane_position: Option<u32>,
-    pub(crate) fact: PackageReviewContractFact,
+    pub kind: PackageReviewContractKind,
+    pub result_case: Option<PackageReviewResultCaseIdentity>,
+    pub binding: Option<String>,
+    pub evidence_lane_position: Option<u32>,
+    pub fact: PackageReviewContractFact,
 }
 
 impl PackageReviewCallableContract {

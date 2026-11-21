@@ -9,25 +9,27 @@ pub(in crate::record) mod validation;
 use super::{PackageReviewConstShape, PackageReviewPropositionShape};
 use crate::record::accessors::field_projection_accessors;
 
-pub(crate) use declarations::{
+pub(crate) use declarations::PackagePolicyOperatorShape;
+pub use declarations::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
-    PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
+    PackagePolicyTraitRequirement, PackagePolicyTraitShape,
 };
 
-pub(crate) use signatures::{
-    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
-    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+pub(crate) use signatures::PackagePolicyMachineParameterSignature;
+pub use signatures::{
+    PackagePolicyMachineParameterContract, PackagePolicyTypeParameter,
+    PackagePolicyTypeParameterKind,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyPublicApi {
-    pub(crate) traits: Vec<PackagePolicyTraitShape>,
-    pub(crate) conformances: Vec<PackagePolicyConformanceShape>,
-    pub(crate) domains: Vec<PackagePolicyDomainShape>,
-    pub(crate) propositions: Vec<PackageReviewPropositionShape>,
-    pub(crate) consts: Vec<PackageReviewConstShape>,
-    pub(crate) operators: Vec<PackagePolicyOperatorShape>,
-    pub(crate) data: Vec<PackagePolicyDataShape>,
+    pub traits: Vec<PackagePolicyTraitShape>,
+    pub conformances: Vec<PackagePolicyConformanceShape>,
+    pub domains: Vec<PackagePolicyDomainShape>,
+    pub propositions: Vec<PackageReviewPropositionShape>,
+    pub consts: Vec<PackageReviewConstShape>,
+    pub operators: Vec<PackagePolicyOperatorShape>,
+    pub data: Vec<PackagePolicyDataShape>,
 }
 
 impl PackagePolicyPublicApi {

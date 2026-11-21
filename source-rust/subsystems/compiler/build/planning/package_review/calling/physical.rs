@@ -3,25 +3,22 @@
 // origins, and semantic callback materializations so no validator or native
 // implementation receipt enters this value.
 
-use crate::record::{
+use calling_conventions::{
+    EntryControl, MachineRegime, MachineState, MachineStateSet, SystemVEightbyteClass,
+    ValidatedBoundaryEntryPlan, ValueClass,
+};
+use review_evidence::record::{
     PackagePolicyEntryControl, PackagePolicyMachineRegime, PackagePolicyMachineState,
     PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract, PackagePolicyStatePlan,
     PackageReviewBoundaryValueClass, PackageReviewBoundaryValueLocation,
     PackageReviewBoundaryValuePlacement, PackageReviewBoundaryValueShape,
     PackageReviewIndirectPointerLocation, PackageReviewSystemVEightbyteClass,
 };
-use calling_conventions::{
-    BoundaryEntryPlan, EntryControl, MachineRegime, MachineState, MachineStateSet,
-    SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass,
-};
 
-impl PackagePolicyPhysicalCallingContract {
-    pub(crate) fn from_validated_plan(plan: &ValidatedBoundaryEntryPlan) -> Self {
-        project(plan.plan())
-    }
-}
-
-fn project(plan: &BoundaryEntryPlan) -> PackagePolicyPhysicalCallingContract {
+pub(super) fn project(
+    validated: &ValidatedBoundaryEntryPlan,
+) -> PackagePolicyPhysicalCallingContract {
+    let plan = validated.plan();
     let mut ordinary_clobbers: Vec<_> = plan.call.ordinary_clobbers.as_slice().to_vec();
     ordinary_clobbers.sort_unstable();
     ordinary_clobbers.dedup();

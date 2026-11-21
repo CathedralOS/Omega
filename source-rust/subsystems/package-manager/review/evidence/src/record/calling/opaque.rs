@@ -13,7 +13,7 @@ use crate::record::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyCallingOpaqueUse {
+pub struct PackagePolicyCallingOpaqueUse {
     pub(crate) opaque: PackageReviewNominalIdentity,
     pub(crate) carrier: PackageReviewNominalIdentity,
     pub(crate) selection_owner: PackageReviewNominalOwner,

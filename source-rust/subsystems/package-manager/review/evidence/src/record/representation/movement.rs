@@ -59,9 +59,9 @@ pub enum PackageReviewBoundaryValueLocation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryValueShape {
-    pub(crate) class: PackageReviewBoundaryValueClass,
-    pub(crate) byte_size: u32,
-    pub(crate) alignment: u16,
+    pub class: PackageReviewBoundaryValueClass,
+    pub byte_size: u32,
+    pub alignment: u16,
 }
 
 impl PackageReviewBoundaryValueShape {
@@ -71,8 +71,8 @@ impl PackageReviewBoundaryValueShape {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryValuePlacement {
-    pub(crate) shape: PackageReviewBoundaryValueShape,
-    pub(crate) locations: Vec<PackageReviewBoundaryValueLocation>,
+    pub shape: PackageReviewBoundaryValueShape,
+    pub locations: Vec<PackageReviewBoundaryValueLocation>,
 }
 
 impl PackageReviewBoundaryValuePlacement {

@@ -6,8 +6,8 @@ use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PackagePolicyServiceReachDependency {
-    pub(crate) concrete: Vec<PackageReviewNominalIdentity>,
-    pub(crate) parameters: Vec<u32>,
+    pub concrete: Vec<PackageReviewNominalIdentity>,
+    pub parameters: Vec<u32>,
 }
 
 impl PackagePolicyServiceReachDependency {

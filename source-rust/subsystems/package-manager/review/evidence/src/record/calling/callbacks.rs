@@ -12,7 +12,7 @@ use crate::record::{
     PackageReviewTypeIdentity,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyCallbacks {
     pub(crate) binders: Vec<PackagePolicyCallbackBinder>,
     pub(crate) demands: Vec<PackagePolicyCallbackDemand>,

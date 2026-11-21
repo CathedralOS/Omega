@@ -29,6 +29,7 @@ macro_rules! bundled_library_files {
             CoreLayout => "core/layout.omg",
             CoreNat => "core/nat.omg",
             CoreNever => "core/never.omg",
+            CoreProcessAuthority => "core/process_authority.omg",
             CoreProcessExit => "core/process_exit.omg",
             CoreProcessExitNative => "core/process_exit_native.omg",
             CoreProgramImage => "core/program_image.omg",

@@ -2,7 +2,10 @@
 
 use super::Program;
 use crate::lowering::body::Signature;
-use crate::lowering::publication::{RequirementReview, RequirementReviewMetadata};
+use crate::lowering::publication::{
+    RequirementInvocation, RequirementReview, RequirementReviewMetadata,
+};
+use crate::lowering::reach::SourceInvocation;
 use crate::lowering::static_contracts::SourceServiceCeiling;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
@@ -47,7 +50,7 @@ impl Program<'_> {
             .into_iter()
             .filter_map(|(declaration, signature, machine)| {
                 let (owner, source) = self.typed.trait_machine_signature(declaration)?;
-                if !owner.is_public || owner.is_boundary {
+                if !owner.is_public && !owner.is_boundary {
                     return None;
                 }
                 let metadata = self.read_public_requirement_contract(
@@ -100,23 +103,39 @@ impl Program<'_> {
             .checked_add(elided)
             .ok_or("public requirement lifetime namespace exceeds usize")?;
         let envelope = self
-            .static_envelope(context, source, false)
+            .static_envelope(context, source, owner.is_boundary)
             .map_err(|refusal| format!("public requirement operational envelope: {refusal:?}"))?;
-        let service_reach = match envelope.service_reach {
-            SourceServiceCeiling::Open => None,
-            SourceServiceCeiling::Closed(ref services) if services.is_empty() => Some(Vec::new()),
-            SourceServiceCeiling::Closed(_) => {
-                return Err(
-                    "public requirement review needs its nonempty service identity roster"
-                        .to_owned(),
-                );
-            }
+        let service = |id| {
+            let definition = self
+                .typed
+                .service_reaches
+                .definition(id)
+                .ok_or("public requirement lost the declaration of its checked service")?;
+            self.typed
+                .trait_definition_by_symbol(definition.symbol)
+                .filter(|declaration| declaration.is_boundary)
+                .map(|declaration| declaration.symbol)
+                .ok_or("public requirement reach names a non-service declaration")
         };
-        if !envelope.invocations.is_empty() {
-            return Err(
-                "public requirement review needs its synchronous invocation roster".to_owned(),
-            );
-        }
+        let service_reach = match &envelope.service_reach {
+            SourceServiceCeiling::Open => None,
+            SourceServiceCeiling::Closed(services) => Some(
+                services
+                    .iter()
+                    .map(|id| service(*id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+        };
+        let synchronous_invocations = envelope
+            .invocations
+            .iter()
+            .map(|invocation| match invocation {
+                SourceInvocation::Parameter(position) => {
+                    Ok(RequirementInvocation::Parameter(*position))
+                }
+                SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
+            })
+            .collect::<Result<_, _>>()?;
         let crash_is_open = match &signature.crashes {
             CrashCeiling::Inferred => true,
             CrashCeiling::DeclaredNone => false,
@@ -228,6 +247,7 @@ impl Program<'_> {
             result_type: source.return_type.is_valid().then_some(result),
             lifetime_parameter_count,
             service_reach,
+            synchronous_invocations,
             crash_is_open,
             returned_parameters,
             parameter_qualifications,

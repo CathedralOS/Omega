@@ -56,8 +56,8 @@ impl PackageReviewDangerousAuthority {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewInstallationReach {
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) upper_bound: Vec<PackageReviewNominalIdentity>,
+    pub requirement: PackageReviewNominalIdentity,
+    pub upper_bound: Vec<PackageReviewNominalIdentity>,
 }
 
 impl PackageReviewInstallationReach {

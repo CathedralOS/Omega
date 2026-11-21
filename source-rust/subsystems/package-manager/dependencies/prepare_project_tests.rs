@@ -146,39 +146,112 @@ fn invalid_deployment_policy_leaves_the_other_requested_target_available() {
 }
 
 #[test]
-fn uncached_occurrence_requires_checked_project_evidence() {
-    use crate::review::{
-        CandidateReview, CompileResolvedPackageReviewCause, review_resolved_packages,
-    };
+fn fresh_library_review_includes_an_unreferenced_export_from_its_own_build() {
+    use crate::review::{CandidateReview, review_resolved_packages};
 
-    let project_root = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
-    let acquisition = begin(project_root.path());
-    let closure = source_graph(&acquisition);
+    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../source/library");
+    package_compilation::toolchain_library::configure(&library).unwrap();
+    let project_root = project(
+        "source-rust/subsystems/compiler/tests/fixtures/build/pass/acquired_generator_completed_output_set/generator",
+    );
+    let preparation = begin(project_root.path());
+    let root = preparation.acquire_root().unwrap();
+    let workspace = TemporaryDirectory::create("fresh-package-review", false).unwrap();
+    let mut session = crate::PackageBuildSession::create(workspace.path()).unwrap();
+    let project = crate::project::resolve_build_sources(
+        &mut session,
+        root,
+        &mut preparation.source_acquisitions().unwrap(),
+        None,
+    )
+    .unwrap();
+    let closure = project.sources.into_source_closure();
     let profile = TargetProfile::host_if_supported().unwrap();
     let target = closure.for_exact_target(profile);
-    let workspace = TemporaryDirectory::create("uncached-package", false).unwrap();
-    let mut session = crate::PackageBuildSession::create(workspace.path()).unwrap();
-    let error = review_resolved_packages(
+    let reviews = review_resolved_packages(
         CandidateReview {
             target_closure: &target,
             root_build_snapshot: None,
         },
         &mut session,
         &mut crate::PackageSourceBindings::default(),
-        &mut |pass, sources| pass.recover_cached(sources),
+        &project.builds,
     )
-    .err()
-    .expect("a cache miss must never produce a review");
-    session.close().unwrap();
-    assert!(
-        matches!(
-            &error.cause,
-            CompileResolvedPackageReviewCause::Projection { package, diagnostics }
-                if package == closure.graph().root()
-                    && diagnostics.iter().any(|diagnostic| diagnostic.message.contains("requires checked project Build"))
-        ),
-        "{error:?}"
+    .unwrap();
+    let product = reviews
+        .reviews()
+        .iter()
+        .find(|row| row.build_handoff().purpose().is_product())
+        .unwrap();
+    assert_eq!(product.key(), closure.graph().root());
+    assert_eq!(product.build_handoff().target(), profile);
+    assert_eq!(
+        product.build_handoff().source_consumption_commitment(),
+        product.source_consumption_commitment()
     );
+    assert!(
+        product
+            .policy()
+            .callables()
+            .callables()
+            .iter()
+            .any(|callable| {
+                callable.identity().path().split("::").last() == Some("generated_value")
+            })
+    );
+    session.close().unwrap();
+}
+
+#[test]
+fn a_build_for_an_earlier_capture_cannot_review_new_code_at_the_same_package_path() {
+    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../source/library");
+    package_compilation::toolchain_library::configure(&library).unwrap();
+    let root = project(
+        "source-rust/subsystems/compiler/tests/fixtures/build/pass/acquired_generator_completed_output_set/generator",
+    );
+    let workspace = TemporaryDirectory::create("review-source-custody", false).unwrap();
+    let capture = |session: &mut crate::PackageBuildSession| {
+        let preparation = begin(root.path());
+        let source = preparation.acquire_root().unwrap();
+        crate::project::resolve_build_sources(
+            session,
+            source,
+            &mut preparation.source_acquisitions().unwrap(),
+            None,
+        )
+        .unwrap()
+    };
+    let mut first_session =
+        crate::PackageBuildSession::create(&workspace.path().join("first")).unwrap();
+    let first = capture(&mut first_session);
+    let identity = first
+        .sources
+        .into_source_closure()
+        .graph()
+        .root()
+        .identity();
+    std::fs::write(
+        root.path().join("main.omg"),
+        "public machine generated_value() -> i32 { 9 }\n",
+    )
+    .unwrap();
+    let mut second_session =
+        crate::PackageBuildSession::create(&workspace.path().join("second")).unwrap();
+    let second = capture(&mut second_session);
+    let inputs = second.sources.compilation_inputs(identity).unwrap();
+    let error = first
+        .builds
+        .product(&inputs)
+        .err()
+        .expect("the captured Build must match its Product sources");
+    assert!(
+        error
+            .into_diagnostics()
+            .iter()
+            .any(|row| row.message.contains("exact acquired sources"))
+    );
+    first_session.close().unwrap();
+    second_session.close().unwrap();
 }
 
 #[test]

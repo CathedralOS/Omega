@@ -22,8 +22,7 @@ pub(crate) enum PackagePolicyRestrictedBuildOperation {
     UnscopedFilesystemExecution,
 }
 
-pub(crate) type PackagePolicyRestrictedBuildGrantRoot =
-    build_consent::RestrictedBuildGrantRoot;
+pub(crate) type PackagePolicyRestrictedBuildGrantRoot = build_consent::RestrictedBuildGrantRoot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyRestrictedBuildGrant {

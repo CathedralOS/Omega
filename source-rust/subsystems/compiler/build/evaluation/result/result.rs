@@ -4,7 +4,7 @@
 
 mod configuration;
 mod failure;
-pub use configuration::{BuildConfig, ComputedBuildConfig};
+pub use configuration::{BuildConfig, ComputedBuildConfig, ExecutedBuildEntry};
 pub use failure::CompileFailure;
 
 #[derive(Clone)]

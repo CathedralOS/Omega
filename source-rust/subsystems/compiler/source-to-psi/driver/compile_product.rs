@@ -90,9 +90,10 @@ pub(crate) struct CompletedProductSource {
     pub declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
     pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     pub(crate) terminal_publication: Arc<judge_lowered_source::SourcePublication>,
+    review_package: bool,
     deployments: Vec<String>,
-    explicit_providers: Vec<provider_choice_inputs::ProviderSelection>,
-    native_supplies: Vec<provider_choice_inputs::NativeBuildSupply>,
+    pub(crate) explicit_providers: Vec<provider_choice_inputs::ProviderSelection>,
+    pub(crate) native_supplies: Vec<provider_choice_inputs::NativeBuildSupply>,
 }
 
 impl CompletedProductSource {
@@ -121,7 +122,7 @@ impl CompletedProductSource {
             Some(target),
             &self.explicit_providers,
             &self.native_supplies,
-            false,
+            self.review_package,
         )
     }
 }
@@ -130,6 +131,7 @@ impl CompletedProductSource {
 #[derive(Clone, Copy)]
 pub(crate) enum ProductEntry<'a> {
     BuildBindings,
+    PackageReview,
     Inspection(&'a str),
     RegisteredTest {
         root: &'a crate::registered_tests::TestRoot,
@@ -141,6 +143,7 @@ pub(crate) fn prepare_lower_and_check(
     continuation: crate::SourceTypingCheckpoint,
     mut inputs: ProductSourceInputs<'_>,
     entry: ProductEntry<'_>,
+    accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &mut crate::CompileTimings,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
     let mut authored = continuation.complete_authored(timings)?;
@@ -151,11 +154,12 @@ pub(crate) fn prepare_lower_and_check(
         .resolve(typed, admitted.native_bindings)?;
     let resolve_and_type::CompletedTypedSource {
         mut typed,
-        mut accounting,
+        accounting: initial_source_charges,
     } = match inputs.generated.take() {
         Some(extension) => authored.extend(extension, inputs.declaration_scope.clone(), timings)?,
         None => authored.finish(),
     };
+    *accounting = initial_source_charges;
     accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -173,7 +177,7 @@ pub(crate) fn prepare_lower_and_check(
         ProductEntry::RegisteredTest { root, target } => {
             vec![root.bind(&typed, &admitted.declarations.test_groups, target)?]
         }
-        ProductEntry::BuildBindings | ProductEntry::Inspection(_) => {
+        ProductEntry::BuildBindings | ProductEntry::PackageReview | ProductEntry::Inspection(_) => {
             crate::compile_product::declaration_lookup::collect_root_bindings(
                 &typed,
                 inputs.root_binding_requests,
@@ -191,7 +195,7 @@ pub(crate) fn prepare_lower_and_check(
         default_provider_selections,
         entry,
         initial_accounting: accounting.clone(),
-        accounting: &mut accounting,
+        accounting,
         timings,
     };
     let mut layouts = Vec::new();
@@ -237,6 +241,7 @@ pub(crate) fn prepare_lower_and_check(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
     Ok(CompletedProductSource {
+        review_package: matches!(pass.entry, ProductEntry::PackageReview),
         program: judged.program,
         terminal_publication: judged.publication,
         deployments: pass

@@ -17,10 +17,10 @@ pub enum PackagePolicySemanticDependencyConsumer {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicySemanticDependency {
-    pub(crate) consumer: PackagePolicySemanticDependencyConsumer,
-    pub(crate) dependency: PackageReviewNominalIdentity,
-    pub(crate) exposure: PackageReviewSemanticDependencyExposure,
-    pub(crate) kind: PackageReviewSemanticDependencyKind,
+    pub consumer: PackagePolicySemanticDependencyConsumer,
+    pub dependency: PackageReviewNominalIdentity,
+    pub exposure: PackageReviewSemanticDependencyExposure,
+    pub kind: PackageReviewSemanticDependencyKind,
 }
 
 impl PackagePolicySemanticDependency {

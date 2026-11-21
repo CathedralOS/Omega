@@ -3,7 +3,7 @@
 use crate::record::PackageReviewNominalIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewRequirementRealization {
+pub struct PackageReviewRequirementRealization {
     pub(crate) requirement_identity: PackageReviewNominalIdentity,
     pub(crate) alias: Option<String>,
 }

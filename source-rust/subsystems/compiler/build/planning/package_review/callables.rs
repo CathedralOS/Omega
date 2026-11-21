@@ -5,7 +5,8 @@
 
 use super::declarations::{nominal_identity, unavailable};
 use super::input::PolicySource;
-use crate::record::{
+use diagnostics::Diagnostic;
+use review_evidence::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash, PackagePolicyCrashGuard,
     PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
     PackagePolicyServiceReachDependency, PackagePolicyTargetContext, PackagePolicyTermination,
@@ -14,13 +15,12 @@ use crate::record::{
     PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
     PackageReviewWriteFrameCompleteness,
 };
-use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachineCallable};
-use terminal_check_tables::edges::Callee;
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 
 struct CallableInventory<'a> {
-    accepted: &'a source_compiler::AcceptedTerminalSource,
+    source: &'a source_compiler::representations::source_state::TypedTrees,
+    module: &'a TerminalModule,
     exact_sources: &'a [(source_text::SourceId, [u8; 32])],
     service_names: &'a [(ServiceId, PackageReviewNominalIdentity)],
 }
@@ -30,74 +30,84 @@ impl PolicySource<'_> {
         &self,
         package: PackageKeyIdentity,
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
-        let computed = self.build();
-        let Some(selected) = computed.selected_build_machine_symbol else {
+        let Some(selected) = &self.build().executed_entry else {
             return Ok(None);
         };
-        let accepted = computed
-            .accepted_build
-            .as_ref()
-            .ok_or_else(|| unavailable("the selected Build's accepted judgment"))?;
-        if !accepted.is_invocation() {
-            return Err(unavailable("Build's own invocation judgment"));
-        }
-        let entry = accepted
-            .entry()
-            .ok_or_else(|| unavailable("the accepted Build entry"))?;
-        let mut origins = accepted
-            .closure()
-            .elaboration()
-            .machines
-            .iter()
-            .filter(|(machine, _)| *machine == entry);
-        let (_, original) = origins
-            .next()
-            .ok_or_else(|| unavailable("Build's original declaration"))?;
-        if origins.next().is_some() {
-            return Err(unavailable("an unambiguous accepted Build declaration"));
-        }
-        let source = accepted.source();
-        let retained =
-            source_compiler::source_symbols::retain_declaration(&source.symbols, *original)
-                .map_err(unavailable)?;
-        let rejoined = source_compiler::source_symbols::rejoin_declaration(
-            &retained,
-            &self.typed().symbols,
-            self.typed().machines().iter().map(|machine| machine.symbol),
-        )
-        .map_err(unavailable)?;
-        if rejoined != selected
-            || computed.selected_machine_identity(self.typed())?
-                != self.admission.selected_build_machine_identity
-        {
+        let symbol = selected.rejoin(self.typed())?;
+        let code = self
+            .build()
+            .accepted_builds
+            .last()
+            .ok_or_else(|| unavailable("the selected Build's accepted code"))?;
+        let module = code.view().module();
+        let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
+            return Err(unavailable("the selected Build's machine entry"));
+        };
+        let declaration = module
+            .machine(entry)
+            .and_then(|machine| machine.contract.declaration.as_ref())
+            .ok_or_else(|| unavailable("the selected Build's public callable contract"))?;
+        if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str()) {
             return Err(unavailable("the exact selected Build/source association"));
         }
-        let identity = self.nominal(rejoined)?;
+        let identity = self.nominal(symbol)?;
         if identity.owner != PackageReviewNominalOwner::Package(package) {
             return Err(unavailable(
                 "a selected Build owned by the reviewed package",
             ));
         }
-        let exact_sources = source_admission::source_identity::toolchain_source_identities(
-            source.symbols.source_files(),
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let service_names = service_identities(
-            source,
-            &exact_sources,
-            &service_origins(
-                accepted,
-                source_provenance::DependencyScope::Build,
-            )?,
-        )?;
-        validate_body_effect_inventory(accepted.module())?;
+        validate_body_effect_inventory(module)?;
+        let mut names = Vec::with_capacity(module.interfaces.services.len());
+        if !module.interfaces.services.is_empty() {
+            use source_compiler::representations::source_state::trait_definition::{
+                AppliedTraitScope, TraitApplicationArguments,
+            };
+            let source = self.typed();
+            let mut schemas =
+                std::collections::BTreeMap::<String, Vec<symbols::SymbolHandle>>::new();
+            for row in source.traits().iter().filter(|row| {
+                row.is_boundary
+                    && source.symbols.symbol_is_in_dependency_scope(
+                        row.symbol,
+                        source_provenance::DependencyScope::Build,
+                    )
+            }) {
+                let scope = AppliedTraitScope::new(
+                    source,
+                    row,
+                    TraitApplicationArguments {
+                        lexical_owner: row.symbol,
+                        enclosing_data_applications: &[],
+                        arguments: &[],
+                        lifetimes: &[],
+                    },
+                );
+                let key = scope
+                    .and_then(|scope| scope.portable_application_identity(source))
+                    .and_then(|identity| source.type_identity_text(identity));
+                if let Some(key) = key {
+                    schemas.entry(key).or_default().push(row.symbol);
+                }
+            }
+            for service in &module.interfaces.services {
+                let id = module
+                    .identities
+                    .text(service.identity)
+                    .ok_or_else(|| unavailable("a Build service identity"))?;
+                let Some([symbol]) = schemas.get(id).map(Vec::as_slice) else {
+                    return Err(unavailable("the unique declaration of a Build service"));
+                };
+                names.push((service.id, self.nominal(*symbol)?));
+            }
+        }
         self.callable(
             &CallableInventory {
-                accepted,
-                exact_sources: &exact_sources,
-                service_names: &service_names,
+                source: self.typed(),
+                module,
+                exact_sources: self.sources().exact_toolchain_sources(),
+                service_names: &names,
             },
-            *original,
+            symbol,
             identity,
             PackagePolicyCallableRole::Build,
             PackageReviewCallableSupply::CheckedBody,
@@ -161,7 +171,8 @@ impl PolicySource<'_> {
             };
             if inventory.is_none() {
                 inventory = Some(CallableInventory {
-                    accepted,
+                    module: accepted.module(),
+                    source: accepted.source(),
                     exact_sources,
                     service_names,
                 });
@@ -192,33 +203,39 @@ impl PolicySource<'_> {
         supply: PackageReviewCallableSupply,
         body: Option<MachineId>,
     ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
-        let accepted = inventory.accepted;
+        let module = inventory.module;
         let exact_sources = inventory.exact_sources;
         let service_names = inventory.service_names;
-        let source = accepted.source();
+        let source = inventory.source;
         let declaration = source
             .machine(original)
             .ok_or_else(|| unavailable("the callable's admitted source machine"))?;
-        if !declaration.type_parameters.is_empty()
-            || !declaration.conformance_bounds.is_empty()
-            || !declaration.satisfies.is_empty()
-            || !declaration.lifetime_parameters.is_empty()
-            || declaration.target.is_some()
-            || declaration.authored_target.is_some()
-            || declaration.target_family_interface
-        {
+        if !declaration.satisfies.is_empty() || declaration.target_family_interface {
             return Err(unavailable(
-                "the callable's complete generic or target contract",
+                "the callable's conformance realizations or target family contract",
             ));
         }
+        // Target selection can clear the active target marker; the authored
+        // declaration retains the scope which must enter the public policy.
+        let target_context = match (&declaration.authored_target, &declaration.target) {
+            (Some(authored), Some(active)) if authored.as_str() != active.as_str() => {
+                return Err(unavailable(
+                    "inconsistent active and authored target scopes",
+                ));
+            }
+            (Some(authored), _) => PackagePolicyTargetContext::TargetMember {
+                target: authored.as_str().to_owned(),
+            },
+            (None, None) => PackagePolicyTargetContext::TargetIndependent,
+            (None, Some(_)) => return Err(unavailable("the authored target family association")),
+        };
         let state = source
             .machine_states(declaration)
             .first()
             .ok_or_else(|| unavailable("the callable's source entry signature"))?;
         let body = body
             .map(|entry| {
-                accepted
-                    .module()
+                module
                     .machine(entry)
                     .ok_or_else(|| unavailable("the accepted callable body"))
             })
@@ -233,20 +250,16 @@ impl PolicySource<'_> {
                     )
                     .and_then(|identity| source.type_identity_text(identity))
                     .ok_or_else(|| unavailable("a bodyless callable's exact identity"))?;
-                let mut matching =
-                    accepted
-                        .module()
-                        .declaration_contracts
-                        .iter()
-                        .filter(|header| {
-                            header.declaration.as_ref().is_some_and(|declaration| {
-                                accepted
-                                    .module()
-                                    .identities
-                                    .text(declaration.machine.identity())
-                                    == Some(exact.as_str())
-                            })
-                        });
+                let mut matching = module
+                    .execution
+                    .declaration_contracts
+                    .iter()
+                    .filter(|header| {
+                        header.declaration.as_ref().is_some_and(|declaration| {
+                            module.identities.text(declaration.machine.identity())
+                                == Some(exact.as_str())
+                        })
+                    });
                 let header = matching
                     .next()
                     .ok_or_else(|| unavailable("the accepted bodyless contract"))?;
@@ -275,11 +288,11 @@ impl PolicySource<'_> {
         };
         let type_identity = |reference| {
             if role != PackagePolicyCallableRole::Build {
-                return self.type_identity(reference);
+                return self.declared_type(original, reference);
             }
             source
                 .exact_owner_type_identity(
-                    source_compiler::source_state::type_identity::ExactOwnerTypeIdentityRequest {
+                    source_compiler::representations::source_state::type_identity::ExactOwnerTypeIdentityRequest {
                         lifetime_scope: None,
                         type_reference: reference,
                         binders: &[],
@@ -306,13 +319,12 @@ impl PolicySource<'_> {
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
             Some(body) => {
-                let original = accepted
-                    .module()
+                let original = module
                     .unoptimized_machine_behavior(body.id)
                     .ok_or_else(|| {
                         unavailable("the callable's original checked behavior inventory")
                     })?;
-                body_effects(accepted, body, original)?
+                body_effects(module, body, original)?
             }
             None => ([Vec::new(), Vec::new()], [false; 2]),
         };
@@ -337,7 +349,7 @@ impl PolicySource<'_> {
                 })
             })
             .transpose()?;
-        let mutation = mutation(accepted.module(), header)?;
+        let mutation = mutation(module, header)?;
         let declared_termination = declaration
             .termination_plan
             .interface
@@ -357,14 +369,18 @@ impl PolicySource<'_> {
             })
             .transpose()?;
         Ok(PackagePolicyCallable {
-            target_context: PackagePolicyTargetContext::TargetIndependent,
+            target_context,
             role,
             identity,
             supply,
             spelling: declaration.spelling,
-            lifetime_parameter_count: 0,
-            type_parameters: Vec::new(),
-            conformance_bounds: Vec::new(),
+            lifetime_parameter_count: declaration.lifetime_parameters.len(),
+            type_parameters: self.type_parameters(original)?,
+            conformance_bounds: self.conformance_bounds(
+                original,
+                &declaration.lifetime_parameters,
+                &declaration.conformance_bounds,
+            )?,
             parameters,
             return_type: state
                 .return_type
@@ -435,9 +451,9 @@ impl PolicySource<'_> {
     }
     fn callable_contracts(
         &self,
-        declaration: &source_compiler::source_state::machine::Machine,
-        state: &source_compiler::source_state::state::State,
-    ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
+        declaration: &source_compiler::representations::source_state::machine::Machine,
+        state: &source_compiler::representations::source_state::state::State,
+    ) -> Result<Vec<review_evidence::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
         let typed = self.typed();
         self.signature_contracts(
             typed
@@ -448,7 +464,7 @@ impl PolicySource<'_> {
                 owner: state.symbol,
                 subject: None,
                 parameters: typed.state_parameters(state),
-                statics: Default::default(),
+                statics: typed.machine_type_parameters(declaration),
                 result: None,
             },
             state.return_type,
@@ -458,16 +474,16 @@ impl PolicySource<'_> {
     pub(super) fn signature_contracts<'clause>(
         &self,
         clauses: impl IntoIterator<
-            Item = &'clause source_compiler::source_state::signature::SignatureContract,
+            Item = &'clause source_compiler::representations::source_state::signature::SignatureContract,
         >,
         scope: super::declarations::ContractScope<'_>,
-        return_type: source_compiler::source_state::types::TypeReferenceHandle,
-    ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
-        use crate::record::{
-            PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
+        return_type: source_compiler::representations::source_state::types::TypeReferenceHandle,
+    ) -> Result<Vec<review_evidence::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
+        use review_evidence::record::{
+            PackageReviewCallableContract, PackageReviewContractKind,
             PackageReviewResultCaseIdentity,
         };
-        use source_compiler::source_state::signature::SignatureContractKind;
+        use source_compiler::representations::source_state::signature::SignatureContractKind;
         let typed = self.typed();
         let mut rows = Vec::new();
         for clause in clauses {
@@ -495,33 +511,7 @@ impl PolicySource<'_> {
                 .span(clause.facts)
                 .ok_or_else(|| unavailable("a callable clause's retained facts"))?;
             for fact in facts {
-                let fact = match fact {
-                    source_compiler::source_state::domain::ProofFact::Expression(expression) => {
-                        PackageReviewContractFact::Expression(self.scoped_expression(
-                            *expression,
-                            scope,
-                            0,
-                        )?)
-                    }
-                    source_compiler::source_state::domain::ProofFact::Membership(membership) => {
-                        let application = typed
-                            .runtime_membership_domain_identity(
-                                membership,
-                                self.sources().exact_toolchain_sources(),
-                                &[],
-                                &[],
-                            )
-                            .map_err(unavailable)?;
-                        PackageReviewContractFact::Membership {
-                            value: self.scoped_expression(membership.value, scope, 0)?,
-                            domain: self.nominal(membership.domain_symbol)?,
-                            application,
-                        }
-                    }
-                    _ => {
-                        return Err(unavailable("this callable clause's proposition binding"));
-                    }
-                };
+                let fact = self.review_fact(fact, scope)?;
                 rows.push(PackageReviewCallableContract {
                     kind,
                     result_case: result_case.clone(),
@@ -535,16 +525,53 @@ impl PolicySource<'_> {
         rows.dedup();
         Ok(rows)
     }
+    pub(super) fn review_fact(
+        &self,
+        fact: &source_compiler::representations::source_state::domain::ProofFact,
+        scope: super::declarations::ContractScope<'_>,
+    ) -> Result<review_evidence::record::PackageReviewContractFact, Vec<Diagnostic>> {
+        use review_evidence::record::PackageReviewContractFact;
+        Ok(match fact {
+            source_compiler::representations::source_state::domain::ProofFact::Expression(
+                expression,
+            ) => PackageReviewContractFact::Expression(self.scoped_expression(
+                *expression,
+                scope,
+                0,
+            )?),
+            source_compiler::representations::source_state::domain::ProofFact::Membership(
+                membership,
+            ) => {
+                let application = self
+                    .typed()
+                    .runtime_membership_domain_identity(
+                        membership,
+                        self.sources().exact_toolchain_sources(),
+                        &[],
+                        &[],
+                    )
+                    .map_err(unavailable)?;
+                PackageReviewContractFact::Membership {
+                    value: self.scoped_expression(membership.value, scope, 0)?,
+                    domain: self.nominal(membership.domain_symbol)?,
+                    application,
+                }
+            }
+            _ => {
+                return Err(unavailable("this callable clause's proposition binding"));
+            }
+        })
+    }
 }
 
 /// Join the portable identities in the accepted module to the exact source
 /// declarations. Memberless service labels may appear in reach even though
 /// there is no boundary method whose correspondence could name their owner.
 pub(super) fn service_origins(
-    accepted: &source_compiler::AcceptedTerminalSource,
+    accepted: &source_compiler::publication::AcceptedTerminalSource,
     purpose: source_provenance::DependencyScope,
 ) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
-    use source_compiler::source_state::trait_definition::{
+    use source_compiler::representations::source_state::trait_definition::{
         AppliedTraitScope, TraitApplicationArguments,
     };
     let source = accepted.source();
@@ -566,7 +593,7 @@ pub(super) fn service_origins(
         source.type_identity_text(scope.portable_application_identity(source)?)
     };
     let mut boundaries = Vec::new();
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         let Some(service) = boundary.owning_service else {
             continue;
         };
@@ -598,6 +625,7 @@ pub(super) fn service_origins(
     }
     if boundaries.iter().any(|(id, _)| {
         module
+            .interfaces
             .services
             .binary_search_by_key(id, |service| service.id)
             .is_err()
@@ -606,15 +634,15 @@ pub(super) fn service_origins(
             "a service absent from the accepted declaration inventory",
         ));
     }
-    let mut memberless = Vec::new();
-    if boundaries.len() < module.services.len() {
-        memberless.extend(
+    // A closed service may contribute only authority, with no executable boundary.
+    let mut declared = Vec::new();
+    if boundaries.len() < module.interfaces.services.len() {
+        declared.extend(
             source
                 .traits()
                 .iter()
                 .filter(|declaration| {
                     declaration.is_boundary
-                        && source.trait_machine_signatures(declaration).is_empty()
                         && source
                             .symbols
                             .symbol_is_in_dependency_scope(declaration.symbol, purpose)
@@ -623,10 +651,10 @@ pub(super) fn service_origins(
                     application(declaration.symbol).map(|identity| (identity, declaration.symbol))
                 }),
         );
-        memberless.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        declared.sort_unstable_by(|left, right| left.0.cmp(&right.0));
     }
-    let mut origins = Vec::with_capacity(module.services.len());
-    for service in &module.services {
+    let mut origins = Vec::with_capacity(module.interfaces.services.len());
+    for service in &module.interfaces.services {
         let actual = module
             .identities
             .text(service.identity)
@@ -642,9 +670,9 @@ pub(super) fn service_origins(
                 owner
             }
             Err(_) => {
-                let start = memberless.partition_point(|(identity, _)| identity.as_str() < actual);
-                let end = memberless.partition_point(|(identity, _)| identity.as_str() <= actual);
-                let [(_, owner)] = &memberless[start..end] else {
+                let start = declared.partition_point(|(identity, _)| identity.as_str() < actual);
+                let end = declared.partition_point(|(identity, _)| identity.as_str() <= actual);
+                let [(_, owner)] = &declared[start..end] else {
                     return Err(unavailable(
                         "a service without its original applied declaration",
                     ));
@@ -658,7 +686,7 @@ pub(super) fn service_origins(
 }
 
 pub(super) fn service_identities(
-    source: &source_compiler::source_state::TypedTrees,
+    source: &source_compiler::representations::source_state::TypedTrees,
     exact_sources: &[(source_text::SourceId, [u8; 32])],
     origins: &[(ServiceId, symbols::SymbolHandle)],
 ) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
@@ -674,16 +702,41 @@ pub(super) fn reviewed_services(
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     let mut projected = row
         .iter()
-        .map(|service| {
-            let position = identities
-                .binary_search_by_key(service, |(id, _)| *id)
-                .map_err(|_| unavailable("a service without its original applied declaration"))?;
-            Ok(identities[position].1.clone())
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        .map(|service| reviewed_service(identities, *service))
+        .collect::<Result<Vec<_>, _>>()?;
     projected.sort();
     projected.dedup();
     Ok(projected)
+}
+
+fn reviewed_service(
+    identities: &[(ServiceId, PackageReviewNominalIdentity)],
+    service: ServiceId,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let index = identities
+        .binary_search_by_key(&service, |(id, _)| *id)
+        .map_err(|_| unavailable("a service without its original applied declaration"))?;
+    Ok(identities[index].1.clone())
+}
+
+pub(super) fn reviewed_invocations(
+    identities: &[(ServiceId, PackageReviewNominalIdentity)],
+    envelope: &terminal_psi::TerminalCallableEnvelope,
+) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
+    use terminal_psi::TerminalCallableInvocation;
+    let mut invocations = envelope
+        .invocations
+        .iter()
+        .map(|entry| match entry {
+            TerminalCallableInvocation::Parameter(position) => {
+                Ok(PackageReviewSynchronousInvocation::Parameter(*position))
+            }
+            TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
+                .map(PackageReviewSynchronousInvocation::Service),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    invocations.sort_unstable();
+    Ok(invocations)
 }
 
 // These authority inventories belong to the accepted module, so inspect them
@@ -691,11 +744,13 @@ pub(super) fn reviewed_services(
 pub(super) fn validate_body_effect_inventory(
     module: &TerminalModule,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !module.dynamic_dispatch.interfaces.is_empty() || !module.dynamic_dispatch.tables.is_empty()
+    if !module.execution.dynamic_dispatch.interfaces.is_empty()
+        || !module.execution.dynamic_dispatch.tables.is_empty()
     {
         return Err(unavailable("the accepted module's dynamic effects"));
     }
     if module
+        .execution
         .unoptimized_behavior
         .iter()
         .flat_map(|body| &body.operations)
@@ -722,18 +777,13 @@ pub(super) fn validate_body_effect_inventory(
 }
 
 pub(super) fn body_effects(
-    accepted: &source_compiler::AcceptedTerminalSource,
+    module: &TerminalModule,
     body: &terminal_psi::TerminalMachine,
     original: &terminal_psi::UnoptimizedMachineBehavior,
 ) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
-    let module = accepted.module();
-    let tables = accepted
-        .closure()
-        .elaboration()
-        .tables
-        .machines
-        .get(body.id)
-        .ok_or_else(|| unavailable("the callable's checked call inventory"))?;
+    if body.callable_invocations().next().is_some() {
+        return Err(unavailable("the callable’s indirect call effects"));
+    }
     let mut rows = [Vec::new(), Vec::new()];
     let mut operational = [false; 2];
     let mut include = |callee, required| -> Result<(), Vec<Diagnostic>> {
@@ -744,11 +794,17 @@ pub(super) fn body_effects(
         operational[1] |= may_block;
         Ok(())
     };
-    for (_, call) in tables.invocations.iter() {
-        let Callee::Declared(callee) = call.callee else {
-            return Err(unavailable("the callable's indirect call effects"));
-        };
-        include(callee, call.required_contract)?;
+    for block in &body.blocks {
+        for call in block
+            .operations
+            .iter()
+            .filter_map(terminal_psi::Operation::declared_invocation)
+        {
+            include(call.callee, call.required_contract)?;
+        }
+        if let Some((_, call)) = block.terminator.declared_invocation() {
+            include(call.callee, call.required_contract)?;
+        }
     }
     // Edge cleanup calls and recursive frame reuse retain their calls apart
     // from explicit invocation rows. Their public contributions still apply.
@@ -846,7 +902,7 @@ fn mutation(
             .map(|(position, _)| position)
             .ok_or_else(|| unavailable("a write frame's authored parameter position"))?;
         let mut path = String::new();
-        crate::record::write_framed_identity(
+        review_evidence::record::write_framed_identity(
             &mut path,
             "parameter",
             [authored_position.to_string().as_str()],
@@ -855,7 +911,7 @@ fn mutation(
         let mut tip = Some(formal.structural_type);
         for (position, field) in fields.iter().enumerate() {
             let owner = terminal_psi::unique_structural_declaration(
-                &module.structural_types,
+                &module.types.structural_types,
                 tip.ok_or_else(|| unavailable("a write frame traversing a scalar leaf"))?,
                 &[],
             )
@@ -883,7 +939,7 @@ fn mutation(
                 .text(member.identity)
                 .filter(|text| !text.is_empty())
                 .ok_or_else(|| unavailable("a write frame's field identity"))?;
-            crate::record::write_framed_identity(
+            review_evidence::record::write_framed_identity(
                 &mut path,
                 "field",
                 [owner_identity, field_identity],

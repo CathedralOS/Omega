@@ -23,6 +23,8 @@ pub(super) fn project(
         operators,
         data,
     } = api;
+    // The new provider grant format did not change public trait rows.
+    let baseline_schema = baseline_schema.min(crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS);
     for value in traits {
         builder.push_versioned(
             (PackagePolicyRowKind::PublicTrait, baseline_schema),

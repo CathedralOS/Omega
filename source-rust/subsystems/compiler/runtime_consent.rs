@@ -20,6 +20,11 @@ pub(super) fn compare(
             "the selected provider's assumed binding lacks its canonical Build review request",
         )]);
     }
+    // The locked source and target were checked before this Build ran. Its root grants
+    // still have to name providers selected by this execution of the Build.
+    let grants = declarations.root_provider_grants(package)?;
+    super::selected_provider_grants(&proposal.providers().selection, grants)
+        .map_err(|error| vec![error])?;
     let mut rows = Vec::new();
     let identities = proposal.package_terminal_authority_permission_identities();
     for permission in proposal.package_terminal_authority_permissions() {
