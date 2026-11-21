@@ -760,16 +760,20 @@ impl Program<'_> {
                     super::places::reference_lifetime_declared(
                         self.typed, machine, reference, owner,
                     )?;
-                    let parameter = owner
-                        .is_valid()
-                        .then(|| {
+                    let parameter = self
+                        .typed
+                        .type_reference_table
+                        .operand_lifetimes(reference)
+                        .first()
+                        .copied()
+                        .filter(|region| region.declaration.is_valid())
+                        .or_else(|| {
                             crate::source_state::type_identity::lifetime_parameter_identity(
                                 self.typed,
                                 owner,
                                 tag.as_str(),
                             )
                         })
-                        .flatten()
                         .ok_or_else(|| {
                             refuse(
                                 machine,
