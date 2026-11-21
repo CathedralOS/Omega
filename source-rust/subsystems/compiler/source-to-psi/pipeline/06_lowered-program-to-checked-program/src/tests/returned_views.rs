@@ -150,6 +150,33 @@ machine entry() -> u64 reaches Reader invokes Reader {
 }
 
 #[test]
+fn a_guarded_read_of_a_provider_view_keeps_its_input_alive() {
+    let source = r#"
+data Token { bytes: [u8; 2]; }
+boundary trait Fs {
+    machine path(token: @Token) -> @[u8] reaches none crashes none;
+}
+machine read(value: @u8) -> u8 { $value }
+machine entry() -> u8 reaches Fs invokes Fs {
+    let mut token: Token = Token { bytes: [47u8, 61u8] };
+    let view: @[u8] = Fs::path(@token);
+    match view.len > 0u64 { true -> read(@view[0]), false -> 0u8 }
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let changed = source.replace(
+        "    match view.len",
+        "    token.bytes[0] = 5u8;\n    match view.len",
+    );
+    let result = crate::checking::judge(elaborate(&changed)).unwrap();
+    assert!(
+        matches!(&result, RouteVerdict::Rejected { conflicts, .. }
+            if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed)),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
 boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }
