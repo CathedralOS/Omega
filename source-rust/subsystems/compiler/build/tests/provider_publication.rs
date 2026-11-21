@@ -884,6 +884,37 @@ machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passth
 }
 
 #[test]
+fn fresh_review_records_the_build_that_declared_the_package() {
+    use review_evidence::record::{PackagePolicyCallableRole, PackageReviewNominalOwner};
+
+    let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "fresh-build-identity",
+        false,
+    )
+    .unwrap();
+    let root = temp.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
+    )
+    .unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let owner = inputs.root();
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let checked = product.product_stage(&[target]).unwrap().review_policy(target).unwrap();
+    let mut builds = checked.policy.callables.callables().iter()
+        .filter(|callable| callable.role == PackagePolicyCallableRole::Build);
+    let build = builds.next().expect("the executed Build is part of the review");
+    assert!(builds.next().is_none());
+    assert_eq!(build.identity.owner, PackageReviewNominalOwner::Package(owner));
+    assert_eq!(build.identity.path, "build");
+}
+
+#[test]
 fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
     use provider_acceptance::{
         AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,

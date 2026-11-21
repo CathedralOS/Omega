@@ -30,13 +30,10 @@ impl PolicySource<'_> {
         &self,
         package: PackageKeyIdentity,
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
-        let Some(symbol) = self.selected_build_symbol()? else {
+        let Some(selected) = &self.build().executed_entry else {
             return Ok(None);
         };
-        let selected = self
-            .build()
-            .selected_machine_identity(self.typed())?
-            .ok_or_else(|| unavailable("the Build's selected declaration"))?;
+        let symbol = selected.rejoin(self.typed())?;
         let code = self
             .build()
             .accepted_builds
@@ -50,7 +47,7 @@ impl PolicySource<'_> {
             .machine(entry)
             .and_then(|machine| machine.contract.declaration.as_ref())
             .ok_or_else(|| unavailable("the selected Build's public callable contract"))?;
-        if module.identities.text(declaration.callable) != Some(selected.as_str()) {
+        if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str()) {
             return Err(unavailable("the exact selected Build/source association"));
         }
         let identity = self.nominal(symbol)?;
