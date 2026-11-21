@@ -144,7 +144,7 @@ machine OmegaScalarCompiler::check_byte_range(
 // word points into the original array and the second holds the live length.
 machine OmegaScalarCompiler::emit_byte_range(&mut self, expression: i32) -> i32 {
     let range: OmegaByteRange = self.byte_ranges[expression];
-    let cell: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    let cell: i32 = omega_storage_base() + self.cell_offsets[49152 + expression];
     return (self.emit_place_address(range.collection) == 1) &&
         (self.tape.emit_imm(1, range.start, 0) == 1) && (self.tape.emit_rr(3, 0, 1) == 1) &&
         (self.tape.emit_imm(1, cell, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&

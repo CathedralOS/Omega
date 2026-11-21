@@ -1,6 +1,7 @@
 """Check package-relative namespaces using an executable Epsilon-written Omega constructor."""
 import argparse
 from pathlib import Path
+import re
 import runpy
 import struct
 import sys
@@ -150,6 +151,7 @@ def cases():
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from sum_equality_cases(encode)
+    yield from storage_window_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
@@ -626,6 +628,58 @@ def parameter_order_cases(encode):
                                     b"main", paths=["main.omg", "limits.omg"])
         expected = 42 if accepted else struct.pack("<BII", 0, 2, rows[0][1] + client.index(b"machine pass"))
         yield name, packet, expected
+
+
+def storage_window_cases(encode):
+    """Checked backing is disjoint from both the Alpha tape and return stack."""
+    def packet(source):
+        data, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main",
+                                  paths=["main.omg"])
+        return data, rows[0][1]
+
+    # These declarations reserve/check large regions, but main never calls
+    # reserve or initializes a giant value. Seed execution remains tiny.
+    for name, source in [
+        ("storage-array-last-valid", b"data Region{bytes:[u8;1073741824];}machine main()->u8{42}"),
+        ("storage-record-last-valid", b"data Region{left:[u8;536870912];right:[u8;536870912];}machine main()->u8{42}"),
+        ("storage-payload-last-valid", b"data Region [copy]{case Value(bytes:[u8;1073741816]);}machine main()->u8{42}"),
+        ("storage-arena-last-valid", b"data Reserve [copy]{bytes:[u8;1073741808];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}"),
+        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.len>=2 {bytes[1]}machine main()->u8{let mut b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
+    ]:
+        yield name, packet(source)[0], 42
+
+    for name, source, marker in [
+        ("storage-array-first-invalid", b"data Region{bytes:[u8;1073741825];}machine main()->u8{42}", b"data Region"),
+        ("storage-record-first-invalid", b"data Region{left:[u8;536870912];right:[u8;536870912];tail:u8;}machine main()->u8{42}", b"data Region"),
+        ("storage-payload-first-invalid", b"data Region [copy]{case Value(bytes:[u8;1073741817]);}machine main()->u8{42}", b"bytes:"),
+        ("storage-arena-first-invalid", b"data Reserve [copy]{bytes:[u8;1073741809];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}", b"machine main"),
+        ("storage-array-product-overflow", b"data Region{bytes:[u64;536870913];}machine main()->u8{42}", b"data Region"),
+        ("storage-two-regions-exhausted", b"data Reserve{bytes:[u8;536870912];}machine main()->u8{let a:Reserve;let b:Reserve;42}", b"machine main"),
+    ]:
+        wire, start = packet(source)
+        yield name, wire, struct.pack("<BII", 0, 2, start + source.index(marker))
+
+    # Retain every original SyntaxTrees field, capacity, constraint and all
+    # of its data dependencies. Only their containing source unit is composed.
+    base = ROOT / "source/subsystems/compiler/source_to_psi/representations"
+    syntax = (base / "syntax_trees/syntax_trees.omg").read_bytes()
+    files = (base / "source_files/source.omg").read_bytes()
+    numeric = (base / "tokens/numeric.omg").read_bytes()
+    dependencies = b"".join(copy_declaration(files, name)
+                             for name in (b"SourceId", b"Span", b"SourceSpan"))
+    dependencies += copy_declaration(numeric, b"IntegerSuffix")
+    headers = re.finditer(rb"(?m)^public data [A-Za-z_][A-Za-z_0-9]*(?: \[copy\])?\s*(?:\{|\nrequires)", syntax)
+    declarations = b"".join(declaration(syntax, header.group()) for header in headers)
+    # Both complete 45,156,664-byte owners are live at once. Calls touch the
+    # final word and an earlier constrained field independently; aliasing or
+    # result/parameter backing reuse changes the observable result.
+    main = (b"machine mark(tree:@mut SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
+            b"machine poison(tree:@mut SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
+            b"machine inspect(a:@SyntaxTrees,b:@SyntaxTrees)->bool{"
+            b"a.accepted && !b.accepted && a.root_count==42 && b.root_count==7}"
+            b"machine main()->u8{let mut a:SyntaxTrees;let mut b:SyntaxTrees;"
+            b"mark(@mut a);poison(@mut b);transition inspect(@a,@b){true->42,_->7}}")
+    yield "storage-product-two-complete-syntax-trees", packet(dependencies + declarations + main)[0], 42
 
 
 def nominal_array_cases(encode):
