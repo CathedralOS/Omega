@@ -56,6 +56,7 @@ CASES = (
     ('literal', program('1..2', 'source.length >= 2'), 42),
 )
 REFUSALS = (
+    ('retired-length-endpoint', program('lo..source.len', 'lo <= source.length'), 2),
     ('missing-order', program('lo..hi', 'hi <= source.length'), 2),
     ('missing-extent', program('lo..hi', 'lo <= hi'), 2),
     ('reversed-order', program('lo..hi', 'hi <= lo && hi <= source.length', lo=2, hi=1), 2),
