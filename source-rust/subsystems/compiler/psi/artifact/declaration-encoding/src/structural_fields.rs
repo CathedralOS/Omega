@@ -119,7 +119,16 @@ pub fn decode_canonical_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), CodecError> {
     let root = reader.id("PlaceId")?;
-    let path = decode_counted(reader, |reader| match reader.u8()? {
+    let path = decode_canonical_structural_path(reader, "CanonicalStructuralPathSegment")?;
+    Ok((root, path))
+}
+
+fn decode_canonical_structural_path(
+    reader: &mut Reader<'_>,
+    tag_name: &'static str,
+) -> Result<Vec<CanonicalStructuralPathSegment>, CodecError> {
+    decode_counted(reader, |reader| {
+        match reader.u8()? {
         1 => Ok(CanonicalStructuralPathSegment::Field(
             reader.id("StructuralFieldId")?,
         )),
@@ -128,10 +137,20 @@ pub fn decode_canonical_structural_field(
             reader.id("StructuralCaseId")?,
         )),
         4 => Ok(CanonicalStructuralPathSegment::Referent),
-        tag => Err(CodecError::InvalidTag(
-            "CanonicalStructuralPathSegment",
-            tag,
-        )),
-    })?;
-    Ok((root, path))
+        tag => Err(CodecError::InvalidTag(tag_name, tag)),
+    }
+    })
+}
+
+pub struct FieldPath;
+impl crate::fields::Field<Vec<CanonicalStructuralPathSegment>> for FieldPath {
+    fn write(
+        writer: &mut Writer,
+        path: &Vec<CanonicalStructuralPathSegment>,
+    ) -> Result<(), CodecError> {
+        encode_canonical_structural_path(writer, path, "scalar field carrier path")
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Vec<CanonicalStructuralPathSegment>, CodecError> {
+        decode_canonical_structural_path(reader, "scalar field carrier path")
+    }
 }

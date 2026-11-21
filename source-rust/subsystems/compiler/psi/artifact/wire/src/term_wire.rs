@@ -9,23 +9,12 @@ pub(crate) use crate::semantic_module::*;
 pub(crate) use psi_declaration_encoding::terms::content as content_wire;
 
 pub(crate) mod contract_wire {
+    pub(crate) use psi_callable_encoding::contracts::{Contract, Guard, Membership};
 
-    use semantic_vocabulary::Termination as TerminationPromise;
-
-    use terminal_psi::{
-        ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-        MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
-        RuntimeDomainMembership, SuccessorEdge,
-    };
-
-    use super::machine_wire::{Claim, Declaration, MachineResult, ParameterKind, ReachApplication};
-    use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, FieldPath, Flag, Id,
-        Ids, List, MachineDeclaration, Optional, ProofTerms, Proposition, ScalarTerms, Text, U32,
-        delegated_fields, wire_enum, wire_record,
+        Arguments, CleanupAction, Id, Ids, List, ProofTerms, ScalarTerms, wire_record,
     };
-    use super::{CodecError, decode_proposition, encode_proposition};
+    use terminal_psi::SuccessorEdge;
 
     wire_record! {
         Successor: SuccessorEdge {
@@ -37,93 +26,14 @@ pub(crate) mod contract_wire {
             structural_arguments: Arguments,
             cleanup_actions: List<CleanupAction>,
         }
-        Contract: MachineContract {
-            id: Id,
-            declaration: Optional<MachineDeclaration>,
-            selected_application: Optional<super::module_wire::proof_output_wire::Dispatch>,
-            parameters: List<Declaration>,
-            parameter_order: List<ParameterKind>,
-            structural_parameters: List<super::structural_signature_wire::StructuralParameter>,
-            result: MachineResult,
-            result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
-            entry_claims: List<Claim>,
-            declared_service_reach: Optional<Ids>,
-            declared_synchronous_entries: Optional<Ids>,
-            declared_crash_routes: Optional<CrashRoutes>,
-            declared_suspension: Optional<Flag>,
-            declared_blocking: Optional<Flag>,
-            published_may_suspend: Flag,
-            published_may_block: Flag,
-            closed_reach_application: ReachApplication,
-            published_service_ceiling: Ids,
-            published_synchronous_entries: Ids,
-            published_writes: Optional<List<(U32, Ids)>>,
-            termination: Termination,
-            content_entry_claims: List<super::content_wire::EntryClaim>,
-            crash_routes: CrashRoutes,
-            erased_scalar_formals: List<Declaration>,
-            erased_proof_formals: ProofFormals,
-            membership_ensures: List<Membership>,
-            requires: List<Proposition>,
-            source_checked_requires: List<Proposition>,
-            ensures: List<Clause>,
-            outcome_specific_ensures: List<OutcomeEnsure>,
-        }
-        Clause: ContractClause { obligation: Id, proposition: Proposition }
-        OutcomeEnsure: OutcomeSpecificEnsure {
-            guard: Guard,
-            position: U32,
-            obligation: Id,
-            proposition: Proposition,
-            evidence: Optional<Evidence>,
-        }
-        Guard: OutcomeSpecificGuard { result_type: Id, result_case: Id }
-        Evidence: OutcomeSpecificEvidence {
-            term: Id,
-            output_field: Text,
-            argument_subjects: List<ArgumentSubstitution>,
-        }
-        Bucket: CrashRouteBucket { cause: Cause, alternatives: List<RouteGuard> }
     }
 
-    wire_enum! {
-        Membership: RuntimeDomainMembership, "RuntimeDomainMembership" {
-            1 => Scalar { subject: RuntimeScalarTerm, domain: Id },
-            2 => Structural {
-                root: Id, path: FieldPath, version: super::content_wire::PlaceVersion, domain: Id
-            },
-        }
-        Termination: TerminationPromise, "termination guarantee" {
-            0 => NoGuarantee,
-            1 => Terminates,
-        }
-        Cause: CrashCause, "CrashCause" { 1 => Trap, 2 => Abort }
-        RouteGuard: CrashRouteGuard, "CrashRouteGuard" {
-            0 => Truth,
-            1 => Predicate(predicate: CrashPredicate),
-        }
-    }
-
-    delegated_fields! {
-        RuntimeScalarTerm: semantic_vocabulary::ScalarTerm
-            => super::scalar_term_wire::encode_scalar_term,
-               super::scalar_term_wire::decode_scalar_term;
-        ProofFormals: Vec<terminal_psi::ErasedProofFormal>
-            => super::proof_term_wire::encode_proof_formals,
-               super::proof_term_wire::decode_proof_formals;
-    }
-
-    pub(crate) struct CrashPredicate;
-    impl Field<CrashPredicateTerm> for CrashPredicate {
-        fn write(writer: &mut Writer, value: &CrashPredicateTerm) -> Result<(), CodecError> {
-            encode_proposition(writer, value.proposition())
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<CrashPredicateTerm, CodecError> {
-            Ok(CrashPredicateTerm::new(decode_proposition(reader)?))
-        }
-    }
+    #[cfg(test)]
+    pub(crate) use psi_declaration_encoding::crash_routes::RouteGuard;
+    pub(crate) use psi_declaration_encoding::crash_routes::{Bucket, Cause, CrashPredicate};
 }
 
+#[cfg(test)]
 pub(crate) use psi_declaration_encoding::terms::integer as integer_math_term_wire;
 
 pub(crate) mod mathematical_certificate_wire {
@@ -903,121 +813,11 @@ pub(crate) mod mathematical_certificate_wire {
     }
 }
 
-pub(crate) mod proof_declaration_wire {
-
-    use terminal_psi::{
-        EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-        PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-        PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-        PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition,
-        TerminalIdentityIndex,
-    };
-
-    use super::CodecError;
-    use super::wire::{Reader, Writer};
-    use super::wire_fields::{
-        Field, Id, Index, List, Optional, Proposition, Text, wire_enum, wire_record,
-    };
-
-    wire_record! {
-        Declaration: PropositionDeclaration {
-            id: Id,
-            name: Text,
-            binders: List<Binder>,
-            parameter_types: List<Text>,
-            evidence: Evidence,
-        }
-        ScalarPredicate: ScalarPredicateDefinition {
-            declaration: Index,
-            parameters: List<super::machine_wire::Declaration>,
-            body: Proposition,
-        }
-        Binder: PropositionBinderDeclaration { name: Text, kind: BinderKind }
-        Application: PropositionApplicationIdentity {
-            id: Id,
-            declaration: Id,
-            binder_arguments: List<BinderArgument>,
-            arguments: List<Text>,
-            evidence_interface: Optional<Interface>,
-        }
-        Projection: EvidenceProjectionIdentity {
-            term: Id,
-            declaring_trait_identity: Index,
-            declaring_trait_arguments: List<Text>,
-            requirement_identity: Index,
-        }
-        Interface: EvidenceInterfaceIdentity {
-            trait_identity: Index,
-            arguments: List<Text>,
-            requirements: List<Requirement>,
-        }
-        Requirement: EvidenceRequirementIdentity {
-            declaring_trait_identity: Index,
-            declaring_trait_arguments: List<Text>,
-            requirement_identity: Index,
-        }
-    }
-
-    wire_enum! {
-        BinderKind: PropositionBinderKind, "PropositionBinderKind" {
-            1 => Type,
-            2 => Const { type_identity: Index },
-            3 => Machine,
-        }
-        Evidence: PropositionEvidence, "PropositionEvidence" {
-            1 => FactOnly,
-            2 => Witness { evidence_type: Text },
-        }
-        ArgumentKind: PropositionBinderArgumentKind, "PropositionBinderArgumentKind" {
-            1 => Type,
-            2 => Const,
-            3 => Machine,
-        }
-    }
-
-    pub(crate) struct BinderArgument;
-    impl Field<PropositionBinderArgumentIdentity> for BinderArgument {
-        fn write(
-            writer: &mut Writer,
-            value: &PropositionBinderArgumentIdentity,
-        ) -> Result<(), CodecError> {
-            ArgumentKind::write(writer, &value.kind)?;
-            match &value.evidence_projection {
-                None => {
-                    writer.u8(0);
-                    writer.u32(value.identity.0);
-                    Ok(())
-                }
-                Some(projection) => {
-                    writer.u8(1);
-                    Projection::write(writer, projection)
-                }
-            }
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<PropositionBinderArgumentIdentity, CodecError> {
-            let kind = ArgumentKind::read(reader)?;
-            let (identity, evidence_projection) = match reader.u8()? {
-                0 => (TerminalIdentityIndex(reader.u32()?), None),
-                1 => (
-                    TerminalIdentityIndex::ABSENT,
-                    Some(Projection::read(reader)?),
-                ),
-                tag => return Err(CodecError::InvalidTag("PropositionBinderArgument", tag)),
-            };
-            Ok(PropositionBinderArgumentIdentity {
-                kind,
-                identity,
-                evidence_projection,
-            })
-        }
-    }
-}
+pub(crate) use psi_callable_encoding::proof_declarations as proof_declaration_wire;
 
 pub(crate) mod proof_term_wire {
 
     use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
-    use terminal_psi::ErasedProofFormal;
-    use terminal_psi::TerminalIdentityIndex;
 
     use super::CodecError;
     use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
@@ -1313,35 +1113,7 @@ pub(crate) mod proof_term_wire {
         }
     }
 
-    pub(crate) fn encode_proof_formals(
-        writer: &mut Writer,
-        formals: &[ErasedProofFormal],
-    ) -> Result<(), CodecError> {
-        writer.len("erased proof formals", formals.len())?;
-        for formal in formals {
-            writer.u32(formal.source_position);
-            writer.u32(formal.type_identity.0);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_proof_formals(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<ErasedProofFormal>, CodecError> {
-        decode_counted(reader, |reader| {
-            let source_position = reader.u32()?;
-            let type_identity = TerminalIdentityIndex(reader.u32()?);
-            if type_identity.is_absent() {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "empty erased proof formal type",
-                ));
-            }
-            Ok(ErasedProofFormal {
-                source_position,
-                type_identity,
-            })
-        })
-    }
+    pub(crate) use psi_callable_encoding::contracts::{decode_proof_formals, encode_proof_formals};
 
     #[cfg(test)]
     mod mathematical_tests {

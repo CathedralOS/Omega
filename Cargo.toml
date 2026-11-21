@@ -62,6 +62,7 @@ members = [
     "source-rust/subsystems/compiler/psi/types/reflection",
     "source-rust/subsystems/compiler/psi/artifact/authorization",
     "source-rust/subsystems/compiler/psi/artifact/codec",
+    "source-rust/subsystems/compiler/psi/artifact/callable-encoding",
     "source-rust/subsystems/compiler/psi/artifact/declaration-encoding",
     "source-rust/subsystems/compiler/psi/artifact/optimization-selections",
     "source-rust/subsystems/compiler/psi/artifact/publication",

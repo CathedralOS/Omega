@@ -1752,67 +1752,22 @@ pub(crate) mod unoptimized_behavior_wire {
     }
 }
 
+pub(crate) use psi_declaration_encoding::access::inputs as access_view_wire;
 pub(crate) use psi_declaration_encoding::access::lifecycles as access_lifecycle_wire;
 pub(crate) use psi_declaration_encoding::access::views as access_view_plan_wire;
-pub(crate) mod access_view_wire {
-
-    use super::super::CodecError;
-    use super::super::wire::{Writer, decode_canonical};
-    use super::super::wire_fields::{
-        Access, Digest, Field, Flag, Id, Index, List, U32, U64, wire_record,
-    };
-    use terminal_psi::TerminalAccessViewInput;
-
-    wire_record! {
-        Input: TerminalAccessViewInput {
-            machine: Id,
-            position: U32,
-            runtime_position: U32,
-            carrier_identity: Index,
-            source_machine_identity: Index,
-            source_state_identity: Index,
-            source_parameter_identity: Index,
-            access: Access,
-            binding_is_const: Flag,
-            binding_is_mutable: Flag,
-            view_identity: Index,
-            policy_identity: Index,
-            policy_plan_machine_identity: Index,
-            schema_identity: Index,
-            placement_report_fingerprint: U64,
-            placement_commitment: Digest,
-        }
-    }
-
-    pub fn encode_access_view_input_catalog(
-        inputs: &[TerminalAccessViewInput],
-    ) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
-        writer.counted("access view inputs", inputs, Input::write)?;
-        Ok(writer.finish())
-    }
-
-    pub fn decode_access_view_input_catalog(
-        bytes: &[u8],
-    ) -> Result<Vec<TerminalAccessViewInput>, CodecError> {
-        decode_canonical(bytes, List::<Input>::read, |inputs| {
-            encode_access_view_input_catalog(inputs)
-        })
-    }
-}
 pub(crate) mod closed_conformance_wire {
+    pub(crate) use psi_callable_encoding::signatures::ResultLifetime;
 
     use super::super::wire_fields::{
-        Bytes, Commitment, DECLARED_LIFETIME_FAMILY, DeclaredLifetimeDependency, Digest, Id, Index,
-        List, Nominal, Optional, Path, ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum,
-        wire_record,
+        Bytes, Commitment, Digest, Id, Index, List, Nominal, Optional, ReachArgument, Scalar,
+        Strings, Text, U32, U64, wire_enum, wire_record,
     };
     use super::callable_wire::Callable;
     use terminal_psi::{
         ClosedConformanceApplication, ClosedConformanceCallableResult,
         ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
         ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedConformanceSchema,
-        ClosedConformanceSchemaKind, ClosedConformanceStaticApplication, DeclaredResultLifetime,
+        ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
     };
 
     wire_record! {
@@ -1856,10 +1811,6 @@ pub(crate) mod closed_conformance_wire {
             application_commitment: Optional<Digest>,
             method_arguments: List<ReachArgument>,
         }
-        ResultLifetime: DeclaredResultLifetime {
-            inputs: List<DeclaredLifetimeDependency>,
-            results: List<Path<DECLARED_LIFETIME_FAMILY>>,
-        }
         Row: ClosedConformanceRow {
             requirement_declaration: Nominal,
             declaring_trait_identity: Index,
@@ -1890,400 +1841,11 @@ pub(crate) mod closed_conformance_wire {
         }
     }
 }
+pub(crate) use psi_callable_encoding::catalogs as callable_values_wire;
+pub(crate) use psi_declaration_encoding::dispatch as dynamic_dispatch_wire;
 pub(crate) use psi_declaration_encoding::domains as declaration_wire;
-pub(crate) mod dynamic_dispatch_wire {
 
-    use super::super::CodecError;
-    use super::super::wire::{Writer, decode_canonical};
-    use super::super::wire_fields::Field;
-
-    use super::super::wire_fields::{
-        Access, CallResult, Flag, I128, Id, Ids, Index, List, Multiplicity, OptionalId, Path,
-        Scalar, U32, wire_enum, wire_record,
-    };
-    use application_identity::const_value::FiniteScalarValue;
-    use terminal_psi::{
-        TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-        TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
-        TerminalDynamicStructuralFormal, TerminalDynamicTable,
-    };
-
-    wire_record! {
-        Catalog: TerminalDynamicDispatchCatalog {
-            interfaces: List<Interface, 12>,
-            tables: List<Table, 16>,
-        }
-        Interface: TerminalDynamicInterface { id: U32, identity: Index, slots: List<Slot, 37> }
-        Slot: TerminalDynamicSlot {
-            slot: U32,
-            declaring_trait_identity: Index,
-            requirement_identity: Index,
-            family_tuple: List<FamilyScalar, 2>,
-            scalar_parameters: List<Scalar>,
-            structural_parameters: List<Formal, 18>,
-            entry_claim_paths: List<ClaimPath, 8>,
-            result: CallResult,
-            result_claim_paths: List<Path, 4>,
-            result_reference_regions: List<Region, 14>,
-        }
-        Formal: TerminalDynamicStructuralFormal {
-            position: U32,
-            structural_type: Id,
-            access: Access,
-            multiplicity: Multiplicity,
-            qualifications: Ids,
-        }
-        ClaimPath: TerminalDynamicClaimPath { argument_index: U32, path: Path }
-        Region: TerminalDynamicReferenceRegion {
-            path: Path,
-            origin: Origin,
-            source_path: Path,
-            access: Access,
-        }
-        Table: TerminalDynamicTable {
-            id: U32,
-            interface: U32,
-            implementation_identity: Index,
-            rows: List<OptionalId>,
-        }
-    }
-
-    wire_enum! {
-        FamilyScalar: FiniteScalarValue, "finite family scalar value" {
-            1 => Integer(value: I128),
-            2 => Boolean(value: Flag),
-        }
-        Origin: TerminalDynamicReferenceOrigin, "TerminalDynamicReferenceOrigin" {
-            1 => Parameter { argument_index: U32 },
-            2 => Invocation { carrier_type: Id },
-        }
-    }
-
-    /// Encode the catalog with the same fields used inside a semantic module.
-    pub fn encode_dynamic_dispatch_catalog(
-        catalog: &TerminalDynamicDispatchCatalog,
-    ) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
-        Catalog::write(&mut writer, catalog)?;
-        Ok(writer.finish())
-    }
-
-    pub fn decode_dynamic_dispatch_catalog(
-        bytes: &[u8],
-    ) -> Result<TerminalDynamicDispatchCatalog, CodecError> {
-        decode_canonical(bytes, Catalog::read, encode_dynamic_dispatch_catalog)
-    }
-
-    pub(crate) fn encode_reference_regions(
-        writer: &mut super::super::wire::Writer,
-        value: &Vec<TerminalDynamicReferenceRegion>,
-    ) -> Result<(), super::super::CodecError> {
-        <List<Region> as super::super::wire_fields::Field<_>>::write(writer, value)
-    }
-
-    pub(crate) fn decode_reference_regions(
-        reader: &mut super::super::wire::Reader<'_>,
-    ) -> Result<Vec<TerminalDynamicReferenceRegion>, super::super::CodecError> {
-        <List<Region> as super::super::wire_fields::Field<_>>::read(reader)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::wire::{Reader, Writer};
-        use crate::wire_fields::Field;
-
-        #[test]
-        fn standalone_dispatch_catalog_uses_the_module_fields_exactly() {
-            let catalog = TerminalDynamicDispatchCatalog {
-                interfaces: vec![TerminalDynamicInterface {
-                    id: 0,
-                    identity: terminal_psi::TerminalIdentityIndex(2),
-                    slots: Vec::new(),
-                }],
-                tables: vec![TerminalDynamicTable {
-                    id: 0,
-                    interface: 0,
-                    implementation_identity: terminal_psi::TerminalIdentityIndex(3),
-                    rows: Vec::new(),
-                }],
-            };
-            let mut writer = Writer::default();
-            Catalog::write(&mut writer, &catalog).unwrap();
-            let bytes = writer.finish();
-            assert_eq!(encode_dynamic_dispatch_catalog(&catalog).unwrap(), bytes);
-            assert_eq!(decode_dynamic_dispatch_catalog(&bytes).unwrap(), catalog);
-            for prefix in 0..bytes.len() {
-                assert!(decode_dynamic_dispatch_catalog(&bytes[..prefix]).is_err());
-            }
-            let mut trailing = bytes;
-            trailing.push(0);
-            assert!(matches!(
-                decode_dynamic_dispatch_catalog(&trailing),
-                Err(CodecError::TrailingBytes(1))
-            ));
-        }
-
-        #[test]
-        fn standalone_dispatch_catalog_refuses_a_symbolic_scalar_width() {
-            use semantic_vocabulary::{
-                IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
-            };
-            let catalog = TerminalDynamicDispatchCatalog {
-                interfaces: vec![TerminalDynamicInterface {
-                    id: 0,
-                    identity: terminal_psi::TerminalIdentityIndex(2),
-                    slots: vec![TerminalDynamicSlot {
-                        slot: 0,
-                        declaring_trait_identity: terminal_psi::TerminalIdentityIndex(3),
-                        requirement_identity: terminal_psi::TerminalIdentityIndex(4),
-                        family_tuple: Vec::new(),
-                        scalar_parameters: vec![ScalarType::Integer(IntegerType::parameterized(
-                            IntegerSign::Unsigned,
-                            WidthParameter {
-                                owner: MachineId::new(1).unwrap(),
-                                value: ValueId::new(2).unwrap(),
-                            },
-                        ))],
-                        structural_parameters: Vec::new(),
-                        entry_claim_paths: Vec::new(),
-                        result: terminal_psi::BoundaryMachineResult::Unit,
-                        result_claim_paths: Vec::new(),
-                        result_reference_regions: Vec::new(),
-                    }],
-                }],
-                tables: Vec::new(),
-            };
-            assert!(matches!(
-                encode_dynamic_dispatch_catalog(&catalog),
-                Err(CodecError::IntegerWidthClosure(_))
-            ));
-        }
-
-        #[test]
-        fn finite_family_scalar_wire_preserves_values_and_rejects_bad_tags() {
-            let values = vec![
-                FiniteScalarValue::Integer(i128::MIN),
-                FiniteScalarValue::Integer(i128::MAX),
-                FiniteScalarValue::Boolean(false),
-                FiniteScalarValue::Boolean(true),
-            ];
-            let mut writer = Writer::default();
-            <List<FamilyScalar> as Field<_>>::write(&mut writer, &values).unwrap();
-            let bytes = writer.finish();
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(
-                <List<FamilyScalar> as Field<_>>::read(&mut reader).unwrap(),
-                values
-            );
-            assert_eq!(reader.remaining(), 0);
-            for bytes in [&[3][..], &[2, 2][..], &[1, 0][..]] {
-                assert!(FamilyScalar::read(&mut Reader::new(bytes)).is_err());
-            }
-        }
-    }
-}
-pub(crate) mod callable_values_wire {
-    use super::super::CodecError;
-    use super::super::contract_wire::Contract as ProofContract;
-    use super::super::machine_wire::{Declaration, MachineResult};
-    use super::super::proof_declaration_wire::{
-        Application as EvidenceApplication, Declaration as EvidenceDeclaration,
-    };
-    use super::super::structural_signature_wire::{ParameterKind, StructuralParameter};
-    use super::super::wire::{Writer, decode_canonical};
-    use super::super::wire_fields::Field;
-    use super::super::wire_fields::{
-        CallResult, Flag, Id, Ids, Index, List, Optional, Path, U32, wire_enum, wire_record,
-    };
-    use super::dynamic_dispatch_wire::{ClaimPath, Region};
-    use super::evidence_wire::{LaneKind, Subject, Term};
-    use terminal_psi::{
-        TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
-        TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
-        TerminalCallableTermination, TerminalCallableTerminationPremise,
-        TerminalDeclarationEnvelope, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
-        TerminalMachineEnvelope,
-    };
-
-    wire_record! {
-        Catalog: TerminalCallableCatalog {
-            contracts: List<Contract, 54>,
-            descriptors: List<Descriptor, 38>,
-            machine_envelopes: List<Optional<NamedEnvelope>>,
-            boundary_envelopes: List<Optional<BoundaryEnvelope>>,
-            declaration_envelopes: List<DeclarationEnvelope, 19>,
-        }
-        Contract: TerminalCallableContract {
-            id: Id,
-            identity: Index,
-            scalar_parameters: List<Declaration, 17>,
-            parameter_order: List<ParameterKind>,
-            structural_parameters: List<StructuralParameter, 34>,
-            result: CallResult,
-            proof_result: MachineResult,
-            entry_claim_paths: List<ClaimPath, 8>,
-            result_claim_paths: List<Path, 4>,
-            result_reference_regions: List<Region, 14>,
-            proof: ProofContract,
-            evidence_contract: List<EvidenceLane>,
-            envelope: Envelope,
-        }
-        EvidenceLane: TerminalCallableEvidenceLane {
-            kind: LaneKind,
-            position: U32,
-            declaration: EvidenceDeclaration,
-            application: EvidenceApplication,
-            term: Term,
-            argument_subjects: List<Subject>,
-        }
-        Descriptor: TerminalMachineDescriptor {
-            id: Id,
-            contract: Id,
-            machine: Id,
-            origin: Origin,
-            refinement_obligations: Ids,
-            refinement_evidence: List<crate::obligation_evidence::Certificate>,
-        }
-        Origin: TerminalMachineDescriptorOrigin {
-            application: Index,
-            conformance: Optional<Index>,
-            requirement: Optional<Index>,
-        }
-        NamedEnvelope: TerminalMachineEnvelope { machine: Id, envelope: Envelope }
-        BoundaryEnvelope: TerminalBoundaryEnvelope { boundary: Id, envelope: Envelope }
-        DeclarationEnvelope: TerminalDeclarationEnvelope { contract: Id, envelope: Envelope }
-        Envelope: TerminalCallableEnvelope {
-            service_reach: Ids,
-            invocations: List<Invocation, 5>,
-            suspends: Flag,
-            blocks: Flag,
-            termination: Termination,
-        }
-        Premise: TerminalCallableTerminationPremise { parameter: U32, path: Path, domain: Id }
-    }
-
-    wire_enum! {
-        Invocation: TerminalCallableInvocation, "TerminalCallableInvocation" {
-            1 => Parameter(parameter: U32),
-            2 => Service(service: Id),
-        }
-        Termination: TerminalCallableTermination, "TerminalCallableTermination" {
-            0 => NotGuaranteed,
-            1 => Terminates { premises: List<Premise, 16> },
-        }
-    }
-
-    /// Encode the complete callable contracts, selections and envelopes using
-    /// their semantic-module field definitions, without an enclosing module.
-    pub fn encode_callable_catalog(
-        catalog: &TerminalCallableCatalog,
-    ) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
-        Catalog::write(&mut writer, catalog)?;
-        Ok(writer.finish())
-    }
-
-    pub fn decode_callable_catalog(bytes: &[u8]) -> Result<TerminalCallableCatalog, CodecError> {
-        decode_canonical(bytes, Catalog::read, encode_callable_catalog)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::wire_fields::{
-            Field,
-            wire::{Reader, Writer},
-        };
-        use semantic_vocabulary::{ContractId, ServiceId};
-
-        #[test]
-        fn declaration_envelopes_keep_parameter_invocations_and_exact_contract_ids() {
-            let catalog = TerminalCallableCatalog {
-                declaration_envelopes: vec![TerminalDeclarationEnvelope {
-                    contract: ContractId::new(7).unwrap(),
-                    envelope: TerminalCallableEnvelope {
-                        service_reach: vec![ServiceId::new(1).unwrap()],
-                        invocations: vec![TerminalCallableInvocation::Parameter(2)],
-                        suspends: false,
-                        blocks: true,
-                        termination: TerminalCallableTermination::NotGuaranteed,
-                    },
-                }],
-                ..Default::default()
-            };
-            let mut writer = Writer::default();
-            Catalog::write(&mut writer, &catalog).unwrap();
-            let bytes = writer.finish();
-            assert_eq!(encode_callable_catalog(&catalog).unwrap(), bytes);
-            assert_eq!(decode_callable_catalog(&bytes).unwrap(), catalog);
-            let mut trailing = bytes.clone();
-            trailing.push(0);
-            assert!(matches!(
-                decode_callable_catalog(&trailing),
-                Err(CodecError::TrailingBytes(1))
-            ));
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(Catalog::read(&mut reader).unwrap(), catalog);
-            assert_eq!(reader.remaining(), 0);
-            let mut duplicate = catalog.clone();
-            duplicate
-                .declaration_envelopes
-                .push(catalog.declaration_envelopes[0].clone());
-            assert!(
-                duplicate
-                    .declaration_envelope(ContractId::new(7).unwrap())
-                    .is_none()
-            );
-            assert!(
-                catalog
-                    .declaration_envelope(ContractId::new(8).unwrap())
-                    .is_none()
-            );
-        }
-    }
-}
-
-pub(crate) mod evidence_wire {
-
-    use super::super::wire_fields::{
-        ArgumentSubstitution, EvidenceInterface, Id, List, Optional, Text, U32, wire_enum,
-        wire_record,
-    };
-    use terminal_psi::{
-        EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane,
-        EvidenceContractLaneKind, EvidenceTermDeclaration,
-    };
-
-    wire_record! {
-        Term: EvidenceTermDeclaration { id: Id, proposition: Id, interface: EvidenceInterface }
-        Lane: EvidenceContractLane {
-            owner: CallableOwner,
-            kind: LaneKind,
-            position: U32,
-            term: Id,
-            output_field: Optional<Text>,
-            argument_subjects: List<Subject>,
-        }
-    }
-
-    wire_enum! {
-        CallableOwner: EvidenceCallableOwner, "EvidenceCallableOwner" {
-            1 => Machine(machine: Id),
-            2 => Runtime(contract: Id),
-        }
-        LaneKind: EvidenceContractLaneKind, "EvidenceContractLaneKind" {
-            1 => Requires,
-            2 => Ensures,
-        }
-        Subject: EvidenceArgumentSubject, "EvidenceArgumentSubject" {
-            1 => Parameter(parameter: ArgumentSubstitution),
-            2 => Result { argument_position: U32 },
-            3 => Closed { argument_position: U32 },
-            4 => Unknown { argument_position: U32 },
-        }
-    }
-}
+pub(crate) use psi_callable_encoding::evidence as evidence_wire;
 pub(crate) use psi_declaration_encoding::terms::float_meaning as float_meaning_wire;
 pub(crate) mod folded_constant_wire {
     use super::super::wire_fields::{
@@ -2449,14 +2011,14 @@ pub(crate) mod operation_crash_contract_wire {
     }
 }
 pub(crate) mod proof_output_wire {
+    pub(crate) use psi_callable_encoding::signatures::Dispatch;
 
     use super::super::wire_fields::{
-        Commitment, Id, Index, InvocationSite, List, Optional, Scalar, Text, U32, U64, wire_enum,
-        wire_record,
+        Id, Index, InvocationSite, List, Optional, Scalar, Text, U32, wire_enum, wire_record,
     };
     use terminal_psi::{
         EvidenceCallableTarget, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
-        ProofOutputRuntimeCall, ProofOutputRuntimeResult, StaticRequirementDispatch,
+        ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     };
 
     wire_record! {
@@ -2469,16 +2031,6 @@ pub(crate) mod proof_output_wire {
             runtime_call: Optional<RuntimeCall>,
             evidence_arguments: List<EvidenceArgument>,
             outputs: List<Output>,
-        }
-        Dispatch: StaticRequirementDispatch {
-            conformance_application_report_fingerprint: U64,
-            conformance_application_commitment: Commitment,
-            public_requirement_identity: Index,
-            declaring_trait_identity: Index,
-            requirement_identity: Index,
-            realization_identity: Index,
-            realization_callable_identity: Index,
-            realization: Id,
         }
         RuntimeCall: ProofOutputRuntimeCall { site: InvocationSite, target: CallableTarget }
         EvidenceArgument: ProofOutputEvidenceArgument {

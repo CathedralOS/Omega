@@ -16,16 +16,14 @@ use super::wire::{Reader, Writer, decode_counted, decode_optional_id, encode_opt
 pub(crate) use psi_declaration_encoding::fields::*;
 pub(crate) use psi_declaration_encoding::wire;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue,
-    ProofTerm, ScalarTerm,
+    IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue, ProofTerm, ScalarTerm,
 };
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequencePredicate, ClaimTransfer, CompletionReceipt, ElementViewRegion,
-    OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEvidenceUse, RecordFieldInitializer, RecordFieldValue, ResidentReferenceSource,
-    ScalarCaseField, StructuralArgument, StructuralPathQualification, StructuralPathSegment,
+    OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEvidenceUse, RecordFieldInitializer,
+    RecordFieldValue, ResidentReferenceSource, ScalarCaseField, StructuralArgument,
     StructuralReferentIdentity, StructuralResultClaimBinding,
 };
 
@@ -45,32 +43,7 @@ impl Field<StructuralArgument> for Argument {
     }
 }
 
-pub(crate) struct FieldPath;
-impl Field<Vec<CanonicalStructuralPathSegment>> for FieldPath {
-    fn write(
-        writer: &mut Writer,
-        value: &Vec<CanonicalStructuralPathSegment>,
-    ) -> Result<(), CodecError> {
-        super::structural_field_wire::encode_canonical_structural_path(
-            writer,
-            value,
-            "scalar field carrier path",
-        )
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<CanonicalStructuralPathSegment>, CodecError> {
-        decode_counted(reader, |reader| match reader.u8()? {
-            1 => Ok(CanonicalStructuralPathSegment::Field(
-                reader.id("StructuralFieldId")?,
-            )),
-            2 => Ok(CanonicalStructuralPathSegment::FixedIndex(reader.u64()?)),
-            3 => Ok(CanonicalStructuralPathSegment::Case(
-                reader.id("StructuralCaseId")?,
-            )),
-            4 => Ok(CanonicalStructuralPathSegment::Referent),
-            tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
-        })
-    }
-}
+pub(crate) use psi_declaration_encoding::structural_fields::FieldPath;
 
 pub(crate) struct Integer;
 impl Field<IntegerValue> for Integer {
@@ -290,20 +263,6 @@ impl Field<Vec<RecordFieldInitializer>> for RecordFields {
     }
 }
 
-macro_rules! delegated_fields {
-    ($($marker:ident: $ty:ty => $encode:path, $decode:path;)*) => {$(
-        pub(crate) struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
-                $encode(writer, value)
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
-                $decode(reader)
-            }
-        }
-    )*};
-}
-pub(crate) use delegated_fields;
 delegated_fields! {
     Arguments: Vec<StructuralArgument> => encode_structural_arguments, decode_structural_arguments;
     ScalarTerms: Vec<ScalarTerm> => encode_scalar_terms, decode_scalar_terms;
@@ -380,137 +339,9 @@ wire_record! {
 }
 pub(crate) type SelectedEvidence = List<SelectedEvidenceRow>;
 
-macro_rules! copied_fields {
-    ($($marker:ident: $ty:ty => $encode:path, $decode:path;)*) => {$(
-        pub(crate) struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
-                $encode(writer, *value);
-                Ok(())
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
-                $decode(reader)
-            }
-        }
-    )*};
-}
-copied_fields! {
-    Access: terminal_psi::StructuralAccess => encode_structural_access, decode_structural_access;
-    Multiplicity: terminal_psi::StructuralMultiplicity
-        => super::structural_result_wire::encode_multiplicity,
-           super::structural_result_wire::decode_multiplicity;
-}
-
-pub(crate) struct Scalar;
-impl Field<semantic_vocabulary::ScalarType> for Scalar {
-    fn write(
-        writer: &mut Writer,
-        value: &semantic_vocabulary::ScalarType,
-    ) -> Result<(), CodecError> {
-        super::scalar_wire::encode_scalar_type(writer, *value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::ScalarType, CodecError> {
-        super::scalar_wire::decode_scalar_type(reader)
-    }
-}
-
-delegated_fields! {
-    CallResult: terminal_psi::BoundaryMachineResult
-        => super::structural_signature_wire::encode_call_result,
-           super::structural_signature_wire::decode_call_result;
-}
-
-pub(crate) struct DeclaredLifetimeDependency;
-impl Field<terminal_psi::BoundaryLifetimeDependency> for DeclaredLifetimeDependency {
-    fn write(
-        writer: &mut Writer,
-        value: &terminal_psi::BoundaryLifetimeDependency,
-    ) -> Result<(), CodecError> {
-        super::structural_signature_wire::reference_outputs::encode_dependency(
-            writer,
-            value,
-            super::structural_place_wire::encode_declared_lifetime_path,
-        )
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<terminal_psi::BoundaryLifetimeDependency, CodecError> {
-        super::structural_signature_wire::reference_outputs::decode_dependency(
-            reader,
-            super::structural_place_wire::decode_declared_lifetime_path,
-        )
-    }
-}
-
 pub(crate) type EvidenceInterface = super::proof_declaration_wire::Interface;
 
-pub(crate) struct Commitment;
-impl Field<terminal_psi::ClosedConformanceApplicationCommitment> for Commitment {
-    fn write(
-        writer: &mut Writer,
-        value: &terminal_psi::ClosedConformanceApplicationCommitment,
-    ) -> Result<(), CodecError> {
-        writer.bytes(&value.as_bytes());
-        Ok(())
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<terminal_psi::ClosedConformanceApplicationCommitment, CodecError> {
-        Ok(terminal_psi::ClosedConformanceApplicationCommitment::from_digest(reader.array()?))
-    }
-}
-
-pub(crate) struct InvocationSite;
-impl Field<semantic_vocabulary::InvocationSite> for InvocationSite {
-    fn write(
-        writer: &mut Writer,
-        value: &semantic_vocabulary::InvocationSite,
-    ) -> Result<(), CodecError> {
-        use semantic_vocabulary::InvocationSite as Site;
-
-        let (tag, identity, action_ordinal) = match *value {
-            Site::Operation(operation) => (0, operation.get(), None),
-            Site::ExternalCompletion(edge) => (1, edge.get(), None),
-            Site::InvokeNoNormal(edge) => (2, edge.get(), None),
-            Site::Cleanup {
-                edge,
-                action_ordinal,
-            } => (3, edge.get(), Some(action_ordinal)),
-        };
-        writer.u8(tag);
-        writer.u64(identity);
-        if let Some(action_ordinal) = action_ordinal {
-            writer.u32(action_ordinal);
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::InvocationSite, CodecError> {
-        use semantic_vocabulary::InvocationSite as Site;
-
-        let tag = reader.u8()?;
-        let identity = reader.u64()?;
-        if tag == 3 {
-            let edge = semantic_vocabulary::EdgeId::new(identity).ok_or(
-                CodecError::MalformedStructuralFoundation("invalid cleanup invocation edge"),
-            )?;
-            return Ok(Site::Cleanup {
-                edge,
-                action_ordinal: reader.u32()?,
-            });
-        }
-        Site::from_tagged_identity(tag, identity).ok_or(CodecError::MalformedStructuralFoundation(
-            "invalid invocation identity",
-        ))
-    }
-}
-
-wire_record! {
-    ArgumentSubstitution: OutcomeSpecificCallArgumentSubstitution {
-        argument_position: U32,
-        parameter_position: U32,
-        structural_path: Optional<Path>,
-    }
-}
+pub(crate) use psi_callable_encoding::signatures::{ArgumentSubstitution, Commitment};
 
 pub(crate) struct ReachArgument;
 impl Field<terminal_psi::ClosedReachArgument> for ReachArgument {
@@ -526,24 +357,7 @@ impl Field<terminal_psi::ClosedReachArgument> for ReachArgument {
     }
 }
 
-pub(crate) struct QualificationPath;
-impl Field<Vec<StructuralPathSegment>> for QualificationPath {
-    fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {
-        super::structural_place_wire::encode_qualification_path(writer, value)
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        super::structural_place_wire::decode_qualification_path(reader)
-    }
-}
-
-delegated_fields! {
-    MachineDeclaration: terminal_psi::CheckedMachineDeclaration
-        => super::machine_declaration_wire::encode, super::machine_declaration_wire::decode;
-}
-
-wire_record! {
-    PathQualification: StructuralPathQualification { path: QualificationPath, domain: Id }
-}
+pub(crate) use psi_callable_encoding::contracts::MachineDeclaration;
 
 delegated_fields! {
     StructuralType: terminal_psi::StructuralTypeDeclaration
@@ -553,24 +367,6 @@ delegated_fields! {
 
 wire_record! {
     Referent: StructuralReferentIdentity { id: Id, identity: Index, foreign_descriptor: Flag, abstract_opaque: Flag }
-}
-
-pub(crate) struct QualificationSet;
-impl Field<semantic_vocabulary::ScalarQualificationSetId> for QualificationSet {
-    fn write(
-        writer: &mut Writer,
-        value: &semantic_vocabulary::ScalarQualificationSetId,
-    ) -> Result<(), CodecError> {
-        writer.u64(value.get());
-        Ok(())
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<semantic_vocabulary::ScalarQualificationSetId, CodecError> {
-        Ok(semantic_vocabulary::ScalarQualificationSetId::new(
-            reader.u64()?,
-        ))
-    }
 }
 
 pub(crate) type CrashRoutes = List<super::contract_wire::Bucket>;

@@ -242,7 +242,7 @@ pub fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
         bytes,
         call.requirement_obligations.iter().map(|value| value.get()),
     );
-    let crashes = terminal_wire::encode_crash_route_buckets(&call.crash_continuations)
+    let crashes = psi_declaration_encoding::crash_routes::encode_crash_route_buckets(&call.crash_continuations)
         .expect("canonical call crash continuations");
     encode_len(bytes, crashes.len());
     bytes.extend_from_slice(&crashes);

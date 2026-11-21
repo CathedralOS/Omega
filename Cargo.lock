@@ -2391,11 +2391,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-callable-encoding"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "psi-declaration-encoding",
+ "psi-effect-contracts",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
 name = "psi-declaration-encoding"
 version = "0.1.0"
 dependencies = [
  "access-admission",
  "access-vocabulary",
+ "application-identity",
  "arena",
  "layout-plans",
  "numerics",
@@ -3570,12 +3582,13 @@ dependencies = [
  "operation-operands",
  "optimization-core",
  "provider-stack-contribution",
+ "psi-callable-encoding",
+ "psi-declaration-encoding",
  "runtime-abi",
  "semantic-vocabulary",
  "structural-storage",
  "target",
  "terminal-psi",
- "terminal-wire",
  "wire",
 ]
 
@@ -3771,6 +3784,7 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-applications",
+ "psi-callable-encoding",
  "psi-declaration-encoding",
  "psi-effect-contracts",
  "semantic-vocabulary",
