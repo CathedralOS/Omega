@@ -752,6 +752,17 @@ fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
     };
     assert_eq!(at_byte, again, "one application, one machine");
     assert_ne!(at_byte, at_boolean);
+    let instances = program
+        .machine_specializations
+        .iter()
+        .filter(|row| row.template == relay.machine)
+        .map(|row| row.instance)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        instances,
+        [at_byte, at_boolean].map(|state| program.symbols.get(state).parent),
+        "the program publishes specializations in first-use order"
+    );
 
     for (state, applied) in [(at_byte, byte), (at_boolean, boolean)] {
         // The derivation names the generic machine's own state.
@@ -1866,9 +1877,8 @@ fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
 #[test]
 fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
     // Applications of three unrelated templates arrive interleaved and out of
-    // key order. Each distinct (template, arguments) key gets one row, rows
-    // keep encounter order, and an equal key from another template or with
-    // another argument kind is a different application.
+    // key order. A repeat must return the machine and state assigned when
+    // that exact application was first requested.
     use super::{Generated, GeneratedMachines, Identity};
     let templates = [3, 1, 2].map(|slot| SymbolHandle::from_parts(slot, 1));
     let arguments = |n: u32| -> Vec<Identity> {
@@ -1890,27 +1900,23 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         .collect::<Vec<_>>();
     let mut generated = GeneratedMachines::default();
     for (order, &(template, n)) in requests.iter().enumerate() {
-        let key = arguments(n);
-        let slot = generated
-            .search(template, &key)
-            .expect_err("a first request is not yet generated");
-        let made = generated.insert(
-            slot,
-            Generated {
-                template,
-                arguments: key.clone(),
-                machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
-                state: SymbolHandle::from_parts(20_000 + order as u32, 1),
-            },
-        );
-        assert!(made.arguments == key);
+        generated
+            .get_or_generate(template, arguments(n), || {
+                Ok(Generated {
+                    machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
+                    state: SymbolHandle::from_parts(20_000 + order as u32, 1),
+                })
+            })
+            .unwrap();
     }
     for (order, &(template, n)) in requests.iter().enumerate() {
-        let row = generated
-            .search(template, &arguments(n))
-            .expect("a repeated request finds its machine");
-        assert_eq!(row, order, "rows keep the order applications were met");
-        assert_eq!(generated.rows[row].template, template);
+        let made = generated
+            .get_or_generate(template, arguments(n), || {
+                panic!("an equal application tried to generate a second machine")
+            })
+            .unwrap();
+        assert_eq!(made.machine, SymbolHandle::from_parts(10_000 + order as u32, 1));
+        assert_eq!(made.state, SymbolHandle::from_parts(20_000 + order as u32, 1));
     }
     // Same payload, different template, generation or argument kind: unseen.
     let unseen = [
@@ -1923,7 +1929,8 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         (templates[0], Vec::new()),
     ];
     for (template, key) in unseen {
-        assert!(generated.search(template, &key).is_err());
+        let result = generated.get_or_generate(template, key, || Err(super::unserved("unseen")));
+        assert!(matches!(result, Err(super::Stop::Unserved(message)) if message == "unseen"));
     }
 }
 
@@ -2790,7 +2797,7 @@ fn applied_callbacks_with_nested_open_types_wait_for_the_enclosing_application()
         .unwrap()
     );
     assert!(callback.application.is_some());
-    assert!(generated.rows.is_empty());
+    assert!(generated.applications.is_empty());
 }
 
 #[test]
@@ -3067,7 +3074,7 @@ fn constructed_type_arguments_keep_their_supplying_binders_open() {
             ),
             "a constructed type keeps its enclosing binder instead of generating an open body"
         );
-        assert!(generated.rows.is_empty());
+        assert!(generated.applications.is_empty());
         let bindings = program
             .expression_table
             .static_machine_application_bindings(application);
