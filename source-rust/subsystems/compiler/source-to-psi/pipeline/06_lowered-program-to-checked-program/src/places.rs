@@ -1199,9 +1199,7 @@ impl<'a> Storage<'a> {
                 // A read through a provider's shared reference yields a fresh scalar.
                 // Its public permission identifies no address for a later read to observe.
                 if let Some(at) = storage.descriptor_position((block.id, before))
-                    && storage
-                        .provider_referent(references, &leaf, at, concerns)?
-                        .is_some()
+                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
                 {
                     continue;
                 }
@@ -8384,6 +8382,114 @@ mod observation_tests {
     }
 
     #[test]
+    fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
+        let input = storage_fixture(
+            "machine entry(cells: @mut [u64; 4], index: u64) -> u64 requires index < 4 {
+                cells[1] = 5;
+                cells[index] = 7;
+                cells[2]
+            }",
+        );
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                !machine.structural_parameters.is_empty()
+                    && machine.operations().any(|operation| {
+                        operation
+                            .kind
+                            .structural_projections()
+                            .iter()
+                            .any(|projection| {
+                                projection
+                                    .path
+                                    .iter()
+                                    .any(|step| step.runtime_index().is_some())
+                            })
+                    })
+            })
+            .expect("the array writer");
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let descriptors = reference_graph(module, machine.id).unwrap();
+        let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.types.structural_types,
+            &descriptors,
+        );
+        let mut storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &mut references,
+        )
+        .unwrap();
+
+        let array = Lineage {
+            root: machine.structural_parameters[0].place,
+            segments: Vec::new(),
+        };
+        let stores: Vec<_> = storage
+            .log
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                (row.destination.root == array.root
+                    && row.destination.segments.len() == 1
+                    && matches!(row.stored, Stored::Value(_)))
+                .then_some(index)
+            })
+            .collect();
+        let [first, second] = stores.as_slice() else {
+            panic!("expected both indexed stores")
+        };
+        let point = ProgramPoint::AfterOperation(storage.log[*second].operation);
+        fn available<'a>(
+            storage: &Storage<'a>,
+            references: &mut DescriptorAnalysis<'a>,
+            tables: &MachineTables,
+            array: &Lineage,
+            point: ProgramPoint,
+        ) -> Checked<()> {
+            let at = storage.graph.locate(point).unwrap();
+            storage
+                .judged(
+                    references,
+                    tables,
+                    std::slice::from_ref(array),
+                    &[],
+                    at,
+                    point,
+                    Construct::Machine,
+                )
+                .unwrap()
+        }
+        assert!(available(&storage, &mut references, tables, &array, point).is_ok());
+
+        // One cell is moved out. A write through another evaluated index
+        // cannot re-establish all cells of the array unless it names that cell.
+        let moved = Lineage {
+            root: array.root,
+            segments: vec![Segment::FixedIndex(1)],
+        };
+        storage.log[*first].backing = Backing::direct(moved.clone());
+        storage.log[*first].destination = moved.clone();
+        storage.log[*first].stored = Stored::Vacated;
+        let refused = available(&storage, &mut references, tables, &array, point).unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unestablished);
+
+        // Exact restoration can succeed via the ordinary per-element walk.
+        storage.log[*second].backing = Backing::direct(moved.clone());
+        storage.log[*second].destination = moved;
+        assert!(available(&storage, &mut references, tables, &array, point).is_ok());
+    }
+
+    #[test]
     fn indexed_store_correspondence_expires_with_its_selector_entry() {
         let source = r#"
 data Placement requires count <= 16 { count: u64; }
@@ -8556,9 +8662,9 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
 
     #[test]
     fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
-        let input = storage_fixture(include_str!(
-            "../tests/fixtures/ownership/run/recaptured_index/main.omg"
-        ));
+        let input = storage_fixture(
+            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
+        );
         let module = &input.module;
         let mut compared = false;
         for machine in &module.machines {
