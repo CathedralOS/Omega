@@ -10,14 +10,13 @@ mod physical_publication_tests;
 #[path = "verification/stage_validators.rs"]
 pub mod stage_validators;
 
-pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
-pub use provider_realization::published_application::NativeApplicationSettings;
-pub use native_artifact::AdmittedRuntimeProgram;
 pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
-    SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
-    prepare_source_program,
+    SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
 };
+pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
+pub use native_artifact::AdmittedRuntimeProgram;
+pub use provider_realization::published_application::NativeApplicationSettings;
 
 use diagnostics::Diagnostic;
 use provider_admission::current_terminal_authority_policy;

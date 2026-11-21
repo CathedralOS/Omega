@@ -600,7 +600,13 @@ fn check_callback_publication(retain_body_source: bool) {
             .find(|(_, row)| row.symbol_handle == symbol)
             .expect("the body materializes its callback address");
         let mut redirected = sections.relocations.clone();
-        let registrar = sections.object.layout.normalized_imports.iter().next().unwrap().symbol;
+        let registrar = sections
+            .object
+            .layout
+            .normalized_imports
+            .first()
+            .unwrap()
+            .symbol;
         redirected.record_set.records.get_mut(field).symbol_handle = registrar;
         assert!(matches!(inspect(&redirected), Err(object_file::body_object::Error::Mismatch(
             "fragment import callback relocation differs"

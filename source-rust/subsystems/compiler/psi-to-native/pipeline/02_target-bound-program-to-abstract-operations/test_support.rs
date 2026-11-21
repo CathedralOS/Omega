@@ -1,12 +1,12 @@
 //! Direct lowering of controlled fixtures without a published deployment selection.
-pub use crate::admit_providers::prepare_native_providers;
-pub use crate::selected_execution::lower_native_execution;
-pub use crate::selected_input::NativeExecutionSelection;
 use super::admit_providers::artifact_lowering_error;
 use super::{
     AdmittedNativeRealization, ArtifactLoweringError, NativeAdmissionRequest,
     VerifiedNativeArtifactInput, admit_prepared_native_realization,
 };
+pub use crate::admit_providers::prepare_native_providers;
+pub use crate::selected_execution::lower_native_execution;
+pub use crate::selected_input::NativeExecutionSelection;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
 use verified_optimization_input::VerifiedPsiOptimizationInput;

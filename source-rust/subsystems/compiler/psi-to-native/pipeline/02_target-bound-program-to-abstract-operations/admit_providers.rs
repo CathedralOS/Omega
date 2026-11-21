@@ -92,8 +92,12 @@ pub fn lower_native_root<'input>(
     ),
     Vec<Diagnostic>,
 > {
-    let root =
-        crate::selected_execution::lower_native_execution(proposal, inputs.execution, private_entry_ram, scalars)?;
+    let root = crate::selected_execution::lower_native_execution(
+        proposal,
+        inputs.execution,
+        private_entry_ram,
+        scalars,
+    )?;
     let providers = prepare_native_providers(proposal, inputs)?;
     Ok((root, providers))
 }
