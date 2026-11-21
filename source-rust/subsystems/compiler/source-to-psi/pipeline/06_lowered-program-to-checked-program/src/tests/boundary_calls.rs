@@ -761,7 +761,12 @@ machine entry(three: @[u8; 3], four: @[u8; 4]) -> u64 {
     let [three, four, explicit_three, marker] = calls.as_slice() else {
         panic!("expected the three array applications and the u32 marker");
     };
-    let operand = |call: &(_, _)| program.static_machine_application_arguments(call.1)[0].clone();
+    let operand = |call: &(_, _)| {
+        program
+            .expression_table
+            .static_machine_application_arguments(call.1)[0]
+            .clone()
+    };
     let matching = operand(explicit_three);
     let wrong_value = operand(four);
     let wrong_carrier = operand(marker);
@@ -784,7 +789,9 @@ machine entry(three: @[u8; 3], four: @[u8; 4]) -> u64 {
         }
     }
     // Sharing the same wrong carrier in both stored rows cannot satisfy u64.
-    let narrow_binding = program.static_machine_application_bindings(marker.1)[0]
+    let narrow_binding = program
+        .expression_table
+        .static_machine_application_bindings(marker.1)[0]
         .value
         .clone();
     program
