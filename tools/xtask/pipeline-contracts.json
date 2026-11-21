@@ -18199,27 +18199,27 @@
     {
       "consumers": [
         "source permission policy capture",
-        "source driver target publication",
+        "source driver target provider publication",
         "native stage 00 provider demand admission"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourceProviderFacts < SourceProviderDemand >::implementation#1",
       "kind": "definition",
-      "meaning": "Authenticate source-owned provider demand for pre-publication permission review and bind issued demand to the completed target publication.",
+      "meaning": "Authenticate provider demand against its source judgment before permission review or publication for a target.",
       "producer": "stage 07 source provider closure",
-      "signature": "f239364231b63e9524ddce5761811cdb11936c9c43e0a45f83f9fa37fcd19a0d"
+      "signature": "bdfe04626e8e767bcf47ef9c7a6713a3eae27e03171aab6ad6fd0d1848cfbfbc"
     },
     {
       "consumers": [
-        "source driver target publication",
+        "source driver target provider publication",
         "native stage 00 provider demand admission"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourceProviderFacts < SourceProviderDemand >::method:for_published_target#1",
       "kind": "producer",
-      "meaning": "Check the accepted source issuer and selected deployment against the publication. Issue provider demand for that published artifact and target.",
+      "meaning": "Verify the source judgment and target, then bind the provider demand to the manifest of the canonical artifact that judgment published.",
       "producer": "stage 07 checked source publication",
-      "signature": "8f0ee4dfeaaccc4924f8c7bf29df08bcf9149a697480898f216839ff10ef9218"
+      "signature": "42cae6ebe59ad55291f06d608122c064f0f608b8173f824ff62e80ba31db270b"
     },
     {
       "consumers": [
@@ -19524,29 +19524,28 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
+        "source driver Product publication",
+        "source driver target provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "SourcePublication::field:program#1",
       "kind": "producer",
-      "meaning": "The one memoized portable product or original refusal of the source issuer.",
-      "producer": "01 source compilation",
-      "signature": "8cfedae21fea91a4095288acde2cca58b8f6bb8e8669f40db8b37825a62bd78e"
+      "meaning": "Share the canonical Psi artifact or the original publication refusal from this source judgment.",
+      "producer": "stage 07 checked source publication",
+      "signature": "51cec4fec7b83b405c4d79ececc4da87be78e091189cdbb06e66c8b52b3a8c06"
     },
     {
       "consumers": [
+        "source driver Product publication",
         "source provider demand preparation",
-        "portable program publication",
-        "checked source inspection"
+        "source driver target provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::implementation#1",
       "kind": "definition",
-      "meaning": "Retain the checker’s accepted source and roster, fix the requested optimizations and publish the portable program once.",
-      "producer": "checked source publication",
-      "signature": "cb66964ddeb6b43c2ccb04c7e08450771f32689ee01a689ec8e7b2454e8ce309"
+      "meaning": "Retain the accepted source and roster and publish one shared canonical Psi artifact for the fixed optimization selection.",
+      "producer": "stage 07 checked source publication",
+      "signature": "af0f49c34a747b116f5cc4a8350d4c8462cc90d5bf56f24473b040cc6155fdd5"
     },
     {
       "consumers": [
@@ -19602,42 +19601,25 @@
     },
     {
       "consumers": [
-        "source provider demand preparation",
-        "portable program publication",
-        "checked source inspection"
+        "source driver Product publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::method:publish#1",
       "kind": "producer",
-      "meaning": "Admit source selections for the accepted artifact before publishing the portable program and releasing its selection packet.",
-      "producer": "checked source publication",
-      "signature": "70298740333f639a313b960e9f20100e3714dfedc39198552b4bcd8e1de43512"
+      "meaning": "Admit source declaration selections, seal their metadata and checker evidence into the artifact, and share it with Product.",
+      "producer": "stage 07 checked source publication",
+      "signature": "1758fa13e40710ab88118ba9b912edfb879e4804e5d4991b4d6960cb245cea2a"
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
-      "item": "impl:SourcePublication::method:published#1",
-      "kind": "carried_record",
-      "meaning": "Read an already completed portable publication if present.",
-      "producer": "01 source compilation",
-      "signature": "889ff4fe16ab997b489ea7a48a4b6762714026c1ca0628687eda2e4596e6270a"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
+        "source driver target provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::method:require_published#1",
       "kind": "checker",
-      "meaning": "Require the already published portable program and its exact fixed optimization selection.",
-      "producer": "01 source compilation",
-      "signature": "47e11439a13157ddf832e10b346313b26a85bc9be87adf038ac042738a295a8d"
+      "meaning": "Borrow the canonical artifact already published by this source judgment or report its refusal to target provider selection.",
+      "producer": "stage 07 checked source publication",
+      "signature": "77f8feaeb9ebf219856d8b42ba7127ad83e090fca0a8ac354237e5cda7897b7f"
     },
     {
       "consumers": [
@@ -19654,16 +19636,15 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
+        "source driver Product publication",
+        "source driver target provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::method:retain#1",
       "kind": "producer",
-      "meaning": "Memoize the portable program or its original refusal once for this issuing judgment.",
-      "producer": "01 source compilation",
-      "signature": "9b8c1b0086b648c34912eb7bee32ca5636ee72046dcd376421715850f28c119a"
+      "meaning": "Check the requested optimizations and retain the first artifact or refusal for all consumers of this source judgment.",
+      "producer": "stage 07 checked source publication",
+      "signature": "5c384dfcd203332c89f3becc9874657bdb6ff695d2ef97a5473563302cc78cf6"
     },
     {
       "consumers": [
@@ -19719,16 +19700,16 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
+        "source driver Product publication",
+        "source provider demand preparation",
+        "source driver target provider publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "struct:SourcePublication#1",
       "kind": "producer",
-      "meaning": "An accepted source judgment and one memoized portable publication for a fixed optimization selection.",
-      "producer": "01 source compilation",
-      "signature": "25942dc3ff1c47863e0db66a94ef1ee2ac20761169a8b23539cd86978235123f"
+      "meaning": "Retain the checked source and roster with the fixed optimizations and the one resulting canonical artifact or refusal.",
+      "producer": "stage 07 checked source publication",
+      "signature": "4b87fc0ff24dc57ee99afdc41b4dc97f5373b41ed091df9a33d39f7f40bef653"
     },
     {
       "consumers": [
@@ -19784,16 +19765,27 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
+        "source provider demand preparation",
+        "source driver Product publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
-      "item": "use:crate :: { PortableTerminalProgram , SourceCompilationRoster }#1",
+      "item": "use:crate :: SourceCompilationRoster#1",
       "kind": "definition",
-      "meaning": "Bring the existing crate::{ PortableTerminalProgram , SourceCompilationRoster } declarations into the 01 source compilation module.",
-      "producer": "01 source compilation",
-      "signature": "ab829acfa22de098fad135d5fd08972ce987b71207140e3959e842afa17a6096"
+      "meaning": "Retain the source roster returned by the judgment that the Product will publish.",
+      "producer": "stage 07 checked source publication",
+      "signature": "07fa9b7768576161f5ac063000c5a8b1087fb0c9eb5c05c65460752cc9f59932"
+    },
+    {
+      "consumers": [
+        "source driver Product publication",
+        "source driver target provider publication"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "item": "use:terminal_codec :: CanonicalTerminalArtifact#1",
+      "kind": "definition",
+      "meaning": "Use the portable artifact that owns the sealed code, declaration metadata and checker evidence.",
+      "producer": "Psi artifact codec",
+      "signature": "2eed3c0428456f5be49e126ff02f8927b2ad6bca432dd205e1807af507715fa9"
     },
     {
       "consumers": [
