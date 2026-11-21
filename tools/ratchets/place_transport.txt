@@ -12,14 +12,12 @@
 1 source-rust/subsystems/compiler/psi/artifact/wire/src/semantic_module.rs
 1 source-rust/subsystems/compiler/psi/artifact/wire/src/term_wire.rs
 3 source-rust/subsystems/compiler/psi/artifact/wire/src/wire_fields.rs
-1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_lifetimes.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_results.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/replay/case_flow/values.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/references/reference_origins.rs
 2 source-rust/subsystems/compiler/psi-semantics/src/references/reference_storage_geometry.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/storage/activation_storage/flow.rs
 3 source-rust/subsystems/compiler/psi-semantics/src/storage/borrowed_storage.rs
-1 source-rust/subsystems/compiler/psi-semantics/src/storage/place_paths.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/structural/primitive_place.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/structural/static_path.rs
 2 source-rust/subsystems/compiler/psi-semantics/src/structural/structural_claims.rs
@@ -34,6 +32,7 @@
 4 source-rust/subsystems/compiler/psi/proofs/evidence/content.rs
 1 source-rust/subsystems/compiler/psi/proofs/evidence/declarations.rs
 4 source-rust/subsystems/compiler/psi/proofs/evidence/values.rs
+2 source-rust/subsystems/compiler/psi/types/descriptor_locations.rs
 2 source-rust/subsystems/compiler/psi/types/qualifications/mod.rs
 5 source-rust/subsystems/compiler/psi/types/values.rs
 1 source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/fixed_layouts/mod.rs

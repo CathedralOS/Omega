@@ -11,6 +11,7 @@ use calling_conventions::{
     CallbackSlotGeometry, LayoutPlanId, NativeParameterId, NativePlace,
     callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
 };
+use layout::CallbackLayoutCoordinates;
 use semantic_vocabulary::{
     AuthoredFieldStorage, ScalarApplicationId, StructuralFieldId, StructuralTypeId,
 };
@@ -23,15 +24,6 @@ pub struct CallbackStorageRoot {
     pub parameter: NativeParameterId,
     pub formal_ordinal: u32,
     pub native_ordinal: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallbackLayoutCoordinates {
-    pub destination: NativePlace,
-    pub root: StructuralTypeId,
-    pub fields: Vec<StructuralFieldId>,
-    pub terminal_record: StructuralTypeId,
-    pub slot_ordinal: u32,
 }
 
 pub struct MaterializedCallbackLayout {
@@ -111,7 +103,8 @@ where
         }
         let native = self
             .module
-            .layouts.native_layouts
+            .layouts
+            .native_layouts
             .record(record)
             .ok_or("callback record lost its native layout association")?;
         let data_identity = self
@@ -121,16 +114,18 @@ where
             .filter(|identity| !identity.is_empty())
             .ok_or("callback record has no complete nominal data identity")?;
         let nominal_fields = self.module.layouts.native_layouts.fields(native)?;
-        let authored = crate::terminal_layout_identity(self.module, record, self.target)?;
-        let mut storage =
-            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), &mut self.extents)
-                .with_target_carriers(Some(runtime_abi::target_carrier_layout(
-                    self.target.native_target(),
-                )))
-                .with_record_storage(crate::TerminalRecordStorage {
-                    module: self.module,
-                    target: self.target,
-                });
+        let authored = layout::terminal_layout_identity(self.module, record, self.target)?;
+        let mut storage = ReferenceStorageGeometry::new(
+            self.module.types.structural_types.iter(),
+            &mut self.extents,
+        )
+        .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+            self.target.native_target(),
+        )))
+        .with_record_storage(layout::TerminalRecordStorage {
+            module: self.module,
+            target: self.target,
+        });
         let (size, alignment) = storage.layout(record).map_err(|error| error.to_string())?;
         let fields = storage
             .record_fields(record)

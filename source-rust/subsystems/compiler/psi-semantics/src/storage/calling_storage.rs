@@ -1,83 +1,9 @@
 use semantic_vocabulary::{CallingSignatureId, ScalarApplicationId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralTypeShape, TerminalModule};
 
-pub struct ForeignRecordStorage<'module> {
-    pub storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
-    fields: Option<&'module [terminal_psi::TargetLayoutFieldStorage]>,
-}
-
-impl ForeignRecordStorage<'_> {
-    pub fn field(
-        &self,
-        field: &terminal_psi::StructuralFieldDeclaration,
-    ) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, String> {
-        match self.fields {
-            Some(fields) => Ok(Some(
-                fields
-                    .iter()
-                    .find(|candidate| candidate.field == field.id)
-                    .ok_or("target boundary layout omitted a live field")?
-                    .storage
-                    .clone(),
-            )),
-            None => Ok(field.storage.clone()),
-        }
-    }
-}
-
-pub fn foreign_record_storage<'module>(
-    module: &'module TerminalModule,
-    record: StructuralTypeId,
-    storage: terminal_psi::StructuralRecordStorage,
-    target: &str,
-) -> Result<ForeignRecordStorage<'module>, String> {
-    use terminal_psi::StructuralRecordStorage;
-    let selected = match storage {
-        StructuralRecordStorage::TargetLayout(application) => {
-            let application = module
-                .layouts.target_layout_applications
-                .iter()
-                .find(|candidate| candidate.id == application && candidate.record == record)
-                .ok_or("boundary record has no exact target layout application")?;
-            Some(
-                application
-                    .realizations
-                    .iter()
-                    .find(|row| row.target == target)
-                    .ok_or("boundary record has no layout for its selected target")?,
-            )
-        }
-        _ => None,
-    };
-    Ok(ForeignRecordStorage {
-        storage: match storage {
-            StructuralRecordStorage::Packed => None,
-            StructuralRecordStorage::Authored(storage) => Some(storage),
-            StructuralRecordStorage::TargetLayout(_) => selected.map(|row| row.storage),
-            StructuralRecordStorage::AccessView(_) | StructuralRecordStorage::Accessor(_) => {
-                return Err("placed data has no ordinary owned boundary storage".into());
-            }
-        },
-        fields: selected.map(|row| row.fields.as_slice()),
-    })
-}
-
-pub fn foreign_opaque_carrier<'module>(
-    module: &'module TerminalModule,
-    declaration: &terminal_psi::StructuralTypeDeclaration,
-) -> Result<Option<(usize, &'module terminal_psi::TerminalOpaqueRepresentation)>, String> {
-    let selected = module
-        .types.opaque_representations
-        .iter()
-        .enumerate()
-        .find(|(_, row)| row.opaque == declaration.id);
-    if selected.is_none() && declaration.quotient_carrier.is_some() {
-        return Err(
-            "nominally opaque boundary value requires retained selected-carrier custody".into(),
-        );
-    }
-    Ok(selected)
-}
+pub use terminal_psi::layouts::record_storage::{
+    ForeignRecordStorage, foreign_opaque_carrier, foreign_record_storage,
+};
 
 pub fn foreign_storage_extent_dependencies(
     module: &TerminalModule,

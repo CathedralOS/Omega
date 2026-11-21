@@ -52,11 +52,7 @@ pub use boundary::{
     ProviderPlanReportIdentity, conventional_atomic_once_layout,
     conventional_atomic_once_layout_closed, conventional_float_class_layout,
 };
-pub use descriptor_input::{
-    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
-    descriptor_input_guard_for_call_with_closed_scalars,
-    descriptor_input_guard_with_closed_scalars,
-};
+pub use descriptor_input::DescriptorInputGuard;
 pub mod operation_records;
 pub use operation_records::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall,

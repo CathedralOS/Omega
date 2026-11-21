@@ -9,6 +9,9 @@ use selected_instructions::{
 };
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeSet;
+use terminal_psi::execution::callable_reach::{
+    CallableInvocationTarget, ReachableCallableInvocations,
+};
 
 #[derive(Debug)]
 pub enum Error {
@@ -316,7 +319,7 @@ fn register_for_unit(
 
 pub fn authenticated_callable_cpu_targets<'a>(
     body: &target_vocabulary::NativeFunctionPublication,
-    invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+    invocations: &'a ReachableCallableInvocations,
     machine: MachineId,
     operation: semantic_vocabulary::OperationId,
     callee: semantic_vocabulary::ValueId,
@@ -346,8 +349,7 @@ pub fn authenticated_callable_cpu_targets<'a>(
         // feasible execution path from the observed entry.
         return Ok(None);
     };
-    if invocation.invocation.target
-        != terminal_semantics::callable_values::CallableInvocationTarget::Value(callee, contract)
+    if invocation.invocation.target != CallableInvocationTarget::Value(callee, contract)
         || invocation.invocation.boundary.is_some()
     {
         return Err(Error::Mismatch(
@@ -364,7 +366,7 @@ pub fn authenticated_callable_cpu_targets<'a>(
 
 pub fn callable_cpu_targets<'a>(
     source: &selected_instructions::SelectedProgramContracts,
-    invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+    invocations: &'a ReachableCallableInvocations,
     machine: MachineId,
     owner: target_vocabulary::CallSiteOwner,
     target: target_vocabulary::NativeCallTarget,

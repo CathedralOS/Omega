@@ -16,8 +16,7 @@ use crate::descriptor_results::{DescriptorAnalysis, DescriptorDefinition, Descri
 mod reachable;
 mod terminal;
 pub use reachable::{
-    CallableInvocationRoot, CallableInvocationRoots, ReachableCallableInvocation,
-    ReachableCallableInvocations, ReachedCallableTarget, reachable_callable_invocations,
+    CallableInvocationRoot, CallableInvocationRoots, reachable_callable_invocations,
     reachable_callable_invocations_with_roots,
 };
 pub use terminal::{
@@ -26,6 +25,11 @@ pub use terminal::{
     reached_boundary_calls, stored_callable_definition, terminal_callable_values,
     terminal_callable_values_with_boundary_implementations,
     terminal_callable_values_with_error_context,
+};
+pub use terminal_psi::execution::callable_reach::{
+    CallableFormalInput, CallableInvocation, CallableInvocationSite, CallableInvocationTarget,
+    CallableParameter, CallableValuePossibilities, ReachableCallableInvocation,
+    ReachableCallableInvocations, ReachedCallableTarget,
 };
 
 fn insert_ordered<T: Ord>(values: &mut Vec<T>, value: T) -> bool {
@@ -36,12 +40,6 @@ fn insert_ordered<T: Ord>(values: &mut Vec<T>, value: T) -> bool {
             true
         }
     }
-}
-
-fn join_ordered<T: Ord>(values: &mut Vec<T>, mut incoming: Vec<T>) {
-    values.append(&mut incoming);
-    values.sort_unstable();
-    values.dedup();
 }
 
 pub type CallableValueResult<T> = Result<T, &'static str>;
@@ -75,65 +73,6 @@ impl CallableValueQuery {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CallableParameter {
-    Scalar(usize),
-    Structural {
-        position: usize,
-        path: Vec<DescriptorPathSegment>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CallableFormalInput {
-    pub machine: MachineId,
-    pub parameter: CallableParameter,
-    pub contract: CallableContractId,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CallableValuePossibilities {
-    pub descriptors: Vec<MachineDescriptorId>,
-    pub inputs: Vec<CallableFormalInput>,
-    pub unresolved_ceilings: Vec<CallableContractId>,
-}
-
-impl CallableValuePossibilities {
-    pub fn is_resolved(&self) -> bool {
-        !self.descriptors.is_empty()
-            && self.inputs.is_empty()
-            && self.unresolved_ceilings.is_empty()
-    }
-
-    fn is_bottom(&self) -> bool {
-        self.descriptors.is_empty() && self.inputs.is_empty() && self.unresolved_ceilings.is_empty()
-    }
-
-    fn join(&mut self, other: Self) -> bool {
-        let before = (
-            self.descriptors.len(),
-            self.inputs.len(),
-            self.unresolved_ceilings.len(),
-        );
-        join_ordered(&mut self.descriptors, other.descriptors);
-        join_ordered(&mut self.inputs, other.inputs);
-        join_ordered(&mut self.unresolved_ceilings, other.unresolved_ceilings);
-        before
-            != (
-                self.descriptors.len(),
-                self.inputs.len(),
-                self.unresolved_ceilings.len(),
-            )
-    }
-
-    fn ceiling(contract: CallableContractId) -> Self {
-        Self {
-            unresolved_ceilings: vec![contract],
-            ..Self::default()
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum CallableDefinition {
     Constructed(MachineDescriptorId),
@@ -146,28 +85,6 @@ pub enum CallableDefinition {
     Invocation(DescriptorPosition),
     Opaque,
     Unsupported,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CallableInvocationTarget {
-    Machine(MachineId),
-    Value(ValueId, CallableContractId),
-    Opaque,
-}
-
-pub use semantic_vocabulary::CallableInvocationSite;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CallableInvocation {
-    pub site: CallableInvocationSite,
-    pub operation: Option<OperationId>,
-    pub boundary: Option<BoundaryMachineId>,
-    pub position: DescriptorPosition,
-    pub successor: Option<usize>,
-    pub target: CallableInvocationTarget,
-    pub scalar_arguments: Vec<ValueId>,
-    pub structural_arguments: Vec<DescriptorLocation>,
-    pub structural_actual_types: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
 }
 
 pub struct CallableValueDefinition {
@@ -1165,8 +1082,11 @@ impl Solver<'_, '_> {
                     result.join(values);
                     continue;
                 }
-                join_ordered(&mut result.descriptors, values.descriptors);
-                join_ordered(&mut result.unresolved_ceilings, values.unresolved_ceilings);
+                result.join(CallableValuePossibilities {
+                    descriptors: values.descriptors,
+                    unresolved_ceilings: values.unresolved_ceilings,
+                    inputs: Vec::new(),
+                });
                 for input in values.inputs {
                     if input.machine != machine {
                         return Err("callable result summary retained another machine's formal");

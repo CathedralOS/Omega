@@ -104,52 +104,7 @@ fn field_geometry<'types>(
     geometry(types, child, active, carriers, records, extents)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StorageGeometryError {
-    MissingType(StructuralTypeId),
-    RecursiveType(StructuralTypeId),
-    NestingLimit,
-    UnsupportedType(StructuralTypeId),
-    UnsupportedScalar(ScalarType),
-    UnsupportedField,
-    UnsupportedByteSequence(terminal_psi::ByteSequenceCarrier),
-    UnresolvedExtent(ScalarApplicationId),
-    UnresolvedLayout(StructuralTypeId),
-    MissingFieldStorage(StructuralTypeId, semantic_vocabulary::StructuralFieldId),
-    InvalidRecordStorage(StructuralTypeId),
-    Overflow,
-    MissingCarrierLayout,
-    InvalidCarrierLayout,
-    AggregateLayout(layout_plans::AggregateGeometryError),
-}
-
-impl std::fmt::Display for StorageGeometryError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "storage geometry: {self:?}")
-    }
-}
-impl std::error::Error for StorageGeometryError {}
-
-pub trait RecordStorageResolver {
-    /// A representation consumer can supply its current physical carrier
-    /// footprint. Aggregates still use the shared checked field/path walk;
-    /// this query only replaces reference and sequence carrier geometry.
-    /// `None` retains source geometry, while a physical lookup error must
-    /// propagate rather than fall back to a different representation.
-    fn carrier_layout(
-        &self,
-        _owner: StructuralTypeId,
-        _carrier: &StructuralFieldType,
-    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
-        Ok(None)
-    }
-
-    fn realization(
-        &self,
-        record: StructuralTypeId,
-        application: LayoutApplicationId,
-    ) -> Result<&TargetLayoutRealization, StorageGeometryError>;
-}
+pub use terminal_psi::layouts::record_storage::{RecordStorageResolver, StorageGeometryError};
 
 pub struct UnselectedRecordStorage;
 

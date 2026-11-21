@@ -5,6 +5,7 @@
 
 mod boundary_signatures;
 mod build_time_decoding;
+mod callback_layouts;
 mod calling_program;
 mod execution;
 mod opaque_representations;

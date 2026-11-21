@@ -141,7 +141,7 @@ impl<'a> DescriptorInputs<'a> {
                 .iter()
                 .zip(&declaration.structural_parameters)
                 .all(|(actual, formal)| actual.access == formal.access)
-            && target_operations::descriptor_input_guard_with_closed_scalars(
+            && crate::descriptor_input::descriptor_input_guard_with_closed_scalars(
                 declaration,
                 binding,
                 self.plan.geometry(),

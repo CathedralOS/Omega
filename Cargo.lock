@@ -114,6 +114,7 @@ dependencies = [
  "host-provider-inputs",
  "language-core",
  "layout",
+ "layout-plans",
  "native-execution-scope",
  "native-intrinsics",
  "optimization",
@@ -1113,7 +1114,6 @@ dependencies = [
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -1272,7 +1272,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -3547,7 +3546,6 @@ dependencies = [
  "structural-storage",
  "target",
  "terminal-psi",
- "terminal-semantics",
  "terminal-wire",
  "wire",
 ]

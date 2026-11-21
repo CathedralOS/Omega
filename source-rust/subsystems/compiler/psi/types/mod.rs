@@ -1,5 +1,6 @@
 //! Structural types, domains, qualifications and quotients.
 
+pub mod descriptor_locations;
 mod opaque_storage;
 mod qualifications;
 mod queries;
