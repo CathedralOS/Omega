@@ -51,7 +51,7 @@ impl<'a> StageSource<'a> {
         let mut request = self
             .parsed
             .into_request(self.product.build_host.canonical_name(), primary)?;
-        request.selection_authority = self.product.layout_selection_authority.clone();
+        request.selection_authority = self.product.declaration_scope.clone();
         let continuation = request
             .with_build_entry(self.product.policy.activation)
             .prepare(&mut CompileTimings::default())?;
@@ -79,7 +79,7 @@ impl ProductSourceInputs<'_> {
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
         checked.terminal_publication.publish(
             &self.optimizations,
-            self.declaration_authority,
+            self.declaration_scope.as_deref().map(|scope| scope as _),
             &mut CompileTimings::default(),
         )
     }

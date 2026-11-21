@@ -1,10 +1,11 @@
 //! Prepare the actual source call, with its complete arguments and selected body,
 //! through ordinary typed preparation and the checked program publisher.
-use checked_program_to_psi::production;
 use crate::driver::judge_lowered_source;
-use crate::compile_time_invocations::BuildTimeSelectionAuthority;
+use declaration_scope::PackageDeclarationScope;
 use crate::source_state::TypedTrees;
+use checked_program_to_psi::production;
 use diagnostics::Diagnostic;
+use source_completion_accounting::SourceInvocationInputs;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
@@ -20,7 +21,7 @@ pub struct PreparedBuildMachineProgram {
     source: Arc<TypedTrees>,
     publication: terminal_codec::TerminalPublication,
     exact_toolchain_sources: Box<[(source_text::SourceId, [u8; 32])]>,
-    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    authority: Option<Arc<PackageDeclarationScope>>,
     purpose: source_provenance::DependencyScope,
     source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
 }
@@ -31,7 +32,7 @@ pub struct PreparedBuildMachineEntry {
     requester: SymbolHandle,
     call: crate::source_state::expression::TableCallExpression,
     call_source: crate::source_state::expression::ExpressionHandle,
-    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    authority: Option<Arc<PackageDeclarationScope>>,
     purpose: source_provenance::DependencyScope,
     source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     accepted: Arc<production::AcceptedTerminalSource>,
@@ -42,10 +43,6 @@ impl PreparedBuildMachineEntry {
     /// The physical callee in the accepted invocation’s source.
     pub const fn symbol(&self) -> SymbolHandle {
         self.symbol
-    }
-
-    pub fn source(&self) -> &TypedTrees {
-        &self.source
     }
 
     /// The actual caller and its arguments have already been judged together.
@@ -59,17 +56,25 @@ impl PreparedBuildMachineEntry {
         &self.call
     }
 
-    pub fn arguments(&self) -> &[crate::compile_time_invocations::BuildTimeValue] {
-        &self.arguments
+    pub(crate) fn source_invocation_inputs(&self) -> SourceInvocationInputs<'_> {
+        SourceInvocationInputs {
+            site: production::SourceInvocationSite {
+                accepted: &self.accepted,
+                request_source: &self.source,
+                machine: self.symbol,
+                requester: self.requester,
+                call: self.call_source,
+            },
+            arguments: &self.arguments,
+            inputs: &self.input_values,
+        }
     }
 
     pub(crate) fn accepted(&self) -> &production::AcceptedTerminalSource {
         &self.accepted
     }
 
-    pub(crate) fn produce_invocation(
-        &self,
-    ) -> Result<production::ProducedTerminalProgram, String> {
+    pub(crate) fn produce_invocation(&self) -> Result<production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(
                 production::TerminalProductionCustody {
@@ -89,7 +94,7 @@ impl PreparedBuildMachineProgram {
     #[cfg(test)]
     pub fn prepare(
         typed: &TypedTrees,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         Self::prepare_for(
             typed,
@@ -103,7 +108,7 @@ impl PreparedBuildMachineProgram {
     /// A private capture remains unowned; it is not a package-selection grant.
     pub fn prepare_for(
         typed: &TypedTrees,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
         purpose: source_provenance::DependencyScope,
         source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -126,7 +131,7 @@ impl PreparedBuildMachineProgram {
     }
     pub(crate) fn prepare_for_layout(
         typed: &TypedTrees,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        authority: Option<Arc<PackageDeclarationScope>>,
         purpose: source_provenance::DependencyScope,
         source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     ) -> Result<Self, Vec<Diagnostic>> {

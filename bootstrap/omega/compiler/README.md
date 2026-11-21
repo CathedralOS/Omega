@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,494 lines / 1,115,919 bytes with SHA-256
-`147fe7bfb454d329799f935e4c27da40e78b8a6d5e4b9c09100129700a2cce94`.
+The manifest materializes 29,239 lines / 1,149,038 bytes with SHA-256
+`08022c0ac98af1a19cec5b5e14029faf4888d3584c4a13167f12d8a5aec13c14`.
 The manifest itself is 2,905 bytes, SHA-256
-`0f222b53ffe1adc829af77e53fcd4f21e6f2cbfe2db54f0f05d2a51b95b7a180`;
+`1dc4e01df92a5fc85b7c7eec1cc8ca5ff79a441e04c58518cad63beafbdda091`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -211,12 +211,19 @@ Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards, a comma between arms and an optional trailing comma. An arm
 can transfer to a machine or produce a value. Booleans, integers, local names
 and qualified sum cases with or without named payloads use the ordinary result
-checker and Alpha emitter.
+checker and Alpha emitter. In a subjectless transition the compiler checks every
+condition as a Boolean and checks every target, including targets after an
+unconditional arm. At runtime it evaluates conditions in source order until
+one succeeds. A wildcard or literal `true` establishes coverage in this subset.
 An operand of a transition subject may use a local with a keyword spelling,
 including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
 and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
+
+The bootstrap compiler implements intrinsic equality and inequality for values
+of the same payload-free sum. It reads the left case before evaluating the
+right operand, which can call a machine or change the left operand's backing.
 
 An unrestricted `[copy]` sum uses a private eight-byte case tag followed by
 storage for its largest admitted payload. The compiler checks each field's
@@ -255,8 +262,11 @@ and the crash and blocking ceilings described below, receivers,
 other runtime carriers/policies, arithmetic beyond the checked unsigned families below,
 and other dynamic subjects remain explicit coverage boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
-An ordinary call to a visible nested declaration remains outside this compiler subset,
-including when a free machine has the same name.
+Expression calls to visible nested declarations use their own parameter and result
+signature, entry requirements, effect acknowledgements and checked call loans.
+Lexical helpers take precedence over a free machine with the same name; a local
+value binding still takes precedence over a helper. Ordinary nested call statements
+remain an explicit coverage boundary.
 
 Each machine owns the helpers declared after its executable body. Terminal
 transfers search the caller's children and then each enclosing declaration
@@ -295,9 +305,13 @@ below Alpha's return stack. Each call evaluates arguments left to right into
 its own pending cells before copying them into destination parameters, including
 same-state transfers. This preserves
 earlier arguments and caller locals across nested calls. A whole-owner call
-DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
-all admitted state transfers stay within the owner, so mixed transfer/call
-cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
+DAG collects free-machine calls from every state. Nested expression calls retain
+exact declaration identities in the state-invocation graph. For each such call,
+a bounded reverse walk through ordinary calls and terminal transfers refuses
+any route from the callee back into its suspended caller. Each state is queued
+once per walk. Terminal-only cycles remain admitted, including within a called
+helper. Both checks cover unused declarations as well as the selected entry.
+At most 16,384 distinct state invocations can be suspended by ordinary calls.
 No admitted source operation converts these private addresses to numeric values.
 An `i32` value retains its sign through local storage, parameters, and returns.
 Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
@@ -636,6 +650,15 @@ the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases.
 
+A data declaration can bind lifetimes and forward them through a named field
+type. In `source/library/std/calling.omg`, the `Rejected` case of
+`BoundaryPlanResult<'reason>` stores a `CallingPolicyRejection<'reason>`.
+The parser retains each binder and argument in source order. The checker
+rejects duplicate binders, unbound field lifetimes and applications with the
+wrong lifetime arity. A valid declaration with explicit data lifetimes still
+reports incomplete until the compiler checks loans carried through storage.
+See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
+
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
 `public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
@@ -801,8 +824,8 @@ shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
 optional trailing comma. A
-subjectless block retains absence explicitly and does not manufacture a unit
-expression. Computed or multiple subjects, record/tuple patterns, renamed or
+subjectless block retains each condition as an ordinary expression with its own
+source span. A wildcard has a distinct guard kind. Computed or multiple subjects, record/tuple patterns, renamed or
 waived fields, non-path fixed values, proof selectors, richer guards, richer
 target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
@@ -851,7 +874,7 @@ names its entry with the final authored declaration-path member. Machine and
 termination-witness paths share the general path-member arena. A machine
 snapshots its declaration path before reading parameter types and clauses. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
-`Slice<T>` spelling, return types placed after clauses, generics, remaining
+`Slice<T>` spelling, return types placed after clauses, other generics, remaining
 machine-clause forms beyond the supported contracts, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
 other bodyless declarations, and other body forms
@@ -929,7 +952,7 @@ nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
 combined, exclusive, expression-bound, or multiple constraints; constrained
-slice elements, the `Slice<T>` spelling, generic types, rich array elements or
+slice elements, the `Slice<T>` spelling, generic type arguments, rich array elements or
 lengths; numbered identities;
 field relevance; other public roots; and every other unimplemented valid form
 stop as implementation-incomplete rather than becoming false Omega rejections.
@@ -1226,3 +1249,13 @@ mutating calls in reverse declaration order and checks both saved values, the
 omitted zero and the final counter. [Bindings](../../../tests/bootstrap/conformance/omega/payload_bindings.omg),
 [omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
 and [initializer order](../../../tests/bootstrap/conformance/omega/payload_field_order.omg)
+
+### Nested expression call controls
+
+`python3 tests/bootstrap/independent/nested_calls.py CONSTRUCTOR NEW_DIRECTORY`
+runs a supplied source-built Epsilon constructor on closed-source-set requests.
+The positive cases execute the emitted tapes on the audited Alpha seed; twins
+exercise signatures, lexical visibility, runtime capture, entry requirements,
+blocking and trapping ceilings, and mixed ordinary/terminal cycles. The test
+retains exact requests and observations. This does not claim that a development
+source model alone establishes the closed-set construction route.

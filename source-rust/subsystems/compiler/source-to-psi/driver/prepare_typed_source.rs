@@ -46,8 +46,7 @@ pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [crate::compile_time_invocations::FixedLayoutTargetScope],
-    pub layout_selection_authority:
-        Option<Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
+    pub layout_selection_authority: Option<Arc<declaration_scope::PackageDeclarationScope>>,
     pub wire_demands: &'request [typed_trees_to_prepared_typed_trees::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn declaration_scope::DeclarationSelectionAuthority>,
 }
@@ -161,6 +160,7 @@ impl<'request> SourcePreparationRequest<'request> {
             })?;
             Ok((program, constants))
         })();
+        accounting.release_constant_inputs();
         match result {
             Ok((program, demanded_constants)) => Ok(SettledSource {
                 program,

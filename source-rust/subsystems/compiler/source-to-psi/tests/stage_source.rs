@@ -54,7 +54,7 @@ fn product<'a>(
         )?),
         product: ProductSourceInputs {
             build_accounting: None,
-            declaration_authority: None,
+            declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
             generated: None,
             targets: &[],
@@ -64,7 +64,6 @@ fn product<'a>(
             policy: Default::default(),
             default_provider_selections: &[],
             native_bindings: Default::default(),
-            layout_selection_authority: None,
             optimizations: Default::default(),
         },
     })
@@ -215,7 +214,7 @@ fn complete_omega_request_protocol_publishes_psi() {
         &[package, wire_package],
         [(package, wire_package)],
     );
-    stage.product.declaration_authority = Some(&scope);
+    stage.product.declaration_scope = Some(Arc::new(scope));
     stage.parsed.roots.extend([outcome, protocol, wire]);
     stage
         .parsed
@@ -258,7 +257,7 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
         let mut stage = product(files, root, customer, &[]).unwrap();
         let scope =
             ProductDeclarationScope::from_direct_dependencies(&[customer, psi], [(customer, psi)]);
-        stage.product.declaration_authority = Some(&scope);
+        stage.product.declaration_scope = Some(Arc::new(scope));
         stage.parsed.roots.extend([scalar, layouts]);
         stage
             .parsed

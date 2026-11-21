@@ -26,6 +26,8 @@ def cases():
                                   0, b"main", paths=paths)
         return data, rows
 
+    yield from data_lifetime_cases(packet)
+
     # A callee in another file owns its parameter's element type and count.
     paths = ["main.omg", "later/api.omg"]
     wire, _ = packet([array_caller, array_reader], paths)
@@ -146,9 +148,11 @@ def cases():
     yield from record_bound_cases(encode)
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
+    yield from sum_equality_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
+    yield from predicate_transition_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -458,6 +462,108 @@ def nominal_sum_cases(encode):
 
 
 
+def sum_equality_cases(encode):
+    """Intrinsic nominal equality, including the product's type-form fields."""
+    def packet(source):
+        data, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main",
+                                  paths=["main.omg"])
+        return data, rows[0][1]
+
+    carrier = b"data Mode [copy]{case First;case Second;}"
+    finish = b"{true->42,_->7}"
+    for name, source in [
+        ("sum-equality-distinct-storage", carrier +
+         b"machine main()->u8{let a:Mode=Mode::First;let b:Mode=Mode::First;"
+         b"transition a==b && a!=Mode::Second && !(a!=b)" + finish + b"}"),
+        ("sum-equality-reused-call-result", carrier +
+         b"machine echo(value:Mode)->Mode{value}machine main()->u8{"
+         b"transition echo(Mode::First)!=echo(Mode::Second) && "
+         b"echo(Mode::Second)==echo(Mode::Second)" + finish + b"}"),
+        ("sum-equality-left-observed-before-mutation", carrier +
+         b"data Holder{mode:Mode;}machine change(holder:@mut Holder)->Mode{"
+         b"holder.mode=Mode::Second;holder.mode}machine main()->u8{let mut holder:Holder;"
+         b"holder.mode=Mode::First;let different:bool=holder.mode!=change(@mut holder);"
+         b"transition different && holder.mode==Mode::Second" + finish + b"}"),
+        ("sum-equality-evaluation-order", carrier +
+         b"data Counter{value:u8;}machine first(counter:@mut Counter)->Mode{"
+         b"counter.value=1;Mode::First}machine second(counter:@mut Counter)->Mode{"
+         b"transition counter.value==1{true->Mode::Second,_->Mode::First}}"
+         b"machine main()->u8{let mut counter:Counter;"
+         b"transition first(@mut counter)!=second(@mut counter)" + finish + b"}"),
+        ("sum-equality-authorized-effect", carrier +
+         b"machine risky()->Mode crashes Trap{Mode::First}"
+         b"machine compare()->bool crashes Trap{Mode::First==risky()}"
+         b"machine main()->u8 crashes Trap{transition compare()" + finish + b"}"),
+        ("sum-equality-loan-independent-place", carrier + b"data Holder{mode:Mode;}"
+         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,Mode::First==Mode::First)}"
+         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}"),
+    ]:
+        yield name, packet(source)[0], 42
+
+    # Preserve the actual product's declarations. The projection guard is the
+    # front of syntax_trees::same_type_form; unrelated fields are omitted here.
+    definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/syntax_trees/syntax_trees.omg").read_bytes()
+    numeric = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/numeric.omg").read_bytes()
+    integer = (copy_declaration(numeric, b"IntegerSuffix") +
+               copy_declaration(definitions, b"IntegerLiteral") +
+               declaration(definitions, b"public machine static_integer_is_valid("))
+    # Execute the entire original product machine, not a rewritten stand-in.
+    for name, exact, empty, suffix, negate in [
+        ("valid", b"true", b"false", b"None", b""),
+        ("inexact", b"false", b"false", b"None", b"!"),
+        ("empty", b"true", b"true", b"None", b"!"),
+        ("suffixed", b"true", b"false", b"U8", b"!"),
+    ]:
+        main = (b"machine main()->u8{let value:IntegerLiteral=IntegerLiteral{"
+                b"magnitude:42 as u64 +Wrapping,exact:" + exact +
+                b",empty_digits:" + empty + b",suffix:IntegerSuffix::" + suffix +
+                b"};transition " + negate + b"static_integer_is_valid(value)" + finish + b"}")
+        # Keep the declarations in a different source unit from their caller.
+        wire, _, _, _ = encode([("app", 0)], [], [(0, main), (0, integer)], 0, b"main",
+                               paths=["main.omg", "integers.omg"])
+        yield "sum-equality-product-static-integer-" + name, wire, 42
+
+    kinds = copy_declaration(definitions, b"TypeReferenceKind")
+    access = copy_declaration(definitions, b"ReferenceAccess")
+    source = (kinds + access +
+              b"data TypeReference [copy]{kind:TypeReferenceKind;access:ReferenceAccess;argument_count:u8;}"
+              b"machine same_type_form(left:TypeReference,right:TypeReference)->bool{"
+              b"transition left.kind!=right.kind || left.access!=right.access || "
+              b"left.argument_count!=right.argument_count{true->false,_->true}}"
+              b"machine main()->u8{let a:TypeReference=TypeReference{kind:TypeReferenceKind::Reference,"
+              b"access:ReferenceAccess::Shared,argument_count:0};"
+              b"let b:TypeReference=TypeReference{kind:TypeReferenceKind::Reference,"
+              b"access:ReferenceAccess::Mutable,argument_count:0};"
+              b"let c:TypeReference=TypeReference{kind:TypeReferenceKind::Array,"
+              b"access:ReferenceAccess::Shared,argument_count:0};"
+              b"transition same_type_form(a,a) && !same_type_form(a,b) && !same_type_form(a,c)" + finish + b"}")
+    yield "sum-equality-product-type-form", packet(source)[0], 42
+
+    for name, source, marker, status in [
+        ("sum-equality-different-nominals", carrier + b"data Other [copy]{case First;case Second;}"
+         b"machine main()->u8{transition Mode::First==Other::First" + finish + b"}", b"==", 1),
+        ("sum-equality-payload-bearing", b"data Mode [copy]{case First;case Second(value:u8);}"
+         b"machine main()->u8{transition Mode::First==Mode::First" + finish + b"}", b"==", 2),
+        ("sum-equality-record-conformance-required", b"data Record [copy]{value:u8;}"
+         b"machine main()->u8{let a:Record=Record{value:1};transition a==a" + finish + b"}", b"==", 2),
+        ("sum-equality-no-ordering", carrier + b"machine main()->u8{transition Mode::First<Mode::Second" + finish + b"}", b"<", 1),
+        ("sum-equality-no-scalar-coercion", carrier + b"machine main()->u8{transition Mode::First==0" + finish + b"}", b"==", 1),
+        ("sum-equality-retains-effects", carrier +
+         b"machine risky()->Mode crashes Trap{Mode::First}"
+         b"machine compare()->bool crashes none{Mode::First==risky()}"
+         b"machine main()->u8{42}", b"machine compare", 2),
+        ("sum-equality-retains-loans", carrier + b"data Holder{mode:Mode;}"
+         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,holder.mode==Mode::First)}"
+         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}", b"machine blocked", 1),
+        ("sum-equality-retains-copy-check", carrier.replace(b"[copy]", b"") +
+         b"machine main()->u8{let a:Mode=Mode::First;transition a==a" + finish + b"}", b"machine main", 2),
+    ]:
+        wire, start = packet(source)
+        yield name, wire, struct.pack("<BII", 0, status, start + source.index(marker))
+
+
 def nominal_array_cases(encode):
     def packet(sources, paths, library=None):
         packages = [("app", 0)]
@@ -601,6 +707,98 @@ def nested_state_cases(encode):
             group, missing = (groups - 2, b"only_final()") if name == "nested-state-wrong-owner" else (groups - 1, b"unknown_late()")
             coordinate = rows[group][1] + sources[group].index(missing)
             yield name, data, struct.pack("<BII", 0, 1, coordinate)
+
+
+def predicate_transition_sources():
+    """Ordered subjectless predicates, with the product's projected-guard shape."""
+    form = (b"data Form [copy] {kind:u8;access:u8;argument_count:u8;} "
+            b"machine same_type_form(left:Form,right:Form)->bool {transition {"
+            b"left.kind != right.kind || left.access != right.access || left.argument_count != right.argument_count -> different(),"
+            b"_ -> equal()} machine different()->bool{false} machine equal()->bool{true}} ")
+    for name, right, expected in [
+        ("same", b"Form{kind:1,access:2,argument_count:3}", 42),
+        ("changed-kind", b"Form{kind:0,access:2,argument_count:3}", 43),
+        ("changed-access", b"Form{kind:1,access:0,argument_count:3}", 43),
+        ("changed-count", b"Form{kind:1,access:2,argument_count:0}", 43),
+    ]:
+        source = (form + b"machine main()->u8 {let left:Form=Form{kind:1,access:2,argument_count:3};"
+                  b"let right:Form=" + right + b";transition same_type_form(left,right) {true->42,_ ->43}}")
+        yield "predicate-product-shape-" + name, source, expected
+
+    choose = (b"machine choose(x:u8)->u8 {transition {x==0->42,x==1->43,_ ->44}} "
+              b"machine main()->u8{choose(")
+    for value, expected in [(0, 42), (1, 43), (2, 44)]:
+        yield f"predicate-choice-{value}", choose + str(value).encode() + b")}", expected
+
+    yield "predicate-true-coverage", b"machine main()->u8{transition{true->42}}", 42
+    yield "predicate-first-wildcard", b"machine main()->u8{transition{_ ->42,true->7}}", 42
+    yield "predicate-first-true", b"machine main()->u8{transition{true->42,true->7,_ ->1}}", 42
+    yield "predicate-effects-ordered", (
+        b"data Counter {value:u8;} "
+        b"machine mark(counter:@mut Counter, expected:u8, next:u8)->bool {"
+        b"let answer:bool=counter.value==expected;counter.value=next;answer} "
+        b"machine main()->u8{let mut counter:Counter;transition{"
+        b"mark(@mut counter,9,1)->99,mark(@mut counter,1,2)->counter.value,"
+        b"mark(@mut counter,2,3)->98,_ ->97}}"), 2
+    yield "predicate-evaluated-once", (
+        b"data Counter {flipped:bool;} machine flip(counter:@mut Counter)->bool {"
+        b"let old:bool=counter.flipped;counter.flipped=!old;!old} "
+        b"machine main()->u8{let mut counter:Counter;transition{flip(@mut counter)->selected(counter.flipped),_ ->1}"
+        b"machine selected(flipped:bool)->u8{transition flipped{true->42,_ ->7}}}"), 42
+    yield "predicate-short-circuit", (
+        b"data Counter {value:u8;} machine touch(counter:@mut Counter)->bool{counter.value=9;true} "
+        b"machine main()->u8{let mut counter:Counter;transition{"
+        b"false && touch(@mut counter)->98,true || touch(@mut counter)->counter.value,_ ->97}}"), 0
+
+    # A refusal tuple is (guest status, exact source-coordinate spelling).
+    yield "predicate-nonboolean", b"machine main()->u8{transition{1->42,_ ->0}}", (1, b"1->")
+    yield "predicate-unselected-result-type", b"machine main()->u8{transition{true->42,_ ->false}}", (1, b"false")
+    yield "predicate-unselected-guard-type", b"machine main()->u8{transition{_ ->42,1->0}}", (1, b"1->")
+    yield "predicate-unselected-target", b"machine main()->u8{transition{false->missing(),_ ->42}}", (1, b"missing")
+    yield "predicate-missing-comma", b"machine main()->u8{transition{true->42 _ ->0}}", (1, b"_ ->")
+    # More general coverage proofs remain outside this bootstrap provision.
+    yield "predicate-unproved-coverage", b"machine main()->u8{transition{false->42}}", (2, b"->42")
+
+    yield "predicate-checked-arrival", (
+        b"data B {bytes:[u8;2];} machine choose(index:u64)->u8{transition{index<2->read(index),_ ->0}"
+        b"machine read(index:u64)->u8 requires index<2 {let mut b:B;b.bytes[1]=42;b.bytes[index]}}"
+        b"machine main()->u8{choose(1)}"), 42
+    yield "predicate-failed-guard-kills-entry-fact", (
+        b"data Cell requires length<=2,{bytes:[u8;2];length:u64;} "
+        b"machine mutate(cell:@mut Cell)->bool{cell.length=2;false} "
+        b"machine choose(cell:@mut Cell)->u8 requires cell.length<2 {transition{mutate(cell)->0,_ ->cell.bytes[cell.length]}} "
+        b"machine main()->u8{0}"), (2, b"machine choose")
+
+
+def predicate_transition_cases(encode):
+    for name, source, expected in predicate_transition_sources():
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
+
+
+def data_lifetime_cases(packet):
+    # The field names may be forwarded, repeated, or permuted. Each must bind
+    # in the declaring item, and the application must match the target's arity.
+    pair = b"public data Pair<'left,'right> { x: @'left u8; y: @'right u8; }"
+    consumer = b"data Result<'a,'b> { case Stored(value: [Pair<'b,'a>; 2]); }"
+    main = b"machine main()->u8{42}"
+    for name, source, status, anchor in [
+        ("valid-field-lifetime-application", consumer, 2, b"a,'b"),
+        ("repeated-field-lifetime-argument", consumer.replace(b"'b,'a>;", b"'a,'a>;"), 2, b"a,'b"),
+        ("undeclared-payload-lifetime", consumer.replace(b"'a>;", b"'unbound>;"), 1, b"unbound"),
+        ("too-few-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b>;"), 1, b"Pair<"),
+        ("too-many-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b,'a,'a>;"), 1, b"Pair<"),
+        ("omitted-field-lifetimes", consumer.replace(b"<'b,'a>;", b";"), 1, b"Pair;"),
+        ("scalar-with-field-lifetimes", b"data Result<'a> { value: bool<'a>; }", 1, b"bool<"),
+        ("undeclared-reference-lifetime", b"data Result<'a> { value: @'missing [u8]; }", 1, b"missing"),
+        ("duplicate-data-lifetime", b"data Result<'a,'a> {}", 1, b"a>"),
+    ]:
+        sources = [main, source, pair]
+        request, rows = packet(sources, ["main.omg", "result.omg", "pair.omg"])
+        yield name, request, struct.pack("<BII", 0, status, rows[1][1] + source.index(anchor))
 
 
 def main():

@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A workspace member loses the dependency graph of a provider it ran
-
-- Category: Knowledge crossing a boundary.
-- Where: [workspace member selection](source-rust/subsystems/package-manager/project/mod.rs), [member observation](source-rust/subsystems/package-manager/dependencies/source/workspace_acquisition.rs), [catalog review](source-rust/subsystems/package-manager/dependencies/graph/subject/catalog.rs).
-- Saw: A member can run a provider before declaring its package name. `select_workspace` passes an empty list of dependency graphs to `WorkspaceMemberObservation::new`. With a local Git workspace and a separate provider repository, preparation stopped with `workspace observation lost a demanded dependency source graph`. The [executed workspace fixture](source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace/README.md) includes a member that uses a provider to choose its name.
-- Cost: Selecting another member can fail while reading the catalog. Retain the source graph of each provider the member actually used so package review can account for it. Check that the provider stays outside the selected Product's dependencies.
-- Reported: 2026-11-20, Codex, while moving project preparation into the package manager.
-
 ### Computing native entry reach imports the optimizer's complete provider proposal
 
 - Category: Knowledge crossing a boundary.
@@ -90,22 +82,6 @@ framework or a list of unimplemented features.
 - Saw: Stage 01 passes the optimizer's entire `TerminalNativeRealizationProposal` into root and private reach computation. The optimizer crate owns the checked scope and stores the provider adapters used to discover reachable machines.
 - Cost: Reading the target-bound entry and its allowed callees requires importing later optimizer and provider-admission types. Give entry reach the checked entry, adapter and callback facts it reads. Preserve refusal of a foreign parent artifact or target through both root and private lowering.
 - Reported: 2026-11-20, Codex, while moving builtin selection into the target-bound program.
-
-### Source checkpoints carry both a package permission callback and its recorded answer
-
-- Category: Knowledge crossing a boundary.
-- Where: [scope interface](source-rust/subsystems/compiler/foundation/declaration-scope/declaration_scope.rs#L10), [Product request](source-rust/subsystems/compiler/build/planning/product.rs#L161), [checkpoint writer](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/storage.rs#L11), [source reuse](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/activation.rs#L88), [evaluation checkpoint](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/frontier.rs#L293).
-- Saw: Product hands the source driver a live package-visibility interface. Saving a checkpoint asks it for a package table. Reuse checks the old callback or the saved table against the current callback for selected requester/owner pairs. Compile-time evaluation keeps its own live and recorded forms and rejoins them on load.
-- Cost: Changes to visibility have to work in both live queries and checkpoint replay. Have the package owner issue an immutable declaration scope for the requested Build or Product purpose. Pass the same data to resolution, evaluation and checkpoint comparison. Check that fresh and reopened checkpoints give identical answers when an alias names different packages in the two scopes, and that changing a relevant grant invalidates reuse. Retire the live/recorded alternatives for this lookup.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
-### Checking an evaluation charge reopens the generated caller's body
-
-- Category: Re-deriving.
-- Where: [receipt fields](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L85), [recording a call](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/calls/execution.rs#L52), [charge validation](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L332), [Product accounting](source-rust/subsystems/compiler/source-to-psi/driver/compile_product.rs#L234).
-- Saw: An invocation receipt keeps the requesting typed program, the frozen caller and the published program alive. Checking its charge reads the caller's sole state and last transition to establish that it returned the recorded call. Product checks the accumulated charges after settling provider work.
-- Cost: A completed receipt keeps trees alive for later accounting. Make the source producer issue the checked association between the requester, call and emitted site while those trees are available. Bind it to the exact executed artifact, inputs, sponsor, outcome and measured work. Test a substituted site or charge and measure retained memory over many calls before removing the source-tree references from completed receipts.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
 ### The compiler map points to native lowering for a shared Psi input
 

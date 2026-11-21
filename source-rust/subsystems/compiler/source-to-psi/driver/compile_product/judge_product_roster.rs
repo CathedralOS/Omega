@@ -112,7 +112,7 @@ pub(super) fn prepare_and_judge(
         // source-checking admission or projection.
         external_roots: &[],
         layout_scopes: &layout_scopes,
-        layout_selection_authority: build.layout_selection_authority.clone(),
+        layout_selection_authority: build.declaration_scope.clone(),
         representations: prepare_typed_source::ProductRepresentationInput {
             activation: pass.activation,
             declared: build.policy.declared,

@@ -543,39 +543,6 @@ impl PackageCompilationInputs {
     }
 }
 
-impl source_compiler::compile_time_invocations::BuildTimeSelectionAuthority for PackageCompilationInputs {
-    fn declaration_selection_scope(
-        &self,
-    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        Some(
-            self.source
-                .packages
-                .iter()
-                .map(|(requester, record)| {
-                    let mut owners = vec![*requester];
-                    owners.extend(record.dependencies.values().copied());
-                    owners.extend(record.build_dependencies.values().copied());
-                    owners.sort_unstable();
-                    owners.dedup();
-                    (*requester, owners)
-                })
-                .collect(),
-        )
-    }
-
-    fn allows_declaration_selection(
-        &self,
-        requester: PackageKeyIdentity,
-        owner: PackageKeyIdentity,
-    ) -> bool {
-        self.allows_declaration_selection(requester, owner)
-    }
-
-    fn package_label(&self, identity: PackageKeyIdentity) -> String {
-        self.package_label(identity)
-    }
-}
-
 fn display_identity(identity: PackageKeyIdentity) -> String {
     crate::digest_encoder::hex(&identity.digest())
 }

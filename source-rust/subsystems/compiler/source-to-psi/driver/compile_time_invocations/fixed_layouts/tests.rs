@@ -148,17 +148,13 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     assert_eq!(layout.geometry.validated_layout.align, 8);
     assert!(!source.deferred_refusals_of(root).any(|row| row.request
         == crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage));
-    let [crate::compile_time_invocations::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+    let [crate::compile_time_invocations::PureEvaluationRecord::Invocation(receipt)] =
+        accounting.receipts()
     else {
         panic!("one physical policy invocation");
     };
     assert_ne!(receipt.machine(), member.realization_machine);
     assert!(source.machine_by_symbol(receipt.machine()).is_none());
-    assert!(
-        receipt
-            .source()
-            .machine_instantiation_path(receipt.machine(), member.realization_machine)
-            .is_some()
-    );
+    assert_eq!(receipt.machine_template(), Some(member.realization_machine));
     accounting.validate_charges().unwrap();
 }

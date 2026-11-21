@@ -5,7 +5,6 @@ pub(crate) mod declared_bindings;
 pub mod source_names;
 pub mod native_locators;
 pub mod service_declarations;
-pub mod declaration_authority;
 pub(crate) mod declaration_reflection;
 pub mod declarations;
 pub(crate) mod numeric_declarations;

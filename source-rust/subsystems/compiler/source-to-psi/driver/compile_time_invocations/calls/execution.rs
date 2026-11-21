@@ -1,9 +1,9 @@
 //! Execute a source-authenticated call using the common Build interpreter and its actual sponsor.
-use checked_program_to_psi::production;
 use super::target::{InvocationTarget, complete_invocation_scalar_applications};
 use super::{PreparedBuildMachineEntry, source_selection};
 use crate::compile_time_invocations::{BuildTimeValue, SourceCompletionAccounting};
-use source_completion_accounting::{RecordedSourceInvocation, SourceInvocationSite};
+use checked_program_to_psi::production;
+use source_completion_accounting::RecordedSourceInvocation;
 use std::sync::Arc;
 
 impl PreparedBuildMachineEntry {
@@ -49,20 +49,14 @@ impl PreparedBuildMachineEntry {
             &mut meter,
             observed_calls,
         );
-        let site = SourceInvocationSite {
-            accepted: &self.accepted,
-            request_source: Arc::clone(&self.source),
-            machine: self.symbol,
-            requester: self.requester,
-            call: self.call_source,
-            arguments: Arc::clone(&self.arguments),
-            inputs: Arc::clone(&self.input_values),
-        };
-        let RecordedSourceInvocation { value, receipt } =
-            RecordedSourceInvocation::record(site, produced, admitted, &meter, run)?;
-        let result = value.and_then(|(value, events)| complete(value, events));
-        accounting.append_invocation(receipt, result.as_ref().err().cloned());
-        result
+        RecordedSourceInvocation::record(
+            self.source_invocation_inputs(),
+            &produced,
+            admitted,
+            &meter,
+            run,
+        )?
+        .finish(accounting, |(value, events)| complete(value, events))
     }
 
     pub fn invoke_recorded_in_targets(
@@ -142,8 +136,12 @@ impl PreparedBuildMachineEntry {
             product: None,
         };
         match self.purpose {
-            source_provenance::DependencyScope::Build => authorities.build = self.authority.as_deref(),
-            source_provenance::DependencyScope::Product => authorities.product = self.authority.as_deref(),
+            source_provenance::DependencyScope::Build => {
+                authorities.build = self.authority.as_deref().map(|scope| scope as _)
+            }
+            source_provenance::DependencyScope::Product => {
+                authorities.product = self.authority.as_deref().map(|scope| scope as _)
+            }
         }
         produced
             .source_selections()
@@ -214,7 +212,7 @@ impl PreparedBuildMachineEntry {
             root,
             unselected,
             requester,
-            self.authority.as_deref(),
+            self.authority.as_deref().map(|scope| scope as _),
             source_selection
                 .as_ref()
                 .map(|selection| selection as &dyn evaluation_admission::InvocationSourceSelection),

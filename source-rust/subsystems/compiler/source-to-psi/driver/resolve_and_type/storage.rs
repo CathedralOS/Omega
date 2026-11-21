@@ -1,4 +1,5 @@
 use super::SourceContext;
+use declaration_scope::PackageDeclarationScope;
 use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 
 impl Record for SourceContext {
@@ -6,18 +7,7 @@ impl Record for SourceContext {
         output.record(|output| {
             self.bindings.write(output)?;
             self.build_helper_identity.write(output)?;
-            let captured;
-            let recorded = match &self.recorded_authority {
-                Some(recorded) => recorded,
-                None => {
-                    captured = crate::source_state::declaration_authority::RecordedDeclarationAuthority::capture(
-                        self.authority.as_deref(),
-                    )
-                    .map_err(|reason| output.error(reason))?;
-                    &captured
-                }
-            };
-            recorded.write(output)
+            PackageDeclarationScope::write_checkpoint(self.declaration_scope.as_deref(), output)
         })
     }
     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
@@ -25,8 +15,7 @@ impl Record for SourceContext {
             Ok(Self {
                 bindings: Record::read(input)?,
                 build_helper_identity: Record::read(input)?,
-                authority: None,
-                recorded_authority: Some(Record::read(input)?),
+                declaration_scope: PackageDeclarationScope::read_checkpoint(input)?,
             })
         })
     }

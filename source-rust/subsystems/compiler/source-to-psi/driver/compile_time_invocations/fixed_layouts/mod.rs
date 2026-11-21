@@ -10,13 +10,12 @@ use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidTargetLayout, TypedTrees,
 };
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
-use crate::compile_time_invocations::{
-    BuildTimeSelectionAuthority, BuildTimeValue, InvocationTarget, SourceCompletionAccounting,
-};
+use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
 mod placements;
 mod reflection;
@@ -72,7 +71,7 @@ impl super::PreparedBuildMachineEntry {
 pub(crate) fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
-    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    authority: Option<Arc<PackageDeclarationScope>>,
     consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     purpose: source_provenance::DependencyScope,
     accounting: &mut SourceCompletionAccounting,
@@ -248,8 +247,8 @@ fn evaluate_application(
         requirement_symbol,
         &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
     )?;
-    // The receipt owns the body in the accepted invocation, which can be
-    // a capture. The plan belongs to the source that declared the policy.
+    // The accepted call can use a captured body. Store the policy declaration
+    // that the captured body implements in the published layout.
     let accepted = entry.accepted_source();
     let (selected, member, _) = accepted
         .named_conformance_call_member(entry.call())?
