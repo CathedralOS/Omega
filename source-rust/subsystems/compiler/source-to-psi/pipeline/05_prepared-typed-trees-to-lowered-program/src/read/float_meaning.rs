@@ -249,7 +249,6 @@ impl Program<'_> {
     /// from the checked record, including the declaration attached to this
     /// particular use. An equivalent authored record has the same meaning.
     fn meaning_format(&self, id: MachineId, argument: ExpressionHandle) -> Checked<Format> {
-        use crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment;
         use application_identity::const_value::decode_declaration_value;
 
         let typed = self.typed;
@@ -260,47 +259,25 @@ impl Program<'_> {
                 "float semantic format outside the admitted core records",
             )
         };
-        let mut selected = match expressions.expression(argument) {
+        let authored = typed
+            .expression_const_declaration(argument)
+            .map_err(|detail| unavailable(id, detail))?;
+        let (selected, materialized) = match expressions.expression(argument) {
             ExpressionNode::Name(name) if !name.static_application.is_valid() => {
-                name.resolved_symbol()
+                let named = name
+                    .resolved_symbol()
+                    .and_then(|symbol| typed.const_declaration_by_symbol(symbol))
+                    .ok_or_else(unknown)?;
+                if authored.is_some_and(|declaration| declaration.symbol != named.symbol) {
+                    return Err(unavailable(
+                        id,
+                        "float format name differs from its selected constant",
+                    ));
+                }
+                (Some(named), named.materialized_initializer)
             }
-            ExpressionNode::StructLiteral(_) => None,
+            ExpressionNode::StructLiteral(_) => (authored, argument),
             _ => return Err(unknown()),
-        };
-        let source = expressions.source_span(argument);
-        for occurrence in expressions.authored_selection_occurrences(argument) {
-            let row = typed
-                .authored_declaration_selections()
-                .get(occurrence)
-                .ok_or_else(unknown)?;
-            if row.kind() != StaticPathSegment || row.source_span() != source {
-                continue;
-            }
-            let Some(symbol) = row
-                .target()
-                .as_resolved()
-                .map(|target| target.selected_symbol())
-            else {
-                continue;
-            };
-            if typed.const_declaration_by_symbol(symbol).is_some()
-                && selected
-                    .replace(symbol)
-                    .is_some_and(|previous| previous != symbol)
-            {
-                return Err(unknown());
-            }
-        }
-        let selected = selected
-            .map(|symbol| {
-                typed
-                    .const_declaration_by_symbol(symbol)
-                    .ok_or_else(unknown)
-            })
-            .transpose()?;
-        let materialized = match expressions.expression(argument) {
-            ExpressionNode::Name(_) => selected.ok_or_else(unknown)?.materialized_initializer,
-            _ => argument,
         };
         let matches = |constant: &crate::source_state::constant::ConstDeclaration| {
             self.meaning_type(constant.declared_type)

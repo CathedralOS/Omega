@@ -1229,6 +1229,7 @@ impl Program<'_> {
                 .constructed_value_type_reference(expression),
             self.typed
                 .expression_const_declaration(expression)
+                .map_err(spelling)?
                 .map_or_else(
                     crate::source_state::types::TypeReferenceHandle::invalid,
                     |constant| constant.declared_type,
