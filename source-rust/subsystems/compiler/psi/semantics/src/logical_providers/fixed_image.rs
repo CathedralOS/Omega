@@ -206,6 +206,7 @@ fn verify_fixed_image_member(
                 && boundary.parameter_order.is_empty()
                 && boundary.structural_parameters.is_empty()
                 && boundary.requires.is_empty()
+                && boundary.scalar_requires.is_empty()
                 && boundary.crash_routes.is_empty()
                 && boundary.result
                     == BoundaryMachineResult::Scalar(ScalarType::Integer(address).into())
@@ -228,7 +229,6 @@ fn no_additional_obligations(boundary: &terminal_psi::BoundaryMachineDeclaration
         && boundary.attachment.is_none()
         && boundary.result_lifetimes.as_deref() == Some(&[])
         && boundary.result_reference_regions.is_empty()
-        && boundary.scalar_requires.is_empty()
         && boundary.scalar_ensures.is_empty()
         && boundary.normal_qualifications.is_empty()
         && boundary.scalar_domain_requirements.is_empty()
@@ -266,6 +266,7 @@ fn storage_transport(
         && grant.accepts(1, storage)
         && declared.parameter_types == [grant.declared_type; 2]
         && boundary.parameter_order == [BoundaryParameterKind::Structural; 2]
+        && boundary.scalar_requires == [grant.no_wrap(image.place), grant.no_wrap(storage.place)]
         && boundary
             .requires
             .iter()

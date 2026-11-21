@@ -341,7 +341,7 @@ reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abo
             CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
         )]
     );
-    for substitute in [false, true] {
+    for substitute in 0..3 {
         let mut changed = module.clone();
         let required = changed
             .interfaces
@@ -349,10 +349,10 @@ reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abo
             .iter_mut()
             .find(|row| row.id == boundary.id)
             .unwrap();
-        if substitute {
-            required.requires[1].argument_index = 0;
-        } else {
-            required.requires.pop();
+        match substitute {
+            0 => { required.requires.pop(); }
+            1 => required.requires[1].argument_index = 0,
+            _ => required.scalar_requires[1] = required.scalar_requires[0].clone(),
         }
         assert!(
             select(&changed)

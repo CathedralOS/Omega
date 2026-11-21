@@ -6,10 +6,9 @@ use program_entry_contracts::{
     ProgramEntryExtentValueLayout, ProgramEntryVisibleParameterSignature,
     ProgramStorageEntryRootRole, SelectedProgramEntrySignature,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use terminal_psi::{
-    BoundaryParameterKind, CheckedMachineDeclaration, StructuralFieldType,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
+    BoundaryParameterKind, CheckedMachineDeclaration, StructuralTypeDeclaration, TerminalMachine,
+    TerminalModule,
 };
 
 pub(super) fn from_terminal(
@@ -137,29 +136,7 @@ fn extent_layout(
     geometry: &NativeGeometry<'_>,
     carrier: &StructuralTypeDeclaration,
 ) -> Result<ProgramEntryExtentValueLayout, String> {
-    let StructuralTypeShape::Record { fields, .. } = &carrier.shape else {
-        return Err("storage entry requires the checked Extent record".into());
-    };
-    let [base, length] = fields.as_slice() else {
-        return Err("storage entry requires the Extent base and length fields".into());
-    };
-    for (field, name, integer) in [
-        (base, "base", IntegerType::address(64).unwrap()),
-        (
-            length,
-            "length",
-            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-        ),
-    ] {
-        if module.identities.text(field.identity) != Some(name)
-            || field.relevance.is_erased()
-            || field.field_type != StructuralFieldType::Scalar(ScalarType::Integer(integer))
-        {
-            return Err(
-                "the checked Extent layout lost its address base or unsigned length".into(),
-            );
-        }
-    }
+    let (base, length) = terminal_semantics::program_storage_entry::extent_fields(module, carrier)?;
     let geometry_error = |error| format!("storage entry Extent has invalid geometry: {error:?}");
     let base = geometry
         .field_placement(base, carrier.id, 0)
