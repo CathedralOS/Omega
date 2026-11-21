@@ -193,7 +193,7 @@ fn const_service_terms_are_values_in_the_callers_scope() {
         .find(|service| service.id == entries[0])
         .unwrap();
     let identity = module.identities.text(receiving.identity).unwrap();
-    assert!(identity.contains("integer-const(17)"), "{identity}");
+    assert!(identity.contains("arguments(integer(17))"), "{identity}");
 }
 
 #[test]
