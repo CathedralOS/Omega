@@ -1098,6 +1098,41 @@ machine entry() -> u32 crashes none {{
     crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
 }
 
+#[test]
+fn a_forwarded_boundary_method_const_keeps_its_declared_binder_and_preconditions() {
+    const SOURCE: &str = r#"
+public boundary trait ObjectiveC {
+    machine send_byte_string<const Count: u64>(recv: u64, sel: u64, text: @[u8; Count]) -> u64
+    requires Count > 0
+    requires text[Count - 1] == 0
+    reaches none crashes none;
+}
+public machine entry<const Count: u64>(title: @[u8; Count]) -> u64
+requires Count > 0
+{caller_fact}
+reaches none
+invokes ObjectiveC
+{
+    ObjectiveC::send_byte_string::<Count>(7u64, 9u64, title)
+}
+"#;
+    for (caller_fact, accepted) in [("requires title[Count - 1] == 0", true), ("", false)] {
+        let source = typed(&SOURCE.replace("{caller_fact}", caller_fact));
+        let prepared = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
+        let typed = prepared.trees();
+        let verdict = judge(crate::lowering::elaborate_generic(typed, entry(typed))).unwrap();
+        if accepted {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+                "{verdict:?}"
+            );
+        }
+    }
+}
+
 /// What a native binding of `Sink::take` claims: the generic requirement,
 /// named as the Build names it.
 fn claimed(
