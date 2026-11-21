@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,811 lines / 1,130,691 bytes with SHA-256
-`be92f0790f1d98ff6269ab2d7e7b51d9bbc78b531e160c340d3821b6a5c9aa66`.
+The manifest materializes 28,906 lines / 1,135,006 bytes with SHA-256
+`5bac7e623513f302d90d08c3f0170cae412d2a570aebc5ba94bb0614410b1d21`.
 The manifest itself is 2,905 bytes, SHA-256
-`dd4aa51dd7f0efe3250bd413b3fa10ac672d4d29b58f8f1c89e24399a88351ad`;
+`be1f10e981a3c4778eb6731d793149bc73e0889eed9af1a09ea3c23f80c9db8a`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -220,6 +220,10 @@ including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
 and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
+
+The bootstrap compiler implements intrinsic equality and inequality for values
+of the same payload-free sum. It reads the left case before evaluating the
+right operand, which can call a machine or change the left operand's backing.
 
 An unrestricted `[copy]` sum uses a private eight-byte case tag followed by
 storage for its largest admitted payload. The compiler checks each field's
