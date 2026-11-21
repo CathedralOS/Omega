@@ -67,25 +67,7 @@ pub(super) fn prepare_and_judge(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
     }
-    // Full source review retains the subject's declaration inventory. Concrete
-    // geometry follows the entries and selected Build rows of each target.
     let subject = pass.inputs.subject;
-    if matches!(pass.entry, ProductEntry::PackageReview) {
-        for machine in typed.machines() {
-            if crate::source_state::source_subjects::contains(
-                &typed,
-                machine.symbol,
-                &[subject],
-                source_provenance::DependencyScope::Product,
-            )
-            .unwrap_or(false)
-            {
-                selected.push(machine.symbol);
-            }
-        }
-        selected.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        selected.dedup();
-    }
     selected.extend(
         claimed
             .iter()

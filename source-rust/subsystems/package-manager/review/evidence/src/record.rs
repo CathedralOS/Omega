@@ -135,8 +135,7 @@ pub(crate) use package::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate,
     PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
     PackageReviewBoundaryApplicationArgument, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewProviderSelectionAuthority, PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub use package::{
     PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
@@ -145,7 +144,7 @@ pub use package::{
     PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceReachDependency,
     PackagePolicyServiceSignature, PackageReviewBoundaryApplication,
     PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewSelectedInstallationReach,
+    PackageReviewProviderGrantSelectorKind, PackageReviewSelectedInstallationReach,
 };
 pub use package::{
     PackagePolicyCallable, PackagePolicySelectedProviders, PackagePolicyServiceMethod,

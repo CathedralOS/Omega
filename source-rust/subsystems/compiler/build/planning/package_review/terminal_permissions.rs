@@ -206,7 +206,7 @@ fn project_service(
             (None, None) => {
                 // A receiver may accept a service from another package. Its own
                 // public inventory then omits the supplier's callable.
-                foreign = input.declared_boundary(&input.requirement(signature)?)?;
+                foreign = input.declared_boundary(&input.requirement(slot, signature)?)?;
                 &foreign
             }
             _ => {
@@ -297,9 +297,7 @@ fn service_authority(
     service: &PackageReviewNominalIdentity,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {
     match (&callable.declared_termination, method.terminates_guarantee) {
-        (Some(PackagePolicyTermination::Terminates { premises }), true) if premises.is_empty() => {
-            ()
-        }
+        (Some(PackagePolicyTermination::Terminates { premises }), true) if premises.is_empty() => {}
         (Some(PackagePolicyTermination::NoGuarantee), false) => (),
         _ => {
             return Err(unavailable(
@@ -346,7 +344,7 @@ fn declaration_signature(
                 type_identity: input.scoped_type(
                     signature.symbol,
                     formal.type_reference,
-                    &scope,
+                    scope,
                 )?,
                 is_const: formal.is_const,
                 is_mutable: formal.is_mutable,

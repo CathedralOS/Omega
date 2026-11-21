@@ -63,10 +63,12 @@ impl PackageReviewSelectedInstallationReach {
     field_projection_accessors!(sliced resolved: &[PackageReviewNominalIdentity]);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderGrantSelectorKind {
     PlanName,
     ProviderSlot,
+    /// The Build selected the provider declaration and these exact static arguments.
+    ProviderApplication(Option<String>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

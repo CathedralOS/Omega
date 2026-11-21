@@ -8,6 +8,7 @@ mod input;
 mod native_bindings;
 mod numeric;
 mod policy;
+mod provider_grants;
 mod provider_rows;
 mod providers;
 mod semantic_bindings;

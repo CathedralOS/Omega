@@ -702,16 +702,41 @@ pub(super) fn reviewed_services(
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     let mut projected = row
         .iter()
-        .map(|service| {
-            let position = identities
-                .binary_search_by_key(service, |(id, _)| *id)
-                .map_err(|_| unavailable("a service without its original applied declaration"))?;
-            Ok(identities[position].1.clone())
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        .map(|service| reviewed_service(identities, *service))
+        .collect::<Result<Vec<_>, _>>()?;
     projected.sort();
     projected.dedup();
     Ok(projected)
+}
+
+fn reviewed_service(
+    identities: &[(ServiceId, PackageReviewNominalIdentity)],
+    service: ServiceId,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let index = identities
+        .binary_search_by_key(&service, |(id, _)| *id)
+        .map_err(|_| unavailable("a service without its original applied declaration"))?;
+    Ok(identities[index].1.clone())
+}
+
+pub(super) fn reviewed_invocations(
+    identities: &[(ServiceId, PackageReviewNominalIdentity)],
+    envelope: &terminal_psi::TerminalCallableEnvelope,
+) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
+    use terminal_psi::TerminalCallableInvocation;
+    let mut invocations = envelope
+        .invocations
+        .iter()
+        .map(|entry| match entry {
+            TerminalCallableInvocation::Parameter(position) => {
+                Ok(PackageReviewSynchronousInvocation::Parameter(*position))
+            }
+            TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
+                .map(PackageReviewSynchronousInvocation::Service),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    invocations.sort_unstable();
+    Ok(invocations)
 }
 
 // These authority inventories belong to the accepted module, so inspect them

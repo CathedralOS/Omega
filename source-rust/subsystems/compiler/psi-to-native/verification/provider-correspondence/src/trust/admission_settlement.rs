@@ -68,13 +68,14 @@ pub fn reconstruct_trust_obligations(
         (machine.machine.arena_index(), machine.machine.generation())
     });
     let mut native_grants = native_grants.iter();
-    let mut provider_grants = super::provider_grants::selected_provider_grants(
+    let mut provider_grants = super::provider_grants::match_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
     )
     .map_err(|error| vec![error])?
-    .into_iter();
+    .into_iter()
+    .map(|(index, _)| &selected_provider_plans.plans()[index]);
     for grant in root_grants {
         let refuse =
             |reason: String| vec![Diagnostic::error(reason).with_source_span(grant.source_span)];

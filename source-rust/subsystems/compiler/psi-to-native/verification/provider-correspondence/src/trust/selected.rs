@@ -11,6 +11,18 @@ pub struct SelectedTrustEvidence<'a> {
 }
 
 impl SelectedTrustEvidence<'_> {
+    /// Pair each authored provider application with its selected plan, in request order.
+    pub fn provider_grant_plans<'grant>(
+        &self,
+        grants: &'grant [symbols::root_grants::AuthoredRootGrant],
+    ) -> Result<Vec<(usize, Option<&'grant str>)>, Diagnostic> {
+        super::provider_grants::match_provider_grants(
+            &self.plans.plans().iter().collect::<Vec<_>>(),
+            self.plans,
+            grants,
+        )
+    }
+
     pub fn admit_root_grants(
         &self,
         declarations: &symbols::trust_declarations::TrustDeclarations,

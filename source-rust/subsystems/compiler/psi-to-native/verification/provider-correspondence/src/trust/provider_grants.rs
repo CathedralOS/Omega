@@ -4,11 +4,11 @@ use provider_plans::ProviderPlan;
 use selected_provider_plans::SelectedProviderPlanFacts;
 use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
 
-pub(super) fn selected_provider_grants<'plan>(
+pub(super) fn match_provider_grants<'grant>(
     candidates: &[&ProviderPlan],
-    selected: &'plan SelectedProviderPlanFacts,
-    authored_grants: &[AuthoredRootGrant],
-) -> Result<Vec<&'plan ProviderPlan>, Diagnostic> {
+    selected: &SelectedProviderPlanFacts,
+    authored_grants: &'grant [AuthoredRootGrant],
+) -> Result<Vec<(usize, Option<&'grant str>)>, Diagnostic> {
     fn application_key(plan: &ProviderPlan) -> (&str, &str) {
         (
             &plan.provider_type,
@@ -18,9 +18,9 @@ pub(super) fn selected_provider_grants<'plan>(
     let mut candidate_rows = candidates.to_vec();
     candidate_rows
         .sort_unstable_by(|left, right| application_key(left).cmp(&application_key(right)));
-    let mut selected_rows = selected.plans().iter().collect::<Vec<_>>();
+    let mut selected_rows = selected.plans().iter().enumerate().collect::<Vec<_>>();
     selected_rows
-        .sort_unstable_by(|left, right| application_key(left).cmp(&application_key(right)));
+        .sort_unstable_by(|(_, left), (_, right)| application_key(left).cmp(&application_key(right)));
     let mut resolved_authored = Vec::new();
     for authored in authored_grants {
         let RootGrantSubject::Provider {
@@ -31,9 +31,9 @@ pub(super) fn selected_provider_grants<'plan>(
             continue;
         };
         let key = (declaration.as_str(), application.as_deref().unwrap_or(""));
-        let first = selected_rows.partition_point(|plan| application_key(plan) < key);
-        let last = selected_rows.partition_point(|plan| application_key(plan) <= key);
-        let [plan] = &selected_rows[first..last] else {
+        let first = selected_rows.partition_point(|(_, plan)| application_key(plan) < key);
+        let last = selected_rows.partition_point(|(_, plan)| application_key(plan) <= key);
+        let [(index, plan)] = &selected_rows[first..last] else {
             return Err(Diagnostic::error(format!(
                 "root grant `{}` has {} selected plans for its exact provider declaration and application",
                 authored.selector,
@@ -60,7 +60,7 @@ pub(super) fn selected_provider_grants<'plan>(
             ))
             .with_source_span(authored.source_span));
         }
-        resolved_authored.push(*plan);
+        resolved_authored.push((*index, application.as_deref()));
     }
     Ok(resolved_authored)
 }
