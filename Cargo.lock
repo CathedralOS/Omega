@@ -590,6 +590,7 @@ dependencies = [
  "native-compiler",
  "product-publication",
  "provider-acceptance",
+ "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
  "review-evidence",

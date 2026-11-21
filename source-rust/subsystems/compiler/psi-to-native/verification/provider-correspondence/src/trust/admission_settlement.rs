@@ -74,8 +74,7 @@ pub fn reconstruct_trust_obligations(
         root_grants,
     )
     .map_err(|error| vec![error])?
-    .into_iter()
-    .map(|(index, _)| &selected_provider_plans.plans()[index]);
+    .into_iter();
     for grant in root_grants {
         let refuse =
             |reason: String| vec![Diagnostic::error(reason).with_source_span(grant.source_span)];

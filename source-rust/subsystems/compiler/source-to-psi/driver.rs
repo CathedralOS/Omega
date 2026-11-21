@@ -104,7 +104,7 @@ pub(crate) fn published_target(
         exclusions: checked.exclusions,
         runtime_declarations: RuntimePermissionDeclarations {
             source: checked.program,
-            has_root_grants: !checked.grants.is_empty(),
+            root_grants: checked.grants.into(),
             has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
         },
     })
