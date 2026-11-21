@@ -812,7 +812,7 @@ impl<'program> Program<'program> {
             }
             let members =
                 self.conformance_method_bodies(context, application, required, supplied)?;
-            for (required, supplied) in members {
+            for (applied_requirement, supplied) in members {
                 let implementation = if self.select_native_provider(context, supplied.symbol)? {
                     SourceImplementation::Native(supplied.symbol)
                 } else {
@@ -824,7 +824,7 @@ impl<'program> Program<'program> {
                 let scope = self.applied_scope(context, application)?;
                 let signature = self.static_requirement_signature(
                     context,
-                    required,
+                    applied_requirement,
                     scope,
                     application.declaration.is_boundary,
                     false,
@@ -844,14 +844,14 @@ impl<'program> Program<'program> {
                     && matches!(implementation, SourceImplementation::Machine(_))
                 {
                     let requirement = if typed
-                        .closed_requirement_application(required.symbol)
+                        .closed_requirement_application(applied_requirement.symbol)
                         .is_some()
                         || application.keeps_declared_signatures(typed)
                     {
-                        required.symbol
+                        applied_requirement.symbol
                     } else {
                         let mut closed = typed.closed_requirement_applications().filter(|closed| {
-                            closed.template == required.symbol
+                            closed.template == applied_requirement.symbol
                                 && typed
                                     .type_identity_text(closed.portable_trait_application_identity)
                                     .as_deref()
@@ -907,6 +907,8 @@ impl<'program> Program<'program> {
                                 typed.implementation_value_head(symbol),
                             )
                             .map_err(|reason| services::unavailable(context, reason))?,
+                        // The selection names the public method in the service schema.
+                        // Its boundary above identifies this particular checked call.
                         source_requirement: typed.trait_requirement_callable_identity_text(
                             application.declaration,
                             required,
@@ -926,13 +928,13 @@ impl<'program> Program<'program> {
                 };
                 questions.push(SourceConformance {
                     declaration: symbol,
-                    requirement: required.symbol,
+                    requirement: applied_requirement.symbol,
                     application: application_identity.clone(),
                     implementation,
                     signature,
                     envelope: self.static_envelope(
                         context,
-                        required,
+                        applied_requirement,
                         application.declaration.is_boundary,
                     )?,
                     provider,
