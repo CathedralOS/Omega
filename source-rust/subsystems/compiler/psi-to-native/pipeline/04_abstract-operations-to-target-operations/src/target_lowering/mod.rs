@@ -54,7 +54,7 @@ pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     LoweringError,
 };
-pub use optimized::{OptimizedTargetLoweringRequest, lower_native_body};
+pub use optimized::{OptimizedTargetLoweringRequest, lower_native_body, require_lowering_context};
 
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
@@ -465,7 +465,7 @@ pub(crate) mod optimized {
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }
 
-    fn require_lowering_context(
+    pub fn require_lowering_context(
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,
