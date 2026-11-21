@@ -441,6 +441,8 @@ impl<'a> Replay<'a> {
                 // owned value. The operation's own definitions are still writes.
                 DescriptorInvocationTarget::Public { invalidates_contents: false, .. }
                     if call.arguments.is_empty() && call.argument_contents.is_empty() => {}
+                DescriptorInvocationTarget::Provider { invalidates_contents: false, effects, .. }
+                    if call.arguments.is_empty() && call.argument_contents.is_empty() && effects.is_empty() => {}
                 _ => return Ok(None),
             }
         }
