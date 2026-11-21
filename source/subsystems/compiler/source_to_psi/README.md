@@ -30,6 +30,16 @@ normalization. A memberless boundary trait and its checked reach row can
 appear in an Alpha program. Executing a boundary operation also requires its
 selected provider and the installed target environment.
 
+An ordinary trait's typed static parameter can require an explicit, closed
+implementation. In `trait Calling<const Policy: CallingPolicy> {}`, the
+resolver binds `CallingPolicy` to its declaration. For `Calling<Selected>`,
+the typer checks that the named conformance satisfies that same trait.
+Type names, integer arguments and implementations of another trait reject at
+the argument. Applied contracts and forwarding an implementation parameter
+still need substitution support. The
+[typed static parameter rules](../../../../wiki/spec/language/generics.md#typed-static-parameters)
+govern the spelling.
+
 Implemented so far: source/span and token representations, a UTF-8-framed
 lexer that stores only semantic tokens, and a fail-closed whole-file parser
 for ordinary

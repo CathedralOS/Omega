@@ -154,39 +154,46 @@ crashes Trap
 // type would reject the trait name and would also hide that the binder
 // selects code. Earlier binders of the same telescope are already in scope,
 // so `Reading<Value>` sees `Value` whether it was declared before `Reader`.
-public machine bind_generic_annotations(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope)
+public machine bind_generic_annotations(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, scope, 0) }
+    transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, 0) }
 
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count && resolver.output.accepted {
-            true -> annotation(resolver, sources, syntax, scope, offset),
+            true -> annotation(resolver, sources, syntax, scope, trait_parameters, offset),
             _ -> done()
         }
     }
 
-    machine annotation(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine annotation(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
-            true -> role(resolver, sources, syntax, scope, offset, parameter),
-            _ -> next(resolver, sources, syntax, scope, offset + 1)
+            true -> role(resolver, sources, syntax, scope, trait_parameters, offset, parameter),
+            _ -> next(resolver, sources, syntax, scope, trait_parameters, offset + 1)
         }
     }
 
-    machine role(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, parameter: GenericParameter) {
-        transition parameter.kind {
-            GenericParameterKind::Evidence -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Trait),
-            _ -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Type)
-        }
-    }
-
-    machine bind(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, reference: u64 in Trapping, role: TypeRole) {
-        bind_type_reference(resolver, sources, syntax, scope, reference, role);
-        transition { _ -> next(resolver, sources, syntax, scope, offset + 1) }
+    machine role(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping, parameter: GenericParameter) {
+        let role: TypeRole = generic_annotation_role(parameter.kind, trait_parameters);
+        bind_type_reference(resolver, sources, syntax, scope, parameter.type_reference, role);
+        transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, offset + 1) }
     }
 
     machine done() {}
+}
+
+// An ordinary trait's const annotation may name a value type or an
+// implementation contract. Name resolution decides which declaration it is.
+machine generic_annotation_role(kind: GenericParameterKind, trait_parameters: bool) -> TypeRole {
+    transition {
+        kind == GenericParameterKind::Evidence -> evidence(),
+        trait_parameters && kind == GenericParameterKind::Const -> static_parameter(),
+        _ -> ordinary()
+    }
+    machine evidence() -> TypeRole { TypeRole::Trait }
+    machine static_parameter() -> TypeRole { TypeRole::StaticParameter }
+    machine ordinary() -> TypeRole { TypeRole::Type }
 }
 
 // The generic parameter of `first..first + count` spelled `name`; a
