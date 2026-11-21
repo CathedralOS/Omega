@@ -114,22 +114,10 @@ pub fn synthesize_trait_defaults(
         syntax,
         Some(&selection),
     )?;
-    super::module_normalization::validate_with_const_resolution_mode(
-        syntax,
-        &selection,
-        crate::resolution::lowering::lowerer::ConstResolutionMode::Complete,
-    )?;
-    synthesize_trait_defaults_after_module_validation(syntax, &selection)
+    synthesize_trait_defaults_with_selection(syntax, &selection)
 }
 
-/*
-    Resolution has already checked the complete namespace frontier in its
-    current mode. Rechecking in complete-value mode would reject the deliberately
-    unevaluated scalar declarations used only for initializer selection evidence.
-    The shared selection supplies exact trait identity: every name this
-    pass follows was already admitted by the caller's namespace validation.
-*/
-pub(crate) fn synthesize_trait_defaults_after_module_validation(
+pub(crate) fn synthesize_trait_defaults_with_selection(
     syntax: &mut SyntaxTrees,
     selection: &ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {

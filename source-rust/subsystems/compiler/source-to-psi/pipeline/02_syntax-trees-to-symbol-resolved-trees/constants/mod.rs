@@ -66,6 +66,7 @@ mod receiving_applications;
 
 mod carrier;
 mod declaration_values;
+mod literal_declarations;
 pub(crate) mod initializer_dependencies;
 mod initializer_leaves;
 pub(crate) mod initializer_normalization;
@@ -77,7 +78,7 @@ mod substitution;
 
 pub(crate) use declaration_values::{
     evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
-    validate_const_definition, validate_scalar_initializer,
+    validate_const_definition,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use initializer_leaves::PendingConstInitializerLeaf;
