@@ -132,6 +132,7 @@ def cases():
     yield "unknown-version", bytes(4) + struct.pack("<I", 2), struct.pack("<BI", 0, 3)
 
 
+    yield from construction_unit_cases(encode)
     yield from nominal_record_cases(encode)
     yield from record_bound_cases(encode)
     yield from record_reference_cases(encode)
@@ -147,6 +148,81 @@ def copy_declaration(definitions, name):
 def declaration(definitions, header):
     start = definitions.index(header)
     return definitions[start:definitions.index(b"\n}", start) + 2]
+
+
+def construction_unit_cases(encode):
+    # The first file calls a later dependency. Its import belongs only to that
+    # file, and an unreachable machine in another file must still type-check.
+    caller = b"use lib\\answer; machine main() -> u8 { answer() }"
+    provider = b"public machine answer() -> u8 { 42 }"
+    hidden_call = b"machine unused() -> u8 { answer() }"
+    good_unused = b"machine unused() -> u8 { 7 }"
+    packages = [("app", 0), ("library", 0)]
+    dependency = [(0, 1, "lib")]
+    paths = ["main.omg", "helper.omg", "answer.omg"]
+
+    def forward(helper, declaration, edges):
+        data, _, _, rows = encode(packages, edges,
+                                  [(0, caller), (0, helper), (1, declaration)],
+                                  0, b"main", paths=paths)
+        return data, rows
+
+    # The callee can use the same local row number as a live caller.
+    # The return to main must still see its original value.
+    live_caller = (b"use lib\\answer; machine main() -> u8 { let kept: u8 = 42; "
+                   b"let got: u8 = answer(); transition got == 7 { true -> kept, _ -> got } }")
+    stores_local = b"public machine answer() -> u8 { let temp: u8 = 7; temp }"
+    data, _, _, _ = encode(packages, dependency, [(0, live_caller), (1, stores_local)],
+                           0, b"main", paths=["main.omg", "answer.omg"])
+    yield "caller-local-survives-forward-call", data, 42
+
+    data, _ = forward(good_unused, provider, dependency)
+    yield "forward-dependency", data, 42
+    data, rows = forward(good_unused, provider, [])
+    yield "forward-missing-edge", data, struct.pack("<BII", 0, 1, rows[0][1])
+    data, rows = forward(good_unused, provider.removeprefix(b"public "), dependency)
+    yield "forward-private", data, struct.pack("<BII", 0, 1, rows[0][1])
+    data, rows = forward(hidden_call, provider, dependency)
+    yield "unused-file-cannot-borrow-import", data, struct.pack(
+        "<BII", 0, 1, rows[1][1] + hidden_call.index(b"answer"))
+    # Every unit must parse before an unresolved import can be diagnosed.
+    data, rows = forward(b"\0", provider, [])
+    yield "parse-before-missing-edge", data, struct.pack("<BII", 0, 1, rows[1][1])
+
+    typed_caller = (b"use lib\\answer; machine main() -> u8 { relay(42) } "
+                    b"machine relay(kept: u8) -> u8 { let got: u8 = answer(7); "
+                    b"transition got == 7 { true -> kept, _ -> got } }")
+    typed_provider = b"public machine answer(value: u8) -> u8 { value }"
+    data, _, _, _ = encode(packages, dependency, [(0, typed_caller), (1, typed_provider)],
+                           0, b"main", paths=["main.omg", "answer.omg"])
+    yield "caller-parameter-survives-forward-call", data, 42
+    bad_caller = typed_caller.replace(b"answer(7)", b"answer(false)")
+    data, _, _, rows = encode(packages, dependency, [(0, bad_caller), (1, typed_provider)],
+                              0, b"main", paths=["main.omg", "answer.omg"])
+    yield "forward-mistyped-argument", data, struct.pack(
+        "<BII", 0, 1, rows[0][1] + bad_caller.index(b"false"))
+
+    # Each source file needs 8,320 authored import components. Together
+    # they exceed the 16,384-row parser arena. Repeated imports of the same
+    # declaration are legal and do not change the expected executable.
+    components = ["x"] * 126
+    import_path = "\\".join(["lib", *components, "answer"]).encode("ascii")
+    import_statement = b"use " + import_path + b";\n"
+    imports = import_statement * 65
+    sources = [(0, imports + b"machine main() -> u8 { answer() }"),
+               (0, imports + b"machine unused() -> u8 { answer() }"),
+               (1, provider)]
+    deep_paths = ["main.omg", "helper.omg", "/".join([*components, "answer.omg"])]
+    data, _, _, _ = encode(packages, dependency, sources, 0, b"main", paths=deep_paths)
+    yield "imports-fit-one-unit-at-a-time", data, 42
+
+    # Moving both import blocks into one file exhausts its own arena. The
+    # first component ("lib") of import 129 requires path member 16,385.
+    sources = [(0, imports * 2 + b"machine main() -> u8 { answer() }"),
+               (0, good_unused), (1, provider)]
+    data, _, _, rows = encode(packages, dependency, sources, 0, b"main", paths=deep_paths)
+    first_overflow = rows[0][1] + 128 * len(import_statement) + len(b"use ")
+    yield "imports-exceed-one-unit", data, struct.pack("<BII", 0, 3, first_overflow)
 
 
 def nominal_record_cases(encode):
