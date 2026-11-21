@@ -141,7 +141,13 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
         );
         std::fs::write(root.path().join("main.omg"), source).unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["--check", "--target", "linux_x86_64", "build.omg"])
+            .args([
+                "--emit-psi",
+                "library.psi",
+                "--target",
+                "linux_x86_64",
+                "build.omg",
+            ])
             .current_dir(root.path())
             .output()
             .unwrap();
@@ -149,6 +155,44 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
         assert_eq!(output.status.success(), !uses_layout, "{stderr}");
         if uses_layout {
             assert!(stderr.contains("layout policy for `Packet` on `alpha_bootstrap`: target has no complete layout facts"), "{stderr}");
+        } else {
+            let bytes = std::fs::read(root.path().join("library.psi")).unwrap();
+            let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            let module = saved.semantic_module();
+            let [pending] = module.layouts.target_layout_applications.as_slice() else {
+                panic!("one unapplied CLayout for Packet");
+            };
+            assert!(pending.target_inputs.is_empty());
+            assert!(pending.realizations.is_empty());
+            assert_ne!(pending.record, pending.schema);
+            let record = module.structural_type(pending.record).unwrap();
+            assert!(
+                matches!(record.shape, terminal_psi::StructuralTypeShape::Record {
+                storage: terminal_psi::StructuralRecordStorage::TargetLayout(id), ..
+            } if id == pending.id)
+            );
+
+            // Even without target placements, the logical fields must match
+            // their source schema. Reopening a mismatched carrier must fail.
+            let mut altered = module.clone();
+            let schema = altered
+                .types
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.id == pending.schema)
+                .unwrap();
+            let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut schema.shape else {
+                panic!("Packet has a record schema");
+            };
+            fields[0].field_type =
+                terminal_psi::StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Boolean);
+            let error = terminal_codec::ClosedTerminalModule::new(altered).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("layout record differs from its semantic field schema"),
+                "{error}"
+            );
         }
     }
 }

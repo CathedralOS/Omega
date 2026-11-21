@@ -175,9 +175,9 @@ impl Program<'_> {
                 .and_then(|index| index.checked_add(1))
                 .ok_or_else(|| malformed(machine, "layout application identity overflows"))?;
             let id = LayoutApplicationId(ordinal);
-            let (inputs, realizations, reports) = match selected {
+            let geometry = match selected {
                 Some(plan) => target_geometry(typed, plan, &fields, &schema_fields, machine)?,
-                None => (Vec::new(), Vec::new(), Vec::new()),
+                None => TargetGeometry::default(),
             };
             let mut nominal = Vec::with_capacity(source.fields.len());
             for (field, symbol) in record.fields().iter().zip(&source.fields) {
@@ -195,7 +195,7 @@ impl Program<'_> {
                 policy_identity,
                 identities.intern(&semantic),
                 nominal,
-                reports,
+                geometry.reports,
             );
             let position = usize::try_from(old.record.get() - 1)
                 .map_err(|_| malformed(machine, "record coordinate exceeds host storage"))?;
@@ -217,8 +217,8 @@ impl Program<'_> {
                 schema,
                 policy_identity,
                 plan_identity,
-                target_inputs: inputs,
-                realizations,
+                target_inputs: geometry.inputs,
+                realizations: geometry.realizations,
             });
         }
         applications.sort_unstable_by_key(|application| application.id);
@@ -229,6 +229,13 @@ impl Program<'_> {
     }
 }
 
+#[derive(Default)]
+struct TargetGeometry {
+    inputs: Vec<TargetLayoutInput>,
+    realizations: Vec<TargetLayoutRealization>,
+    reports: Vec<NativeLayoutRealization>,
+}
+
 /// Every concrete placement is paired with the immutable target facts used
 /// for its producing invocation. A plan claiming evaluation must have receipts.
 fn target_geometry(
@@ -237,11 +244,7 @@ fn target_geometry(
     fields: &[(SymbolHandle, StructuralFieldId)],
     schema_fields: &[(SymbolHandle, StructuralFieldId)],
     machine: MachineId,
-) -> Checked<(
-    Vec<TargetLayoutInput>,
-    Vec<TargetLayoutRealization>,
-    Vec<NativeLayoutRealization>,
-)> {
+) -> Checked<TargetGeometry> {
     let PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
         return Err(unavailable(
             machine,
@@ -309,7 +312,11 @@ fn target_geometry(
             report: member.geometry.native_layout_report(),
         });
     }
-    Ok((inputs, realizations, reports))
+    Ok(TargetGeometry {
+        inputs,
+        realizations,
+        reports,
+    })
 }
 
 fn field_coordinates(
