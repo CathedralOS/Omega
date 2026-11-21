@@ -26,6 +26,9 @@ pub fn prepare_typed_trees(
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
     program
+        .prepare_conformance_requirement_headers()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    program
         .settle_applied_service_lineage()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);

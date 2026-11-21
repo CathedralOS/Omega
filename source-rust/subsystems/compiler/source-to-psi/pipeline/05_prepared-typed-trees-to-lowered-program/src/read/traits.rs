@@ -852,10 +852,10 @@ impl<'program> Program<'program> {
                     } else {
                         let mut closed = typed.closed_requirement_applications().filter(|closed| {
                             closed.template == applied_requirement.symbol
-                                && typed
-                                    .type_identity_text(closed.portable_trait_application_identity)
-                                    .as_deref()
-                                    == Some(application_identity.as_str())
+                                && typed.requirement_application_matches_contract_scope(
+                                    closed.signature.symbol,
+                                    application,
+                                )
                                 && closed.local_arguments.is_empty()
                         });
                         let selected = closed.next().ok_or_else(|| {
