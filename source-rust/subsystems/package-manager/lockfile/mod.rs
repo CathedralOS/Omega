@@ -8,13 +8,6 @@ without source acquisition or compiler execution; ordinary compilation must veri
 source and compiler identity before admitting the retained inputs.
 */
 
-/*
-Explicit review also recovers version-3 history without compilation inputs for
-baseline comparison, and schema-4/5 consent rows remain opaque comparison baselines
-that cannot supply current compilation inputs or receiver permissions. No target
-section ever authorizes another target profile.
-*/
-
 mod acceptance;
 mod compilation;
 pub(crate) use acceptance::{
@@ -133,8 +126,8 @@ impl PackageLockTarget {
                 occurrence.validate()?;
                 if occurrence
                     .compilation()
-                    .into_iter()
-                    .flat_map(AcceptedPackageCompilation::semantic_bindings)
+                    .semantic_bindings()
+                    .iter()
                     .any(|binding| {
                         !self
                             .source

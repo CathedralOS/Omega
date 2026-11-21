@@ -1,18 +1,13 @@
 /*
-    We render and recover canonical source-closure text records: v2 for
-    `Product` graphs, v3 with `Build`-only catalog execution, and v4 with
-    purpose-tagged demand-time `Product` query dependencies.
+    Source-closure text records use one purpose-tagged format.
 
     Fixed-order LF-terminated records start with `omega-source-closure <ver>`,
     then `target`, `root` (role/request/selected source), `packages N` (each
     source, navigation, `authored N` product requests, and `authored-build M`
     build requests), `edges N` (requester key, purpose, ordinal, request,
-    resolved alias, selected source), optional `catalog-dependencies N`, and
+    resolved alias, selected source), `catalog-dependencies N`, and
     `end`. Provider graphs contain no nested catalog rows; their observations
     are flattened at the outer level, keeping recovery bounded to two levels.
-    Legacy `omega-source-closure 1` records remain readable as the versioned
-    lock migration and decode as product-only projections and edges before
-    canonically re-encoding as v2 text on their next write.
 
     String fields are quoted byte strings (`\"`, `\\`, and lowercase `\xhh` for
     non-printable bytes) so raw caller path spelling is preserved without

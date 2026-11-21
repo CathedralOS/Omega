@@ -1,6 +1,6 @@
-# target_scoped_family
+# Target-specific provider availability
 
-Per-target bodies of one machine name: `windows_x86_64|macos_arm64|linux_x86_64|linux_arm64 machine Helper::pick` — Psi checks every scoped body in one compilation; a second family `Helper::delta` on a subset of targets coexists; selection is the build binding.
-
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+All four hosted targets have a `Picker` supply. The two x86-64 targets
+also have a `Delta` supply. Build binds the entry on those two targets,
+where it can call both requirements. Each implementation is checked
+once under its own declared requirement.

@@ -98,11 +98,7 @@ pub(crate) fn require_current_compiler(
 ) -> Result<(), String> {
     let source = accepted.source();
     for occurrence in accepted.occurrences() {
-        if occurrence
-            .compilation()
-            .map(|inputs| inputs.compiler_identity())
-            != Some(compiler_identity)
-        {
+        if occurrence.compilation().compiler_identity() != compiler_identity {
             let package = source
                 .packages()
                 .iter()

@@ -8,11 +8,7 @@
     root request, every requester-local dependency request occurrence, and
     execution-only catalog provider graphs. Snapshot roots, cache paths,
     transport execution observations, compiler evidence, certificates,
-    decisions, and artifacts are intentionally absent. Binary subject encoding
-    v9 tags catalog dependencies by purpose for demand-time `Product` queries,
-    while `Build`-only catalog subjects retain v8 and catalog-free subjects
-    retain v7 so existing identities and decisions do not change merely for a
-    new encoder.
+    decisions, and artifacts are intentionally absent. Every catalog dependency records its purpose.
 */
 
 /*
@@ -44,7 +40,7 @@ use crate::resolution::source::PackageSourceNavigation;
 use encoding::encode_hex;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 9;
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 10;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
