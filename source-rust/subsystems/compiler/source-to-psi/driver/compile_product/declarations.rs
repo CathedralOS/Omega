@@ -70,34 +70,6 @@ pub fn admit(
     })
 }
 
-/// Report the authored site until source can authenticate its exclusion operand.
-pub(crate) fn require_supported_exclusions(
-    declared: &[Arc<ProductDeclarationRequest>],
-    executed: &[ExecutedProductSelection],
-    enums: &[crate::declaration_selection::ExecutedEnumExclusion],
-) -> Result<(), Vec<Diagnostic>> {
-    if let Some(request) = declared
-        .iter()
-        .map(Arc::as_ref)
-        .chain(executed.iter().map(|event| event.request.as_ref()))
-        .find(|request| request.operation == BuildOperation::ServiceExclusion)
-    {
-        return Err(refuse(
-            request,
-            "Build service exclusion requires its authenticated source declaration",
-        ));
-    }
-    if let Some(event) = enums.first() {
-        return Err(vec![
-            Diagnostic::error(
-                "Build behavior exclusion requires its authenticated source enum case",
-            )
-            .with_source_span(event.request.source_span),
-        ]);
-    }
-    Ok(())
-}
-
 fn admitted_here(operation: BuildOperation) -> bool {
     matches!(
         operation,
