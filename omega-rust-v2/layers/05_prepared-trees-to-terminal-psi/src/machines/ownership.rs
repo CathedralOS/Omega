@@ -39,6 +39,11 @@ pub(super) fn move_value(
                 NodeSemantics::Obligation(o) if !moved && matches!(&o.kind,ObligationKind::Move{place,ty} if *place==site_at(tree,operand) && ty==carrier) => {
                     moved = true
                 }
+                // A moved reference returned by this machine keeps its loan; the
+                // return edge carries the moved place, as for any returned binding.
+                NodeSemantics::Obligation(o)
+                    if crate::lowering::types::place_reference(carrier).is_some()
+                        && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site, "move requires additional typed evidence")),
             }
         }
@@ -65,7 +70,12 @@ pub(super) fn move_value(
     {
         return Err(LoweringError::new(&site, "owned field access carries an unrelated loan obligation"));
     }
-    if !owned(ty, expressions.types, expressions.data) {
+    // An exclusive reference, `@mut` or `@write`, owes no cleanup, but it is
+    // affine: a by-value use transfers the loan carrier and never copies it
+    // (language/ownership.md, "A by-value reference transfers or copies its
+    // loan carrier").
+    let exclusive = crate::lowering::types::is_exclusive_reference(carrier);
+    if !owned(ty, expressions.types, expressions.data) && !exclusive {
         if crosses_loan
             && typed_endpoint()
                 .filter(|row| matches!(row,NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::CopyRead(read) if read==carrier)))

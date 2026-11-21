@@ -177,3 +177,92 @@ fn an_ordinary_constructor_copies_the_descriptor_captured_from_a_field_borrow() 
         assert_eq!(field.operand, ValueOperand::CopyWhole(descriptor));
     }
 }
+
+const FIELD_CASE: &str = include_str!("fixtures/package_cases/projected-descriptor-replacement-at-suspension/case/case.omg");
+const FIELD_CONTROL: &str = include_str!("fixtures/package_cases/projected-descriptor-replacement-at-suspension/control/case.omg");
+
+/// Replacing only `h.r` stores the incoming descriptor into the home's field.
+/// The displaced descriptor is a shared loan, freely discardable, so the store
+/// replaces it without disposal (wiki/spec/terminal-psi/structural_access.md#store-vocabulary).
+/// The parked owner row then traces `h.r` to the stored formal, not to the
+/// construction's.
+#[test]
+fn a_projected_descriptor_store_is_the_parked_fields_origin() {
+    use omega_lowering::{ProjectedPlace, StructuralStoreDisposition};
+    use psi_handoff_consumer::{StoredDescriptor, parked_field_stores};
+    for (text, stored_slot) in [(FIELD_CASE.to_owned(), 1), (FIELD_CASE.replace("{r:first}", "{r:second}").replace("h.r=second", "h.r=first"), 0)] {
+        let package = source::lower(&[("case.omg", &text)]).unwrap();
+        let body = forward(&package);
+        let mut constructions = records(body);
+        let (Some((home, initializer)), None) = (constructions.pop(), constructions.pop()) else {
+            panic!("one construction")
+        };
+        let store = body
+            .operations
+            .iter()
+            .find(|op| matches!(op.kind, OperationKind::StructuralStore { .. }))
+            .expect("the field store");
+        let [site] = body.suspension_sites.as_slice() else {
+            panic!("only wait parks")
+        };
+        let [owner] = site.retained_owners.as_slice() else {
+            panic!("the home is parked")
+        };
+        let field = owner.embedded_loans[0].path.clone();
+        let expected = (
+            (initializer, &store.kind),
+            (owner.place, owner.moved.is_empty(), site.retained_loans.is_empty()),
+            parked_field_stores(&package, "forward"),
+        );
+        let wanted = (
+            (
+                ValueOperand::CopyWhole(formal(body, 1 - stored_slot)),
+                &OperationKind::StructuralStore {
+                    destination: ProjectedPlace { root: home, path: field.clone() },
+                    value: formal(body, stored_slot),
+                    disposition: StructuralStoreDisposition::ReplaceUnrestricted,
+                },
+            ),
+            (home, true, true),
+            Ok(vec![StoredDescriptor { path: field, formal: stored_slot, store: Some(store.id) }]),
+        );
+        if stored_slot == 1 {
+            spec_corpus::observe_handoff!(psi "psi-output/projected-descriptor-replacement-at-suspension", assert_eq!(expected, wanted));
+        } else {
+            assert_eq!(expected, wanted);
+        }
+    }
+    // The whole-record control parks the replacement value through the existing reader.
+    let control = source::lower(&[("case.omg", FIELD_CONTROL)]).unwrap();
+    let body = forward(&control);
+    assert_eq!(
+        psi_handoff_consumer::parked_replacement_origin(&control).map(|origin| origin.formal),
+        Some(formal(body, 1))
+    );
+}
+
+#[test]
+fn the_field_store_reader_rejects_a_redirected_store_or_origin() {
+    use psi_handoff_consumer::parked_field_stores;
+    let redirect = |package: &mut omega_lowering::LoweredPackage, store_first: bool| {
+        let f = package.machines.iter_mut().find(|m| m.declaration.path == "forward").unwrap();
+        let Parameter::Structural(first) = f.body.parameters[0] else { unreachable!() };
+        if store_first {
+            for op in &mut f.body.operations {
+                if let OperationKind::StructuralStore { value, .. } = &mut op.kind {
+                    *value = first;
+                }
+            }
+        } else {
+            f.body.suspension_sites[0].retained_owners[0].embedded_loans[0].origin.formal = first;
+        }
+    };
+    for store_first in [true, false] {
+        let mut package = source::lower(&[("case.omg", FIELD_CASE)]).unwrap();
+        redirect(&mut package, store_first);
+        assert_eq!(
+            parked_field_stores(&package, "forward"),
+            Err("the published embedded loan names a different source than the reaching store")
+        );
+    }
+}

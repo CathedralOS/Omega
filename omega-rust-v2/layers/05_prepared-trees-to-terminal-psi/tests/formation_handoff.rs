@@ -844,14 +844,75 @@ fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
     assert_eq!(returned_stored_loan(&psi, "read"), Err("the borrow must cross the stored descriptor, not select the record's own field"));
 }
 
-/// The same read of a stored `@mut Leaf` either moves the reference out of the
-/// field or reborrows it while suspending that field. Neither is lowered yet,
-/// so lowering refuses at the read instead of forming a shared borrow.
+/// Returning a stored `@mut Leaf` by value from an owned record transfers the
+/// caller's loan out of the field (language/ownership.md: "A by-value
+/// reference transfers or copies its loan carrier"). The result is that stored
+/// loan itself, so it points into the original backing; nothing copies it,
+/// downgrades it to a shared read, or discards it with the record.
 #[test]
-fn reading_a_stored_exclusive_reference_still_needs_its_move_or_reborrow() {
+fn reading_a_stored_exclusive_reference_transfers_its_loan() {
+    use omega_lowering::{BlockTerminator, CleanupAction, PlaceProjection, ProjectedPlace, ReturnEdge};
+    use psi_handoff_consumer::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
     let file = "load_next.omg";
     let source = "data Leaf{v:u8;} data Node{next:@mut Leaf;} machine read(x:Node)->@mut Leaf{x.next}";
-    sources::refuse(&[(file, source)], file, sources::unique_span(source, "x.next"), "a stored reference read needs its shared field place");
+    let (obligations, package) = lower(file, source);
+    let mut package = package.unwrap();
+    // L3 hands the return relation to the checker; L5 keeps it for L6.
+    assert!(
+        obligations
+            .iter()
+            .any(|o| matches!(&o.kind, omega_typed::ObligationKind::ReturnBorrow { machine } if machine.path == "read"))
+    );
+    let machine = &package.machines[0];
+    let body = &machine.body;
+    let [omega_lowering::Parameter::Structural(x)] = body.parameters[..] else {
+        panic!("one incoming record")
+    };
+    let [op] = body.operations.as_slice() else { panic!("one transfer") };
+    let OperationKind::MoveStructural { source: moved } = &op.kind else {
+        panic!("a by-value exclusive read must transfer, not copy or reborrow: {:?}", op.kind)
+    };
+    assert_eq!(moved.root, x);
+    assert!(matches!(moved.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Node::next"));
+    let [block] = body.blocks.as_slice() else { panic!("one block") };
+    let BlockTerminator::Return {
+        result: ReturnEdge::Structural { source: returned, .. },
+        cleanup,
+        ..
+    } = &block.terminator
+    else {
+        panic!("a structural return")
+    };
+    assert_eq!(op.result, omega_lowering::OperationResult::Structural(*returned));
+    assert!(cleanup.is_empty(), "the only field left the record with the result");
+    let expected = ReturnedExclusive {
+        origin: ExclusiveOrigin::Transfer,
+        formal: 0,
+        path: vec!["Node::next".into()],
+        moves_of_source: 1,
+        cleanup: vec![],
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/stored-exclusive-transfer", assert_eq!(returned_exclusive(&package, "read"), Ok(expected)));
+
+    // Corrupted products the reader must reject or tell apart.
+    let moved = moved.clone();
+    let original = package.machines[0].body.operations[0].kind.clone();
+    package.machines[0].body.operations[0].kind = OperationKind::CopyStructural { source: moved.clone() };
+    assert_eq!(returned_exclusive(&package, "read"), Err("an exclusive reference is copied"));
+    package.machines[0].body.operations[0].kind = OperationKind::BorrowPlace {
+        source: ProjectedPlace {
+            root: x,
+            path: [moved.path.clone(), vec![PlaceProjection::Referent]].concat(),
+        },
+        access: omega_lowering::ReferenceAccess::Shared,
+    };
+    assert_eq!(returned_exclusive(&package, "read"), Err("a mutable reborrow became shared"));
+    package.machines[0].body.operations[0].kind = original;
+    let BlockTerminator::Return { cleanup, .. } = &mut package.machines[0].body.blocks[0].terminator else {
+        unreachable!()
+    };
+    cleanup.push(CleanupAction::DiscardRoot(x));
+    assert_eq!(returned_exclusive(&package, "read"), Err("cleanup discards the transferred loan"));
 }
 
 /// Exporting `use_it` owes external callers its open interface, so the package

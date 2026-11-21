@@ -88,12 +88,15 @@ pub struct RetainedOwner {
     pub embedded_loans: Vec<EmbeddedLoan>,
 }
 
-/// A primitive local's `EstablishPrimitiveLocal` home that stays in the parked
-/// activation because the callee or the continuation needs its storage:
+/// Caller storage with no ownership claim and no cleanup that stays in the
+/// parked activation because the callee or the continuation needs it:
 /// directly, as a borrowed call operand, or as the backing of a retained loan
-/// whose defining `BorrowPlace` starts at this home. The home is caller
-/// storage with no ownership claim and no cleanup, so it has no owner row.
-/// A mutable local's home is also in `MachineBody::mutable_homes`.
+/// whose defining `BorrowPlace` starts at this home. It is either a primitive
+/// local's `EstablishPrimitiveLocal` home or copyable structural storage (a
+/// `[copy]` record or a fixed array whose leaves are all primitive scalars),
+/// which a loan may select below its root. Neither has an owner row. `carry`
+/// composes the authored restrictions of the stored schemas. A mutable local's
+/// primitive home is also in `MachineBody::mutable_homes`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetainedHome {
     pub place: crate::PlaceId,
@@ -101,6 +104,20 @@ pub struct RetainedHome {
     pub carry: crate::Carry,
     pub needed_by_callee: bool,
     pub needed_after_completion: bool,
+}
+
+/// A restoration window that is still open on every arrival at the parked call
+/// (`wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration`). The
+/// `BorrowedMove` at `opened` vacated `place`, which is captured through its
+/// exclusive lender with any named reborrows expanded. Its result is the
+/// displaced value, which keeps its own owner row while it stays live. The debt
+/// stays on `place` until a store re-establishes it. Resuming neither repeats
+/// the move nor publishes a complete owner. A window closed before the call has
+/// no row. The checker judges the window; this row only names it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OpenWindow {
+    pub opened: OperationId,
+    pub place: crate::ProjectedPlace,
 }
 
 /// The result belongs to normal completion. The parked activation contains only
@@ -114,4 +131,6 @@ pub struct SuspensionSite {
     pub retained_loans: Vec<RetainedLoan>,
     pub retained_owners: Vec<RetainedOwner>,
     pub retained_homes: Vec<RetainedHome>,
+    /// Open windows in the order of their opening moves.
+    pub open_windows: Vec<OpenWindow>,
 }

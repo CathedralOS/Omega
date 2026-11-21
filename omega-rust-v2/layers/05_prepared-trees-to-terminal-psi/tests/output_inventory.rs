@@ -41,7 +41,7 @@ families! {
         BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactNumericCast, TrappingInteger, Integer, Float, Call, ApplyTheorem,
         ConstructCallableDescriptor, RefineCallableDescriptor, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast,
         MutableScalarBitRecast, BorrowedMove,
-        StructuralStore, ElementViewLength, ElementViewRead, EstablishZeroedStructural, EstablishCase, EstablishRecord,
+        StructuralStore, ElementViewLength, ElementViewRead, ElementViewWrite, EstablishZeroedStructural, EstablishCase, EstablishRecord,
         CopyStructural, MoveStructural, DecomposeRecord, StructuralScalarFieldStore, ProjectedScalarStore,
         StructuralCaseMembership, ProjectedScalarRead, PrimitiveScalarRead, StructuralLeafCopy, EstablishScalarArray,
         EstablishStructuralArray, EstablishPrimitiveLocal,

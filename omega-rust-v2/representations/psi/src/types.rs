@@ -45,6 +45,11 @@ pub struct DomainSetId(pub std::num::NonZeroUsize);
 pub enum ReferenceAccess {
     Shared,
     Mutable,
+    /// `@write T`: an exclusive loan of an existing valid `T` that may locate
+    /// places and store into them, but never read, take, swap or readably
+    /// reborrow their contents
+    /// (`wiki/spec/terminal-psi/structural_access.md#write-only-authority`).
+    WriteOnly,
 }
 
 /// One-based index into `LoweredPackage::callable_contracts`. Each entry is an

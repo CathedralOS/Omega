@@ -39,6 +39,7 @@ pub(super) fn reference_operand(
     let expected_borrow = match access {
         crate::ReferenceAccess::Shared => Access::Shared,
         crate::ReferenceAccess::Mutable => Access::Mut,
+        crate::ReferenceAccess::WriteOnly => Access::Write,
     };
     let place = if file.nodes[node].kind == NodeKind::Borrow {
         let [operand] = *file.nodes[node].children.as_slice() else {
@@ -82,9 +83,12 @@ pub(super) fn reference_operand(
         place.path.push(PlaceProjection::Referent);
         place
     };
-    if access == crate::ReferenceAccess::Mutable && !mutable_place(expressions, &place, body) {
-        return Err(LoweringError::new(&site_at(tree, node), "mutable borrow requires original writable storage"));
-    }
+    // L3 decided whether this place may be lent with this access: an explicit
+    // borrow carries its `Borrow` obligation, and a forwarded descriptor has
+    // the formal's exact type, so the child keeps its parent's access. The
+    // descriptor publishes the access and every loan the path crosses, from
+    // which the checker judges the lineage
+    // (wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
     Ok(Some(CallArgument::Borrow { place, access }))
 }
 
@@ -185,10 +189,11 @@ fn select_place<'a>(
                     if usage == PlaceUse::Move
                         && current == file.ungroup(node)
                         && matches!(&o.kind,ObligationKind::RestoreBorrowed{place,..} if *place==file.node_id(current)) => {}
-                // A returned stored reference reborrows this place; the return
-                // edge carries that descriptor, as for a returned binding.
+                // A returned stored reference reborrows this place, or for an
+                // exclusive one moves it out; the return edge carries that
+                // descriptor, as for a returned binding.
                 NodeSemantics::Obligation(o)
-                    if usage == PlaceUse::Original
+                    if matches!(usage, PlaceUse::Original | PlaceUse::Move)
                         && current == file.ungroup(node)
                         && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site, "reference projection requires a typed original place")),
@@ -232,10 +237,10 @@ fn select_place<'a>(
                 {
                     fields.push(PlaceProjection::Case(case.declaration.clone()));
                 }
-                match step.through {
-                    Some(Access::Shared | Access::Mut) => fields.push(PlaceProjection::Referent),
-                    None => {}
-                    _ => return Err(LoweringError::new(&site, "reference projection requires shared access")),
+                // L3 published the loan this selection crosses and already
+                // refused a read through `@write`; the path keeps the crossing.
+                if step.through.is_some() {
+                    fields.push(PlaceProjection::Referent);
                 }
                 current = *base;
             }
@@ -247,11 +252,8 @@ fn select_place<'a>(
                 });
                 let valid = receiver.is_some_and(|(access, referent)| {
                     referent == ty
-                        && matches!(access, Access::Shared | Access::Mut)
                         && steps.last().is_some_and(|step| {
-                            step.base == file.node_id(file.ungroup(*base))
-                                && step.through.as_ref() == Some(access)
-                                && step.projection.is_none()
+                            step.base == file.node_id(file.ungroup(*base)) && step.through.as_ref() == Some(access) && step.projection.is_none()
                         })
                 });
                 if !valid || copied.is_some_and(|carrier| carrier != ty) {
@@ -470,47 +472,6 @@ pub(super) fn dispatch_cases(
     Ok(Some(targets))
 }
 
-pub(super) fn mutable_place(
-    expressions: &Expressions<'_>,
-    place: &ProjectedPlace,
-    body: &MachineBody,
-) -> bool {
-    match place.path.split_first() {
-        // An exclusive element view lends only its whole selected elements.
-        Some((PlaceProjection::Referent, tail))
-            if matches!(
-                expressions.types.get(body.places[place.root.index()].ty),
-                Some(crate::TypeShape::MutableElementView { .. })
-            ) =>
-        {
-            matches!(tail, [PlaceProjection::ViewElement { .. }])
-        }
-        Some((PlaceProjection::Referent, tail)) => {
-            matches!(
-                expressions.types.get(body.places[place.root.index()].ty),
-                Some(
-                    crate::TypeShape::ScalarReference {
-                        access: crate::ReferenceAccess::Mutable,
-                        ..
-                    } | crate::TypeShape::NominalReference {
-                        access: crate::ReferenceAccess::Mutable,
-                        ..
-                    }
-                )
-            ) && tail
-                .iter()
-                .all(|part| matches!(part, PlaceProjection::Field(_)))
-        }
-        _ => {
-            body.mutable_homes.contains(&place.root)
-                && place
-                    .path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
-        }
-    }
-}
-
 /// Whole-root discard suffices for a plain affine record of scalar leaves.
 /// References, sums, carry policies and nested affine children require their own
 /// cleanup evidence. A `requires` clause does not change the cleanup, so it does
@@ -613,14 +574,16 @@ pub(super) fn store_place(
 ) -> Result<(), LoweringError> {
     use super::expressions::{EmitOperation, OperationOutput};
     let site = site_at(expressions.tree, node);
+    // L3 already refused a store the source may not make. Which operation
+    // represents an admitted store depends on the access of the deepest loan
+    // it goes through, not on the permissions of the loans above it.
     let (mut place, carrier) = original_place(expressions, node, body)?;
-    if !mutable_place(expressions, &place, body) {
-        return Err(LoweringError::new(&site, "field store requires original writable storage"));
-    }
     let mut projected = body.places[place.root.index()].ty;
+    let mut deepest_loan = None;
     for part in &place.path {
         projected = match (part, expressions.types.get(projected)) {
-            (PlaceProjection::Referent, Some(crate::TypeShape::ScalarReference { referent, .. })) => {
+            (PlaceProjection::Referent, Some(crate::TypeShape::ScalarReference { referent, access })) => {
+                deepest_loan = Some(*access);
                 expressions
                     .types
                     .id_for(carrier)
@@ -628,7 +591,10 @@ pub(super) fn store_place(
                     .filter(|id| expressions.types.get(*id) == Some(&crate::TypeShape::PrimitiveScalar(*referent)))
                     .ok_or_else(|| LoweringError::new(&site, "scalar store disagrees with its reference type"))?
             }
-            (PlaceProjection::Referent, Some(crate::TypeShape::NominalReference { referent, .. })) => data[referent.get() - 1].carrier,
+            (PlaceProjection::Referent, Some(crate::TypeShape::NominalReference { referent, access })) => {
+                deepest_loan = Some(*access);
+                data[referent.get() - 1].carrier
+            }
             (PlaceProjection::Field(field), Some(crate::TypeShape::Nominal(id))) => {
                 let owner = &data[id.get() - 1];
                 if !owner.requires.is_empty() || owner.carry.is_some() {
@@ -651,10 +617,58 @@ pub(super) fn store_place(
         return Err(LoweringError::new(&site, "field replacement disagrees with its selected carrier"));
     }
     if carrier.nominal_parts().is_some() {
-        if matches!(place.path.first(), Some(PlaceProjection::Referent)) {
-            return super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site);
+        return match deepest_loan {
+            None => store_owned(expressions, place, rhs, carrier, body, flow, site),
+            // Any loan crossing makes this a store into borrowed storage, even when the
+            // path starts at an owned field that holds the `@mut`: the replaced place
+            // may be a vacancy, and the displaced value is the lender's, not the owner's.
+            Some(crate::ReferenceAccess::Mutable) => super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site),
+            // A write-only loan opens no restoration window and cannot take the
+            // displaced value, so replacing structural content needs checked
+            // cleanup authority for the exact type, which nothing supplies yet
+            // (structural_access.md#write-only-authority). L3 admits no store
+            // below a shared loan.
+            Some(crate::ReferenceAccess::WriteOnly | crate::ReferenceAccess::Shared) => {
+                Err(LoweringError::new(&site, "write-only structural replacement needs its cleanup authority"))
+            }
+        };
+    }
+    // A shared descriptor in a field of writable owned storage is intact,
+    // freely discardable content. Replacing it ends the displaced descriptor's
+    // loan and installs the incoming descriptor's exact loan
+    // (wiki/spec/language/lifetimes.md#carried-loan-transport); it does not
+    // read or dispose either referent. Through a stored reference the same
+    // store would need the loan's restoration window, so it still refuses.
+    if matches!(
+        expressions.types.get(projected),
+        Some(
+            crate::TypeShape::ScalarReference {
+                access: crate::ReferenceAccess::Shared,
+                ..
+            } | crate::TypeShape::NominalReference {
+                access: crate::ReferenceAccess::Shared,
+                ..
+            }
+        )
+    ) && !place.path.is_empty()
+        && !place.path.contains(&PlaceProjection::Referent)
+    {
+        let OperationResult::Structural(value) = expressions.lower(rhs, carrier, body, flow)? else {
+            return Err(LoweringError::new(&site, "descriptor store needs a descriptor value"));
+        };
+        if body.places[value.index()].ty != projected {
+            return Err(LoweringError::new(&site, "stored descriptor disagrees with its field"));
         }
-        return store_owned(expressions, place, rhs, carrier, body, flow, site);
+        body.push_operation(
+            OperationOutput::Unit,
+            crate::OperationKind::StructuralStore {
+                destination: place,
+                value,
+                disposition: crate::StructuralStoreDisposition::ReplaceUnrestricted,
+            },
+            site,
+        );
+        return Ok(());
     }
     if !matches!(expressions.types.get(projected), Some(crate::TypeShape::PrimitiveScalar(_))) {
         return Err(LoweringError::new(

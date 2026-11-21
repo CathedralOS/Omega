@@ -195,6 +195,9 @@ pub fn suspending_local_calls(
 mod parked_byte_views;
 pub use parked_byte_views::check_parked_byte_views;
 
+mod stored_exclusive;
+pub use stored_exclusive::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
+
 mod joined_loans;
 pub use joined_loans::check_joined_loan;
 
@@ -203,6 +206,18 @@ pub use exclusive_joins::{ExclusiveJoin, JoinedUse, exclusive_join, local_descri
 
 mod returned_view;
 pub use returned_view::{recursive_view_backings, returned_view_backing};
+
+mod element_writes;
+pub use element_writes::{ElementWrite, element_writes};
+
+mod field_stores;
+pub use field_stores::{StoredDescriptor, parked_field_stores};
+
+mod write_only;
+pub use write_only::{WriteOnlyStore, write_only_stores};
+
+mod parked_windows;
+pub use parked_windows::{ParkedWindow, StoreKind, parked_windows, window_stores};
 
 mod parked_view_sources;
 pub use parked_view_sources::{ProviderInvocation, ViewSources, parked_view_sources};
@@ -237,6 +252,8 @@ mod ranking;
 pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
 
 mod primitive_homes;
+mod copyable_homes;
+pub use copyable_homes::{CopyableHome, parked_copyable_homes, plain_carry};
 pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
 
 mod scalar_terms;

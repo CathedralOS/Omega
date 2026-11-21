@@ -641,6 +641,7 @@ impl Expressions<'_> {
                                     source_referent,
                                     destination_referent,
                                 },
+                                crate::ReferenceAccess::WriteOnly => return Err(unsupported_node(file, node, "write-only views admit no recast")),
                             }
                         }
                         PendingOperation::EstablishStructuralArray => {

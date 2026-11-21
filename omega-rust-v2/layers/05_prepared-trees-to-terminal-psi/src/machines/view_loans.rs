@@ -244,7 +244,8 @@ fn congruent(
     }
 }
 
-/// The receiver, selector and view carrier of an index through `@mut [T]`.
+/// The receiver, selector and view carrier of an index through `@mut [T]`,
+/// for a nominal or a scalar element.
 fn receiver(
     expressions: &Expressions<'_>,
     node: usize,
@@ -259,7 +260,10 @@ fn receiver(
         NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
         _ => None,
     })?;
-    crate::lowering::types::mutable_element_view(carrier)?;
+    let scalar = matches!(crate::lowering::types::scalar_element_view(carrier), Some((Access::Mut, _)));
+    if crate::lowering::types::mutable_element_view(carrier).is_none() && !scalar {
+        return None;
+    }
     Some((*base, *selector, carrier.clone()))
 }
 
@@ -326,20 +330,86 @@ pub(super) fn store_element(
         },
         _ => return Err(LoweringError::new(&site, "element store requires an exclusive element view")),
     };
+    if let Ok(scalar) = crate::lowering::types::scalar_carrier(&element) {
+        return store_scalar_element(expressions, place, rhs, &element, scalar, body, flow);
+    }
     let destination = element_place(expressions, place, &element, false, body, flow)?;
     super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site)
 }
 
-/// Check the exact typed element selection, then evaluate the selector once
-/// and observe the same view's length at this occurrence.
-fn element_place(
+/// `view[i] = value` through `@mut [T]` with a scalar `T`: replace one
+/// element in place (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
+/// A scalar element needs no restoration window; the write displaces nothing
+/// with custody. Evaluate the selector, then the value, then observe the same
+/// view's length immediately before the write, which owes `index < length`.
+fn store_scalar_element(
+    expressions: &Expressions<'_>,
+    place: usize,
+    rhs: usize,
+    element: &ValueType,
+    scalar: crate::ScalarType,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<(), LoweringError> {
+    let tree = expressions.tree;
+    let site = site_at(tree, place);
+    let refuse = |message: &str| LoweringError::new(&site, message);
+    let (selector, root) = selected_view(expressions, place, element, false, body)?;
+    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableScalarElementView { element: scalar }) {
+        return Err(refuse("element view descriptor disagrees with its element type"));
+    }
+    let index_ty = expressions
+        .types
+        .id_for(&super::access::INDEX_TYPE)
+        .map_err(|e| refuse(&e.to_string()))?;
+    let OperationResult::Scalar(index) = expressions.lower(selector, &super::access::INDEX_TYPE, body, flow)? else {
+        return Err(refuse("element selector requires a scalar value"));
+    };
+    if body.values[index.index()].ty != index_ty {
+        return Err(refuse("element selector requires a u64 value"));
+    }
+    let OperationResult::Scalar(value) = expressions.lower(rhs, element, body, flow)? else {
+        return Err(refuse("element write requires a scalar value"));
+    };
+    let element_ty = expressions.types.id_for(element).map_err(|e| refuse(&e.to_string()))?;
+    if body.values[value.index()].ty != element_ty {
+        return Err(refuse("element write value disagrees with its element type"));
+    }
+    let OperationResult::Scalar(length) = body.push_operation(
+        OperationOutput::Scalar(index_ty),
+        OperationKind::ElementViewLength { source: root },
+        site.clone(),
+    ) else {
+        unreachable!("a length observation produces a scalar")
+    };
+    let obligation = crate::BoundsObligationId(super::body::next_id(body.diagnostics.bounds.len()));
+    body.diagnostics.bounds.push(site_at(tree, selector));
+    body.push_operation(
+        OperationOutput::Unit,
+        OperationKind::ElementViewWrite {
+            destination: root,
+            path: Vec::new(),
+            index,
+            value,
+            length,
+            obligation,
+        },
+        site,
+    );
+    Ok(())
+}
+
+/// The exact typed selection of one element through a machine-parameter
+/// `@mut [T]`: the exclusive core element primitive, its bound, the view's
+/// exclusive loan and, for a move, the restoration debt. Returns the selector
+/// node and the view's own descriptor.
+fn selected_view(
     expressions: &Expressions<'_>,
     node: usize,
     element: &ValueType,
     moving: bool,
-    body: &mut MachineBody,
-    flow: &mut BlockFlow,
-) -> Result<ProjectedPlace, LoweringError> {
+    body: &MachineBody,
+) -> Result<(usize, crate::PlaceId), LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
     let file = resolved.file;
@@ -414,6 +484,23 @@ fn element_place(
     if body.places[root.index()].origin != crate::PlaceOrigin::Parameter {
         return Err(refuse("element window requires a machine-parameter view"));
     }
+    Ok((selector, root))
+}
+
+/// Check the exact typed element selection, then evaluate the selector once
+/// and observe the same view's length at this occurrence.
+fn element_place(
+    expressions: &Expressions<'_>,
+    node: usize,
+    element: &ValueType,
+    moving: bool,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<ProjectedPlace, LoweringError> {
+    let tree = expressions.tree;
+    let site = site_at(tree, tree.resolved().file.ungroup(node));
+    let refuse = |message: &str| LoweringError::new(&site, message);
+    let (selector, root) = selected_view(expressions, node, element, moving, body)?;
     let element_ty = expressions
         .types
         .id_for(element)

@@ -96,12 +96,19 @@ impl Keys {
             ByteSequenceRead { source, index, length, .. } | ElementViewRead { source, index, length, .. } => {
                 reads.extend([self.place(*source), index.index(), length.index()])
             }
+            ElementViewWrite {
+                destination,
+                index,
+                value,
+                length,
+                ..
+            } => reads.extend([self.place(*destination), index.index(), value.index(), length.index()]),
             BorrowPlace { source, .. }
+            | BorrowedMove { source }
             | CopyStructural { source }
             | MoveStructural { source }
             | StructuralCaseMembership { source, .. }
             | DecomposeRecord { source, .. } => self.projected(source, |key| reads.push(key)),
-            BorrowedMove { .. } => return Err("suspension needs the exact open loan restoration windows"),
             StructuralStore {
                 destination,
                 value,
@@ -136,6 +143,7 @@ impl Keys {
 
 mod field_reborrows;
 mod returned_views;
+mod windows;
 use returned_views::{ReturnInputs, ViewSource, input_origins};
 use std::cell::LazyCell;
 
@@ -303,13 +311,35 @@ impl<'a> Liveness<'a> {
         matches!(self.body.places[place.index()].origin, crate::PlaceOrigin::Operation(id)
             if matches!(self.body.operations[id.index()].kind, OperationKind::EstablishPrimitiveLocal { .. }))
     }
+    /// Copyable structural storage the activation holds directly: a record
+    /// or fixed array with no ownership claim, no cleanup and only primitive
+    /// scalar leaves. Like a primitive home, it stays in the parked activation
+    /// when a loan or operand needs it. Returns the carry its contents compose.
+    fn copyable_home(
+        &self,
+        place: PlaceId,
+        types: &LoweringTypes,
+    ) -> Option<crate::Carry> {
+        let ty = self.body.places[place.index()].ty;
+        if self.is_home(place) || !matches!(types.get(ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
+            return None;
+        }
+        plain_carry(ty, types, self.data)
+    }
     /// The home a borrowed place selects, directly or through named reborrows.
+    /// A copyable home may be selected below its root, but never through a
+    /// stored reference or a runtime view element.
     fn backing_home(
         &self,
         place: &crate::ProjectedPlace,
+        types: &LoweringTypes,
     ) -> Option<PlaceId> {
         let captured = super::loans::captured_place(self.body, place);
-        (captured.path.is_empty() && self.is_home(captured.root)).then_some(captured.root)
+        let inside = captured
+            .path
+            .iter()
+            .all(|step| !matches!(step, crate::PlaceProjection::Referent | crate::PlaceProjection::ViewElement { .. }));
+        ((captured.path.is_empty() && self.is_home(captured.root)) || (inside && self.copyable_home(captured.root, types).is_some())).then_some(captured.root)
     }
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
@@ -356,7 +386,7 @@ impl<'a> Liveness<'a> {
             return Ok(true);
         }
         // The activation retains a borrowed home; `activation` publishes its row.
-        if self.backing_home(place).is_some() {
+        if self.backing_home(place, types).is_some() {
             return Ok(true);
         }
         if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
@@ -366,8 +396,9 @@ impl<'a> Liveness<'a> {
         // paths have already moved out. Owned storage transferred whole has
         // no row; its move operation names the destination. A loan that
         // overlaps a hole or a transfer is a conflict the checker judges, as
-        // it does for the same call without a suspension. Only storage the
-        // ownership pass never tracks, such as a copyable record, stays unbacked.
+        // it does for the same call without a suspension. Copyable storage with
+        // primitive leaves is a home above; a copyable record that holds
+        // references stays unbacked.
         if owners
             .binary_search_by_key(&place.root.index(), |owner| owner.place.index())
             .is_ok()
@@ -404,7 +435,8 @@ impl<'a> Liveness<'a> {
             if !held[key] && !after[key] {
                 continue;
             }
-            if self.is_home(PlaceId(super::body::next_id(index))) {
+            let id = PlaceId(super::body::next_id(index));
+            if self.is_home(id) || self.copyable_home(id, types).is_some() {
                 let need = &mut home_needs[index];
                 *need = (need.0 | held[key], need.1 | after[key]);
                 continue;
@@ -450,7 +482,7 @@ impl<'a> Liveness<'a> {
             // A named loan of a home keeps that home in the activation.
             if let crate::PlaceOrigin::Operation(id) = place.origin
                 && let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind
-                && let Some(home) = self.backing_home(source)
+                && let Some(home) = self.backing_home(source, types)
             {
                 let need = &mut home_needs[home.index()];
                 *need = (need.0 | held[key], need.1 | after[key]);
@@ -487,12 +519,15 @@ impl<'a> Liveness<'a> {
             .iter()
             .enumerate()
             .filter(|(_, need)| need.0 || need.1)
-            .map(|(index, &(needed_by_callee, needed_after_completion))| crate::RetainedHome {
-                place: PlaceId(super::body::next_id(index)),
-                ty: self.body.places[index].ty,
-                carry: PRIMITIVE_CARRY,
-                needed_by_callee,
-                needed_after_completion,
+            .map(|(index, &(needed_by_callee, needed_after_completion))| {
+                let place = PlaceId(super::body::next_id(index));
+                crate::RetainedHome {
+                    place,
+                    ty: self.body.places[index].ty,
+                    carry: self.copyable_home(place, types).unwrap_or(PRIMITIVE_CARRY),
+                    needed_by_callee,
+                    needed_after_completion,
+                }
             })
             .collect();
         Ok((activation, retained_loans, retained_homes))
@@ -506,6 +541,37 @@ const PRIMITIVE_CARRY: crate::Carry = crate::Carry {
     requires_same_thread: false,
     requires_stable_address: false,
 };
+
+/// The carry of copyable plain data: each record's authored restriction
+/// combined with its fields', down to primitive scalars. `None` for anything
+/// else, such as a sum, a reference, a view or an owned value, whose carry
+/// depends on more than its declaration.
+fn plain_carry(
+    ty: crate::TypeId,
+    types: &LoweringTypes,
+    data: &[crate::LoweredData],
+) -> Option<crate::Carry> {
+    match types.get(ty)? {
+        TypeShape::PrimitiveScalar(_) => Some(PRIMITIVE_CARRY),
+        TypeShape::FixedArray { element, .. } => plain_carry(*element, types, data),
+        TypeShape::Nominal(id) => {
+            let schema = &data[id.get() - 1];
+            if schema.multiplicity != crate::Multiplicity::Copy || !schema.cases.is_empty() {
+                return None;
+            }
+            schema.fields.iter().try_fold(schema.carry.clone().unwrap_or(PRIMITIVE_CARRY), |carry, field| {
+                let inner = plain_carry(field.carrier, types, data)?;
+                Some(crate::Carry {
+                    allows_suspension: carry.allows_suspension && inner.allows_suspension,
+                    requires_same_cpu: carry.requires_same_cpu || inner.requires_same_cpu,
+                    requires_same_thread: carry.requires_same_thread || inner.requires_same_thread,
+                    requires_stable_address: carry.requires_stable_address || inner.requires_stable_address,
+                })
+            })
+        }
+        _ => None,
+    }
+}
 
 /// Derive the crossing roster from the selected machine envelopes independently of
 /// the source acknowledgements. A parked call still holds its evaluated arguments.
@@ -526,7 +592,11 @@ pub(crate) fn plan_package(
     let sites = machines
         .iter()
         .zip(crossing_owners)
-        .map(|(machine, owners)| plan(&machine.body, data, types, callees, &returns, owners))
+        .map(|(machine, owners)| {
+            // The same authored selector premises that chose each store's disposition.
+            let premises = super::view_loans::selector_premises(&machine.contract.requires, &machine.body.parameters);
+            plan(&machine.body, &premises, data, types, callees, &returns, owners)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     for (machine, crossings) in machines.iter_mut().zip(sites) {
         machine.body.suspension_sites = crossings;
@@ -536,6 +606,7 @@ pub(crate) fn plan_package(
 
 fn plan<'members>(
     body: &MachineBody,
+    premises: &[super::view_loans::SelectorPremise],
     data: &[crate::LoweredData],
     types: &LoweringTypes,
     callees: &Callees<'_>,
@@ -557,6 +628,12 @@ fn plan<'members>(
         });
     let Some(first) = first else { return Ok(Vec::new()) };
     let graph = Liveness::new(body, data, first)?;
+    let windows = windows::Windows::new(body, premises);
+    let open_windows = |block, end, site: &Site| {
+        windows
+            .open_before(block, end)
+            .ok_or_else(|| LoweringError::new(site, "suspension needs the exact open loan restoration windows"))
+    };
     let mut crossings = Vec::new();
     for block in &body.blocks {
         let start = crossings.len();
@@ -571,9 +648,9 @@ fn plan<'members>(
         {
             let mut after = vec![false; body.values.len() + body.places.len()];
             graph.keys.cleanup(cleanup, |key| after[key] = true);
+            let site = &body.diagnostics.edges[id.get() - 1];
             let retained_owners = owners.take(CallSite::Edge(*id));
-            let (activation, retained_loans, retained_homes) =
-                graph.activation(&body.diagnostics.edges[id.get() - 1], arguments, &after, &retained_owners, types, returns)?;
+            let (activation, retained_loans, retained_homes) = graph.activation(site, arguments, &after, &retained_owners, types, returns)?;
             crossings.push(SuspensionSite {
                 call: CallSite::Edge(*id),
                 callee: *callee,
@@ -582,6 +659,7 @@ fn plan<'members>(
                 retained_loans,
                 retained_owners,
                 retained_homes,
+                open_windows: open_windows(block, block.operations.end, site)?,
             });
         }
         let mut live = graph.before_terminator(block);
@@ -610,6 +688,7 @@ fn plan<'members>(
                     retained_loans,
                     retained_owners,
                     retained_homes,
+                    open_windows: open_windows(block, pos, site)?,
                 });
             }
             graph.add_reads(pos, &mut live);

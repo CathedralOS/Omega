@@ -93,11 +93,34 @@ impl OwnedCrossings {
 }
 
 /// Reaching values for freshly constructed writable records in one basic block.
-/// Keys identify storage, not the value moved into it. A projected write loses
-/// the whole-value witness; a writable alias loses the ability to track stores
-/// at this root at all. Never carry one predecessor's witness through a join.
+/// Keys identify storage, not the value moved into it. Each home keeps the
+/// whole value it last received and, after it, each store into one of its
+/// fields, oldest first. A writable alias loses the ability to track stores at
+/// this root at all. Never carry one predecessor's witness through a join.
 #[derive(Default)]
-pub(super) struct LocalContents(std::collections::BTreeMap<usize, Option<PlaceId>>);
+pub(super) struct LocalContents(std::collections::BTreeMap<usize, Option<Contents>>);
+
+#[derive(Clone)]
+pub(super) struct Contents {
+    whole: PlaceId,
+    stores: Vec<(Vec<PlaceProjection>, PlaceId)>,
+}
+
+impl Contents {
+    /// The value that supplies `path` of the home, with the rest of the path
+    /// inside it: the newest store at a prefix of `path`, otherwise the whole value.
+    fn reaching(
+        &self,
+        path: &[PlaceProjection],
+    ) -> (PlaceId, Vec<PlaceProjection>) {
+        for (stored, value) in self.stores.iter().rev() {
+            if path.starts_with(stored) {
+                return (*value, path[stored.len()..].to_vec());
+            }
+        }
+        (self.whole, path.to_vec())
+    }
+}
 
 impl LocalContents {
     pub(super) fn operand(&mut self, operand: &ValueOperand) {
@@ -119,7 +142,7 @@ impl LocalContents {
                     && let OperationResult::Structural(place) = op.result
                     && mutable_homes.contains(&place)
                 {
-                    self.0.insert(place.index(), Some(place));
+                    self.0.insert(place.index(), Some(Contents { whole: place, stores: Vec::new() }));
                 }
             }
             OperationKind::BorrowPlace { source, access } if *access != ReferenceAccess::Shared => {
@@ -132,7 +155,13 @@ impl LocalContents {
             }
             OperationKind::StructuralStore { destination, value, .. } => {
                 if let Some(current) = self.0.get_mut(&destination.root.index()) {
-                    *current = (destination.path.is_empty() && !mutable_homes.contains(value)).then_some(*value);
+                    if mutable_homes.contains(value) || destination.path.contains(&PlaceProjection::Referent) {
+                        *current = None;
+                    } else if destination.path.is_empty() {
+                        *current = Some(Contents { whole: *value, stores: Vec::new() });
+                    } else if let Some(contents) = current {
+                        contents.stores.push((destination.path.clone(), *value));
+                    }
                 }
             }
             _ => {}
@@ -218,7 +247,7 @@ fn origin(
     // Only the initial lookup describes storage at *this crossing*. An
     // initializer read an earlier value; never consult the current home there.
     if lineage.mutable_homes.contains(&place) {
-        place = (*lineage.contents.0.get(&place.index())?)?;
+        (place, path) = lineage.contents.0.get(&place.index())?.as_ref()?.reaching(&path);
     }
     for depth in 0..=context.places.len() {
         if depth != 0 && lineage.mutable_homes.contains(&place) {

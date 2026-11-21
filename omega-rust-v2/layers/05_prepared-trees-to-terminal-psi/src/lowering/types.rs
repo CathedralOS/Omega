@@ -474,7 +474,7 @@ pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAc
     let access = match access {
         omega_typed::Access::Shared => crate::ReferenceAccess::Shared,
         omega_typed::Access::Mut => crate::ReferenceAccess::Mutable,
-        omega_typed::Access::Write => return None,
+        omega_typed::Access::Write => crate::ReferenceAccess::WriteOnly,
     };
     Some((access, inner))
 }
@@ -521,11 +521,22 @@ pub(crate) fn mutable_element_view(carrier: &ValueType) -> Option<&DeclarationId
     Some(&**id)
 }
 
-/// An exclusive loan carrier: a `@mut T` reference or a `@mut [T]` element
-/// view. It is affine, so a state edge transfers it rather than copying it
-/// (terminal-psi/byte_views.md#calls-and-control-transfers).
+/// An exclusive place reference: `@mut T` or `@write T`. A write-only loan is
+/// exclusive too (language/ownership.md#borrows-and-aliases), and exclusive
+/// descriptors never gain copy permission
+/// (terminal-psi/structural_access.md#write-only-authority).
+pub(crate) fn is_exclusive_reference(carrier: &ValueType) -> bool {
+    matches!(
+        place_reference(carrier),
+        Some((crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, _))
+    )
+}
+
+/// An exclusive loan carrier: a `@mut T` or `@write T` reference or a
+/// `@mut [T]` element view. It is affine, so a state edge transfers it rather
+/// than copying it (terminal-psi/byte_views.md#calls-and-control-transfers).
 pub(crate) fn is_exclusive_descriptor(carrier: &ValueType) -> bool {
-    matches!(place_reference(carrier), Some((crate::ReferenceAccess::Mutable, _))) || is_exclusive_element_view(carrier)
+    is_exclusive_reference(carrier) || is_exclusive_element_view(carrier)
 }
 
 /// A `@mut [T]` element view of scalar or nominal elements. Like every other

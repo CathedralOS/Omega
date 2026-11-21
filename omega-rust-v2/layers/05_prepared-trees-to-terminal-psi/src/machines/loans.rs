@@ -58,16 +58,29 @@ pub(super) fn descriptor(
             }
             Ok(Some(result))
         }
+        // A by-value use of an exclusive reference, `@mut` or `@write`,
+        // transfers its loan carrier (language/ownership.md#borrows-and-aliases).
+        // From owned storage that is an ordinary field move; through a `@mut`
+        // parent it opens the restoration window L3 recorded. An explicit
+        // reborrow is a `Borrow` node, and a call operand reborrows in
+        // `references::call_argument`.
+        NodeKind::FieldAccess | NodeKind::Move if region.is_none() && crate::lowering::types::is_exclusive_reference(reference) => {
+            super::ownership::move_value(expressions, node, carrier, body).map(Some)
+        }
         // Reading a stored shared reference copies no record storage. The value
         // reborrows the referent through the stored descriptor, so that stored
         // loan is the parent and the result points into the original backing,
         // not into the record that holds it. A call operand lends the same place.
         NodeKind::FieldAccess => {
-            // Reading a stored exclusive reference either moves it out of the
-            // field or reborrows it while suspending that field; neither is
-            // represented here yet.
-            if !matches!(crate::lowering::types::place_reference(reference), Some((crate::ReferenceAccess::Shared, _))) {
-                return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
+            match crate::lowering::types::place_reference(reference) {
+                Some((crate::ReferenceAccess::Shared, _)) => {}
+                Some((crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, _)) => {
+                    return Err(LoweringError::new(
+                        &site,
+                        "a stored exclusive reference returned at a declared region needs its binding",
+                    ));
+                }
+                None => return Err(LoweringError::new(&site, "a stored reference read needs its shared field place")),
             }
             if region.is_some() {
                 return Err(LoweringError::new(&site, "a stored reference returned at a declared region needs its binding"));
@@ -117,14 +130,14 @@ pub(super) fn move_borrowed(
         (NodeKind::Move, _) => return Err(LoweringError::new(&site_at(tree, node), "move needs one borrowed place")),
         _ => file.ungroup(node),
     };
+    // L3 records `RestoreBorrowed` only for a take out of storage it reaches
+    // with exclusive access, so this obligation is the move's authority; the
+    // published path names every loan the restoration window suspends.
     let occurrence = file.node_id(operand);
     let restoration=tree.semantics_at(operand).filter(|row| matches!(row,NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::RestoreBorrowed{place,ty} if *place==occurrence && ty==carrier))).count();
     let site = site_at(tree, node);
-    if restoration != 1 || !references::mutable_place(expressions, &source, body) {
-        return Err(LoweringError::new(
-            &site,
-            "move through a loan needs its exact exclusive place and restoration obligation",
-        ));
+    if restoration != 1 {
+        return Err(LoweringError::new(&site, "move through a loan needs its exact restoration obligation"));
     }
     let ty = expressions
         .types

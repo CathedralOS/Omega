@@ -223,6 +223,20 @@ pub enum OperationKind {
         obligation: crate::BoundsObligationId,
         path: Vec<crate::ElementLeafStep>,
     },
+    /// Replace the scalar at `path` inside element `index` of an exclusive
+    /// scalar element view, bounded by `length`: the same descriptor's element
+    /// count observed immediately before this write. The extent and every other
+    /// element stay unchanged; nothing is read or displaced with custody. An
+    /// empty path selects a scalar element
+    /// (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
+    ElementViewWrite {
+        destination: PlaceId,
+        path: Vec<crate::ElementLeafStep>,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: crate::BoundsObligationId,
+    },
     /// Zero every leaf of fresh storage for the result's nominal record. The
     /// operation carries the binding's `ZeroValue` obligation: the checker judges
     /// each default-domain clause of that schema, and of each schema it contains,

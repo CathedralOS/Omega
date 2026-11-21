@@ -326,6 +326,7 @@ fn returned_scalar_recast_preserves_the_exclusive_lender() {
             ReferenceAccess::Shared => assert_eq!(recast.kind, OperationKind::ScalarBitRecast {
                 source: lender, source_referent: unsigned, destination_referent: signed,
             }),
+            ReferenceAccess::WriteOnly => unreachable!("this program recasts only shared and mutable views"),
         }
     }
 }

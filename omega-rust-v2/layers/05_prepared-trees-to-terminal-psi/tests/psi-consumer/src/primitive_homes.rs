@@ -152,77 +152,97 @@ fn borrows(
         .any(|arg| matches!(arg, CallArgument::Borrow { place, .. } if place.root == home))
 }
 
-/// Reconstruct which homes the parked call and its continuation need, from the
-/// call operands, the operations after completion and the retained loans, then
-/// require the site's home rows to say exactly that.
+/// The parked call's operands and everything that can run after its normal
+/// completion, read from the body alone.
+pub(crate) struct ParkedCall<'a> {
+    pub(crate) arguments: &'a [CallArgument],
+    pub(crate) later: Vec<&'a OperationKind>,
+    pub(crate) terminators: Vec<&'a BlockTerminator>,
+}
+
+impl<'a> ParkedCall<'a> {
+    pub(crate) fn read(
+        body: &'a MachineBody,
+        site: &SuspensionSite,
+    ) -> Result<Self, &'static str> {
+        let (arguments, block, resume) = match site.call {
+            CallSite::Cleanup(_) => return Err("expected an operation or terminal call for the parked home"),
+            CallSite::Operation(id) => {
+                let Some(OperationKind::Call { arguments, .. }) = body.operations.get(id.index()).map(|op| &op.kind) else {
+                    return Err("site names no call");
+                };
+                let block = body
+                    .blocks
+                    .iter()
+                    .find(|b| b.operations.contains(&id.index()))
+                    .ok_or("call outside a block")?;
+                (arguments.as_slice(), block, Some(id.index() + 1))
+            }
+            CallSite::Edge(edge) => {
+                let block = body
+                    .blocks
+                    .iter()
+                    .find(|b| matches!(&b.terminator, BlockTerminator::TerminalCall { id, .. } if *id == edge))
+                    .ok_or("site names no terminal call")?;
+                let BlockTerminator::TerminalCall { arguments, .. } = &block.terminator else {
+                    unreachable!()
+                };
+                (arguments.as_slice(), block, None)
+            }
+        };
+        match (site.continuation, resume) {
+            (CompletionContinuation::Operation(next), Some(after)) if next.index() == after => {}
+            (CompletionContinuation::Terminator(id), Some(after)) if id == block.id && after == block.operations.end => {}
+            (CompletionContinuation::Return, None) => {}
+            _ => return Err("continuation does not follow the call"),
+        }
+        // Operations and terminators that can run after normal completion.
+        let mut later: Vec<&OperationKind> = Vec::new();
+        let mut terminators = Vec::new();
+        if let Some(after) = resume {
+            later.extend(
+                body.operations[after..block.operations.end]
+                    .iter()
+                    .map(|op| &op.kind),
+            );
+            let mut pending = vec![block.id];
+            let mut seen: Vec<BlockId> = Vec::new();
+            while let Some(id) = pending.pop() {
+                if seen.contains(&id) {
+                    continue;
+                }
+                seen.push(id);
+                let current = &body.blocks[id.get() - 1];
+                if id != block.id {
+                    later.extend(
+                        body.operations[current.operations.clone()]
+                            .iter()
+                            .map(|op| &op.kind),
+                    );
+                }
+                terminators.push(&current.terminator);
+                match &current.terminator {
+                    BlockTerminator::Jump(edge) => pending.push(edge.target),
+                    BlockTerminator::Conditional { when_true, when_false, .. } => pending.extend([when_true.target, when_false.target]),
+                    _ => {}
+                }
+            }
+        }
+        Ok(Self { arguments, later, terminators })
+    }
+}
+
+/// Reconstruct which primitive homes the parked call and its continuation
+/// need, from the call operands, the operations after completion and the
+/// retained loans, then require the site's primitive home rows to say exactly
+/// that. Rows for copyable structural storage are not primitive homes;
+/// `parked_copyable_homes` accounts for each of them.
 pub fn parked_homes(
     body: &MachineBody,
     site: &SuspensionSite,
 ) -> Result<Vec<ParkedHome>, &'static str> {
-    let (arguments, block, resume) = match site.call {
-        CallSite::Cleanup(_) => return Err("expected an operation or terminal call for the parked home"),
-        CallSite::Operation(id) => {
-            let Some(OperationKind::Call { arguments, .. }) = body.operations.get(id.index()).map(|op| &op.kind) else {
-                return Err("site names no call");
-            };
-            let block = body
-                .blocks
-                .iter()
-                .find(|b| b.operations.contains(&id.index()))
-                .ok_or("call outside a block")?;
-            (arguments.as_slice(), block, Some(id.index() + 1))
-        }
-        CallSite::Edge(edge) => {
-            let block = body
-                .blocks
-                .iter()
-                .find(|b| matches!(&b.terminator, BlockTerminator::TerminalCall { id, .. } if *id == edge))
-                .ok_or("site names no terminal call")?;
-            let BlockTerminator::TerminalCall { arguments, .. } = &block.terminator else {
-                unreachable!()
-            };
-            (arguments.as_slice(), block, None)
-        }
-    };
-    match (site.continuation, resume) {
-        (CompletionContinuation::Operation(next), Some(after)) if next.index() == after => {}
-        (CompletionContinuation::Terminator(id), Some(after)) if id == block.id && after == block.operations.end => {}
-        (CompletionContinuation::Return, None) => {}
-        _ => return Err("continuation does not follow the call"),
-    }
-    // Operations and terminators that can run after normal completion.
-    let mut later: Vec<&OperationKind> = Vec::new();
-    let mut terminators = Vec::new();
-    if let Some(after) = resume {
-        later.extend(
-            body.operations[after..block.operations.end]
-                .iter()
-                .map(|op| &op.kind),
-        );
-        let mut pending = vec![block.id];
-        let mut seen: Vec<BlockId> = Vec::new();
-        while let Some(id) = pending.pop() {
-            if seen.contains(&id) {
-                continue;
-            }
-            seen.push(id);
-            let current = &body.blocks[id.get() - 1];
-            if id != block.id {
-                later.extend(
-                    body.operations[current.operations.clone()]
-                        .iter()
-                        .map(|op| &op.kind),
-                );
-            }
-            terminators.push(&current.terminator);
-            match &current.terminator {
-                BlockTerminator::Jump(edge) => pending.push(edge.target),
-                BlockTerminator::Conditional { when_true, when_false, .. } => pending.extend([when_true.target, when_false.target]),
-                _ => {}
-            }
-        }
-    }
-    let mut rows = site.retained_homes.iter().peekable();
+    let ParkedCall { arguments, later, terminators } = ParkedCall::read(body, site)?;
+    let mut rows = site.retained_homes.iter().filter(|row| home_of(body, row.place).is_some()).peekable();
     let mut parked = Vec::new();
     for home in primitive_homes(body)? {
         let loans: Vec<_> = site
