@@ -1,10 +1,14 @@
 #[path = "support/source.rs"]
 mod source;
 
-use omega_lowering::{BlockTerminator, CallArgument, CallSite, OperationKind, PlaceProjection};
+use omega_lowering::{BlockTerminator, CallArgument, CallSite, LoweredPackage, MachineBody, OperationKind, PlaceProjection};
 use psi_handoff_consumer::check_parked_owner_borrow;
 
 const NO_BACKING: &str = "parked borrow has no live owned backing for its selected place";
+
+fn forward_body(package: &mut LoweredPackage) -> &mut MachineBody {
+    &mut package.machines.iter_mut().find(|m| m.declaration.path == "forward").unwrap().body
+}
 
 #[test]
 fn a_parked_call_borrows_the_selected_field_without_transferring_its_owner() {
@@ -28,19 +32,22 @@ fn a_parked_call_borrows_the_selected_field_without_transferring_its_owner() {
                 .find(|data| data.declaration.path == "Pair")
                 .unwrap();
             let alternative = format!("Pair::{other}");
-            let sibling = pair
-                .fields
-                .iter()
-                .find(|item| item.declaration.path == alternative)
-                .unwrap()
-                .declaration
-                .clone();
-            let caller = package
-                .machines
-                .iter_mut()
-                .find(|machine| machine.declaration.path == "forward")
-                .unwrap();
-            let body = &mut caller.body;
+            let sibling = pair.fields.iter().find(|item| item.declaration.path == alternative).unwrap();
+            let cell_ty = sibling.carrier;
+            let sibling = sibling.declaration.clone();
+
+            // The signature and retention row still say Pair, but the actual storage says Cell.
+            let body = forward_body(&mut package);
+            let root = body.suspension_sites[0].retained_owners[0].place.index();
+            let pair_ty = std::mem::replace(&mut body.places[root].ty, cell_ty);
+            assert!(check_parked_owner_borrow(&package, &expected, terminal).is_err(), "mistyped backing place accepted");
+            forward_body(&mut package).places[root].ty = pair_ty;
+
+            // Keeping the borrowed field live does not keep the separate scalar actual live.
+            let activation = std::mem::take(&mut forward_body(&mut package).suspension_sites[0].activation);
+            assert!(check_parked_owner_borrow(&package, &expected, terminal).is_err(), "missing tag accepted");
+            let body = forward_body(&mut package);
+            body.suspension_sites[0].activation = activation;
             let arguments = match body.suspension_sites[0].call {
                 CallSite::Operation(id) => {
                     let OperationKind::Call { arguments, .. } = &mut body.operations[id.index()].kind else {
@@ -166,11 +173,15 @@ fn a_parked_field_reborrow_traces_to_the_same_incoming_loan_named_or_inline() {
             let CallSite::Operation(call) = site.call else { panic!("ordinary call") };
             let user = machine(if callee_needs { "inspect" } else { "observe" });
             assert_eq!(site.callee, CallTarget::Machine(if callee_needs { user.id } else { machine("tick").id }));
-            let use_op = if callee_needs {
-                &body.operations[call.index()]
+            let use_id = if callee_needs {
+                call
             } else {
-                body.operations.last().unwrap()
+                let omega_lowering::CompletionContinuation::Operation(resume) = site.continuation else {
+                    panic!("tick must resume at the operation that consumes the retained loan");
+                };
+                resume
             };
+            let use_op = &body.operations[use_id.index()];
             let OperationKind::Call { callee, arguments, .. } = &use_op.kind else {
                 panic!("loan use")
             };

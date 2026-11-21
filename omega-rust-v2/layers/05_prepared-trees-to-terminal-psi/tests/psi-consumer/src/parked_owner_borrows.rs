@@ -68,7 +68,11 @@ pub fn check_parked_owner_borrow(
     {
         return Err("the intact root must remain in caller custody");
     }
-    let Some(TypeShape::Nominal(pair_id)) = package.types.get(retained.ty) else {
+    let backing = body.places.get(place.root.index()).ok_or("missing backing place")?;
+    if backing.ty != retained.ty {
+        return Err("retained owner type disagrees with the borrowed storage");
+    }
+    let Some(TypeShape::Nominal(pair_id)) = package.types.get(backing.ty) else {
         return Err("expected nominal owner type");
     };
     let pair = package
@@ -88,6 +92,17 @@ pub fn check_parked_owner_borrow(
     };
     if *access != ReferenceAccess::Shared || package.types.get(field.carrier) != Some(&TypeShape::Nominal(*referent)) {
         return Err("formal does not borrow the exact type of the selected field");
+    }
+    // In both forms inspect holds tag; only its eventual result flows onward.
+    let [held] = site.activation.as_slice() else {
+        return Err("expected only the scalar tag in the parked scalar frontier");
+    };
+    if held.value != *actual_tag
+        || body.values.get(actual_tag.index()).map(|v| v.ty) != Some(held.ty)
+        || !held.needed_by_callee
+        || held.needed_after_completion
+    {
+        return Err("activation does not preserve the typed tag for the incomplete call");
     }
     Ok(())
 }
