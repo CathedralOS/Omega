@@ -4187,6 +4187,11 @@ pub(crate) mod native_layouts {
                     ));
                 }
             };
+            if semantic
+                .is_some_and(|application| application.policy_identity != native.policy_identity)
+            {
+                return Err(fail("native layout changed its selected semantic policy"));
+            }
             let expected_targets = semantic.map(|application| {
                 application
                     .realizations

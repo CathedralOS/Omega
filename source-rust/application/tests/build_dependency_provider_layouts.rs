@@ -172,6 +172,18 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
             } if id == pending.id)
             );
 
+            let mut wrong_policy = module.clone();
+            assert_ne!(pending.policy_identity, pending.plan_identity);
+            wrong_policy.layouts.target_layout_applications[0].policy_identity =
+                pending.plan_identity;
+            let error = terminal_codec::ClosedTerminalModule::new(wrong_policy).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("native layout changed its selected semantic policy"),
+                "{error}"
+            );
+
             // Even without target placements, the logical fields must match
             // their source schema. Reopening a mismatched carrier must fail.
             let mut altered = module.clone();
