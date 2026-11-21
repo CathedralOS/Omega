@@ -35,9 +35,7 @@ use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
     GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
 };
-use crate::resolution::source::{
-    AcquiredBuildSource, BuildSourceAcquisitions,
-};
+use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use crate::review::CompileResolvedPackageReviewsError;
 use crate::review::{PackageChangeReview, review_package_change_reusing};
 use build_evaluation_result::CompileFailure;

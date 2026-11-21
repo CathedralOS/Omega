@@ -22,9 +22,7 @@ use crate::lockfile::publication::{PackageFileTransaction, PackagePublicationLim
 use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
 };
-use crate::resolution::source::{
-    AcquiredBuildSource, BuildSourceAcquisitions,
-};
+use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use crate::review::CompileResolvedPackageReviewsError;
 use source_acquisition::PrimaryGitChoices;
 use source_acquisition::SourceResolver;

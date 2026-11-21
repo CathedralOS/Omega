@@ -977,14 +977,45 @@ public boundary trait TimeHost {
             .iter()
             .map(|row| row.name.as_str())
             .collect::<Vec<_>>(),
-        schema.declaration.methods.iter().map(|method| method.name.as_str()).collect::<Vec<_>>()
+        schema
+            .declaration
+            .methods
+            .iter()
+            .map(|method| method.name.as_str())
+            .collect::<Vec<_>>()
     );
     assert_eq!(service.methods.len(), 2);
-    let frequency = &service.methods.iter().find(|method| method.name == "frequency").unwrap().requirement;
-    assert!(checked.policy.callables.callables().iter().any(|callable| callable.identity() == frequency));
-    let host = checked.policy.public_api.traits.iter().find(|item| item.identity == service.service).unwrap();
-    assert!(host.requirements.iter().any(|requirement| &requirement.identity == frequency));
-    let method = service.methods.iter().find(|method| method.name == "ticks").unwrap();
+    let frequency = &service
+        .methods
+        .iter()
+        .find(|method| method.name == "frequency")
+        .unwrap()
+        .requirement;
+    assert!(
+        checked
+            .policy
+            .callables
+            .callables()
+            .iter()
+            .any(|callable| callable.identity() == frequency)
+    );
+    let host = checked
+        .policy
+        .public_api
+        .traits
+        .iter()
+        .find(|item| item.identity == service.service)
+        .unwrap();
+    assert!(
+        host.requirements
+            .iter()
+            .any(|requirement| &requirement.identity == frequency)
+    );
+    let method = service
+        .methods
+        .iter()
+        .find(|method| method.name == "ticks")
+        .unwrap();
     let [grant] = service.permissions.as_slice() else {
         panic!("only the supplied permission belongs to the receiver")
     };
