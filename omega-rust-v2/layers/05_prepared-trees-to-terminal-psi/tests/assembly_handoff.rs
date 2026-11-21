@@ -177,20 +177,26 @@ fn a_register_source_selects_its_own_instruction_form() {
             InstructionParameter::Register(word.clone()),
             InstructionParameter::Register(word),
         ];
+        let register_semantics = from_register.semantics.clone();
         forms.push(from_register);
         let package = resolve_source_package_with_assembly(sources, selected).unwrap();
         let prepared = prepare_source_package(&package).unwrap();
         let lowered = lower_package(&prepared).unwrap();
-        let flags = lowered.machines[0]
+        let sets = lowered.machines[0]
             .body
             .operations
             .iter()
             .filter_map(|op| match &op.kind {
-                OperationKind::AssemblyInstruction(i) if i.mnemonic == "set" => Some(i.implicit_registers[0].name.as_str()),
+                OperationKind::AssemblyInstruction(i) if i.mnemonic == "set" => Some(i),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(flags, ["z", "other"]);
+        let [expression, register] = sets.as_slice() else {
+            panic!("expected both set instructions")
+        };
+        assert_eq!([expression, register].map(|i| i.implicit_registers[0].name.as_str()), ["z", "other"]);
+        assert_eq!(register.semantics, register_semantics);
+        assert!(matches!(register.operands.as_slice(), [AssemblyOperand::Register(dst), AssemblyOperand::Register(src)] if dst == src && src.name == "r0"));
     });
 }
 
@@ -323,10 +329,11 @@ fn separate_inline_assembly_regions_have_distinct_scratch_state() {
             let [a, x, b, y] = lowered.machines[0].body.operations.as_slice() else {
                 panic!("expected two regions")
             };
-            for ((entry, op), parameter) in [(a, x), (b, y)]
-                .into_iter()
-                .zip(&lowered.machines[0].body.parameters)
-            {
+            use omega_lowering::Parameter::Scalar;
+            let [Scalar(n), Scalar(m)] = lowered.machines[0].body.parameters.as_slice() else {
+                panic!("expected store(n:u32,m:u32)")
+            };
+            for (entry, op, source) in [(a, x, n), (b, y, m)] {
                 let OperationKind::BeginAssembly(region) = &entry.kind else {
                     panic!("missing entry")
                 };
@@ -336,13 +343,14 @@ fn separate_inline_assembly_regions_have_distinct_scratch_state() {
                 assert_eq!(register.name, "r0");
                 spec_corpus::observe_handoff!(
                     psi "psi-output/assembly-initializers",
-                    assert_eq!(parameter, &omega_lowering::Parameter::Scalar(*initializer)),
+                    assert_eq!(initializer, source),
                 );
                 assert_eq!(region.clobbers.as_deref(), Some(&["r0".to_owned(), "z".to_owned()][..]));
                 let OperationKind::AssemblyInstruction(instruction) = &op.kind else {
                     panic!("missing instruction")
                 };
                 assert_eq!(entry.id, instruction.entry);
+                assert_eq!(instruction.operands[1], AssemblyOperand::Value(*source));
                 assert_eq!(region.target, instruction.target);
             }
             assert_ne!(a.id, b.id);

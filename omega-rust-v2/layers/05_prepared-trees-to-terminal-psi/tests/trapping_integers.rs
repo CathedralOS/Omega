@@ -1,3 +1,5 @@
+#[path = "support/returns.rs"]
+mod returns;
 #[path = "support/source.rs"]
 mod source;
 use omega_lowering::{BlockTerminator, CleanupAction, CrashCause, OperationKind, Parameter, PredicateOperator, PredicateStep, TrappingIntegerPrimitive};
@@ -101,7 +103,7 @@ fn division_traps_at_the_selected_operation_and_only_a_return_runs_cleanup() {
 #[test]
 fn binary_trapping_forms_preserve_the_primitive_and_both_carriers() {
     use TrappingIntegerPrimitive::*;
-    use omega_lowering::{ScalarType, TypeShape};
+    use omega_lowering::{ReturnEdge, ScalarType, TypeShape};
     for (token, primitive, right_type, signed, width) in [
         ("+!", Add, "i8", true, 8),
         ("-!", Subtract, "i8", true, 8),
@@ -127,6 +129,7 @@ fn binary_trapping_forms_preserve_the_primitive_and_both_carriers() {
             panic!("a successful operation defines its result")
         };
         assert_eq!(body.values[result.index()].ty, body.values[left.index()].ty);
+        assert_eq!(returns::sole_return(body), ReturnEdge::Scalar(result), "{token}");
     }
 }
 

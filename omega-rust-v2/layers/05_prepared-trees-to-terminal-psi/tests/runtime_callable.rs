@@ -410,6 +410,27 @@ fn a_join_retains_each_actual_descriptor_and_returns_the_joined_value() {
         contract_of(&package, choose.parameter_types[1])
     );
     assert!(calls(choose).is_empty());
+
+    // Sharing a contract does not make the two descriptors interchangeable.
+    use omega_lowering::{BlockTerminator, ReturnEdge};
+    let blocks = &choose.body.blocks;
+    let BlockTerminator::Conditional { condition, when_false, when_true } = &blocks[0].terminator else {
+        panic!("expected flag to select the descriptor")
+    };
+    assert_eq!(*condition, scalar_parameter(choose, 0));
+    let [from_left, from_right] = [(when_false, 1), (when_true, 2)].map(|(edge, formal)| {
+        let BlockTerminator::Jump(arrival) = &blocks[edge.target.get() - 1].terminator else {
+            panic!("expected arm to jump to the join")
+        };
+        assert_eq!(arrival.arguments, [scalar_parameter(choose, formal)], "arm must forward its selected descriptor");
+        arrival.target
+    });
+    assert_eq!(from_left, from_right);
+    let join = &blocks[from_left.get() - 1];
+    let BlockTerminator::Return { result: ReturnEdge::Scalar(returned), .. } = join.terminator else {
+        panic!("expected the join to return a descriptor")
+    };
+    assert_eq!(join.scalar_parameters, [returned], "return must use the joined descriptor");
 }
 
 #[test]

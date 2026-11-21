@@ -99,7 +99,7 @@ fn nested_data_passes_the_private_witness_as_an_argument_and_captures_only_the_p
 
 #[test]
 fn an_existential_callable_shares_the_state_witness_and_keeps_its_postcondition() {
-    use TypeExpressionStep::{Callable, Reference, Scalar, Slice, Witness};
+    use TypeExpressionStep::{AtLifetime, Callable, Reference, Scalar, Slice, Witness};
     for (token, comparison) in [
         ("<=", PredicateOperator::LessOrEqual),
         ("<", PredicateOperator::LessThan),
@@ -114,13 +114,20 @@ fn an_existential_callable_shares_the_state_witness_and_keeps_its_postcondition(
             index: 0,
         };
         let mutable = Reference(omega_psi::TemplateAccess::Mut);
-        assert_eq!(reader.fields[0].ty.0[..2], [witness.clone(), mutable.clone()]);
+        let lifetime = GenericParameter {
+            owner: reader.declaration.clone(),
+            index: 0,
+        };
+        assert_eq!(reader.fields[0].ty.0, [witness.clone(), mutable.clone(), lifetime, AtLifetime]);
         let [Callable(callable)] = reader.fields[1].ty.0.as_slice() else {
             panic!("expected a callable field")
         };
-        assert_eq!(callable.parameters[0].0, [witness, mutable.clone()]);
+        let [state, output] = callable.parameters.as_slice() else {
+            panic!("ReadInto takes exactly state and output")
+        };
+        assert_eq!(state.0, [witness, mutable.clone()]);
         assert_eq!(
-            callable.parameters[1].0,
+            output.0,
             [
                 Scalar(omega_psi::ScalarType::Integer { signed: false, width: 8 }),
                 Slice,
@@ -184,12 +191,9 @@ fn a_type_equation_and_array_extent_refer_to_the_same_constant_binder() {
                 ])
             )]
         );
-        assert_eq!(
-            domain.parameters,
-            [omega_psi::TemplateBinder::Const(omega_psi::TypeExpression(
-                vec![integer(64)]
-            ))]
-        );
+        let capacity = omega_psi::TemplateBinder::Const(omega_psi::TypeExpression(vec![integer(64)]));
+        assert_eq!(data.parameters[1], capacity);
+        assert_eq!(domain.parameters, [capacity]);
         assert_eq!(data.fields[0].ty.0, [integer(8), arg(1), IndexedArray]);
         assert_eq!(data.fields[1].ty.0, [arg(0)]);
         assert_eq!(
