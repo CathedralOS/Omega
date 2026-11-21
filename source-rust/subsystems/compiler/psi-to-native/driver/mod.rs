@@ -103,10 +103,10 @@ fn produce(
     );
     let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
     if stop == NativeProductionStop::RuntimeAdmission {
-        let provisions = runtime::prepare_terminal_runtime(
-            realization,
-            admission.providers.target(),
-        )?;
+        let provisions = realization.runtime_provisions.ok_or_else(|| {
+            vec![Diagnostic::error("runtime admission requires a checked program entry")]
+        })?;
+        let provisions = provisions.map_adapters(runtime::foreign_adapters::compile);
         observation.complete();
         return Ok(Produced::Runtime(provisions));
     }

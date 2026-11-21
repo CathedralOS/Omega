@@ -152,9 +152,12 @@ pub fn publish_fragment_object(
             "runtime entry or private RAM differs from the checked object entry",
         ));
     }
-    let runtime = request
-        .runtime
-        .map(|plan| plan.with_borrowed_storage_layouts(object.borrowed_storage_layouts().clone()));
+    let runtime = request.runtime;
+    if let Some(plan) = &runtime {
+        plan.host_provisions()
+            .require_borrowed_storage_layouts(object.borrowed_storage_layouts())
+            .map_err(|error| native_artifact_error("runtime provisions", error))?;
+    }
     Ok(PublishedFragmentObject { object, runtime })
 }
 

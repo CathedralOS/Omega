@@ -2,7 +2,7 @@
 We retain the native placement of scalar leaves, sum discriminators, and opaque
 regions inside borrowed structural storage (`NativeBorrowedStorageLayout`).
 
-Target lowering populates these coordinates from its ordinary storage geometry
+Admission derives these coordinates from the selected target storage geometry
 so host adapters can encode and decode captured semantic fields. Neither the
 layout nor a byte offset establishes a loan or permits replacement of unmodeled
 storage: padding, pointers, and inactive sum cases stay in `opaque_regions` so

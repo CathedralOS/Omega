@@ -516,9 +516,8 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     }
     let borrowed_layouts = match verified_input {
         Some(facts) => facts.borrowed_storage_layouts(target),
-        None => {
-            verified_optimization_input::borrowed_storage::BorrowedStorageInputs::of(plan).layouts()
-        }
+        None => verified_optimization_input::borrowed_storage::AdmittedBorrowedStorage::from_plan(plan)
+            .map(|storage| storage.layouts().clone()),
     }
     .map_err(|reason| LoweringError::FunctionContract {
         machine: plan.entry,
