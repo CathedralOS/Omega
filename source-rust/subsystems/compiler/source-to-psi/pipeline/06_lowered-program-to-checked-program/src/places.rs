@@ -2285,9 +2285,13 @@ impl<'a> Storage<'a> {
                     &mut established_array,
                 )?;
             }
-            Shape::Payload(case) => {
-                self.field_leaves(&case.fields, &mut at, &mut found, concerns)?
-            }
+            Shape::Payload(case) => self.field_leaves(
+                &case.fields,
+                &mut at,
+                &mut found,
+                concerns,
+                &mut established_array,
+            )?,
         }
         Ok(found)
     }
