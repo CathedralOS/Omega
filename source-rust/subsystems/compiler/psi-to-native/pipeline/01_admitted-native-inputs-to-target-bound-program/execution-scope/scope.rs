@@ -6,7 +6,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 #[cfg(test)]
 use terminal_semantics::closed_owned_sequence_bounds;
 use verified_optimization_input::{NativeExecutionScope, NativeScopeBinding, TerminalNativeRealizationProposal};
-use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
+use native_execution_reach::{ExecutionReach, ReachedCallback};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
 /// A private callable can inherit providers only from an already checked execution.
@@ -65,7 +65,7 @@ struct ScopeInputs<'a> {
 }
 
 struct TargetReach {
-    emitted: EmittedExecutionScope,
+    emitted: ExecutionReach,
     selected_candidate_positions: Vec<usize>,
 }
 
@@ -313,21 +313,20 @@ impl TargetReach {
                 }
             }
         }
-        let emitted = EmittedExecutionScope::new(
+        let emitted = ExecutionReach::new(
             machines,
             index.reached.into_iter().collect(),
             callbacks
                 .iter()
                 .zip(reached_callbacks)
                 .filter_map(|(callback, reached)| {
-                    reached.then_some(EmittedCallbackOccurrence {
+                    reached.then_some(ReachedCallback {
                         application_index: callback.application_index(),
                         terminal_operation: callback.terminal_operation(),
                     })
                 })
                 .collect(),
         );
-        index.selected_candidate_positions.sort_unstable();
         Ok(Self {
             emitted,
             selected_candidate_positions: index.selected_candidate_positions,

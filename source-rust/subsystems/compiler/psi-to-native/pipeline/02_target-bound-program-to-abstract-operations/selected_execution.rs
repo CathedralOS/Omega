@@ -60,7 +60,7 @@ pub fn lower_native_execution(
     let scope = crate::selected_input::NativeScopePreparation::prepare(
         authorization,
         proposal.target_profile(),
-        terminal_psi::TargetMachineCallable::Machine(checked.entry()),
+        terminal_psi::TargetMachineCallable::Machine(checked.reach().entry()),
         &selection,
     )
     .map_err(crate::admit_providers::artifact_lowering_error)?;

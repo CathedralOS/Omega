@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native provider selection carries a target operation before abstract lowering
+
+- Category: Knowledge crossing a boundary.
+- Where: [stage 01 output](source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs#L11), [scoped provider bindings](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution.rs#L7), [builtin proposal](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/compiler_builtins/retained.rs#L34), [native realization](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/compiler_builtins/catalog.rs#L20).
+- Saw: Stage 01 constructs `NativeExecutionFacts` in the verified optimizer input crate. A selected builtin in those facts stores both its intrinsic identity and a `SettledCompilerBuiltin` containing stage 04's `CompilerBuiltinExecution`.
+- Cost: Building the earlier provider selection pulls in both abstract and target operations. Move the selected meaning and its exact plan, boundary and refusal into the target-bound program. Have native realization consume that evidence when it chooses an instruction implementation. Check an admitted builtin and a refused builtin through root and private callable lowering, then remove the provider selection's downstream IR dependencies.
+- Reported: 2026-11-20, Codex, while separating entry reach from its native providers.
+
 ### Extending a resolved program still requires its original parser trees
 
 - Category: Knowledge crossing a boundary.

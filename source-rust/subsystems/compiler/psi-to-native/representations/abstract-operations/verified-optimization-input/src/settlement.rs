@@ -47,7 +47,7 @@ pub mod boundary_application_settlement {
         profile: Option<target::TargetProfile>,
         scope: &crate::NativeExecutionScope,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
-        let demands = scope.boundary_application_demands();
+        let demands = scope.reach().boundary_application_demands();
         demands
             .validate_for_terminal(artifact.manifest().semantic())
             .map_err(|message| vec![Diagnostic::error(message)])?;

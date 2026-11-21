@@ -239,7 +239,7 @@ mod native {
                 || {
                     psi_target_layouts::terminal_target_context(artifact.view(), profile.target_name())
                 },
-                |scope| scope.target_context().clone(),
+                |scope| scope.reach().target_context().clone(),
             );
             let entry = selections
                 .entry(artifact.view().identity(), module, root)
@@ -262,8 +262,8 @@ mod native {
                     ));
                 }
                 (
-                    Cow::Borrowed(scope.layouts()),
-                    Cow::Borrowed(scope.scalar_application_demand()),
+                    Cow::Borrowed(scope.reach().layouts()),
+                    Cow::Borrowed(scope.reach().scalar_application_demand()),
                 )
             } else {
                 profile
@@ -277,7 +277,7 @@ mod native {
                 let layouts =
                     psi_target_layouts::admit_target_layouts(artifact.view(), &selections, &facts)
                         .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
-                let demand = crate::NativeExecutionScope::full_module_scalar_demand(module, &layouts)
+                let demand = target_bound_program::TargetBoundReach::full_module_scalar_demand(module, &layouts)
                     .map_err(ArtifactLoweringError::TargetContext)?;
                 (Cow::Owned(layouts), Cow::Owned(demand))
             };
@@ -312,7 +312,7 @@ mod native {
             let module = artifact.semantic_module();
             let full_machines;
             let machines = match scope {
-                Some(scope) => scope.machines(),
+                Some(scope) => scope.reach().machines(),
                 None => {
                     full_machines = module
                         .machines
@@ -367,7 +367,7 @@ mod native {
                 module,
                 entry,
                 structural_types,
-                scope,
+                scope.map(crate::NativeExecutionScope::reach),
                 scalar_applications,
                 Some(&layouts),
             )

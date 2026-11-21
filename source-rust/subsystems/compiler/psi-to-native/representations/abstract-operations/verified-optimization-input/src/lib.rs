@@ -190,6 +190,24 @@ impl VerifiedPsiOptimizationInput {
         })
     }
 
+    fn require_native_scope(
+        &self,
+        scope: &NativeExecutionScope,
+        selected_provider_closure: [u8; 32],
+    ) -> Result<(), &'static str> {
+        let reach = scope.reach();
+        if reach.target_context().terminal_psi() != self.plan.psi
+            || reach.entry() != self.plan.entry
+            || Some(reach.target_context()) != self.target_context.as_ref()
+            || scope.selected_provider_closure() != selected_provider_closure
+        {
+            return Err(
+                "native execution scope belongs to another artifact, entry, target or provider selection",
+            );
+        }
+        Ok(())
+    }
+
     /// Records the selected entry call, scope and scalar applications that
     /// native admission settled for this exact module.
     pub fn retain_native_selections(
@@ -200,11 +218,7 @@ impl VerifiedPsiOptimizationInput {
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         if let Some(scope) = scope.as_ref() {
-            scope.require_input_context(
-                &self.plan,
-                self.target_context.as_ref(),
-                selected_provider_closure,
-            )?;
+            self.require_native_scope(scope, selected_provider_closure)?;
             if scope.entry_call() != entry_call.as_ref() {
                 return Err("native input changes its checked semantic entry call");
             }
@@ -227,11 +241,7 @@ impl VerifiedPsiOptimizationInput {
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         if let Some(scope) = self.native_execution_scope.as_ref() {
-            scope.require_input_context(
-                &self.plan,
-                self.target_context.as_ref(),
-                selected_provider_closure,
-            )?;
+            self.require_native_scope(scope, selected_provider_closure)?;
         }
         self.external_requirement_applications = external_requirement_applications;
         self.selected_provider_requirement_identities = identities;
@@ -251,13 +261,13 @@ impl VerifiedPsiOptimizationInput {
         let machines = match self.native_execution_scope.as_deref() {
             Some(scope) => {
                 if scope.selected_provider_closure() != *providers.identity_digest().as_bytes()
-                    || scope.target_context().target() != profile.target_name()
+                    || scope.reach().target_context().target() != profile.target_name()
                 {
                     return Err(vec![diagnostics::Diagnostic::error(
                         "behavior exclusions belong to another target or selected provider closure",
                     )]);
                 }
-                Some(scope.machines())
+                Some(scope.reach().machines())
             }
             None => None,
         };

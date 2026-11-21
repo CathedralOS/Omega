@@ -403,14 +403,15 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         original.authorization(),
     )
     .unwrap();
-    assert!(!execution.scope().scalar_application_demand().is_empty());
+    let root_reach = execution.scope().reach();
+    assert!(!root_reach.scalar_application_demand().is_empty());
     // The empty transition arm reads none of the size-dependent constants in main.
     let done = view
         .module()
         .machines
         .iter()
         .find(|machine| {
-            execution.scope().contains_machine(machine.id)
+            root_reach.contains_machine(machine.id)
                 && machine.operations().next().is_none()
                 && machine.blocks.iter().all(|block| {
                     matches!(block.terminator, terminal_psi::Terminator::ReturnUnit { .. })
@@ -425,8 +426,8 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
     )
     .unwrap();
     let (_, _, _, _, scope, _) = callable.into_parts();
-    assert!(std::ptr::eq(scope.layouts(), execution.scope().layouts()));
-    assert!(scope.scalar_application_demand().is_empty());
+    assert!(std::ptr::eq(scope.reach().layouts(), root_reach.layouts()));
+    assert!(scope.reach().scalar_application_demand().is_empty());
 
     let plans = proposal.providers().selection.plans();
     let preimages = target_provider_admission::matching_folded_constant_dependencies(
@@ -479,6 +480,17 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
     let other = folded_product(&root, linux)
         .into_retained_terminal_artifact()
         .unwrap();
+    let mismatched = provider_realization::native_execution::prepare_program(
+        proposal,
+        other.authorization(),
+    )
+    .err()
+    .expect("the original proposal cannot prepare a different folded program");
+    assert_eq!(mismatched.len(), 1);
+    assert_eq!(
+        mismatched[0].message,
+        "native proposal belongs to another canonical artifact"
+    );
     let other_plans = other
         .native_realization_proposal()
         .providers()

@@ -95,7 +95,7 @@ pub(super) fn validate_boundary_application_coverage(
     terminal: terminal_psi::TerminalPsiIdentity,
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: &NativePhysicalEvidenceScope,
-    execution_scope: Option<&target_vocabulary::publication::EmittedExecutionScope>,
+    execution_scope: Option<&native_execution_reach::ExecutionReach>,
 ) -> Result<(), &'static str> {
     // A retained native scope establishes which calls must have selected rows.
     // Without that custody, keep the full-module obligation; absence is not an
@@ -1248,7 +1248,7 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
 
 fn validate_ieee_float_fma_occurrences(
     module: &TerminalModule,
-    execution_scope: Option<&target_vocabulary::publication::EmittedExecutionScope>,
+    execution_scope: Option<&native_execution_reach::ExecutionReach>,
 ) -> Result<(), &'static str> {
     if module
         .machines

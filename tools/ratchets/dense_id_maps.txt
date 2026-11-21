@@ -77,7 +77,6 @@
 2 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/graph.rs
 9 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/structural_places.rs
 8 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/src/atomic.rs
-1 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs
 3 source-rust/subsystems/compiler/psi-to-native/representations/machine-code/stack-demand/demand.rs
 1 source-rust/subsystems/compiler/psi-to-native/targets/calling-conventions/src/terminal_layout.rs
 3 source-rust/subsystems/compiler/psi-to-native/verification/component-description/inventory.rs

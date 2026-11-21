@@ -3,13 +3,13 @@ use crate::DirectBoundaryLeaf;
 use diagnostics::Diagnostic;
 use selected_provider_plans::SelectedProviderPlanFacts;
 use std::{collections::BTreeSet, sync::Arc};
-use target_vocabulary::publication::EmittedExecutionScope;
+use native_execution_reach::ExecutionReach;
 
 pub struct VerifiedDirectProviderSelection<'a> {
     module: &'a terminal_psi::TerminalModule,
     source: &'a SelectedProviderPlanFacts,
     leaves: &'a [DirectBoundaryLeaf],
-    reach: Arc<EmittedExecutionScope>,
+    reach: Arc<ExecutionReach>,
     selected: SelectedProviderPlanFacts,
 }
 
@@ -21,7 +21,7 @@ impl<'a> VerifiedDirectProviderSelection<'a> {
         module: &'a terminal_psi::TerminalModule,
         authored: &'a SelectedProviderPlanFacts,
         leaves: &'a [DirectBoundaryLeaf],
-        reach: &Arc<EmittedExecutionScope>,
+        reach: &Arc<ExecutionReach>,
         nominees: &[usize],
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut unbound = BTreeSet::new();
@@ -79,7 +79,7 @@ impl<'a> VerifiedDirectProviderSelection<'a> {
         module: &terminal_psi::TerminalModule,
         source: &SelectedProviderPlanFacts,
         leaves: &[DirectBoundaryLeaf],
-        reach: &Arc<EmittedExecutionScope>,
+        reach: &Arc<ExecutionReach>,
     ) -> Result<SelectedProviderPlanFacts, &'static str> {
         if !std::ptr::eq(self.module, module)
             || !std::ptr::eq(self.source, source)
@@ -115,13 +115,13 @@ mod tests {
     use super::{VerifiedDirectProviderSelection, check_nominees};
     use selected_provider_plans::SelectedProviderPlanFacts;
     use std::sync::Arc;
-    use target_vocabulary::publication::EmittedExecutionScope;
+    use native_execution_reach::ExecutionReach;
 
     #[test]
     fn a_receipt_cannot_be_attached_to_another_program_selection_or_reach() {
         let module = terminal_psi::TerminalModule::declarations();
         let source = SelectedProviderPlanFacts::default();
-        let reach = Arc::new(EmittedExecutionScope::new(
+        let reach = Arc::new(ExecutionReach::new(
             Vec::new(),
             Vec::new(),
             Vec::new(),
