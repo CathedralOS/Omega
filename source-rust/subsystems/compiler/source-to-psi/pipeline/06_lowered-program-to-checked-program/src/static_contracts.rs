@@ -423,6 +423,83 @@ fn check_service_limit(
     Ok(())
 }
 
+/// The check form retains a generic body's fixed crash routes. A callback
+/// with an open crash requirement can add routes when it is selected. Never
+/// use that body's fixed rows alone to prove a closed receiving requirement.
+fn check_deferred_callback_crashes(
+    elaboration: &Elaboration,
+    site: RefusalSite,
+    application: &terminal_psi::static_reach::StaticReachArgument,
+    required: &CallableHeader,
+) -> Checked<()> {
+    if required.crash_policy == CallableCrashPolicy::Open {
+        return Ok(());
+    }
+    let covers = |cause| {
+        required.proof.crash_routes.iter().any(|route| {
+            route.cause == cause
+                && route
+                    .alternatives
+                    .contains(&terminal_psi::CrashRouteGuard::Truth)
+        })
+    };
+    let mut pending = vec![application];
+    while let Some(application) = pending.pop() {
+        let parameters = &elaboration.static_reach_parameters;
+        let first = parameters.partition_point(|row| row.owner < application.selected);
+        for parameter in parameters[first..]
+            .iter()
+            .take_while(|row| row.owner == application.selected)
+        {
+            let requirement = elaboration
+                .module
+                .machine(parameter.requirement)
+                .ok_or_else(|| {
+                    fault(
+                        site,
+                        "generic callback lost its originating crash requirement",
+                    )
+                })?;
+            if requirement.contract.declared_crash_routes.is_some() {
+                // Its authored routes already contribute through the body. Its
+                // own refinement question checks the nested selection.
+                continue;
+            }
+            let actual = application.arguments.iter().find(|actual| {
+                actual.parameter == parameter.parameter
+                    && actual.requirement == parameter.requirement
+            });
+            let Some(actual) = actual else {
+                return Err(Refusal::at(
+                    RefusalReason::Unsupported,
+                    site,
+                    "an open crash dependency has no supplied callback application",
+                ));
+            };
+            let selected = elaboration
+                .module
+                .machine(actual.selected)
+                .ok_or_else(|| fault(site, "nested callback lost its selected crash contract"))?;
+            if selected
+                .contract
+                .crash_routes
+                .iter()
+                .any(|route| !covers(route.cause))
+            {
+                return Err(Refusal::at(
+                    RefusalReason::Unsupported,
+                    site,
+                    "the nested callback's crash routes need coverage at its invocation",
+                ));
+            }
+            if selected.declaration.is_none() {
+                pending.push(actual);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// An executable body supplies its published contract. A generic checking
 /// body supplies a contract only for its selected application, after the
 /// call's own arguments have been substituted into its reach dependencies.
@@ -464,6 +541,7 @@ fn machine_operations<'a>(
     let argument = argument
         .filter(|argument| argument.selected == body.id)
         .ok_or_else(|| fault(site, "generic callback lost its selecting application"))?;
+    check_deferred_callback_crashes(elaboration, site, argument, &question.required)?;
     let summary = |machine| {
         elaboration
             .static_reach_summaries

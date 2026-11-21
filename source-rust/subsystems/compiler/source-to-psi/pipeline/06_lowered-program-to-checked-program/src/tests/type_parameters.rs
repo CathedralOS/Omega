@@ -1555,6 +1555,26 @@ fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
         "machine measure<T>(value: @T) -> u64",
         "machine measure<T>(value: @T) -> u64 reaches Output",
     );
+    // An applied template cannot prove a crash-free promise from its fixed
+    // routes when the actual selected callback can trap.
+    let crash = text.replace("u64 { 41u64 }", "u64 crashes Trap { crash Trap; }");
+    let mut crash = callback_form(&crash).expect("an open crash requirement permits the selection");
+    let selected = crash
+        .static_reach_applications
+        .iter()
+        .flat_map(|row| &row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap()
+        .conformance;
+    crash.static_conformances[selected as usize]
+        .required
+        .crash_policy = semantic_vocabulary::CallableCrashPolicy::Closed;
+    let refusal = crate::checking::static_contracts::admit(&crash).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "the nested callback's crash routes need coverage at its invocation"
+    );
+
     // Lower with an upper bound that genuinely permits Output. Tighten the
     // exact outer question after lowering to exercise this checker directly.
     let allowed = effectful.replace("u64 reaches none;", "u64 reaches Output;");
