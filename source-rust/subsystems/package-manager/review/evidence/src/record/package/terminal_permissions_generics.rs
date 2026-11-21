@@ -55,10 +55,16 @@ pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'s
     Ok(())
 }
 
-pub(crate) fn write_service_parameter_identity(
-    writer: &mut impl Write,
-    ordinal: usize,
-) -> std::fmt::Result {
+impl crate::record::PackageReviewTypeIdentity {
+    /// A service schema refers to its own declared static parameters by position.
+    pub fn service_parameter(ordinal: usize) -> Result<Self, std::fmt::Error> {
+        let mut canonical = String::new();
+        write_service_parameter_identity(&mut canonical, ordinal)?;
+        Ok(Self { canonical })
+    }
+}
+
+fn write_service_parameter_identity(writer: &mut impl Write, ordinal: usize) -> std::fmt::Result {
     let mut runtime = StackIdentity {
         bytes: [0; 96],
         length: 0,

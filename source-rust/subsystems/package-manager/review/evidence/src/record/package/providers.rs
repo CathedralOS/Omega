@@ -16,7 +16,8 @@ use super::super::signatures::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewCompilerIntrinsicExecution {    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
+pub enum PackageReviewCompilerIntrinsicExecution {
+    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     EmptyRunRelease,
     StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
@@ -53,8 +54,8 @@ pub enum PackageReviewCompilerIntrinsicExecution {    AccessLifecycle(terminal_p
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewSelectedInstallationReach {
-    pub(crate) upper_bound: Vec<PackageReviewNominalIdentity>,
-    pub(crate) resolved: Vec<PackageReviewNominalIdentity>,
+    pub upper_bound: Vec<PackageReviewNominalIdentity>,
+    pub resolved: Vec<PackageReviewNominalIdentity>,
 }
 
 impl PackageReviewSelectedInstallationReach {
@@ -62,10 +63,12 @@ impl PackageReviewSelectedInstallationReach {
     field_projection_accessors!(sliced resolved: &[PackageReviewNominalIdentity]);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderGrantSelectorKind {
     PlanName,
     ProviderSlot,
+    /// The Build selected the provider declaration and these exact static arguments.
+    ProviderApplication(Option<String>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

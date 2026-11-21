@@ -279,6 +279,7 @@ impl crate::StageSource<'_> {
         let checked = product.judge(
             resolved,
             crate::compile_product::ProductEntry::BuildBindings,
+            &mut SourceCompletionAccounting::default(),
         )?;
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;

@@ -6,23 +6,29 @@ mod expressions;
 mod propositions;
 
 pub use callable_contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
-pub(crate) use callable_contracts::{PackageReviewContractFact, PackageReviewResultCaseIdentity};
-pub(crate) use declarations::{PackageReviewConstMeaning, PackageReviewConstShape};
+pub use callable_contracts::{PackageReviewContractFact, PackageReviewResultCaseIdentity};
+pub use declarations::{PackageReviewConstMeaning, PackageReviewConstShape};
 
-pub(crate) use expressions::{
-    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCallableSupply, PackageReviewCastForm,
-    PackageReviewConstructorField, PackageReviewContractBinaryOperator,
-    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
-    PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
-    PackageReviewMatchArm, PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,
+pub use expressions::PackageReviewLayoutQueryKind;
+pub use expressions::{
+    PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewFloatLiteral,
     PackageReviewReferenceAccess,
 };
+pub(crate) use expressions::{
+    PackageReviewAtomicLoadOrdering, PackageReviewConstructorField,
+    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewMatchArm,
+    PackageReviewOperatorRealization,
+};
+pub use expressions::{
+    PackageReviewByteSequencePredicate, PackageReviewCallableSupply,
+    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
+    PackageReviewContractExpression, PackageReviewContractKind,
+    PackageReviewContractOperatorMeaning, PackageReviewOperatorCoordinate,
+};
 
+pub use propositions::{PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement};
 pub(crate) use propositions::{
-    PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement,
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,

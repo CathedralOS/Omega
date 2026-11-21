@@ -16,13 +16,11 @@ The [package review contract](../../../../../wiki/spec/packages/review.md) requi
 | Service and hosted-exit candidates | An accepted semantic binding must carry the exact supplier's declaration, compiled source and checked service schema. A nomination is independent of the consumer's later decision. |
 | Whole-package policy and its canonical byte count | The source publication must cover the complete declared inventory, including unused public declarations. Native selection must match the same source and target for provider and permission rows. The encoder measures the completed baseline against the caller's budget. |
 
-The V2 project path has no issuer that joins these facts for a complete checked occurrence. A saved Psi artifact and an evaluated Build each cover only a part of the contract. The previous projector and its runtime permission custody checks are retained together in [the V1 capture archive](../../../../../_recycling/source-rust/subsystems/package-manager/review/evidence/v1-product-capture/capture.md). Package review cannot use a partial baseline to accept a new occurrence. Existing lock rows remain readable. The [policy baseline](POLICY_BASELINE.md) describes which older canonical records contain enough information to recover.
+An explicit package review opens the Product from the Build that resolved that package occurrence. The compiler checks the full declaration inventory and selects providers for the requested target. The candidate pass joins the resulting policy to the source commitment, purpose, execution profile and Build handoff before retaining it. Entryless libraries follow the same path. [Product policy projection](../../../compiler/build/planning/package_review/mod.rs)
 
 ### Target-entry proposals
 
-For a cached occurrence, the [candidate codec](../candidate/review_cache/record_codec.rs) recovers the binding and its full `ServiceSchema` and checks the normalized schema digest for that exact role. The [candidate pass](../candidate/passes_occurrences.rs) consumes the cached nomination only within its occurrence checks. A changed role, supplier, source or target needs a fresh reviewed occurrence.
-
-For a fresh occurrence, `ProductCodeSource` can join the actual accepted source and package custody, and its `publish_provider_demand` receives a selection for one exact target. The application still needs a project review executor to deliver that declaration's validated schema and complete policy to the candidate pass. The V1 source handle could also recompile an independent component on demand. A V2 executor must obtain the component from its owning publication route before using it for a consumer.
+A fresh nomination carries the supplier's checked declaration, role and service schema. Discovery passes it to consumers through their package compilation inputs. Cached nominations recover the same binding and schema, verify the digest and undergo the occurrence checks before reuse. [Candidate cache](../candidate/review_cache/record_codec.rs)
 
 ## Encoding
 

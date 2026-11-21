@@ -16,8 +16,8 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBoundaryApplications {
-    pub(crate) demands: Vec<PackagePolicyBoundaryApplicationDemand>,
-    pub(crate) realizations: Vec<PackagePolicyBoundaryApplicationRealization>,
+    pub demands: Vec<PackagePolicyBoundaryApplicationDemand>,
+    pub realizations: Vec<PackagePolicyBoundaryApplicationRealization>,
 }
 
 impl PackagePolicyBoundaryApplications {
@@ -40,11 +40,11 @@ impl PackagePolicyBoundaryApplicationDemand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBoundaryApplicationRealization {
-    pub(crate) operator_coordinate: PackageReviewOperatorCoordinate,
-    pub(crate) requirement_identity: String,
-    pub(crate) application: PackageReviewBoundaryApplication,
-    pub(crate) selected_plan_index: u32,
-    pub(crate) realization: PackagePolicyBoundaryRealization,
+    pub operator_coordinate: PackageReviewOperatorCoordinate,
+    pub requirement_identity: String,
+    pub application: PackageReviewBoundaryApplication,
+    pub selected_plan_index: u32,
+    pub realization: PackagePolicyBoundaryRealization,
 }
 
 impl PackagePolicyBoundaryApplicationRealization {

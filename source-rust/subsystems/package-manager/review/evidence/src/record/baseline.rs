@@ -33,24 +33,24 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBaseline {
-    pub(crate) schema_version: u16,
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: TargetProfile,
-    pub(crate) public_api: PackagePolicyPublicApi,
-    pub(crate) callables: PackagePolicyCallables,
-    pub(crate) selected_providers: PackagePolicySelectedProviders,
-    pub(crate) terminal_permissions: PackagePolicyTerminalPermissions,
-    pub(crate) representation: PackagePolicyRepresentation,
-    pub(crate) native_bindings: Vec<PackagePolicyNativeBinding>,
-    pub(crate) external_supplies: Vec<PackagePolicyExternalExecutableSupply>,
-    pub(crate) dangerous_capabilities: Vec<PackageReviewDangerousAuthority>,
-    pub(crate) slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
-    pub(crate) semantic_dependencies: Vec<PackagePolicySemanticDependency>,
-    pub(crate) boundary_applications: PackagePolicyBoundaryApplications,
-    pub(crate) assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
-    pub(crate) service_audits: Vec<PackageReviewNominalIdentity>,
-    pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
-    pub(crate) component_assumptions: Vec<PackagePolicyComponentAssumption>,
+    pub schema_version: u16,
+    pub package: PackageKeyIdentity,
+    pub target: TargetProfile,
+    pub public_api: PackagePolicyPublicApi,
+    pub callables: PackagePolicyCallables,
+    pub selected_providers: PackagePolicySelectedProviders,
+    pub terminal_permissions: PackagePolicyTerminalPermissions,
+    pub representation: PackagePolicyRepresentation,
+    pub native_bindings: Vec<PackagePolicyNativeBinding>,
+    pub external_supplies: Vec<PackagePolicyExternalExecutableSupply>,
+    pub dangerous_capabilities: Vec<PackageReviewDangerousAuthority>,
+    pub slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
+    pub semantic_dependencies: Vec<PackagePolicySemanticDependency>,
+    pub boundary_applications: PackagePolicyBoundaryApplications,
+    pub assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
+    pub service_audits: Vec<PackageReviewNominalIdentity>,
+    pub restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
+    pub component_assumptions: Vec<PackagePolicyComponentAssumption>,
 }
 
 impl PackagePolicyBaseline {
@@ -66,25 +66,39 @@ impl PackagePolicyBaseline {
         });
         self.slack_uses
             .retain(|slack| slack.class != PackageReviewDangerousAuthorityClass::ConsumerAudit);
-        for service in &self.service_audits {
+        let additions = self
+            .service_audits
+            .iter()
+            .cloned()
+            .map(|service| (service, PackageReviewDangerousAuthorityClass::ConsumerAudit))
+            .collect::<Vec<_>>();
+        self.apply_service_classes(&additions);
+    }
+
+    /// Derive findings and ceiling slack from the stored callable facts and exact classified identities.
+    pub fn apply_service_classes(
+        &mut self,
+        classes: &[(
+            PackageReviewNominalIdentity,
+            crate::record::PackageReviewDangerousAuthorityClass,
+        )],
+    ) {
+        for (service, class) in classes {
             if self
                 .dangerous_capabilities
                 .iter()
                 .any(|authority| &authority.service == service)
-            {
-                continue;
-            }
-            if !self
-                .callables
-                .callables
-                .iter()
-                .any(|callable| validation::exposes(callable, service))
+                || !self
+                    .callables
+                    .callables
+                    .iter()
+                    .any(|callable| validation::exposes(callable, service))
             {
                 continue;
             }
             self.dangerous_capabilities
                 .push(PackageReviewDangerousAuthority {
-                    class: PackageReviewDangerousAuthorityClass::ConsumerAudit,
+                    class: *class,
                     service: service.clone(),
                 });
             for callable in &self.callables.callables {
@@ -97,7 +111,7 @@ impl PackagePolicyBaseline {
                         .is_some_and(|realized| !realized.contains(service))
                 {
                     self.slack_uses.push(PackageReviewDangerousAuthoritySlack {
-                        class: PackageReviewDangerousAuthorityClass::ConsumerAudit,
+                        class: *class,
                         callable: callable.identity().clone(),
                         service: service.clone(),
                     });

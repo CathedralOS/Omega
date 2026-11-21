@@ -3,8 +3,8 @@ use super::{encode_callable_conformance, encode_type_parameter};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::callable_policy::behavior;
 use crate::encoding::encode::declarations::encode_conformance_bound;
-use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::type_identity_in_scope;
 use crate::encoding::encode::values::contracts::encode_callable_contract;
 use crate::encoding::encode::values::declarations::{
     encode_operator_coordinate, operator_spelling_name, operator_spelling_tag,
@@ -56,20 +56,19 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("conformance_bounds", |encoder| {
         encoder.sequence(&callable.conformance_bounds, encode_conformance_bound)
     })?;
+    let signature_type = |encoder: &mut Encoder, identity: &_| {
+        type_identity_in_scope(encoder, identity, Some(callable.lifetime_parameter_count))
+    };
     encoder.field("parameters", |encoder| {
         encoder.sequence(&callable.parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
+            encoder.field_by("type", &parameter.type_identity, signature_type)?;
             encoder.boolean_field("const", parameter.is_const)?;
             encoder.boolean_field("mutable", parameter.is_mutable)?;
             Ok(())
         })
     })?;
-    encoder.option_field(
-        "return_type",
-        callable.return_type.as_ref(),
-        encode_type_identity,
-    )?;
+    encoder.option_field("return_type", callable.return_type.as_ref(), signature_type)?;
     encoder.field("conformances", |encoder| {
         encoder.sequence(&callable.conformances, encode_callable_conformance)
     })?;

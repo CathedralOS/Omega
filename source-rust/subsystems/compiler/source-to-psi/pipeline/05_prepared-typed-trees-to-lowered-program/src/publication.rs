@@ -45,6 +45,12 @@ pub struct SourceFormCorrespondence {
     pub selection_questions: Option<crate::lowering::selection_questions::RawSelectionQuestions>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequirementInvocation {
+    Parameter(u32),
+    Service(symbols::SymbolHandle),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementReviewMetadata {
     pub parameter_types: Vec<String>,
@@ -54,6 +60,7 @@ pub struct RequirementReviewMetadata {
     pub lifetime_parameter_count: usize,
     /// None is an open ceiling; Some(empty) is a closed empty ceiling.
     pub service_reach: Option<Vec<symbols::SymbolHandle>>,
+    pub synchronous_invocations: Vec<RequirementInvocation>,
     pub crash_is_open: bool,
     pub returned_parameters: Vec<u32>,
     pub parameter_qualifications: Vec<(u32, symbols::SymbolHandle)>,

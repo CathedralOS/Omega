@@ -8,3 +8,6 @@ pub use checked_program_to_psi::production::{
     TerminalBuildSelectionRequest, TerminalBuildValueShape,
 };
 pub use checked_program_to_psi::provider_supply::SourceProviderDemand;
+
+pub use checked_program_to_psi::DeclaredBoundaryRequirement;
+pub use prepared_typed_trees_to_lowered_program::lowering::RequirementInvocation;

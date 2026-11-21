@@ -1,13 +1,11 @@
-// Source-semantic dependencies without private consumer implementation names.
-//
-// `Callable` names an exact callable retained by the enclosing normalized
-// callable surface; private consumers are grouped under `PackageImplementation`.
-
+//! A declaration selected by source and a nominal carried through another API
+//! have different dependency contracts. A carried type commits to its supplier's
+//! whole checked source occurrence without granting source selection.
 use super::{
     PackageReviewNominalIdentity, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind,
 };
-use crate::record::accessors::field_projection_accessors;
+use source_provenance::PackageSourceConsumptionCommitment;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicySemanticDependencyConsumer {
@@ -16,16 +14,32 @@ pub enum PackagePolicySemanticDependencyConsumer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicySemanticDependency {
-    pub(crate) consumer: PackagePolicySemanticDependencyConsumer,
-    pub(crate) dependency: PackageReviewNominalIdentity,
-    pub(crate) exposure: PackageReviewSemanticDependencyExposure,
-    pub(crate) kind: PackageReviewSemanticDependencyKind,
+pub enum PackagePolicySemanticDependency {
+    Declaration {
+        consumer: PackagePolicySemanticDependencyConsumer,
+        dependency: PackageReviewNominalIdentity,
+        exposure: PackageReviewSemanticDependencyExposure,
+        kind: PackageReviewSemanticDependencyKind,
+    },
+    CarriedType {
+        dependency: PackageReviewNominalIdentity,
+        supplier_sources: PackageSourceConsumptionCommitment,
+        exposure: PackageReviewSemanticDependencyExposure,
+    },
 }
 
 impl PackagePolicySemanticDependency {
-    field_projection_accessors!(borrowed consumer: &PackagePolicySemanticDependencyConsumer);
-    field_projection_accessors!(borrowed dependency: &PackageReviewNominalIdentity);
-    field_projection_accessors!(copied exposure: PackageReviewSemanticDependencyExposure);
-    field_projection_accessors!(copied kind: PackageReviewSemanticDependencyKind);
+    pub fn dependency(&self) -> &PackageReviewNominalIdentity {
+        match self {
+            Self::Declaration { dependency, .. } | Self::CarriedType { dependency, .. } => {
+                dependency
+            }
+        }
+    }
+
+    pub fn exposure(&self) -> PackageReviewSemanticDependencyExposure {
+        match self {
+            Self::Declaration { exposure, .. } | Self::CarriedType { exposure, .. } => *exposure,
+        }
+    }
 }

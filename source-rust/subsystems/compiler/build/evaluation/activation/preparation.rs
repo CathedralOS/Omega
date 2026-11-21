@@ -473,7 +473,10 @@ impl PreparedBuildExecution {
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
-            selected_build_declaration: Some(selected_build_declaration),
+            executed_entry: Some(build_evaluation_result::ExecutedBuildEntry {
+                declaration: selected_build_declaration,
+                callable_identity: self.machine.normalized_callable_identity.clone(),
+            }),
             generated_sources,
         })
     }

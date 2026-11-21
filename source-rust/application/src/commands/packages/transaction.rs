@@ -27,11 +27,7 @@ pub(super) fn execute_package_command(
     let mut bindings = prepared.source_bindings();
     let mut reviews = Vec::new();
     for request in prepared.review_requests() {
-        reviews.push(
-            request.review(session, &mut bindings, &mut |pass, bindings| {
-                pass.recover_cached(bindings)
-            })?,
-        );
+        reviews.push(request.review(session, &mut bindings)?);
     }
     prepared.complete(reviews, session)
 }
@@ -56,13 +52,7 @@ pub(super) fn inspect_packages(
         })();
         let mut bindings = PackageSourceBindings::default();
         for target in inspection.targets().to_vec() {
-            inspection.review_target(
-                target,
-                sources.as_ref(),
-                &mut session,
-                &mut bindings,
-                &mut |pass, bindings| pass.recover_cached(bindings),
-            )?;
+            inspection.review_target(target, sources.as_ref(), &mut session, &mut bindings)?;
         }
         inspection.finish()
     })();
