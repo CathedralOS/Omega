@@ -40,11 +40,14 @@ pub(crate) fn publish(
     })();
     published.map_err(|mut refusal| {
         if refusal.source_span.is_none()
-            && let Construct::Operation(operation) = refusal.concerns
+            && let terminal_check_tables::RefusalSite::Machine(
+                machine,
+                Construct::Operation(operation),
+            ) = refusal.site
         {
             refusal.source_span = elaboration
                 .sources
-                .get(refusal.machine)
+                .get(machine)
                 .and_then(|source| source.operations.get(operation))
                 .and_then(|origin| origin.span());
         }

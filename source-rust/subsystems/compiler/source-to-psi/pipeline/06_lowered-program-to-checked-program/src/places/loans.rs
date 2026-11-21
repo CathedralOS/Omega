@@ -3076,8 +3076,9 @@ impl<'a> Storage<'a> {
                     });
                     Err(Refusal {
                         reason: RefusalReason::Conflict,
-                        machine: self.machine,
-                        concerns: Construct::Obligation(loan.obligation),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            self.machine, Construct::Obligation(loan.obligation),
+                        ),
                         source_span: None,
                         detail: String::from(match conflict {
                             LoanConflict::TwiceExclusive => {

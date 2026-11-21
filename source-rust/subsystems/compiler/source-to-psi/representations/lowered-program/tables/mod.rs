@@ -226,14 +226,36 @@ impl UnprovedCause {
     }
 }
 
-/// The negative result of a checking step, with its reason, machine and
-/// construct. A retained authored source span can accompany any reason.
+/// The source of a checking question. Static declarations and whole-program
+/// judgments can exist in a Product that has no executable machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefusalSite {
+    Machine(MachineId, Construct),
+    Declaration(symbols::SymbolHandle),
+    Program,
+}
+
+impl RefusalSite {
+    pub fn in_machine(self) -> Option<(MachineId, Construct)> {
+        match self {
+            Self::Machine(machine, concerns) => Some((machine, concerns)),
+            Self::Declaration(_) | Self::Program => None,
+        }
+    }
+}
+
+impl From<MachineId> for RefusalSite {
+    fn from(machine: MachineId) -> Self {
+        Self::Machine(machine, Construct::Machine)
+    }
+}
+
+/// The negative result of a checking step, with its reason and exact site. A retained authored source span can accompany any reason.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
     pub reason: RefusalReason,
-    pub machine: MachineId,
-    pub concerns: Construct,
+    pub site: RefusalSite,
     /// The retained source span, when the authored construct carries one.
     pub source_span: Option<source_text::SourceSpan>,
     /// Diagnostic text only. Nothing may branch on it or compare it.
@@ -241,6 +263,15 @@ pub struct Refusal {
 }
 
 impl Refusal {
+    pub fn at(reason: RefusalReason, site: RefusalSite, detail: impl Into<String>) -> Self {
+        Self {
+            reason,
+            site,
+            source_span: None,
+            detail: detail.into(),
+        }
+    }
+
     pub fn with_source_span(mut self, source_span: Option<source_text::SourceSpan>) -> Self {
         self.source_span = source_span;
         self
@@ -267,8 +298,7 @@ pub fn row<Id: NumericId, T>(
 ) -> Checked<&T> {
     table.get(identity).ok_or_else(|| Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns,
+        site: crate::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: String::from("identity is past the end of this machine's table"),
     })
@@ -324,6 +354,9 @@ mod tests {
         let foreign = large.push(());
         let refusal = row(&small, foreign, machine, Construct::Place(foreign)).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
-        assert_eq!(refusal.concerns, Construct::Place(foreign));
+        assert_eq!(
+            refusal.site.in_machine().unwrap().1,
+            Construct::Place(foreign)
+        );
     }
 }

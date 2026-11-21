@@ -754,8 +754,7 @@ pub(crate) fn declare<'a, 'b>(
         })
         .map_err(|detail| terminal_check_tables::Refusal {
             reason: RefusalReason::Unsupported,
-            machine: entry,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
             source_span: None,
             detail: format!("byte domain source identity: {detail}"),
         })?;
@@ -1419,8 +1418,7 @@ impl Records<'_> {
         }
         Err(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: String::from("a scalar place's exact primitive type is not uniquely declared"),
         })
@@ -2165,8 +2163,7 @@ impl<'a> Lowering<'a> {
             .get_mut(cast)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Block(cast),
+                site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(cast)),
                 source_span: None,
                 detail: String::from("a record cast's block is past its function"),
             })?
@@ -4042,8 +4039,10 @@ impl<'a> Lowering<'a> {
                 None => {
                     return Err(Refusal {
                         reason: RefusalReason::Unestablished,
-                        machine: self.id,
-                        concerns: self.current.map_or(Construct::Machine, Construct::Block),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            self.id,
+                            self.current.map_or(Construct::Machine, Construct::Block),
+                        ),
                         source_span: None,
                         detail: String::from("a dispatch selects no arm for a declared case"),
                     });

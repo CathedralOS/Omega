@@ -35,8 +35,7 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
             .copied()
             .and_then(terminal_check_tables::program::SourceOrigin::authored_span),
         reason,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         detail: detail.to_owned(),
     }
 }
@@ -61,11 +60,13 @@ pub(crate) fn install(
                     .authored_span()
             }),
             reason: terminal_check_tables::RefusalReason::Unsupported,
-            machine: error.machine,
-            concerns: error
-                .operation
-                .map(Construct::Operation)
-                .unwrap_or(Construct::Machine),
+            site: terminal_check_tables::RefusalSite::Machine(
+                error.machine,
+                error
+                    .operation
+                    .map(Construct::Operation)
+                    .unwrap_or(Construct::Machine),
+            ),
             detail: error.detail,
         }
     })?;

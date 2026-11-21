@@ -3,12 +3,10 @@
 // judgment; publishing it does not establish an input premise or a provider.
 
 use crate::source_state::TypedTrees;
+use proof_applications::{ProofApplicationCall, ProofApplicationMachine, ProofCallMachine};
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::compiler_evaluation::{
     CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
-};
-use proof_applications::{
-    ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
 };
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
@@ -403,8 +401,7 @@ pub(crate) fn declare(
             .map_err(|reason| terminal_check_tables::Refusal {
                 source_span: None,
                 reason: terminal_check_tables::RefusalReason::Unsupported,
-                machine: machine.id,
-                concerns: Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
                 detail: reason.to_string(),
             })?;
         let evaluation = (|| {
@@ -679,7 +676,11 @@ fn published_services(
                 .interfaces.services
                 .binary_search_by_key(service, |row| row.id)
                 .ok()
-                .and_then(|position| module.identities.text(module.interfaces.services[position].identity))
+                .and_then(|position| {
+                    module
+                        .identities
+                        .text(module.interfaces.services[position].identity)
+                })
                 .filter(|identity| !identity.is_empty())
                 .map(str::to_owned)
                 .ok_or_else(|| "proof scope lost an exact published service".into())

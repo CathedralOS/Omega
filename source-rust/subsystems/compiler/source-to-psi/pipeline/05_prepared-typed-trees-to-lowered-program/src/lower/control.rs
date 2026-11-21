@@ -59,8 +59,7 @@ impl Lowering<'_> {
         let id = self.id;
         self.blocks.get_mut(block).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: id,
-            concerns: Construct::Block(block),
+            site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
             source_span: None,
             detail: String::from("block is past the end of this machine"),
         })
@@ -814,8 +813,7 @@ impl Lowering<'_> {
                 let Some((_, arm_source)) = default else {
                     return Err(Refusal {
                         reason: RefusalReason::Unestablished,
-                        machine: self.id,
-                        concerns: Construct::Block(self.current()?),
+                        site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Block(self.current()?)),
                         source_span: source.span(),
                         detail: "a conditional case pattern leaves values uncovered; add a case fallback or wildcard".into(),
                     });
@@ -1013,8 +1011,10 @@ impl Lowering<'_> {
                     .get_mut(join)
                     .ok_or(Refusal {
                         reason: RefusalReason::ForeignIdentity,
-                        machine: id,
-                        concerns: Construct::Block(join),
+                        site: terminal_check_tables::RefusalSite::Machine(
+                            id,
+                            Construct::Block(join),
+                        ),
                         source_span: None,
                         detail: String::from("a match join is past its function"),
                     })?
@@ -1148,8 +1148,7 @@ impl Lowering<'_> {
             .get_mut(block)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Block(block),
+                site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
                 source_span: None,
                 detail: String::from("block is past the end of this machine"),
             })?

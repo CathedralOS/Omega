@@ -46,8 +46,7 @@ impl Graph {
     ) -> Checked<Self> {
         let refuse = |detail: &str| Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: detail.to_owned(),
         };
@@ -157,8 +156,7 @@ impl Graph {
     fn refuse(&self, concerns: Construct) -> Refusal {
         Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: self.machine,
-            concerns,
+            site: terminal_check_tables::RefusalSite::Machine(self.machine, concerns),
             source_span: None,
             detail: String::from("program point is not in this machine"),
         }

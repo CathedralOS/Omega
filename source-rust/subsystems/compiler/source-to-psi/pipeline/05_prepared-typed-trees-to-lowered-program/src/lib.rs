@@ -352,8 +352,7 @@ impl Unserved {
 pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved) -> Refusal {
     Refusal {
         reason: RefusalReason::Unsupported,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: format!("{} {}", unserved.family(), unserved.construct()),
     }
@@ -367,8 +366,7 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<String>) -> Refusal {
     Refusal {
         reason: RefusalReason::Violation,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: at.span(),
         detail: rule.into(),
     }
@@ -1081,8 +1079,7 @@ fn capture_source_questions(
     )
     .map_err(|error| Refusal {
         source_span: error.source_span(),
-        machine: entry,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
         reason: RefusalReason::Unsupported,
         detail: error.to_string(),
     })
@@ -1387,7 +1384,7 @@ fn finish_reading_into<'source>(
         let span = refusal.source_span.or_else(|| {
             program
                 .names
-                .get(refusal.machine)
+                .get(refusal.site.in_machine()?.0)
                 .and_then(|names| names.declared)
         });
         refusal.with_source_span(span)
@@ -2091,8 +2088,7 @@ fn finish_storage(
             };
             terminal_check_tables::Refusal {
                 reason,
-                machine: machine.id,
-                concerns,
+                site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
                 source_span: None,
                 detail: {
                     let detail = match (operation, origin.and_then(|origin| origin.span())) {
@@ -2128,8 +2124,7 @@ fn finish_storage(
         .map_err(|error| match error {
             terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: machine.id,
-                concerns: Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
                 source_span: None,
                 detail: format!("replacement input {place:?} has no unique source declaration"),
             },
@@ -2140,8 +2135,7 @@ fn finish_storage(
                 let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
                 Refusal {
                     reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
-                    machine: machine.id,
-                    concerns: Construct::Operation(operation),
+                    site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Operation(operation)),
                     source_span: sources.get(machine.id)
                         .and_then(|source| source.operations.get(operation))
                         .and_then(|origin| origin.span()),

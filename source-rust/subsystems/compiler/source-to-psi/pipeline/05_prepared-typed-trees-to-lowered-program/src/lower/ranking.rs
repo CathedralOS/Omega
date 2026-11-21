@@ -247,7 +247,10 @@ impl Lowering<'_> {
                     .ok_or_else(|| {
                         let mut refusal =
                             self.unserved_rank("a cyclic block has no ranking observation");
-                        refusal.concerns = Construct::Block(*block);
+                        refusal.site = terminal_check_tables::RefusalSite::Machine(
+                            self.id,
+                            Construct::Block(*block),
+                        );
                         let head = heads
                             .binary_search_by_key(block, |(block, _)| *block)
                             .ok()

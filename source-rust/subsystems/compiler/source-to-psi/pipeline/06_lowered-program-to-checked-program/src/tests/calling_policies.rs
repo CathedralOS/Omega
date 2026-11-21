@@ -830,7 +830,10 @@ fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
     };
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
-        matches!(refusal.concerns, Construct::Operation(_)),
+        matches!(
+            refusal.site.in_machine().unwrap().1,
+            Construct::Operation(_)
+        ),
         "{refusal:?}"
     );
     assert!(

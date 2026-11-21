@@ -36,7 +36,7 @@ fn an_unused_owned_parameter_keeps_its_possible_linear_debt() {
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
         if refusal.reason == RefusalReason::Unsupported
-        && matches!(refusal.concerns, Construct::Edge(_))
+        && matches!(refusal.site.in_machine().unwrap().1, Construct::Edge(_))
         && refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
         "the normal return must account for the whole unknown value: {verdict:?}"
     );
@@ -251,7 +251,7 @@ fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
         if refusal.reason == RefusalReason::Unsupported
-        && matches!(refusal.concerns, Construct::Edge(_))
+        && matches!(refusal.site.in_machine().unwrap().1, Construct::Edge(_))
         && refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
         "Copy does not identify the actual cleanup plan: {verdict:?}"
     );
@@ -954,7 +954,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
     let RouteVerdict::FallBack(refused) = verdict else {
         panic!("{verdict:?}");
     };
-    assert_eq!(refused.machine, id(1));
+    assert_eq!(refused.site.in_machine().unwrap().0, id(1));
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,

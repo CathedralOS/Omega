@@ -117,7 +117,7 @@ mod tests {
                         Ok(id)
                     }
                 });
-                assert_eq!(result.unwrap_err().machine.get(), 3);
+                assert_eq!(result.unwrap_err().site.in_machine().unwrap().0.get(), 3);
                 assert_eq!(activity.started(), completed.load(Ordering::SeqCst));
             });
         });

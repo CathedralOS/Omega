@@ -434,8 +434,10 @@ impl Qualifications {
             Err(detail) => {
                 return Err(terminal_check_tables::Refusal {
                     reason: terminal_check_tables::RefusalReason::Unsupported,
-                    machine: diagnostic,
-                    concerns: Construct::Machine,
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        diagnostic,
+                        Construct::Machine,
+                    ),
                     source_span: None,
                     detail: format!("scalar domain source identity: {detail}"),
                 });

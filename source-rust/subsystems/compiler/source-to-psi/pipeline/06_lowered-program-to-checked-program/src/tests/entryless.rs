@@ -71,6 +71,39 @@ fn judged_parts(
 }
 
 #[test]
+fn declaration_only_library_checks_requirements_without_an_executable_machine() {
+    let result = judged(
+        "public boundary trait TimeHost {
+            machine ticks() -> u64 reaches none crashes none;
+            machine frequency() -> u64 reaches none crashes none;
+        }",
+        false,
+    );
+    let RouteVerdict::Accepted(mut closure) = result else {
+        panic!("{result:?}");
+    };
+    let elaboration = &mut closure.elaboration;
+    assert_eq!(elaboration.module.entry, None);
+    assert!(elaboration.module.machines.is_empty());
+
+    let requirement = elaboration
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .next()
+        .expect("library retains its boundary requirement");
+    let declaration = requirement.declaration;
+    // A boundary requirement with no formals cannot invoke parameter zero.
+    requirement.envelope.invocations = vec![terminal_psi::TerminalCallableInvocation::Parameter(0)];
+    let refusal = crate::checking::static_contracts::admit(elaboration).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refusal.site,
+        terminal_check_tables::RefusalSite::Declaration(declaration)
+    );
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);

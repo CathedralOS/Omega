@@ -90,7 +90,7 @@ fn parallel_checks_select_the_lowest_structurally_failing_machine() {
             let error = budget
                 .run(|| discharge(&mut input.clone(), &mut activity))
                 .unwrap_err();
-            assert_eq!(error.machine, id(2));
+            assert_eq!(error.site.in_machine().unwrap().0, id(2));
             assert_eq!(error.detail, "knowledge rows already present");
         }
     }
