@@ -40,9 +40,7 @@ The parameter example calls the machine it receives. The forwarding and nested
 machine examples pass it to another machine before calling it. The named
 constant example subtracts `TARGET` from the result. The match example selects a
 machine in each branch and calls the result after the branches meet. Each invalid
-example passes 39 where the callable requires 40. In the Build-selected example,
-`HostedCombine::probe` forwards each callback to `invoke_selected`. The caller
-checks that the two callbacks wrote 60 and 40 to its two output variables.
+example passes 39 where the callable requires 40.
 
 ## Places and controls
 
@@ -70,13 +68,11 @@ bounds from 40 to 39. The public `WeightedCombine` requirement still demands
 
 ## Selection by Build
 
-The target place calls the ordinary `SelectedCombine::probe` requirement. It
-forwards the caller's function choice, scalar arguments and output reference;
-the inner `WeightedCombine::combine` call then uses that choice.
-The four original target bodies performed the same computation, so five explicit
-Build rows select one ordinary `HostedCombine` implementation. Each entry calls
-that same requirement. The two runtime function choices remain independently
-observable through their direct writes. Application identities remain unchanged.
+Each of the five target rows in [build.omg](target_body/build.omg) selects
+`HostedCombine` for `SelectedCombine`. Its `probe` passes the callback, both
+numbers and the output reference to `invoke_selected`, which calls the
+function it received. From the target example's directory, run
+`omega run --both build.omg` to exercise this selection.
 
 This follows [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
