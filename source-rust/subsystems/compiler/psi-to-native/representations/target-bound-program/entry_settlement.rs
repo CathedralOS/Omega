@@ -84,16 +84,7 @@ mod calling_plans {
             .collect::<Vec<_>>();
         let semantic_source_pairing = match slot.schema {
             target::ProgramEntrySchema::ProgramStorageApplication => {
-                semantic_method
-                    .parameter_type_identities
-                    .iter()
-                    .map(|identity| storage.schema().declaration.identities.text(*identity))
-                    .eq(source.visible_parameters().iter().map(|parameter| {
-                        source
-                            .identities()
-                            .text(parameter.normalized_type_identity())
-                            .unwrap_or_default()
-                    }))
+                source.declared_type_signature()? == semantic_method.declared_type_signature
                     && semantic_shapes
                         == source
                             .visible_parameters()

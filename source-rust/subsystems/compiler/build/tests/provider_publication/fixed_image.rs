@@ -129,8 +129,7 @@ public machine image_tail() -> addr reaches ProgramImage crashes none {
     );
 }
 
-#[test]
-fn scalar_firmware_observation_preserves_the_entrys_existing_storage_grants_on_replay() {
+fn published_firmware_application() -> CanonicalTerminalArtifact {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "firmware-entry-grants",
         false,
@@ -165,7 +164,13 @@ machine entry(image: Extent in Granted, storage: Extent in Granted) reaches Prog
         .unwrap()
         .into_parts()
         .0;
-    let reopened = CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
+    CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap()
+}
+
+#[test]
+fn scalar_firmware_observation_preserves_the_entrys_existing_storage_grants_on_replay() {
+    let reopened = published_firmware_application();
+    let target = TargetProfile::UefiX64;
     let module = reopened.semantic_module();
     let declared = module.program_entry_contract(target.target_name()).unwrap();
     let entry = module.machine(declared.entry).unwrap();
@@ -175,6 +180,43 @@ machine entry(image: Extent in Granted, storage: Extent in Granted) reaches Prog
     assert_eq!(image.qualifications.len(), 1);
     assert_eq!(image.qualifications, storage.qualifications);
     assert_ne!(image.place, storage.place);
+}
+
+#[test]
+fn uefi_nominates_only_the_two_qualified_entry_occurrences() {
+    use provider_realization::program_entry::SelectedCompilerProgramEntry;
+    let reopened = published_firmware_application();
+    let module = reopened.semantic_module();
+    let profile = TargetProfile::UefiX64;
+    let entry = module.program_entry_contract(profile.target_name()).unwrap().entry;
+    let nominate = |module: &terminal_psi::TerminalModule| {
+        SelectedCompilerProgramEntry::from_terminal(module, entry, profile.program_entry_slot())
+    };
+    let selected = nominate(module).unwrap();
+    let parameters = selected.source_signature().visible_parameters();
+    assert_eq!(parameters.len(), 2);
+    for (index, parameter) in parameters.iter().enumerate() {
+        assert_eq!(parameter.visible_parameter_index(), index);
+        assert_eq!(parameter.value_shape().byte_size, 16);
+        let [base, length] = parameter.extent_value_layout().fields();
+        assert_eq!((base.byte_offset(), length.byte_offset()), (0, 8));
+    }
+
+    let mut missing = module.clone();
+    missing.machines.iter_mut().find(|row| row.id == entry).unwrap()
+        .structural_parameters[1].qualifications.clear();
+    assert!(nominate(&missing).unwrap_err()[0].message.contains("whole Extent grant"));
+
+    let mut shared = module.clone();
+    let entry_body = shared.machines.iter_mut().find(|row| row.id == entry).unwrap();
+    entry_body.entry_claims[1].claim = entry_body.entry_claims[0].claim;
+    assert!(nominate(&shared).unwrap_err()[0].message.contains("substituted parameters or claims"));
+
+    let mut changed_type = module.clone();
+    let checked = changed_type.machines.iter_mut().find(|row| row.id == entry)
+        .unwrap().contract.declaration.as_mut().unwrap();
+    checked.parameter_types[0] = checked.result_type;
+    assert!(nominate(&changed_type).unwrap_err()[0].message.contains("declared types differ"));
 }
 
 #[test]
