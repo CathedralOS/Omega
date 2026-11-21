@@ -291,7 +291,7 @@ mod tests {
             )
             .unwrap();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 4\n"));
+        assert!(text.starts_with("omega-source-closure 5\n"));
         assert!(text.contains("ordinal 0\npurpose \"product\"\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
@@ -307,7 +307,7 @@ mod tests {
         );
         assert!(
             CanonicalSourceClosureSubject::recover_text(
-                &text.replace("omega-source-closure 4", "omega-source-closure 3"),
+                &text.replace("omega-source-closure 5", "omega-source-closure 3"),
                 Limits::default()
             )
             .is_err()
@@ -318,7 +318,7 @@ mod tests {
     fn catalog_execution_roundtrip_preserves_product_roster_and_helper_pin() {
         let subject = catalog_graph();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 3\n"));
+        assert!(text.starts_with("omega-source-closure 5\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
         assert_eq!(recovered, subject);
@@ -385,13 +385,26 @@ mod tests {
     }
 
     #[test]
-    fn catalog_free_subject_retains_version_seven_identity() {
+    fn catalog_free_subject_uses_the_current_identity() {
         let subject = source_graph("selected", "https://catalog.invalid/workspace.git");
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 2\n"));
+        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.contains("authored-build 0\n"));
+        assert!(text.ends_with("catalog-dependencies 0\nend\n"));
+        for retired in 1..=4 {
+            let old = text.replacen(
+                "omega-source-closure 5",
+                &format!("omega-source-closure {retired}"),
+                1,
+            );
+            assert!(CanonicalSourceClosureSubject::recover_text(&old, Limits::default()).is_err());
+        }
         let version =
             &subject.canonical_bytes()[super::super::SOURCE_CLOSURE_SUBJECT_MAGIC.len()..][..2];
-        assert_eq!(version, 7u16.to_le_bytes());
+        assert_eq!(
+            version,
+            super::super::SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION.to_le_bytes()
+        );
         assert_eq!(
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap(),
             subject

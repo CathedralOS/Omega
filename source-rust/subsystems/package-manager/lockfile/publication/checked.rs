@@ -51,7 +51,7 @@ pub fn publish_reviewed_package_change(
     }
     let accepted = accepted_lock
         .map(|text| {
-            PackageLock::recover_review_baseline(text, PackageLockRecoveryLimits::default())
+            PackageLock::recover_text(text, PackageLockRecoveryLimits::default())
         })
         .transpose()
         .map_err(Error::Lock)?;

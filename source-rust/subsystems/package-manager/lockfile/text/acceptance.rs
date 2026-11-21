@@ -1,5 +1,5 @@
 // Length-framed encoding and bounded recovery for package policy acceptance rows.
-// Earlier schema-4/5 opaque rows remain historical consent for comparison only, whereas superseded schema-8 rows are rejected with `omega packages update` guidance because version 9 renumbered builtin slots; both element and string storage are bounded before retaining rows.
+// Recovery requires the current row schema before allocating or interpreting acceptance.
 
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
@@ -14,7 +14,7 @@ use target::TargetProfile;
 
 pub(in crate::lockfile) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
     let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
-    writer.row("acceptance_schema", policy.schema_version)?;
+    writer.row("acceptance_schema", PACKAGE_POLICY_ROW_VERSION)?;
     writer.row("rows", policy.rows.len())?;
     for row in &policy.rows {
         writer.row("row", row.kind.as_str())?;
@@ -34,8 +34,7 @@ pub(in crate::lockfile) fn read(
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
     let mut reader = Reader::new(text);
     let schema_version = reader.count("acceptance_schema", usize::MAX)?;
-    if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) && !matches!(schema_version, 4 | 5)
-    {
+    if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) {
         return Err(Error::UnsupportedVersion);
     }
     let count = reader.count("rows", maximum_rows)?;
@@ -83,7 +82,6 @@ pub(in crate::lockfile) fn read(
     reader.finish()?;
     Ok((
         PackagePolicyAcceptance {
-            schema_version: schema_version as u16,
             package,
             target,
             rows,
@@ -104,5 +102,24 @@ mod tests {
             .expect_err("a superseded policy row schema must not load");
         assert!(matches!(error, Error::UnsupportedVersion));
         assert!(error.to_string().contains("omega packages update"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_current_acceptance_rows_can_supply_a_review_baseline() {
+        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        for version in [4, 5, 8, PACKAGE_POLICY_ROW_VERSION] {
+            let record = format!("acceptance_schema {version}\nrows 0\nend_acceptance\n");
+            let result = read(&record, package, TargetProfile::WindowsX64, 1, 1024);
+            if version == PACKAGE_POLICY_ROW_VERSION {
+                assert_eq!(write(&result.unwrap().0).unwrap(), record);
+            } else {
+                assert!(matches!(result, Err(Error::UnsupportedVersion)));
+            }
+        }
     }
 }
