@@ -7224,6 +7224,32 @@ pub(crate) struct AtJoin<'s, 'a> {
 }
 
 impl<'a> AtJoin<'_, 'a> {
+    /// A direct arrival from machine entry may carry its original storage
+    /// snapshots unchanged. Check the operations and cleanup on this actual
+    /// edge before using an entry requirement as a current storage fact.
+    pub(crate) fn preserves_entry_storage(&self, edge: EdgeId) -> Checked<bool> {
+        let storage = self.inputs.storage;
+        let block = self.inputs.block;
+        if block != storage.lowered.entry
+            || !storage.graph.predecessors(block)?.is_empty()
+            || storage
+                .cleanup_writes
+                .iter()
+                .any(|write| write.edge == edge)
+        {
+            return Ok(false);
+        }
+        let entry = storage.lowered.block(&block).ok_or_else(|| {
+            storage.foreign(self.inputs.concerns, "the arrival has no entry block")
+        })?;
+        for operation in &entry.operations {
+            if !storage.operation_changes(operation)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
         self.inputs.observations()
     }

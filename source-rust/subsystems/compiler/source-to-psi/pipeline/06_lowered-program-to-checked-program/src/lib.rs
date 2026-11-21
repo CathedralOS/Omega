@@ -1160,6 +1160,16 @@ fn fill_knowledge<'a>(
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         let premises = observable_conjuncts(proposition, &mut storage.at_entry(references, tables))
             .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        // A contract still relates its entry snapshots when this body never
+        // loads one of the fields. Keep that whole premise as well as each
+        // observable conjunct. A later storage mutation cannot update an
+        // entry snapshot or turn it into the current value.
+        if !premises.contains(proposition) {
+            push_knowledge(
+                tables, proposition.clone(), ProgramPoint::BlockEntry(lowered.entry),
+                Justification::EntryRequirement { clause: position(clause, id)? },
+            );
+        }
         for stated in premises {
             push_knowledge(
                 tables,

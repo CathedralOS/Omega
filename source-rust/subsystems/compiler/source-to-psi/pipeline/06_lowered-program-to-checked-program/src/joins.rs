@@ -935,8 +935,27 @@ pub(crate) fn arrival_goal<'a>(
         .iter()
         .find(|row| row.machine == id && row.header == target);
     if let Some(original) = original {
-        let original = crate::checking::substitute_goal(&original.predicate, &mut bindings)
-            .map_err(explain)?;
+        // The entry-to-head transfer can forward a whole requirement even
+        // when no scalar read names one of its fields. On any changed input,
+        // the ordinary binders must reestablish the contract at this edge.
+        let forwarded = if structural.iter().all(|actual| {
+            actual.path.is_empty() && lowered.signature_structural_parameter(actual.place).is_some()
+        }) && bindings.preserves_entry_storage(edge)? {
+            let roots = join.structural_parameters.iter().zip(structural)
+                .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+                .collect();
+            let incoming = terminal_semantics::substitution::substitute_proposition_structural_places(
+                &rename(&original.predicate, &renaming), &roots,
+            );
+            lowered.contract.requires.contains(&incoming).then_some(incoming)
+        } else {
+            None
+        };
+        let original = match forwarded {
+            Some(incoming) => incoming,
+            None => crate::checking::substitute_goal(&original.predicate, &mut bindings)
+                .map_err(explain)?,
+        };
         Ok(connective(vec![stated, original], true))
     } else {
         Ok(stated)
