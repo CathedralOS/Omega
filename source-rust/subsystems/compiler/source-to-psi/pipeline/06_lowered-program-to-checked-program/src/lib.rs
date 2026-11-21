@@ -1756,9 +1756,9 @@ impl Unbound {
     }
 }
 
+use terminal_semantics::substitution::clauses::substitute_sufficient_clause;
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
-    substitute_sufficient_clause as sufficient_goal,
 };
 
 /// States a clause the checker must prove: a goal, never a premise.
@@ -1777,10 +1777,26 @@ pub(crate) fn substitute_goal(
     clause: &Proposition,
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Result<Proposition, Unbound> {
+    // A single reaching alternative may decide the whole disjunction. Keep
+    // that correlation before trying the branches this arrival can observe.
+    match substitute_sufficient_clause(clause, bindings) {
+        Err(Unbound::Unproved(_))
+            if matches!(clause, Proposition::Conjunction(_) | Proposition::Disjunction(_)) =>
+        {
+            goal_from_observed_parts(clause, bindings)
+        }
+        result => result,
+    }
+}
+
+fn goal_from_observed_parts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Proposition, Unbound> {
     let (parts, conjunction) = match clause {
         Proposition::Conjunction(parts) => (parts, true),
         Proposition::Disjunction(parts) => (parts, false),
-        _ => return sufficient_goal(clause, bindings),
+        _ => return substitute_sufficient_clause(clause, bindings),
     };
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
@@ -1790,12 +1806,11 @@ pub(crate) fn substitute_goal(
     let mut kept = Vec::with_capacity(parts.len());
     let mut unstated = None;
     for part in parts {
-        match substitute_goal(part, bindings) {
+        match goal_from_observed_parts(part, bindings) {
             Ok(part) if part == deciding => return Ok(deciding),
             Ok(part) if part == unit => {}
             Ok(part) => kept.push(part),
             // A conjunct is owed whatever the others say.
-            Err(unbound) if conjunction => unstated = unstated.or(Some(unbound)),
             Err(Unbound::Unproved(detail)) => {
                 unstated = unstated.or(Some(Unbound::Unproved(detail)))
             }
