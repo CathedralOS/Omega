@@ -6,7 +6,8 @@ use super::*;
 fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     let program = "data Cell { word: u64; }
         machine main(cell: @mut Cell) -> bool {
-            let first: addr = address_of(@cell.word);
+            let first: addr = address_of(@mut cell.word);
+            cell.word = 11u64;
             let alias: @u64 = @cell.word;
             address_of(alias) == first
         }";
@@ -25,8 +26,11 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     let typed = super::boundary_calls::typed(
         "machine main(value: u64) -> addr { address_of(value) }",
     );
-    let refusal = super::entryless::judged_typed_result(&typed, false).unwrap_err();
-    assert!(format!("{refusal:?}").contains("address_of needs an ordinary reference"));
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an owned scalar cannot expose a referent: {verdict:?}");
+    };
+    assert!(violations.iter().any(|rule| rule.statement.contains("address_of needs an ordinary reference")));
 }
 
 #[test]
