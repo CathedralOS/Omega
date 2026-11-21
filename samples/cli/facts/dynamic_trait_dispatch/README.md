@@ -10,7 +10,6 @@ Fact: Calling a selected conformance member through a machine value preserves it
 functions with ordinary named implementations chosen in Build.
 **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns preserving the chosen
 implementation, explicit arguments and public contract through both engines.
-The input-arithmetic examples are another production of this same fact.
 Neither parent task closes with this migration.
 
 `WeightedCombine` requires exactly 60 and 40 and guarantees exactly 100.
@@ -47,17 +46,17 @@ checks that the two callbacks wrote 60 and 40 to its two output variables.
 
 ## Places and controls
 
-| Place | Positive | Right-operand control | Uninitialized-selector control |
-| --- | --- | --- | --- |
-| local | [program](local/main.omg) | [reject](invalid_local/main.omg) | [reject](local/controls/uninitialized_selector/main.omg) |
-| field | [program](field/main.omg) | [reject](invalid_field/main.omg) | [reject](field/controls/uninitialized_selector/main.omg) |
-| parameter | [program](parameter/main.omg) | [reject](invalid_parameter/main.omg) | [reject](parameter/controls/uninitialized_selector/main.omg) |
-| call_result | [program](call_result/main.omg) | [reject](invalid_call_result/main.omg) | [reject](call_result/controls/uninitialized_selector/main.omg) |
-| match_join | [program](match_join/main.omg) | [reject](invalid_match_join/main.omg) | [reject](match_join/controls/uninitialized_selector/main.omg) |
-| const_name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) | [reject](const_name/controls/uninitialized_selector/main.omg) |
-| other_state | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) | [reject](other_state/controls/uninitialized_selector/main.omg) |
-| other_machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) | [reject](other_machine/controls/uninitialized_selector/main.omg) |
-| target_body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | — |
+| Place | Positive | Right-operand control |
+| --- | --- | --- |
+| local | [program](local/main.omg) | [reject](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [reject](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [reject](invalid_parameter/main.omg) |
+| call_result | [program](call_result/main.omg) | [reject](invalid_call_result/main.omg) |
+| match_join | [program](match_join/main.omg) | [reject](invalid_match_join/main.omg) |
+| const_name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) |
+| other_state | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) |
+| target_body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) |
 
 The [root](main.omg) uses the local production. Every positive binds all four
 required hosted targets and expects exit 0. The target place also retains the
@@ -67,18 +66,7 @@ The `other_state` path retains the nested-machine place.
 
 Each ordinary reject twin changes only the transported right operand and its
 bounds from 40 to 39. The public `WeightedCombine` requirement still demands
-40, so rejection must identify its unproved call precondition. Each additional
-uninitialized-selector control removes selector establishment. The match control
-keeps both arms and reads an uninitialized `vacant` value in each. The field
-control initializes both scalar neighbors while leaving only its selector unset.
-These controls must reject at the ordinary validity check before an unestablished choice can be
-used. Neither control substitutes a different caller guard.
-
-The [input-arithmetic production](input_arithmetic/README.md) keeps all nine
-positives and twins. Its caller proves the same exact left-operand requirement
-from an independently representable bounded addition. Its existing distinct
-markers, both match choices and field neighbors remain unchanged. The complete
-selection is 46 sample projects and 45 corpus fixtures, including every control.
+40. The reject programs must fail at the call that requires it.
 
 ## Selection by Build
 
@@ -108,8 +96,8 @@ All implementations are checked independently of the host selected for execution
   hidden receiver, data ownership or loan.
 - **Composition:** calls substitute the actual inputs, joins keep the actual
   choice from each branch, and nested calls preserve their own arrival obligations.
-  The result guarantee directly proves subtraction. The operand twins and
-  uninitialized controls challenge those separate obligations.
+  The result guarantee directly proves subtraction. Passing 39 in the reject
+  program checks that the caller must establish the required input.
 - **Soundness:** public contracts remain mandatory independently of the selected
   member. No stronger private promise or post-call equality guard proves an
   otherwise invalid call.
@@ -126,7 +114,7 @@ All implementations are checked independently of the host selected for execution
   select the authored implementation. Source acceptance or successful image
   emission alone does not demonstrate the runtime requirement.
 
-## Validation and remaining scope
+## Earlier runs and remaining scope
 
 The reconciled source `281c0d530cb7a5c108e8301ea6b5851f441244e1` passes the
 complete focused scope on [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41565512619)
