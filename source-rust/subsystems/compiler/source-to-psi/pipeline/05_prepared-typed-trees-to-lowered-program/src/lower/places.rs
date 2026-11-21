@@ -2080,7 +2080,7 @@ impl<'a> Lowering<'a> {
         operand: &Expression,
         expression: &Expression,
         clauses: &[semantic_vocabulary::Proposition],
-        stated: Option<&terminal_check_tables::program::CastCondition>,
+        stated: Option<&terminal_check_tables::program::EstablishedCondition>,
     ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
@@ -3202,6 +3202,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         place: &Expression,
         access: language_core::ReferenceAccess,
+        has_later_argument: bool,
     ) -> Evaluation<Lent> {
         let value_type = place
             .result
@@ -3264,10 +3265,14 @@ impl<'a> Lowering<'a> {
             let (root, steps, exact, actual) = continuing!(self.capture_place(place));
             (root, steps, exact, actual, None)
         };
-        // A later call operand can change the descriptor or selector before
-        // invocation. Save the actual address at this argument's evaluation.
-        let (root, steps, exact) =
-            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
+        // An address used after another operand or restored after an exclusive
+        // call needs its own captured home. An immediate shared observation
+        // can use the evaluated path at the call itself.
+        let (root, steps, exact) = if has_later_argument || access.is_exclusive() {
+            self.capture_view_element(root, steps, exact, lent_access, place.source)?
+        } else {
+            (root, steps, exact)
+        };
         self.captured_loan(place, lent_access, (root, steps, exact, actual), temporary)
             .map(Reached::Value)
     }
@@ -4404,7 +4409,7 @@ impl<'a> Lowering<'a> {
         let Some(ValueType::Record(record, _, _)) = place.result else {
             return Err(self.internal("a byte observation has no structural argument"));
         };
-        let lent = continuing!(self.lend(place, *access));
+        let lent = continuing!(self.lend(place, *access, false));
         // This primitive only reads the captured view. Any reference or
         // view formation in its argument already owns its real loan row;
         // a byte read is neither another call nor a loan-forming operation.

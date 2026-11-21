@@ -45,10 +45,13 @@ impl<'source> Program<'source> {
     ) -> Checked<ApplicationBindings<'source>> {
         let unavailable = |reason| super::services::unavailable(id, reason);
         let typed = self.typed;
-        let machine = typed
-            .machine_by_symbol(target)
-            .ok_or_else(|| unavailable("generic application has no actual callee"))?;
-        let parameters = typed.machine_type_parameters(machine);
+        let parameters = if let Some(machine) = typed.machine_by_symbol(target) {
+            typed.machine_type_parameters(machine)
+        } else if let Some((_, method)) = typed.trait_machine_signature(target) {
+            typed.state_signature_type_parameters(method)
+        } else {
+            return Err(unavailable("generic application has no actual callee"));
+        };
         let source = if application.is_valid() {
             if !typed
                 .expression_table
@@ -65,10 +68,11 @@ impl<'source> Program<'source> {
                 .machine_by_own_or_state_symbol(source.lexical_owner)
                 .map(|machine| machine.symbol)
                 != Some(caller)
-                || typed
-                    .machine_by_own_or_state_symbol(source.registration_operation)
-                    .map(|machine| machine.symbol)
-                    != Some(target)
+                || (source.registration_operation != target
+                    && typed
+                        .machine_by_own_or_state_symbol(source.registration_operation)
+                        .map(|machine| machine.symbol)
+                        != Some(target))
             {
                 return Err(unavailable(
                     "generic application has another source owner or declaration",

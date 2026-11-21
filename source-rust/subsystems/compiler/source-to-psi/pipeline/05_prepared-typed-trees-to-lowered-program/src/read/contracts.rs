@@ -14,7 +14,7 @@ use crate::source_state::expression::{
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
-    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
+    Proposition, ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -96,10 +96,22 @@ pub(super) enum ResultTerm {
     Absent(&'static str),
 }
 
+/// A supplied value or checked literal already forms. More complex terms
+/// need their formation obligations retained with the owning proposition.
+pub(super) fn needs_call_argument_formation(term: &ScalarTerm) -> bool {
+    !matches!(
+        term,
+        ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_)
+    )
+}
+
 impl Program<'_> {
     /// An applied body keeps its declaration's clause trees. Both a whole
     /// scalar result and a projected result must name that exact owner.
-    fn require_result_owner(
+    pub(super) fn require_result_owner(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
@@ -376,15 +388,7 @@ impl Program<'_> {
         let mut pending = bound
             .into_iter()
             .map(|(_, term)| term)
-            .filter(|term| {
-                !matches!(
-                    term,
-                    ScalarTerm::Value { .. }
-                        | ScalarTerm::Boolean(_)
-                        | ScalarTerm::Integer { .. }
-                        | ScalarTerm::IeeeFloatLiteral(_)
-                )
-            })
+            .filter(needs_call_argument_formation)
             .peekable();
         if pending.peek().is_none() {
             return Ok(());
@@ -456,7 +460,7 @@ impl Program<'_> {
                     .fixed_core_declaration_for_symbol(call.target_symbol)
                     == Some(symbols::FixedCoreDeclaration::Identity) =>
             {
-                return self.scalar_identity_clause(id, scope, expression, call);
+                return self.identity_clause(id, scope, expression, call);
             }
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
@@ -501,7 +505,7 @@ impl Program<'_> {
                 typed.expression_table.expression(binary.left),
                 typed.expression_table.expression(binary.right),
             )
-            && let Some(equation) = self.nominal_type_equation(id, scope, *left, *right)?
+            && let Some(equation) = self.structural_type_equation(id, scope, *left, *right)?
         {
             let owner = self.contract_operator_owner(id, scope)?;
             self.complete_type_equation(id, owner, expression)?;
@@ -723,20 +727,18 @@ impl Program<'_> {
         }
     }
 
-    /// A plain integer Identity forms the kernel's existing scalar identity.
-    /// The fixed declaration, written type, and both subjects belong to this
-    /// exact clause before the prover considers whether its identity holds.
-    fn scalar_identity_clause(
+    /// Bind the fixed declaration, written type, and both subjects before
+    /// selecting the corresponding identity in the proof vocabulary.
+    pub(super) fn identity_inputs(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         call: &TableCallExpression,
-    ) -> Checked<Proposition> {
+    ) -> Checked<(SymbolHandle, [ExpressionHandle; 2], SourceOrigin)> {
         use crate::declaration_selection::AuthoredDeclarationSelectionKind::{
             Call, StaticArgument,
         };
-        use symbols::BuiltinTypeAtom;
 
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         if !scope.formal_fields || scope.logical.is_some() || scope.subject.is_some() {
@@ -767,11 +769,9 @@ impl Program<'_> {
         let [argument] = call.machine_arguments.as_ref() else {
             return Err(unavailable("Identity requires one explicit type argument"));
         };
-        let [_] = argument.path.as_ref() else {
-            return Err(unavailable(
-                "Identity needs one plain fixed integer type name",
-            ));
-        };
+        if argument.path.is_empty() {
+            return Err(unavailable("Identity is missing its selected type name"));
+        }
         if !typed.contains_type_reference(argument.type_reference)
             || !matches!(
                 typed.type_reference_table.type_reference(argument.type_reference),
@@ -786,21 +786,16 @@ impl Program<'_> {
         {
             return Err(unavailable("Identity lost its exact written type"));
         }
-        let Some(atom @ BuiltinTypeAtom::Integer(_)) =
-            typed.symbols.builtin_type_atom(argument.symbol)
-        else {
-            return Err(unavailable(
-                "Identity of a type other than a plain fixed integer",
-            ));
-        };
         let application_handle = call.authored_machine_application;
         if !expressions.static_machine_application_is_valid(application_handle) {
             return Err(unavailable("Identity lost its authored type application"));
         }
         let application = expressions.static_machine_application(application_handle);
-        // The written application belongs to the declaration. The clause's
-        // result belongs to that machine's one state.
-        if self.entered_machine(scope.owner) != Some(application.lexical_owner) {
+        // A concrete body's result belongs to its entry state, while its
+        // static applications belong to the machine. A bodyless requirement
+        // owns its own result and its written applications directly.
+        let owner = self.entered_machine(scope.owner).unwrap_or(scope.owner);
+        if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",
             ));
@@ -895,14 +890,44 @@ impl Program<'_> {
                 "Identity requires two subjects",
             ));
         };
+        Ok((
+            argument.symbol,
+            [*left, *right],
+            SourceOrigin::Authored(call_source),
+        ))
+    }
+
+    fn identity_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        call: &TableCallExpression,
+    ) -> Checked<Proposition> {
+        let (subject_type, [left, right], source) =
+            self.identity_inputs(id, scope, expression, call)?;
+        if self.typed.core_vocabulary(subject_type)
+            == Some(language_core::core_vocabulary::CoreVocabulary::FloatMeaning)
+        {
+            return self.float_meaning_identity(id, scope, left, right);
+        }
+        let Some(atom @ symbols::BuiltinTypeAtom::Integer(_)) =
+            self.typed.symbols.builtin_type_atom(subject_type)
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("Identity of an unserved type"),
+            ));
+        };
         let scalar = super::types::atom_type(atom, id)?;
-        let (left, left_type) = self.term(id, scope, *left, Some(scalar))?;
-        let (right, right_type) = self.term(id, scope, *right, Some(scalar))?;
+        let (left, left_type) = self.term(id, scope, left, Some(scalar))?;
+        let (right, right_type) = self.term(id, scope, right, Some(scalar))?;
         let expected = ValueType::plain(scalar);
         if left_type != expected || right_type != expected {
             return Err(reject(
                 id,
-                SourceOrigin::Authored(call_source),
+                source,
                 "Identity subjects must have the exact written plain integer type",
             ));
         }
@@ -2101,8 +2126,27 @@ impl Program<'_> {
         expression: ExpressionHandle,
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-        let Some((root, path, value_type)) = self.projected(id, scope, expression)? else {
+        let Some((root, path, value_type)) = self.read_projection(id, scope, expression)? else {
             return unserved("term other than a field of the value or a literal");
+        };
+        let path = match static_read_path(&path) {
+            Some(path) => path,
+            None => {
+                let ValueType::Scalar(scalar_type, _) = value_type else {
+                    return unserved("indexed observation does not select a scalar");
+                };
+                if matches!(scalar_type, ScalarType::Callable(_)) {
+                    return unserved("callable field in a clause");
+                }
+                return Ok((
+                    ScalarTerm::StructuralRead {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    value_type,
+                ));
+            }
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
@@ -2144,6 +2188,25 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
+        let Some((root, path, ty)) = self.read_projection(id, scope, expression)? else {
+            return Ok(None);
+        };
+        let path = static_read_path(&path).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("dynamic selection used as a static structural subject"),
+            )
+        })?;
+        Ok(Some((root, path, ty)))
+    }
+
+    fn read_projection(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<(PlaceId, Vec<ScalarReadProjection>, ValueType)>> {
         if scope.subject.is_none()
             && !scope.formal_fields
             && !matches!(scope.result, ResultTerm::Structural(..))
@@ -2208,7 +2271,7 @@ impl Program<'_> {
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
                         subject.root,
-                        subject.path.to_vec(),
+                        subject.path.iter().copied().map(Into::into).collect(),
                         subject.value_type,
                     )));
                 }
@@ -2220,7 +2283,12 @@ impl Program<'_> {
                 let Some(record) = self.opened(id, Some(subject.value_type), Access::Read)? else {
                     return Ok(None);
                 };
-                (subject.root, subject.path.to_vec(), record, path.symbol)
+                (
+                    subject.root,
+                    subject.path.iter().copied().map(Into::into).collect(),
+                    record,
+                    path.symbol,
+                )
             }
             ExpressionNode::Member(member) => {
                 if !member.selection.field_symbol().is_valid() {
@@ -2234,7 +2302,7 @@ impl Program<'_> {
                     )
                 };
                 let Some((root, mut base, receiver)) =
-                    self.projected(id, scope, member.receiver)?
+                    self.read_projection(id, scope, member.receiver)?
                 else {
                     return Err(not_data());
                 };
@@ -2247,7 +2315,7 @@ impl Program<'_> {
             ExpressionNode::Indexed(indexed) => {
                 let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
                 let Some((root, mut path, receiver)) =
-                    self.projected(id, scope, indexed.collection)?
+                    self.read_projection(id, scope, indexed.collection)?
                 else {
                     return Err(unavailable("index of something that is not storage"));
                 };
@@ -2255,46 +2323,46 @@ impl Program<'_> {
                     return Err(unavailable("index of something that is not an array"));
                 };
                 let array = self.through_shared_referent(id, &mut path, array)?;
-                let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
-                    self.array_element(id, array)?
-                else {
-                    return Err(unavailable("indexed clause without a fixed array extent"));
-                };
-                let Some(selected) = self
+                let (element, qualification, extent) = self.array_element(id, array)?;
+                let count = ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is a carrier"),
+                );
+                let folded = self
                     .typed
-                    .closed_integer_expression_value_in(indexed.index, scope.owner)
-                else {
-                    return Err(unavailable(
-                        "array index in a clause that is not a closed integer",
-                    ));
-                };
-                // A closed index can still be arithmetic: `Count - 1` closed at
-                // `Count = 22` is `22 - 1`. Read it as the `u64` clause term it
-                // is, so each operator in it is completed with its actual operand
-                // types; the path keeps the folded position.
-                if matches!(
-                    self.typed.expression_table.expression(indexed.index),
-                    ExpressionNode::Binary(_)
-                ) {
-                    let count = ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .expect("u64 is a carrier"),
-                    );
-                    self.term(id, scope, indexed.index, Some(count))?;
-                }
-                let source =
-                    SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
-                let Some(position) = selected.to_u64().filter(|position| *position < length) else {
-                    return Err(reject(
-                        id,
-                        source,
-                        format!(
-                            "contract array index {selected} is outside its fixed extent {length}"
-                        ),
-                    ));
+                    .closed_integer_expression_value_in(indexed.index, scope.owner);
+                let selector = match (extent, folded) {
+                    (terminal_semantics::CollectionExtent::Fixed(length), Some(selected)) => {
+                        if matches!(
+                            self.typed.expression_table.expression(indexed.index),
+                            ExpressionNode::Binary(_)
+                        ) {
+                            self.term(id, scope, indexed.index, Some(count))?;
+                        }
+                        let position = selected.to_u64().filter(|position| *position < length).ok_or_else(|| reject(
+                            id,
+                            SourceOrigin::of(self.typed.expression_table.source_span(indexed.index)),
+                            format!("contract array index {selected} is outside its fixed extent {length}"),
+                        ))?;
+                        CanonicalStructuralPathSegment::FixedIndex(position).into()
+                    }
+                    (
+                        terminal_semantics::CollectionExtent::Fixed(_)
+                        | terminal_semantics::CollectionExtent::Parameter { .. }
+                        | terminal_semantics::CollectionExtent::StoredLength,
+                        _,
+                    ) => {
+                        let (index, _) = self.term(id, scope, indexed.index, Some(count))?;
+                        ScalarReadProjection::Index(Box::new(index))
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "contract index needs the actual collection extent",
+                        ));
+                    }
                 };
                 // A contract's checked index is the same primitive collection
                 // operation as a body read. Retain its actual collection type
@@ -2304,7 +2372,7 @@ impl Program<'_> {
                 self.complete_contract_operator(id, scope, expression, operands)?;
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
-                path.push(CanonicalStructuralPathSegment::FixedIndex(position));
+                path.push(selector);
                 let value_type = self.storage_value_type(id, element, qualification)?;
                 return Ok(Some((root, path, value_type)));
             }
@@ -2332,17 +2400,13 @@ impl Program<'_> {
         let data = self.data_type(id, record.record())?;
         let value_type = match self.member_of(id, record, symbol)? {
             Member::Field(field) => {
-                path.push(CanonicalStructuralPathSegment::Field(
-                    data.fields()[field].id,
-                ));
+                path.push(CanonicalStructuralPathSegment::Field(data.fields()[field].id).into());
                 data.fields()[field].value_type
             }
             Member::Payload { case, field } => {
                 let owner = &data.cases()[case];
-                path.push(CanonicalStructuralPathSegment::Case(owner.id));
-                path.push(CanonicalStructuralPathSegment::Field(
-                    owner.fields[field].id,
-                ));
+                path.push(CanonicalStructuralPathSegment::Case(owner.id).into());
+                path.push(CanonicalStructuralPathSegment::Field(owner.fields[field].id).into());
                 owner.fields[field].value_type
             }
         };
@@ -2359,7 +2423,7 @@ impl Program<'_> {
     fn through_shared_referent(
         &self,
         id: MachineId,
-        path: &mut Vec<CanonicalStructuralPathSegment>,
+        path: &mut Vec<ScalarReadProjection>,
         record: super::authority::Opened,
     ) -> Checked<super::authority::Opened> {
         match self.data_type(id, record.record())?.shape {
@@ -2367,7 +2431,7 @@ impl Program<'_> {
                 referent,
                 access: terminal_psi::StructuralAccess::SharedBorrow,
             } => {
-                path.push(CanonicalStructuralPathSegment::Referent);
+                path.push(ScalarReadProjection::Referent);
                 self.opened(id, Some(ValueType::record(referent)), Access::Read)?
                     .ok_or_else(|| {
                         refuse(
@@ -2385,6 +2449,16 @@ impl Program<'_> {
             _ => Ok(record),
         }
     }
+}
+
+fn static_read_path(path: &[ScalarReadProjection]) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    path.iter()
+        .map(|step| match step {
+            ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
+            ScalarReadProjection::Static(segment) => Some(*segment),
+            ScalarReadProjection::Index(_) | ScalarReadProjection::Extent => None,
+        })
+        .collect()
 }
 
 /// Inspect only evaluated source bodies. Signature and type metadata may

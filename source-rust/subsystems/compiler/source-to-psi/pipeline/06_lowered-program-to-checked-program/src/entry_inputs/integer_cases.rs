@@ -123,7 +123,10 @@ fn comparison(proposition: &Proposition) -> Option<(Operands<'_>, u8)> {
     let total = |term: &ScalarTerm| {
         matches!(
             term,
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::IntegerField { .. }
+            ScalarTerm::Value { .. }
+                | ScalarTerm::Integer { .. }
+                | ScalarTerm::IntegerField { .. }
+                | ScalarTerm::Application { .. }
         )
     };
     if !total(left) || !total(right) {

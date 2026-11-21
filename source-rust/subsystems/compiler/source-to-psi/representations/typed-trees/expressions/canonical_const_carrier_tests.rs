@@ -135,3 +135,49 @@ fn canonical_const_carriers_check_inactive_payloads_and_cycles() {
         TypeReferenceHandle::invalid()
     ));
 }
+
+#[test]
+fn a_materialized_float_keeps_its_exact_carrier_and_representation() {
+    use application_identity::const_value::DecodedCanonicalConstValue;
+    use numeric_literals::FloatFormat;
+
+    let mut symbols = SymbolTableBuilder::new();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let builtins = symbols.insert_children(root, crate::source_symbols::builtin_type_symbols());
+    let mut program = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let mut named = |atom: symbols::BuiltinTypeAtom, name: &str| {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins.handle_at(atom.ordinal() as u32),
+                name: name.into(),
+            })
+    };
+    let binary32 = named(symbols::BuiltinTypeAtom::F32, "f32");
+    let binary64 = named(symbols::BuiltinTypeAtom::F64, "f64");
+    // Negative zero and a signed signaling NaN distinguish raw custody from IEEE equality.
+    for (carrier, other, format, bits) in [
+        (binary32, binary64, FloatFormat::F32, 0x8000_0000),
+        (binary64, binary32, FloatFormat::F64, 0xfff0_0000_0000_0123),
+    ] {
+        let declared = DecodedCanonicalConstValue::Float { format, bits };
+        let literal = program
+            .materialize_canonical_const_value(carrier, &declared)
+            .unwrap();
+        let expression = program.expression_table.insert(literal);
+        assert!(program.canonical_const_materialization_matches(carrier, expression, &declared));
+        assert!(
+            program
+                .materialize_canonical_const_value(other, &declared)
+                .is_none()
+        );
+        let changed = DecodedCanonicalConstValue::Float {
+            format,
+            bits: bits ^ 1,
+        };
+        assert!(!program.canonical_const_materialization_matches(carrier, expression, &changed));
+    }
+}

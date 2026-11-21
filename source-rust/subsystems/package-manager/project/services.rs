@@ -264,7 +264,7 @@ impl SourceHost<'_, '_> {
 #[derive(Default)]
 pub(super) struct DependencyProducts {
     by_package: BTreeMap<semantic_vocabulary::PackageKeyIdentity, Vec<CompletedDependency>>,
-    pub(super) independent_target: Option<target::TargetProfile>,
+    independent_target: Option<target::TargetProfile>,
 }
 
 struct CompletedDependency {
@@ -285,6 +285,39 @@ impl DependencyProducts {
 }
 
 impl HandoffSources<'_> {
+    /// A provider cut can come from the Build of any dependency fused into this
+    /// Product. Only a Product occurrence can ask us to retain native suppliers.
+    pub(super) fn deployment_products(
+        &self,
+        root: &project_build::SettledDependency,
+        target: target::TargetProfile,
+    ) -> DependencyProducts {
+        use semantic_vocabulary::source_selections::CompositionMode;
+        let occurrences = root.inputs().required_dependency_source_instances();
+        let mut builds = std::iter::once(root).chain(self.settled.iter().filter_map(|source| {
+            occurrences
+                .contains(&(source.declaration.identity(), DependencyPurpose::Product))
+                .then_some(&source.build)
+        }));
+        let independent = builds.any(|build| {
+            build
+                .evaluated()
+                .configuration
+                .product_selection_requests
+                .iter()
+                .any(|request| {
+                    request.composition == Some(CompositionMode::Independent)
+                        && request.target.is_none_or(|selected| {
+                            selected.canonical_name() == target.target_name()
+                        })
+                })
+        });
+        DependencyProducts {
+            independent_target: independent.then_some(target),
+            ..Default::default()
+        }
+    }
+
     /// Recursively form each package/purpose/target handoff once from that dependency's
     /// original Build return and the handoffs of its own dependencies.
     pub(super) fn dependency_product(

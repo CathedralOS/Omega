@@ -2021,7 +2021,7 @@ fn irrelevant_subtraction_endpoints_do_not_start_sign_searches() {
     let assumptions = [Proposition::LessOrEqual(sum, difference)];
     let mut activity = ProofSearchActivity::default();
     let steps =
-        Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject, &subject);
+        Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject, &subject, false);
     assert!(
         steps.is_empty(),
         "an order step cannot return its starting value"

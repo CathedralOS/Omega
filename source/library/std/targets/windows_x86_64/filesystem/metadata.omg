@@ -117,7 +117,9 @@ data WindowsTimestampEncoding {
 
 // SetFileTime treats FILETIME zero as "leave unchanged", not the 1601 epoch.
 // Refuse that unrepresentable requested update instead of reporting a no-op as
-// success. Whole-second encodings can never equal the all-ones suppression key.
+// success. A signed Unix time outside the Windows encoding is likewise a
+// supported input whose update is unavailable, not a malformed request.
+// Whole-second encodings can never equal the all-ones suppression key.
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfiletime
 machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEncoding {
     transition seconds == -11644473600 {
@@ -127,7 +129,7 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
     machine range(seconds: i64) -> WindowsTimestampEncoding {
         transition seconds > -11644473600 && seconds <= 1833029933770 {
             true -> encode(seconds),
-            false -> (WindowsTimestampEncoding::Error { kind: ErrorKind::InvalidInput })
+            false -> (WindowsTimestampEncoding::Error { kind: ErrorKind::Unsupported })
         }
     }
     machine encode(seconds: i64) -> WindowsTimestampEncoding

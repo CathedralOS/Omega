@@ -5,24 +5,24 @@ use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageReviewTraitCompositionKind {
+pub enum PackageReviewTraitCompositionKind {
     Policy,
     ServiceReach,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitParent {
-    pub(crate) kind: PackageReviewTraitCompositionKind,
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) lifetime_arguments: Vec<u32>,
-    pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
+    pub kind: PackageReviewTraitCompositionKind,
+    pub identity: PackageReviewNominalIdentity,
+    pub lifetime_arguments: Vec<u32>,
+    pub arguments: Vec<PackageReviewTypeIdentity>,
 }
 
 impl PackageReviewTraitParent {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewReturnedBorrowOrigin {
-    pub(crate) origin: PackageReviewBorrowOrigin,
+    pub origin: PackageReviewBorrowOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -33,8 +33,8 @@ pub enum PackageReviewBorrowOrigin {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewParameterQualification {
-    pub(crate) structural_index: u32, // Dense structural formal lane index.
-    pub(crate) domain: PackageReviewNominalIdentity,
+    pub structural_index: u32, // Dense structural formal lane index.
+    pub domain: PackageReviewNominalIdentity,
 }
 
 impl PackageReviewReturnedBorrowOrigin {

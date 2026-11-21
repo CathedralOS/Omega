@@ -43,65 +43,6 @@ impl Psi {
         }
     }
 
-    /// Ground layout prerequisites belong to the actual retained call and
-    /// can be reconstructed from its declared contract during independent readback.
-    pub fn layout_call_conditions(
-        &self,
-        machine: &TerminalMachine,
-    ) -> Result<Vec<(semantic_vocabulary::ObligationId, ScalarPredicateCondition)>, &'static str>
-    {
-        if self.scalars.scalar_applications.declarations().is_empty() {
-            return Ok(Vec::new());
-        }
-        let owner = self
-            .scalars.scalar_applications
-            .proof_scope
-            .callable_declaration(crate::TargetMachineCallable::Machine(machine.id));
-        let calls = machine
-            .module_invocations()
-            .map(|call| {
-                let inputs = call.inputs.declared();
-                (
-                    inputs.callee,
-                    inputs.required_contract,
-                    inputs.requirement_obligations,
-                )
-            })
-            .chain(machine.boundary_invocations().map(|call| {
-                (
-                    crate::TargetMachineCallable::Boundary(call.boundary),
-                    None,
-                    call.requirement_obligations,
-                )
-            }));
-        let mut conditions = Vec::new();
-        for (callee, required, obligations) in calls {
-            let Some(clauses) = self.invocation_requires(callee, required) else {
-                continue;
-            };
-            for (clause, obligation) in clauses.iter().zip(obligations) {
-                let condition = self.scalars.scalar_applications.layout_predicate(
-                    owner,
-                    || {
-                        format!(
-                            "layout-dependent call requirement {} of {callee:?}",
-                            obligation.get()
-                        )
-                    },
-                    clause,
-                )?;
-                if let Some(condition) = condition {
-                    conditions.push((*obligation, condition));
-                }
-            }
-        }
-        conditions.sort_unstable_by_key(|(obligation, _)| *obligation);
-        if conditions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err("layout call requirements reuse an obligation identity");
-        }
-        Ok(conditions)
-    }
-
     pub fn invocation_ensures(
         &self,
         callee: crate::TargetMachineCallable,

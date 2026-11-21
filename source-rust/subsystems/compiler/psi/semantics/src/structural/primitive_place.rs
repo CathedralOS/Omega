@@ -1071,6 +1071,37 @@ pub fn preceding_collection_length(
     None
 }
 
+/// Formation of a collection selection, in its mathematical index domain.
+pub fn scalar_index_bound(
+    index: semantic_vocabulary::ScalarTerm,
+    length: semantic_vocabulary::ScalarTerm,
+) -> Option<Proposition> {
+    use semantic_vocabulary::{IntegerMathTerm, IntegerValue, ScalarTerm};
+    let integer = index
+        .scalar_type()
+        .as_integer()
+        .filter(|integer| !integer.is_address())?;
+    let upper = if index.scalar_type() == length.scalar_type() {
+        Proposition::LessThan(index.clone(), length)
+    } else {
+        Proposition::IntegerMathLessThan(
+            IntegerMathTerm::embed(index.clone())?,
+            IntegerMathTerm::embed(length)?,
+        )
+    };
+    Some(if integer.sign() == IntegerSign::Signed {
+        Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(integer, IntegerValue::Signed(0)).ok()?,
+                index,
+            ),
+            upper,
+        ])
+    } else {
+        upper
+    })
+}
+
 /// Use the visited goals only when the indexed prefix is valid.
 pub fn visit_runtime_index_goals<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -1120,45 +1151,10 @@ pub fn visit_runtime_index_goals<'a>(
                         error = RuntimeIndexGoalError::MissingExtent;
                         return false;
                     };
-                    let Some(integer) =
-                        carrier.as_integer().filter(|integer| !integer.is_address())
-                    else {
-                        error = RuntimeIndexGoalError::UnsupportedSelector;
-                        return false;
-                    };
-                    let index_term = semantic_vocabulary::ScalarTerm::value(index, carrier);
-                    let length_term =
-                        semantic_vocabulary::ScalarTerm::value(length, length_type);
-                    let upper = if carrier == length_type {
-                        Proposition::LessThan(index_term.clone(), length_term)
-                    } else {
-                        let Some(left) =
-                            semantic_vocabulary::IntegerMathTerm::embed(index_term.clone())
-                        else {
-                            return false;
-                        };
-                        let Some(right) =
-                            semantic_vocabulary::IntegerMathTerm::embed(length_term)
-                        else {
-                            return false;
-                        };
-                        Proposition::IntegerMathLessThan(left, right)
-                    };
-                    Some(if integer.sign() == IntegerSign::Signed {
-                        Proposition::Conjunction(vec![
-                            Proposition::LessOrEqual(
-                                semantic_vocabulary::ScalarTerm::integer(
-                                    integer,
-                                    semantic_vocabulary::IntegerValue::Signed(0),
-                                )
-                                .expect("zero fits an integer"),
-                                index_term,
-                            ),
-                            upper,
-                        ])
-                    } else {
-                        upper
-                    })
+                    scalar_index_bound(
+                        semantic_vocabulary::ScalarTerm::value(index, carrier),
+                        semantic_vocabulary::ScalarTerm::value(length, length_type),
+                    )
                 }
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                     capacity,

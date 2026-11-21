@@ -23,9 +23,9 @@ pub(crate) use candidate::{
     CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
     PackageSourceBindings, review_resolved_packages,
 };
-pub use candidate::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
 pub use candidate::{
-    PackageReviewExecutor, PackageReviewPass, PackageSourceVerificationPhase, RetainedPackageReviews,
+    CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError,
+    PackageSourceVerificationPhase,
 };
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,

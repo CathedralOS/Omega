@@ -1127,6 +1127,25 @@ fn adapt_flow(
                         } else {
                             step.copy_value(source, destination.clone());
                         }
+                    } else if let OperationKind::StructuralLeafCopy { source, path } =
+                        &operation.kind
+                    {
+                        let query = super::contents::descriptor_contents_query_with(
+                            &module.types.structural_types,
+                            *source,
+                            *graph.place_types.get(source)?,
+                            path,
+                            None,
+                            selector,
+                        );
+                        step.record_selected_copy(
+                            &module.types.structural_types,
+                            slot_kind,
+                            position,
+                            &mut graph.contents_queries,
+                            (query, *graph.place_types.get(source)?),
+                            (result?.place, result?.structural_type),
+                        );
                     } else {
                         step.may_escape = true;
                     }

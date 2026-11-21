@@ -16,6 +16,7 @@ use crate::review::{
 use target::TargetProfile;
 
 pub struct PackageInspectionSources {
+    pub(super) builds: crate::project::PackageReviewBuilds,
     pub(super) closure: ResolvedPackageSourceClosure,
     pub(super) identity: std::sync::Arc<super::InspectionIdentity>,
 }
@@ -27,7 +28,6 @@ pub(super) fn review(
     root_build_snapshot: Option<&BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: &mut crate::review::PackageReviewExecutor<'_>,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,
@@ -57,7 +57,7 @@ pub(super) fn review(
         },
         session,
         source_bindings,
-        execute,
+        &sources.builds,
     )
     .map_err(PackageInspectionError::from)?;
     let changes = compare_package_policy_changes(

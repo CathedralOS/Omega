@@ -46,11 +46,11 @@ pub enum PackageReviewRepresentationObjectFormat {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewRepresentationTarget {
-    pub(crate) profile: PackageReviewRepresentationTargetProfile,
-    pub(crate) architecture: PackageReviewRepresentationArchitecture,
-    pub(crate) object_format: PackageReviewRepresentationObjectFormat,
-    pub(crate) pointer_size: u16,
-    pub(crate) pointer_alignment: u16,
+    pub profile: PackageReviewRepresentationTargetProfile,
+    pub architecture: PackageReviewRepresentationArchitecture,
+    pub object_format: PackageReviewRepresentationObjectFormat,
+    pub pointer_size: u16,
+    pub pointer_alignment: u16,
 }
 
 impl PackageReviewRepresentationTarget {

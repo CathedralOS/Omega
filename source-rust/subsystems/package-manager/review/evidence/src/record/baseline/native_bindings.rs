@@ -6,9 +6,9 @@ use crate::record::{
 };
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyNativeBinding {
-    pub(crate) application: Option<String>,
-    pub(crate) method: PackagePolicyServiceMethod,
-    pub(crate) binding: PackagePolicyProviderBinding,
+    pub application: Option<String>,
+    pub method: PackagePolicyServiceMethod,
+    pub binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
     /// The complete closed callable selected by Build, when the binding has
@@ -28,7 +28,7 @@ impl PackagePolicyNativeBinding {
         }
     }
 
-    pub(crate) fn key(
+    pub fn key(
         &self,
     ) -> (
         &crate::record::PackageReviewNominalIdentity,

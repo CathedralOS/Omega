@@ -1,6 +1,6 @@
-//! Compare nominal applications without replacing their const inputs by one
-//! caller's values. The normalized type and argument owners remain exact;
-//! unresolved const indices become ordinary equality obligations.
+//! Read each type where its arguments were supplied before comparing them.
+//! When a named type still contains const parameters, the checker must prove
+//! that their values agree.
 
 use super::{Program, contracts::ClauseScope};
 use crate::lowering::body::{Qualification, Regions, ValueType};
@@ -62,7 +62,7 @@ impl Program<'_> {
         self.bound_scalar_value(machine, scalar, source.reference, true)
     }
 
-    pub(super) fn nominal_type_equation(
+    pub(super) fn structural_type_equation(
         &mut self,
         machine: MachineId,
         clause: &ClauseScope<'_>,
@@ -83,23 +83,29 @@ impl Program<'_> {
             else {
                 return Ok(None);
             };
-            // Reference regions and outer qualifications need their own
-            // equality account. This reader never strips them to reach a
-            // nominal constructor or equates lifetime spellings.
-            for source in [&left, &right] {
-                if !matches!(
-                    self.typed
-                        .type_reference_table
-                        .type_reference(source.reference),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                ) || self
-                    .typed
+            let typed = self.typed;
+            let identity = |source: &SourceTypeApplication| {
+                if typed
                     .data_application_definition(source.reference)
                     .is_some_and(|data| !data.lifetime_parameters.is_empty())
                 {
-                    return Ok(None);
+                    return None;
                 }
-            }
+                match typed.type_reference_table.type_reference(source.reference) {
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                        Some(source.type_identity(typed))
+                    }
+                    // The type identity includes the elements, extents and
+                    // qualifications. Borrowed types also need their lifetimes.
+                    _ if source.scope.admits_argument(typed, source.reference) => source
+                        .scope
+                        .region_free_type_identity(typed, source.reference),
+                    _ => None,
+                }
+            };
+            let (Some(left_id), Some(right_id)) = (identity(&left), identity(&right)) else {
+                return Ok(None);
+            };
             // Normalization does not establish formation. Read both types
             // under their actual supplying frames before using their identity.
             for source in [&left, &right] {
@@ -108,14 +114,10 @@ impl Program<'_> {
                 self.source_scope = previous;
                 formed?;
             }
-            let identities = (
-                left.type_identity(self.typed),
-                right.type_identity(self.typed),
-            );
-            if !identities.0.is_valid() || !identities.1.is_valid() {
+            if !left_id.is_valid() || !right_id.is_valid() {
                 return Ok(None);
             }
-            if identities.0 == identities.1 || !visited.insert(identities) {
+            if left_id == right_id || !visited.insert((left_id, right_id)) {
                 continue;
             }
             let table = &self.typed.type_reference_table;
@@ -133,20 +135,11 @@ impl Program<'_> {
                 table.type_reference(right.reference),
             )
             else {
-                // Distinct rigid binders may still be supplied equal types.
-                // Only already closed scalar/nominal alternatives can decide
-                // this case; do not declare an unknown pair unequal.
-                let closed =
-                    |source: &SourceTypeApplication| match table.type_reference(source.reference) {
-                        TypeReferenceNode::Named { symbol, .. } => {
-                            self.typed.symbols.builtin_type_atom(*symbol).is_some()
-                                || self
-                                    .typed
-                                    .closed_data_definition(source.reference)
-                                    .is_some()
-                        }
-                        _ => false,
-                    };
+                // Distinct normalized types are unequal once both sides are
+                // closed. Open binders could still receive the same type.
+                let closed = |source: &SourceTypeApplication| {
+                    crate::source_state::domain::index_argument_is_closed(typed, source.reference)
+                };
                 return Ok((closed(&left) && closed(&right)).then_some(Proposition::Falsehood));
             };
             let (Some(left_data), Some(right_data)) = (

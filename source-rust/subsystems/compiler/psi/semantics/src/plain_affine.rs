@@ -568,7 +568,9 @@ fn reference_backing_uses(
     Error,
 > {
     use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-    use crate::descriptor_results::{DescriptorSlotKind, FlowFeasibility};
+    use crate::descriptor_results::{
+        DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin, FlowFeasibility,
+    };
     let mut uses = std::collections::BTreeMap::new();
     for (at, step) in &graph.flow {
         let mut inputs: Vec<_> = step.observed_inputs().cloned().collect();
@@ -598,16 +600,17 @@ fn reference_backing_uses(
             );
         }
         for input in inputs {
-            let ty = *graph.place_types.get(&input.root).ok_or(Error::malformed(
-                "reference observation lost its source type",
-            ))?;
-            let inventory = DescriptorSlotKind::References
-                .owned_inventory(types, input.root, ty)
+            let inventory = DescriptorSlotKind::BorrowedStorage
+                .entry_inventory(types, graph, input.root)
                 .ok_or(Error::unsupported(
                     "reference observation has no owned contents inventory",
                 ))?;
             for unknown in inventory.unknown_contents {
-                if input.contains(&unknown.location) || unknown.location.contains(&input) {
+                let mut carrier = unknown.location;
+                if carrier.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                    carrier.path.pop();
+                }
+                if input.contains(&carrier) || carrier.contains(&input) {
                     // An unknown packet has no address we can resolve. Keep
                     // its entire carrier live; this supplies no access to its
                     // hidden referents and does not authorize their release.
@@ -636,8 +639,38 @@ fn reference_backing_uses(
                         continue 'slots;
                     }
                 }
-                slot.path.push(DescriptorPathSegment::Referent);
                 let roots = uses.entry(*at).or_insert_with(Vec::new);
+                if let Some(mut origins) = references.symbolic_source_origins(graph.id, *at, &slot)
+                {
+                    // The descriptor may name provider storage. Its declared input
+                    // loans still keep each actual lender alive until this use.
+                    while let Some(origin) = origins.pop() {
+                        match origin {
+                            DescriptorSourceOrigin::Provider(provider) => {
+                                origins.extend(
+                                    provider
+                                        .lifetime_dependencies
+                                        .into_iter()
+                                        .map(|debt| debt.origin),
+                                );
+                            }
+                            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                                source,
+                                ..
+                            }) => roots.push(source),
+                            DescriptorSourceOrigin::IncomingSlot(source) => roots.push(source.root),
+                            DescriptorSourceOrigin::IncomingContents { query, .. } => {
+                                roots.push(query.root)
+                            }
+                            DescriptorSourceOrigin::Backing(
+                                DescriptorCallOrigin::AccessFormation { machine, place, .. },
+                            ) if machine == graph.id => roots.push(place),
+                            DescriptorSourceOrigin::Backing(_) => {}
+                        }
+                    }
+                    continue;
+                }
+                slot.path.push(DescriptorPathSegment::Referent);
                 if let Some(source) = references.location(graph.id, *at, &slot) {
                     if !graph.place_types.contains_key(&source.root) {
                         return Err(Error::malformed("reference backing is outside its machine"));
@@ -1822,7 +1855,15 @@ fn analyze(
             terminal_psi::OperationKind::DecomposeStructuralValue { .. }
         )
     });
-    let mut needs_storage_flow = needs_backing;
+    let keeps_borrowed_storage = needs_backing
+        || module.is_some()
+            && roots.iter().flatten().any(|root| {
+                terminal_psi::structural_type_has_borrowed_storage_by(
+                    |id| types.iter().find(|declaration| declaration.id == id),
+                    root.structural_type,
+                )
+            });
+    let mut needs_storage_flow = keeps_borrowed_storage;
     if !needs_storage_flow && module.is_some() {
         for (root, place) in roots.iter().zip(&machine.structural_places) {
             let Some(root) = root.as_ref().filter(|root| root.owned && root.affine) else {
@@ -1865,7 +1906,7 @@ fn analyze(
             &reference_graph,
         )
     });
-    let backing = if needs_backing {
+    let backing = if keeps_borrowed_storage {
         let references = references.as_mut().ok_or(Error::malformed(
             "reference backing lost its storage analysis",
         ))?;
@@ -2294,14 +2335,19 @@ impl<'a> Analysis<'a> {
         let root_type = body
             .structural_place_type(source)
             .ok_or(Error::malformed("reference closure has no carrier type"))?;
-        let selected = crate::runtime_structural_path_tip(self.types.iter(), root_type, path)
-            .ok_or(Error::unsupported(
-                "reference closure has no selected carrier type",
-            ))?;
-        let inventory = crate::reference_inventory(self.types.iter(), selected.id, usize::MAX)
-            .ok_or(Error::unsupported(
-                "reference closure has no complete contents inventory",
-            ))?;
+        let selected = match crate::runtime_read_projection_tip(self.types.iter(), root_type, path)
+        {
+            Some(crate::Position::Declared(ty)) => ty,
+            Some(crate::Position::ScalarField(_) | crate::Position::ByteElement) => return Ok(()),
+            None => {
+                return Err(Error::unsupported(
+                    "reference closure has no selected carrier type",
+                ));
+            }
+        };
+        let inventory = crate::reference_inventory(self.types.iter(), selected, usize::MAX).ok_or(
+            Error::unsupported("reference closure has no complete contents inventory"),
+        )?;
         for unknown in inventory.unknown_contents {
             let mut carrier = path.to_vec();
             carrier.extend(unknown.path);
@@ -2476,13 +2522,17 @@ impl<'a> Analysis<'a> {
             flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
                 .map_err(|error| error.at(site))?;
         }
-        // A reference dead before a dispatch ends there, not on each case
-        // edge: the dispatch reads the subject storage, which the reference
-        // may have lent, so the loan must be returned before it does. A
-        // terminator that moves storage on keeps its successors' releases.
+        // Release unused descriptors before a normal exit cleans their
+        // lenders, or a case dispatch reads its subject. Returned storage
+        // remains live at this cut. A branch that transfers a descriptor
+        // to its successor keeps the successor's release.
         if matches!(
             block.terminator,
-            Terminator::StructuralCase { .. } | Terminator::EliminateEmpty { .. }
+            Terminator::Return { .. }
+                | Terminator::ReturnUnit { .. }
+                | Terminator::ReturnStructural { .. }
+                | Terminator::StructuralCase { .. }
+                | Terminator::EliminateEmpty { .. }
         ) {
             self.end_references(&mut state, at, site)?;
         }
@@ -4169,38 +4219,32 @@ impl<'a> Analysis<'a> {
         let declaration = self
             .root(root)?
             .ok_or(Error::malformed("untracked affine root"))?;
-        let first_indirection = path.iter().position(|segment| {
-            matches!(
+        // Reading any borrowed payload needs a live descriptor. Only its
+        // carrier has an inline region here; the payload address, access and
+        // index bounds are checked at the use. This cannot license a move.
+        let descriptor = path.iter().enumerate().find_map(|(position, segment)| {
+            if !matches!(
                 segment,
-                StructuralPathSegment::Referent | StructuralPathSegment::RuntimeIndex { .. }
-            )
-        });
-        let descriptor_crossing = first_indirection.filter(|position| {
-            matches!(path[*position], StructuralPathSegment::Referent)
-                || crate::runtime_structural_path_tip(
-                    self.types.iter(),
-                    declaration.structural_type,
-                    &path[..*position],
-                )
-                .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
-        });
-        if let Some(referent) = descriptor_crossing
-            && let Some((descriptor, _)) = crate::canonical_static_projection(
+                StructuralPathSegment::Referent
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. }
+            ) {
+                return None;
+            }
+            let (prefix, carrier) = crate::canonical_static_projection(
                 self.types.iter(),
                 declaration.structural_type,
-                &path[..referent],
+                &path[..position],
+            )?;
+            carrier.shape.is_borrowed_descriptor().then_some(prefix)
+        });
+        if let Some(descriptor) = descriptor {
+            crate::runtime_read_projection_tip(
+                self.types.iter(),
+                declaration.structural_type,
+                path,
             )
-        {
-            if !matches!(
-                crate::runtime_read_projection_tip(
-                    self.types.iter(),
-                    declaration.structural_type,
-                    path,
-                ),
-                Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
-            ) {
-                return Err(outside);
-            }
+            .ok_or(outside)?;
             return Ok((descriptor, false));
         }
         let array =

@@ -1612,7 +1612,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .snapshots
             .get(&identity)
             .and_then(|cached| cached.ready())
-            .map(|prepared| &prepared.before)
+            .map(|prepared| prepared.before.clone())
             .ok_or_else(|| incomplete(None))?;
         let mut flow = machine.flow.clone();
         let normal_exits = machine
@@ -1625,6 +1625,24 @@ impl<'a> DescriptorAnalysis<'a> {
                 continue;
             };
             let incomplete_step = || incomplete(Some(*position));
+            let call = machine.direct_call(*position);
+            // A projected address need not have a static descriptor location.
+            // Its checked callee still has a body summary. When there is no
+            // borrowed result, stored effect, or invalidation, the address is
+            // observed at the invocation and need not survive its return.
+            if let Some(call) = call
+                && step.may_escape
+                && matches!(call.owner, DescriptorInvocationOwner::Operation(_))
+                && matches!(call.target, DescriptorInvocationTarget::Machine(_))
+                && call.arguments.iter().any(Option::is_none)
+                && call.result.is_none()
+                && let Some(summary) = self.replay.invocation_summary(call, 0)
+                && !summary.result.is_unobserved()
+                && !summary.invalidates_contents
+                && summary.effects.observed().is_some_and(Vec::is_empty)
+            {
+                step.may_escape = false;
+            }
             let replay = &self.replay;
             let queries = &mut self.storage_queries;
             let mut canonical = |location: &DescriptorLocation| {
@@ -1727,9 +1745,8 @@ impl<'a> DescriptorAnalysis<'a> {
                     }
                 }
             }
-            if let Some(call) = machine
-                .direct_call(*position)
-                .filter(|call| call.argument_contents.iter().all(Option::is_some))
+            if let Some(call) =
+                call.filter(|call| call.argument_contents.iter().all(Option::is_some))
             {
                 self.append_invocation_flow(
                     machine,

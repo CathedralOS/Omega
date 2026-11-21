@@ -14,7 +14,7 @@ pub(super) use service::method as encode_service_method;
 
 use super::values::external_policy::encode_producer;
 use super::{
-    encoder::{Encoder, encode_canonical_component},
+    encoder::Encoder,
     values::{identity::encode_nominal, providers::encode_compiler_intrinsic_execution},
 };
 use crate::encoding::{
@@ -23,11 +23,14 @@ use crate::encoding::{
 };
 
 impl PackagePolicySelectedProviders {
-    encode_canonical_component!(
-        SELECTED_PROVIDER_POLICY_MAGIC,
-        PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
-        policy,
-    );
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        let version = if self.has_application_grants() {
+            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION
+        } else {
+            crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
+        };
+        Encoder::policy_bytes(SELECTED_PROVIDER_POLICY_MAGIC, version, self, policy)
+    }
 }
 
 pub(super) fn policy(
@@ -67,6 +70,12 @@ fn plan(
                     PackageReviewProviderGrantSelectorKind::PlanName => encoder.tag("plan_name", 0),
                     PackageReviewProviderGrantSelectorKind::ProviderSlot => {
                         encoder.tag("provider_slot", 1)
+                    }
+                    PackageReviewProviderGrantSelectorKind::ProviderApplication(application) => {
+                        encoder.tag("provider_application", 2);
+                        encoder.option_field("application", application.as_ref(), |encoder, value| {
+                            encoder.string(value)
+                        })?;
                     }
                 };
                 Ok(())

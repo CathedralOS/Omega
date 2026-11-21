@@ -463,7 +463,14 @@ impl<'t> Program<'t> {
             ));
         }
         let diagnostic = self.next_identity()?;
-        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        let (declared, entry) = self.declaration(diagnostic, symbol)?;
+        if self.returns_float_meaning(entry.return_type) {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Type("proof-only FloatMeaning has no runtime ABI"),
+            ));
+        }
         if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
             && self
                 .typed
@@ -2846,23 +2853,6 @@ impl<'t> Program<'t> {
     /// Boundary omission rules belong to its published interface. Its
     /// operational header is authenticated by the boundary reader.
     pub(super) fn boundary_signature(
-        &mut self,
-        id: MachineId,
-        signature: &'t StateSignature,
-    ) -> Checked<(Signature, MachineNames)> {
-        self.callable_signature(
-            id,
-            signature,
-            RequirementValues::Bound(&[]),
-            Declarer::Boundary {
-                declares_no_crash_route: signature.declares_no_crash_route,
-            },
-        )
-    }
-
-    /// A native leaf retains a genuine declaration header. This does not
-    /// register an executable machine or supply evidence for its behavior.
-    pub(super) fn native_provider_signature(
         &mut self,
         id: MachineId,
         signature: &StateSignature,

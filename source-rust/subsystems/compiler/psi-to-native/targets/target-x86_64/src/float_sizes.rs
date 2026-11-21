@@ -55,6 +55,7 @@ pub fn ieee_float_arithmetic_size(form: IeeeFloatArithmeticForm) -> MachineSizeK
         Compare(_) => ((21, 24), (24, 24)),
         DirectedBinary { .. } => ((47, 50), (50, 50)),
         DirectedSquareRoot { .. } => ((43, 45), (45, 45)),
+        DirectedFusedMultiplyAdd { .. } => ((52, 56), (56, 56)),
     };
     let (minimum_bytes, maximum_bytes) = match form.format {
         IeeeFloatFormat::Binary32 => binary32,

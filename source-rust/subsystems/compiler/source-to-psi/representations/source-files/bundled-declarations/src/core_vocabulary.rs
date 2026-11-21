@@ -26,9 +26,22 @@ mod tests {
     use language_core::core_vocabulary::*;
 
     #[test]
-    fn filesystem_services_require_the_exact_bundled_declaration() {
-        for service in FilesystemService::ALL {
-            let vocabulary = CoreVocabulary::FilesystemService(service);
+    fn critical_services_require_the_exact_bundled_declaration() {
+        use CoreVocabulary as Core;
+        let services = FilesystemService::ALL
+            .into_iter()
+            .map(Core::FilesystemService)
+            .chain([
+                Core::ProcessInputService,
+                Core::ProcessOutputService,
+                Core::ProcessExitService,
+                Core::MachineControlService,
+                Core::PortIoService,
+                Core::InterruptControlService,
+                Core::InterruptEntryService,
+                Core::RootMemoryAccessService,
+            ]);
+        for vocabulary in services {
             let coordinates = Catalog::declaration(vocabulary).unwrap();
             let declared = SealedDeclarationSite {
                 file: coordinates.file,
@@ -38,8 +51,14 @@ mod tests {
             assert_eq!(CoreVocabularyCatalog::classify(declared), Some(vocabulary));
             for changed in [
                 site("other.omg", declared.declaration, declared.source),
-                site("filesystem_authority.omg", "Lookalike", declared.source),
-                site("filesystem_authority.omg", declared.declaration, b"edited"),
+                SealedDeclarationSite {
+                    declaration: "Lookalike",
+                    ..declared
+                },
+                SealedDeclarationSite {
+                    source: b"edited",
+                    ..declared
+                },
             ] {
                 assert_eq!(CoreVocabularyCatalog::classify(changed), None);
             }

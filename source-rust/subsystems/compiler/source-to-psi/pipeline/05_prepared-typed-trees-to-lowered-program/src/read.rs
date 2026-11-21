@@ -42,6 +42,7 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
+mod float_meaning;
 mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
@@ -1164,6 +1165,17 @@ mod tests {
                 refusal.detail,
                 "declaration holding a call selected by its receiver's type, which no pass serves yet \
                  while reading the signature of `holder`"
+            );
+            let in_clause = program
+                .unfold_definition(machine(), holder, holder, |_, _, _| Ok(()))
+                .err()
+                .expect("a clause still demands its callee");
+            assert_eq!(in_clause.reason, refusal.reason);
+            assert_eq!(in_clause.source_span, source_span);
+            assert!(
+                in_clause
+                    .detail
+                    .contains("declaration holding a call selected by its receiver's type")
             );
             typed.deferred_refusals.clear();
         }

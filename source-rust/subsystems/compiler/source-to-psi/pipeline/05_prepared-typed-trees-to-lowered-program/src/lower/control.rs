@@ -1067,7 +1067,7 @@ impl Lowering<'_> {
         scalar_type: ScalarType,
         qualification: crate::lowering::body::Qualification,
         clauses: &[Proposition],
-        stated: Option<&terminal_check_tables::program::CastCondition>,
+        stated: Option<&terminal_check_tables::program::EstablishedCondition>,
         source: SourceOrigin,
     ) -> Checked<ValueId> {
         let id = self.id;

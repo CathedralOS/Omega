@@ -25,6 +25,11 @@ pub enum CoreVocabulary {
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
+    /// The proof-only meaning, format type and two IEEE format constants.
+    FloatMeaning,
+    FloatFormat,
+    FloatBinary32,
+    FloatBinary64,
     OpaqueRepresentation,
     PrivateCallbackSlot,
     FixedLayoutPlan,
@@ -32,6 +37,12 @@ pub enum CoreVocabulary {
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
     PortIoService,
+    InterruptControlService,
+    InterruptEntryService,
+    RootMemoryAccessService,
+    ProcessInputService,
+    ProcessOutputService,
+    ProcessExitService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
@@ -266,6 +277,30 @@ const ROWS: &[CoreVocabularyRow] = &[
         CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
     ),
     row(
+        "float_meaning.omg",
+        "FloatMeaning",
+        BundledFile::CoreFloatMeaning,
+        CoreVocabulary::FloatMeaning,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatFormat,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat::BINARY32",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatBinary32,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat::BINARY64",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatBinary64,
+    ),
+    row(
         "never.omg",
         "Never",
         BundledFile::CoreNever,
@@ -306,6 +341,42 @@ const ROWS: &[CoreVocabularyRow] = &[
         "AccessPlan",
         BundledFile::CoreLayout,
         CoreVocabulary::AccessPlan,
+    ),
+    row(
+        "assembly.omg",
+        "InterruptControl",
+        BundledFile::CoreAssembly,
+        CoreVocabulary::InterruptControlService,
+    ),
+    row(
+        "assembly.omg",
+        "RootMemoryAccess",
+        BundledFile::CoreAssembly,
+        CoreVocabulary::RootMemoryAccessService,
+    ),
+    row(
+        "interrupt.omg",
+        "InterruptEntry",
+        BundledFile::CoreInterrupt,
+        CoreVocabulary::InterruptEntryService,
+    ),
+    row(
+        "process_authority.omg",
+        "ProcessInput",
+        BundledFile::CoreProcessAuthority,
+        CoreVocabulary::ProcessInputService,
+    ),
+    row(
+        "process_authority.omg",
+        "ProcessOutput",
+        BundledFile::CoreProcessAuthority,
+        CoreVocabulary::ProcessOutputService,
+    ),
+    row(
+        "process_exit.omg",
+        "ProcessExit",
+        BundledFile::CoreProcessExit,
+        CoreVocabulary::ProcessExitService,
     ),
     row(
         "assembly.omg",

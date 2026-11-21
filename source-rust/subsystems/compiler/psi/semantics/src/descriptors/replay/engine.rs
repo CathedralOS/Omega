@@ -1890,19 +1890,9 @@ impl<'a> Replay<'a> {
             state
                 .slots_mut()
                 .insert(DescriptorLocation::whole(row.place), None);
-            let inventory = if self.slot_kind.tracks_references() {
-                self.slot_kind.owned_inventory(
-                    self.types,
-                    row.place,
-                    *machine.place_types.get(&row.place)?,
-                )?
-            } else {
-                self.slot_kind.inventory(
-                    self.types,
-                    row.place,
-                    *machine.place_types.get(&row.place)?,
-                )?
-            };
+            let inventory = self
+                .slot_kind
+                .entry_inventory(self.types, machine, row.place)?;
             for slot in inventory.slots.iter().chain(
                 inventory
                     .unknown_contents
@@ -2192,6 +2182,9 @@ impl<'a> Replay<'a> {
         let position = transfer.position();
         let canonical = |location: &DescriptorLocation| {
             if position.is_some() {
+                if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                    return self.canonical_contents_packet(machine, before, location);
+                }
                 self.resolve_storage(machine, before, location, None)?
                     .slot_coordinate(location)
             } else {

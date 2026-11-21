@@ -59,8 +59,8 @@ pub use typed_trees_to_prepared_typed_trees::PreparedTypedTrees;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{
-    DesignatedOperands, RequirementReview, RequirementReviewMetadata, SourceCorrespondence,
-    SourceFormCorrespondence, SourceOrigin,
+    DesignatedOperands, RequirementInvocation, RequirementReview, RequirementReviewMetadata,
+    SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]
@@ -171,9 +171,9 @@ impl SharedProgram {
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling, CrashCeiling,
-    DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, RecordField,
-    RecordType, Selector, Signature, Statement, StorageShape, Strict, Target, Termination,
-    ValueType, self_place,
+    DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, Ranking,
+    RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
+    Termination, ValueType, self_place,
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{

@@ -1839,9 +1839,9 @@ mod remainder {
     /// negative one, and with them the signed `MIN / -1`. Both operands are
     /// nonnegative, so truncation toward zero and flooring agree. The
     /// conclusion relates two values of one fixed carrier at any width and
-    /// computes no endpoint, so nothing here can overflow. A strict or
-    /// negative dividend bound, `0 <= divisor`, or a premise about another
-    /// value rejects.
+    /// computes no endpoint, so nothing here can overflow. Positive numerators
+    /// divided by more than one strictly decrease. Zero numerators and unit
+    /// divisors can instead preserve the result.
     ///
     /// Provisional (`AcceptedProofRule::IntegerQuotientAtMostDividend`): the
     /// kernel trusts this statement; the mathematical core does not derive
@@ -1859,26 +1859,32 @@ mod remainder {
         let Proposition::Conjunction(parts) = root_bound else {
             return Err(mismatch);
         };
-        let [
-            Proposition::LessOrEqual(lower, dividend),
-            Proposition::LessThan(zero, positive),
-        ] = parts.as_slice()
-        else {
-            return Err(mismatch);
-        };
         let literal = |term: &ScalarTerm| fixed_integer_as_i128(term, form.integer_type());
-        let nonnegative = literal(lower).is_some_and(|lower| lower >= 0);
-        if dividend != form.root()
-            || !nonnegative
-            || literal(zero) != Some(0)
-            || positive != divisor
-        {
-            return Err(mismatch);
+        let quotient = form.target().clone();
+        let dividend = form.root();
+        match parts.as_slice() {
+            [
+                Proposition::LessOrEqual(lower, numerator),
+                Proposition::LessThan(zero, denominator),
+            ] if numerator == dividend
+                && denominator == divisor
+                && literal(lower).is_some_and(|value| value >= 0)
+                && literal(zero) == Some(0) =>
+            {
+                Ok(Proposition::LessOrEqual(quotient, dividend.clone()))
+            }
+            [
+                Proposition::LessThan(zero, numerator),
+                Proposition::LessThan(one, denominator),
+            ] if numerator == dividend
+                && denominator == divisor
+                && literal(zero) == Some(0)
+                && literal(one) == Some(1) =>
+            {
+                Ok(Proposition::LessThan(quotient, dividend.clone()))
+            }
+            _ => Err(mismatch),
         }
-        Ok(Proposition::LessOrEqual(
-            form.target().clone(),
-            form.root().clone(),
-        ))
     }
 
     /// The image of one bound on the dividend. The child is the conjunction

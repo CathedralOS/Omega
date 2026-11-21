@@ -112,6 +112,17 @@ pub fn structural_read_scalar_type<'a>(
     root: StructuralTypeId,
     path: &[ScalarReadProjection],
 ) -> Option<ScalarType> {
+    structural_read_type_with_extents(types, root, path, |_, _| ())
+}
+
+/// Report the declared extent at each indexed projection. A view's current
+/// length is a storage observation; its capacity cannot establish a bound.
+pub fn structural_read_type_with_extents<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[ScalarReadProjection],
+    mut indexed: impl FnMut(usize, Option<terminal_psi::ArrayExtent>),
+) -> Option<ScalarType> {
     let declaration = |identity| {
         let mut matches = types.clone().filter(|candidate| candidate.id == identity);
         let found = matches.next()?;
@@ -119,7 +130,7 @@ pub fn structural_read_scalar_type<'a>(
     };
     let mut target = Target::Declaration(root);
     let mut case_fields: Option<&[StructuralFieldDeclaration]> = None;
-    for projection in path {
+    for (position, projection) in path.iter().enumerate() {
         match projection {
             ScalarReadProjection::Static(Static::Referent) => return None,
             ScalarReadProjection::Extent => {
@@ -244,16 +255,21 @@ pub fn structural_read_scalar_type<'a>(
                 };
                 if let Target::Declaration(root) = target {
                     target = match &declaration(root)?.shape {
-                        StructuralTypeShape::FixedArray {
-                            element,
-                            length: terminal_psi::ArrayExtent::Literal(length),
-                        } => {
-                            if *length == 0 || fixed.is_some_and(|index| index >= *length) {
+                        StructuralTypeShape::FixedArray { element, length } => {
+                            indexed(position, Some(*length));
+                            if let terminal_psi::ArrayExtent::Literal(length) = length
+                                && (*length == 0 || fixed.is_some_and(|index| index >= *length))
+                            {
                                 return None;
                             }
                             Target::Declaration(*element)
                         }
+                        StructuralTypeShape::ElementView {
+                            access: Some(StructuralAccess::WriteOnlyBorrow),
+                            ..
+                        } => return None,
                         StructuralTypeShape::ElementView { element, .. } => {
+                            indexed(position, None);
                             Target::Declaration(*element)
                         }
                         StructuralTypeShape::ByteSequence(carrier) => Target::Bytes(*carrier),
@@ -266,6 +282,7 @@ pub fn structural_read_scalar_type<'a>(
                 let Target::Bytes(carrier) = target else {
                     return None;
                 };
+                indexed(position, None);
                 match carrier {
                     ByteSequenceCarrier::BorrowedView {
                         access: Some(StructuralAccess::WriteOnlyBorrow),

@@ -156,6 +156,32 @@ impl Program<'_> {
             return Ok(Some((id, source.signature.clone())));
         }
         if typed.symbols.sealed_intrinsic(target)
+            == Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts)
+        {
+            let (_, declared) = typed
+                .bodyless_declaration(target)
+                .map_err(|reason| services::unavailable(context, reason))?
+                .ok_or_else(|| {
+                    services::unavailable(context, "layout snapshot lost its core declaration")
+                })?;
+            let (signature, _) = self.boundary_signature(context, &declared)?;
+            let envelope = self.signature_envelope(context, &declared)?;
+            let declaration = crate::lowering::declare::intrinsic_boundary_source(typed, target)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            let id = self.boundaries.rows.push(BoundarySource {
+                source: target,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+                owner: target,
+                signature: signature.clone(),
+                envelope,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                owning_service: None,
+                declaration,
+            });
+            self.admitted_declarations.include(target);
+            return Ok(Some((id, signature)));
+        }
+        if typed.symbols.sealed_intrinsic(target)
             == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
         {
             let signature = self.numeric_primitive_signature(context, target)?;

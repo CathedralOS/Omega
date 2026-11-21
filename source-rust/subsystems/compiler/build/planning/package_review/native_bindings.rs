@@ -7,14 +7,14 @@ use super::{
     input::PolicySource,
     providers::{AcceptedDeclarations, symbol_key},
 };
-use crate::record::{
+use diagnostics::Diagnostic;
+use provider_plans::{EvaluatedNativeBinding, ServiceSchema};
+use review_evidence::record::{
     PackagePolicyCallable, PackagePolicyEvaluatedBindingProducer, PackagePolicyNativeBinding,
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
     PackagePolicyServiceMethod, PackageReviewForeignLocator, PackageReviewNominalIdentity,
     PackageReviewNominalOwner,
 };
-use diagnostics::Diagnostic;
-use provider_plans::{EvaluatedNativeBinding, ServiceSchema};
 use semantic_vocabulary::{ForeignLocatorCandidate, PackageKeyIdentity};
 use target::TargetProfile;
 
@@ -43,9 +43,8 @@ pub(super) fn prepare(
     declarations: &AcceptedDeclarations<'_>,
 ) -> Result<PreparedNativeBindings, Vec<Diagnostic>> {
     let supplies = input
-        .build()
-        .config
-        .native_bindings
+        .declarations
+        .native_supplies()
         .iter()
         .filter(|supply| supply.selection.target.canonical_name() == target.target_name());
     let mut rows = Vec::new();
@@ -63,7 +62,7 @@ pub(super) fn prepare(
     let mut requirements = accepted
         .boundary_requirements_declared()
         .map_err(|reason| vec![reason])?;
-    let key = |row: &source_compiler::DeclaredBoundaryRequirement| {
+    let key = |row: &source_compiler::publication::DeclaredBoundaryRequirement| {
         (symbol_key(row.slot), symbol_key(row.requirement))
     };
     requirements.sort_unstable_by_key(key);
@@ -126,7 +125,9 @@ pub(super) fn prepare(
             .application
             .map(|handle| {
                 let handle =
-                    source_compiler::evaluation::provider_declarations::source_application(handle);
+                    source_compiler::compile_product::provider_declarations::source_application(
+                        handle,
+                    );
                 let closed = source
                     .product_requirement_application(handle)
                     .map_err(unavailable)?;
@@ -160,8 +161,9 @@ pub(super) fn prepare(
                 "the native binding's complete callable identity",
             ));
         }
-        let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, boundary.id)
-            .map_err(|reason| unavailable(&reason))?;
+        let abi =
+            direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, boundary.id)
+                .map_err(|reason| unavailable(&reason))?;
         let declared_identity = module
             .identities
             .text(abi.requirement_identity)
@@ -263,15 +265,15 @@ impl PreparedNativeBindings {
 
     pub(super) fn finish(
         &self,
-        checked: &products::CheckedCompilation,
+        checked: &compiler::SelectedProviderResult,
         target: TargetProfile,
     ) -> Result<Vec<(PackagePolicyNativeBinding, PackagePolicyCallable)>, Vec<Diagnostic>> {
-        if target != self.target || checked.execution().target_profile() != Some(target) {
+        if target != self.target || checked.target_profile() != Some(target) {
             return Err(unavailable("the complete selected native supply custody"));
         }
-        let realization = checked.execution().realization();
+        let realization = checked.realization();
         let selected = realization.evaluated_native_bindings();
-        let reviewed = match checked.execution().package_review() {
+        let reviewed = match checked.package_review() {
             Some(review) => review.bindings.as_ref().map_err(Clone::clone)?,
             None if self.rows.is_empty() && selected.is_empty() => return Ok(Vec::new()),
             None => return Err(unavailable("the package's target review plan")),
@@ -319,15 +321,10 @@ impl PreparedNativeBindings {
                 return Err(unavailable("the complete selected native supply custody"));
             }
         }
-        let original = checked
-            .published_artifact()
-            .ok_or_else(|| unavailable("the checked program for native calling policy"))?;
-        let effective = checked
-            .execution()
-            .effective_artifact(original)
-            .map_err(|reason| unavailable(&reason))?;
+        // Package review stops before constant folding or entry binding: source
+        // declarations and target realizations share the original published Psi.
         realization
-            .require_program(effective.view().identity())
+            .require_program(checked.original_program())
             .map_err(|reason| unavailable(&reason))?;
         let applications = reviewed.calling.as_ref().map_err(Clone::clone)?;
         if applications.len() != self.rows.len() {

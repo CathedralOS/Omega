@@ -165,7 +165,7 @@ impl Program<'_> {
                     kind: ExpressionKind::Establish {
                         operand: Box::new(operand),
                         clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
-                        stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        stated: terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
                             format!(
                                 "the float value is exactly representable in {}",
                                 match to {
@@ -208,7 +208,7 @@ impl Program<'_> {
                         source: source_term,
                         target: to,
                     }],
-                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                    stated: terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
                         format!("the float value is exactly representable in {carrier}"),
                     ),
                 },
@@ -247,7 +247,7 @@ impl Program<'_> {
                         source: source_term,
                         target: to,
                     }],
-                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                    stated: terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
                         format!(
                             "the integer value is exactly representable in {}",
                             match to {
@@ -567,7 +567,7 @@ impl Program<'_> {
                 kind: ExpressionKind::Establish {
                     operand: Box::new(operand),
                     clauses,
-                    stated: terminal_check_tables::program::CastCondition::DomainMembership(stated),
+                    stated: terminal_check_tables::program::EstablishedCondition::DomainMembership(stated),
                 },
                 result: Some(result),
                 source,

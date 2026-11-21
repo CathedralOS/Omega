@@ -19,7 +19,7 @@ canonical nine places below carry this fact.
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | declared ordinary `[u8; 2]` parameter passed to `capacity` |
 | call_result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | declared `[u8; 2]` array return value from helper function |
 | match_join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | selected `[u8; 2]` passed to `capacity`, then its first byte is checked as 7 or 19 |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | declared array constant `BASE: [u8; 2]` passed to `capacity` |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | declared array constant `ITEMS: [u8; 2]` passed to `capacity` |
 | other_state | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | state arrival parameter `step(items: [u8; 2])` forwards to `capacity` |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | forwarding machine routes `[u8; 2]` array to `capacity` |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Build-selected named implementations perform the same inferred call |

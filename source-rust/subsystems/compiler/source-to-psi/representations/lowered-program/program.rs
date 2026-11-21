@@ -72,12 +72,10 @@ impl SourceOrigin {
     }
 }
 
-/// What a cast must prove of its operand before its result exists, kept so a
-/// refusal names the kind of condition that failed. The lowered form carries
-/// only the invariant itself, which does not say whether it came from a
-/// domain or from exact narrowing.
+/// The source construct whose predicate an arrival must establish.
+/// The invariant carries the proposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CastCondition {
+pub enum EstablishedCondition {
     /// `value as +D` for a domain with predicates
     /// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has
     /// predicates | Prove them for this value."). Holds the domain's stated
@@ -87,6 +85,8 @@ pub enum CastCondition {
     /// the stated condition, such as "the float value is exactly
     /// representable in f32".
     ExactRepresentation(String),
+    /// The normalized measure must lie inside its declared interval.
+    RankRange,
 }
 
 /// One machine's source correspondence: one row per lowered identity, indexed
@@ -108,7 +108,7 @@ pub struct MachineSources {
     /// Each cast that must establish a predicate continues in this block.
     /// Lowering retains its stated requirement for diagnostics; the lowered
     /// form carries the actual invariant and owes it on every arrival.
-    pub predicate_establishments: Vec<(BlockId, CastCondition)>,
+    pub predicate_establishments: Vec<(BlockId, EstablishedCondition)>,
     /// The statements lowering left out because the call before them never
     /// returns, one row per such call (`lower`, `body`). The lowered form
     /// holds nothing of them, so the advisory warning about them is read

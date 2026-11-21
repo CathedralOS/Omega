@@ -32,9 +32,7 @@ pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
 mod scalar_target_ranges;
-pub use scalar_target_ranges::{
-    TargetScalarRange, application_sized_storage, target_scalar_ranges,
-};
+pub use scalar_target_ranges::{TargetScalarRange, layout_call_conditions, target_scalar_ranges};
 pub mod continuation;
 pub mod scalars;
 pub mod static_reach;
@@ -268,7 +266,8 @@ pub use structural::primitive_place::{
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
     primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
-    runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
+    runtime_structural_path_tip, scalar_index_bound, stored_descriptor_paths,
+    visit_runtime_index_goals,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
@@ -335,6 +334,7 @@ pub use structural::structural_effect::{
 
 pub use scalars::scalar_observations::{
     scalar_application_read_equation, storage_alignment_fact, structural_read_scalar_type,
+    structural_read_type_with_extents,
 };
 
 pub use access::access_ram_origins::{

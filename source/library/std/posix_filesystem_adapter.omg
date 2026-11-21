@@ -411,7 +411,7 @@ requires open_writable >= 0 && open_writable <= 1,
     rd_j: u64 in Wrapping;
     rd_ridx: u64 in Wrapping;
     rd_nb: u8;
-    entry_name: [u8; 256];
+    entry_name: [u8; 765];
 
     rda_sub: i32;
     rda_rc: i32;

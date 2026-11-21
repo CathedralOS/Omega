@@ -130,19 +130,13 @@ pub enum FloatMeaning {
 }
 
 macro_rules! rounded_binary {
-    ($($name:ident => ($operation:ident, $direction:ident)),+ $(,)?) => {$(
+    ($operation:expr; $($name:ident => $direction:ident),+ $(,)?) => {$(
         pub fn $name(
             format: FloatFormat,
             left: &FloatMeaning,
             right: &FloatMeaning,
         ) -> FloatMeaning {
-            Self::round_binary_directed(
-                format,
-                left,
-                right,
-                ExactFloat::$operation,
-                RoundingDirection::$direction,
-            )
+            Self::round_binary_directed(format, left, right, $operation, RoundingDirection::$direction)
         }
     )+};
 }
@@ -268,19 +262,25 @@ impl FloatSemantics {
     pub fn add(format: FloatFormat, left: &FloatMeaning, right: &FloatMeaning) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().add(&right.to_exact()))
     }
-    rounded_binary! {
-        add_toward_zero => (add, TowardZero),
-        add_toward_positive => (add, TowardPositive),
-        add_toward_negative => (add, TowardNegative),
-        subtract_toward_zero => (sub, TowardZero),
-        subtract_toward_positive => (sub, TowardPositive),
-        subtract_toward_negative => (sub, TowardNegative),
-        multiply_toward_zero => (mul, TowardZero),
-        multiply_toward_positive => (mul, TowardPositive),
-        multiply_toward_negative => (mul, TowardNegative),
-        divide_toward_zero => (div, TowardZero),
-        divide_toward_positive => (div, TowardPositive),
-        divide_toward_negative => (div, TowardNegative),
+    rounded_binary! { ExactFloat::add_with_rounding;
+        add_toward_zero => TowardZero,
+        add_toward_positive => TowardPositive,
+        add_toward_negative => TowardNegative,
+    }
+    rounded_binary! { ExactFloat::sub_with_rounding;
+        subtract_toward_zero => TowardZero,
+        subtract_toward_positive => TowardPositive,
+        subtract_toward_negative => TowardNegative,
+    }
+    rounded_binary! { |left, right, _| left.mul(right);
+        multiply_toward_zero => TowardZero,
+        multiply_toward_positive => TowardPositive,
+        multiply_toward_negative => TowardNegative,
+    }
+    rounded_binary! { |left, right, _| left.div(right);
+        divide_toward_zero => TowardZero,
+        divide_toward_positive => TowardPositive,
+        divide_toward_negative => TowardNegative,
     }
 
     pub fn from_integer(format: FloatFormat, value: &BigInt) -> FloatMeaning {
@@ -536,10 +536,10 @@ impl FloatSemantics {
         format: FloatFormat,
         left: &FloatMeaning,
         right: &FloatMeaning,
-        operation: fn(&ExactFloat, &ExactFloat) -> ExactFloat,
+        operation: fn(&ExactFloat, &ExactFloat, IeeeRounding) -> ExactFloat,
         direction: RoundingDirection,
     ) -> FloatMeaning {
-        let exact = operation(&left.to_exact(), &right.to_exact());
+        let exact = operation(&left.to_exact(), &right.to_exact(), direction.ieee());
         Self::round_exact_directed(format, exact, direction)
     }
 
@@ -659,7 +659,11 @@ impl FloatSemantics {
         direction: RoundingDirection,
     ) -> FloatMeaning {
         let exact_product = left.to_exact().mul(&right.to_exact());
-        Self::round_exact_directed(format, exact_product.add(&addend.to_exact()), direction)
+        Self::round_exact_directed(
+            format,
+            exact_product.add_with_rounding(&addend.to_exact(), direction.ieee()),
+            direction,
+        )
     }
 }
 
@@ -1751,6 +1755,57 @@ mod tests {
         assert_eq!(sum.to_f32().to_bits(), (-0.0f32).to_bits());
         let negated = FloatSemantics::negate(FloatFormat::BINARY32, &negative_zero);
         assert_eq!(negated.to_f32().to_bits(), 0.0f32.to_bits());
+    }
+
+    #[test]
+    fn exact_directed_cancellation_sign_depends_on_the_mode_and_both_inputs() {
+        let one = FloatMeaning::from_f64(1.0);
+        let minus_one = FloatMeaning::from_f64(-1.0);
+        let positive_zero = FloatMeaning::Zero { negative: false };
+        let negative_zero = FloatMeaning::Zero { negative: true };
+        for format in [FloatFormat::BINARY32, FloatFormat::BINARY64] {
+            for (direction, expected) in [
+                (RoundingDirection::TowardNegative, &negative_zero),
+                (RoundingDirection::TowardZero, &positive_zero),
+                (RoundingDirection::TowardPositive, &positive_zero),
+                (RoundingDirection::NearestTiesToEven, &positive_zero),
+            ] {
+                assert_eq!(
+                    &FloatSemantics::fused_multiply_add_directed(
+                        format, &one, &one, &minus_one, direction
+                    ),
+                    expected
+                );
+                assert_eq!(
+                    &FloatSemantics::fused_multiply_add_directed(
+                        format,
+                        &one,
+                        &positive_zero,
+                        &positive_zero,
+                        direction
+                    ),
+                    &positive_zero
+                );
+                assert_eq!(
+                    &FloatSemantics::fused_multiply_add_directed(
+                        format,
+                        &one,
+                        &negative_zero,
+                        &negative_zero,
+                        direction
+                    ),
+                    &negative_zero
+                );
+            }
+            assert_eq!(
+                FloatSemantics::add_toward_negative(format, &one, &minus_one),
+                negative_zero
+            );
+            assert_eq!(
+                FloatSemantics::subtract_toward_negative(format, &one, &one),
+                negative_zero
+            );
+        }
     }
 
     #[test]

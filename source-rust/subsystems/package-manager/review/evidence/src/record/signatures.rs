@@ -10,23 +10,24 @@ mod traits;
 
 pub(crate) use callables::PackageReviewRequirementRealization;
 
+pub use external_policy::PackagePolicyEvaluatedBindingProducer;
 pub(crate) use external_policy::{
-    PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
-    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement,
+    PackagePolicyExternalBinding, PackagePolicyExternalCallableSignature,
+    PackagePolicyExternalExecutableSupply, PackagePolicyExternalRequirement,
 };
 
 pub(crate) use external_supply::PackageReviewExternalCallableParameter;
 pub use external_supply::PackageReviewForeignLocator;
 
+pub use signature_vocabulary::{
+    PackageReviewConformanceBound, PackageReviewSignatureParameter, PackageReviewTypeIdentity,
+};
 pub(crate) use signature_vocabulary::{
-    PackageReviewConformanceBound, PackageReviewPropositionParameterSignature,
-    PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
-    PackageReviewTypeIdentity,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
 };
 
 pub use traits::{
     PackageReviewBorrowOrigin, PackageReviewParameterQualification,
     PackageReviewReturnedBorrowOrigin,
 };
-pub(crate) use traits::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
+pub use traits::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};

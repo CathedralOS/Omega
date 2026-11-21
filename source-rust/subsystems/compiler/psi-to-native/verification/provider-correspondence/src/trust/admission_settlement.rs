@@ -68,7 +68,7 @@ pub fn reconstruct_trust_obligations(
         (machine.machine.arena_index(), machine.machine.generation())
     });
     let mut native_grants = native_grants.iter();
-    let mut provider_grants = super::provider_grants::selected_provider_grants(
+    let mut provider_grants = super::provider_grants::match_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,

@@ -25,6 +25,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         api.consts.len(),
         api.operators.len(),
         api.data.len(),
+        api.type_aliases.as_deref().map_or(0, <[_]>::len),
         policy.callables.callables.len(),
         policy.terminal_permissions.services.len(),
         representation.declarations.len(),
@@ -136,7 +137,7 @@ pub(super) fn project(
         native_bindings,
         dangerous_capabilities,
         slack_uses,
-        semantic_dependencies,
+        semantic_dependencies: _,
         boundary_applications,
         restricted_build_requests,
         assumed_bindings,
@@ -192,8 +193,13 @@ pub(super) fn project(
         demands,
         realizations,
     } = boundary_applications;
-    builder.push(
-        PackagePolicyRowKind::SelectedProviderAssociation,
+    let provider_schema = if selected_providers.has_application_grants() {
+        crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
+    } else {
+        crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
+    };
+    builder.push_versioned(
+        (PackagePolicyRowKind::SelectedProviderAssociation, provider_schema),
         false,
         false,
         |_| Ok(()),
@@ -265,7 +271,27 @@ pub(super) fn project(
             |encoder| super::super::declarations::encode_dangerous_authority_slack(encoder, slack),
         )?;
     }
-    for dependency in semantic_dependencies {
+    for dependency in policy
+        .validated_semantic_dependencies()
+        .map_err(PackageReviewEncodingError::new)?
+    {
+        if let crate::record::PackagePolicySemanticDependency::CarriedType {
+            dependency: nominal,
+            ..
+        } = dependency
+        {
+            builder.push_versioned(
+                (
+                    PackagePolicyRowKind::SemanticDependency,
+                    crate::encoding::BASELINE_WITH_CARRIED_TYPES,
+                ),
+                false,
+                false,
+                |encoder| baseline::carried_type_key(encoder, nominal),
+                |encoder| baseline::semantic_dependency(encoder, dependency),
+            )?;
+            continue;
+        }
         builder.push(
             PackagePolicyRowKind::SemanticDependency,
             false,

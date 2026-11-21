@@ -419,6 +419,14 @@ impl Program<'_> {
                 // (`Elaboration::generic_templates`). One whose only
                 // parameters are implementations is generic too.
                 if !self.is_generic_template(machine) {
+                    if self
+                        .float_meaning_subject(entry, machine)
+                        .map_err(|refusal| {
+                            self.read_failure_at(refusal, machine.symbol, "the proof declaration")
+                        })?
+                    {
+                        return Ok(());
+                    }
                     self.admitted_declarations.include(machine.symbol);
                     let id = self.subject_machine(machine.symbol)?;
                     self.subject_machines.push(id);
@@ -720,7 +728,7 @@ impl Program<'_> {
                 if field.relevance != language_core::BindingRelevance::Relevant {
                     return Err(unserved("generic data with an erased member"));
                 }
-                self.template_type(entry, parameters, field.type_reference, 0)?;
+                self.template_type(entry, data.symbol, parameters, field.type_reference, 0)?;
             }
         }
         Ok(())
@@ -731,6 +739,7 @@ impl Program<'_> {
     fn template_type(
         &mut self,
         entry: MachineId,
+        declaration: SymbolHandle,
         parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
         reference: crate::source_state::types::TypeReferenceHandle,
         depth: usize,
@@ -773,6 +782,10 @@ impl Program<'_> {
                     None => Err(unserved()),
                 }
             }
+            TypeReferenceNode::Reference { referee, .. } => {
+                super::places::reference_lifetime_declared(typed, entry, reference, declaration)?;
+                self.template_type(entry, declaration, parameters, *referee, depth + 1)
+            }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
@@ -782,7 +795,7 @@ impl Program<'_> {
                     FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
                     _ => return Err(unserved()),
                 }
-                self.template_type(entry, parameters, *element_type, depth + 1)
+                self.template_type(entry, declaration, parameters, *element_type, depth + 1)
             }
             TypeReferenceNode::Constrained { .. } => {
                 // Keep the qualification's formation checks. Reading only its
@@ -817,7 +830,7 @@ impl Program<'_> {
                 for (formal, argument) in formals.iter().zip(arguments) {
                     match formal.kind {
                         TypeParameterKind::Type => {
-                            self.template_type(entry, parameters, *argument, depth + 1)?;
+                            self.template_type(entry, declaration, parameters, *argument, depth + 1)?;
                         }
                         TypeParameterKind::Const { .. } => {
                             let named_constant = matches!(
@@ -839,7 +852,6 @@ impl Program<'_> {
                 Ok(())
             }
             TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
@@ -904,8 +916,7 @@ impl Program<'_> {
                 || parameter.bounds.carry.is_some()
                 || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
-        }) || !alias.lifetime_parameters.is_empty()
-            || !alias.conformance_bounds.is_empty()
+        }) || !alias.conformance_bounds.is_empty()
         {
             return Err(refuse(
                 diagnostic,
@@ -913,6 +924,12 @@ impl Program<'_> {
                 Unserved::Declaration("type alias with unsupported binders"),
             ));
         }
+        super::places::lifetime_binders(
+            diagnostic,
+            &alias.lifetime_parameters,
+            self.declared_at(alias.symbol),
+        )?;
+        self.lifetime_owner = alias.symbol;
         self.scope = super::type_parameters::rigid_type_scope(parameters);
         self.generic_binders
             .extend(parameters.iter().map(|parameter| parameter.symbol));
@@ -945,7 +962,7 @@ impl Program<'_> {
             }
             _ if !alias.type_parameters.is_empty() => {
                 let parameters = self.typed.data_type_parameters.span_or_empty(alias.type_parameters);
-                self.template_type(site, parameters, alias.expansion, 0)
+                self.template_type(site, alias.symbol, parameters, alias.expansion, 0)
             }
             _ => self.value_type(site, alias.expansion).map(|_| ()),
         }

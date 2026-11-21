@@ -617,7 +617,6 @@ pub(crate) mod callable_identity {
             result: crate::source_state::types::TypeReferenceHandle,
             application: &super::identity_context::TypeIdentityContext<'_>,
         ) -> Option<(Vec<String>, String, usize)> {
-            use super::LifetimeParameterIdentity;
             use super::identity_context::{
                 SignatureElision, TypeIdentityContext, TypeIdentityQualification,
                 normalize_type_reference,
@@ -637,18 +636,7 @@ pub(crate) mod callable_identity {
                     .enumerate()
                     .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
             );
-            let lifetimes = lifetime_owners
-                .iter()
-                .copied()
-                .flat_map(|(declaration, count)| {
-                    (0..count).map(move |ordinal| LifetimeParameterIdentity {
-                        declaration,
-                        ordinal,
-                    })
-                })
-                .enumerate()
-                .map(|(ordinal, lifetime)| (lifetime, ordinal))
-                .collect::<Vec<_>>();
+            let lifetimes = super::signature_lifetime_binders(lifetime_owners.iter().copied());
             let invalid = Cell::new(false);
             let declared = lifetime_owners.last()?.1;
             let outer = lifetimes.len() - declared;
@@ -10589,6 +10577,7 @@ impl TypedTrees {
             &lexical_path,
             machine.symbol,
             self.machine_type_parameters(machine),
+            &[(machine.symbol, machine.lifetime_parameters.len())],
             self.state_parameters(entry),
             entry.return_type,
         ))
@@ -10637,6 +10626,13 @@ impl TypedTrees {
             ),
             trait_definition.symbol,
             (&type_parameters).into(),
+            &[
+                (
+                    trait_definition.symbol,
+                    trait_definition.lifetime_parameters.len(),
+                ),
+                (requirement.symbol, requirement.lifetime_parameters.len()),
+            ],
             self.state_signature_parameters(requirement),
             requirement.return_type,
         );
@@ -10704,10 +10700,32 @@ impl TypedTrees {
         path: &str,
         owner_symbol: SymbolHandle,
         type_parameters: arena::RootRows<'_, data::TypeParameter>,
+        lifetime_owners: &[(SymbolHandle, usize)],
         parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
         let binders = callable_type_binders(owner_symbol, type_parameters);
+        // A parameter's callback may capture a region from its own named
+        // machine, trait, or requirement. Bind it before encoding the callback:
+        // asking for that declaration's portable name would re-enter this key.
+        let lifetimes =
+            signature_lifetime_binders(lifetime_owners.iter().map(|&(owner, count)| {
+                let original = self.lifetime_declaration_owner(owner);
+                let count = if original == owner {
+                    count
+                } else {
+                    declaration_lifetime_parameters(self, original).map_or(count, <[_]>::len)
+                };
+                (original, count)
+            }));
+        let context = TypeIdentityContext {
+            binders: &binders,
+            lifetime_binders: &lifetimes,
+            application_owner: lifetime_owners
+                .last()
+                .map_or(owner_symbol, |&(owner, _)| owner),
+            ..TypeIdentityContext::default()
+        };
         let parameters = parameters
             .iter()
             .map(|parameter| {
@@ -10722,10 +10740,11 @@ impl TypedTrees {
                             CoordinateTag::Const,
                             if parameter.is_const { "yes" } else { "no" },
                         ),
-                        self.type_identity_request_text(TypeIdentityRequest {
-                            binders: &binders,
-                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                        }),
+                        identity_context::normalize_type_reference(
+                            self,
+                            parameter.type_reference,
+                            &context,
+                        ),
                     ],
                 )
             })
@@ -10741,6 +10760,22 @@ impl TypedTrees {
             result_dispatch: self.normalized_result_dispatch_set(return_type),
         }
     }
+}
+
+fn signature_lifetime_binders(
+    owners: impl IntoIterator<Item = (SymbolHandle, usize)>,
+) -> Vec<(LifetimeParameterIdentity, usize)> {
+    owners
+        .into_iter()
+        .flat_map(|(declaration, count)| {
+            (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                declaration,
+                ordinal,
+            })
+        })
+        .enumerate()
+        .map(|(slot, lifetime)| (lifetime, slot))
+        .collect()
 }
 
 fn callable_type_binders(

@@ -2385,13 +2385,17 @@ pub(crate) mod declaration_tables {
         pub fn expression_const_declaration(
             &self,
             expression: crate::source_state::expression::ExpressionHandle,
-        ) -> Option<&crate::source_state::constant::ConstDeclaration> {
+        ) -> Result<Option<&crate::source_state::constant::ConstDeclaration>, &'static str>
+        {
             let mut declaration: Option<&crate::source_state::constant::ConstDeclaration> = None;
             for occurrence in self
                 .expression_table
                 .authored_selection_occurrences(expression)
             {
-                let selection = self.authored_declaration_selections().get(occurrence)?;
+                let selection = self
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or("constant use has a missing declaration selection")?;
                 if selection.source_span() != self.expression_table.source_span(expression) {
                     continue;
                 }
@@ -2404,11 +2408,11 @@ pub(crate) mod declaration_tables {
                     continue;
                 };
                 if declaration.is_some_and(|previous| previous.symbol != current.symbol) {
-                    return None;
+                    return Err("constant use selects multiple declarations");
                 }
                 declaration = Some(current);
             }
-            declaration
+            Ok(declaration)
         }
 
         pub fn record_late_bound_authored_declaration_selection(

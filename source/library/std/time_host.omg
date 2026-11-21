@@ -2,13 +2,11 @@ use targets\linux_arm64\LinuxArm64TimeRead;
 use targets\linux_x86_64\LinuxX64TimeRead;
 use targets\macos_arm64\DarwinTimeRead;
 use targets\windows_x86_64\WindowsTimeRead;
-// std\time — the raw per-OS time boundary (TASKS_TIME.md rung 4, D11/D12).
+// Each hosted target implements TimeHost with scalar clock readings and a
+// millisecond wait. A wall clock read returns one raw u64 value. The target supplies its
+// units per second and its epoch offset so the checked Time wrapper in
+// time.omg can convert the reading to Unix time.
 //
-// Value-returning scalars ONLY on this TRAIT surface: the portable SEMANTICS
-// are fixed here and each target's binding/lowering must meet them (the fs
-// seam discipline). The wall clock is ONE raw u64 read plus two per-target
-// CONSTANTS, so all epoch/unit conversion lives in proven wrapper code
-// (`time.omg`'s `Time` capability) — no provider converts epochs or units:
 //
 //   unix_seconds          = raw / units - epoch_offset
 //   subsecond_nanoseconds = (raw % units) * 1_000_000_000 / units
@@ -35,11 +33,10 @@ use targets\windows_x86_64\WindowsTimeRead;
 //            own table, 113 on arm64's asm-generic table.
 //   uefi_x86_64 has no Console or ProcessExit provider either and keeps its
 //            settlement gap; it is not a hosted target.
-//   INTERPRETER (D12, the deterministic VIRTUAL clock): 1 tick = 1 ms;
-//            `sleep` advances the clock by the slept milliseconds and the
-//            reads never advance it, so interpreter canaries assert EXACT
-//            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
-//            Unix units (epoch offset 0, units 1000).
+//
+// Psi runs the selected target's time provider. The CLI supplies the host
+// clock for raw reads and waits. An embedding can instead supply a clock
+// snapshot whose stored time advances only on waits.
 
 // Package Build selects each ordinary checked implementation. The two Darwin
 // targets share one implementation and raw requirement schema; their Build
@@ -77,8 +74,7 @@ public boundary trait TimeHost {
     machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost crashes none;
     // Millisecond sleep. The Darwin and Linux x86-64 providers wait with
     // poll, Linux arm64 with nanosleep (the asm-generic table publishes no
-    // poll), Windows with kernel32 `Sleep` bound as `WindowsTimeRead::sleep`,
-    // and the interpreter advances its virtual clock.
+    // poll), and Windows with kernel32 `Sleep` bound as `WindowsTimeRead::sleep`.
     machine sleep(milliseconds: u32)
     reaches TimeHost
     invokes LinuxX64TimeRead

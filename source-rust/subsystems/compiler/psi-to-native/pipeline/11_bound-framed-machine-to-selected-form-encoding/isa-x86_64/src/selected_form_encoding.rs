@@ -6372,18 +6372,27 @@ pub(crate) mod ieee_float_arithmetic {
                 program.push(move_out);
                 program
             }
-            IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
-                move_in(registers[0], LEFT_SCRATCH, double),
-                move_in(registers[1], RIGHT_SCRATCH, double),
-                move_in(registers[2], ADDEND_SCRATCH, double),
-                Instruction::FusedMultiplyAdd {
+            IeeeFloatArithmeticOperation::FusedMultiplyAdd
+            | IeeeFloatArithmeticOperation::DirectedFusedMultiplyAdd { .. } => {
+                let mut program = vec![
+                    move_in(registers[0], LEFT_SCRATCH, double),
+                    move_in(registers[1], RIGHT_SCRATCH, double),
+                    move_in(registers[2], ADDEND_SCRATCH, double),
+                ];
+                let arithmetic = Instruction::FusedMultiplyAdd {
                     double,
                     destination: LEFT_SCRATCH,
                     multiplicand: RIGHT_SCRATCH,
                     addend: ADDEND_SCRATCH,
-                },
-                move_out,
-            ],
+                };
+                if let Some(rounding) = form.operation.rounding_direction() {
+                    program.extend(mxcsr_envelope(rounding, arithmetic));
+                } else {
+                    program.push(arithmetic);
+                }
+                program.push(move_out);
+                program
+            }
             IeeeFloatArithmeticOperation::IsNan
             | IeeeFloatArithmeticOperation::IsInfinite
             | IeeeFloatArithmeticOperation::IsFinite

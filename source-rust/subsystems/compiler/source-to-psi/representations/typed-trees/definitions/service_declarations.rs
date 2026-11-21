@@ -1177,7 +1177,8 @@ pub mod projection {
                     )
                     .collect(entry.symbol, entry.contracts, None)
                     .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
-                    service_reach: service_reach_row_names(program, requirement.service_reach_row),
+                    service_reach: service_reach_names(program, requirement.service_reach_row)
+                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     synchronous_invocations: machine_synchronous_invocations(program, requirement)
                         .ok_or_else(|| {
                             projection_failure(
@@ -1275,7 +1276,8 @@ pub mod projection {
                 normal_result_memberships: normal_memberships
                     .collect(signature.symbol, signature.contracts, Some(scope))
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
-                service_reach: service_reach_names(program, trait_definition, signature),
+                service_reach: service_reach_names(program, signature.service_reach_row)
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 synchronous_invocations: synchronous_invocations(program, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
@@ -1590,48 +1592,23 @@ pub mod projection {
 
     fn service_reach_names(
         program: &crate::source_state::TypedTrees,
-        trait_definition: &crate::source_state::trait_definition::TraitDefinition,
-        signature: &crate::source_state::signature::StateSignature,
-    ) -> Vec<String> {
-        let mut services = program
-            .service_reach_rows
-            .services(signature.service_reach_row)
-            .to_vec();
-        if trait_definition.is_boundary
-            && let Some(service) = program
-                .service_reaches
-                .id_for_symbol(trait_definition.symbol)
-        {
-            program
-                .service_reaches
-                .extend_closure(service, &mut services);
-        }
-        services.sort_by_key(|service| service.0);
-        services.dedup();
-        let mut names = services
-            .into_iter()
-            .filter_map(|service| program.service_reaches.definition(service))
-            .map(|definition| definition.name.clone())
-            .collect::<Vec<_>>();
-        names.sort_unstable();
-        names.dedup();
-        names
-    }
-
-    fn service_reach_row_names(
-        program: &crate::source_state::TypedTrees,
         row: semantic_vocabulary::ServiceReachRowId,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, &'static str> {
         let mut names = program
             .service_reach_rows
             .services(row)
             .iter()
-            .filter_map(|service| program.service_reaches.definition(*service))
-            .map(|definition| definition.name.clone())
-            .collect::<Vec<_>>();
+            .map(|&service| {
+                program
+                    .service_reaches
+                    .definition(service)
+                    .map(|definition| definition.name.clone())
+                    .ok_or("boundary method references an absent service")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         names.sort_unstable();
         names.dedup();
-        names
+        Ok(names)
     }
 
     fn synchronous_invocations(

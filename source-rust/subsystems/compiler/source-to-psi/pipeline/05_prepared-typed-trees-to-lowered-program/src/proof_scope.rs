@@ -185,17 +185,24 @@ pub(crate) fn declare(
         // A boundary contributes its declaration, never an executable body
         // or an invocation root. Actual call edges below activate only the
         // realization selected for this exact requirement.
-        if let Some(callable) = &boundary.declaration {
+        let executable = if let Some(callable) = &boundary.declaration {
             let symbol = *elaboration
                 .boundaries
                 .get(boundary.id)
                 .ok_or_else(|| unavailable("proof boundary lost its exact source association"))?;
-            boundary_headers.push(
+            let header =
                 boundary_header(typed, &elaboration.module, id, boundary, callable, symbol)
-                    .map_err(unavailable)?,
-            );
-        }
-        boundary_declarations.push((boundary.id, id));
+                    .map_err(unavailable)?;
+            let executable = header
+                .compiler_evaluation
+                .as_ref()
+                .is_ok_and(|facts| facts.invocation_refusal.is_none());
+            boundary_headers.push(header);
+            executable
+        } else {
+            false
+        };
+        boundary_declarations.push((boundary.id, (id, executable)));
     }
     boundary_declarations.sort_unstable_by_key(|(boundary, _)| *boundary);
     let declaration_for = |machine: MachineId| -> Result<ProofDeclarationId, String> {
@@ -204,7 +211,7 @@ pub(crate) fn declare(
             .map_err(|_| "proof call has no exact emitted declaration")?;
         Ok(declarations[position].1)
     };
-    let boundary_declaration_for = |boundary| -> Result<ProofDeclarationId, &'static str> {
+    let boundary_declaration_for = |boundary| -> Result<(ProofDeclarationId, bool), &'static str> {
         let position = boundary_declarations
             .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
             .map_err(|_| "proof call has no exact emitted boundary declaration")?;
@@ -233,7 +240,7 @@ pub(crate) fn declare(
     for (boundary, candidate) in candidate_associations {
         let requirement = boundary_declaration_for(boundary);
         let realization = declaration_for(candidate);
-        let (Ok(requirement), Ok(realization)) = (requirement, realization) else {
+        let (Ok((requirement, _)), Ok(realization)) = (requirement, realization) else {
             return Err(refuse(
                 candidate,
                 Construct::Machine,
@@ -312,23 +319,25 @@ pub(crate) fn declare(
                     }
                 }
                 if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
-                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
-                        refuse(
-                            machine.id,
-                            Construct::Operation(operation.id),
-                            Unserved::Declaration(reason),
-                        )
-                    })?;
+                    let (callee, executable) =
+                        boundary_declaration_for(*boundary).map_err(|reason| {
+                            refuse(
+                                machine.id,
+                                Construct::Operation(operation.id),
+                                Unserved::Declaration(reason),
+                            )
+                        })?;
                     boundary_calls.push(ProofApplicationCall {
                         callee,
                         ..ProofApplicationCall::default()
                     });
-                    // The exact boundary declaration and frame are known.
-                    // Keep selection facts available to Build admission, while
-                    // pure invocation still owes admitted boundary execution.
-                    invocation_refusal.get_or_insert_with(|| {
-                        "compiler evaluation needs admitted boundary execution".into()
-                    });
+                    // Keep the call edge for custody even when this exact
+                    // declaration supplies an intrinsic compiler observation.
+                    if !executable {
+                        invocation_refusal.get_or_insert_with(|| {
+                            "compiler evaluation needs admitted boundary execution".into()
+                        });
+                    }
                 }
                 if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
@@ -352,7 +361,7 @@ pub(crate) fn declare(
                     Err(reason) => unavailable = Some(reason),
                 },
                 Terminator::ExternalCompletion { boundary, .. } => {
-                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
+                    let (callee, _) = boundary_declaration_for(*boundary).map_err(|reason| {
                         refuse(
                             machine.id,
                             Construct::Block(block.id),
@@ -551,7 +560,7 @@ pub(crate) fn declare(
             .chain(
                 boundary_declarations
                     .iter()
-                    .map(|(_, declaration)| *declaration),
+                    .map(|(_, (declaration, _))| *declaration),
             ),
     );
     scope.plan.obligation_owners = scope
@@ -649,9 +658,14 @@ fn boundary_header(
                 || !boundary.scalar_requires.is_empty()
                 || !boundary.scalar_domain_requirements.is_empty(),
             linear_carrier: None,
-            invocation_refusal: Some(
-                "a checked boundary declaration has no body to evaluate".into(),
-            ),
+            invocation_refusal: if callable.execution
+                == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+            {
+                terminal_semantics::calls::layout_target::snapshot_fields(module, boundary)?;
+                None
+            } else {
+                Some("a checked boundary declaration has no body to evaluate".into())
+            },
             selections: Ok(Vec::new()),
         })
     })();

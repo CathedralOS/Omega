@@ -1569,7 +1569,7 @@ impl<'a> Storage<'a> {
         actuals: &[Actual],
         (formals, result): (
             &'s [terminal_psi::StructuralParameterDeclaration],
-            Option<&TerminalMachineResult>,
+            crate::checking::call_contracts::ResultFormal,
         ),
         site: OperationId,
         concerns: Construct,
@@ -1583,32 +1583,27 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         let operation = self.operation(site, concerns)?;
-        let structural = match (result, operation.result.as_structural()) {
-            (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
-                if declared.structural_type != actual.structural_type {
-                    return Err(self.foreign(
-                        concerns,
-                        "call result has another structural type than its contract",
-                    ));
-                }
+        use crate::checking::call_contracts::ResultFormal;
+        let (structural, scalar) = match (result, &operation.result) {
+            (ResultFormal::Unit, terminal_psi::OperationResult::Unit) => (None, None),
+            (ResultFormal::Scalar(formal), terminal_psi::OperationResult::Scalar(actual)) => {
+                (None, Some((formal, actual.id)))
+            }
+            (
+                ResultFormal::Structural(formal, ty),
+                terminal_psi::OperationResult::Structural(actual),
+            ) if ty == actual.structural_type => (
                 Some((
-                    declared.place,
+                    formal,
                     Lineage {
                         root: actual.place,
                         segments: Vec::new(),
                     },
-                ))
-            }
-            _ => None,
+                )),
+                None,
+            ),
+            _ => return Err(self.foreign(concerns, "call result differs from its public contract")),
         };
-        let scalar = operation.result.as_scalar().map(|actual| {
-            let formal = match result {
-                Some(TerminalMachineResult::Scalar(declared)) => declared.id,
-                _ => ValueId::new(inputs.scalars.len() as u64 + 1)
-                    .expect("a scalar result follows its formals"),
-            };
-            (formal, actual.id)
-        });
         Ok(Returned {
             inputs,
             input_formals: formals,
@@ -1754,8 +1749,11 @@ impl<'a> Storage<'a> {
             up_to,
             concerns,
         };
-        crate::checking::sufficient_goal(&self.clause(owner, concerns)?, &mut bindings)
-            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+        terminal_semantics::substitution::clauses::substitute_sufficient_clause(
+            &self.clause(owner, concerns)?,
+            &mut bindings,
+        )
+        .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
     /// The goal of one `DataDomain` obligation: the clause with `self`
@@ -6135,6 +6133,63 @@ fn extended(
     Ok(place)
 }
 
+/// Select a scalar in the receiving machine's storage. A runtime selector
+/// keeps its own SSA identity. An unevaluated logical expression cannot stand
+/// in for the selector captured by a storage operation.
+fn indexed_place(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    mut actual: Lineage,
+    path: &[semantic_vocabulary::ScalarReadProjection],
+) -> Result<Lineage, crate::checking::Unbound> {
+    use crate::checking::Unbound;
+    use semantic_vocabulary::{IntegerValue, ScalarReadProjection};
+    for step in path {
+        let segment = match step {
+            ScalarReadProjection::Static(segment) => {
+                actual = extended(actual, std::slice::from_ref(segment))?;
+                continue;
+            }
+            ScalarReadProjection::Referent => Segment::Referent,
+            ScalarReadProjection::Extent => Segment::Extent,
+            ScalarReadProjection::Index(term) => {
+                let value = match term.as_ref() {
+                    ScalarTerm::Value { id, .. } => Some(*id),
+                    _ => None,
+                };
+                let literal = term.integer_value().or_else(|| {
+                    let value = value?;
+                    let row = tables.values.get(value)?;
+                    let ValueOrigin::Operation(id) = row.origin else {
+                        return None;
+                    };
+                    let op = storage.lowered.operation(id)?;
+                    let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
+                    Some((ty.as_integer()?, literal))
+                });
+                if let Some((_, literal)) = literal {
+                    let position = match literal {
+                        IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+                        IntegerValue::Signed(value) => u64::try_from(value).ok(),
+                    }
+                    .ok_or(Unbound::Unproved(
+                        "contract selector is outside the collection index range",
+                    ))?;
+                    Segment::FixedIndex(position)
+                } else if let Some(selector) = value {
+                    Segment::RuntimeIndex { selector }
+                } else {
+                    return Err(Unbound::Unproved(
+                        "no captured storage selector names the indexed contract expression",
+                    ));
+                }
+            }
+        };
+        actual.segments.push(segment);
+    }
+    Ok(actual)
+}
+
 impl<'a> Held<'_, 'a> {
     fn at_place<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
@@ -6496,6 +6551,12 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+
+    /// Entry propositions can name only projections whose scalar sources
+    /// belong to this machine. Rejoin them at the same owner as call imports.
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -6512,6 +6573,31 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::checking::Unbound> {
         self.observation(self.input_place(root, path)?, scalar_type)
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let actual = indexed_place(
+            self.storage,
+            self.tables,
+            self.input_place(root, &[])?,
+            path,
+        )?;
+        if self
+            .storage
+            .interned(self.tables, &actual, Construct::Machine)
+            .map_err(crate::checking::Unbound::Refused)?
+            .is_none()
+        {
+            return Err(crate::checking::Unbound::Unproved(
+                "no operation captures this indexed input at entry",
+            ));
+        }
+        self.observation(actual, ty)
     }
 
     fn extent(
@@ -7163,6 +7249,27 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         self.held_at(&actual).observation(&actual, scalar_type)
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let formal =
+            terminal_psi::StructuralParameterDeclaration::find_by_place(self.callee_formals, root)
+                .ok_or(crate::checking::Unbound::Unsupported(
+                    "indexed contract has no structural formal",
+                ))?;
+        let actual = self.readable_actual(formal)?;
+        if self.storage.projection_type(actual, self.concerns) != Some(formal.structural_type) {
+            return Err(crate::checking::Unbound::Unproved(
+                "indexed contract formal and actual need corresponding element projections",
+            ));
+        }
+        let leaf = indexed_place(self.storage, self.tables, actual.clone(), path)?;
+        self.held_at(&leaf).observation(&leaf, ty)
+    }
+
     fn field_alternatives(
         &mut self,
         _: semantic_vocabulary::ContentPlaceVersion,
@@ -7221,6 +7328,32 @@ pub(crate) struct AtJoin<'s, 'a> {
 }
 
 impl<'a> AtJoin<'_, 'a> {
+    /// A direct arrival from machine entry may carry its original storage
+    /// snapshots unchanged. Check the operations and cleanup on this actual
+    /// edge before using an entry requirement as a current storage fact.
+    pub(crate) fn preserves_entry_storage(&self, edge: EdgeId) -> Checked<bool> {
+        let storage = self.inputs.storage;
+        let block = self.inputs.block;
+        if block != storage.lowered.entry
+            || !storage.graph.predecessors(block)?.is_empty()
+            || storage
+                .cleanup_writes
+                .iter()
+                .any(|write| write.edge == edge)
+        {
+            return Ok(false);
+        }
+        let entry = storage.lowered.block(&block).ok_or_else(|| {
+            storage.foreign(self.inputs.concerns, "the arrival has no entry block")
+        })?;
+        for operation in &entry.operations {
+            if !storage.operation_changes(operation)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
         self.inputs.observations()
     }
