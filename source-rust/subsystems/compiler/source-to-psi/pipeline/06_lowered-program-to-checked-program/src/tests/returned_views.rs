@@ -45,6 +45,35 @@ fn verdict(text: &str) -> String {
 }
 
 #[test]
+fn a_boundary_normal_guarantee_observes_its_returned_view() {
+    let source = r#"
+data Token { id: u64; }
+boundary trait Fs {
+    machine path(token: @Token) -> @[u8]
+    ensures result.len > 0u64
+    reaches none crashes none;
+}
+machine needs_bytes(bytes: @[u8]) requires bytes.len > 0u64 {}
+machine consume(token: @Token) reaches Fs invokes Fs {
+    let view: @[u8] = Fs::path(token);
+    needs_bytes(view);
+}
+machine entry() reaches Fs invokes Fs {
+    let token: Token = Token { id: 1 };
+    consume(@token);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let unpromised = source.replace("ensures result.len > 0u64", "");
+    let result = crate::checking::judge(elaborate(&unpromised)).unwrap();
+    assert!(
+        matches!(&result, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
 boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }

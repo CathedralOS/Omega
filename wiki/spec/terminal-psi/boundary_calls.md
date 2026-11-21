@@ -126,10 +126,13 @@ structural membership stays a structural domain requirement and has no row.
 
 Selecting a provider does not remove or weaken these obligations. A checked
 candidate may be installed for the call only when its own requirements follow
-from the declaration's rows. Scalar normal-return guarantees use the same
-formal namespace, with the scalar result immediately after the inputs. A
-successful call substitutes the exact actuals and its produced result and
-imports those guarantees. Checked provider admission requires each declared
+from the declaration's rows. A scalar normal-return guarantee may name the
+declared result. A scalar result follows the scalar inputs in value order.
+A structural result follows the structural inputs in place order, allowing a
+guarantee such as `ensures result.len > 0u64` to observe the returned view.
+Only normal completion binds that place. Verification substitutes the exact
+result produced by this invocation and its actual inputs when importing the
+guarantee. Checked provider admission requires each declared
 guarantee in the provider's verified ensures roster after substitution; a
 stronger provider contract never silently strengthens the caller's assumptions.
 The declaration carries only supported scalar consequences of its authored

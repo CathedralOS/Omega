@@ -2838,7 +2838,7 @@ pub(crate) mod declaration_foundations {
         let Some(mut formals) = boundary.scalar_contract_parameters() else {
             return malformed("boundary scalar contract formals overflow");
         };
-        let places = boundary
+        let mut places = boundary
             .structural_parameters
             .iter()
             .map(|parameter| {
@@ -2869,6 +2869,9 @@ pub(crate) mod declaration_foundations {
         }
         if let Some(result) = boundary.scalar_contract_result() {
             formals.push(result);
+        }
+        if let Some((place, _)) = boundary.structural_contract_result() {
+            places.push((place, StructuralPlaceKind::Result));
         }
         let ensures = PropositionContext::from_value_types_and_places(
             formals.iter().map(|formal| (formal.id, formal.scalar_type)),
@@ -2944,12 +2947,17 @@ pub(crate) mod declaration_foundations {
         {
             substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
         }
-        let places = boundary
+        let mut places = boundary
             .structural_parameters
             .iter()
             .zip(&machine.structural_parameters)
             .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
             .collect::<BTreeMap<_, _>>();
+        if let Some((formal, _)) = boundary.structural_contract_result()
+            && let Some(actual) = machine.result.structural()
+        {
+            places.insert(formal, (actual.place, Vec::new()));
+        }
         let instantiate = |row: &Proposition| {
             let values = terminal_semantics::substitution::substitute_proposition_values(
                 row,

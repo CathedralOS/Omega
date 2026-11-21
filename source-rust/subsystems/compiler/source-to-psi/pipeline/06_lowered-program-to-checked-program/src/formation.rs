@@ -964,21 +964,10 @@ pub(crate) fn module(
             facts: Facts::default(),
             activity: &mut *activity,
         };
-        if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
-            // Boundary clause coordinates follow the same dense input roster
-            // as machine contracts; the result is the next structural place.
-            let place =
-                PlaceId::new(boundary.structural_parameters.len() as u64 + 1).ok_or_else(|| {
-                    crate::checking::refusal(
-                        RefusalReason::Unsupported,
-                        diagnostic,
-                        Construct::Machine,
-                        "boundary result identity overflow",
-                    )
-                })?;
+        if let Some((place, ty)) = boundary.structural_contract_result() {
             scope.roots.push(Root {
                 place,
-                ty: result.structural_type,
+                ty,
                 borrowed: false,
                 result: true,
                 has_entry: false,

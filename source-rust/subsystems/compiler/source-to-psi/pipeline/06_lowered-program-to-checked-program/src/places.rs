@@ -1569,7 +1569,7 @@ impl<'a> Storage<'a> {
         actuals: &[Actual],
         (formals, result): (
             &'s [terminal_psi::StructuralParameterDeclaration],
-            Option<&TerminalMachineResult>,
+            crate::checking::call_contracts::ResultFormal,
         ),
         site: OperationId,
         concerns: Construct,
@@ -1583,32 +1583,27 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         let operation = self.operation(site, concerns)?;
-        let structural = match (result, operation.result.as_structural()) {
-            (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
-                if declared.structural_type != actual.structural_type {
-                    return Err(self.foreign(
-                        concerns,
-                        "call result has another structural type than its contract",
-                    ));
-                }
+        use crate::checking::call_contracts::ResultFormal;
+        let (structural, scalar) = match (result, &operation.result) {
+            (ResultFormal::Unit, terminal_psi::OperationResult::Unit) => (None, None),
+            (ResultFormal::Scalar(formal), terminal_psi::OperationResult::Scalar(actual)) => {
+                (None, Some((formal, actual.id)))
+            }
+            (
+                ResultFormal::Structural(formal, ty),
+                terminal_psi::OperationResult::Structural(actual),
+            ) if ty == actual.structural_type => (
                 Some((
-                    declared.place,
+                    formal,
                     Lineage {
                         root: actual.place,
                         segments: Vec::new(),
                     },
-                ))
-            }
-            _ => None,
+                )),
+                None,
+            ),
+            _ => return Err(self.foreign(concerns, "call result differs from its public contract")),
         };
-        let scalar = operation.result.as_scalar().map(|actual| {
-            let formal = match result {
-                Some(TerminalMachineResult::Scalar(declared)) => declared.id,
-                _ => ValueId::new(inputs.scalars.len() as u64 + 1)
-                    .expect("a scalar result follows its formals"),
-            };
-            (formal, actual.id)
-        });
         Ok(Returned {
             inputs,
             input_formals: formals,

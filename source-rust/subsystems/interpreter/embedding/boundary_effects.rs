@@ -158,23 +158,10 @@ pub(crate) mod boundary_predicates {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary output guarantee evaluation exceeds the resource limit",
                 )
-            },
-        )?;
-        let result_place = if matches!(
-            boundary.result,
-            terminal_psi::BoundaryMachineResult::Structural(_)
-        ) {
-            let ordinal = u64::try_from(boundary.structural_parameters.len())
-                .ok()
-                .and_then(|length| length.checked_add(1))
-                .ok_or_else(malformed)?;
-            Some((
-                PlaceId::new(ordinal).ok_or_else(malformed)?,
-                StructuralPlaceKind::Result,
-            ))
-        } else {
-            None
-        };
+            })?;
+        let result_place = boundary
+            .structural_contract_result()
+            .map(|(place, _)| (place, StructuralPlaceKind::Result));
         let context = PropositionContext::from_value_types_and_places(
             parameters
                 .iter()
