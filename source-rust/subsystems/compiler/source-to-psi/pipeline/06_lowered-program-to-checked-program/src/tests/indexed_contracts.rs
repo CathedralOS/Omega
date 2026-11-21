@@ -228,7 +228,8 @@ fn a_recursive_edge_owes_the_element_at_its_own_selector() {
     );
 }
 
-const NATIVE: &str = include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
+const NATIVE: &str =
+    include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
 #[test]
 fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {
