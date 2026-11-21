@@ -90,6 +90,7 @@ fn inherited_provider_methods_keep_the_declaring_application_and_result() {
     let source = "public boundary trait Reading<T> {
             machine read() -> T reaches none crashes none;
         }
+        public boundary trait OpenChild<T>: Reading<T> {}
         public boundary trait Narrow: Reading<u32> {}
         public NarrowSupply satisfies Narrow {
             machine read() -> u32 reaches none crashes none { 17u32 }
