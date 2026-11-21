@@ -150,7 +150,8 @@ impl TerminalEffectHandler for NumericImport {
             let [value] = arguments else {
                 return Err(rejected("classification requires one floating operand"));
             };
-            let meaning = operand_meaning(*value).map_err(|_| rejected("classification requires a floating operand"))?;
+            let meaning = operand_meaning(*value)
+                .map_err(|_| rejected("classification requires a floating operand"))?;
             let format = match self.realization.format {
                 IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
                 IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
@@ -233,11 +234,15 @@ fn evaluate(
         }
         Operation::Negate => {
             let result = match arguments[0] {
-                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits)) =>
-                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits ^ (1 << 31))),
-                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) =>
-                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits ^ (1 << 63))),
-                TerminalScalarValue::UndeterminedNaN(format) => TerminalScalarValue::UndeterminedNaN(format),
+                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits)) => {
+                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits ^ (1 << 31)))
+                }
+                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) => {
+                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits ^ (1 << 63)))
+                }
+                TerminalScalarValue::UndeterminedNaN(format) => {
+                    TerminalScalarValue::UndeterminedNaN(format)
+                }
                 _ => return Err(rejected("negation requires a floating operand")),
             };
             return Ok(scalar(result));

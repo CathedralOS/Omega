@@ -472,7 +472,8 @@ impl TerminalBuildHost {
         let output = issue_output.then(|| self.output.binding());
         let mut instance = program
             .instantiate(TerminalInstantiation {
-            float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
+                float_evaluation:
+                    terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
                 structural_inputs: TerminalStructuralInputs {
                     arguments: std::slice::from_ref(&self.original),
                     projected_host_atoms: output.as_slice(),

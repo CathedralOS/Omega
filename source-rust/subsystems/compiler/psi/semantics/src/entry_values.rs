@@ -8,7 +8,8 @@ use semantic_vocabulary::{
 use terminal_psi::{StructuralPathSegment, TerminalAccessViewInput};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum TerminalScalarValue {    Boolean(bool),
+pub enum TerminalScalarValue {
+    Boolean(bool),
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -58,7 +59,9 @@ impl TerminalScalarValue {
                 semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
             }
             Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-            Self::Callable { .. } | Self::HostAddress { .. } | Self::UndeterminedNaN(_) => return None,
+            Self::Callable { .. } | Self::HostAddress { .. } | Self::UndeterminedNaN(_) => {
+                return None;
+            }
         })
     }
 

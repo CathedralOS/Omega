@@ -98,7 +98,8 @@ mod tests {
 
     fn call(at: BuildCallSite) -> TerminalEffect {
         TerminalEffect::BoundaryCall {
-            float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
+            float_evaluation:
+                terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
             site: terminal_interpreter::TerminalEffectWait {
                 program: terminal_codec::TerminalExecutionIdentity::portable(
                     terminal_psi::TerminalPsiIdentity {

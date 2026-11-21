@@ -4016,8 +4016,12 @@ pub(crate) mod scalar_operations {
                         };
                         if was_infinite && adapted.is_finite() {
                             TerminalScalarValue::IeeeFloat(match format {
-                                IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(adapted.to_f32().to_bits()),
-                                IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(adapted.to_f64().to_bits()),
+                                IeeeFloatFormat::Binary32 => {
+                                    IeeeFloatValue::Binary32(adapted.to_f32().to_bits())
+                                }
+                                IeeeFloatFormat::Binary64 => {
+                                    IeeeFloatValue::Binary64(adapted.to_f64().to_bits())
+                                }
                             })
                         } else {
                             raw_result
@@ -4821,7 +4825,11 @@ pub(crate) mod scalar_operations {
                 );
                 assert!(unknown.literal().is_none());
                 assert!(
-                    scalar_reference_observation(fma(float_result_policy::FloatEvaluation::Runtime), ScalarType::Integer(integer)).is_ok()
+                    scalar_reference_observation(
+                        fma(float_result_policy::FloatEvaluation::Runtime),
+                        ScalarType::Integer(integer)
+                    )
+                    .is_ok()
                 );
             }
         }
