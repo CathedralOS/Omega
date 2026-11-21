@@ -856,41 +856,7 @@ impl Program<'_> {
         } else {
             (carrier, identity)
         };
-        // One row per carrier, whatever region: the lowered form erases
-        // regions. The row keeps the first occurrence it was read from as
-        // its source, whose identity text it carries
-        // (`source_record_correspondence`).
-        let row = self.records.iter().find_map(|(id, row)| {
-            let view = self.record_sources.get(id).is_some_and(|source| {
-                !source.declaration.is_valid() && source.application.is_some()
-            });
-            (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
-        });
-        if let Some(row) = row {
-            self.retain_byte_domains(machine, row, qualification)?;
-            return Ok(typed_view(row));
-        }
-        let row = self.records.push(RecordType {
-            multiplicity: if carrier.is_shared_readable_view() {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            } else {
-                terminal_psi::StructuralMultiplicity::Affine
-            },
-            cleanup: None,
-            identity,
-            shape: StorageShape::ByteSequence(carrier),
-            requires: Vec::new(),
-            authored_layout: false,
-        });
-        self.record_sources.push(RecordSource {
-            constant_input_owner: None,
-            declaration: SymbolHandle::invalid(),
-            cleanup: None,
-            application: Some(self.storage_source_application(reference)),
-            region_owner: lexical_owner,
-            fields: Vec::new(),
-            cases: Vec::new(),
-        });
+        let row = self.byte_view_record(carrier, Some((identity, reference, lexical_owner)));
         self.retain_byte_domains(machine, row, qualification)?;
         Ok(typed_view(row))
     }
@@ -986,7 +952,7 @@ impl Program<'_> {
                 ));
             }
             None => (
-                self.literal_byte_type(carrier),
+                self.byte_view_record(carrier, None),
                 crate::lowering::body::Regions::NONE,
             ),
         };
@@ -1006,21 +972,63 @@ impl Program<'_> {
         })
     }
 
-    fn literal_byte_type(&mut self, carrier: ByteSequenceCarrier) -> StructuralTypeId {
-        if let Some(row) = self.records.iter().find_map(|(id, row)| {
-            let literal = self.record_sources.get(id).is_some_and(|source| {
-                !source.declaration.is_valid() && source.application.is_none()
-            });
-            (literal && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
-        }) {
+    /// A quoted value and an authored byte view have the same structural type.
+    /// Its region and domains stay on the value. If a literal first introduced
+    /// the row, retain the first authored reference when one becomes available.
+    fn byte_view_record(
+        &mut self,
+        carrier: ByteSequenceCarrier,
+        authored: Option<(String, TypeReferenceHandle, SymbolHandle)>,
+    ) -> StructuralTypeId {
+        let known = self.records.iter().find_map(|(row, record)| {
+            let structural = self
+                .record_sources
+                .get(row)
+                .is_some_and(|source| !source.declaration.is_valid());
+            (structural && record.shape == StorageShape::ByteSequence(carrier)).then_some(row)
+        });
+        if let Some(row) = known
+            && (authored.is_none()
+                || self
+                    .record_sources
+                    .get(row)
+                    .is_some_and(|source| source.application.is_some()))
+        {
+            return row;
+        }
+        let (identity, application, region_owner) = match authored {
+            Some((identity, reference, owner)) => (
+                identity,
+                Some(self.storage_source_application(reference)),
+                owner,
+            ),
+            None => (
+                "immutable literal bytes".into(),
+                None,
+                SymbolHandle::invalid(),
+            ),
+        };
+        if let Some(row) = known {
+            let source = self
+                .record_sources
+                .get_mut(row)
+                .expect("byte view has a source row");
+            source.application = application;
+            source.region_owner = region_owner;
+            self.records
+                .get_mut(row)
+                .expect("byte view record exists")
+                .identity = identity;
             return row;
         }
         let row = self.records.push(RecordType {
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            multiplicity: if carrier.is_shared_readable_view() {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             cleanup: None,
-            // This text labels the structural type; it names no declaration.
-            // Exact literal contents and origin belong to its producer below.
-            identity: "immutable literal bytes".into(),
+            identity,
             shape: StorageShape::ByteSequence(carrier),
             requires: Vec::new(),
             authored_layout: false,
@@ -1029,8 +1037,8 @@ impl Program<'_> {
             constant_input_owner: None,
             declaration: SymbolHandle::invalid(),
             cleanup: None,
-            application: None,
-            region_owner: SymbolHandle::invalid(),
+            application,
+            region_owner,
             fields: Vec::new(),
             cases: Vec::new(),
         });
@@ -1092,10 +1100,11 @@ impl Program<'_> {
             }
             return Ok(Some(value_type));
         }
-        Ok(Some(ValueType::record(self.literal_byte_type(
+        Ok(Some(ValueType::record(self.byte_view_record(
             ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::SharedBorrow),
             },
+            None,
         ))))
     }
 
