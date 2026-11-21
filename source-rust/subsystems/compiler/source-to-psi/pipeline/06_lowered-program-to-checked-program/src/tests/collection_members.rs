@@ -26,11 +26,19 @@ fn collection_length_is_selected_on_the_real_borrowed_receiver() {
 }
 
 #[test]
-fn shortened_length_spelling_is_not_a_collection_measure() {
-    assert_eq!(
-        members("machine observe(items: @[u8]) -> u64 { items.len }"),
-        vec![MemberSelection::Unresolved]
-    );
+fn unknown_collection_members_are_rejected_at_the_authored_name() {
+    for (ty, member) in [("@[u8]", "len"), ("[u16; 3]", "width")] {
+        let text = format!("machine observe(items: {ty}) -> u64 {{ items.{member} }}");
+        let error = super::boundary_calls::try_typed(&text)
+            .err()
+            .expect("unknown member");
+        assert_eq!(
+            error.message,
+            format!("collection has no member `{member}`")
+        );
+        let span = error.source_span.unwrap().span;
+        assert_eq!(&text[span.start..span.end], member);
+    }
 }
 
 #[test]
