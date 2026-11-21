@@ -60,9 +60,8 @@ fn applied_service_reach_uses_the_declared_parent_argument_and_invokes_only_its_
     let invokes = typed
         .signature_invokes
         .span_or_empty(machine("fixed").invokes);
-    let [entry] = &*invokes else {
-        panic!("one authored entry")
-    };
+    assert_eq!(invokes.len(), 1);
+    let entry = invokes.iter().next().unwrap();
     let AuthoredInvocationTarget::AppliedService(id) = entry.target else {
         panic!("entry lost its application")
     };
@@ -82,5 +81,19 @@ fn applied_service_rejects_a_const_from_the_wrong_integer_carrier() {
             .message
             .contains("does not inhabit its declared carrier"),
         "{error:?}"
+    );
+}
+
+#[test]
+fn applied_service_invocation_preserves_a_lexically_shadowing_parameter() {
+    // An explicit application cannot turn a callback parameter into a service grant.
+    let errors = crate::try_resolve_fixture(
+        "boundary trait Sensor<const Id: u64> {} machine shadow(Sensor: machine()) invokes Sensor<17u64> {}",
+    ).err().expect("arguments on the shadowing callback");
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("only when it names a boundary service")),
+        "{errors:?}"
     );
 }

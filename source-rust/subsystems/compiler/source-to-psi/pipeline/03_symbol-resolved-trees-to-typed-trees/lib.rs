@@ -18,6 +18,13 @@ mod frontend_fixture;
 
 #[cfg(test)]
 fn resolve_fixture(text: &str) -> source_resolved::SymbolResolvedTrees {
+    try_resolve_fixture(text).expect("fixture declarations and bodies resolve")
+}
+
+#[cfg(test)]
+fn try_resolve_fixture(
+    text: &str,
+) -> Result<source_resolved::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut files = source_inputs::SourceMap::default();
     let source = files.add("test/main.omg".into(), text.to_owned()).source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
@@ -28,7 +35,6 @@ fn resolve_fixture(text: &str) -> source_resolved::SymbolResolvedTrees {
         top_level_bindings: Vec::new(),
         retained_base: None,
     })
-    .expect("fixture declarations and bodies resolve")
 }
 
 #[cfg(test)]

@@ -44,8 +44,7 @@ pub mod calls {
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-        pub enum AuthoredInvocationTarget {
-            /// Typing found no target, but the source this row was written
+        pub enum AuthoredInvocationTarget {            /// Typing found no target, but the source this row was written
             /// in can see some declaration of that spelling (another kind,
             /// or two candidate requirements), or the row is a path typing
             /// does not follow: a request no reader serves yet.

@@ -2188,8 +2188,7 @@ pub mod invocations {
     };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum InvocationTarget {
-        /// Position among the callable's entry parameters after the receiver.
+    pub enum InvocationTarget {        /// Position among the callable's entry parameters after the receiver.
         Parameter(u32),
         /// A statically selected boundary service.
         Service(symbols::SymbolHandle),

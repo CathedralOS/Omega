@@ -27,8 +27,7 @@ use std::fmt;
 use symbols::{SymbolHandle, SymbolKind};
 
 #[derive(Debug, Clone)]
-pub(crate) enum PendingAuthoredServiceReach {
-    Authored {
+pub(crate) enum PendingAuthoredServiceReach {    Authored {
         keyword_source_spans: Vec<source_text::SourceSpan>,
         authored: Vec<TraitRequirement>,
     },
@@ -262,8 +261,10 @@ pub(crate) fn normalize_service_reaches(
         ));
     }
 
+    let parameter_spans = machine_parameter_spans(program);
     let parameter_authored_rows = normalize_machine_parameter_rows(
         program,
+        &parameter_spans,
         &mut services,
         &mut rows,
         signature_service_reaches,
@@ -302,7 +303,7 @@ pub(crate) fn normalize_service_reaches(
         }
     });
 
-    bind_invocation_applications(program, &mut services)?;
+    bind_invocation_applications(program, &mut services, &parameter_spans)?;
     program.service_reaches = services;
     program.service_reach_rows = rows;
     program.authored_service_reach_rows = authored_machine_rows
@@ -468,8 +469,24 @@ fn resolve_application(
 fn bind_invocation_applications(
     program: &mut SymbolResolvedTrees,
     services: &mut ServiceReachTable,
+    parameter_spans: &[arena::HandleSpan<TypeParameter>],
 ) -> Result<(), Diagnostic> {
     use crate::source_resolved::signature::InvocationReference;
+    let static_contracts = parameter_spans
+        .iter()
+        .flat_map(|span| {
+            program
+                .tables
+                .declarations
+                .data_type_parameters
+                .span_or_empty(*span)
+        })
+        .filter_map(|parameter| match &parameter.kind {
+            crate::source_resolved::data::TypeParameterKind::Machine { contract } => {
+                contract.structural()
+            }
+            _ => None,
+        });
     let signatures = program
         .machines
         .iter()
@@ -495,6 +512,7 @@ fn bind_invocation_applications(
                         .iter()
                         .map(|(_, contract)| &contract.signature),
                 )
+                .chain(static_contracts)
                 .map(|signature| {
                     (
                         signature.symbol,
@@ -510,13 +528,17 @@ fn bind_invocation_applications(
                 continue;
             };
             let name = &reference.name;
-            if parameters
+            let applied =
+                !reference.arguments.is_empty() || !reference.lifetime_arguments.is_empty();
+            let is_parameter = parameters
                 .iter()
-                .any(|parameter| parameter.name.as_str() == name.as_str())
-            {
-                continue;
-            }
-            if let Some(service) = service_for_name(&program.symbols, services, name) {
+                .any(|parameter| parameter.name.as_str() == name.as_str());
+            let service = if is_parameter {
+                None
+            } else {
+                service_for_name(&program.symbols, services, name)
+            };
+            if let Some(service) = service {
                 let service = resolve_application(program, services, owner, reference, service)?;
                 selected.push((
                     handle,
@@ -525,6 +547,10 @@ fn bind_invocation_applications(
                         service,
                     },
                 ));
+            } else if applied {
+                return Err(Diagnostic::error(format!(
+                    "invocation target `{name}` takes arguments only when it names a boundary service"
+                )).with_source_span(name.source_span()));
             }
         }
     }
@@ -538,14 +564,7 @@ fn bind_invocation_applications(
     Ok(())
 }
 
-fn normalize_machine_parameter_rows(
-    program: &mut SymbolResolvedTrees,
-    services: &mut ServiceReachTable,
-    rows: &mut ServiceReachRowTable,
-    signature_service_reaches: &[PendingSignatureServiceReach],
-) -> Result<Vec<AuthoredServiceReachRow>, Diagnostic> {
-    use crate::source_resolved::data::TypeParameterKind;
-
+fn machine_parameter_spans(program: &SymbolResolvedTrees) -> Vec<arena::HandleSpan<TypeParameter>> {
     let mut roots = program
         .data_definitions
         .iter()
@@ -586,7 +605,19 @@ fn normalize_machine_parameter_rows(
     for root in roots {
         collect_parameter_spans(type_parameters, root, &mut spans);
     }
+    spans
+}
 
+fn normalize_machine_parameter_rows(
+    program: &mut SymbolResolvedTrees,
+    spans: &[arena::HandleSpan<TypeParameter>],
+    services: &mut ServiceReachTable,
+    rows: &mut ServiceReachRowTable,
+    signature_service_reaches: &[PendingSignatureServiceReach],
+) -> Result<Vec<AuthoredServiceReachRow>, Diagnostic> {
+    use crate::source_resolved::data::TypeParameterKind;
+
+    let type_parameters = &program.tables.declarations.data_type_parameters;
     let mut resolved_rows = Vec::new();
     for parameter in spans
         .iter()
@@ -611,7 +642,7 @@ fn normalize_machine_parameter_rows(
     }
 
     let type_parameters = &mut program.tables.declarations.data_type_parameters;
-    for span in spans {
+    for &span in spans {
         for parameter in type_parameters.span_mut_or_empty(span) {
             let TypeParameterKind::Machine { contract } = &mut parameter.kind else {
                 continue;

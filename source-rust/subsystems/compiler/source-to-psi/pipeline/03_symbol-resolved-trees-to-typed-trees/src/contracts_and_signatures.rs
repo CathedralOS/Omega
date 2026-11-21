@@ -20,28 +20,36 @@ pub(crate) mod contracts {
             let mut lowered = Vec::with_capacity(declarations.len());
             for written in declarations {
                 let declaration = written.name();
-                let target = if let resolved::signature::InvocationReference::Service { service, .. } = written {
-                    let row = program.service_reaches.definition(*service).ok_or_else(|| Diagnostic::error("an invocation has no resolved service"))?;
-                    if row.application.is_some() {
-                        typed::signature::AuthoredInvocationTarget::AppliedService(*service)
-                    } else {
-                        typed::signature::AuthoredInvocationTarget::Service(row.symbol)
+                use typed::signature::AuthoredInvocationTarget as Target;
+                let target = match written {
+                    resolved::signature::InvocationReference::Service { service, .. } => {
+                        let row =
+                            program
+                                .service_reaches
+                                .definition(*service)
+                                .ok_or_else(|| {
+                                    Diagnostic::error("an invocation has no resolved service")
+                                })?;
+                        match &row.application {
+                            Some(_) => Target::AppliedService(*service),
+                            None => Target::Service(row.symbol),
+                        }
                     }
-                } else if let Some((ordinal, parameter)) = parameters
-                    .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| parameter.name.as_str() == declaration.as_str())
-                {
-                    typed::signature::AuthoredInvocationTarget::Parameter {
-                ordinal: u32::try_from(ordinal).map_err(|_| {
-                    Diagnostic::error(format!(
-                        "callable `{owner}` has too many invocation parameters for portable identity"
-                    ))
-                })?,
-                symbol: parameter.symbol,
-            }
-                } else {
-                    invocation_target(program, declaration)
+                    resolved::signature::InvocationReference::Name(_) => {
+                        match parameters.iter().enumerate().find(|(_, parameter)| {
+                            parameter.name.as_str() == declaration.as_str()
+                        }) {
+                            Some((ordinal, parameter)) => Target::Parameter {
+                                ordinal: u32::try_from(ordinal).map_err(|_| {
+                                    Diagnostic::error(format!(
+                                        "callable `{owner}` has too many invocation parameters for portable identity"
+                                    ))
+                                })?,
+                                symbol: parameter.symbol,
+                            },
+                            None => invocation_target(program, declaration),
+                        }
+                    }
                 };
                 lowered.push(typed::signature::AuthoredInvocation {
                     name: crate::typing::lowerer::name::lower_name(declaration),
