@@ -236,7 +236,7 @@ fn specialized_callback_reach_keeps_omission_empty_and_named_services_distinct()
                 let targets = row
                     .targets
                     .iter()
-                    .map(|target| trees.symbols.name(target.service.symbol(&program).unwrap()))
+                    .map(|target| trees.symbols.name(target.service.symbol(trees).unwrap()))
                     .collect::<Vec<_>>();
                 assert_eq!(targets, services);
             }
