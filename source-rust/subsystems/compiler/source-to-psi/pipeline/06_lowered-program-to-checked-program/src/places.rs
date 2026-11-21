@@ -7481,6 +7481,24 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         })
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if terminal_psi::StructuralParameterDeclaration::find_by_place(
+            self.inputs.callee_formals,
+            root,
+        )
+        .is_some()
+        {
+            self.inputs.structural_read(root, path, ty)
+        } else {
+            terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty)
+        }
+    }
+
     fn field_alternatives(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,
@@ -8274,9 +8292,9 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
 
     #[test]
     fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
-        let input = storage_fixture(
-            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
-        );
+        let input = storage_fixture(include_str!(
+            "../tests/fixtures/ownership/run/recaptured_index/main.omg"
+        ));
         let module = &input.module;
         let mut compared = false;
         for machine in &module.machines {
@@ -8383,7 +8401,9 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             ));
         }
         source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x, false -> hop0(p, choose) }} }}\n"));
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(&source));
+        let typed = crate::prepare_fixture(
+            crate::checking::tests::rankings::typed_with_ranking_catalog(&source),
+        );
         let entry = typed
             .machines()
             .iter()
@@ -8738,7 +8758,9 @@ machine entry() {
     #[test]
     fn block_entry_snapshots_keep_arrivals_sound_across_vacated_single_and_merged_paths() {
         let prepare_storage = |source: &str| {
-            let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
+            let typed = crate::prepare_fixture(
+                crate::checking::tests::rankings::typed_with_ranking_catalog(source),
+            );
             let root = typed
                 .machines()
                 .iter()
