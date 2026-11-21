@@ -2396,8 +2396,9 @@ fn visit_service_reach(
     if let Some(application) = &row.application
         && let Some(scope) = application.arguments.scope(program)
     {
-        for (parameter, actual) in scope.substitutions {
-            visit_symbol(retained, parameter);
+        // The service declaration owns its formals. This occurrence names its
+        // arguments in the author's scope, as in any other applied type.
+        for (_, actual) in scope.substitutions {
             visit_type_reference(program, retained, actual);
         }
     }

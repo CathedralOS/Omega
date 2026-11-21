@@ -135,6 +135,38 @@ fn inherited_provider_methods_keep_the_declaring_application_and_result() {
 }
 
 #[test]
+fn const_service_terms_are_values_in_the_callers_scope() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Sensor<const Id: u64> {
+            machine read() -> u64 reaches none crashes none;
+        }
+        public boundary trait Reader {
+            machine poll() reaches Sensor<17u64> + Sensor<29u64> invokes Sensor<17u64> crashes none;
+        }
+        public machine published() reaches Sensor<17u64> + Sensor<29u64> invokes Sensor<17u64> crashes none {}";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let published = module
+        .machines
+        .iter()
+        .find(|machine| machine.contract.published_service_ceiling.len() == 2)
+        .unwrap();
+    let reachable = &published.contract.published_service_ceiling;
+    let entries = &published.contract.published_synchronous_entries;
+    assert_eq!(entries.len(), 1);
+    assert!(reachable.contains(&entries[0]));
+    let receiving = module
+        .interfaces
+        .services
+        .iter()
+        .find(|service| service.id == entries[0])
+        .unwrap();
+    let identity = module.identities.text(receiving.identity).unwrap();
+    assert!(identity.contains("integer-const(17)"), "{identity}");
+}
+
+#[test]
 fn invocation_ceiling_follows_callable_parameter_aliases() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let check = |ceiling: &str, body: &str| {
