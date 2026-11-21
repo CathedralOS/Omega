@@ -1507,7 +1507,7 @@ impl<'t> Program<'t> {
             Reading::Closed | Reading::Implementation | Reading::Provider
                 if parameters.is_empty() => {}
             Reading::Closed | Reading::Implementation | Reading::Provider => {
-                return unserved_parameters("generic machine read without arguments");
+                eprintln!("GENERIC_CALL provider={} implementation={} closed={} rigid={} {}", matches!(reading, Reading::Provider), matches!(reading, Reading::Implementation), matches!(reading, Reading::Closed), self.rigid, std::backtrace::Backtrace::force_capture());return unserved_parameters("generic machine read without arguments");
             }
             // The storage checker carries each parameter's declared bound
             // and unknown contents through ordinary transfers and borrows.
