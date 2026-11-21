@@ -27,6 +27,22 @@ impl Prover<'_> {
                 };
                 Some((ty, value))
             });
+            // A taken comparison can establish an input's exact value even
+            // when that input has no defining SSA operation. Use the prepared
+            // equality to propose that value, then replay the original path.
+            for fact in &self.facts {
+                let Some((left, right)) = fact.proposition.as_equal() else {
+                    continue;
+                };
+                for (subject, literal) in [(left, right), (right, left)] {
+                    if let ScalarTerm::Value { id, .. } = subject
+                        && let ScalarTerm::Integer { scalar_type, value } = literal
+                        && let Some(slot) = values.get_mut(*id)
+                    {
+                        *slot = Some((ScalarType::Integer(*scalar_type), *value));
+                    }
+                }
+            }
             for &index in &self.equations {
                 let Some((ScalarTerm::Value { id, .. }, term)) =
                     self.facts[index].proposition.as_equal()
