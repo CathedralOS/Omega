@@ -4,7 +4,7 @@ use crate::driver::prepare_typed_source;
 use checked_program_to_psi::production;
 use checked_program_to_psi::production::{AcceptedTerminalSource, TerminalSourceCompilation};
 use diagnostics::{Diagnostic, DiagnosticStage};
-use lowered_program_to_checked_program::checking::judge_publication;
+use lowered_program_to_checked_program::checking::{CheckedPublication, judge_publication};
 use optimization::PsiOptimizationSelections;
 use prepared_typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
 use prepared_typed_trees_to_lowered_program::lowering::{
@@ -126,15 +126,34 @@ pub struct JudgedSource {
     pub constants: Vec<production::ConstantRead>,
 }
 
+enum SourceRoots<'a> {
+    Selected(
+        TerminalSourceCompilation<'a>,
+        terminal_codec::TerminalPublication,
+    ),
+    Product(SourceCompilationRoster),
+}
+
+fn judge_source(
+    source: PreparedTypedTrees,
+    roots: SourceRoots<'_>,
+) -> Result<CheckedPublication<LoweredSourcePublication>, Vec<Diagnostic>> {
+    let lowered = match roots {
+        SourceRoots::Selected(compilation, publication) => {
+            LoweredSourcePublication::prepare(source, compilation, publication)
+        }
+        SourceRoots::Product(roster) => roster.lower_for_publication(source),
+    }
+    .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
+    judge_publication(lowered).map_err(|rows| DiagnosticStage::Checking.attribute(rows))
+}
+
 pub fn judge_terminal_source(
     source: PreparedTypedTrees,
     compilation: TerminalSourceCompilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-    let input = LoweredSourcePublication::prepare(source, compilation, publication)
-        .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
-    let judgment =
-        judge_publication(input).map_err(|rows| DiagnosticStage::Checking.attribute(rows))?;
+    let judgment = judge_source(source, SourceRoots::Selected(compilation, publication))?;
     AcceptedTerminalSource::from_judgment(judgment)
 }
 
@@ -155,13 +174,7 @@ impl SourcePublication {
         roster: SourceCompilationRoster,
         optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let input = roster
-            .lower_for_publication(source)
-            .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
-        checked_program_to_psi::SourcePublication::from_judgment(
-            judge_publication(input).map_err(|rows| DiagnosticStage::Checking.attribute(rows))?,
-            optimizations,
-        )
-        .map(Self)
+        let judgment = judge_source(source, SourceRoots::Product(roster))?;
+        checked_program_to_psi::SourcePublication::from_judgment(judgment, optimizations).map(Self)
     }
 }

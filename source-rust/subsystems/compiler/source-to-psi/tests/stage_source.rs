@@ -313,6 +313,82 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
     );
 }
 
+fn publish_build(
+    files: SourceMap,
+    entry: SourceSpan,
+    package: PackageKeyIdentity,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let stage = source_compiler::BuildStageSource {
+        parsed: source_compiler::ParsedStageSources::parse(
+            Arc::new(files),
+            vec![entry.source_id],
+            vec![],
+        )?,
+        build_sources: [entry.source_id].into(),
+        pending_imports: vec![],
+        entry,
+    };
+    let typed = stage
+        .prepare(None, &Default::default(), "linux_x86_64", None)?
+        .program;
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(entry))
+        .expect("the parsed Build contains the selected machine");
+    let judged = source_compiler::CheckedBuildInvocation::judge(
+        &typed,
+        machine.symbol,
+        &[Some(package)],
+        None,
+    )
+    .map_err(|failure| failure.diagnostics)?;
+    judged.invocation.publish().map(|_| ())
+}
+
+#[test]
+fn build_and_product_check_the_return_value_before_publication() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    for (returned, satisfies_contract) in [("7u32", true), ("8u32", false)] {
+        let text = format!("machine build() -> u32 ensures result == 7u32 {{ {returned} }}");
+        let (mut files, root) = captured(package, &text);
+        let build = files
+            .add_checked_instance(
+                "project/build.omg".into(),
+                text.as_str(),
+                "project".into(),
+                Some(package),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Build,
+            )
+            .source_id;
+        let start = text.find("build").unwrap();
+        let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
+        let product = compile(product(files.clone(), root, package, &[]).unwrap(), None);
+        let invocation = publish_build(files, entry, package);
+
+        for (source, result) in [(root, product.map(|_| ())), (build, invocation)] {
+            if satisfies_contract {
+                result.unwrap();
+                continue;
+            }
+            let errors = result.expect_err("returning 8 breaks the promise to return 7");
+            let diagnostic = errors
+                .iter()
+                .find(|row| row.message.contains("ensures"))
+                .unwrap_or_else(|| panic!("expected an unproved ensures clause: {errors:?}"));
+            assert_eq!(
+                diagnostic.stage,
+                Some(diagnostics::DiagnosticStage::Checking)
+            );
+            let start = text.rfind(returned).unwrap();
+            let span = Span::new(start, start + returned.len());
+            assert_eq!(diagnostic.source_span, Some(SourceSpan::new(source, span)));
+        }
+    }
+}
+
 #[test]
 fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();

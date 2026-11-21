@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: An extension cannot use the resolved artifact alone. Give the resolved declaration its reusable alias body, parameter bindings, lexical owner and diagnostic spans. Have a consumer extend a saved base using only the resolved base and new input, check the instantiated field type and reject an invalid application at its use. Then retire the old forest argument and its checkpoint storage.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
-### Build and Product each wire lowering to the same checker
-
-- Category: One idea, several implementations.
-- Where: [Build invocation](source-rust/subsystems/compiler/source-to-psi/driver/compile_build.rs#L199), [Product roster](source-rust/subsystems/compiler/source-to-psi/driver/compile_product/judge_product_roster.rs#L307), [invocation judgment](source-rust/subsystems/compiler/source-to-psi/driver/judge_lowered_source.rs#L129), [Product judgment](source-rust/subsystems/compiler/source-to-psi/driver/judge_lowered_source.rs#L152), [shared lowerer](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/source_roster.rs#L149).
-- Saw: The Product driver root reads clearly as resolve, judge, publish. Inside it, two functions independently call stage 05, attribute its diagnostics, call the same stage 06 checker, attribute its diagnostics and turn acceptance into different publication types. The Product wrapper calls the same lowerer and attaches the exact roster it used.
-- Cost: A change to stage order or diagnostic attribution has two call sites. Put the stage sequence in one function over prepared trees and a request that identifies invocation or Product roots. Return one source-bound judgment. Product needs its roster for provider retries, and Build needs invocation scope and accounting. Exercise both callers through the public entry, including the stage and span of a refusal, then remove the second sequence.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Build's package format imports its provider records from the Product driver
 
 - Category: Knowledge crossing a boundary.
