@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 29,340 lines / 1,154,194 bytes with SHA-256
-`d31388fbd7b0dc278a1b8703247e6ae67c3aaf1de24702034c13065af5093bad`.
+The manifest materializes 29,400 lines / 1,156,845 bytes with SHA-256
+`5bb75eaa69423decdaa48c27ddc23e7883767fff7c2941784c6711c0f98428cd`.
 The manifest itself is 2,905 bytes, SHA-256
-`e29bb05dc2513e8e5cf1fe7110dd9ea3ed0ca9a44ad4d88fda061ea73803f87c`;
+`97bb46bd3369dbef2b9f24ecb04f08e700b9e3339a05fcb3091651648bf36c38`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -467,7 +467,9 @@ a byte read. Two plain `u64` parameters may require `start <= index` or
 `start < index`. At each call or transfer the compiler substitutes both
 actual arguments. Literals, pure selected comparisons and preserved entry
 requirements can establish the relation on that exact pair. A true conjunction
-can supply either of its comparisons. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
+can supply either of its comparisons. With `index < bytes.len`, the plain
+`u64` successor `index + 1` cannot overflow and can reach the endpoint.
+Reading at that successor requires a further bound. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
 including an empty range. The descriptor carries the original address and
 the live length in two words. The caller retains the shared loan through
 argument evaluation. The storage test forwards the final two bytes of the
