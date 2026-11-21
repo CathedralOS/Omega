@@ -1235,6 +1235,73 @@ fn scalar_counterexamples_check_every_premise_and_semantic_axiom() {
 }
 
 #[test]
+fn a_taken_equality_can_supply_a_counterexample_between_both_extrema() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let input = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        }),
+        scalar,
+    );
+    let guard = ScalarTerm::value(
+        values.push(ValueRow {
+            scalar_type: ScalarType::Boolean,
+            origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+            rigid: None,
+        }),
+        ScalarType::Boolean,
+    );
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let axioms = [Proposition::Equal(
+        guard.clone(),
+        ScalarTerm::IntegerEqual {
+            scalar_type: integer,
+            left: Box::new(input.clone()),
+            right: Box::new(literal(40)),
+        },
+    )];
+    let exclusion = |n| {
+        Proposition::Disjunction(vec![
+            Proposition::LessThan(input.clone(), literal(n)),
+            Proposition::LessThan(literal(n), input.clone()),
+        ])
+    };
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    for (excluded, consistent) in [(39, true), (40, false)] {
+        let assumptions = [
+            exclusion(excluded),
+            Proposition::Equal(guard.clone(), ScalarTerm::Boolean(true)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        assert_eq!(
+            prover.has_scalar_counterexample(&Proposition::Falsehood),
+            consistent
+        );
+        let proof = prover.prove(&Proposition::Falsehood);
+        if consistent {
+            assert!(proof.is_err());
+            assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+        } else {
+            proof_admission::accept_certificate(
+                &context,
+                &Proposition::Falsehood,
+                &assumptions,
+                &axioms,
+                &proof.unwrap(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
 fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar = ScalarType::Integer(integer);
