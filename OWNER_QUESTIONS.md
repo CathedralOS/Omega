@@ -64,4 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="named-domain-casts-checked-replacement"></a>
+### 1. Acceptance of an explicit domain replacement in checked Psi
+
+For an already tagged distance, the language accepts `distance as -Km +Degrees` and preserves the numeric payload. Can a checked package express that single authored cast today using an erasure and an establishment that both refer to its source occurrence, or does acceptance require a further normative rule under `NAMED-DOMAIN-CASTS`? The open point concerns what a conforming consumer may accept. The choice of compiler data structures remains delegated.
+
+[Domain casts](wiki/spec/language/domains.md#domain-casts) requires simultaneous accounting, single-value preservation and a separate justification for every newly added membership. [Scalar qualifications](wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications) permits strict addition and erasure individually and explicitly leaves the combined cast's Terminal form open. The [qualification encoding](wiki/spec/terminal-psi/encoding.md) defines checks on each arrival. In V2, removing only `A` succeeds and adding `B` while keeping `A` succeeds. Replacing `A` with `B` stops at the cast. A ruling should preserve the authored occurrence and make every new predicate or issuer obligation available for independent checking. [V2 witness](omega-rust-v2/layers/05_prepared-trees-to-terminal-psi/tests/domains.rs)
