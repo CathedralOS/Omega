@@ -11,8 +11,7 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
             address_of(alias) == first
         }";
     let typed = super::boundary_calls::typed(program);
-    let prepared = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let verdict = super::entryless::judged_typed_result(&prepared, false).unwrap();
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("both references denote the same live field: {verdict:?}");
     };
@@ -26,8 +25,7 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     let typed = super::boundary_calls::typed(
         "machine main(value: u64) -> addr { address_of(value) }",
     );
-    let prepared = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let refusal = super::entryless::judged_typed_result(&prepared, false).unwrap_err();
+    let refusal = super::entryless::judged_typed_result(&typed, false).unwrap_err();
     assert!(format!("{refusal:?}").contains("address_of needs an ordinary reference"));
 }
 
