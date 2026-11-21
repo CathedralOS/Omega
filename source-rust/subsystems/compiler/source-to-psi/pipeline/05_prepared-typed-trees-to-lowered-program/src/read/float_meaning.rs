@@ -155,6 +155,7 @@ impl Program<'_> {
             return Ok(None);
         };
         let (definition, entry) = self.declaration(id, machine)?;
+        self.served(id, machine)?;
         if definition.supply_mode != source_declarations::MachineSupplyMode::CompilerProvided
             || definition.body_is_present
             || (target != machine && target != entry.symbol)

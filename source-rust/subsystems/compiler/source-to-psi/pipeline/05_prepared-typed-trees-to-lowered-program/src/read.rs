@@ -1166,6 +1166,17 @@ mod tests {
                 "declaration holding a call selected by its receiver's type, which no pass serves yet \
                  while reading the signature of `holder`"
             );
+            let in_clause = program
+                .unfold_definition(machine(), holder, holder, |_, _, _| Ok(()))
+                .err()
+                .expect("a clause still demands its callee");
+            assert_eq!(in_clause.reason, refusal.reason);
+            assert_eq!(in_clause.source_span, source_span);
+            assert!(
+                in_clause
+                    .detail
+                    .contains("declaration holding a call selected by its receiver's type")
+            );
             typed.deferred_refusals.clear();
         }
         // The same declaration without the row is read like its twin.

@@ -265,6 +265,7 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
+        self.served(id, machine)?;
         if target != machine && target != state.symbol {
             return unserved("call in a clause of a state other than the entry");
         }
