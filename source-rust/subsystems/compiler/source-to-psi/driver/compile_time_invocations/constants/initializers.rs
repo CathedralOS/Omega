@@ -218,15 +218,14 @@ pub fn evaluate_with_source_consent(
             let invocation = prepared.prepare_entry(symbol, entry, &[])?;
             let module = invocation.accepted().module();
             let applications = module.scalars.scalar_applications.declarations();
-            let deferred_geometry = targets.is_empty()
-                && (!module.layouts.target_layout_applications.is_empty()
-                    || applications.iter().any(|row| {
-                        matches!(
-                            row,
-                            terminal_psi::ScalarApplication::LayoutObservation { .. }
-                        )
-                    }));
-            if deferred_geometry
+            // A scalar produced with target inputs belongs to that deployment.
+            // Publish the initializer so each use closes it with its own facts.
+            let observes_target =
+                !module.layouts.target_layout_applications.is_empty() || !applications.is_empty();
+            let scalar_result = matches!(module.entry,
+                Some(terminal_psi::TargetMachineCallable::Machine(entry))
+                    if module.machine(entry).is_some_and(|machine| machine.result.scalar().is_some()));
+            if observes_target && (targets.is_empty() || scalar_result)
                 || applications.iter().any(|application| {
                     matches!(
                         application,

@@ -265,7 +265,11 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
         panic!("one authored layout for Packet");
     };
     assert!(pending.target_inputs.is_empty() && pending.realizations.is_empty());
-    let recipes = module.scalars.scalar_applications.declarations();
+    let applications = &module.scalars.scalar_applications;
+    assert!(module.operations().any(|operation| matches!(operation.kind,
+        terminal_psi::OperationKind::ReadScalarApplication { application }
+            if matches!(applications.declaration(application), Some(ScalarApplication::Evaluate { .. })))));
+    let recipes = applications.declarations();
     assert!(
         recipes
             .iter()
