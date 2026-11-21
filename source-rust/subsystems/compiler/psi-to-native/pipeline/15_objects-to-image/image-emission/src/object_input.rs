@@ -8,29 +8,21 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ObjectEmissionInput {
     publication: object_file::ObjectPublication,
-    pub statistics: crate::function_fragments::reporting::FunctionPublicationStatistics,
     pub termination: Result<(), String>,
 }
 
 impl ObjectEmissionInput {
-    pub fn from_publication(publication: object_file::ObjectPublication) -> Result<Self, Error> {
-        let body = publication.body();
-        let statistics =
-            crate::function_fragments::reporting::FunctionPublicationStatistics::from_current(
-                body.code(),
-            )
-            .map_err(Error::PhysicalEntry)?;
+    pub fn from_publication(publication: object_file::ObjectPublication) -> Self {
         let termination = publication
             .emission_facts()
             .physical
             .termination
             .clone()
             .map_err(|detail| Error::PhysicalSourceObservation(detail).to_string());
-        Ok(Self {
+        Self {
             publication,
-            statistics,
             termination,
-        })
+        }
     }
     pub fn readback(&self) -> &NativeBodyReadback {
         self.publication.body().code()

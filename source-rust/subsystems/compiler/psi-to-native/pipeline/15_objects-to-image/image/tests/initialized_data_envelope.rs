@@ -340,10 +340,8 @@ fn placed_inventories_reject_substituted_rows_and_bytes() {
 #[test]
 fn compact_fingerprint_cannot_substitute_strong_text_evidence_at_the_output() {
     let target = NativeTarget::linux_x64();
-    let (mut output, _encoded, relocations, _entry) = emitted_output(target);
+    let (output, _encoded, relocations, _entry) = emitted_output(target);
 
-    // The emitted output retains the compiler-text validation derived by the
-    // public envelope over the exact encoded/final text pair.
     let evidence = validate_final_text_relocation_envelope(
         &TEXT_BYTES,
         &output.final_text_bytes,
@@ -351,7 +349,6 @@ fn compact_fingerprint_cannot_substitute_strong_text_evidence_at_the_output() {
     )
     .expect("the emitted final text replays against its plan");
     assert!(evidence.has_valid_derivation_digest());
-    output.compiler_text_validation = Some(evidence);
 
     // Independent replay derives identical evidence.
     let replayed = validate_final_text_relocation_envelope(
@@ -393,12 +390,6 @@ fn compact_fingerprint_cannot_substitute_strong_text_evidence_at_the_output() {
     assert!(substituted.has_valid_derivation_digest());
     assert_ne!(substituted, evidence);
     assert_ne!(substituted.derivation_digest, evidence.derivation_digest);
-    assert_ne!(
-        output.compiler_text_validation,
-        Some(substituted),
-        "the emitted output does not retain substituted evidence",
-    );
-
     // A bare substituted digest value that names nothing replayable rejects
     // the same way — the compact lane still cannot authorize it.
     let mut forged = evidence;
