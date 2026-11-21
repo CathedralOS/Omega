@@ -382,6 +382,9 @@ impl Replay<'_> {
             self.unknown_contents_type(machine, &location)?;
             return self.read_with_depth(machine, state, &location, depth);
         }
+        if state.contents_path_invalidated(query) {
+            return None;
+        }
         self.validate_query(machine, state, query, depth)?;
         let mut carrier = query.clone();
         carrier.steps.pop()?;
@@ -527,29 +530,30 @@ impl Replay<'_> {
         if self.contents_address_hidden(machine, state, query) {
             return None;
         }
-        // The element of a shared, parameter-sized array is supplied by the
-        // caller. Keep its index and path so a caller can substitute its array.
+        // A shared array with an open extent supplies its elements at the call.
+        // An exact index into an exclusive input also identifies the caller's
+        // element. Preserve the selector in both cases.
         let prefix = query.observation();
-        if query.steps.len() > prefix.path.len()
-            && self.parameter(machine, query.root).is_some_and(|(_, access, _)| access == StructuralAccess::SharedBorrow)
-            && crate::descriptor_lifetimes::descriptor_location_type(self.types, *machine.place_types.get(&query.root)?, &prefix.path)
-                .and_then(|ty| find_structural_type(self.types, ty))
-                .is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. } if length.literal().is_none()))
-            && self.inline_steps(machine, query)?.iter().all(|inline| *inline)
-        {
-            return Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(query.clone())]));
-        }
-        if query.is_symbolic_location()
-            && self
-                .parameter(machine, query.root)
-                .is_some_and(|(_, access, _)| {
-                    matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
-                })
-            && self
-                .inline_steps(machine, query)?
-                .iter()
-                .all(|inline| *inline)
-        {
+        let supplied_by_caller = query.steps.len() > prefix.path.len()
+            && match self.parameter(machine, query.root) {
+                Some((_, StructuralAccess::SharedBorrow, root_type)) => {
+                    crate::descriptor_lifetimes::descriptor_location_type(
+                        self.types,
+                        root_type,
+                        &prefix.path,
+                    )
+                    .and_then(|ty| find_structural_type(self.types, ty))
+                    .is_some_and(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. }
+                            if length.literal().is_none())
+                    })
+                }
+                Some((_, terminal_psi::exclusive_borrow_pair_pattern!(), _)) => {
+                    query.is_symbolic_location()
+                }
+                _ => false,
+            };
+        if supplied_by_caller && self.inline_steps(machine, query)?.iter().all(|inline| *inline) {
             return Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
                 query.clone(),
             )]));
