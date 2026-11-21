@@ -1518,15 +1518,19 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
 fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
     let text = r#"
         boundary trait Output {}
-        machine measure<T>(value: @T) -> u64 { 41u64 }
-        machine layer<machine Pick,T>(value: @T) -> u64
-        requires machine Pick(value: @T) -> u64;
-        { Pick(value) }
-        machine invoke<machine Read,T>(value: @T) -> u64
-        requires machine Read(value: @T) -> u64 reaches none;
+        machine measure<Element>(items: @[Element]) -> u64 { 41u64 }
+        machine layer<machine Pick, Element>(items: @[Element]) -> u64
+        requires machine Pick(items: @[Element]) -> u64;
+        { Pick(items) }
+        machine invoke<machine Read, Payload>(value: @Payload) -> u64
+        requires machine Read(value: @Payload) -> u64 reaches none;
         { Read(value) }
-        machine entry<T>(value: @T) -> u64 {
-            invoke::<layer<measure<T>,T>>(value)
+        public machine entry<Element>(items: @[Element]) -> u64 {
+            invoke::<layer<measure<Element>,Element>>(items)
+        }
+        machine main() {
+            let bytes: [u8; 2] = [7u8, 31u8];
+            let measured: u64 = entry::<u8>(@bytes[..]);
         }
     "#;
     let form = callback_form(text).unwrap();
@@ -1552,8 +1556,8 @@ fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
     let effectful = text.replace(
-        "machine measure<T>(value: @T) -> u64",
-        "machine measure<T>(value: @T) -> u64 reaches Output",
+        "machine measure<Element>(items: @[Element]) -> u64",
+        "machine measure<Element>(items: @[Element]) -> u64 reaches Output",
     );
     // An applied template cannot prove a crash-free promise from its fixed
     // routes when the actual selected callback can trap.
