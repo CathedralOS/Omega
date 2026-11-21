@@ -191,7 +191,7 @@ pub(crate) fn public_declaration_value_encoding(
         .map(|value| value.encoding)
 }
 
-pub(crate) fn validate_scalar_initializer(
+fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
     selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
@@ -285,6 +285,9 @@ pub(crate) fn validate_const_definition(
             .with_source_span(definition.name.source_span()))
         };
     }
+    if let Some(selection) = selection {
+        super::literal_declarations::validate_module_literal(syntax, definition, selection)?;
+    }
     if let TypeReferenceNode::Constrained { constraints, .. } =
         syntax_type_references(syntax).type_reference(definition.type_reference)
         && syntax_type_references(syntax)
@@ -329,7 +332,7 @@ pub(crate) fn retain_const_initializer(
             lowerer.constant_selection.as_ref(),
         )
     {
-        if crate::resolution::declarations::module_normalization::module_literal_constant(
+        if super::literal_declarations::primitive_literal_declaration(
             syntax,
             definition,
             lowerer.constant_selection.as_ref(),

@@ -9,9 +9,8 @@ pub use crate::resolution::constants::requires_const_initializer_evaluation;
 use crate::resolution::declarations::generic_data::const_destination_requires_proof;
 use crate::resolution::declarations::generic_data::domain_heads::normalize;
 use crate::resolution::declarations::machine_equations::validate_declarations;
-use crate::resolution::declarations::module_normalization::validate_with_const_resolution_mode;
 pub use crate::resolution::declarations::trait_defaults::synthesize_trait_defaults;
-use crate::resolution::declarations::trait_defaults::synthesize_trait_defaults_after_module_validation;
+use crate::resolution::declarations::trait_defaults::synthesize_trait_defaults_with_selection;
 use crate::resolution::lowering::lowerer::{ConstResolutionMode, Lowerer};
 use crate::resolution::names::assign_lexical_inputs;
 use crate::resolution::tables::body_expressions;
@@ -203,12 +202,7 @@ pub fn prepare_const_qualification_selection<'authored>(
     if !demanded {
         return Ok(None);
     }
-    validate_with_const_resolution_mode(
-        &syntax,
-        &constant_selection,
-        ConstResolutionMode::InitializerSelection,
-    )?;
-    synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
+    synthesize_trait_defaults_with_selection(&mut syntax, &constant_selection)?;
     validate_declarations(&syntax, Some(&constant_selection))?;
     let mut lowerer = Lowerer::new(sources.clone(), top_level_bindings.clone());
     lowerer.constant_selection = Some(constant_selection);

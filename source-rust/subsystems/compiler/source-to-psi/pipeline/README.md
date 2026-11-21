@@ -357,8 +357,9 @@ uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. The rest of the
 [module/name contract](../../../../../wiki/spec/language/modules.md) rides the same
 law: indexed domain constraints, operator homes and qualified case membership
-in declared-domain proof facts all select through it (`module_machine_indices`
-probes and the `module_normalization` tests pin the boundaries).
+in declared-domain proof facts all select through it. Computed constants in
+root and nested modules retain their authored initializer for the same checked
+evaluation.
 
 Closed integer- and Boolean-indexed constraints on scalar constants replay nested declared
 domain memberships in each fact author's import context. Forwarded indices keep

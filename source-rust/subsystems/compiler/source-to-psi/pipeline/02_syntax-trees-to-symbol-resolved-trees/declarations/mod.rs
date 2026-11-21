@@ -4,12 +4,11 @@
     `declaration_selection` owns the partial namespace used to select constants,
     nominal carriers, domains and traits before complete symbol assignment.
     Preparation and resolution retain that shared selection while their own
-    consumers validate modules, synthesize defaults and close applications.
+    consumers synthesize defaults and close applications.
 
-    `module_normalization` validates the forest against the constant selector,
     `generic_data` closes eligible generic data applications, and
     `trait_defaults` materializes default trait machines as ordinary attached
-    machines. All three consume syntax and return syntax; their templates,
+    machines. Both consume syntax and return syntax; their templates,
     substitutions, and evaluation scratch are not program representations.
 */
 
@@ -24,7 +23,6 @@ pub(super) mod dispatches;
 pub(crate) mod generic_data;
 pub(crate) mod integer_widths;
 pub(crate) mod machine_equations;
-pub(crate) mod module_normalization;
 pub(crate) mod target_families;
 pub(crate) mod trait_defaults;
 pub(crate) mod type_equations;
@@ -32,10 +30,9 @@ pub(crate) mod type_equations;
 use crate::source_inputs::SourceMap;
 use declaration_selection::ConstantSelection;
 use diagnostics::Diagnostic;
-use module_normalization::validate_with_const_resolution_mode;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
-use trait_defaults::synthesize_trait_defaults_after_module_validation;
+use trait_defaults::synthesize_trait_defaults_with_selection;
 
 /// Expand source statements before any path can resolve machine bodies.
 pub(crate) fn prepare_statement_bodies(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
@@ -102,8 +99,7 @@ pub(crate) fn prepare(
         // available without resolving named widths outside their lexical scope.
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
-    validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
-    synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
+    synthesize_trait_defaults_with_selection(&mut syntax, &constant_selection)?;
     Ok(Prepared {
         syntax,
         constant_selection,
