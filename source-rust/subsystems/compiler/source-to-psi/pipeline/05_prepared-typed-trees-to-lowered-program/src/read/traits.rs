@@ -200,7 +200,13 @@ impl<'program> Program<'program> {
                 // A schema owns an open telescope. Closed calls independently
                 // project the same parent edges under their actual arguments.
                 let scope = AppliedTraitScope::abstract_scope(declaration);
-                self.require_boundary_parent_contract(context, &scope)?;
+                if declaration.type_parameters.is_empty()
+                    && declaration.lifetime_parameters.is_empty()
+                {
+                    self.require_boundary_parent_contract(context, &scope)?;
+                } else {
+                    Self::check_boundary_parents(typed, context, &scope)?;
+                }
             }
         } else {
             schema_shape(typed, context, declaration)?;
@@ -367,7 +373,22 @@ impl<'program> Program<'program> {
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
     ) -> Checked<()> {
-        let typed = self.typed;
+        if Self::check_boundary_parents(self.typed, context, scope)? {
+            let environment = scope.environment();
+            if !self.boundary_parent_contracts.contains(&environment) {
+                self.boundary_parent_contracts.push(environment);
+            }
+        }
+        Ok(())
+    }
+
+    /// A schema can check its inheritance with open parameters. Calling
+    /// policies are issued for the receiving application when it is supplied.
+    fn check_boundary_parents(
+        typed: &crate::source_state::TypedTrees,
+        context: MachineId,
+        scope: &AppliedTraitScope<'_>,
+    ) -> Checked<bool> {
         if !scope.declaration.is_boundary {
             return Err(services::unavailable(
                 context,
@@ -417,13 +438,7 @@ impl<'program> Program<'program> {
                 }
             }
         }
-        if needs_contract_owner {
-            let environment = scope.environment();
-            if !self.boundary_parent_contracts.contains(&environment) {
-                self.boundary_parent_contracts.push(environment);
-            }
-        }
-        Ok(())
+        Ok(needs_contract_owner)
     }
 
     pub(super) fn prepare_inherited_boundary_contracts(
