@@ -776,10 +776,8 @@ fn payload_contract_at_cut(
                         }
                     }
                     None => {
-                        let private = machine.private_observation_inputs.get(&current);
-                        clear_except(&mut after.values, |place| {
-                            private.is_some_and(|inputs| inputs.contains(place))
-                        });
+                        let private = machine.private_observation_inputs.at(current);
+                        clear_except(&mut after.values, |place| private.binary_search(place).is_ok());
                     }
 
                 }

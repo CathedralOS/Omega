@@ -2,16 +2,32 @@
 //! Other stores and other callers continue to use the ordinary conservative write frame.
 
 use super::{DescriptorPosition, PlaceId};
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralStorageUse, TerminalMachine, TerminalModule,
 };
 
+/// All approved observations share the machine's same unexposed input roots.
+/// Both collections contain sorted declared identities, independent of their numbering.
+#[derive(Default)]
+pub struct PrivateObservationInputs {
+    observations: Vec<DescriptorPosition>,
+    roots: Vec<PlaceId>,
+}
+
+impl PrivateObservationInputs {
+    pub(super) fn at(&self, position: DescriptorPosition) -> &[PlaceId] {
+        if self.observations.binary_search(&position).is_ok() {
+            &self.roots
+        } else {
+            &[]
+        }
+    }
+}
+
 pub(super) fn across_closed_observations(
     module: &TerminalModule,
     machine: &TerminalMachine,
-) -> BTreeMap<DescriptorPosition, Arc<BTreeSet<PlaceId>>> {
+) -> PrivateObservationInputs {
     let mut observations = Vec::new();
     for block in &machine.blocks {
         for (index, operation) in block.operations.iter().enumerate() {
@@ -55,16 +71,36 @@ pub(super) fn across_closed_observations(
         }
     }
     if observations.is_empty() {
-        return BTreeMap::new();
+        return PrivateObservationInputs::default();
     }
-    let mut private: BTreeSet<PlaceId> = machine.structural_parameters.iter()
-        .filter(|formal| formal.access == StructuralAccess::Owned && module.structural_type(formal.structural_type).is_some_and(|decl| {
-            // A handle or a view may denote mutable state outside this invocation.
-            // The selected record retains only its concrete scalar fields.
-            matches!(&decl.shape, terminal_psi::StructuralTypeShape::Record { fields, .. }
-                if fields.iter().all(|field| matches!(&field.field_type, terminal_psi::StructuralFieldType::Scalar(_))))
-        }))
-        .map(|formal| formal.place).collect();
+    let mut candidates: Vec<_> = machine
+        .structural_parameters
+        .iter()
+        .filter(|formal| formal.access == StructuralAccess::Owned)
+        .filter_map(|formal| {
+            // Handles and views may reach mutable state outside this invocation.
+            let ty = module.structural_type(formal.structural_type)?;
+            let terminal_psi::StructuralTypeShape::Record { fields, .. } = &ty.shape else {
+                return None;
+            };
+            fields
+                .iter()
+                .all(|field| {
+                    matches!(
+                        field.field_type,
+                        terminal_psi::StructuralFieldType::Scalar(_)
+                    )
+                })
+                .then_some((formal.place, true))
+        })
+        .collect();
+    candidates.sort_unstable();
+    candidates.dedup();
+    let mut expose = |place: PlaceId| {
+        if let Ok(index) = candidates.binary_search_by_key(&place, |(place, _)| *place) {
+            candidates[index].1 = false;
+        }
+    };
     for block in &machine.blocks {
         for operation in &block.operations {
             if let OperationKind::MoveStructuralValue { source } = &operation.kind
@@ -86,19 +122,24 @@ pub(super) fn across_closed_observations(
                         ..
                     } => projected.root,
                 };
-                private.remove(&root);
+                expose(root);
             }
         }
         for projection in block.terminator.storage_uses() {
-            private.remove(&projection.root);
+            expose(projection.root);
         }
     }
-    if private.is_empty() {
-        return BTreeMap::new();
-    }
-    let private = Arc::new(private);
-    observations
+    let roots: Vec<_> = candidates
         .into_iter()
-        .map(|cut| (cut, Arc::clone(&private)))
-        .collect()
+        .filter_map(|(place, private)| private.then_some(place))
+        .collect();
+    if roots.is_empty() {
+        return PrivateObservationInputs::default();
+    }
+    observations.sort_unstable();
+    observations.dedup();
+    PrivateObservationInputs {
+        observations,
+        roots,
+    }
 }
