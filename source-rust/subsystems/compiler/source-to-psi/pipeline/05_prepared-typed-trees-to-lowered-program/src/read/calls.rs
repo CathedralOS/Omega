@@ -3289,15 +3289,12 @@ impl<'t> Program<'t> {
                 let Some(position) = inputs.iter().position(|input| input.value == *value) else {
                     return false;
                 };
-                // const_scope is symbol-sorted; recover declaration order.
-                let Some(symbol) = program
-                    .symbols
-                    .get(callee)
-                    .and_then(|symbol| program.typed.machine_by_symbol(*symbol))
-                else {
+                // The const inputs are symbol-sorted. Recover operand order from
+                // the selected declaration, including a bodyless requirement.
+                let Some(&symbol) = program.symbols.get(callee) else {
                     return false;
                 };
-                let parameters = program.typed.machine_type_parameters(symbol);
+                let parameters = program.typed.declaration_type_parameters(symbol);
                 let Some(position) = parameters
                     .iter()
                     .filter(|parameter| {
