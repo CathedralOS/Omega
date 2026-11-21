@@ -426,7 +426,7 @@ pub(crate) mod structural_type_lookup {
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
-        pub(super) borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
+        pub(crate) borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
         catalog: &'a StructuralTypeCatalog,
         carriers: TargetCarrierLayout,
         verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
