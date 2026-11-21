@@ -18955,9 +18955,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "function:is_direct_compiler_primitive#1",
       "kind": "checker",
-      "meaning": "Identify a reached compiler primitive by its checked declaration and ABI.",
+      "meaning": "Recognize a checked hosted, numeric, or target-layout primitive during source closure and provider discovery.",
       "producer": "01 source compilation",
-      "signature": "ff16ab3f223330e8d2e3b3f157f87b5b464278f3a563dccf217d25e35399a287"
+      "signature": "f16211ce0d4acbfaa319a7db32e3a1897d6b56e0efec3113cf0685b05075364b"
     },
     {
       "consumers": [
