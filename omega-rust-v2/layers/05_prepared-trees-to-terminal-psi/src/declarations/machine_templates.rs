@@ -297,11 +297,14 @@ pub(crate) fn plan(
             // `supplied_calls` above. Any other evidence call, such as one to a
             // requirement inherited from a parent trait, has no packaged
             // declaration and refuses here.
-            let target = by_id
-                .get(&call.machine)
-                .ok_or_else(|| LoweringError::new(&call.site, "template call needs its packaged declaration"))?;
-            if (!call.type_arguments.is_empty() || !call.enclosing_arguments.is_empty()) && open.insert(&target.machine) {
-                work.push(&target.machine);
+            // A direct call of a toolchain declaration names its provider's
+            // declaration; this package neither copies nor opens a template for it.
+            if let Some(target) = by_id.get(&call.machine) {
+                if (!call.type_arguments.is_empty() || !call.enclosing_arguments.is_empty()) && open.insert(&target.machine) {
+                    work.push(&target.machine);
+                }
+            } else if call.evidence.is_some() || prepared.typed().imported_machine_definition(&call.machine).is_none() {
+                return Err(LoweringError::new(&call.site, "template call needs its packaged declaration"));
             }
             for arg in &call.type_arguments {
                 if let ValueType::MachineSelection(app) = arg {
@@ -353,6 +356,7 @@ fn lower(
             NodeKind::TypeParam if param.carrier.is_none() => MachineTemplateBinder::Type(TemplateBinder::Type {
                 multiplicity: param.multiplicity,
             }),
+            NodeKind::LifetimeParam if param.carrier.is_none() && param.multiplicity.is_none() => MachineTemplateBinder::Type(TemplateBinder::Lifetime),
             // A static value binder such as `const N: u8` keeps its declared
             // carrier; the caller's application supplies the value.
             NodeKind::ConstParam
@@ -433,8 +437,16 @@ fn lower(
     }
     // A template needs some binder a caller supplies: a callable bound, a
     // static value, an operation record, or (for a nested declaration) the
-    // enclosing machine's arguments.
+    // enclosing machine's arguments. A telescope of lifetimes alone reaches
+    // this planner only when a lifetime sits inside another type, such as
+    // `TypeSchema<'t>`. Such a lifetime has no region on a concrete body
+    // (`regions::single_body`), so the template is its only Psi form.
+    let lifetimes_only = !parameters.is_empty()
+        && parameters
+            .iter()
+            .all(|p| matches!(p, MachineTemplateBinder::Type(TemplateBinder::Lifetime)));
     if bounds.is_empty()
+        && !lifetimes_only
         && !parameters.iter().any(|p| matches!(p, MachineTemplateBinder::Const(_) | MachineTemplateBinder::Implementation(_)))
         && sig.machine.enclosing_machine.is_none()
     {
@@ -466,17 +478,23 @@ fn lower(
         parameters: &parameters,
         invokes: &invokes,
         body: Vec::new(),
+        locals: Vec::new(),
     };
     let mut result = None;
     for &statement in &file.nodes[body_node].children {
         if file.nodes[statement].kind == NodeKind::Machine {
             continue; // Lowered separately with its own identity and signature.
         }
+        if file.nodes[statement].kind == NodeKind::Let && result.is_none() && tree.semantics_at(statement).next().is_none() {
+            steps.bind(statement)?;
+            continue;
+        }
         let [outer] = *file.nodes[statement].children.as_slice() else {
             return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         };
         if file.nodes[statement].kind == NodeKind::Tail && result.is_none() && tree.semantics_at(statement).next().is_none()
             && file.nodes[outer].kind == NodeKind::PathExpression && file.nodes[outer].children.is_empty()
+            && steps.local(outer).is_none()
             && let Some(binding) = lexical::static_result(typed, tree, sig, outer)
         {
             result = Some(binding);
@@ -485,7 +503,7 @@ fn lower(
         if result.is_some() || tree.semantics_at(statement).next().is_some() {
             return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
-        let (operand, ty) = steps.expression(outer)?;
+        let (operand, ty) = steps.expression(outer, file.nodes[statement].kind == NodeKind::Tail)?;
         match file.nodes[statement].kind {
             NodeKind::Tail if ty == &sig.result && ty != &ValueType::NoResult => result = Some(crate::TemplateResult::Operand(operand)),
             // Only a call without a result stands alone, with or without its
@@ -535,6 +553,8 @@ struct Steps<'p, 't, 'a, 'y> {
     parameters: &'a [MachineTemplateBinder],
     invokes: &'a [usize],
     body: Vec<TemplateStep>,
+    /// The operand each `let` binding holds, by its binding pattern node.
+    locals: Vec<(usize, TemplateOperand)>,
 }
 
 impl<'a> Steps<'_, '_, 'a, '_> {
@@ -552,9 +572,119 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         TemplateOperand::Step(self.body.len() - 1)
     }
 
+    /// Whether `node`'s expression kind is one this builder lowers. A call
+    /// operand of any other kind keeps the call's refusal.
+    fn lowers(
+        &self,
+        node: usize,
+    ) -> bool {
+        let file = self.tree.resolved().file;
+        matches!(
+            file.nodes[node].kind,
+            NodeKind::Paren
+                | NodeKind::Call
+                | NodeKind::CallMarker
+                | NodeKind::Binary
+                | NodeKind::Unary
+                | NodeKind::RecordLiteral
+                | NodeKind::ArrayLiteral
+                | NodeKind::Match
+        ) || file.nodes[node].kind == NodeKind::PathExpression && file.nodes[node].children.is_empty()
+    }
+
+    /// L3 hands the returned value to the lifetime checker with `ReturnBorrow`
+    /// on that value's node. The template result keeps the value, so the row
+    /// needs no other record; anywhere else it refuses.
+    fn returned_row(
+        &self,
+        row: &NodeSemantics<'_>,
+        node: usize,
+        returned: bool,
+    ) -> bool {
+        returned
+            && matches!(row, NodeSemantics::Obligation(o) if o.node == self.tree.resolved().file.node_id(node)
+                && matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &self.sig.machine))
+    }
+
+    /// The node's one typed expression; besides it only the returned row may appear.
+    fn typed_value(
+        &self,
+        node: usize,
+        returned: bool,
+    ) -> Result<&'a omega_typed::TypedExpression, LoweringError> {
+        let mut found = None;
+        for row in self.tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Expression(e) if found.is_none() && e.static_argument_slot.is_none() => found = Some(e),
+                ref row if self.returned_row(row, node, returned) => {}
+                _ => return Err(self.refuse()),
+            }
+        }
+        found.ok_or_else(|| self.refuse())
+    }
+
+    /// The `let` binding pattern that `node` reads, and the operand it holds.
+    fn local(
+        &self,
+        node: usize,
+    ) -> Option<(usize, &TemplateOperand)> {
+        let Some(Symbol::Binding { binder_node, .. }) = self.tree.resolved().symbol(node) else {
+            return None;
+        };
+        self.locals
+            .iter()
+            .find(|(pattern, _)| pattern == binder_node)
+            .map(|(pattern, operand)| (*pattern, operand))
+    }
+
+    /// `let name[: T] = value;` binds the initializer's operand to an immutable name.
+    fn bind(
+        &mut self,
+        statement: usize,
+    ) -> Result<(), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let children = &file.nodes[statement].children;
+        let (&pattern, &value) = match children.as_slice() {
+            [pattern, value] | [pattern, _, value] => (pattern, value),
+            _ => return Err(self.refuse()),
+        };
+        let mut rows = tree.semantics_at(pattern);
+        let Some(NodeSemantics::Expression(bound)) = rows.next() else {
+            return Err(self.refuse());
+        };
+        if rows.next().is_some()
+            || bound.static_argument_slot.is_some()
+            || file.nodes[pattern].kind != NodeKind::BindingPattern
+            || !file.nodes[pattern].children.is_empty()
+            || self
+                .inputs
+                .prepared
+                .typed()
+                .mutable_bindings
+                .contains(&file.node_id(pattern))
+        {
+            return Err(self.refuse());
+        }
+        if let [_, annotation, _] = children.as_slice()
+            && (*annotation..file.nodes[*annotation].end).any(|part| tree.semantics_at(part).next().is_some())
+        {
+            return Err(self.refuse());
+        }
+        let (operand, ty) = self.expression(value, false)?;
+        if ty != &bound.ty {
+            return Err(self.refuse());
+        }
+        self.locals.push((pattern, operand));
+        Ok(())
+    }
+
+    /// The operand for the value of `node`, appending the steps that produce it.
+    /// `returned` admits L3's `ReturnBorrow` row on the value the machine returns.
     fn expression(
         &mut self,
         node: usize,
+        returned: bool,
     ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
         let (tree, sig) = (self.tree, self.sig);
         let file = tree.resolved().file;
@@ -563,7 +693,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 let [inner] = *file.nodes[node].children.as_slice() else {
                     return Err(self.refuse());
                 };
-                let (operand, ty) = self.expression(inner)?;
+                let (operand, ty) = self.expression(inner, returned)?;
                 // Parentheses add no typed record beyond the value itself.
                 if tree
                     .semantics_at(node)
@@ -573,8 +703,29 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 }
                 Ok((operand, ty))
             }
-            NodeKind::CallMarker | NodeKind::Call => self.call(node),
+            NodeKind::Call if tree.declaration_selection(node).is_some() => self.describe(node, returned),
+            NodeKind::CallMarker | NodeKind::Call => self.call(node, returned),
             NodeKind::Binary | NodeKind::Unary => self.integer(node),
+            NodeKind::RecordLiteral => self.construct(node, returned),
+            NodeKind::ArrayLiteral => self.array(node, returned),
+            NodeKind::Match => self.select(node, returned),
+            // A `let` local names the value its initializer produced.
+            NodeKind::PathExpression
+                if file.nodes[node].children.is_empty()
+                    && let Some((_, local)) = self.local(node) =>
+            {
+                let local = local_copy(local).ok_or_else(|| self.refuse())?;
+                Ok((local, &self.typed_value(node, returned)?.ty))
+            }
+            NodeKind::PathExpression
+                if file.nodes[node].children.is_empty()
+                    && let Some(Symbol::Builtin(name)) = tree.resolved().symbol(node)
+                    && matches!(name.as_str(), "true" | "false")
+                    && typed_subject(tree, node, &ValueType::Bool) =>
+            {
+                let literal = crate::ScalarLiteral::Boolean(name == "true");
+                Ok((TemplateOperand::Constant(literal), &self.typed_value(node, false)?.ty))
+            }
             // Reading a whole scalar formal copies it. A structural formal would
             // need a published move or disposal, which a template does not carry.
             NodeKind::PathExpression
@@ -593,6 +744,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
     fn call(
         &mut self,
         outer: usize,
+        returned: bool,
     ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
         let (tree, sig) = (self.tree, self.sig);
         let file = tree.resolved().file;
@@ -606,7 +758,8 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         if file.nodes[call].kind != NodeKind::Call {
             return Err(self.refuse());
         }
-        let (operation, ty) = lower_call(Some(self.inputs), tree, sig, call, self.bounds)?;
+        let bounds = self.bounds;
+        let (operation, ty) = lower_call(Some(&mut *self), tree, sig, call, bounds, returned)?;
         if outer != call && (operation.acknowledgements == Default::default() || (outer..call).any(|n| !typed_subject(tree, n, ty))) {
             return Err(self.refuse());
         }
@@ -656,7 +809,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         };
         let mut operands = Vec::with_capacity(op.operands.len());
         for (&child, carrier) in file.nodes[node].children.iter().zip(&op.operands) {
-            let (operand, ty) = self.expression(child)?;
+            let (operand, ty) = self.expression(child, false)?;
             if ty != carrier {
                 return Err(self.refuse());
             }
@@ -669,6 +822,236 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             site: op.site.clone(),
         };
         Ok((self.push(TemplateStep::Integer(step)), &op.result))
+    }
+
+    /// A record or case literal. Written fields lower in source order; each
+    /// omitted field named by a `ZeroField` row reads that field's zero. An
+    /// `EstablishData` row stays on the step as the data's owed `requires`.
+    fn construct(
+        &mut self,
+        node: usize,
+        returned: bool,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let site = site_at(tree, node);
+        let construction = tree.construction(node).ok_or_else(|| self.refuse())?;
+        let (mut typed_result, mut establishes) = (false, false);
+        let mut omitted = Vec::new();
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Expression(e) if !typed_result && e.ty == construction.carrier && e.static_argument_slot.is_none() => typed_result = true,
+                ref row if self.returned_row(row, node, returned) => {}
+                NodeSemantics::Obligation(o) if o.site == site && o.node == file.node_id(node) => match &o.kind {
+                    ObligationKind::ZeroField { field, ty } => omitted.push((field, ty)),
+                    ObligationKind::EstablishData(owner) if !establishes && owner == &construction.owner => establishes = true,
+                    _ => return Err(self.refuse()),
+                },
+                _ => return Err(self.refuse()),
+            }
+        }
+        let owner = construction.case.as_ref().unwrap_or(&construction.owner);
+        let roster = field_roster(self.inputs.prepared, owner).ok_or_else(|| self.refuse())?;
+        let [path, ..] = file.nodes[node].children.as_slice() else {
+            return Err(self.refuse());
+        };
+        if !typed_result
+            || file.nodes[*path].kind != NodeKind::PathExpression
+            || (*path..file.nodes[*path].end).any(|part| tree.semantics_at(part).next().is_some())
+        {
+            return Err(self.refuse());
+        }
+        let mut filled = vec![false; roster.len()];
+        let mut fields = Vec::with_capacity(roster.len());
+        for initializer in &construction.initializers {
+            let Some(slot) = filled.get_mut(initializer.position).filter(|slot| !**slot) else {
+                return Err(self.refuse());
+            };
+            *slot = true;
+            let (value, _) = self.expression(initializer.expression, false)?;
+            fields.push((crate::identity::declaration(&roster[initializer.position].declaration, &site)?, value));
+        }
+        for (field, ty) in omitted {
+            let Some(position) = roster.iter().position(|row| &row.declaration == field) else {
+                return Err(self.refuse());
+            };
+            if std::mem::replace(&mut filled[position], true) {
+                return Err(self.refuse());
+            }
+            fields.push((crate::identity::declaration(field, &site)?, zero(field, ty, &site)?));
+        }
+        if filled.contains(&false) {
+            return Err(self.refuse());
+        }
+        let step = crate::TemplateConstruct {
+            declaration: crate::identity::declaration(owner, &site)?,
+            ty: type_expression(&construction.carrier, &site)?,
+            fields,
+            establishes,
+            site,
+        };
+        Ok((self.push(TemplateStep::Construct(step)), &construction.carrier))
+    }
+
+    /// An array literal at its typed destination, an owned `[T]` or `[T; N]`.
+    /// Its elements lower in order and each must land at `T`.
+    fn array(
+        &mut self,
+        node: usize,
+        returned: bool,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let file = self.tree.resolved().file;
+        let site = site_at(self.tree, node);
+        let literal = self.typed_value(node, returned)?;
+        let children = &file.nodes[node].children;
+        let element = match &literal.ty {
+            ValueType::Slice(element) => element.as_ref(),
+            ValueType::Array(element, length) if u64::try_from(children.len()).is_ok_and(|n| n == *length) => element.as_ref(),
+            _ => return Err(self.refuse()),
+        };
+        let mut elements = Vec::with_capacity(children.len());
+        for &child in children {
+            let (value, ty) = self.expression(child, false)?;
+            if ty != element {
+                return Err(self.refuse());
+            }
+            elements.push(value);
+        }
+        let step = crate::TemplateArray {
+            element: type_expression(element, &site)?,
+            ty: type_expression(&literal.ty, &site)?,
+            elements,
+            site,
+        };
+        Ok((self.push(TemplateStep::Array(step)), &literal.ty))
+    }
+
+    /// `reflect\callable(pick)`: L3 selected the described machine and the
+    /// descriptor type. It is a value, not a call, and grants nothing; no node
+    /// below it carries a row of its own.
+    fn describe(
+        &mut self,
+        node: usize,
+        returned: bool,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let site = site_at(tree, node);
+        let Some(omega_typed::DeclarationSelection::Machine(application)) = tree.declaration_selection(node) else {
+            return Err(self.refuse());
+        };
+        let descriptor = self.typed_value(node, returned)?;
+        if (node + 1..file.nodes[node].end).any(|part| tree.semantics_at(part).next().is_some()) {
+            return Err(self.refuse());
+        }
+        let step = crate::TemplateDescriptor {
+            selection: lexical::selection(self.inputs.prepared.typed(), application, &site)?,
+            ty: type_expression(&descriptor.ty, &site)?,
+            site,
+        };
+        Ok((self.push(TemplateStep::Describe(step)), &descriptor.ty))
+    }
+
+    /// A `match` on a Boolean value, classified as a closed body classifies
+    /// it. Each arm's steps follow the select step, in arm order.
+    fn select(
+        &mut self,
+        node: usize,
+        returned: bool,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let site = site_at(tree, node);
+        let ty = &self.typed_value(node, returned)?.ty;
+        let (subject, arms) = crate::machines::branches::boolean_dispatch(&LoweringTree::plain(tree), node)?;
+        let (subject, subject_ty) = self.expression(subject, false)?;
+        if subject_ty != &ValueType::Bool {
+            return Err(self.refuse());
+        }
+        let index = self.body.len();
+        let placeholder = crate::TemplateSelect {
+            subject,
+            arms: Vec::new(),
+            ty: type_expression(ty, &site)?,
+            site,
+        };
+        self.body.push(TemplateStep::Select(placeholder));
+        let mut lowered = Vec::with_capacity(arms.len());
+        for arm in arms {
+            let start = self.body.len();
+            let (result, arm_ty) = self.expression(arm.expression, false)?;
+            let Some(arm_node) = file.nodes[arm.expression].parent else {
+                return Err(self.refuse());
+            };
+            if arm_ty != ty {
+                return Err(self.refuse());
+            }
+            lowered.push(crate::TemplateArm {
+                when: arm.sense,
+                steps: start..self.body.len(),
+                result,
+                site: site_at(tree, arm_node),
+            });
+        }
+        let TemplateStep::Select(select) = &mut self.body[index] else {
+            unreachable!("the select step stays at its index")
+        };
+        select.arms = lowered;
+        Ok((TemplateOperand::Step(index), ty))
+    }
+}
+
+/// A local use names the operand of its initializer. Reusing that operand in
+/// Psi preserves its identity for the checker's ownership judgment.
+fn local_copy(operand: &TemplateOperand) -> Option<TemplateOperand> {
+    Some(match operand {
+        TemplateOperand::Formal(i) => TemplateOperand::Formal(*i),
+        TemplateOperand::Step(i) => TemplateOperand::Step(*i),
+        TemplateOperand::Constant(value) => TemplateOperand::Constant(value.clone()),
+        _ => return None,
+    })
+}
+
+/// The typed field roster of a record or case, from this forest or the
+/// imported toolchain forest that declares it.
+fn field_roster<'t>(
+    prepared: &'t PreparedTrees<'_>,
+    owner: &omega_resolved::DeclarationId,
+) -> Option<&'t [omega_typed::TypedField]> {
+    let typed = prepared.typed();
+    typed
+        .record_fields
+        .get(owner)
+        .or_else(|| typed.library?.record_fields.get(owner))
+        .map(|fields| fields.as_slice())
+}
+
+/// `..` supplies the zero of each omitted field (data_and_literals.md, explicit
+/// field omission). The zero is fixed only for a Boolean, a fixed-width integer
+/// and an owned `[T]`, which is empty. A reference is never supplied.
+fn zero(
+    field: &omega_resolved::DeclarationId,
+    ty: &ValueType,
+    site: &Site,
+) -> Result<TemplateOperand, LoweringError> {
+    match ty {
+        ValueType::Bool | ValueType::Integer { width: Some(_), .. } | ValueType::Slice(_) => Ok(TemplateOperand::Zero(type_expression(ty, site)?)),
+        _ if ty
+            .reference_parts()
+            .is_some_and(|(_, referent)| !matches!(referent, ValueType::Slice(_))) =>
+        {
+            Err(LoweringError::new(
+                site,
+                format!(
+                    "omitted field `{}` of type `{ty}` needs a borrowed reference, which `..` never supplies",
+                    field.path
+                ),
+            ))
+        }
+        _ => Err(LoweringError::new(
+            site,
+            format!("cannot lower implicit zero of type `{ty}` for omitted field `{}`", field.path),
+        )),
     }
 }
 
@@ -689,7 +1072,7 @@ pub(crate) fn tail_binder_formals(
         return Err(bad());
     }
     // Without the prepared product only binder invocations on whole formals lower.
-    let (call, _) = lower_call(None, tree, sig, node, &[(binder, bound)])?;
+    let (call, _) = lower_call(None, tree, sig, node, &[(binder, bound)], true)?;
     if call.target != TemplateCallTarget::StaticBinder(binder) {
         return Err(bad());
     }
@@ -697,7 +1080,7 @@ pub(crate) fn tail_binder_formals(
         .into_iter()
         .map(|operand| match operand {
             crate::TemplateOperand::Formal(formal) => Ok(formal),
-            crate::TemplateOperand::RecordField { .. } | crate::TemplateOperand::Step(_) => Err(bad()),
+            _ => Err(bad()),
         })
         .collect()
 }
@@ -746,13 +1129,18 @@ fn evidence_member(
     .then_some(*index)
 }
 
+/// Without `steps`, only operands that need no prepared product lower: whole
+/// formals. With it, an operand may also be a borrow of a formal, a projected
+/// field, or any value the step builder lowers.
 fn lower_call<'a>(
-    inputs: Option<CallInputs<'_, '_>>,
+    mut steps: Option<&mut Steps<'_, '_, '_, '_>>,
     tree: &'a TypedTree<'_>,
     sig: &TypedSignature,
     node: usize,
     bounds: &[(usize, &CallableType)],
+    returned: bool,
 ) -> Result<(TemplateCall, &'a ValueType), LoweringError> {
+    let inputs = steps.as_deref().map(|builder| builder.inputs);
     let file = tree.resolved().file;
     let site = site_at(tree, node);
     let bad = || LoweringError::new(&site, "template call has unsupported operands, selection or obligations");
@@ -844,6 +1232,14 @@ fn lower_call<'a>(
                 ));
             }
             NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::RefineCallable { formal: Some(_), .. }) => {}
+            // L3 hands a returned call result to the lifetime checker with the
+            // selected signature. The returned call keeps that signature and its
+            // arguments, so the row needs no further record here.
+            NodeSemantics::Obligation(o)
+                if returned
+                    && o.node == file.node_id(node)
+                    && o.site == site
+                    && matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &sig.machine) => {}
             _ => return Err(bad()),
         }
     }
@@ -852,40 +1248,71 @@ fn lower_call<'a>(
     if expr != Some(ty) || actual.len() != file.nodes[args].children.len() {
         return Err(bad());
     }
-    let operands = file.nodes[args]
-        .children
-        .iter()
-        .zip(actual)
-        .map(|(&node, (id, subject))| {
-            if file.node_id(node) != id {
+    let mut operands = Vec::with_capacity(actual.len());
+    // Formals borrowed by earlier operands of this call.
+    let mut borrowed = Vec::new();
+    for (&node, (id, subject)) in file.nodes[args].children.iter().zip(actual) {
+        if file.node_id(node) != id {
+            return Err(bad());
+        }
+        let at = |declaration: &Site| matches!(subject, ValueType::Subject { declaration: d, version: None } if d == declaration);
+        let temporary = at(&site_at(tree, node));
+        if file.nodes[node].kind == NodeKind::FieldAccess {
+            if !temporary {
                 return Err(bad());
             }
-            if file.nodes[node].kind == NodeKind::FieldAccess {
-                if !matches!(subject, ValueType::Subject { declaration, version: None } if declaration == &site_at(tree, node)) {
-                    return Err(bad());
-                }
-                return projected_operand(inputs.ok_or_else(bad)?.prepared, tree, sig, node).ok_or_else(bad);
+            operands.push(projected_operand(inputs.ok_or_else(bad)?.prepared, tree, sig, node).ok_or_else(bad)?);
+            continue;
+        }
+        if file.nodes[node].kind == NodeKind::Borrow && temporary {
+            let operand = borrowed_formal(inputs.ok_or_else(bad)?.prepared, tree, sig, node).ok_or_else(bad)?;
+            if let TemplateOperand::Borrow { formal, .. } = &operand {
+                borrowed.push(*formal);
             }
-            let mut rows = tree.semantics_at(node);
-            let Some(NodeSemantics::Expression(e)) = rows.next() else {
-                return Err(bad());
-            };
-            if file.nodes[node].kind != NodeKind::PathExpression
-                || !file.nodes[node].children.is_empty()
-                || rows.next().is_some()
-                || e.static_argument_slot.is_some()
-            {
-                return Err(bad());
-            }
-            let formal = formal(tree, sig, node, &e.ty).ok_or_else(bad)?;
+            operands.push(operand);
+            continue;
+        }
+        let mut rows = tree.semantics_at(node);
+        if file.nodes[node].kind == NodeKind::PathExpression
+            && file.nodes[node].children.is_empty()
+            && let Some(NodeSemantics::Expression(e)) = rows.next()
+            && rows.next().is_none()
+            && e.static_argument_slot.is_none()
+            && let Some(formal) = formal(tree, sig, node, &e.ty)
+        {
             let mut declaration = sig.site.clone();
             declaration.span = sig.parameters[formal].0;
-            if !matches!(subject,ValueType::Subject{declaration:d,version:None} if *d==declaration) {
+            if !at(&declaration) {
                 return Err(bad());
             }
-            Ok(crate::TemplateOperand::Formal(formal))
-        })
-        .collect::<Result<_, _>>()?;
+            operands.push(TemplateOperand::Formal(formal));
+            continue;
+        }
+        let builder = steps
+            .as_deref_mut()
+            .filter(|builder| builder.lowers(node))
+            .ok_or_else(bad)?;
+        // A `let` local names the value its binding pattern declares.
+        let expected = match builder.local(node) {
+            Some((pattern, _)) => at(&site_at(tree, pattern)),
+            None => temporary,
+        };
+        if !expected {
+            return Err(bad());
+        }
+        let start = builder.body.len();
+        let (operand, _) = builder.expression(node, false)?;
+        // The loan of an earlier borrow operand is live while this operand
+        // evaluates. Psi forms that loan at the call, so a step here that reads
+        // the borrowed formal would hide the overlap.
+        if builder.body[start..]
+            .iter()
+            .any(|step| reads_formal(step, &borrowed))
+        {
+            return Err(bad());
+        }
+        operands.push(operand);
+    }
     Ok((
         TemplateCall {
             target,
@@ -898,6 +1325,79 @@ fn lower_call<'a>(
         },
         ty,
     ))
+}
+
+/// `@formal` for the duration of the call, with the typed borrow of exactly
+/// that formal. The template publishes no disposal, so a borrowed formal must
+/// be one that discarding drops: a scalar, a `copy` carrier, or a value
+/// `copied_whole` admits. A borrow of a field or of anything else refuses.
+fn borrowed_formal(
+    prepared: &PreparedTrees<'_>,
+    tree: &TypedTree<'_>,
+    sig: &TypedSignature,
+    node: usize,
+) -> Option<TemplateOperand> {
+    let file = tree.resolved().file;
+    let [place] = *file.nodes[node].children.as_slice() else { return None };
+    let (mut reference, mut borrowed) = (None, None);
+    for row in tree.semantics_at(node) {
+        match row {
+            NodeSemantics::Expression(e) if reference.is_none() && e.static_argument_slot.is_none() => reference = Some(&e.ty),
+            NodeSemantics::Obligation(o) if borrowed.is_none() && o.node == file.node_id(node) => match &o.kind {
+                ObligationKind::Borrow { access, place: at } if *at == site_at(tree, place) => borrowed = Some(access),
+                _ => return None,
+            },
+            _ => return None,
+        }
+    }
+    let ValueType::Reference(access, referent) = reference? else { return None };
+    let mut rows = tree.semantics_at(place);
+    let Some(NodeSemantics::Expression(read)) = rows.next() else { return None };
+    if borrowed? != access
+        || rows.next().is_some()
+        || read.static_argument_slot.is_some()
+        || &read.ty != referent.as_ref()
+        || file.nodes[place].kind != NodeKind::PathExpression
+        || !file.nodes[place].children.is_empty()
+    {
+        return None;
+    }
+    let formal = formal(tree, sig, place, &read.ty)?;
+    let typed = prepared.typed();
+    let declared = |id: &omega_resolved::DeclarationId| {
+        typed
+            .data_properties
+            .iter()
+            .find(|(data, _)| data == id)
+            .map(|(_, p)| p.multiplicity)
+    };
+    let copy = read.ty.multiplicity_with(&declared, &|_, _| None) == Some(omega_typed::Multiplicity::Copy);
+    if !copy && crate::lowering::types::scalar_carrier(&read.ty).is_err() && !copied_whole(typed, &read.ty, &mut Vec::new()) {
+        return None;
+    }
+    let access = match access {
+        omega_typed::Access::Shared => crate::TemplateAccess::Shared,
+        omega_typed::Access::Mut => crate::TemplateAccess::Mut,
+        omega_typed::Access::Write => crate::TemplateAccess::Write,
+    };
+    Some(TemplateOperand::Borrow { formal, access })
+}
+
+/// Whether a step reads one of these entry formals directly.
+fn reads_formal(
+    step: &TemplateStep,
+    formals: &[usize],
+) -> bool {
+    use TemplateOperand as O;
+    let direct = |operand: &O| matches!(operand, O::Formal(f) | O::RecordField { formal: f, .. } | O::Borrow { formal: f, .. } if formals.contains(f));
+    match step {
+        TemplateStep::Call(call) => call.operands.iter().any(direct),
+        TemplateStep::Integer(integer) => integer.operands.iter().any(direct),
+        TemplateStep::Construct(construct) => construct.fields.iter().any(|(_, value)| direct(value)),
+        TemplateStep::Array(array) => array.elements.iter().any(direct),
+        TemplateStep::Describe(_) => false,
+        TemplateStep::Select(select) => direct(&select.subject) || select.arms.iter().any(|arm| direct(&arm.result)),
+    }
 }
 
 /// A copy of a field below a formal record, such as `track.volume` or

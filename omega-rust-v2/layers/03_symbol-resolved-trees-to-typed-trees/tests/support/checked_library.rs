@@ -341,3 +341,324 @@ fn imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands() {
         }
     }
 }
+
+/// The bundled toolchain sources, in the order `omega_toolchain::core_interface` resolves them.
+const TOOLCHAIN_FILES: [(&str, &str); 7] = [
+    ("indexing/collections.omg", include_str!("../../../../toolchain/core/indexing.omg")),
+    ("language/core/core.omg", include_str!("../../../../toolchain/core/core.omg")),
+    ("language/core/reflect/reflect.omg", include_str!("../../../../toolchain/core/reflect.omg")),
+    ("language/core/access/access.omg", include_str!("../../../../toolchain/core/access.omg")),
+    ("language/core/Nat/nat.omg", include_str!("../../../../toolchain/core/nat.omg")),
+    ("language/core/never.omg", include_str!("../../../../toolchain/core/never.omg")),
+    ("language/core/process_exit.omg", include_str!("../../../../toolchain/core/process_exit.omg")),
+];
+const ACCESS_FILE: &str = "language/core/access/access.omg";
+const CORE_FILE: &str = "language/core/core.omg";
+
+/// The logical path and text of each toolchain file as `check_toolchain` typed it.
+type Texts = &'static [(&'static str, &'static str)];
+
+/// Type the bundled toolchain with `file` replaced by `edit(text)`, under the toolchain's
+/// own custody: its package and `Some(core)`, exactly as `checked_library` types it.
+fn check_toolchain(
+    file: &str,
+    edit: impl Fn(&str) -> String,
+) -> Result<(&'static CheckedLibrary, Texts), crate::TypeError> {
+    let parsed: &'static [(&'static str, &'static str, _, _)] = Vec::leak(
+        TOOLCHAIN_FILES
+            .iter()
+            .map(|&(path, text)| {
+                let text: &'static str = if path == file { String::leak(edit(text)) } else { text };
+                let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+                let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+                (path, text, tokens, tree)
+            })
+            .collect(),
+    );
+    let sources: Vec<_> = parsed
+        .iter()
+        .map(|(path, text, tokens, tree)| StageSource {
+            package: omega_toolchain::TOOLCHAIN_PACKAGE,
+            source: ParsedSource {
+                logical_path: path,
+                text,
+                tokens,
+                tree,
+            },
+        })
+        .collect();
+    let resolved: &'static SymbolResolvedTrees<'static> = Box::leak(Box::new(omega_resolver::resolve_stage(&sources, &[]).unwrap()));
+    let texts: Texts = Vec::leak(parsed.iter().map(|(path, text, _, _)| (*path, *text)).collect());
+    CheckedLibrary::check(resolved, Some(omega_toolchain::core_interface())).map(|library| (&*Box::leak(Box::new(library)), texts))
+}
+
+fn unchanged(text: &str) -> String {
+    text.to_owned()
+}
+
+/// Replace the body of `new_plan` by a final semicolon: the bodyless twin of the same signature.
+fn bodyless(text: &str) -> String {
+    let start = text.find("public machine new_plan").unwrap();
+    let signature_end = text[start..].find("\n{").unwrap() + start;
+    format!("{};\n", &text[..signature_end])
+}
+
+/// The authored text of each `ProveGuarantee` predicate that names `machine`, in row order.
+fn guarantee_rows<'a>(
+    (library, texts): (&'a CheckedLibrary, Texts),
+    machine: &omega_resolver::DeclarationId,
+) -> Vec<(&'a crate::TypingObligation, String)> {
+    library
+        .trees
+        .obligations
+        .iter()
+        .filter_map(|o| match &o.kind {
+            crate::ObligationKind::ProveGuarantee { machine: owner, predicate } if owner == machine => {
+                let text = texts
+                    .iter()
+                    .find(|(path, _)| *path == predicate.file)
+                    .unwrap()
+                    .1;
+                let spelled = predicate
+                    .span
+                    .slice(text.as_bytes())
+                    .expect("the predicate site is in its file");
+                Some((o, String::from_utf8(spelled.to_vec()).unwrap()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn implementation_rows(library: &CheckedLibrary) -> usize {
+    library
+        .trees
+        .obligations
+        .iter()
+        .filter(|o| matches!(o.kind, crate::ObligationKind::VerifyLibraryImplementation(_)))
+        .count()
+}
+
+/// The toolchain types `access\new_plan` as an ordinary checked body. Its four guarantees
+/// are open `ProveGuarantee` rows of that body in the library forest. No row claims a
+/// bodyless library implementation. Typing the same bytes again yields the same rows.
+#[test]
+fn the_toolchain_checks_new_plan_as_an_ordinary_body_and_keeps_its_guarantees_open() {
+    let core = omega_toolchain::core_interface();
+    let constructor = core.id("access\\new_plan");
+    let (replay, texts) = check_toolchain("", unchanged).unwrap();
+    let library = super::checked_library();
+    assert_eq!(replay.trees.obligations, library.trees.obligations, "same input, same obligations");
+    let exported: Vec<_> = replay
+        .trees
+        .resolved()
+        .compiled_interface()
+        .declarations
+        .into_iter()
+        .map(|e| e.id)
+        .collect();
+    let published: Vec<_> = core
+        .exports()
+        .declarations
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
+    assert_eq!(exported, published, "this file list is the toolchain's");
+
+    let (tree, node) = library
+        .trees
+        .trees()
+        .find_map(|tree| {
+            tree.resolved()
+                .declaration_nodes()
+                .find(|(_, id)| *id == constructor)
+                .map(|(node, _)| (tree, node))
+        })
+        .unwrap();
+    assert!(
+        tree.resolved()
+            .file
+            .child(node, omega_parser::NodeKind::Body)
+            .is_some()
+    );
+    assert!(!core.supplies(constructor));
+    let rows = guarantee_rows((library, texts), constructor);
+    assert_eq!(
+        rows.iter().map(|(_, text)| text.as_str()).collect::<Vec<_>>(),
+        [
+            "result.field_count == 0",
+            "result.reader_count == 0",
+            "result.writer_count == 0",
+            "result.reach.service_count == 0"
+        ]
+    );
+    for (row, _) in &rows {
+        assert!(
+            tree.semantics_at(row.node.node)
+                .any(|fact| matches!(fact, crate::NodeSemantics::Obligation(found) if found == *row))
+        );
+    }
+    assert_eq!(
+        implementation_rows(library),
+        0,
+        "no supplied bodyless machine outside the collection family publishes a guarantee"
+    );
+}
+
+/// The signature/bodyless twin. The same declaration without its body, in the toolchain's own
+/// package and file, is the V2 baseline's `new_plan`. Without a closed-catalog entry it has
+/// no supply, so L3 refuses it at the declaration.
+#[test]
+fn a_bodyless_toolchain_new_plan_has_no_authorized_supply() {
+    const BASELINE: &str = "use language\\core;
+use language\\core\\reflect;
+
+public machine new_plan<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> AccessPlan<'t>
+    reaches none crashes none terminates
+    ensures result.field_count == 0
+    ensures result.reader_count == 0
+    ensures result.writer_count == 0
+    ensures result.reach.service_count == 0;
+";
+    let access = TOOLCHAIN_FILES
+        .iter()
+        .find(|(path, _)| *path == ACCESS_FILE)
+        .unwrap()
+        .1;
+    assert_eq!(bodyless(access), BASELINE);
+    let Err(error) = check_toolchain(ACCESS_FILE, bodyless) else {
+        panic!("a bodyless new_plan must not type")
+    };
+    let at = BASELINE.find("public machine new_plan").unwrap();
+    assert_eq!(
+        (
+            error.package.as_str(),
+            error.file.as_str(),
+            error.span.get_start_offset()..error.span.get_end_offset(),
+            error.message.as_str()
+        ),
+        (
+            omega_toolchain::TOOLCHAIN_PACKAGE,
+            ACCESS_FILE,
+            at..BASELINE.len() - 1,
+            "bodyless machine has no authorized supply"
+        )
+    );
+}
+
+#[test]
+fn an_imported_call_cannot_be_rebound_to_another_definition_with_the_same_signature() {
+    let core = omega_toolchain::core_interface();
+    let id = core.id("access\\new_plan");
+    // Same guarantees, different implementation. The changed digit preserves every
+    // source coordinate and the two constructors have identical typed signatures.
+    let with_count = |text: &str, count: u8| {
+        let fields = "schema: $schema, issuance: issuance, ..";
+        assert!(text.contains(fields));
+        text.replace(fields, &format!("schema: $schema, issuance: issuance, field_count: {count}u64, .."))
+    };
+    let (original, _) = check_toolchain(ACCESS_FILE, |text| with_count(text, 0)).unwrap();
+    let (changed, _) = check_toolchain(ACCESS_FILE, |text| with_count(text, 1)).unwrap();
+    let caller = r"use omega\language\core; use omega\language\core\reflect; use omega\language\core\access;
+        machine make<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> AccessPlan<'t> {
+            new_plan::<'t>(schema, issuance)
+        }";
+    let resolved = resolve(
+        "client",
+        caller,
+        &[Dependency {
+            requester: "client",
+            alias: "omega",
+            package: omega_toolchain::TOOLCHAIN_PACKAGE,
+        }],
+        core.exports(),
+    );
+    let client = |library| type_admitted_stage(&resolved, Some(library), &Default::default()).unwrap();
+    let typed = client(original);
+    let [call] = typed.calls.as_slice() else { panic!("one constructor call") };
+    assert_eq!(&call.machine, id);
+    let (_, signature) = typed.imported_machine_definition(&call.machine).unwrap();
+    let changed_client = client(changed);
+    let (_, other) = changed_client.imported_machine_definition(id).unwrap();
+    assert_eq!(signature, other, "the body change is invisible in the signature");
+    assert!(
+        typed.imported_machine_definition(core.id("size_of")).is_none(),
+        "a catalog entry has no ordinary body"
+    );
+
+    let mut facts = typed.into_facts();
+    facts.library = Some(&changed.trees);
+    let rebound = crate::TypedTrees::new(resolved, facts);
+    assert!(
+        rebound
+            .imported_machine_definition(&rebound.calls[0].machine)
+            .is_none()
+    );
+}
+
+/// Guarantees are claims the body owes, not supply. An altered `ensures` on the checked body
+/// still types and becomes that body's open row; the same alteration without a body is refused.
+#[test]
+fn altered_guarantees_become_the_bodys_own_open_rows() {
+    let alter = |text: &str| text.replace("ensures result.field_count == 0", "ensures result.field_count == 1");
+    let (library, texts) = check_toolchain(ACCESS_FILE, alter).unwrap();
+    let constructor = omega_toolchain::core_interface().id("access\\new_plan");
+    let claims: Vec<_> = guarantee_rows((library, texts), constructor)
+        .into_iter()
+        .map(|(_, text)| text)
+        .collect();
+    assert_eq!(
+        claims,
+        [
+            "result.field_count == 1",
+            "result.reader_count == 0",
+            "result.writer_count == 0",
+            "result.reach.service_count == 0"
+        ]
+    );
+    assert_eq!(implementation_rows(library), 0);
+    let Err(error) = check_toolchain(ACCESS_FILE, |text| bodyless(&alter(text))) else {
+        panic!("an altered bodyless new_plan must not type")
+    };
+    assert_eq!(
+        (error.file.as_str(), error.message.as_str()),
+        (ACCESS_FILE, "bodyless machine has no authorized supply")
+    );
+}
+
+/// A closed-catalog identity is supplied by its catalog realization. Giving it a checked body
+/// as well would give one declaration two supplies, so L3 refuses it.
+#[test]
+fn a_closed_catalog_machine_cannot_also_declare_a_checked_body() {
+    let declaration = "public machine size_of<T>() -> u64\n    reaches none crashes none terminates;";
+    let core = TOOLCHAIN_FILES
+        .iter()
+        .find(|(path, _)| *path == CORE_FILE)
+        .unwrap()
+        .1;
+    assert!(core.contains(declaration));
+    let with_body = |text: &str| {
+        text.replace(
+            declaration,
+            "public machine size_of<T>() -> u64\n    reaches none crashes none terminates { 0 }",
+        )
+    };
+    let Err(error) = check_toolchain(CORE_FILE, with_body) else {
+        panic!("a catalog identity with a body must not type")
+    };
+    let edited = with_body(core);
+    let at = edited.find("public machine size_of").unwrap();
+    assert_eq!(
+        (error.file.as_str(), error.span.get_start_offset(), error.message.as_str()),
+        (CORE_FILE, at, "closed-catalog machine cannot also declare a checked body")
+    );
+    // This harness checks edited declarations against the shipped catalog. Changing
+    // the parameter list yields a different identity in that catalog.
+    let Err(error) = check_toolchain(CORE_FILE, |text| {
+        text.replace(declaration, &declaration.replace("size_of<T>()", "size_of<T>(x: u8)"))
+    }) else {
+        panic!("an altered primitive signature must not acquire supply")
+    };
+    assert_eq!(error.message, "bodyless machine has no authorized supply");
+    assert!(check_toolchain(CORE_FILE, unchanged).is_ok());
+}

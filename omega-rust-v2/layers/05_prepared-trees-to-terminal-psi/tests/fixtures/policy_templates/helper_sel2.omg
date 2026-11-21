@@ -1,0 +1,10 @@
+use omega\language\core;
+use omega\language\core\reflect;
+use omega\language\core\access;
+domain i32::Locked access Rule;
+machine choose<'t>(open: bool) -> Issuance<'t> reaches none crashes none terminates { match open { true -> Issuance::Unrestricted{}, false -> Issuance::Only{..}, } }
+Rule satisfies AccessPolicy {
+    machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+        new_plan::<'t>(@schema, choose::<'t>(false))
+    }
+}

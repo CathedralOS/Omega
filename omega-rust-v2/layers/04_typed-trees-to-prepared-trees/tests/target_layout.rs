@@ -528,13 +528,7 @@ machine probe<T>()->u64 { core\size_of::<T>() }";
             Some(_) => call.type_arguments[0] = open,
         }
 
-        // Library obligations retain node IDs in the library forest.
-        let first_local = facts
-            .obligations
-            .iter()
-            .position(|obligation| obligation.site.package == "app")
-            .unwrap_or(facts.obligations.len());
-        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         let result = prepare_typing_pass_with_cause(&progress, &[], Some(&capsule), CheckedPreparationEvidence::default());
         if let Some((reason, message)) = expected {
             let Err(error) = result else { panic!("expected preparation refusal") };

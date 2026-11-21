@@ -48,7 +48,6 @@ impl<'text> TypedTrees<'text> {
     pub fn new(
         resolved: SymbolResolvedTrees<'text>,
         mut facts: TypedStage,
-        first_local_obligation: usize,
     ) -> Self {
         let mut by_node = Vec::with_capacity(
             facts.expressions.len()
@@ -60,7 +59,7 @@ impl<'text> TypedTrees<'text> {
                 + facts.operations.len()
                 + facts.instructions.len()
                 + facts.ranking_witnesses.len()
-                + (facts.obligations.len() - first_local_obligation)
+                + facts.obligations.len()
                 + facts.conformance_rows.len()
                 + facts.collection_accesses.len(),
         );
@@ -81,15 +80,8 @@ impl<'text> TypedTrees<'text> {
         by_node.extend(indexed(facts.collection_accesses.iter().map(|access| access.node), Record::CollectionAccess));
         by_node.extend(indexed(facts.instructions.iter().map(|i| i.node), Record::Instruction));
         by_node.extend(indexed(facts.ranking_witnesses.iter().map(|w| w.node), Record::RankingWitness));
-        // Imported obligations are already indexed in the defining library's forest.
-        by_node.extend(
-            facts
-                .obligations
-                .iter()
-                .enumerate()
-                .skip(first_local_obligation)
-                .map(|(i, obligation)| (obligation.node, Record::Obligation(i))),
-        );
+        // Every obligation is this forest's own; an admitted library keeps its rows in its own forest.
+        by_node.extend(indexed(facts.obligations.iter().map(|o| o.node), Record::Obligation));
         by_node.sort_by_key(|(node, _)| *node);
         facts.callable_origins.sort_unstable();
         Self { resolved, facts, by_node }
@@ -103,6 +95,34 @@ impl<'text> TypedTrees<'text> {
         self.resolved
             .trees()
             .map(|resolved| TypedTree { resolved, forest: self })
+    }
+
+    /// Resolve an ordinary imported call to the body belonging to this typing round.
+    /// Import shares the defining signature with the caller. A second library can have
+    /// the same declaration, signature and source coordinates with a different body.
+    /// Its own clients can use it, but it cannot supply the body selected by this client.
+    pub fn imported_machine_definition(
+        &self,
+        machine: &omega_resolved::DeclarationId,
+    ) -> Option<(TypedTree<'_>, &crate::TypedSignature)> {
+        let library = self.library?;
+        let selected = self
+            .signatures
+            .iter()
+            .find(|signature| &signature.machine == machine)?;
+        let definition = library
+            .signatures
+            .iter()
+            .find(|definition| std::sync::Arc::ptr_eq(selected, definition))?;
+        let tree = library.trees().nth(definition.node.file)?;
+        let resolved = tree.resolved();
+        if resolved.declaration_at(definition.node.node) != Some(machine) {
+            return None;
+        }
+        resolved
+            .file
+            .child(definition.node.node, omega_syntax::NodeKind::Body)?;
+        Some((tree, definition))
     }
 
     /// Find the alias RHS checked for this contract in its defining forest.

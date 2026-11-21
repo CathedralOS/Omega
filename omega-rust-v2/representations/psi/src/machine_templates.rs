@@ -15,7 +15,7 @@ pub struct MachineTemplate {
     /// Selected callback invocations whose enclosing arguments are still open.
     pub invokes_machines: Vec<TemplateSelection>,
     /// Executable steps in evaluation order. A step reads formals or the
-    /// results of earlier steps.
+    /// results of earlier steps; a select step owns the arm steps after it.
     pub body: Vec<TemplateStep>,
     /// What the machine returns; absent for a void return.
     pub result: Option<TemplateResult>,
@@ -39,6 +39,9 @@ pub struct TemplateSelection {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum MachineTemplateBinder {
+    /// A binder with the meaning it has on a data template. A lifetime binder,
+    /// such as `'t` in `plan<'t>(schema: TypeSchema<'t>)`, is
+    /// `Type(TemplateBinder::Lifetime)`; the caller's application supplies it.
     Type(TemplateBinder),
     /// A static value binder of this carrier type, such as `const B: bool`.
     Const(TypeExpression),
@@ -68,22 +71,82 @@ pub struct TemplateRequirement {
     pub declared_pause: DeclaredPauseBounds,
 }
 
-/// One step of an open body. A call may pause or reach services; an integer
-/// step has no effect and owes the same proof questions as a closed body's
-/// `OperationKind::Integer`.
+/// One step of an open body. Only a call may pause or reach services. An
+/// integer step owes the same proof questions as a closed body's
+/// `OperationKind::Integer`; the other steps form values without effects.
 #[derive(Debug, Eq, PartialEq)]
 pub enum TemplateStep {
     Call(TemplateCall),
     Integer(TemplateInteger),
+    Construct(TemplateConstruct),
+    Array(TemplateArray),
+    Describe(TemplateDescriptor),
+    Select(TemplateSelect),
 }
 
 impl TemplateStep {
     pub fn call(&self) -> Option<&TemplateCall> {
         match self {
             Self::Call(call) => Some(call),
-            Self::Integer(_) => None,
+            _ => None,
         }
     }
+}
+
+/// A record or case value. `declaration` is the case, or the record when the
+/// data has no cases. Each field value names its declaration slot, written
+/// fields in source order and then omitted fields, which read
+/// [`TemplateOperand::Zero`]. When `establishes` is set, typing found that
+/// the construction owes the data's `requires` clauses (`EstablishData`); the
+/// checker proves them for the constructed value.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateConstruct {
+    pub declaration: DeclarationId,
+    pub ty: TypeExpression,
+    pub fields: Vec<(DeclarationId, TemplateOperand)>,
+    pub establishes: bool,
+    pub site: Site,
+}
+
+/// An array literal whose elements land at `element`, in order. `ty` is the
+/// destination, such as an owned `[T]` or `[T; N]`.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateArray {
+    pub element: TypeExpression,
+    pub ty: TypeExpression,
+    pub elements: Vec<TemplateOperand>,
+    pub site: Site,
+}
+
+/// A reflected declaration descriptor such as `reflect\callable(pick)`: the
+/// exact selected declaration with its arguments, and the descriptor type.
+/// It describes the declaration; it neither calls it nor grants authority.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateDescriptor {
+    pub selection: TemplateSelection,
+    pub ty: TypeExpression,
+    pub site: Site,
+}
+
+/// A Boolean dispatch. The step's value is the selected arm's result. Each arm
+/// owns the steps in its range, which follow this step in arm order and run
+/// only when the arm is selected; they read formals, earlier steps outside
+/// the select, or earlier steps of the same arm.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateSelect {
+    pub subject: TemplateOperand,
+    pub arms: Vec<TemplateArm>,
+    pub ty: TypeExpression,
+    pub site: Site,
+}
+
+/// `when` is the subject value this arm matches; `None` is a wildcard.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateArm {
+    pub when: Option<bool>,
+    pub steps: std::ops::Range<usize>,
+    pub result: TemplateOperand,
+    pub site: Site,
 }
 
 /// The primitive, policy and checker questions are those a closed body
@@ -129,6 +192,18 @@ pub enum TemplateOperand {
     /// The result of the step at this index of `MachineTemplate::body`, which
     /// precedes every step or result that reads it.
     Step(usize),
+    /// A borrow of the whole entry formal for the call that reads it, such as
+    /// `@schema`. The formal stays with the template, so its carrier is one
+    /// that needs no disposal.
+    Borrow {
+        formal: usize,
+        access: crate::TemplateAccess,
+    },
+    /// The zero value of this type, requested by `..` for an omitted field.
+    /// Only a Boolean, a fixed-width integer and an owned `[T]`, whose zero is
+    /// empty, have one here; `..` never supplies a reference or a callable.
+    Zero(TypeExpression),
+    Constant(crate::ScalarLiteral),
 }
 
 #[derive(Debug, Eq, PartialEq)]

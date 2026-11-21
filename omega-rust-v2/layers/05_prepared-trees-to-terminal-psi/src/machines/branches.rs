@@ -17,7 +17,7 @@ pub(super) mod value_patterns;
 pub(crate) struct BooleanArm {
     pattern: usize,
     pub(crate) expression: usize,
-    sense: Option<bool>,
+    pub(crate) sense: Option<bool>,
 }
 
 /// Reserves identities before emitting edges that name them. Only the active

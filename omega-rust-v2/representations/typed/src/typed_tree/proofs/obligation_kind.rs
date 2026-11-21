@@ -34,8 +34,9 @@ pub enum ObligationKind {
     TotalCrashGuard,
     AdmitMathematicalAssumption(DeclarationId),
     /// The toolchain's implementation of this bodyless library machine must establish its
-    /// published guarantees. L3 records it at the library declaration, and every importing
-    /// package receives the row unchanged.
+    /// published guarantees. L3 records it at the library declaration, in the library's own
+    /// forest; importing packages do not receive it. A machine with a checked body owes its
+    /// guarantees as `ProveGuarantee` rows of that body instead.
     VerifyLibraryImplementation(DeclarationId),
     ProveGuarantee {
         machine: DeclarationId,

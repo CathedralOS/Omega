@@ -547,25 +547,815 @@ fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
             let library = typed.library.unwrap();
             let signature = library.signatures.iter().find(|s| s.machine == call.machine).unwrap();
             let declaration = library.trees().nth(signature.node.file).unwrap();
-            assert!(declaration.resolved().file.child(signature.node.node, omega_parser::NodeKind::Body).is_none());
-            assert!(typed.obligations.iter().any(|o| {
-                o.site == signature.site && matches!(&o.kind, ObligationKind::VerifyLibraryImplementation(id) if id == &call.machine)
-            }));
+            // An ordinary checked core body, not a closed-catalog entry. Its guarantees are its
+            // own rows in the library forest; this package imports none of them.
+            let body = declaration
+                .resolved()
+                .file
+                .child(signature.node.node, omega_parser::NodeKind::Body);
+            let owed = library
+                .obligations
+                .iter()
+                .filter(|o| matches!(&o.kind, ObligationKind::ProveGuarantee { machine, .. } if machine == &call.machine))
+                .count();
+            spec_corpus::observe_handoff!(
+                "access-plan-constructor-supply/consumer",
+                assert!(body.is_some() && !core.supplies(&call.machine) && owed == 4),
+            );
+            assert!(typed.obligations.iter().all(|o| o.site.package == "app"));
         });
     }
 }
 
-/// With the selection removed, lowering still has to package the declared plan
-/// template. Its call does not name a local machine in this package.
+/// The exact identity the toolchain exports for `name` under `language\core\`,
+/// as Psi spells it. The test takes it from the provider, not from this source.
+fn provided(name: &str) -> omega_lowering::DeclarationId {
+    use omega_lowering::DeclarationKind;
+    use omega_parser::NodeKind;
+    omega_toolchain::core_interface()
+        .id(name)
+        .try_map_kind(&|kind| match kind {
+            NodeKind::Machine => Some(DeclarationKind::Machine),
+            NodeKind::Data => Some(DeclarationKind::Data),
+            NodeKind::Case => Some(DeclarationKind::Case),
+            NodeKind::CaseField => Some(DeclarationKind::CaseField),
+            _ => None,
+        })
+        .unwrap()
+}
+
+/// From Psi alone: the value `Rule::plan` passes to the toolchain's
+/// `new_plan`, after following every packaged helper. Its first operand must
+/// be the borrowed schema the caller supplies.
+fn policy_issuance(package: &LoweredPackage) -> psi_handoff_consumer::TemplateValue<'_> {
+    use psi_handoff_consumer::TemplateValue;
+    let plan = psi_handoff_consumer::member_template(package, "Rule", "language\\core\\AccessPolicy::plan").unwrap();
+    let value = psi_handoff_consumer::template_result(package, plan, &[TemplateValue::Argument(0)]).unwrap();
+    let TemplateValue::Provided {
+        package: "@omega/toolchain",
+        path: "language\\core\\access\\new_plan",
+        operands,
+    } = value
+    else {
+        panic!("Rule::plan does not return the toolchain constructor: {value:?}")
+    };
+    let [TemplateValue::Borrowed(schema), issuance] = <[_; 2]>::try_from(operands).unwrap() else {
+        panic!("expected a borrowed schema")
+    };
+    assert_eq!(*schema, TemplateValue::Argument(0));
+    issuance
+}
+
+/// What a consumer reads for `Issuance::Unrestricted{}`.
+fn unrestricted() -> psi_handoff_consumer::TemplateValue<'static> {
+    psi_handoff_consumer::TemplateValue::Construct {
+        declaration: "language\\core\\Issuance::Unrestricted",
+        fields: vec![],
+        establishes: false,
+    }
+}
+
+/// With the selection removed, the declared plan remains an open template.
+/// Its lifetime sits inside `TypeSchema<'t>`, so no concrete body can name it.
+/// Its body constructs the issuance, then calls the toolchain's own
+/// `new_plan` under the toolchain's package and path. This package carries no
+/// template, machine or data for that declaration or the core types it uses.
 #[test]
-fn an_unselected_policy_template_still_calls_the_library_constructor() {
+fn an_unselected_policy_template_calls_the_toolchain_constructor() {
+    use omega_lowering::{
+        MachineTemplateBinder, TemplateAccess, TemplateBinder, TemplateCallTarget, TemplateOperand, TemplateResult, TemplateStep, TypeExpression,
+        TypeExpressionStep,
+    };
     let source = ACCESS_PLAN.replace(" access Rule;", ";");
     let constructor = "new_plan::<'t>(@schema, Issuance::Unrestricted{})";
-    let (obligations, error) = refusal(
-        "unused.omg", &source, sources::unique_span(&source, constructor), "template call needs its packaged declaration",
+    let (obligations, package) = lower("unused.omg", &source);
+    assert!(
+        !obligations
+            .iter()
+            .any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
     );
-    assert!(!obligations.iter().any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. })));
-    assert_eq!(spelled(&error.site, "unused.omg", &source), constructor);
+    let package = package.unwrap_or_else(|error| panic!("the unselected policy lowers: {error:?}"));
+    let [template] = package.machine_templates.as_slice() else {
+        panic!("expected only the policy template, found {:?}", package.machine_templates)
+    };
+    assert_eq!(
+        (template.declaration.package.as_str(), template.declaration.path.as_str()),
+        ("app", "Rule::plan")
+    );
+    let [TemplateStep::Construct(issuance), TemplateStep::Call(call)] = template.body.as_slice() else {
+        panic!("expected the issuance construction, then the constructor call: {:?}", template.body)
+    };
+    assert_eq!(spelled(&call.site, "unused.omg", &source), constructor);
+    assert_eq!(spelled(&issuance.site, "unused.omg", &source), "Issuance::Unrestricted{}");
+    let lifetime = TypeExpressionStep::GenericParameter {
+        owner: template.declaration.clone(),
+        index: 0,
+    };
+    let applied = |name| {
+        TypeExpression(vec![
+            lifetime.clone(),
+            TypeExpressionStep::Named {
+                declaration: provided(name),
+                argument_count: 1,
+            },
+        ])
+    };
+    assert_eq!(
+        (&template.signature.parameters[..], &template.signature.result),
+        (&[applied("reflect\\TypeSchema")][..], &Some(applied("AccessPlan")))
+    );
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-toolchain-callee",
+        assert_eq!(
+            (&template.parameters[..], &call.target, &call.arguments[..], &call.result_type, &template.result),
+            (&[MachineTemplateBinder::Type(TemplateBinder::Lifetime)][..], &TemplateCallTarget::Declaration(provided("access\\new_plan")),
+                &[TypeExpression(vec![lifetime.clone()])][..], &Some(applied("AccessPlan")), &Some(TemplateResult::Operand(TemplateOperand::Step(1))))
+        ),
+    );
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-constructor-operands",
+        assert_eq!(
+            (&call.operands[..], (&issuance.declaration, &issuance.ty, &issuance.fields[..])),
+            (&[TemplateOperand::Borrow { formal: 0, access: TemplateAccess::Shared }, TemplateOperand::Step(0)][..],
+                (&provided("Issuance::Unrestricted"), &applied("Issuance"), &[][..]))
+        ),
+    );
+    // The provider owns new_plan, TypeSchema, AccessPlan and Issuance.
+    assert!(package.machines.is_empty() && package.data.is_empty() && package.data_templates.is_empty());
+    let [conformance] = package.conformances.as_slice() else {
+        panic!("expected the Rule conformance")
+    };
+    assert_eq!(
+        conformance
+            .members
+            .iter()
+            .map(|m| &m.implementation)
+            .collect::<Vec<_>>(),
+        [&template.declaration]
+    );
+
+    // Independent consumer: from Psi alone, the member's template returns a
+    // call that this package leaves to the toolchain. Two other spellings of
+    // the same import name the same canonical declaration and the same value.
+    let returned = psi_handoff_consumer::member_template_call(&package, "Rule", "language\\core\\AccessPolicy::plan").unwrap();
+    assert_eq!(
+        returned.callee,
+        psi_handoff_consumer::TemplateCallee::Provided {
+            package: "@omega/toolchain",
+            path: "language\\core\\access\\new_plan"
+        }
+    );
+    assert_eq!(policy_issuance(&package), unrestricted());
+    let qualified = source.replace(constructor, "access\\new_plan::<'t>(@schema, Issuance::Unrestricted{})");
+    let unimported = source
+        .replace("use omega\\language\\core\\access;", "")
+        .replace(constructor, "omega\\language\\core\\access\\new_plan::<'t>(@schema, Issuance::Unrestricted{})");
+    for twin in [qualified, unimported] {
+        let package = lower("unused.omg", &twin)
+            .1
+            .unwrap_or_else(|error| panic!("{error:?}\n{twin}"));
+        assert_eq!(
+            psi_handoff_consumer::member_template_call(&package, "Rule", "language\\core\\AccessPolicy::plan")
+                .unwrap()
+                .callee,
+            returned.callee
+        );
+        assert_eq!(policy_issuance(&package), unrestricted(), "{twin}");
+    }
+}
+
+/// The coordinating plan-evaluation twins, exact bytes. Each differs from the
+/// original only in how the plan forms its issuance.
+const TWINS: [(&str, &str); 4] = [
+    ("dotdot", include_str!("fixtures/policy_templates/dotdot.omg")),
+    ("helper", include_str!("fixtures/policy_templates/helper.omg")),
+    ("helper_sel2", include_str!("fixtures/policy_templates/helper_sel2.omg")),
+    ("local_annot", include_str!("fixtures/policy_templates/local_annot.omg")),
+];
+
+/// Without a domain selecting `Rule`, each twin still packages the plan, and
+/// any helper it calls, as open templates. Psi keeps the issuance the source
+/// forms: a zero-filled `routes` for `Only{..}`, a helper's construction, the
+/// `false` arm of a Boolean `match`, and a `let` local. No step runs and no
+/// policy name is recognized: the consumer evaluates the published steps, and
+/// changing only the helper's `false` to `true` selects the other arm.
+#[test]
+fn every_issuance_twin_packages_its_plan_and_helpers_without_a_selected_domain() {
+    use psi_handoff_consumer::TemplateValue;
+    let zero_routes = |package: &LoweredPackage| {
+        let plan = package
+            .machine_templates
+            .iter()
+            .find(|t| t.declaration.path == "Rule::plan")
+            .unwrap();
+        let owner = |path: &str| {
+            package
+                .machine_templates
+                .iter()
+                .find(|t| t.declaration.path == path)
+                .map_or(&plan.declaration, |t| &t.declaration)
+                .clone()
+        };
+        (owner("choose"), plan.declaration.clone())
+    };
+    let mut observed = Vec::new();
+    for (name, selected) in TWINS {
+        let source = selected.replace(" access Rule;", ";");
+        assert_ne!(source, selected, "{name} selects Rule");
+        let (obligations, package) = lower("unused.omg", &source);
+        assert!(
+            !obligations
+                .iter()
+                .any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
+        );
+        let package = package.unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        assert!(
+            package.machines.is_empty() && package.data.is_empty() && package.data_templates.is_empty(),
+            "{name}"
+        );
+        let mut templates: Vec<_> = package
+            .machine_templates
+            .iter()
+            .map(|t| t.declaration.path.as_str())
+            .collect();
+        templates.sort_unstable();
+        let templates = templates.join(" ");
+        let (zero_owner, _) = zero_routes(&package);
+        let expected_zero = omega_lowering::TypeExpression(vec![
+            omega_lowering::TypeExpressionStep::GenericParameter { owner: zero_owner, index: 0 },
+            omega_lowering::TypeExpressionStep::Named {
+                declaration: provided("reflect\\CallableInfo"),
+                argument_count: 1,
+            },
+            omega_lowering::TypeExpressionStep::Slice,
+        ]);
+        let issuance = policy_issuance(&package);
+        let zero_filled = TemplateValue::Construct {
+            declaration: "language\\core\\Issuance::Only",
+            fields: vec![("language\\core\\Issuance::Only::routes", TemplateValue::Zero(&expected_zero))],
+            establishes: false,
+        };
+        let expected = if matches!(name, "dotdot" | "helper_sel2") {
+            zero_filled
+        } else {
+            unrestricted()
+        };
+        assert_eq!(issuance, expected, "{name}");
+        observed.push((name, templates, issuance == unrestricted()));
+    }
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-issuance-twins",
+        assert_eq!(observed, [
+            ("dotdot", "Rule::plan".to_owned(), false),
+            ("helper", "Rule::plan open".to_owned(), true),
+            ("helper_sel2", "Rule::plan choose".to_owned(), false),
+            ("local_annot", "Rule::plan".to_owned(), true),
+        ]),
+    );
+    // The arm is the consumer's choice from the published constant, not lowering's.
+    let selected = TWINS[2].1.replace(" access Rule;", ";");
+    let other = selected.replace("choose::<'t>(false)", "choose::<'t>(true)");
+    let package = lower("unused.omg", &other).1.unwrap();
+    assert_eq!(policy_issuance(&package), unrestricted());
+    let choose = package
+        .machine_templates
+        .iter()
+        .find(|t| t.declaration.path == "choose")
+        .unwrap();
+    let [omega_lowering::TemplateStep::Select(select), ..] = choose.body.as_slice() else {
+        panic!("expected the Boolean dispatch first")
+    };
+    assert_eq!(
+        (
+            &select.subject,
+            select
+                .arms
+                .iter()
+                .map(|arm| (arm.when, arm.steps.clone()))
+                .collect::<Vec<_>>()
+        ),
+        (&omega_lowering::TemplateOperand::Formal(0), vec![(Some(true), 1..2), (Some(false), 2..3)])
+    );
+}
+
+/// Control: the same open template calling a local wrapper of the constructor.
+/// The planner packages the local callee as its own template and follows it;
+/// only that wrapper's call names the toolchain declaration.
+#[test]
+fn a_local_constructor_wrapper_is_packaged_and_the_toolchain_callee_is_not() {
+    use omega_lowering::TemplateOperand;
+    use psi_handoff_consumer::TemplateCallee;
+    let wrapper = "machine mint<'t>(schema:@TypeSchema<'t>, issuance:Issuance<'t>)->AccessPlan<'t> reaches none crashes none terminates { new_plan::<'t>(schema, issuance) }\n";
+    let source = format!(
+        "{}{wrapper}",
+        ACCESS_PLAN
+            .replace(" access Rule;", ";")
+            .replace("new_plan::<'t>(@schema", "mint::<'t>(@schema")
+    );
+    let package = lower("wrapped.omg", &source)
+        .1
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let plan = psi_handoff_consumer::member_template_call(&package, "Rule", "language\\core\\AccessPolicy::plan").unwrap();
+    let TemplateCallee::Packaged(mint) = plan.callee else {
+        panic!("expected the local wrapper, found {:?}", plan.callee)
+    };
+    assert_eq!((mint.declaration.package.as_str(), mint.declaration.path.as_str()), ("app", "mint"));
+    assert_eq!(
+        plan.call.operands,
+        [
+            TemplateOperand::Borrow {
+                formal: 0,
+                access: omega_lowering::TemplateAccess::Shared
+            },
+            TemplateOperand::Step(0)
+        ]
+    );
+    let forwarded = psi_handoff_consumer::returned_template_call(&package, mint).unwrap();
+    assert_eq!(
+        forwarded.callee,
+        TemplateCallee::Provided {
+            package: "@omega/toolchain",
+            path: "language\\core\\access\\new_plan"
+        }
+    );
+    assert_eq!(forwarded.call.operands, [TemplateOperand::Formal(0), TemplateOperand::Formal(1)]);
+    assert_eq!(package.machine_templates.len(), 2);
+    assert_eq!(policy_issuance(&package), unrestricted());
+}
+
+/// Control from ordinary package input: two modules each declare `open`. The
+/// plan names exactly the imported owner's declaration, both helpers are
+/// packaged under their own owners, and only the import line selects which
+/// issuance the consumer reads.
+#[test]
+fn same_named_helpers_in_two_modules_keep_their_owners() {
+    use omega_lowering::TemplateCallTarget;
+    let head = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n";
+    let high = format!("{head}public machine open<'t>() -> Issuance<'t> reaches none crashes none terminates {{ Issuance::Unrestricted{{}} }}\n");
+    let low = format!("{head}public machine open<'t>() -> Issuance<'t> reaches none crashes none terminates {{ Issuance::Only{{..}} }}\n");
+    let original = ACCESS_PLAN.replace(" access Rule;", ";");
+    let access = "use omega\\language\\core\\access;";
+    let mut seen = Vec::new();
+    for module in ["high", "low"] {
+        let main = original
+            .replace(access, &format!("{access}\nuse {module}\\open;"))
+            .replace("new_plan::<'t>(@schema, Issuance::Unrestricted{})", "new_plan::<'t>(@schema, open::<'t>())");
+        let package = sources::lower(&[
+            ("main.omg", &main),
+            ("high/open.omg", &high),
+            ("low/open.omg", &low),
+        ])
+        .unwrap_or_else(|error| panic!("{module}: {error:?}"));
+        let mut owners: Vec<_> = package
+            .machine_templates
+            .iter()
+            .map(|t| (t.declaration.package.as_str(), t.declaration.path.as_str()))
+            .collect();
+        owners.sort_unstable();
+        assert_eq!(
+            owners,
+            [
+                ("app", "Rule::plan"),
+                ("app", "high\\open"),
+                ("app", "low\\open")
+            ]
+        );
+        let plan = package
+            .machine_templates
+            .iter()
+            .find(|t| t.declaration.path == "Rule::plan")
+            .unwrap();
+        let called: Vec<_> = plan
+            .body
+            .iter()
+            .filter_map(|step| match &step.call()?.target {
+                TemplateCallTarget::Declaration(id) => Some(id.path.clone()),
+                _ => None,
+            })
+            .collect();
+        seen.push((called, policy_issuance(&package) == unrestricted()));
+    }
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-helper-owners",
+        assert_eq!(seen, [
+            (vec!["high\\open".to_owned(), "language\\core\\access\\new_plan".to_owned()], true),
+            (vec!["low\\open".to_owned(), "language\\core\\access\\new_plan".to_owned()], false),
+        ]),
+    );
+}
+
+/// Selecting `Rule` for a domain adds the access selection and its evaluation
+/// request at the clause. Nothing the template planner reads changes: the
+/// calls, signatures, binders and obligations of the plan and its helpers are
+/// the same for each twin. So the template cannot block the selected domain:
+/// lowering that domain is the plan evaluation's work, and the template is
+/// published from the same inputs.
+#[test]
+fn selecting_the_policy_changes_no_input_of_its_templates() {
+    fn inputs(source: &str) -> (Vec<String>, Vec<String>, usize) {
+        let package = sources::resolve(&[("unused.omg", source)]);
+        let prepared = prepare_source_package(&package).unwrap();
+        let typed = prepared.typed();
+        let app = |id: &omega_resolved::DeclarationId| id.package == "app";
+        let mut calls: Vec<_> = typed
+            .calls
+            .iter()
+            .filter(|c| c.caller.as_ref().is_some_and(app))
+            .map(|c| {
+                format!(
+                    "{} -> {} {:?} {:?} ops={} {:?}",
+                    c.caller.as_ref().unwrap().path,
+                    c.machine.path,
+                    c.type_arguments,
+                    c.result,
+                    c.operands.len(),
+                    c.use_site
+                )
+            })
+            .collect();
+        calls.sort_unstable();
+        let mut machines: Vec<_> = typed
+            .signatures
+            .iter()
+            .filter(|s| app(&s.machine))
+            .map(|s| {
+                format!(
+                    "{} {:?} {:?} {:?} {:?}",
+                    s.machine.path,
+                    s.parameters.iter().map(|p| &p.1).collect::<Vec<_>>(),
+                    s.result,
+                    typed.generic_parameters.get(&s.machine),
+                    typed.machine_effects.iter().find(|e| e.machine == s.machine)
+                )
+            })
+            .collect();
+        machines.sort_unstable();
+        let mut kinds: Vec<_> = typed
+            .obligations
+            .iter()
+            .filter(|o| !matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
+            .map(|o| format!("{:?}", std::mem::discriminant(&o.kind)))
+            .collect();
+        kinds.sort_unstable();
+        let selections = typed
+            .obligations
+            .iter()
+            .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
+            .count()
+            + typed.access_policies.len();
+        (calls, [machines, kinds].concat(), selections)
+    }
+    for (name, selected) in [
+        ("unrestricted", ACCESS_PLAN),
+        TWINS[0],
+        TWINS[1],
+        TWINS[2],
+        TWINS[3],
+    ] {
+        let unselected = selected.replace(" access Rule;", ";");
+        let (with_calls, with_rest, with_selection) = inputs(selected);
+        let (without_calls, without_rest, without_selection) = inputs(&unselected);
+        assert_eq!((with_selection, without_selection), (2, 0), "{name}");
+        assert_eq!(with_calls, without_calls, "{name}");
+        assert_eq!(with_rest, without_rest, "{name}");
+    }
+}
+
+/// `..` never supplies a borrowed reference. A template omitting a `@'t u8`
+/// field refuses with the closed body's own reason; the `u8` twin publishes
+/// the zero of that field.
+#[test]
+fn an_omitted_reference_field_has_no_zero_in_an_open_template() {
+    use omega_lowering::{TemplateOperand, TemplateStep};
+    let source = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\ndata Pinned<'t> { at: @'t u8; }\nmachine pin<'t>(s: TypeSchema<'t>) -> Pinned<'t> reaches none crashes none terminates { Pinned{..} }\n";
+    let message = "omitted field `Pinned::at` of type `@u8 at app\\pin<parameter 0>` needs a borrowed reference, which `..` never supplies";
+    let cli_message = "omitted field `Pinned::at` of type `@u8 at root\\pin<parameter 0>` needs a borrowed reference, which `..` never supplies";
+    sources::refuse_with_cli_message(&[("pinned.omg", source)], "pinned.omg", sources::unique_span(source, "Pinned{..}"), message, cli_message);
+    let plain = source.replace("at: @'t u8;", "at: u8;");
+    let package = lower("pinned.omg", &plain).1.unwrap();
+    let [pin] = package.machine_templates.as_slice() else {
+        panic!("expected the pin template")
+    };
+    let [TemplateStep::Construct(construct)] = pin.body.as_slice() else {
+        panic!("expected one construction")
+    };
+    let u8 = omega_lowering::TypeExpression(vec![omega_lowering::TypeExpressionStep::Scalar(
+        omega_lowering::ScalarType::Integer { signed: false, width: 8 },
+    )]);
+    assert_eq!(
+        construct
+            .fields
+            .iter()
+            .map(|(field, value)| (field.path.as_str(), value))
+            .collect::<Vec<_>>(),
+        [("Pinned::at", &TemplateOperand::Zero(u8))]
+    );
+}
+
+/// A borrow operand's loan is live while later operands evaluate, but Psi
+/// forms it at the call. A later operand whose steps read the borrowed formal
+/// would hide that overlap, so it refuses. Reading the formal in a `let`
+/// before the borrow keeps the source order, and it lowers.
+#[test]
+fn a_step_reading_a_borrowed_formal_after_its_borrow_refuses() {
+    use omega_lowering::{TemplateCallTarget, TemplateOperand, TemplateStep};
+    let helper = "machine keep<'t>(s: TypeSchema<'t>) -> Issuance<'t> reaches none crashes none terminates { Issuance::Unrestricted{} }\n";
+    let original = ACCESS_PLAN.replace(" access Rule;", ";");
+    let constructor = "new_plan::<'t>(@schema, Issuance::Unrestricted{})";
+    let after = format!("{helper}{}", original.replace(constructor, "new_plan::<'t>(@schema, keep::<'t>(schema))"));
+    let (_, error) = refusal(
+        "order.omg",
+        &after,
+        sources::unique_span(&after, "new_plan::<'t>(@schema, keep::<'t>(schema))"),
+        "template call has unsupported operands, selection or obligations",
+    );
+    known_gap::report(
+        "template step reading a formal under its own borrow",
+        "Typing admits passing the copy formal by value while it is borrowed, but a template forms the loan at the call, so the later operand's read has no ordered place",
+        &after,
+        &error,
+    );
+    let before = format!(
+        "{helper}{}",
+        original.replace(constructor, "let i: Issuance<'t> = keep::<'t>(schema); new_plan::<'t>(@schema, i)")
+    );
+    let package = lower("order.omg", &before).1.unwrap();
+    let plan = package
+        .machine_templates
+        .iter()
+        .find(|t| t.declaration.path == "Rule::plan")
+        .unwrap();
+    let [TemplateStep::Call(keep), TemplateStep::Call(new_plan)] = plan.body.as_slice() else {
+        panic!("expected keep, then new_plan: {:?}", plan.body)
+    };
+    assert!(matches!(&keep.target, TemplateCallTarget::Declaration(id) if id.path == "keep"));
+    assert_eq!(
+        (&keep.operands[..], &new_plan.operands[..]),
+        (
+            &[TemplateOperand::Formal(0)][..],
+            &[
+                TemplateOperand::Borrow {
+                    formal: 0,
+                    access: omega_lowering::TemplateAccess::Shared
+                },
+                TemplateOperand::Step(0)
+            ][..]
+        )
+    );
+    assert_eq!(policy_issuance(&package), unrestricted());
+}
+
+/// An array literal and a reflected descriptor in an open body, on input L3
+/// types without any slice destination: the plan passes `[reflect\callable(pick)]`
+/// at a fixed `[CallableInfo<'t>; 1]` formal of a local helper. The descriptor
+/// names the selected machine exactly, with its arguments, and is not a call.
+#[test]
+fn a_descriptor_array_names_its_element_type_and_selected_machine() {
+    use omega_lowering::{DeclarationKind, TemplateCallTarget, TemplateOperand, TemplateStep, TypeExpression, TypeExpressionStep};
+    let helpers = "machine pick() -> bool { true }\nmachine take<'t>(routes: [CallableInfo<'t>; 1]) -> Issuance<'t> reaches none crashes none terminates { Issuance::Unrestricted{} }\n";
+    let source = format!(
+        "{helpers}{}",
+        ACCESS_PLAN.replace(" access Rule;", ";").replace(
+            "new_plan::<'t>(@schema, Issuance::Unrestricted{})",
+            "new_plan::<'t>(@schema, take::<'t>([reflect\\callable(pick)]))"
+        )
+    );
+    let package = lower("routes.omg", &source)
+        .1
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let plan = package
+        .machine_templates
+        .iter()
+        .find(|t| t.declaration.path == "Rule::plan")
+        .unwrap();
+    let [
+        TemplateStep::Describe(describe),
+        TemplateStep::Array(array),
+        TemplateStep::Call(take),
+        TemplateStep::Call(new_plan),
+    ] = plan.body.as_slice()
+    else {
+        panic!("expected descriptor, array, helper call and constructor call: {:?}", plan.body)
+    };
+    let element = TypeExpression(vec![
+        TypeExpressionStep::GenericParameter {
+            owner: plan.declaration.clone(),
+            index: 0,
+        },
+        TypeExpressionStep::Named {
+            declaration: provided("reflect\\CallableInfo"),
+            argument_count: 1,
+        },
+    ]);
+    let mut fixed = element.0.clone();
+    fixed.push(TypeExpressionStep::Array(1));
+    assert_eq!(spelled(&describe.site, "routes.omg", &source), "reflect\\callable(pick)");
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-descriptor-array",
+        assert_eq!(
+            ((describe.selection.declaration.package.as_str(), describe.selection.declaration.path.as_str(), describe.selection.declaration.kind),
+                describe.selection.arguments.len() + describe.selection.enclosing_arguments.len(), &describe.ty, &array.element, &array.ty, &array.elements[..]),
+            (("app", "pick", DeclarationKind::Machine), 0, &element, &element, &TypeExpression(fixed), &[TemplateOperand::Step(0)][..])
+        ),
+    );
+    assert!(matches!(&take.target, TemplateCallTarget::Declaration(id) if id.path == "take") && take.operands == [TemplateOperand::Step(1)]);
+    assert_eq!(new_plan.operands[1], TemplateOperand::Step(2));
+    // `pick` is the package's own concrete machine; the descriptor names it, it does not call it.
+    assert_eq!(
+        package
+            .machines
+            .iter()
+            .map(|m| m.declaration.path.as_str())
+            .collect::<Vec<_>>(),
+        ["pick"]
+    );
+    assert_eq!(policy_issuance(&package), unrestricted());
+}
+
+/// The explicit route lists, exact plan-evaluation bytes, without a selecting
+/// domain. `[]` is an empty array step at the owned `[CallableInfo<'t>]`.
+/// `[reflect\callable(pick)]` holds one descriptor step naming the package's
+/// own `pick` with no arguments. A descriptor is a value: no step calls
+/// `pick`, no template invokes it, and it is never a callable or authority.
+#[test]
+fn explicit_route_lists_keep_an_empty_array_and_a_descriptor_value() {
+    use omega_lowering::{DeclarationKind, TemplateCallTarget, TemplateStep, TypeExpression, TypeExpressionStep};
+    use psi_handoff_consumer::TemplateValue;
+    let mut observed = Vec::new();
+    for (name, selected) in [
+        ("only_empty", include_str!("fixtures/policy_templates/only_empty.omg")),
+        ("nonempty", include_str!("fixtures/policy_templates/nonempty.omg")),
+    ] {
+        let source = selected.replace(" access Rule;", ";");
+        let (obligations, package) = lower("unused.omg", &source);
+        assert!(
+            !obligations
+                .iter()
+                .any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
+        );
+        let package = package.unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        assert!(package.data.is_empty() && package.data_templates.is_empty(), "{name}");
+        assert!(
+            package
+                .machines
+                .iter()
+                .all(|m| m.declaration.package == "app" && m.declaration.path == "pick"),
+            "{name}"
+        );
+        let plan = package
+            .machine_templates
+            .iter()
+            .find(|t| t.declaration.path == "Rule::plan")
+            .unwrap();
+        let element = TypeExpression(vec![
+            TypeExpressionStep::GenericParameter {
+                owner: plan.declaration.clone(),
+                index: 0,
+            },
+            TypeExpressionStep::Named {
+                declaration: provided("reflect\\CallableInfo"),
+                argument_count: 1,
+            },
+        ]);
+        let mut slice = element.0.clone();
+        slice.push(TypeExpressionStep::Slice);
+        let arrays: Vec<_> = plan
+            .body
+            .iter()
+            .filter_map(|step| match step {
+                TemplateStep::Array(array) => Some((&array.element, &array.ty, array.elements.len())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(arrays, [(&element, &TypeExpression(slice), usize::from(name == "nonempty"))], "{name}");
+        for template in &package.machine_templates {
+            assert!(template.invokes.is_empty() && template.invokes_machines.is_empty(), "{name}");
+            assert!(
+                template
+                    .body
+                    .iter()
+                    .filter_map(TemplateStep::call)
+                    .all(|call| !matches!(&call.target, TemplateCallTarget::Declaration(id) if id.path == "pick")),
+                "{name}: a descriptor is not a call"
+            );
+        }
+        let TemplateValue::Construct {
+            declaration: "language\\core\\Issuance::Only",
+            fields,
+            establishes: false,
+        } = policy_issuance(&package)
+        else {
+            panic!("{name}: not Only")
+        };
+        let [("language\\core\\Issuance::Only::routes", TemplateValue::Array(routes))] = fields.as_slice() else {
+            panic!("{name}: {fields:?}")
+        };
+        let described: Vec<_> = routes
+            .iter()
+            .map(|route| match route {
+                TemplateValue::Descriptor(selection) => (
+                    selection.declaration.package.clone(),
+                    selection.declaration.path.clone(),
+                    selection.declaration.kind,
+                    selection.arguments.len() + selection.enclosing_arguments.len(),
+                ),
+                other => panic!("{name}: a route is not a descriptor: {other:?}"),
+            })
+            .collect();
+        observed.push((name, described));
+    }
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-route-lists",
+        assert_eq!(observed, [("only_empty", vec![]), ("nonempty", vec![("app".to_owned(), "pick".to_owned(), DeclarationKind::Machine, 0)])]),
+    );
+}
+
+/// A construction that owes its data's `requires` keeps that obligation on
+/// the step: `Small{n: n}` for `data Small requires self.n < 10` sets
+/// `establishes`, and the twin without the clause does not. The checker, not
+/// lowering, proves the clause for the constructed value.
+#[test]
+fn a_construction_keeps_the_establishment_its_data_requires() {
+    use omega_lowering::{TemplateOperand, TemplateStep};
+    let maker = "machine mk<'t>(s: TypeSchema<'t>, n: u8) -> Small reaches none crashes none terminates { Small{n: n} }\n";
+    let head = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n";
+    let mut seen = Vec::new();
+    for data in [
+        "data Small requires self.n < 10 { n: u8; }\n",
+        "data Small { n: u8; }\n",
+    ] {
+        let source = format!("{head}{data}{maker}");
+        let (obligations, package) = lower("small.omg", &source);
+        let owed = obligations
+            .iter()
+            .filter(|o| matches!(o.kind, ObligationKind::EstablishData(_)))
+            .count();
+        let package = package.unwrap_or_else(|error| panic!("{error:?}"));
+        let [mk] = package.machine_templates.as_slice() else { panic!("expected mk") };
+        let [TemplateStep::Construct(small)] = mk.body.as_slice() else {
+            panic!("expected one construction: {:?}", mk.body)
+        };
+        assert_eq!(
+            small
+                .fields
+                .iter()
+                .map(|(f, v)| (f.path.as_str(), v))
+                .collect::<Vec<_>>(),
+            [("Small::n", &TemplateOperand::Formal(1))]
+        );
+        seen.push((
+            owed,
+            small.establishes,
+            package
+                .data
+                .iter()
+                .find(|d| d.declaration.path == "Small")
+                .map(|d| d.requires.len()),
+        ));
+    }
+    spec_corpus::observe_handoff!(psi "psi-output/policy-template-construct-establishment",
+        assert_eq!(seen, [(1, true, Some(1)), (0, false, Some(0))]),
+    );
+}
+
+/// A source-defined `local\new_plan` with the toolchain constructor's name
+/// and signature. Called module-qualified, the plan names the package's own
+/// declaration, which is packaged and itself calls the toolchain; the bare
+/// call in the same package still names the toolchain. No identity is taken
+/// from the spelling.
+#[test]
+fn a_same_named_local_constructor_keeps_its_own_owner() {
+    use psi_handoff_consumer::TemplateCallee;
+    let local = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\nuse omega\\language\\core\\access;\npublic machine new_plan<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> AccessPlan<'t> reaches none crashes none terminates { access\\new_plan::<'t>(schema, issuance) }\n";
+    let original = ACCESS_PLAN.replace(" access Rule;", ";");
+    let qualified = original.replace("new_plan::<'t>(@schema", "local\\new_plan::<'t>(@schema");
+    let mut seen = Vec::new();
+    for main in [&qualified, &original] {
+        let package = sources::lower(&[("main.omg", main), ("local/plan.omg", local)]).unwrap_or_else(|error| panic!("{error:?}"));
+        let plan = psi_handoff_consumer::member_template_call(&package, "Rule", "language\\core\\AccessPolicy::plan").unwrap();
+        let owner = match plan.callee {
+            TemplateCallee::Packaged(template) => {
+                let inner = psi_handoff_consumer::returned_template_call(&package, template).unwrap();
+                assert_eq!(
+                    inner.callee,
+                    TemplateCallee::Provided {
+                        package: "@omega/toolchain",
+                        path: "language\\core\\access\\new_plan"
+                    }
+                );
+                (template.declaration.package.clone(), template.declaration.path.clone())
+            }
+            TemplateCallee::Provided { package, path } => (package.to_owned(), path.to_owned()),
+        };
+        assert!(
+            package
+                .machine_templates
+                .iter()
+                .all(|t| t.declaration.package == "app")
+        );
+        seen.push(owner);
+    }
+    assert_eq!(
+        seen,
+        [
+            ("app".to_owned(), "local\\new_plan".to_owned()),
+            ("@omega/toolchain".to_owned(), "language\\core\\access\\new_plan".to_owned())
+        ]
+    );
 }
 
 /// Positive Psi controls only for the policy-free carrier. `Unrestricted`

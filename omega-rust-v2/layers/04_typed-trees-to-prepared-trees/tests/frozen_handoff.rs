@@ -376,8 +376,7 @@ fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
                     }
                 }
             }
-            let first_local = facts.obligations.iter().position(|o| o.site.package == "app").unwrap_or(facts.obligations.len());
-            let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+            let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
             let pass = prepare_typing_pass_with_cause(&progress, &[], None, CheckedPreparationEvidence::default());
             if narrow {
                 let Err(error) = pass else { panic!("expected refusal at BUF.len") };

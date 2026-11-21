@@ -54,15 +54,14 @@ impl CoreInterface {
     pub fn exports(&self) -> &CompiledInterface {
         &self.exports
     }
-    /// Implementation identities admitted by this declaration-only library.
+    /// The closed catalog: bodyless core machines whose execution the compiler
+    /// supplies under a fixed meaning (language/machines.md#supply). Every other
+    /// core machine, including the `access` plan constructors, has a checked body.
     pub fn supplies(
         &self,
         machine: &DeclarationId,
     ) -> bool {
-        machine == self.id("access\\new_plan")
-            || self.ranking_views().iter().any(|(view, _)| machine == *view)
-            || self.collection_primitive(machine).is_some()
-            || self.layout_query(machine).is_some()
+        self.ranking_views().iter().any(|(view, _)| machine == *view) || self.collection_primitive(machine).is_some() || self.layout_query(machine).is_some()
     }
     pub fn layout_query(
         &self,

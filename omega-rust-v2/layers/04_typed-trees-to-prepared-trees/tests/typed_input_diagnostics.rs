@@ -53,7 +53,7 @@ impl Program {
         let resolved = trees.resolved().clone();
         assert!(trees.library.is_none(), "these packages are typed together");
         let facts = change(trees);
-        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         let error = prepare(&changed).unwrap_err();
         // The expected occurrence is the first spelling in the test's client file.
         let start = self.client.find(self.occurrence).unwrap();
@@ -618,7 +618,7 @@ fn an_authored_postcondition_needs_both_the_signature_flag_and_its_proposition()
     let signature = &mut facts.signatures[0];
     assert!(signature.has_guarantee);
     std::sync::Arc::make_mut(signature).has_guarantee = false;
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved.clone(), facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved.clone(), facts));
     let refusal = prepare(&changed).unwrap_err();
     spec_corpus::assert_preparation_cause!(
         refusal, RefusalCause::Preparation(PreparationReason::PostconditionDeclarationMismatch), "client", "client.omg", call,
@@ -631,7 +631,7 @@ fn an_authored_postcondition_needs_both_the_signature_flag_and_its_proposition()
     let before = facts.obligations.len();
     facts.obligations.retain(|o| !matches!(o.kind, omega_typed::ObligationKind::ProveGuarantee { .. }));
     assert_eq!(facts.obligations.len() + 1, before);
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = prepare(&changed).unwrap_err();
     spec_corpus::assert_preparation_cause!(
         refusal, RefusalCause::Preparation(PreparationReason::PostconditionWithoutProposition), "client", "client.omg", call,

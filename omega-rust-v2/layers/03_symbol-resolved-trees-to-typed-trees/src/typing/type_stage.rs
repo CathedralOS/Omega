@@ -31,7 +31,6 @@ pub(crate) fn type_stage_inner<'text>(
 ) -> Result<(TypedTrees<'text>, Vec<StaticValueDemand>), TypeError> {
     let mut output = TypedStage::default();
     let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
-    let first_local_obligation = output.obligations.len();
     catalog.assembly = environment.target;
     if library.is_none() {
         catalog.ranking_views = environment.ranking_views.into();
@@ -50,7 +49,7 @@ pub(crate) fn type_stage_inner<'text>(
         output.library = Some(crate::standard_library());
     }
     catalog.publish_declarations(&mut output);
-    Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
+    Ok((crate::TypedTrees::new(resolved.clone(), output), demands))
 }
 
 pub(crate) fn check_stage<'a>(

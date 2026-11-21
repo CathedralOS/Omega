@@ -76,6 +76,34 @@ fn the_profile_identifies_the_default_ranking_view_and_the_access_requirement() 
     assert_eq!(core.access_plan_requirement(), core.id("AccessPolicy::plan"));
 }
 
+/// The closed catalog holds exactly the bodyless core machines outside a trait.
+/// A core machine with a checked body, such as `access\new_plan`, is not in it
+/// (language/machines.md#supply; packages/toolchain.md).
+#[test]
+fn the_closed_catalog_is_exactly_the_bodyless_core_machines() {
+    use omega_parser::NodeKind::{Body, Machine, Trait};
+    let core = core_interface();
+    let mut seen = Vec::new();
+    for tree in core.declarations.trees() {
+        let file = tree.file;
+        for (node, id) in tree.declaration_nodes() {
+            if file.nodes[node].kind != Machine
+                || file.nodes[node]
+                    .parent
+                    .is_some_and(|p| file.nodes[p].kind == Trait)
+            {
+                continue;
+            }
+            let bodyless = file.child(node, Body).is_none();
+            assert_eq!(core.supplies(id), bodyless, "{}", id.path);
+            seen.push((id.path.as_str(), bodyless));
+        }
+    }
+    assert!(seen.contains(&("language\\core\\access\\new_plan", false)));
+    assert!(seen.contains(&("language\\core\\size_of", true)));
+    assert_eq!(seen.iter().filter(|(_, bodyless)| *bodyless).count(), 9, "{seen:?}");
+}
+
 #[test]
 fn the_profile_owns_the_canonical_process_exit_requirement() {
     let core = core_interface();

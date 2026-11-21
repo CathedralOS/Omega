@@ -120,3 +120,4 @@ anonymous rational comparison in a contract predicate	product	psi-output/exact-p
 parked home descriptor without one reaching store	checker-input	psi-output/parked-descriptor-join-arrivals|psi-output/parked-descriptor-dominating-store|psi-output/parked-descriptor-store-after-writable-call
 parked descriptor after an unreplaced writable loan	checker-input	psi-output/parked-descriptor-unreplaced-writable-loan-originals
 parked descriptor behind a writable loan that can outlive its operation	checker-input	psi-output/parked-descriptor-outliving-writable-loan-originals
+unselected access policy template constructor	product	psi-output/policy-template-toolchain-callee|psi-output/policy-template-constructor-operands

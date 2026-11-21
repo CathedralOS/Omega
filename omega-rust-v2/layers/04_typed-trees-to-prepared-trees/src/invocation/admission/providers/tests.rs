@@ -454,11 +454,10 @@ fn missing_implementation_signature_prevents_certification_and_replay() {
     let TypingProgress::Complete(other) = other else { panic!("expected complete forest") };
     let resolved = other.resolved().clone();
     let mut facts = other.into_facts();
-    let first_local = facts.obligations.iter().take_while(|o| o.site.package != "app").count();
     let before = facts.signatures.len();
     facts.signatures.retain(|signature| signature.machine != proof.binding.implementation);
     assert_eq!(before - facts.signatures.len(), 1);
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     assert!(check_literal_provider(frozen_trees(&changed), &same_slot, &target).is_none());
     // Neither the unchanged target plan nor the original check authorizes
     // looking up the implementation in a different pass.

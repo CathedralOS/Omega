@@ -68,7 +68,7 @@ fn an_unbounded_integer_has_no_selected_bitwise_execution_rule() {
     *contract = "&".into();
     operation.token = "&".into();
 
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = evaluate(&changed).unwrap_err();
     let call = "geo\\combine(40,1)";
     let start = client.find(call).unwrap();

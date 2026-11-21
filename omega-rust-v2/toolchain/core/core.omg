@@ -60,6 +60,19 @@ public data AccessCallerRule<'t> {
     callers: [CallableInfo<'t>];
 }
 
+// Bootstrap storage for a plan's fixed capacity. A slot's zero is its
+// payload-free first case, so a new plan fills unused capacity without a
+// borrowed description: `..` never supplies a reference.
+public data AccessFieldSlot<'t> {
+    case Empty;
+    case Entry(entry: AccessFieldEntry<'t>);
+}
+
+public data AccessRuleSlot<'t> {
+    case Empty;
+    case Rule(rule: AccessCallerRule<'t>);
+}
+
 public data AccessPlan<'t>
     requires self.field_count <= 32
     requires self.reader_count <= 32
@@ -67,11 +80,11 @@ public data AccessPlan<'t>
 {
     schema: TypeSchema<'t>;
     issuance: Issuance<'t>;
-    fields: [AccessFieldEntry<'t>; 32];
+    fields: [AccessFieldSlot<'t>; 32];
     field_count: u64;
-    readers: [AccessCallerRule<'t>; 32];
+    readers: [AccessRuleSlot<'t>; 32];
     reader_count: u64;
-    writers: [AccessCallerRule<'t>; 32];
+    writers: [AccessRuleSlot<'t>; 32];
     writer_count: u64;
     reach: BoundaryReach;
 }

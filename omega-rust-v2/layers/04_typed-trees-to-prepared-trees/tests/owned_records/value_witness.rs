@@ -31,10 +31,8 @@ fn witness(
     let TypingProgress::Complete(trees) = progress else { unreachable!() };
     let resolved = trees.resolved().clone();
     let mut facts = trees.into_facts();
-    // This single local package follows the defining library's imported obligations.
-    let first_local = facts.obligations.iter().take_while(|o| o.site.package != "app").count();
     change(&mut facts);
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let start = source.rfind(context).unwrap() + context.find(site).unwrap();
     spec_corpus::assert_preparation_cause!(
         evaluate(&changed).unwrap_err(),

@@ -35,7 +35,8 @@ fn unsigned_width(ty: &TypeExpression) -> Option<u64> {
 
 /// Evaluate an unsigned open body under one application. `None` means the
 /// template uses a form outside this reader: a signed or wide carrier, a
-/// member or declaration call, or an operand that names a later step.
+/// member or declaration call, a value step such as a construction, or an
+/// operand that names a later step.
 pub fn evaluate(
     template: &MachineTemplate,
     application: &Application<'_>,
@@ -44,7 +45,8 @@ pub fn evaluate(
     let read = |operand: &TemplateOperand, results: &[u64]| match operand {
         TemplateOperand::Formal(i) => application.formals.get(*i).copied(),
         TemplateOperand::Step(i) => results.get(*i).copied(),
-        TemplateOperand::RecordField { .. } => None,
+        // Field reads, borrows, zeros and constants are outside this reader.
+        _ => None,
     };
     for (index, step) in template.body.iter().enumerate() {
         let value = match step {
@@ -85,6 +87,7 @@ pub fn evaluate(
                     ArithmeticPolicy::Saturating => exact.min(u128::from(limit)) as u64,
                 }
             }
+            _ => return None,
         };
         results.push(value);
     }

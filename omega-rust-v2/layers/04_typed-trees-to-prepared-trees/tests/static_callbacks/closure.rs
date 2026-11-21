@@ -156,7 +156,7 @@ fn an_unresolved_callback_helper_reports_its_own_packages_call() {
             invalid.node.node = usize::MAX;
             facts.signatures.push(invalid.into());
         }
-        let changed = TypingProgress::Complete(TypedTrees::new(resolved.clone(), facts, 0));
+        let changed = TypingProgress::Complete(TypedTrees::new(resolved.clone(), facts));
         let refusal = prepare(&changed).unwrap_err();
         spec_corpus::assert_preparation_cause!(
             refusal,
@@ -345,7 +345,7 @@ fn a_bare_initializer_cannot_execute_another_owners_callback_recipe() {
     invalid.callee = invalid.site.clone();
     let (start, _) = range(client, "two( )");
     invalid.callee.span = omega_lexer::SourceSpan::new(start, start + "two".len());
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     spec_corpus::assert_preparation_cause!(
         prepare(&changed).unwrap_err(),
         RefusalCause::Preparation(PreparationReason::CallbackWithoutCallerApplication),

@@ -239,6 +239,8 @@ L4	A local declaration after a tail expression or transition	consumer	L4	tests/p
 L4	An evaluation request identifies its expression	consumer	L5	tests/frozen_constants.rs	returned_nominal_has_the_frozen_declaration_slots_and_active_case	frozen-nominal-slots/consumer
 L4	A specialized field request carries the declarations that own	consumer	L5	tests/preparation_handoff_gaps.rs	nested_field_owner_arguments_select_the_returned_field_arrays	specialized-owner-layout/psi-field-reads
 L4	A local declaration after a tail expression or transition	consumer	L5	tests/preparation_handoff_gaps.rs	nested_helpers_preserve_the_enclosing_binder_and_both_frozen_returns	nested-helpers-and-tail-expressions/frozen-returns
-L3	When L3 checks the bundled library, it records one	direct	L3	tests/standard.rs	a_selected_library_constructor_carries_one_implementation_obligation_at_its_declaration	library-implementation-obligation/producer
-L3	When L3 checks the bundled library, it records one	refusals	L3	tests/standard.rs	a_same_path_copy_in_another_package_cannot_acquire_library_supply	library-implementation-obligation/refusal
-L3	When L3 checks the bundled library, it records one	consumer	L5	tests/obligation_library.rs	the_imported_obligation_names_the_selected_toolchain_constructor_not_a_same_path_local_machine	library-implementation-obligation/consumer
+L3	When L3 checks the bundled library, each core machine	direct	L3	tests/standard.rs	a_library_constructor_keeps_its_guarantees_in_its_defining_forest	library-definition-guarantees/producer
+L3	When L3 checks the bundled library, each core machine	refusals	L3	tests/standard.rs	a_same_path_copy_in_another_package_cannot_acquire_library_supply	library-definition-guarantees/refusal
+L3	When L3 checks the bundled library, each core machine	consumer	L5	tests/obligation_library.rs	library_definition_rows_stay_in_the_library_forest_for_callers_and_non_callers	library-definition-guarantees/consumer
+L3	Access plans and progress	direct	L3	tests/standard.rs	the_plan_constructor_is_a_checked_core_body_that_zeroes_no_reference	access-plan-constructor-supply/producer
+L3	Access plans and progress	consumer	L5	tests/formation_handoff.rs	issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection	access-plan-constructor-supply/consumer

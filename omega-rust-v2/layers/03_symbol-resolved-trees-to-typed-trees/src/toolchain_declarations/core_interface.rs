@@ -35,7 +35,7 @@ impl CheckedLibrary {
         let (execution, _) = crate::typing::type_stage::check_stage(resolved, &Default::default(), &mut catalog, &mut facts, core, None, false)?;
         catalog.publish_declarations(&mut facts);
         Ok(Self {
-            trees: TypedTrees::new(resolved.clone(), facts, 0),
+            trees: TypedTrees::new(resolved.clone(), facts),
             items: catalog.declarations,
             types: catalog.types.declarations,
             formations: catalog.types.formations.into_sites(),
@@ -51,13 +51,9 @@ impl CheckedLibrary {
         output.callable_bounds.clone_from(&self.trees.callable_bounds);
         output.machine_effects.clone_from(&self.trees.machine_effects);
         output.data_properties.clone_from(&self.trees.data_properties);
-        output.obligations.extend(
-            self.trees
-                .obligations
-                .iter()
-                .filter(|proof| matches!(proof.kind, crate::ObligationKind::VerifyLibraryImplementation(_)))
-                .cloned(),
-        );
+        // The library's obligations stay in `output.library`, indexed in its own forest. The
+        // defining machine owes its guarantees (language/machines.md#call-preconditions); an
+        // importer owes only its own rows, and a call names the library declaration it relies on.
         let mut catalog = DeclarationCatalog {
             declarations: self.items.clone(),
             ..Default::default()
@@ -73,6 +69,9 @@ pub(crate) fn configure_roles<'a>(
     catalog: &mut DeclarationCatalog<'a>,
     output: &mut TypedStage,
 ) {
+    // Only a bodyless catalog machine has guarantees without a body to prove them. A checked
+    // core body owes its `ensures` as ordinary `ProveGuarantee` rows instead. A collection
+    // primitive's contract is the catalog's fixed meaning.
     for &machine in &catalog.local_machines {
         let signature = &catalog.signatures[machine];
         if signature.has_guarantee && core.supplies(machine) && core.collection_primitive(machine).is_none() {
