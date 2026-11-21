@@ -85,16 +85,15 @@ authority from its own declared edges. See
 
 Use bounded deterministic diffable text with explicit outer and acceptance schema
 versions. Loading requires neither an old checkout nor a compiler invocation.
-The outer format is version 4 and requires compilation inputs for every
-occurrence. Older versions, including version 3, reject rather than guessing
-compiler identity or bindings; the compact acceptance child uses policy row
-schema version 9. Explicit review also reads historical child schemas 4 and 5
-as baseline consent, never as current approval.
+The outer format is version 4. Every occurrence carries its accepted compilation
+inputs. Compilation, review and update all require the current source graph,
+acceptance and decision formats. To replace an obsolete lock, archive the
+original and review the current declarations as a fresh project before publication.
 Unknown formats or unrecoverable baseline meaning reject with recovery guidance;
 they never become empty acceptance or an inferred schema migration. Cache paths,
 proof certificates, native artifacts, replay transcripts, audit receipts, and
 compiler-private handles are not this payload. The
-[lock codec](../../../omega-rust/omega/packages/package-manager/src/lock/README.md) owns
+[lock codec](../../../source-rust/subsystems/package-manager/lockfile/README.md) owns
 the exact framing and resource limits.
 
 Projects normally commit the lock and trust whoever lands it. Recovery checks

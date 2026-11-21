@@ -368,7 +368,7 @@ mathematical declarations and in machine parameters
 - Destructuring `let Lease { pool, slot } = move value;`
   (language/ownership.md:309).
 - Discard `_ = builder.tests.group::<Tests::memory>();`
-  (build/scoped_execution.md:302, in V2's spelling).
+  (build/scoped_execution.md:293, in V2's spelling).
 - The last expression of a body, with no semicolon, is its result. Nothing
   executable follows it, and nothing executable follows a `transition`.
 - A `match` used as a statement ends with `;` like any other expression.

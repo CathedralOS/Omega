@@ -100,7 +100,7 @@ the joins between children.
 Acceptance children use:
 
 ```text
-acceptance_schema 9
+acceptance_schema 11
 rows <count>
 row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding|component_assumption>
 key <SHA-256 of canonical row coordinate bytes>
@@ -160,20 +160,10 @@ absolute path) and `OMEGA_HOST_PACKAGE_LOCK_SHA256` (the host-approved digest
 of that file). The receiver takes semantic permissions from the root Product
 occurrence and requires separate producer trust for the saved Psi program.
 
-Ordinary compilation accepts only outer version 4. Explicit review or update
-can read version 3 as a historical baseline, keeping its source pins, target
-sections and decisions while reviewing the candidate afresh. Its compiler
-identity and semantic bindings stay absent, so it cannot be written as version
-4 or used for ordinary compilation. Publishing needs
-freshly reviewed compilation inputs for every stored target. Other old
-versions reject; reading never invents missing consent or compilation
-inputs. The acceptance child schema is version 9, matching the policy row
-schema (`PACKAGE_POLICY_ROW_VERSION`). Schemas 4 and 5 are historical:
-explicit review also reads their opaque rows, pins and decisions without
-inventing authored target context. Ordinary lock reading rejects them, since
-they lack compilation inputs and current terminal permissions. Fresh checking
-and decisions replace their consent with schema 9 before publication. Unknown
-schemas reject.
+Compilation, review and update all read outer version 4 and the current
+acceptance schema (`PACKAGE_POLICY_ROW_VERSION`). Every stored occurrence
+provides its checked compilation inputs. Archive an obsolete lock before
+reviewing the current declarations from scratch.
 
 ## Decision history
 
@@ -205,10 +195,6 @@ the stored link to the candidate source. It neither recreates old comparisons
 nor certifies that decisions were made carefully: the project trusts whoever
 lands the lock. The previous source hash is context, not a
 requirement to keep that checkout or a second full graph.
-
-Version 1 decision sections stay readable and are written back as version 1. Their old package indices refer only to their own source graph. Loading
-never infers a missing full-comparison identity, and unknown child versions
-keep the existing unsupported-format recovery guidance.
 
 ## Resource accounting
 

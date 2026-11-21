@@ -234,10 +234,8 @@ subject. `HistoricalPackagePolicyDecisions::capture_policy` takes the
 complete-policy comparison and its exact resolved project choices. Version 2
 keeps the comparison identity, an optional link to the prior source, and typed
 row, root-role and source-replacement subjects. Decisions about removed
-packages do not index the candidate-only graph. Version 1 records stay
-readable in their original indexed form; loading does not invent a modern
-comparison for them. Recovery needs only the kept source subject, not an old
-checkout or a recreated compiler conflict. Acceptances and rejections stay
+packages do not index the candidate-only graph. Recovery checks the current decision record against its retained source subject
+and comparison identity. Acceptances and rejections stay
 trusted project records, not fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and

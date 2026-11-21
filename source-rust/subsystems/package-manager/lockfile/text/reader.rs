@@ -1,5 +1,4 @@
-// Bounded lock-envelope decoding (`PackageLock::recover_text` and `recover_review_baseline`) without filesystem access, source acquisition, or compiler execution.
-// Explicit review can recover version-3 source pins and schema-4 consent as comparison baselines while leaving missing compilation inputs absent so historical consent is never upgraded into ordinary compilation authority.
+//! Read the project lock through the same bounded format for review and compilation.
 
 use super::super::{
     PackageLock, PackageLockError as Error, PackageLockRecoveryLimits, PackageLockTarget,
@@ -10,45 +9,15 @@ use super::{
 };
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::{PackageCheckedContext, PackagePolicyOccurrence};
-use review_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use target::TargetProfile;
 
 impl PackageLock {
     pub fn recover_text(text: &str, limits: PackageLockRecoveryLimits) -> Result<Self, Error> {
-        let lock = Self::recover_version(text, limits, HEADER)?;
-        if lock
-            .targets
-            .iter()
-            .flat_map(|target| &target.occurrences)
-            .any(|occurrence| occurrence.acceptance.schema_version != PACKAGE_POLICY_ROW_VERSION)
-        {
-            return Err(Error::UnsupportedVersion);
-        }
-        Ok(lock)
-    }
-
-    pub(crate) fn recover_review_baseline(
-        text: &str,
-        limits: PackageLockRecoveryLimits,
-    ) -> Result<Self, Error> {
-        let header = if text.starts_with("omega_lock 3\n") {
-            "omega_lock 3\n"
-        } else {
-            HEADER
-        };
-        Self::recover_version(text, limits, header)
-    }
-
-    fn recover_version(
-        text: &str,
-        limits: PackageLockRecoveryLimits,
-        header: &str,
-    ) -> Result<Self, Error> {
         let limits = limits.bounded();
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
-        let body = text.strip_prefix(header).ok_or(Error::UnsupportedVersion)?;
+        let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
         let mut reader = Reader::new(body);
         let count = reader.count("targets", limits.maximum_targets)?;
         if count == 0 {
@@ -130,16 +99,12 @@ impl PackageLock {
                     checked_target,
                 )?;
                 let context = PackageCheckedContext::new(purpose, checked_target, execution);
-                let compilation = if header == HEADER {
-                    Some(super::compilation::read(
-                        reader.section("compilation", MAXIMUM_POLICY_TEXT_BYTES)?,
-                        package.key().identity(),
-                        context,
-                        &mut budget,
-                    )?)
-                } else {
-                    None
-                };
+                let compilation = super::compilation::read(
+                    reader.section("compilation", MAXIMUM_POLICY_TEXT_BYTES)?,
+                    package.key().identity(),
+                    context,
+                    &mut budget,
+                )?;
                 occurrences.push(PackagePolicyOccurrence {
                     acceptance,
                     context,
@@ -167,4 +132,17 @@ fn profile_from_text(value: &str) -> Result<TargetProfile, Error> {
         .into_iter()
         .find(|profile| profile.identity().as_str() == value)
         .ok_or(Error::TargetMismatch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_lock_without_accepted_compilation_inputs_cannot_be_a_review_baseline() {
+        assert!(matches!(
+            PackageLock::recover_text("omega_lock 3\n", PackageLockRecoveryLimits::default()),
+            Err(Error::UnsupportedVersion)
+        ));
+    }
 }

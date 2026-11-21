@@ -133,7 +133,7 @@ impl CanonicalSourceClosureSubject {
         reader.expect("omega-source-closure")?;
         if reader.number(usize::MAX)? != TEXT_VERSION {
             return Err(Error::new(
-                "unexpected source-closure text field or version",
+                "unsupported source-closure version; archive omega.lock and run omega packages update for a fresh review",
             ));
         }
         reader.expect("target")?;
