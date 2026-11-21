@@ -183,11 +183,7 @@ impl Program<'_> {
             Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatSemantics)) => {
                 self.meaning_application(id, scope, machine, call, values, result)
             }
-            None => self.unfold_meaning(id, scope, call, values),
-            _ => Err(unavailable(
-                id,
-                "float meaning call selects a different sealed operation",
-            )),
+            _ => self.unfold_meaning(id, scope, call, values),
         }
     }
 
@@ -327,6 +323,14 @@ impl Program<'_> {
     ) -> Checked<Slot> {
         let unfolded = self.unfold_as(id, scope, call, |program, declaration, state| {
             let typed = program.typed;
+            // Library namespace membership can identify a candidate target
+            // operation. Only a checked body can implement an ordinary view.
+            if declaration.supply_mode != source_declarations::MachineSupplyMode::CheckedBody {
+                return Err(unavailable(
+                    id,
+                    "float meaning wrapper has no checked source body",
+                ));
+            }
             if program
                 .meaning_type(state.return_type)
                 .and_then(|symbol| typed.core_vocabulary(symbol))
