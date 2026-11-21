@@ -18,15 +18,25 @@ use diagnostics::Diagnostic;
 
 /// Prepare the typed program that stage 05 will lower.
 pub fn prepare_typed_trees(
+    program: TypedTrees,
+    wire_demands: &[WireCompatibilityDemand],
+) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
+    prepare_with_selected_providers(program, wire_demands, &[])
+}
+
+/// Prepare method bodies for the providers that Build selected, using the
+/// same concrete arguments as each call to their public requirement.
+pub fn prepare_with_selected_providers(
     mut program: TypedTrees,
     wire_demands: &[WireCompatibilityDemand],
+    selected_providers: &[symbols::SymbolHandle],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     if !wire_demands.is_empty() {
         return Err(vec![Diagnostic::error(
             "no product route yet: typed preparation: requested work: wire compatibility demands",
         )]);
     }
-    passes::specialization::prepare(&mut program)?;
+    passes::specialization::prepare(&mut program, selected_providers)?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
     Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))

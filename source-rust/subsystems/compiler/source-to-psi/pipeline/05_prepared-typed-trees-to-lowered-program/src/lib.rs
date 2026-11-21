@@ -907,8 +907,9 @@ fn witness_call(
 ) -> Checked<IdTable<MachineId, Body>> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
-    let supplied =
+    let mut supplied =
         terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?.clone();
+    program.apply_forwarded_array_lengths(entry, callee, &required, &mut supplied);
     let supplied_machine = program
         .symbols
         .get(callee)
@@ -918,6 +919,8 @@ fn witness_call(
     // requirement when its signature is the requirement's once they are
     // instantiated, as the witness's call instantiates them.
     if !program.same_signature(entry, &required, &supplied, supplied_machine)? {
+        eprintln!("SIGNATURE required {:?} {:?} {:?} supplied {:?} {:?} {:?}", required.parameters, required.result, required.borrowed, supplied.parameters, supplied.result, supplied.borrowed);
+        for (id, record) in program.records.iter() { eprintln!("STORAGE {:?} {:?} {:?}",id,record.identity,record.shape); }
         return Err(refuse(
             entry,
             Construct::Machine,
