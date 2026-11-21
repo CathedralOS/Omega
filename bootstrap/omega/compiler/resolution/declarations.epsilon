@@ -761,21 +761,21 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
         }
     }
     state signature(index: i32, state_index: i32) {
-        transition self.parser.machine_states[state_index].has_return_type {
+        transition self.parser.machine_states[self.local_state_row(state_index)].has_return_type {
             1 -> result(index, state_index)
             _ -> parameter(index, state_index, 0)
         }
     }
     state result(index: i32, state_index: i32) {
-        transition self.public_type(source, self.parser.machine_states[state_index].return_type) {
+        transition self.public_type(source, self.parser.machine_states[self.local_state_row(state_index)].return_type) {
             1 -> parameter(index, state_index, 0)
             _ -> fail(self.parser.machine_items[index].start)
         }
     }
     state parameter(index: i32, state_index: i32, offset: i32) {
-        transition offset < self.parser.machine_states[state_index].parameter_count {
+        transition offset < self.state_parameter_count(state_index) {
             true -> parameter_type(index, state_index, offset,
-                self.parser.machine_parameters[self.parser.machine_states[state_index].first_parameter + offset])
+                self.parser.machine_parameters[self.state_first_parameter(state_index) + offset])
             _ -> machine_item(index + 1)
         }
     }

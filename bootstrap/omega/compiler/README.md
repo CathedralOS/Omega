@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,243 lines / 1,102,858 bytes with SHA-256
-`cb487c06e568984c354e0ec3448d12e98e92fcbbe3fba18143d5488197c1d57d`.
+The manifest materializes 28,341 lines / 1,108,030 bytes with SHA-256
+`db46d240ab70b03f6c7ceb9b10914960e04649c79d670ca2dd92c1c6c2d967dd`.
 The manifest itself is 2,905 bytes, SHA-256
-`a68047b1fb5703e6dca82727b8d4b5cd9921587346533628690c25403545edaa`;
+`34d5c4243c2626ff2859a1063ef02786d58301ee92bbf288c4b0ec49d3ffa3ce`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -128,7 +128,12 @@ syntax arena. Free machines may take or return by-value scalars, records or sums
 and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
-and parameters.
+and parameters. Up to 16,384 state labels can span a construction request.
+Each file still parses at most 4,096 states. Parameter ranges, source
+coordinates and declared effect bounds survive the release of that file.
+A state body, its lexical scope, and its checked terminal instructions belong
+to the current file. Calls across files resolve a machine root; nested states
+remain visible through their lexical owner.
 
 A fixed-array literal uses the declared element type and count. Each initializer
 runs once in increasing index order. Byte elements occupy one byte, while word
@@ -250,8 +255,8 @@ Each machine owns the helpers declared after its executable body. Terminal
 transfers search the caller's children and then each enclosing declaration
 scope. Sibling branches may define different helpers with the same name.
 Parameters and locals belong to the individual invocation. A child receives
-an enclosing value through an explicit argument. The existing 4,096-state
-bound covers all declarations in a request.
+an enclosing value through an explicit argument. The parser admits up to
+4,096 state bodies per file. Construction can address 16,384 states across files.
 
 A terminal transfer naming a visible global is `Incomplete` in this same-owner
 subset; only an absent target is reported as missing.
@@ -368,9 +373,9 @@ An unentered nested helper contributes nothing to its owner's bound. Its own
 body must still satisfy its contract.
 
 The incoming-edge table reserves 49,152 rows with four 32-bit integers
-apiece, or 786,432 logical payload bytes. Three 4,096-entry integer arrays
-hold the incoming list heads, blocking states and work queue, totaling
-49,152 more logical bytes. Evaluator memory measurements include its
+apiece, or 786,432 logical payload bytes. Three 16,384-entry integer arrays
+hold incoming list heads, per-state effects and the work queue, totaling
+196,608 more logical bytes. Evaluator memory measurements include its
 representation of these tables and the rest of the compiler.
 
 Every call to a possibly blocking callee needs its own `block` acknowledgement,

@@ -163,7 +163,7 @@ machine OmegaScalarCompiler::slice_formal(
         _ -> return -1
     }
     state cell(slot: i32) {
-        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         transition (slot >= body.first_parameter) && (slot < body.first_parameter + body.parameter_count) {
             true -> return slot
             _ -> return -1

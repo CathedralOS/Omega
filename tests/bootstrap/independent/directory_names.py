@@ -137,6 +137,7 @@ def cases():
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from nominal_array_cases(encode)
+    yield from nested_state_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -443,6 +444,42 @@ def nominal_array_cases(encode):
     shelf = b"use left\\Part;public data Shelf{parts:[Part;3];}"
     data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
     yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
+
+
+
+def nested_state_cases(encode):
+    # Every nested state is entered on the success path. A file has only its
+    # own 63 or 64 nested names; the 64 root names are visible between files.
+    groups = 64
+    steps = 63
+    for name in ("over-state-directory", "nested-state-wrong-owner", "broken-last-state"):
+        sources = []
+        for group in range(groups):
+            root = "main" if group == 0 else f"hop{group}"
+            lines = [f"public machine {root}()->u8{{transition{{_->s0()}}"]
+            for step in range(steps):
+                if step + 1 < steps:
+                    result = f"transition{{_->s{step + 1}()}}"
+                elif group + 1 == groups:
+                    result = "transition{_->only_final()}"
+                elif name == "nested-state-wrong-owner" and group + 2 == groups:
+                    result = "only_final()"
+                else:
+                    result = f"hop{group + 1}()"
+                lines.append(f"machine s{step}()->u8{{{result}}}")
+            if group + 1 == groups:
+                value = "unknown_late()" if name == "broken-last-state" else "42"
+                lines.append(f"machine only_final()->u8{{{value}}}")
+            lines.append("}")
+            sources.append("\n".join(lines).encode())
+        paths = [f"rung{group}.omg" for group in range(groups)]
+        data, _, _, rows = encode([("app", 0)], [], [(0, s) for s in sources], 0, b"main", paths=paths)
+        if name == "over-state-directory":
+            yield name, data, 42
+        else:
+            group, missing = (groups - 2, b"only_final()") if name == "nested-state-wrong-owner" else (groups - 1, b"unknown_late()")
+            coordinate = rows[group][1] + sources[group].index(missing)
+            yield name, data, struct.pack("<BII", 0, 1, coordinate)
 
 
 def main():
