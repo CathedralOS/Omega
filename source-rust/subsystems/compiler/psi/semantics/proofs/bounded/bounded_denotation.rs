@@ -14027,6 +14027,65 @@ mod subtraction {
         }
 
         #[test]
+        fn a_saturating_distance_compares_with_a_value_or_formed_exact_difference() {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let (length, distance, suffix) =
+                (value(integer, 1), value(integer, 2), value(integer, 3));
+            let (cursor, next) = (value(integer, 4), value(integer, 5));
+            let certificate = |goal,
+                               smaller: &Proposition,
+                               larger: &Proposition,
+                               order: &Proposition| ProofNode {
+                conclusion: goal,
+                rule: ProofRule::IntegerSubtractAntitone {
+                    smaller: cited(smaller.clone(), 0),
+                    larger: cited(larger.clone(), 1),
+                    order: cited(order.clone(), 2),
+                },
+            };
+            let length_eq = Proposition::Equal(length.clone(), length.clone());
+            let distance_eq = |cursor| {
+                Proposition::Equal(
+                    distance.clone(),
+                    ScalarTerm::saturating_integer_subtract(integer, length.clone(), cursor)
+                        .unwrap(),
+                )
+            };
+            let order = Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(length.clone(), length.clone()),
+                Proposition::LessOrEqual(zero(integer), zero(integer)),
+            ]);
+            let initial = distance_eq(zero(integer));
+            let handoff = certificate(
+                Proposition::LessOrEqual(distance.clone(), length.clone()),
+                &initial,
+                &length_eq,
+                &order,
+            );
+            assert!(checked(integer, &[initial, length_eq, order], &handoff));
+            let suffix_eq = Proposition::Equal(
+                suffix.clone(),
+                ScalarTerm::exact_integer_subtract(integer, length.clone(), next.clone()).unwrap(),
+            );
+            let distance_eq = distance_eq(cursor.clone());
+            let mut progress = vec![
+                Proposition::LessOrEqual(length.clone(), length.clone()),
+                Proposition::LessThan(cursor.clone(), next),
+            ];
+            let strict = Proposition::LessThan(suffix, distance);
+            let plateau = Proposition::Conjunction(progress.clone());
+            rejects(
+                integer,
+                &[suffix_eq.clone(), distance_eq.clone(), plateau.clone()],
+                &certificate(strict.clone(), &suffix_eq, &distance_eq, &plateau),
+            );
+            progress.push(Proposition::LessThan(cursor, length));
+            let order = Proposition::Conjunction(progress);
+            let step = certificate(strict, &suffix_eq, &distance_eq, &order);
+            assert!(checked(integer, &[suffix_eq, distance_eq, order], &step));
+        }
+
+        #[test]
         fn subtraction_antitonicity_rejects_another_minuend_and_a_reversed_order() {
             let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
             let (assumptions, proof) = antitone(

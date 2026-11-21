@@ -126,10 +126,9 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
             }
         }
     }
-    assert!(matches!(
-        judge(Ok(lower_ranked(less_one(), witnessed(0)))).unwrap(),
-        RouteVerdict::Accepted(_)
-    ));
+    let promised = count_down("remaining", "remaining - 1")
+        .replace("terminates by", "terminates\nterminates by");
+    assert!(matches!(judged(&promised), RouteVerdict::Accepted(_)));
 }
 
 fn witnessed(subject: u32) -> Option<Vec<Expression>> {
@@ -417,6 +416,83 @@ fn differently_shaped_members_compare_their_own_measures_at_each_call() {
     accepted(program);
     let unchanged = program.replace("remaining - 1", "remaining");
     let failures = unproved(&unchanged);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
+}
+
+#[test]
+fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
+    let parser = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/termination/pass/ranked_packet_parser/parser.omg"
+    ));
+    let checked = accepted(parser);
+    assert!(
+        checked
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .filter(|machine| machine.ranked_scc.is_some())
+            .all(|machine| machine.contract.termination
+                == semantic_vocabulary::Termination::Terminates)
+    );
+    let mut replay_input = checked.elaboration.clone();
+    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut replay = crate::checking::prepare_replay(&mut replay_input, &mut activity).unwrap();
+    let mut strict = 0;
+    let mut preserving = 0;
+    for (machine, tables) in checked.elaboration.tables.machines.iter() {
+        let discharged = checked.discharge.machines.get(machine).unwrap();
+        for (obligation, row) in tables.obligations.iter() {
+            let ObligationKind::RankComparison { component, edge } = row.kind else {
+                continue;
+            };
+            let evidence = certificate(discharged.verdicts.get(obligation).unwrap());
+            assert_kernel_checked(&checked.elaboration, machine.get(), obligation, evidence);
+            crate::checking::reverify(
+                &mut replay,
+                machine,
+                obligation,
+                &evidence.certificate,
+                &mut activity,
+            )
+            .unwrap();
+            let relation = discharged
+                .verdicts
+                .values()
+                .find_map(|verdict| match verdict {
+                    Ok(Discharged::FiniteIntegerRanking(relation))
+                        if relation.component == component =>
+                    {
+                        Some(relation)
+                    }
+                    _ => None,
+                })
+                .expect("edge belongs to the checked joint ranking");
+            let binding = relation
+                .bindings
+                .edges
+                .iter()
+                .find(|binding| binding.edge == edge)
+                .unwrap();
+            match (&evidence.goal, binding.comparison) {
+                (Proposition::LessThan(_, _), TerminalNaturalRankComparison::Strict) => strict += 1,
+                (Proposition::LessOrEqual(_, _), TerminalNaturalRankComparison::Preserving) => {
+                    preserving += 1
+                }
+                mismatch => panic!("published edge disagrees with its proof: {mismatch:?}"),
+            }
+        }
+    }
+    assert!(
+        strict > 0 && preserving > 0,
+        "the parser must both hand off and consume"
+    );
+    let stalled = parser.replace("bytes[cursor + 1..]", "bytes[cursor..]");
+    let failures = unproved(&stalled);
     assert!(!failures.is_empty());
     for failure in &failures {
         assert_no_descent(std::slice::from_ref(failure));

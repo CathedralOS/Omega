@@ -332,7 +332,12 @@ pub(crate) fn admit<'source>(
                 "ranking has surplus unbound observations",
             ));
         }
-        strict_cut(machine, cycle)?;
+        if !has_strict_cut(machine, cycle)? {
+            return Err(foreign(
+                machine.id,
+                "removing strict rank edges leaves a control cycle",
+            ));
+        }
     }
     expected.sort_by_key(|(key, _, _)| *key);
     if expected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
@@ -433,7 +438,7 @@ fn edge_actuals<'a>(
     Ok((scalars, structural))
 }
 
-fn strict_cut(machine: &TerminalMachine, cycle: &TerminalNaturalCycle) -> Checked<()> {
+fn has_strict_cut(machine: &TerminalMachine, cycle: &TerminalNaturalCycle) -> Checked<bool> {
     let rank_index = |block| {
         cycle
             .ranks
@@ -465,11 +470,82 @@ fn strict_cut(machine: &TerminalMachine, cycle: &TerminalNaturalCycle) -> Checke
             }
         }
     }
-    if removed != cycle.ranks.len() {
-        return Err(foreign(
-            machine.id,
-            "removing strict rank edges leaves a control cycle",
-        ));
+    Ok(removed == cycle.ranks.len())
+}
+
+/// A weaker comparison can replace a failed strict candidate only if the
+/// remaining strict edges still meet every cycle. Keep the original failures
+/// when the component can make a complete trip without decreasing.
+pub(crate) fn settle_comparisons(
+    machine: &TerminalMachine,
+    decided: &mut [Option<Checked<crate::checking::Discharged>>],
+    alternatives: Vec<(
+        CycleComponentId,
+        EdgeId,
+        ObligationId,
+        crate::checking::Evidence,
+    )>,
+) -> Checked<()> {
+    if alternatives.is_empty() {
+        return Ok(());
+    }
+    let mut accepted = std::collections::BTreeSet::new();
+    for verdict in decided.iter_mut().flatten() {
+        let Ok(crate::checking::Discharged::FiniteIntegerRanking(relation)) = verdict else {
+            continue;
+        };
+        let edges: std::collections::BTreeSet<_> = alternatives
+            .iter()
+            .filter_map(|(component, edge, _, _)| {
+                (*component == relation.component).then_some(*edge)
+            })
+            .collect();
+        if edges.is_empty() {
+            continue;
+        }
+        let mut candidate = relation.bindings.clone();
+        for edge in &mut candidate.edges {
+            if edges.contains(&edge.edge) {
+                edge.comparison = TerminalNaturalRankComparison::Preserving;
+            }
+        }
+        if has_strict_cut(machine, &candidate)? {
+            relation.bindings = candidate;
+            accepted.insert(relation.component);
+        }
+    }
+    for (component, _, obligation, evidence) in alternatives {
+        if accepted.contains(&component) {
+            decided[(obligation.get() - 1) as usize] =
+                Some(Ok(crate::checking::Discharged::Certificate(evidence)));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn publish_comparisons(
+    machine: &mut TerminalMachine,
+    discharge: &crate::checking::MachineDischarge,
+) -> Checked<()> {
+    if machine.ranked_scc.is_none() {
+        return Ok(());
+    }
+    for verdict in discharge.verdicts.values() {
+        let Ok(crate::checking::Discharged::FiniteIntegerRanking(relation)) = verdict else {
+            continue;
+        };
+        let index = cycles(machine)
+            .iter()
+            .position(|cycle| {
+                terminal_semantics::control_graph::control_cycle_identity(machine, cycle)
+                    == relation.component
+            })
+            .ok_or_else(|| foreign(machine.id, "checked ranking no longer names a cycle"))?;
+        if let Some(TerminalRankedScc::Natural(cycles)) = &mut machine.ranked_scc
+            && cycles[index] != relation.bindings
+        {
+            cycles[index].clone_from(&relation.bindings);
+        }
     }
     Ok(())
 }
@@ -505,6 +581,7 @@ pub(crate) fn goal(
     obligation: ObligationId,
     identity: CycleComponentId,
     edge: EdgeId,
+    comparison: Option<TerminalNaturalRankComparison>,
 ) -> Checked<Proposition> {
     let (binding, cycle) = bindings.get(machine, obligation, identity)?;
     let edge = binding
@@ -533,7 +610,7 @@ pub(crate) fn goal(
         .checked_sub(1)
         .ok_or_else(|| foreign(machine.id, "ranking comparison has an empty tuple"))?;
     let (after, before_value) = pair(last);
-    let mut goal = match edge.comparison {
+    let mut goal = match comparison.unwrap_or(edge.comparison) {
         TerminalNaturalRankComparison::Strict => Proposition::LessThan(after, before_value),
         TerminalNaturalRankComparison::Preserving => Proposition::LessOrEqual(after, before_value),
     };

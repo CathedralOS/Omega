@@ -600,6 +600,7 @@ fn discharge_inner(
                 activity,
             )
         })?;
+    scope.publish_rankings(&machines)?;
     Ok(Discharge {
         machines,
         inferred_calls: scope.inferred_calls,
@@ -772,6 +773,7 @@ fn check_prepared_machine(
         ref mut references,
     } = prepared;
     let invariants = &module.proofs.scalar_block_invariants;
+    let mut preserving = Vec::new();
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -933,8 +935,37 @@ fn check_prepared_machine(
             )
             .map(Discharged::Certificate)
         });
+        if matches!(&verdict, Err(error) if matches!(error.reason, RefusalReason::Unproved(_)))
+            && let ObligationKind::RankComparison { component, edge } = row.kind
+            && rankings::claims_strict(lowered, edge) == Some(true)
+        {
+            let goal = rankings::goal(
+                lowered,
+                ranking_bindings,
+                obligation,
+                component,
+                edge,
+                Some(terminal_psi::TerminalNaturalRankComparison::Preserving),
+            )?;
+            match decide(
+                context,
+                graph,
+                tables,
+                id,
+                obligation,
+                row.created_at,
+                goal,
+                unreached,
+                activity,
+            ) {
+                Ok(evidence) => preserving.push((component, edge, obligation, evidence)),
+                Err(error) if matches!(error.reason, RefusalReason::Unproved(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
         decided[index] = Some(verdict);
     }
+    rankings::settle_comparisons(lowered, &mut decided, preserving)?;
     if layout_conditions.next().is_some() || target_ranges.next().is_some() {
         return Err(refusal(
             RefusalReason::ForeignIdentity,
@@ -2223,7 +2254,7 @@ fn stated_goal<'a>(
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
         ObligationKind::RankComparison { component, edge } => {
-            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
+            rankings::goal(lowered, ranking_bindings, obligation, component, edge, None)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }

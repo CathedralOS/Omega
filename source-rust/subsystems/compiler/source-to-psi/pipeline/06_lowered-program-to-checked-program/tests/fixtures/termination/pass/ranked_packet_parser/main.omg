@@ -1,0 +1,8 @@
+// Both engines return the XOR of the three consumed bytes (88).
+use omega\language\core\ProcessExit;
+
+machine entry_start() reaches ProcessExit {
+    let bytes: [u8; 3] = [17, 42, 99];
+    let checksum: u8 = header(@bytes[..], 0);
+    ProcessExit::exit_process(checksum as i32);
+}
