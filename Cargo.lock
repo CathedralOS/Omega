@@ -422,8 +422,8 @@ name = "build-time-values"
 version = "0.1.0"
 dependencies = [
  "layout-plans",
- "numerics",
  "record-storage",
+ "semantic-vocabulary",
 ]
 
 [[package]]
