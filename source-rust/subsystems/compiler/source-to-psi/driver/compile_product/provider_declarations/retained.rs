@@ -168,9 +168,7 @@ pub(crate) fn capture_provider_selection(
         provider: anchor(provider.symbol).map_err(str::to_owned)?,
         provider_identity: typed.normalized_hermetic_symbol_identity(provider.symbol)?,
         provider_application: captured(typed, provider)?,
-        target: selection
-            .target
-            .ok_or("an executed package provider choice has no target key")?,
+        target: selection.target,
         composition_mode: selection.composition_mode,
         origin: selection.origin.clone(),
     })
@@ -266,7 +264,7 @@ fn rejoin_provider_selection(
         subject_identity,
         provider_identity,
         retained.origin.clone(),
-        Some(retained.target),
+        retained.target,
         retained.composition_mode,
     )?;
     match (&retained.subject, &selection.subject) {
