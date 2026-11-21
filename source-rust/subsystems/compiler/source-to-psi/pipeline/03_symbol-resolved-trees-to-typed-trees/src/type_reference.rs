@@ -614,6 +614,17 @@ pub(crate) mod alias_uses {
                     ))
                     .with_source_span(site));
                 }
+                if let typed::types::TypeReferenceNode::Named { symbol, name } =
+                    program.type_reference_table.type_reference(*actual)
+                    && !program.symbols.symbols().nodes().is_valid(*symbol)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "type alias argument {} requires a type declaration for `{}`",
+                        position + 1,
+                        name.as_str(),
+                    ))
+                    .with_source_span(site));
+                }
                 type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
                     match stop {
                         Stop::Rejected(reason) => Diagnostic::error(reason),

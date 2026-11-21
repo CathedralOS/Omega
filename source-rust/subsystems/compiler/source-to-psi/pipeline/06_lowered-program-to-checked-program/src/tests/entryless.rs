@@ -125,20 +125,26 @@ fn transparent_data_aliases_form_in_their_own_binder_scope() {
 
 #[test]
 fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
-    for uses in [
-        "public data Invalid = Erased<17u64>;",
-        "machine keep<const Count: u64>(value: Erased<Count>) -> u32 { value }",
+    for (uses, expected) in [
+        (
+            "public data Invalid = Erased<17u64>;",
+            "requires a type but was supplied a value",
+        ),
+        (
+            "public data Invalid = Erased<Absent>;",
+            "requires a type declaration for `Absent`",
+        ),
+        // Type lookup can leave Count unresolved: this lexical binder names a value.
+        (
+            "machine keep<const Count: u64>(value: Erased<Count>) -> u32 { value }",
+            "type alias argument 1 requires a type",
+        ),
     ] {
         let source = format!("public data Erased<T> = u32; {uses}");
         let Err(error) = super::boundary_calls::try_typed(&source) else {
             panic!("an unused parameter still requires a type argument: {uses}");
         };
-        assert!(
-            error
-                .message
-                .contains("requires a type but was supplied a value"),
-            "{error:?}"
-        );
+        assert!(error.message.contains(expected), "{error:?}");
     }
 }
 
