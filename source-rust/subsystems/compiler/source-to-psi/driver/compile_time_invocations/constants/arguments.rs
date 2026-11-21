@@ -247,8 +247,10 @@ fn entry(probe: &mut TypedTrees, job: &Job) -> Result<SymbolHandle, String> {
 pub fn evaluate(
     program: &mut TypedTrees,
     request: production::TerminalSourceCompilation<'_>,
-    authority: Option<std::sync::Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
-    source_consent: Option<std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
+    authority: Option<std::sync::Arc<declaration_scope::PackageDeclarationScope>>,
+    source_consent: Option<
+        std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
+    >,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
     let found = pending(program);

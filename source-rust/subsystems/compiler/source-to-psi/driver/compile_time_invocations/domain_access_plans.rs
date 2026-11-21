@@ -62,7 +62,7 @@ use crate::compile_time_invocations::{InvocationTarget, SourceCompletionAccounti
 pub(crate) fn evaluate(
     program: &mut TypedTrees,
     request: production::TerminalSourceCompilation<'_>,
-    authority: Option<Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
+    authority: Option<Arc<declaration_scope::PackageDeclarationScope>>,
     source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {

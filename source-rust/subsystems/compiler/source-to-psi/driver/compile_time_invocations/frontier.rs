@@ -2,12 +2,11 @@
 //! consumer demands those declarations. Retained inputs require the same
 //! declaration-selection authority when they are reopened.
 
-use declaration_scope::DeclarationSelectionAuthority;
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use std::sync::Arc;
 use typed_trees::source_state::TypedTrees;
-use typed_trees::source_state::declaration_authority::RecordedDeclarationAuthority;
 use typed_trees::source_state::deferred_refusals::DeferredRequest;
 
 /// One evaluation request written inside a declaration, and the declaration
@@ -293,50 +292,49 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
 /// Declaration visibility accompanying a retained or activated typed source program.
 #[derive(Clone)]
 pub struct PreCheckEvaluation {
-    authority: Option<Arc<dyn DeclarationSelectionAuthority>>,
-    recorded_authority: Option<RecordedDeclarationAuthority>,
+    declaration_scope: Option<Arc<PackageDeclarationScope>>,
+    // A stored permission is evidence of the earlier run. Compare it with the package
+    // owner's current grants before using the continuation in this run.
+    needs_scope_check: bool,
 }
 impl PreCheckEvaluation {
-    pub fn new(authority: Option<Arc<dyn DeclarationSelectionAuthority>>) -> Self {
+    pub fn new(declaration_scope: Option<Arc<PackageDeclarationScope>>) -> Self {
         Self {
-            authority,
-            recorded_authority: None,
+            declaration_scope,
+            needs_scope_check: false,
         }
     }
 
     pub fn rejoin_source_authority(
         &mut self,
         program: &TypedTrees,
-        authority: Option<Arc<dyn DeclarationSelectionAuthority>>,
+        current: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<(), String> {
-        if let Some(recorded) = &self.recorded_authority {
-            if matches!(recorded, RecordedDeclarationAuthority::Absent) {
-                if RecordedDeclarationAuthority::capture(authority.as_deref())?
-                    != RecordedDeclarationAuthority::Absent
-                {
-                    return Err("presence of declaration selection authority changed".into());
-                }
-            } else {
-                let sources = program
-                    .symbols
-                    .source_map()
-                    .ok_or("restored source input has no complete source context")?;
-                recorded.require_current(authority.as_deref(), &sources)?;
-            }
-            self.authority = authority;
-            self.recorded_authority = None;
+        self.needs_scope_check = true;
+        let sources = program.symbols.source_map();
+        if self.declaration_scope.is_some() && current.is_some() && sources.is_none() {
+            return Err("restored source input has no complete source context".into());
         }
+        PackageDeclarationScope::require_current(
+            self.declaration_scope.as_deref(),
+            current.as_deref(),
+            sources
+                .iter()
+                .flat_map(|sources| sources.selected_files())
+                .filter(|file| !file.origin.is_toolchain())
+                .filter_map(|file| file.package_identity),
+        )?;
+        self.declaration_scope = current;
+        self.needs_scope_check = false;
         Ok(())
     }
+
     pub fn same_pending_work(&self, other: &Self) -> bool {
-        self.recorded_authority.is_none()
-            && other.recorded_authority.is_none()
-            && match (&self.authority, &other.authority) {
-                (None, None) => true,
-                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                _ => false,
-            }
+        !self.needs_scope_check
+            && !other.needs_scope_check
+            && self.declaration_scope == other.declaration_scope
     }
+
     /// Records the evaluation requests written inside the declarations of a
     /// freshly typed program on those declarations. The owner of the typing
     /// calls this once it has the program, before any narrowing or
@@ -394,7 +392,7 @@ impl PreCheckEvaluation {
     }
 
     fn require_rejoined_authority(&self) -> Result<(), Vec<Diagnostic>> {
-        if self.recorded_authority.is_some() {
+        if self.needs_scope_check {
             return Err(vec![Diagnostic::error(
                 "source normalization authority has not been rejoined",
             )]);
@@ -402,7 +400,7 @@ impl PreCheckEvaluation {
         Ok(())
     }
     pub fn record_extension(
-        pre_checks: Vec<Self>,
+        &self,
         wire_schema_frontier: usize,
         typed: &mut TypedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -412,22 +410,14 @@ impl PreCheckEvaluation {
             )]);
         }
         defer_source_jobs(typed)?;
-        for pending in pre_checks {
-            pending.require_rejoined_authority()?;
-        }
-        Ok(())
+        self.require_rejoined_authority()
     }
 }
 impl Record for PreCheckEvaluation {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
             "BTE-source-input-7".to_owned().write(output)?;
-            let scope = match &self.recorded_authority {
-                Some(scope) => scope.clone(),
-                None => RecordedDeclarationAuthority::capture(self.authority.as_deref())
-                    .map_err(|e| output.error(e))?,
-            };
-            scope.write(output)
+            PackageDeclarationScope::write_checkpoint(self.declaration_scope.as_deref(), output)
         })
     }
     fn read<C>(input: &mut RecordReader<'_, C>) -> Result<Self, RecordError> {
@@ -438,8 +428,8 @@ impl Record for PreCheckEvaluation {
                 );
             }
             Ok(Self {
-                authority: None,
-                recorded_authority: Some(Record::read(input)?),
+                declaration_scope: PackageDeclarationScope::read_checkpoint(input)?,
+                needs_scope_check: true,
             })
         })
     }
@@ -448,6 +438,37 @@ impl Record for PreCheckEvaluation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn existing_package_grants_reopen_without_changing_the_checkpoint_bytes() {
+        use semantic_vocabulary::PackageKeyIdentity;
+        use std::collections::BTreeMap;
+
+        #[derive(record_storage::Record)]
+        enum PreviousGrants {
+            Absent,
+            Packages(BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),
+        }
+        #[derive(record_storage::Record)]
+        struct PreviousContinuation(String, PreviousGrants);
+
+        let [root, helper] = [1, 2].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
+        let previous = PreviousGrants::Packages(BTreeMap::from([
+            (root, vec![root, helper]),
+            (helper, vec![helper]),
+        ]));
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(
+            &PreviousContinuation("BTE-source-input-7".into(), previous),
+            limits,
+        )
+        .unwrap();
+        let reopened: PreCheckEvaluation = record_storage::decode(&bytes, limits).unwrap();
+        let scope = reopened.declaration_scope.as_ref().unwrap();
+        assert!(scope.allows_declaration_selection(root, helper));
+        assert!(!scope.allows_declaration_selection(helper, root));
+        assert_eq!(record_storage::encode(&reopened, limits).unwrap(), bytes);
+    }
 
     #[test]
     fn retained_requests_require_the_current_source_authority() {
@@ -464,8 +485,7 @@ mod tests {
             "source normalization authority has not been rejoined"
         );
 
-        let error = PreCheckEvaluation::record_extension(vec![restored.clone()], 1, &mut typed)
-            .unwrap_err();
+        let error = restored.record_extension(1, &mut typed).unwrap_err();
         assert_eq!(
             error[0].message,
             "source extension lost its original wire-schema frontier"

@@ -674,6 +674,7 @@ dependencies = [
 name = "declaration-scope"
 version = "0.1.0"
 dependencies = [
+ "record-storage",
  "semantic-vocabulary",
 ]
 
@@ -2206,6 +2207,7 @@ dependencies = [
  "build-declarations",
  "build-execution",
  "compiler",
+ "declaration-scope",
  "diagnostics",
  "filesystem-authority",
  "host-provider-inputs",
@@ -3823,7 +3825,6 @@ dependencies = [
  "artifacts",
  "bignum",
  "bundled-declarations",
- "declaration-scope",
  "diagnostics",
  "language-core",
  "layout-plans",

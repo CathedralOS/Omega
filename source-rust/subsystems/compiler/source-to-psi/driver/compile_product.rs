@@ -68,7 +68,7 @@ impl ProductPolicyInputs<'_> {
 pub struct ProductSourceInputs<'a> {
     /// Costs of the Build that opened this Product, when it belongs to a project.
     pub build_accounting: Option<&'a crate::compile_time_invocations::SourceCompletionAccounting>,
-    pub declaration_authority: Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
+    pub declaration_scope: Option<Arc<declaration_scope::PackageDeclarationScope>>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
     /// The generated source admitted after this Build's authored source was captured.
     pub generated: Option<crate::SourceExtensionRequest>,
@@ -81,8 +81,6 @@ pub struct ProductSourceInputs<'a> {
     /// Package-authenticated declarations and closed operands from dependency Builds.
     pub default_provider_selections: &'a [retained_product_selections::RetainedProviderSelection],
     pub native_bindings: NativeBindingInputs<'a>,
-    pub layout_selection_authority:
-        Option<Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
     pub optimizations: optimization::PsiOptimizationSelections,
 }
 
@@ -155,7 +153,7 @@ pub(crate) fn prepare_lower_and_check(
         mut typed,
         mut accounting,
     } = match inputs.generated.take() {
-        Some(extension) => authored.extend(extension, timings)?,
+        Some(extension) => authored.extend(extension, inputs.declaration_scope.clone(), timings)?,
         None => authored.finish(),
     };
     accounting

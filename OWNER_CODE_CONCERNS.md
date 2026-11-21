@@ -91,14 +91,6 @@ framework or a list of unimplemented features.
 - Cost: Reading the target-bound entry and its allowed callees requires importing later optimizer and provider-admission types. Give entry reach the checked entry, adapter and callback facts it reads. Preserve refusal of a foreign parent artifact or target through both root and private lowering.
 - Reported: 2026-11-20, Codex, while moving builtin selection into the target-bound program.
 
-### Source checkpoints carry both a package permission callback and its recorded answer
-
-- Category: Knowledge crossing a boundary.
-- Where: [scope interface](source-rust/subsystems/compiler/foundation/declaration-scope/declaration_scope.rs#L10), [Product request](source-rust/subsystems/compiler/build/planning/product.rs#L161), [checkpoint writer](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/storage.rs#L11), [source reuse](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/activation.rs#L88), [evaluation checkpoint](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/frontier.rs#L293).
-- Saw: Product hands the source driver a live package-visibility interface. Saving a checkpoint asks it for a package table. Reuse checks the old callback or the saved table against the current callback for selected requester/owner pairs. Compile-time evaluation keeps its own live and recorded forms and rejoins them on load.
-- Cost: Changes to visibility have to work in both live queries and checkpoint replay. Have the package owner issue an immutable declaration scope for the requested Build or Product purpose. Pass the same data to resolution, evaluation and checkpoint comparison. Check that fresh and reopened checkpoints give identical answers when an alias names different packages in the two scopes, and that changing a relevant grant invalidates reuse. Retire the live/recorded alternatives for this lookup.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Checking an evaluation charge reopens the generated caller's body
 
 - Category: Re-deriving.

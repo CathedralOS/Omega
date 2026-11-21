@@ -10,13 +10,12 @@ use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidTargetLayout, TypedTrees,
 };
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
-use crate::compile_time_invocations::{
-    BuildTimeSelectionAuthority, BuildTimeValue, InvocationTarget, SourceCompletionAccounting,
-};
+use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
 mod placements;
 mod reflection;
@@ -72,7 +71,7 @@ impl super::PreparedBuildMachineEntry {
 pub(crate) fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
-    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    authority: Option<Arc<PackageDeclarationScope>>,
     consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     purpose: source_provenance::DependencyScope,
     accounting: &mut SourceCompletionAccounting,
