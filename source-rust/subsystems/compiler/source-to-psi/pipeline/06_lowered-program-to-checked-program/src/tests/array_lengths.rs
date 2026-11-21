@@ -171,6 +171,25 @@ fn a_whole_subject_checks_the_original_nested_const_array_body() {
     }
 }
 
+#[test]
+fn a_specialized_call_checks_its_inferred_array_equation() {
+    let source = r#"
+        machine capacity<Array [copy], const Count: u64>(items: Array) -> u64
+            requires Array == [u16; Count] { Count }
+        machine entry() -> u64 {
+            let items: [u16; 3] = [7, 11, 19];
+            capacity(items)
+        }
+    "#;
+    assert_array_invocation_value(array_subject(source), 3);
+}
+
+#[test]
+fn a_closed_array_equation_cannot_prove_unequal_extents() {
+    let failure = verdict("machine build_entry() ensures [u16; 2] == [u16; 3] {}");
+    assert!(failure.starts_with("rejected"), "{failure}");
+}
+
 fn assert_array_invocation_value(
     mut verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
     expected: u128,
@@ -463,14 +482,10 @@ requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
         _ -> measure::<u16, 4>(value)
     }
 }";
-    let verdicts = array_subject(source);
-    assert!(
-        !verdicts.is_empty()
-            && verdicts
-                .iter()
-                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
-        "{verdicts:?}"
-    );
+    // Both branches belong to the generic declaration. Check it as a source
+    // subject so the harness exercises each admitted type for Kind.
+    let verdict = super::entryless::judged(source, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
 #[test]

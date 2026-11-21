@@ -501,7 +501,7 @@ impl Program<'_> {
                 typed.expression_table.expression(binary.left),
                 typed.expression_table.expression(binary.right),
             )
-            && let Some(equation) = self.nominal_type_equation(id, scope, *left, *right)?
+            && let Some(equation) = self.structural_type_equation(id, scope, *left, *right)?
         {
             let owner = self.contract_operator_owner(id, scope)?;
             self.complete_type_equation(id, owner, expression)?;
