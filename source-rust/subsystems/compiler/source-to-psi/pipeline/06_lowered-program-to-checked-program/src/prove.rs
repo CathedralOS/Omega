@@ -54,6 +54,8 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/counterexample.rs"]
+mod counterexample;
 #[path = "prove/float_integer.rs"]
 mod float_integer;
 #[path = "prove/float_meaning.rs"]
@@ -1472,6 +1474,15 @@ impl<'a> Prover<'a> {
                     // only where what is known is contradictory.
                     | Proposition::Falsehood
             ) && !covered(goal, &|_| false, &|_| false)
+        {
+            return direct;
+        }
+        if self.assumptions.local.is_empty()
+            && self
+                .facts
+                .iter()
+                .any(|fact| matches!(fact.proposition, Proposition::Disjunction(_)))
+            && self.has_scalar_counterexample(goal)
         {
             return direct;
         }
