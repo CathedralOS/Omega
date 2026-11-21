@@ -10,7 +10,6 @@ use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealiz
 use super::request::NativeCompileRequest;
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
-use psi_target_layouts::admit_target_layouts;
 use target::ExecutableImageEmissionRequest;
 
 pub(crate) struct PreparedNativeCompilation<'input> {
@@ -34,20 +33,11 @@ pub(crate) fn prepare<'input>(
             proposal,
             request.installation_assumptions,
         )?;
-        let selections = psi_target_layouts::terminal_target_context(
-            artifact.view(),
-            proposal.target_profile().target_name(),
-        );
-        let target_facts = proposal
-            .target_profile()
-            .layout_target_facts()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "entry RAM target has no representation facts",
-                )]
-            })?;
-        let layouts = admit_target_layouts(artifact.view(), &selections, &target_facts)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let execution = provider_realization::native_execution::prepare_program(
+            proposal,
+            retained.authorization(),
+        )?
+        .with_operation_evidence(artifact, retained.evidence().cloned())?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {
@@ -63,7 +53,7 @@ pub(crate) fn prepare<'input>(
                 })?;
             let recipe = psi_entry_memory::admit_private_entry_ram(
                 artifact.view(),
-                &layouts,
+                execution.scope().layouts(),
                 entry,
                 &psi_entry_memory::PrivateEntryRamRecipe {
                     input: row.clone(),
@@ -73,13 +63,8 @@ pub(crate) fn prepare<'input>(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
             recipes.push(recipe);
         }
-        let execution = provider_realization::native_execution::prepare_program(
-            proposal,
-            retained.authorization(),
-        )?
-        .with_operation_evidence(artifact, retained.evidence().cloned())?;
-        let demand = execution.scalar_application_demand(proposal.target_profile())?;
-        let scalars = scalars::complete(artifact, proposal, &demand, request.scalar_receipts)?;
+        let demand = execution.scope().scalar_application_demand();
+        let scalars = scalars::complete(artifact, proposal, demand, request.scalar_receipts)?;
         Ok((execution, recipes, scalars))
     })();
     match result {

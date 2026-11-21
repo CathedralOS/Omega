@@ -1,7 +1,9 @@
 //! The target-selected reach and the checked proposal which issued it travel together through lowering.
 
 use provider_admission::provider_installation::SelectedProviderAdapter;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use psi_target_layouts::AdmittedTargetLayouts;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarApplicationId};
+use std::sync::Arc;
 use target_vocabulary::publication::EmittedExecutionScope;
 use terminal_psi::{OperationKind, TerminalModule};
 use terminal_semantics::closed_owned_sequence_bounds;
@@ -180,6 +182,8 @@ mod storage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
+    layouts: Arc<AdmittedTargetLayouts>,
+    scalar_applications: Arc<[ScalarApplicationId]>,
     target_context: psi_target_layouts::TerminalTargetContext,
     entry: MachineId,
     selected_provider_closure: [u8; 32],
@@ -189,7 +193,7 @@ pub struct NativeExecutionScope {
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
-    pub(super) emitted: std::sync::Arc<EmittedExecutionScope>,
+    pub(super) emitted: Arc<EmittedExecutionScope>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
     demands: terminal_psi::TerminalBoundaryApplicationDemands,
     selected_candidate_positions: Vec<usize>,
@@ -280,11 +284,11 @@ impl<'a> NativeScopeBinding<'a> {
         self,
         emitted: EmittedExecutionScope,
         selected_candidate_positions: Vec<usize>,
-    ) -> Result<NativeExecutionScope, &'static str> {
+    ) -> Result<NativeExecutionScope, String> {
         let local_adapters = self.local_adapters().to_vec();
         let module = self.artifact.module();
         if !emitted.contains_machine(self.entry) {
-            return Err("native execution scope omitted its selected entry");
+            return Err("native execution scope omitted its selected entry".into());
         }
         let owned_sequence_bounds =
             closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))?;
@@ -294,7 +298,29 @@ impl<'a> NativeScopeBinding<'a> {
         )?;
         let proposal = self.proposal;
         let selection = &proposal.providers().selection;
+        let layouts = match self.parent {
+            Some(parent) => Arc::clone(&parent.scope().layouts),
+            None => {
+                let profile = proposal.target_profile();
+                profile.admit_address_representation()?;
+                let facts = profile
+                    .layout_target_facts()
+                    .ok_or("selected native target has no representation facts")?;
+                let layouts = psi_target_layouts::admit_target_layouts(
+                    self.artifact, &self.targets, &facts,
+                )
+                .map_err(|error| error.to_string())?;
+                Arc::new(layouts)
+            }
+        };
+        let scalar_applications = ScalarDemand {
+            emitted: Some(&emitted),
+            owned_sequence_bounds: &owned_sequence_bounds,
+        }
+        .scalar_application_demand(module, &layouts)?;
         Ok(NativeExecutionScope {
+            layouts,
+            scalar_applications: scalar_applications.into(),
             target_context: self.targets,
             entry: self.entry,
             source_provider_selection: selection.clone(),
@@ -309,7 +335,7 @@ impl<'a> NativeScopeBinding<'a> {
             entry_call: self.entry_call,
             local_adapters,
             callbacks: proposal.occurrences().callbacks.clone(),
-            emitted: std::sync::Arc::new(emitted),
+            emitted: Arc::new(emitted),
             owned_sequence_bounds,
             demands,
             selected_candidate_positions,
@@ -322,13 +348,13 @@ impl NativeExecutionScope {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
-        targets: &psi_target_layouts::TerminalTargetContext,
+        profile: target::TargetProfile,
         selection: &selected_provider_plans::SelectedProviderPlanFacts,
         adapters: &[SelectedProviderAdapter],
     ) -> Result<(), &'static str> {
         if artifact.identity() != self.target_context.terminal_psi()
             || entry != self.entry
-            || targets != &self.target_context
+            || profile.target_name() != self.target_context.target()
             || selection != &self.source_provider_selection
             || adapters != self.local_adapters
         {
@@ -467,30 +493,17 @@ impl NativeExecutionScope {
         &self.demands
     }
 
-    fn scalar_demand(&self) -> ScalarDemand<'_> {
-        ScalarDemand {
-            emitted: Some(&self.emitted),
-            owned_sequence_bounds: &self.owned_sequence_bounds,
-        }
+    /// All entries in this deployment use the same admitted geometry.
+    pub fn layouts(&self) -> &AdmittedTargetLayouts {
+        &self.layouts
     }
 
-    pub fn scalar_value_demand(
-        &self,
-        module: &TerminalModule,
-    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
-        self.scalar_demand().scalar_value_demand(module)
+    /// Only storage extents and scalar values needed by this entry’s reach.
+    pub fn scalar_application_demand(&self) -> &[ScalarApplicationId] {
+        &self.scalar_applications
     }
 
-    pub fn scalar_application_demand(
-        &self,
-        module: &TerminalModule,
-        layouts: &psi_target_layouts::AdmittedTargetLayouts,
-    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
-        self.scalar_demand()
-            .scalar_application_demand(module, layouts)
-    }
-
-    pub const fn emitted_reach(&self) -> &std::sync::Arc<EmittedExecutionScope> {
+    pub const fn emitted_reach(&self) -> &Arc<EmittedExecutionScope> {
         &self.emitted
     }
 

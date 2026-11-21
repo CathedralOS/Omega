@@ -20,7 +20,6 @@ provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../psi-execution-inputs/providers" }
 psi-entry-memory = { path = "../psi-execution-inputs/entry-memory" }
-psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
 provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }

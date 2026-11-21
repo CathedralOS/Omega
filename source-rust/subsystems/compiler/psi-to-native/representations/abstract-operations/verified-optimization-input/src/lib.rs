@@ -12,7 +12,7 @@
 
 use abstract_operations::AbstractOperationPlan;
 use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
-use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
+use psi_target_layouts::TerminalTargetContext;
 use psi_scalar_applications::AdmittedScalarApplications;
 
 mod emission_admission;
@@ -76,7 +76,6 @@ pub struct VerifiedPsiOptimizationInput {
     admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     target_context: Option<TerminalTargetContext>,
-    target_layout_selections: Option<AdmittedTargetLayouts>,
     external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
     selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
     evidence: ObligationEvidence,
@@ -184,7 +183,6 @@ impl VerifiedPsiOptimizationInput {
             context: VerifiedPsiOptimizationContext { artifact },
             admitted_assumed_bindings: Vec::new(),
             target_context,
-            target_layout_selections: None,
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::default(
             ),
@@ -192,12 +190,11 @@ impl VerifiedPsiOptimizationInput {
         })
     }
 
-    /// Records the selected entry call, layouts and scalar applications that
+    /// Records the selected entry call, scope and scalar applications that
     /// native admission settled for this exact module.
     pub fn retain_native_selections(
         &mut self,
         entry_call: Option<SelectedProgramEntryCall>,
-        layouts: AdmittedTargetLayouts,
         scalar_applications: Option<AdmittedScalarApplications>,
         scope: Option<std::sync::Arc<NativeExecutionScope>>,
         selected_provider_closure: [u8; 32],
@@ -216,7 +213,6 @@ impl VerifiedPsiOptimizationInput {
             return Err("native input already retains a different checked execution scope");
         }
         self.selected_program_entry_call = entry_call;
-        self.target_layout_selections = Some(layouts);
         self.scalar_applications = scalar_applications;
         self.native_execution_scope = scope;
         self.selected_provider_closure = Some(selected_provider_closure);
@@ -368,10 +364,6 @@ impl VerifiedPsiOptimizationInput {
 
     pub fn selected_provider_requirement_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.selected_provider_requirement_identities
-    }
-
-    pub fn target_layout_selections(&self) -> Option<&AdmittedTargetLayouts> {
-        self.target_layout_selections.as_ref()
     }
 
     pub fn selected_calling_abi_identity(
