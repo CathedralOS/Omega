@@ -361,24 +361,12 @@ pub(crate) fn declared_callable_value_type(
         };
         target = *argument;
     }
-    // A named constant has its declared type even when its initializer needs
-    // a later construction stage. The leaf is the selected declaration in a
-    // qualified name; the head may be its module.
     if table.expression_is_valid(target)
         && let ExpressionNode::Name(path) = table.expression(target)
-        && !path.static_application.is_valid()
-        && !path.reserved_result_of.is_valid()
-        && program.symbols.symbols().nodes().is_valid(path.symbol)
-        && program.symbols.get(path.symbol).kind == SymbolKind::Const
+        && let Some(constant) = program.named_const_declaration(path)
     {
-        return program
-            .const_declaration_by_symbol(path.symbol)
-            .map(|constant| constant.declared_type)
-            .filter(|reference| {
-                program
-                    .type_reference_table
-                    .contains_type_reference(*reference)
-            })
+        return program.type_reference_table.contains_type_reference(constant.declared_type)
+            .then_some(constant.declared_type)
             .ok_or_else(|| crate::typing::unavailable_judgment("constant's declared type"));
     }
     let states = program
