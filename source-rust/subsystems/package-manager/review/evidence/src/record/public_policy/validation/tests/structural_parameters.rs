@@ -348,11 +348,10 @@ fn saved_effects_keep_applications_distinct_and_reject_another_declarations_rece
         }
     };
     let mut current = policy(Some(vec![1, 3]));
-    current.public_api.traits[0].requirements[0].service_reach =
-        Some(vec![
-            application("integer-const(17)".into()),
-            application("integer-const(29)".into()),
-        ]);
+    current.public_api.traits[0].requirements[0].service_reach = Some(vec![
+        application("integer-const(17)".into()),
+        application("integer-const(29)".into()),
+    ]);
     assert_eq!(recover(&current), Ok(current.clone()));
     let rows = |policy: &PackagePolicyBaseline| {
         policy
@@ -390,7 +389,10 @@ fn saved_effects_keep_applications_distinct_and_reject_another_declarations_rece
     assert!(wrong_owner.validate_canonical_structure().is_err());
 
     let argument_owner = semantic_vocabulary::PackageKeyIdentity::from_digest([0x42; 32]).unwrap();
-    let owned_argument = format!("nominal(package-owner(32:{}),path(Packet))", "42".repeat(32));
+    let owned_argument = format!(
+        "nominal(package-owner(32:{}),path(Packet))",
+        "42".repeat(32)
+    );
     let mut imported = current;
     imported.public_api.traits[0].requirements[0].service_reach =
         Some(vec![application(owned_argument)]);
@@ -399,7 +401,13 @@ fn saved_effects_keep_applications_distinct_and_reject_another_declarations_rece
         .unwrap_err();
     assert_eq!(
         missing.error(),
-        crate::encoding::PackagePolicyMembershipError::UnknownPackage { package: argument_owner }
+        crate::encoding::PackagePolicyMembershipError::UnknownPackage {
+            package: argument_owner
+        }
     );
-    assert!(imported.validate_package_membership(|_| true, Default::default()).is_ok());
+    assert!(
+        imported
+            .validate_package_membership(|_| true, Default::default())
+            .is_ok()
+    );
 }

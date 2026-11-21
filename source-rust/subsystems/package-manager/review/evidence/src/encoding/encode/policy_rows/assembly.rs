@@ -200,7 +200,10 @@ pub(super) fn project(
         crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
     };
     builder.push_versioned(
-        (PackagePolicyRowKind::SelectedProviderAssociation, provider_schema),
+        (
+            PackagePolicyRowKind::SelectedProviderAssociation,
+            provider_schema,
+        ),
         false,
         false,
         |_| Ok(()),

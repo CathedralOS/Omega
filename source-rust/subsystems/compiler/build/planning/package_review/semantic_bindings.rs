@@ -116,7 +116,9 @@ fn host_services(
             .machine(entry.entry)
             .ok_or_else(|| unavailable("the checked physical entry machine"))?;
         let origins = super::callables::service_origins(
-            input.typed(), module, input.sources().exact_toolchain_sources(),
+            input.typed(),
+            module,
+            input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
         let ids = super::callables::service_identities(
@@ -135,7 +137,11 @@ fn host_services(
         ("TimeHost", Role::TimeHostService),
     ] {
         let mut matches = services.iter().filter_map(|service| match service.owner() {
-            PackageReviewNominalOwner::Package(owner) if service.application.is_none() && service.path() == path => Some(owner),
+            PackageReviewNominalOwner::Package(owner)
+                if service.application.is_none() && service.path() == path =>
+            {
+                Some(owner)
+            }
             _ => None,
         });
         let Some(owner) = matches.next() else {
@@ -197,7 +203,8 @@ pub(super) fn candidates(
             && (fresh.package() != previous.package()
                 || fresh.declaration_path() != previous.declaration_path()
                 || fresh.normalized_schema_digest() != previous.normalized_schema_digest()
-                || fresh.selected_provider_plan_digest() != previous.selected_provider_plan_digest())
+                || fresh.selected_provider_plan_digest()
+                    != previous.selected_provider_plan_digest())
         {
             return Err(unavailable(
                 "a fresh nomination conflicting with its accepted supplier",

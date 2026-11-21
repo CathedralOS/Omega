@@ -56,7 +56,10 @@ pub(super) fn critical_services(
             _ => continue,
         };
         let (symbol, schema) = checked_service(input, selected, binding)?;
-        classes.push((input.effect_identity(&input.schema_effect_scope(symbol, &schema)?)?, class));
+        classes.push((
+            input.effect_identity(&input.schema_effect_scope(symbol, &schema)?)?,
+            class,
+        ));
     }
     classes.sort();
     classes.dedup();

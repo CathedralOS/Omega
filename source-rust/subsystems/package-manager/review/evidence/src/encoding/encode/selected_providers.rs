@@ -82,9 +82,11 @@ fn plan(
                     }
                     PackageReviewProviderGrantSelectorKind::ProviderApplication(application) => {
                         encoder.tag("provider_application", 2);
-                        encoder.option_field("application", application.as_ref(), |encoder, value| {
-                            encoder.string(value)
-                        })?;
+                        encoder.option_field(
+                            "application",
+                            application.as_ref(),
+                            |encoder, value| encoder.string(value),
+                        )?;
                     }
                 };
                 Ok(())

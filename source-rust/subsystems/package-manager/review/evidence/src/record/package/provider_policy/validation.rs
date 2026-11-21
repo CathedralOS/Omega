@@ -28,7 +28,10 @@ impl PackagePolicySelectedProviders {
         for plan in &self.plans {
             plan.schema_declaration.validate_resolved()?;
             if let Some(application) = &plan.schema_application
-                && !plan.schema_declaration.matches_applied_trait_declaration(&application.canonical) {
+                && !plan
+                    .schema_declaration
+                    .matches_applied_trait_declaration(&application.canonical)
+            {
                 return Err("provider plan has another service's receiver application");
             }
             if plan.plan_name.is_empty()
@@ -48,10 +51,15 @@ impl PackagePolicySelectedProviders {
             }
             ordered(&plan.grants)?;
             for grant in &plan.grants {
-                if let crate::record::PackageReviewProviderGrantSelectorKind::ProviderApplication(application) = grant
-                    && (plan.provider_type_declaration.is_none() || application.as_ref().is_some_and(String::is_empty))
+                if let crate::record::PackageReviewProviderGrantSelectorKind::ProviderApplication(
+                    application,
+                ) = grant
+                    && (plan.provider_type_declaration.is_none()
+                        || application.as_ref().is_some_and(String::is_empty))
                 {
-                    return Err("a provider application grant needs its provider declaration and complete arguments");
+                    return Err(
+                        "a provider application grant needs its provider declaration and complete arguments",
+                    );
                 }
             }
             super::validate_service_methods(&plan.methods, &plan.schema_declaration, self.target)?;

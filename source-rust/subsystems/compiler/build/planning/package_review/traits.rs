@@ -324,7 +324,9 @@ impl PolicySource<'_> {
                     .iter()
                     .map(|invocation| match invocation {
                         Invocation::Parameter(position) => Ok(Reviewed::Parameter(*position)),
-                        Invocation::Service(service) => self.reviewed_requirement_service(service).map(Reviewed::Service),
+                        Invocation::Service(service) => self
+                            .reviewed_requirement_service(service)
+                            .map(Reviewed::Service),
                     })
                     .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
                 invocations.sort();
