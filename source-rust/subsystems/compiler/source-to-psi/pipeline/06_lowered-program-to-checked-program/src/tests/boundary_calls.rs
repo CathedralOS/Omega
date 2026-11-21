@@ -728,6 +728,83 @@ fn applied_boundary(limit: u32) -> Checked<crate::lowering::Elaboration> {
 }
 
 #[test]
+fn inferred_boundary_const_arguments_keep_their_value_and_carrier() {
+    let source = r#"
+boundary trait Probe {
+    machine size<const N: u64>(bytes: @[u8; N]) -> u64 reaches none crashes none;
+    machine marker<const N: u32>() -> u32 reaches none crashes none;
+}
+machine entry(three: @[u8; 3], four: @[u8; 4]) -> u64 {
+    let a: u64 = Probe::size(three);
+    let b: u64 = Probe::size(four);
+    let c: u64 = Probe::size::<0x3u64>(three);
+    let marker: u32 = Probe::marker::<3u32>();
+    a
+}
+"#;
+    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+    let verdict = judge(read_applied_boundary(prepared.trees())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let mut program = prepared.into_inner();
+    let calls: Vec<_> = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| {
+            let crate::source_state::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program.closed_requirement_application(call.target_symbol)?;
+            Some((call.target_symbol, call.authored_machine_application))
+        })
+        .collect();
+    let [three, four, explicit_three, marker] = calls.as_slice() else {
+        panic!("expected the three array applications and the u32 marker");
+    };
+    let operand = |call: &(_, _)| {
+        program
+            .expression_table
+            .static_machine_application_arguments(call.1)[0]
+            .clone()
+    };
+    let matching = operand(explicit_three);
+    let wrong_value = operand(four);
+    let wrong_carrier = operand(marker);
+    for (argument, expected) in [
+        (matching, true),
+        (wrong_value, false),
+        (wrong_carrier, false),
+    ] {
+        program
+            .expression_table
+            .static_machine_application_arguments_mut(three.1)[0] = argument;
+        let actual = program.require_closed_requirement_call_application(three.0, three.1);
+        if expected {
+            actual.expect("another spelling of the landed three");
+        } else {
+            assert_eq!(
+                actual,
+                Err("closed requirement call argument differs from its retained binding")
+            );
+        }
+    }
+    // Sharing the same wrong carrier in both stored rows cannot satisfy u64.
+    let narrow_binding = program
+        .expression_table
+        .static_machine_application_bindings(marker.1)[0]
+        .value
+        .clone();
+    program
+        .expression_table
+        .static_machine_application_bindings_mut(three.1)[0]
+        .value = narrow_binding;
+    assert_eq!(
+        program.require_closed_requirement_call_application(three.0, three.1),
+        Err("closed requirement call argument differs from its retained binding")
+    );
+}
+
+#[test]
 fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     let elaboration = applied_boundary(10).unwrap();
     // `take` at `u32` and at `Reading` are two declarations of one

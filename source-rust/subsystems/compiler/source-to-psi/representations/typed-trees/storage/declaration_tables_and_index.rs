@@ -5328,9 +5328,29 @@ pub(crate) mod type_reference_queries {
                     .is_some_and(|(expected, actual)| expected == actual)
                 }
                 (
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                    TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference },
                     StaticMachineBindingValue::Const(actual),
                 ) => {
+                    // Inference may carry the same scalar as a typed operand, while
+                    // the binding retains its landed literal. Compare their values at
+                    // the declared carrier before considering symbolic operands.
+                    if let Some(primitive) = self.primitive_type_reference(*type_reference)
+                        && (primitive.landed_landing_fixed().is_some()
+                            || primitive == types::PrimitiveType::Bool)
+                    {
+                        let Ok(bound_operand) = self.static_operand_from_type_reference(*actual)
+                        else {
+                            return false;
+                        };
+                        let supplied = self.callable_scalar_value(primitive, argument);
+                        let bound = self.callable_scalar_value(primitive, &bound_operand);
+                        match (supplied, bound) {
+                            (Ok(supplied), Ok(bound)) => return supplied == bound,
+                            (Err(_), Err(_)) if static_const_argument_value(self, &bound_operand).is_none()
+                                && static_const_argument_value(self, argument).is_none() => {}
+                            _ => return false,
+                        }
+                    }
                     if let Some((expected, actual)) = self
                         .static_const_argument_identity(argument)
                         .zip(self.static_const_type_reference_identity(*actual))

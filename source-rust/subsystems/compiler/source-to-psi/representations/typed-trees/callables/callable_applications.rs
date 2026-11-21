@@ -133,6 +133,29 @@ impl crate::source_state::TypedTrees {
         }
     }
 
+    /// The checked scalar value at a callable binder's declared carrier.
+    pub fn callable_scalar_value(
+        &self,
+        primitive: crate::source_state::types::PrimitiveType,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Result<application_identity::const_value::DecodedCanonicalConstValue, &'static str> {
+        use crate::source_state::expression::ExpressionNode;
+        use application_identity::const_value::DecodedCanonicalConstValue;
+
+        match self.prepare_callable_scalar_argument(primitive, argument)? {
+            ExpressionNode::Integer(literal) => Ok(DecodedCanonicalConstValue::Integer {
+                integer_type: primitive
+                    .landed_landing_fixed()
+                    .ok_or("an application's integer binding has no admitted carrier")?,
+                value: literal
+                    .value_bignum()
+                    .ok_or("an application's integer binding has no canonical value")?,
+            }),
+            ExpressionNode::Boolean(value) => Ok(DecodedCanonicalConstValue::Boolean(value)),
+            _ => Err("an application's value binding has no admitted scalar value"),
+        }
+    }
+
     /// The ordinary schema of a const operation-record parameter. This does
     /// not admit its construction or provide callable refinement evidence.
     pub fn static_record_schema(
