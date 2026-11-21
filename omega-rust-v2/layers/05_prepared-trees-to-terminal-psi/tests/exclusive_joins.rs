@@ -1,5 +1,5 @@
 //! An exclusive descriptor chosen by a `match` arrives at the join by transfer.
-//! Each predecessor moves its own incoming `@mut` descriptor into the join
+//! Each predecessor moves its own incoming `@mutable` descriptor into the join
 //! parameter (terminal-psi/byte_views.md#calls-and-control-transfers), so the
 //! checker can tell which loan each arrival carries and that none was copied.
 #[path = "support/source.rs"]
@@ -145,7 +145,7 @@ fn the_shared_control_still_copies_each_arriving_view() {
 
 #[test]
 fn an_exclusive_reference_match_result_transfers_the_same_way() {
-    let text = "data Cell { v: u32; } machine pick(flag: bool, left: @mut Cell, right: @mut Cell) -> u32 { let chosen = match flag {true -> left, false -> right,}; chosen.v }";
+    let text = "data Cell { v: u32; } machine pick(flag: bool, left: @mutable Cell, right: @mutable Cell) -> u32 { let chosen = match flag {true -> left, false -> right,}; chosen.v }";
     let package = lower(text);
     let join = exclusive_join(&package, "pick").unwrap();
     assert_eq!(join.arrivals, [(true, 1), (false, 2)]);
@@ -158,14 +158,14 @@ fn an_exclusive_reference_match_result_transfers_the_same_way() {
     ));
     assert_eq!(join.consumer, JoinedUse::ReferentField(vec!["Cell::v".into()]));
     // The shared reference twin keeps copying its loan onto each edge.
-    let shared = lower(&text.replace("@mut Cell", "@Cell"));
+    let shared = lower(&text.replace("@mutable Cell", "@Cell"));
     assert_eq!(exclusive_join(&shared, "pick"), Err("an exclusive descriptor arrives by copy"));
 }
 
 #[test]
 fn a_read_through_the_joined_view_measures_and_reads_the_join_parameter() {
     let text =
-        "machine pick(flag: bool, left: @mut [u32], right: @mut [u32], i: u64) -> u32 { let chosen = match flag {true -> left, false -> right,}; chosen[i] }";
+        "machine pick(flag: bool, left: @mutable [u32], right: @mutable [u32], i: u64) -> u32 { let chosen = match flag {true -> left, false -> right,}; chosen[i] }";
     let package = lower(text);
     let body = pick(&package);
     let [_, _, _, Parameter::Scalar(selector)] = body.parameters[..] else {
@@ -201,7 +201,7 @@ fn a_read_through_the_joined_view_measures_and_reads_the_join_parameter() {
 
 #[test]
 fn both_arms_may_transfer_the_same_formal() {
-    let text = "machine pick(flag: bool, left: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> left,}; chosen.length }";
+    let text = "machine pick(flag: bool, left: @mutable [u32]) -> u64 { let chosen = match flag {true -> left, false -> left,}; chosen.length }";
     assert_eq!(exclusive_join(&lower(text), "pick").map(|j| j.arrivals), Ok([(true, 1), (false, 1)]));
 }
 
@@ -209,7 +209,7 @@ fn both_arms_may_transfer_the_same_formal() {
 fn a_transferred_formal_used_after_the_join_is_left_for_the_checker() {
     // On the true arrival `left` was transferred into `chosen`. Lowering keeps
     // the later read of `left` so the checker can refuse it on that arrival.
-    let text = "machine pick(flag: bool, left: @mut [u32], right: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; let n = chosen.length; n +% left.length }";
+    let text = "machine pick(flag: bool, left: @mutable [u32], right: @mutable [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; let n = chosen.length; n +% left.length }";
     let join = exclusive_join(&lower(text), "pick").unwrap();
     assert_eq!(join.arrivals, [(true, 1), (false, 2)]);
     assert_eq!(join.reused_after_transfer, [1]);
@@ -217,7 +217,7 @@ fn a_transferred_formal_used_after_the_join_is_left_for_the_checker() {
 
 #[test]
 fn binding_an_existing_exclusive_view_transfers_the_descriptor() {
-    let original = "machine pick(left: @mut [u32]) -> u64 { let chosen = left; chosen.length }";
+    let original = "machine pick(left: @mutable [u32]) -> u64 { let chosen = left; chosen.length }";
     let mut package = lower(original);
     let body = pick(&package);
     let [Parameter::Structural(formal)] = body.parameters[..] else {
@@ -257,7 +257,7 @@ fn naming_a_join_result_twice_keeps_the_transfer_and_the_later_use_separate() {
 
 #[test]
 fn both_bindings_of_one_exclusive_record_reference_name_their_transfer_source() {
-    let package = lower("data Cell { n:u32; } machine pick(l:@mut Cell)->u32 { let a=l; let b=l; a.n + b.n }");
+    let package = lower("data Cell { n:u32; } machine pick(l:@mutable Cell)->u32 { let a=l; let b=l; a.n + b.n }");
     let body = pick(&package);
     let [Parameter::Structural(formal)] = body.parameters[..] else {
         panic!("expected the exclusive formal")

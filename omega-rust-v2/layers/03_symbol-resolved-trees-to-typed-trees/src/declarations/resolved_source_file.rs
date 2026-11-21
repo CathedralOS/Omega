@@ -198,7 +198,7 @@ impl<'a> ResolvedSourceFile<'a> {
         node_index: usize,
     ) -> Access {
         match self.file.nodes[node_index].words().next().map(|w| w.text) {
-            Some("mut") => Access::Mut,
+            Some("mutable") => Access::Mut,
             Some("write") => Access::Write,
             _ => Access::Shared,
         }

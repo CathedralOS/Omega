@@ -428,7 +428,7 @@ const HOST_START: &str = r"linux_x86_64\ProgramEntry, entry_start)";
 const FREESTANDING: &str = "builder.freestanding = true;";
 const DIRECT: &str = "probes/direct_file_imports";
 pub const NONMAIN: &str = "probes/build_nonmain_module";
-const KIT_ALIAS: &str = r#"with_alias(@mut kit_dependency, "kit")"#;
+const KIT_ALIAS: &str = r#"with_alias(@mutable kit_dependency, "kit")"#;
 const DEPENDENCY: &str = "mod_kernel";
 const DEPENDENCY_PACKAGE: &str = r#"Build::package(builder, "mod_kernel")"#;
 /// `probes/build_nonmain_module/build.omg` registers `dep` under the alias `kit`.

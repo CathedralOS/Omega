@@ -92,7 +92,7 @@ fn forwarding_a_shared_descriptor_keeps_its_input_identity_without_reading_stora
 fn exclusive_move_and_replacement_retain_both_exact_paths() {
     // `taken` is the place L3 types at the move; `field` is the assignment destination.
     for (taken, field) in [("left", "left"), ("left", "right"), ("right", "right")] {
-        let src = format!("data Cell {{v:u8;}} data Pair {{left:Cell;right:Cell;}} machine edit(p:@mut Pair) {{let old=move p.{taken}; p.{field}=move old;}}");
+        let src = format!("data Cell {{v:u8;}} data Pair {{left:Cell;right:Cell;}} machine edit(p:@mutable Pair) {{let old=move p.{taken}; p.{field}=move old;}}");
         let lowered = pipeline::lower(&src);
         let body = &lowered.package.machines[0].body;
         let moved = body
@@ -267,7 +267,7 @@ fn nested_reference_call_borrows_the_descriptor_returned_by_the_inner_call() {
 
 #[test]
 fn a_restored_view_element_allows_a_later_window_at_another_selector() {
-    let source = "data Cell{v:u8;} machine edit(p:@mut [Cell], i:u64, j:u64) { let first=move p[i]; p[i]=move first; let second=move p[j]; p[j]=move second; }";
+    let source = "data Cell{v:u8;} machine edit(p:@mutable [Cell], i:u64, j:u64) { let first=move p[i]; p[i]=move first; let second=move p[j]; p[j]=move second; }";
     let pkg = sources::lower(&[("loan.omg", source)]).unwrap();
     let body = &pkg.machines[0].body;
     let selectors: Vec<_> = body
@@ -299,7 +299,7 @@ fn a_restored_view_element_allows_a_later_window_at_another_selector() {
 
 #[test]
 fn replacing_a_known_disjoint_view_element_disposes_only_its_old_value() {
-    let src = "data Cell{v:u8;} machine edit(p:@mut [Cell], replacement:Cell) {let old=move p[0]; p[1]=move old; p[0]=move replacement;}";
+    let src = "data Cell{v:u8;} machine edit(p:@mutable [Cell], replacement:Cell) {let old=move p[0]; p[1]=move old; p[0]=move replacement;}";
     let pkg = sources::lower(&[("loan.omg", src)]).unwrap();
     let body = &pkg.machines[0].body;
     let moves: Vec<_> = body

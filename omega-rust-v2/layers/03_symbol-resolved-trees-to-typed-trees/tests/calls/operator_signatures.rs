@@ -338,7 +338,7 @@ fn token_calls_substitute_operand_subjects_into_parameters_and_results() {
 fn a_later_operand_call_preserves_the_first_operands_storage_version() {
     let schema = "data Frame{} domain<K:u8> u8::Label<K>; machine frame()->Frame{Frame{}}
         machine + mark(n:u8,b:Frame)->u8 in Label<n>{0u8 as +Label<n>}";
-    let code = format!("{schema} machine f(){{let mut k:u8=1; k=2; _=k+frame();}}");
+    let code = format!("{schema} machine f(){{let mutable k:u8=1; k=2; _=k+frame();}}");
     let stage = check(&[("order.omg", &code)]).unwrap();
     let mark = stage.calls.iter().find(|c| c.machine.path == "mark").unwrap();
     let first = &mark.operands[0];

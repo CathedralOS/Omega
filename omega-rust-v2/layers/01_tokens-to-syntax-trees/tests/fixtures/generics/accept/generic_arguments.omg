@@ -20,7 +20,7 @@ machine arguments(
     o: Wrapper<[u8; 4] in D, u8 in A & B, core\u8 in P>,
     p: Check<N + 1 in D>,
 ) {
-    _ = apply::<set_time>(@mut e, 5);
+    _ = apply::<set_time>(@mutable e, 5);
     _ = integer\max::<i32>();
     _ = Sensor::<29u64>::read();
     _ = convert::<Outcome<u32, Never>, 64>(a);

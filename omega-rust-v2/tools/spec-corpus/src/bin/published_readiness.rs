@@ -233,10 +233,10 @@ fn reader() -> bool {
     let chapter = "language/some_packages.md";
     let schema = block(chapter, 15);
     let init = block(chapter, 41);
-    let source = format!("machine pack() {{ let mut file:File;\n{init}\n}}");
+    let source = format!("machine pack() {{ let mutable file:File;\n{init}\n}}");
     let defs =
-        "data File {} data Socket {} machine read_file(state:@mut File,output:@mut [u8])->u64 ensures result <= output.length reaches none crashes none {0}";
-    let wrong = defs.replace("state:@mut File", "state:@mut Socket");
+        "data File {} data Socket {} machine read_file(state:@mutable File,output:@mutable [u8])->u64 ensures result <= output.length reaches none crashes none {0}";
+    let wrong = defs.replace("state:@mutable File", "state:@mutable Socket");
     let files = |declarations| {
         [
             ("example", "reader.omg", schema.as_str()),

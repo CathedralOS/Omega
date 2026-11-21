@@ -323,7 +323,7 @@ fn alias_multiplicity_asserts_the_expansion_without_creating_an_owner() {
 
 #[test]
 fn alias_multiplicity_cannot_override_the_expansion() {
-    for source in ["data Alias [linear] = u64;", "data Alias [copy] = @mut u64;", "data Alias<T> [copy] = T;"] {
+    for source in ["data Alias [linear] = u64;", "data Alias [copy] = @mutable u64;", "data Alias<T> [copy] = T;"] {
         let resolved = sources::resolve(&[("alias.omg", source)]);
         let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
         assert_eq!(error.message, "a transparent alias cannot change its target's multiplicity");
@@ -445,7 +445,7 @@ fn alias_expansion<'a>(
 #[test]
 fn reference_and_template_application_aliases_hand_off_their_exact_expansion() {
     use omega_lowering::{DeclarationTerm, TemplateAccess, TypeExpression, TypeExpressionStep as Term};
-    let source = "data Reference = @mut u64; data Boxed = Box<u64>; data Box<T> { value:T; }";
+    let source = "data Reference = @mutable u64; data Boxed = Box<u64>; data Box<T> { value:T; }";
     let package = lower(&[("alias.omg", source)]).unwrap();
     let boxed = package
         .data_templates

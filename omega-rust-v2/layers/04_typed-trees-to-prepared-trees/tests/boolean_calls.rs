@@ -296,7 +296,7 @@ fn block_arms_keep_their_locals_and_return_the_selected_result() {
                 true -> {let port:u8=1; port},
                 false -> {let port:u8=2; port},
             };
-            let mut extra:u8=0;
+            let mutable extra:u8=0;
             match local {true -> {extra=3;}, false -> {}};
             transition local {
                 true -> {let port:u8=4; first +% port +% extra},
@@ -465,7 +465,7 @@ fn writes_only_the_selected_local_in_each_fresh_invocation() {
     let machines = "machine invert(value:bool)->bool {!value}
                     machine run(value:bool)->bool {
                         let original:bool=value;
-                        let mut saved:bool=value;
+                        let mutable saved:bool=value;
                         saved=invert(saved);
                         saved != original && saved
                     }";
@@ -476,7 +476,7 @@ fn writes_only_the_selected_local_in_each_fresh_invocation() {
         assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(expected)));
     }
 
-    let immutable = source.replace("let mut saved", "let saved");
+    let immutable = source.replace("let mutable saved", "let saved");
     let error = prepare(&immutable).unwrap_err();
     assert_eq!(error.message, "place requires writable authority");
     assert_eq!(error.span.slice(immutable.as_bytes()), Some(b"saved".as_slice()));

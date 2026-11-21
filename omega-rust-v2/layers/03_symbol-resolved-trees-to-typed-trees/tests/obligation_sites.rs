@@ -199,7 +199,7 @@ fn copy_returns_read_the_value_without_returning_a_loan() {
         ("machine f()->u8 {let x:u8=7; let view=@x; let n:u8=$view; n}", "$view"),
         ("machine f(view:@u8)->u8 {$view}", "$view"),
         ("machine f<'a>(view:@'a u8)->u8 {$view}", "$view"),
-        ("machine f<'a>(view:@'a mut u8)->u8 {let n:u8=$view; n}", "$view"),
+        ("machine f<'a>(view:@'a mutable u8)->u8 {let n:u8=$view; n}", "$view"),
         ("machine f()->bool {let flag:bool=true; $@flag}", "$@flag"),
     ] {
         let stage = support::check(&[("handoff.omg", source)]).unwrap();
@@ -286,7 +286,7 @@ fn bare_arm_bindings_cover_the_subject_and_qualified_constants_test_one_value() 
 fn value_patterns_read_a_copy_through_a_reference_subject() {
     for (source, read_site, copied) in [
         ("machine f(v:@bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
-        ("machine f(v:@mut bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
+        ("machine f(v:@mutable bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
         ("machine f(v:@u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
         ("machine f(v:@u8)->u8 {match $v {limits\\Z->1,_->0,}}", "$v", "u8"),
         ("machine f<'a>(v:@'a u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
@@ -351,9 +351,9 @@ fn explicit_dereference_obeys_the_type_and_access_of_each_reference() {
     }
     for source in [
         "machine put(r:@write u8) {$r=1;}",
-        "machine put(r:@mut u8) {$r=1;}",
-        "machine nested(r:@@mut u8)->u8 {$$r}",
-        "machine lend(r:@mut u8)->@mut u8 {@mut $r}",
+        "machine put(r:@mutable u8) {$r=1;}",
+        "machine nested(r:@@mutable u8)->u8 {$$r}",
+        "machine lend(r:@mutable u8)->@mutable u8 {@mutable $r}",
     ] {
         support::check(&[("deref.omg", source)]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
     }
@@ -366,7 +366,7 @@ fn explicit_dereference_obeys_the_type_and_access_of_each_reference() {
         ("machine f(n:u8)->u8 {$n}", "dereference requires a reference, found u8"),
         ("machine f(r:@write u8)->u8 {$r}", "cannot read through a write-only reference"),
         ("machine put(r:@u8) {$r=1;}", "place requires writable authority"),
-        ("machine put(r:@@mut u8) {$$r=1;}", "place requires writable authority"),
+        ("machine put(r:@@mutable u8) {$$r=1;}", "place requires writable authority"),
         ("machine f(n:u8)->@u8 {let r=@n; $@r}", "returned reference borrows invocation-local storage"),
     ] {
         let error = support::check(&[("deref.omg", source)]).unwrap_err();
@@ -376,7 +376,7 @@ fn explicit_dereference_obeys_the_type_and_access_of_each_reference() {
 
 #[test]
 fn moving_from_a_dereferenced_place_keeps_the_loan_to_restore() {
-    let source = "data Resource { n:u8; } machine f(r:@mut Resource,new:Resource)->Resource {let old=move $r; $r=new; old}";
+    let source = "data Resource { n:u8; } machine f(r:@mutable Resource,new:Resource)->Resource {let old=move $r; $r=new; old}";
     let resolved = support::resolve_packages(&[("game", "restore.omg", source)], &[]);
     let typed = omega_typer::type_stage(&resolved).unwrap();
     let file = typed.trees().next().unwrap().resolved().file;
@@ -449,7 +449,7 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
         ("let old=(move h.left); h.left=replacement; old", "h.left", "left", false),
         ("let Holder{left as slot,..}=h; let old=slot; slot=replacement; old", "slot", "left", true),
     ] {
-        let source = format!("{definitions} machine replace(h:@mut Holder,replacement:Resource)->Resource{{{body}}}");
+        let source = format!("{definitions} machine replace(h:@mutable Holder,replacement:Resource)->Resource{{{body}}}");
         let resolved = support::resolve_packages(&[("game", "handoff.omg", &source)], &[]);
         let typed = omega_typer::type_stage(&resolved).unwrap();
         let tree = typed.trees().next().unwrap();
@@ -480,8 +480,8 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
         assert_eq!(written == capture, alias);
     }
     for body in [
-        "machine f(h:@mut Holder)->u8{h.left.n}",
-        "machine f(h:@mut Holder)->@Resource{@h.left}",
+        "machine f(h:@mutable Holder)->u8{h.left.n}",
+        "machine f(h:@mutable Holder)->@Resource{@h.left}",
         "machine f(h:Holder)->Resource{move h.left}",
     ] {
         let source = format!("{definitions} {body}");
@@ -498,7 +498,7 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
 
 #[test]
 fn moving_out_of_an_exclusive_element_view_selects_the_exclusive_element_and_owes_its_restoration() {
-    let source = "data Cell{v:u8;} machine edit(p:@mut [Cell],i:u64){let old=move p[i]; p[i]=move old;}";
+    let source = "data Cell{v:u8;} machine edit(p:@mutable [Cell],i:u64){let old=move p[i]; p[i]=move old;}";
     let resolved = support::resolve_packages(&[("game", "handoff.omg", source)], &[]);
     let typed = omega_typer::type_stage(&resolved).unwrap();
     let tree = typed.trees().next().unwrap();
@@ -538,7 +538,7 @@ fn moving_out_of_an_exclusive_element_view_selects_the_exclusive_element_and_owe
             .message
             .contains("copy element")
     );
-    let copied = "data Cell [copy] {v:u8;} machine f(p:@mut [Cell],i:u64)->Cell{move p[i]}";
+    let copied = "data Cell [copy] {v:u8;} machine f(p:@mutable [Cell],i:u64)->Cell{move p[i]}";
     if let Ok(stage) = support::check(&[("handoff.omg", copied)]) {
         assert!(
             stage

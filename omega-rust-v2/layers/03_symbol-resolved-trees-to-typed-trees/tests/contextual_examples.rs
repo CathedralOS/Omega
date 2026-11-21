@@ -220,9 +220,9 @@ fn published_range_views_preserve_bounds_and_authority() {
     };
     for (line, expected, result) in [
         (*shared, "indexing\\range", "@[u8]"),
-        (*exclusive, "indexing\\range_mut", "@mut [u8]"),
+        (*exclusive, "indexing\\range_mut", "@mutable [u8]"),
     ] {
-        let source = format!("machine read(view:@mut [u8]) {{ {line} }}");
+        let source = format!("machine read(view:@mutable [u8]) {{ {line} }}");
         let resolved = support::resolve_packages(&[("game", "published.omg", &source)], &[]);
         let stage = omega_typer::type_stage(&resolved).unwrap();
         let tree = stage.trees().next().unwrap();
@@ -257,10 +257,10 @@ fn published_range_views_preserve_bounds_and_authority() {
         assert_eq!(syntax.span(end).slice(source.as_bytes()), Some(b"4".as_slice()));
     }
     let bad = commented.strip_prefix("// Rejected: ").unwrap();
-    let source = format!("machine read(view:@mut [u8]) {{ {bad} }}");
+    let source = format!("machine read(view:@mutable [u8]) {{ {bad} }}");
     let error = check(&[("published.omg", &source)]).unwrap_err();
     assert_eq!(error.file, "published.omg");
-    assert!(error.message.starts_with("expected @mut [u8], found @[u8]"), "{error:?}");
+    assert!(error.message.starts_with("expected @mutable [u8], found @[u8]"), "{error:?}");
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"view[2..4]".as_slice()));
 }
 
@@ -553,12 +553,12 @@ const GENERICS: &str = "language/generics.md";
 #[test]
 fn published_inherited_call_contributes_its_declared_reach() {
     let text = block(EFFECTS, 51);
-    let defs = "data NoState {} data Entry {at:u64;} boundary trait TimeObservation {} boundary trait ClockOps<S>{machine now(s:@mut S)->u64 reaches TimeObservation;}";
-    let rejected = text.replace("    entry.at =", "    let mut none:NoState;\n    entry.at =");
+    let defs = "data NoState {} data Entry {at:u64;} boundary trait TimeObservation {} boundary trait ClockOps<S>{machine now(s:@mutable S)->u64 reaches TimeObservation;}";
+    let rejected = text.replace("    entry.at =", "    let mutable none:NoState;\n    entry.at =");
     let error = check(&[("defs.omg", defs), ("clock.omg", &rejected)]).unwrap_err();
     assert_eq!(error.message, "call exceeds service reach for TimeObservation");
     assert_eq!(error.file, "clock.omg");
-    assert_eq!(error.span.slice(rejected.as_bytes()), Some(b"WallClock::now(@mut none)".as_slice()));
+    assert_eq!(error.span.slice(rejected.as_bytes()), Some(b"WallClock::now(@mutable none)".as_slice()));
     let admitted = rejected.replace(") reaches WallClock", ") reaches TimeObservation");
     let stage = check(&[("defs.omg", defs), ("clock.omg", &admitted)]).unwrap();
     let [call] = stage.calls.as_slice() else { panic!("expected inherited now") };
@@ -573,7 +573,7 @@ fn published_inherited_call_contributes_its_declared_reach() {
 #[test]
 fn published_counter_fields_retain_their_callable_contracts() {
     let fields = block(EFFECTS, 203);
-    let caller = "machine invoke(o:CounterOps,a:@mut Counter,b:@Counter)->u64 {(o.clear)(a);(o.value)(b)}";
+    let caller = "machine invoke(o:CounterOps,a:@mutable Counter,b:@Counter)->u64 {(o.clear)(a);(o.value)(b)}";
     let defs = "data Counter {}";
     let stage = check(&[
         ("counter.omg", defs),
@@ -590,7 +590,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
         assert!(matches!(c.parameters.as_slice(),[ValueType::Reference(a,t)] if a==&authority && t.to_string()=="game\\Counter"));
         assert!(c.closed_runtime && c.terminates && c.reach.as_ref().is_some_and(Vec::is_empty) && c.crash_ceiling.as_ref().is_some_and(Vec::is_empty));
     }
-    let wrong = caller.replace("a:@mut Counter", "a:@Counter");
+    let wrong = caller.replace("a:@mutable Counter", "a:@Counter");
     let err = check(&[
         ("counter.omg", defs),
         ("fields.omg", &fields),
@@ -598,7 +598,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
     ])
     .unwrap_err();
     assert_eq!(err.file, "invoke.omg");
-    assert_eq!(err.message, "expected @mut game\\Counter, found @game\\Counter");
+    assert_eq!(err.message, "expected @mutable game\\Counter, found @game\\Counter");
 }
 
 #[test]
@@ -641,7 +641,7 @@ fn published_pause_markers_cover_each_required_effect() {
 fn published_sort_requirement_binds_each_calls_element_and_ordering() {
     let sorting = block(GENERICS, 61);
     let ordering = "trait Ordering<T>{machine precedes(a:T,b:T)->bool;} ByteOrder satisfies Ordering<u8>{machine precedes(a:u8,b:u8)->bool{a<b}} WideOrder satisfies Ordering<u16>{machine precedes(a:u16,b:u16)->bool{a<b}}";
-    let calls = "machine byte(xs:@mut [u8]) {Sorting::sort::<u8,ByteOrder>(xs)} machine wide(xs:@mut [u16]) {Sorting::sort::<u16,WideOrder>(xs)}";
+    let calls = "machine byte(xs:@mutable [u8]) {Sorting::sort::<u8,ByteOrder>(xs)} machine wide(xs:@mutable [u16]) {Sorting::sort::<u16,WideOrder>(xs)}";
     let stage = check(&[
         ("defs.omg", ordering),
         ("sort.omg", &sorting),
@@ -672,7 +672,7 @@ fn published_sort_requirement_binds_each_calls_element_and_ordering() {
 fn published_static_parameters_require_the_declared_argument_role() {
     let binders = block(GENERICS, 640).replace("{ ... }", "{     }");
     let defs = "trait Ranked<T>{machine before(a:T,b:T)->bool;} trait HookProcedure {machine call(x:u32);} data HookSlot{} machine identity(v:u32)->u32{v} ByteRank satisfies Ranked<u8>{machine before(a:u8,b:u8)->bool{a<b}} machine handle(x:u32) satisfies HookProcedure::call {}";
-    let caller = "machine examples(xs:@mut [u8],slot:@mut HookSlot)->u32{sort::<u8,ByteRank>(xs);install::<handle>(slot);apply::<identity>(1)}";
+    let caller = "machine examples(xs:@mutable [u8],slot:@mutable HookSlot)->u32{sort::<u8,ByteRank>(xs);install::<handle>(slot);apply::<identity>(1)}";
     let stage = check(&[
         ("defs.omg", defs),
         ("binders.omg", &binders),
@@ -733,7 +733,7 @@ fn published_record_call_selects_the_shared_counter_field() {
     assert_eq!(call.contract.result.to_string(), "u64");
     assert_eq!(call.contract.parameters[0].to_string(), "@game\\Counter");
     assert!(call.contract.terminates);
-    let wrong = decls.replace("machine value(counter: @Counter)", "machine value(counter: @mut Counter)");
+    let wrong = decls.replace("machine value(counter: @Counter)", "machine value(counter: @mutable Counter)");
     let error = check(&[("defs.omg", &wrong), ("observe.omg", &caller)]).unwrap_err();
     assert_eq!(error.file, "observe.omg");
     assert_eq!(error.message, "selected machine has incompatible callable signature", "{error:?}");

@@ -1,4 +1,4 @@
-//! `v[i] = 1u32` through `v: @mut [u32]`
+//! `v[i] = 1u32` through `v: @mutable [u32]`
 //! (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
 //!
 //! A scalar element write replaces one element in place. It retains the view,

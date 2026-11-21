@@ -9,7 +9,7 @@ impl Access {
     pub fn prefix(&self) -> &'static str {
         match self {
             Self::Shared => "@",
-            Self::Mut => "@mut ",
+            Self::Mut => "@mutable ",
             Self::Write => "@write ",
         }
     }

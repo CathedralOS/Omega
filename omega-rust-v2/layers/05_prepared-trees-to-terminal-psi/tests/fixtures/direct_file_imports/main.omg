@@ -8,6 +8,6 @@ machine result() -> i32 {
 
 data Main {}
 
-machine main(main: @mut Main) {
+machine main(main: @mutable Main) {
     let made: i32 = result();
 }

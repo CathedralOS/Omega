@@ -61,13 +61,13 @@ fn the_right_carrier_needs_the_destination_qualification_and_index() {
 #[test]
 fn forwarding_a_shared_reference_cannot_grant_mutable_authority() {
     let schema = "data Counter { n:u8; }";
-    let good = "machine forward(view:@mut Counter)->@mut Counter { view }";
+    let good = "machine forward(view:@mutable Counter)->@mutable Counter { view }";
     check(schema, good).unwrap();
     refused(
         schema,
-        &good.replace("view:@mut Counter", "view:@Counter"),
+        &good.replace("view:@mutable Counter", "view:@Counter"),
         "view",
-        r"expected @mut game\Counter, found @game\Counter",
+        r"expected @mutable game\Counter, found @game\Counter",
     );
 }
 
@@ -132,7 +132,7 @@ fn affine_read_needs_exclusive_storage_while_a_copy_read_only_needs_shared_stora
 
     // Same dereference, two different legal transfers. Only the exclusive
     // move owes restoration; adding copy eligibility must not create that debt.
-    let exclusive = shared.replace("item:@I", "item:@mut I");
+    let exclusive = shared.replace("item:@I", "item:@mutable I");
     for (schema, body, moving) in [
         (schema, exclusive.as_str(), true),
         ("data I [copy] { n:u8; }", shared, false),

@@ -27,7 +27,7 @@ const BRANCH: &str = "data Cell{v:u8;} machine pick(a:@Cell,b:@Cell,c:bool)->@Ce
 /// `the_invocation_after_a_join_uses_the_arriving_descriptor` with its `alias(..)` calls expanded.
 const DISPATCH: &str = "data Left = machine(x:u8)->u8 reaches none crashes none; data Right = machine(x:u8)->u8 reaches none crashes none; data Chosen = machine(x:u8)->u8 reaches none crashes none; machine storage(a:[u8;2])->[u8;2]{a} machine choose(flag:bool, left:Left, right:Right, n:u8)->u8 { let chosen:Chosen = match flag {false -> left, true -> right,}; chosen(n) }";
 const BOUNDARY: &str = "boundary trait Device { machine read(n:u8, bytes:@[u8], last:u8)->u8 reaches Device crashes none; machine other(n:u8,bytes:@[u8],last:u8)->u8 reaches Device crashes none; } machine run(n:u8,b:@[u8],last:u8)->u8 reaches Device { Device::read(last,b,n) }";
-const RESTORATION: &str = "data Cell {v:u8;} data Pair {left:Cell;right:Cell;} machine edit(p:@mut Pair) {let old=move p.left; p.left=move old;}";
+const RESTORATION: &str = "data Cell {v:u8;} data Pair {left:Cell;right:Cell;} machine edit(p:@mutable Pair) {let old=move p.left; p.left=move old;}";
 const PAIR: &str = "data Token { value:u8; } data Pair { left:Token; right:Token; }";
 
 fn body_mut<'a>(
@@ -259,8 +259,8 @@ fn a_normalized_or_redirected_arm_fails_the_join_arrival_witness() {
 #[test]
 fn a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected_element() {
     // Sources copied verbatim from `view_loans::an_authored_selector_premise_chooses_the_store_the_checker_must_justify`.
-    const EQUAL: &str = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64) requires i == j {let old=move p[i]; p[j]=move old;}";
-    const DISTINCT: &str = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64) requires i != j {let old=move p[i]; p[j]=move c; p[i]=move old;}";
+    const EQUAL: &str = "data Cell{v:u8;} machine edit(p:@mutable [Cell],c:Cell,i:u64,j:u64) requires i == j {let old=move p[i]; p[j]=move old;}";
+    const DISTINCT: &str = "data Cell{v:u8;} machine edit(p:@mutable [Cell],c:Cell,i:u64,j:u64) requires i != j {let old=move p[i]; p[j]=move c; p[i]=move old;}";
     use omega_lowering::{OperationResult, Parameter, PlaceProjection, PredicateOperator, PredicateStep};
     let fill = |m: &omega_lowering::LoweredMachine| product_witness::premised_vacancy_fill(m, 0, 2, 3);
     let displace = |m: &omega_lowering::LoweredMachine| product_witness::premised_sibling_displacement(m, 0, 2, 3);

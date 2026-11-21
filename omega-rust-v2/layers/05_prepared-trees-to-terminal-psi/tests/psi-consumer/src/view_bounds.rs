@@ -1,6 +1,6 @@
 //! Element bounds of an exclusive nominal-element view, read from published Psi alone.
 //!
-//! Each extraction or store through `p[i]` on `p: @mut [T]` owes `i < len`,
+//! Each extraction or store through `p[i]` on `p: @mutable [T]` owes `i < len`,
 //! where `len` is an `ElementViewLength` observation of that same view
 //! (`wiki/spec/terminal-psi/byte_views.md`, typed slices). An entry clause
 //! `i < p.length` publishes the same count as a contract term on the formal `p`.

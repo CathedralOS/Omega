@@ -50,10 +50,10 @@ fn long_field_chain_reports_the_first_invalid_receiver() {
 
 #[test]
 fn typed_collections_records_and_mutability() {
-    let code = "data Point { x: u8; } machine f(p:Point)->[u8;2] { let mut q = Point {x:p.x}; q.x = 7; let r = @q; [q.x,r.x] }";
+    let code = "data Point { x: u8; } machine f(p:Point)->[u8;2] { let mutable q = Point {x:p.x}; q.x = 7; let r = @q; [q.x,r.x] }";
     check(&[("a.omg", code)]).unwrap();
     for (code, message) in [
-        ("machine f() { let x: u8 = 1; _ = @mut x; }", "writable authority"),
+        ("machine f() { let x: u8 = 1; _ = @mutable x; }", "writable authority"),
         ("data P { a:bool; } machine f()->P{P{}}", "missing field a"),
         ("data P { a:bool; } machine f()->P{P{a:true,a:false}}", "duplicate field a"),
         ("machine f()->[u8;2]{[1u8,2u32]}", "expected u8"),
@@ -84,8 +84,8 @@ fn borrow_authority_and_lifetime() {
     for (code, message) in [
         ("machine f()->@u8 {let x:u8=1; @x}", "invocation-local"),
         ("machine f()->@u8 {let x:u8=1; let view=@x; view}", "invocation-local"),
-        ("data P{x:u8;} machine f(p:@P){let mut q=p; q.x=1;}", "writable authority"),
-        ("machine f(x:@mut u8){} machine g(x:u8){f(x)}", "no matching overload"),
+        ("data P{x:u8;} machine f(p:@P){let mutable q=p; q.x=1;}", "writable authority"),
+        ("machine f(x:@mutable u8){} machine g(x:u8){f(x)}", "no matching overload"),
     ] {
         let e = check(&[("a.omg", code)]).unwrap_err();
         assert!(e.message.contains(message), "{e:?}");
@@ -256,7 +256,7 @@ fn packaged_size_follows_inline_storage_and_stops_at_references() {
 
 #[test]
 fn core_bracket_contracts_retain_endpoints_access_and_origin() {
-    let source = "machine f(view:@mut [u8])->u8{let tail = @mut view[2..]; tail[0]=7; view[1]}";
+    let source = "machine f(view:@mutable [u8])->u8{let tail = @mutable view[2..]; tail[0]=7; view[1]}";
     let resolved = support::resolve_packages(&[("game", "a.omg", source)], &[]);
     let stage = omega_typer::type_stage(&resolved).unwrap();
     assert_eq!(
@@ -298,9 +298,9 @@ fn core_bracket_contracts_retain_endpoints_access_and_origin() {
         );
     }
     for (code, msg) in [
-        ("machine f(s:@[u8]){ _ = @mut s[..]; }", "mutable authority"),
+        ("machine f(s:@[u8]){ _ = @mutable s[..]; }", "mutable authority"),
         ("data R{} machine f(s:@[R])->R{s[0]}", "copy element"),
-        ("machine f(s:@mut [u8]){let r:@mut [u8]=s[..];}", "expected @mut"),
+        ("machine f(s:@mutable [u8]){let r:@mutable [u8]=s[..];}", "expected @mutable"),
     ] {
         let e = check(&[("a.omg", code)]).unwrap_err();
         assert!(e.message.contains(msg), "{e:?}");
@@ -312,7 +312,7 @@ fn projecting_owned_storage_and_borrowing_metadata_preserves_place_authority() {
     for code in [
         "data P{n:u8;} machine f(p:P)->@u8{@p.n}",
         "machine f(p:[u8;4])->@u8{@p[0]}",
-        "machine f(v:@mut [u8]){ _ = @mut v.length; }",
+        "machine f(v:@mutable [u8]){ _ = @mutable v.length; }",
     ] {
         assert!(check(&[("borrow.omg", code)]).is_err(), "{code}");
     }
@@ -340,8 +340,8 @@ fn arm_membership_and_borrow_provenance_are_scoped_to_the_taken_path() {
 
 #[test]
 fn authored_brackets_borrow_only_the_collection_operand() {
-    let head = "data B{n:u8;} machine [] at(b:@mut B,i:u64)->@mut u8{@mut b.n} machine [..] between(b:@B,start:u64,end:u64)->u8{b.n}";
-    let stage = check(&[("custom.omg", &format!("{head} machine f(v:B)->u8{{let mut b=v; b[0]=1; b[0..2]}}"))]).unwrap();
+    let head = "data B{n:u8;} machine [] at(b:@mutable B,i:u64)->@mutable u8{@mutable b.n} machine [..] between(b:@B,start:u64,end:u64)->u8{b.n}";
+    let stage = check(&[("custom.omg", &format!("{head} machine f(v:B)->u8{{let mutable b=v; b[0]=1; b[0..2]}}"))]).unwrap();
     assert!(stage.calls.iter().any(|c| c.machine.path == "at") && stage.calls.iter().any(|c| c.machine.path == "between"));
     let bad = format!("{head} machine f(b:B){{b[0]=1;}}");
     assert!(
@@ -368,14 +368,14 @@ fn writing_requires_a_storage_location_then_writable_authority() {
         ("pair().field", "computed value does not name writable storage"),
         ("item.field", "place requires writable authority"),
     ] {
-        for use_site in [format!("{target}=2u8;"), format!("_=@mut {target};")] {
+        for use_site in [format!("{target}=2u8;"), format!("_=@mutable {target};")] {
             let source = format!("{declarations} machine f(item:Pair){{{use_site}}}");
             let error = check(&[("write.omg", &source)]).unwrap_err();
             assert_eq!(error.message, reason, "{source}");
             assert_eq!(error.span.slice(source.as_bytes()), Some(target.as_bytes()), "{source}");
         }
     }
-    let good = format!("{declarations} machine f(){{let mut item=pair(); item.field=2u8; let mut cell=value(); cell=2u8;}}");
+    let good = format!("{declarations} machine f(){{let mutable item=pair(); item.field=2u8; let mutable cell=value(); cell=2u8;}}");
     check(&[("write.omg", &good)]).unwrap();
 }
 
@@ -385,13 +385,13 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
     for place in ["view.value", "(view.value)", "((view.value))", "((view).value)"] {
         for action in [
             format!("{place}=7;"),
-            format!("let ref_to_field=@mut {place};"),
+            format!("let ref_to_field=@mutable {place};"),
             format!("let output=@write {place};"),
         ] {
-            let shared = format!("{cell} machine f(input:@Cell) {{let mut view:@Cell=input; {action}}}");
+            let shared = format!("{cell} machine f(input:@Cell) {{let mutable view:@Cell=input; {action}}}");
             let error = check(&[("place.omg", &shared)]).unwrap_err();
             assert_eq!(error.message, "place requires writable authority");
-            let exclusive = format!("{cell} machine f(view:@mut Cell) {{{action}}}");
+            let exclusive = format!("{cell} machine f(view:@mutable Cell) {{{action}}}");
             check(&[("place.omg", &exclusive)]).unwrap();
         }
         let write_only = format!("{cell} machine f(view:@write Cell) {{{place}=7;}}");
@@ -403,8 +403,8 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
         );
     }
     for site in ["view[0]", "(view[0])", "((view[0]))"] {
-        for target in [format!("{site}=7;"), format!("let r=@mut {site};")] {
-            let source = format!("machine f(view:@mut [u8]) {{{target}}}");
+        for target in [format!("{site}=7;"), format!("let r=@mutable {site};")] {
+            let source = format!("machine f(view:@mutable [u8]) {{{target}}}");
             let stage = check(&[("index.omg", &source)]).unwrap();
             let [access] = stage.collection_accesses.as_slice() else {
                 panic!("expected one mutable indexing selection")
@@ -413,7 +413,7 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
         }
     }
     for place in ["array.length", "((array.length))"] {
-        let source = format!("machine f() {{let mut array:[u8;2]; {place}=3;}}");
+        let source = format!("machine f() {{let mutable array:[u8;2]; {place}=3;}}");
         assert_eq!(check(&[("metadata.omg", &source)]).unwrap_err().message, "collection metadata is read-only");
     }
 }
@@ -423,7 +423,7 @@ fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
     for context in [
         "data Slot {callback:Callback;}",
         "machine f(cb:Callback) {}",
-        "machine f() {let mut cb:Callback;}",
+        "machine f() {let mutable cb:Callback;}",
         "data Closed = machine(x:u8)->u8 reaches none crashes none; machine f(x:Closed)->Callback {x}",
         "machine f<'a>(cb:@'a Callback) {}",
         "machine f(cb:[Callback;2]) {}",
@@ -453,11 +453,11 @@ fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
 fn a_write_only_field_loan_cannot_be_strengthened_to_readable_access() {
     let defs = "data Cell {value:u8;}";
     for place in ["cell.value", "(cell.value)"] {
-        let source = format!("{defs} machine observe(cell:@write Cell)->u8 {{let view=@mut {place}; $view}}");
+        let source = format!("{defs} machine observe(cell:@write Cell)->u8 {{let view=@mutable {place}; $view}}");
         let error = check(&[("loan.omg", &source)]).unwrap_err();
         assert_eq!(error.message, "cannot read through a write-only reference");
         assert_eq!(error.span.slice(source.as_bytes()), Some(b"cell.value".as_slice()));
-        let allowed = source.replace("cell:@write Cell", "cell:@mut Cell");
+        let allowed = source.replace("cell:@write Cell", "cell:@mutable Cell");
         check(&[("loan.omg", &allowed)]).unwrap();
         let forwarded = format!("{defs} machine forward(cell:@write Cell) {{let out=@write {place};}}");
         check(&[("loan.omg", &forwarded)]).unwrap();
@@ -472,10 +472,10 @@ fn composed_place_rewrites_preserve_the_loan_and_its_authority() {
             let field = format!("{receiver}.value");
             for place in [field.clone(), format!("(({field}))")] {
                 for (prefix, access) in [
-                    ("@mut", omega_typer::Access::Mut),
+                    ("@mutable", omega_typer::Access::Mut),
                     ("@write", omega_typer::Access::Write),
                 ] {
-                    let source = format!("data Cell{{value:u8;}} data Outer{{inner:Cell;}} machine f(view:@mut Outer){{let loan={prefix} {place};}}");
+                    let source = format!("data Cell{{value:u8;}} data Outer{{inner:Cell;}} machine f(view:@mutable Outer){{let loan={prefix} {place};}}");
                     let stage = check(&[("rewrite.omg", &source)]).unwrap();
                     let loans: Vec<_> = stage
                         .obligations
@@ -490,7 +490,7 @@ fn composed_place_rewrites_preserve_the_loan_and_its_authority() {
                     };
                     assert_eq!(**actual, access);
                     assert_eq!(target.span.slice(source.as_bytes()), Some(field.as_bytes()));
-                    let shared = source.replace("view:@mut Outer", "view:@Outer");
+                    let shared = source.replace("view:@mutable Outer", "view:@Outer");
                     assert_eq!(check(&[("rewrite.omg", &shared)]).unwrap_err().message, "place requires writable authority");
                 }
             }

@@ -2,7 +2,7 @@
 machine main() {
 }
 
-public machine EchoSupplier::supply(self: @mut EchoSupplier, value: u32) -> u32 {
+public machine EchoSupplier::supply(self: @mutable EchoSupplier, value: u32) -> u32 {
     value
 }
 

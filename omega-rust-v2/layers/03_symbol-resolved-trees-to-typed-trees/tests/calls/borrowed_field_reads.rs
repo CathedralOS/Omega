@@ -56,7 +56,7 @@ fn copy_reads_of_borrowed_fields_record_the_read_where_it_happens() {
             "n",
             "u8",
         ),
-        ("machine f(d:@mut D)->u8 { match d { D { n, .. } -> n, } }", "n", "u8"),
+        ("machine f(d:@mutable D)->u8 { match d { D { n, .. } -> n, } }", "n", "u8"),
         ("machine f(d:@D)->u8 { match d.n { 0 -> 1u8, _ -> 2u8, } }", "d.n", "u8"),
         ("data W { n:u8; } machine f(d:@D)->W { let D { n, .. } = d; W { n } }", "n", "u8"),
     ] {
@@ -94,8 +94,8 @@ fn owned_moves_borrows_and_mut_move_out_read_nothing() {
         "machine f(d:@D)->@I { @d.i }",
         "machine f(d:@D)->@I { match d { D { i, .. } -> @i, } }",
         "machine f(d:@D)->@I { match d.i { j -> @j, } }",
-        "machine f(d:@mut D)->I { move d.i }",
-        "machine f(d:@mut D)->I { d.i }",
+        "machine f(d:@mutable D)->I { move d.i }",
+        "machine f(d:@mutable D)->I { d.i }",
     ] {
         let source = format!("{BORROWED_FIELDS} {body}");
         let stage = check(&[("fields.omg", &source)]).unwrap_or_else(|error| panic!("{body}: {error:?}"));
@@ -116,15 +116,15 @@ fn owned_moves_borrows_and_mut_move_out_read_nothing() {
 
 #[test]
 fn nested_mutable_references_keep_the_access_of_their_outer_loan() {
-    let defs = "data Cell{v:u8;} data Handles{cell:@mut Cell; bytes:@mut [u8];}";
+    let defs = "data Cell{v:u8;} data Handles{cell:@mutable Cell; bytes:@mutable [u8];}";
     for write in [
         "h.cell.v=1;",
-        "_=@mut (h.cell).v;",
+        "_=@mutable (h.cell).v;",
         "h.bytes[0]=1;",
         "let Handles{cell,..} = h; cell.v=1;",
     ] {
         let example = |outer: &str| format!("{defs} machine run(h:{outer}Handles){{{write}}}");
-        check(&[("loan.omg", &example("@mut "))]).unwrap();
+        check(&[("loan.omg", &example("@mutable "))]).unwrap();
         check(&[("loan.omg", &example(""))]).unwrap();
         let shared = example("@");
         let error = check(&[("loan.omg", &shared)]).unwrap_err();
@@ -150,7 +150,7 @@ fn a_declared_index_machine_reads_a_borrowed_field_only_for_a_value_parameter() 
             copied
         );
     }
-    let access = "data B{n:u8;} data H{r:@mut B;} machine [] at(b:@mut B,i:u64)->@mut u8{@mut b.n} machine f(h:@H){h.r[0]=1;}";
+    let access = "data B{n:u8;} data H{r:@mutable B;} machine [] at(b:@mutable B,i:u64)->@mutable u8{@mutable b.n} machine f(h:@H){h.r[0]=1;}";
     assert!(check(&[("index.omg", access)]).is_err());
     check(&[("index.omg", &access.replace("f(h:@H)", "f(h:H)"))]).unwrap();
 }
@@ -184,7 +184,7 @@ fn named_and_indirect_parameters_decide_whether_to_read_a_borrowed_field() {
 fn grouped_fields_passed_by_value_keep_the_transfer_on_the_projection() {
     use omega_typer::ObligationKind::{CopyRead, RestoreBorrowed};
 
-    for (property, access, replace) in [(" [copy]", "@", ""), ("", "@mut ", "h.item=B{n:0};")] {
+    for (property, access, replace) in [(" [copy]", "@", ""), ("", "@mutable ", "h.item=B{n:0};")] {
         let source = format!(
             "data B{property} {{n:u8;}} data H{{item:B;}} data W{{b:B;}} machine wrap(b:B)->W{{W{{b:b}}}} machine run(h:{access}H)->W{{let w=wrap((h.item));{replace}w}}"
         );
@@ -204,7 +204,7 @@ fn grouped_fields_passed_by_value_keep_the_transfer_on_the_projection() {
         assert_eq!(transfer.site.span.slice(source.as_bytes()), Some(b"h.item".as_slice()));
         match (&transfer.kind, access) {
             (CopyRead(ty), "@") => assert_eq!(ty.to_string(), "game\\B"),
-            (RestoreBorrowed { place, ty }, "@mut ") => {
+            (RestoreBorrowed { place, ty }, "@mutable ") => {
                 assert_eq!(*place, field);
                 assert_eq!(ty.to_string(), "game\\B");
             }

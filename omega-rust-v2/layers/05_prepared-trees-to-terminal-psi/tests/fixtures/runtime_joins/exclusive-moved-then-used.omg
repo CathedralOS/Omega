@@ -3,7 +3,7 @@ data Measure = machine(n: u64) -> u8
     ensures result < 200
     reaches none crashes none;
 
-machine pick(flag: bool, left: @mut [u32], right: @mut [u32], f: Measure) -> u8
+machine pick(flag: bool, left: @mutable [u32], right: @mutable [u32], f: Measure) -> u8
 requires left.length < 1000
 {
     let chosen = match flag {true -> left, false -> right,};

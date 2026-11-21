@@ -50,7 +50,7 @@ class RefusalAccountingTests(unittest.TestCase):
         rows = refusal_evidence.registrations()
         self.assertTrue(any(row.cls == "invalid" for row in rows))
         for message in ("unsupported typed contract predicate record", "domain alias requires indexed qualification lowering",
-                        "no Psi lowering for carrier @mut [u32]"):
+                        "no Psi lowering for carrier @mutable [u32]"):
             with self.assertRaises(ValueError):
                 refusal_evidence.validate([INVALID._replace(message=message)])
         with self.assertRaises(ValueError):

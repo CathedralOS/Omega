@@ -6,8 +6,8 @@ machine operands(counter: Counter, view: @[u8], operations: Operations) {
     _ = - -a;
     _ = !-a.b;
     _ = @counter;
-    _ = @mut counter;
-    _ = @mut;
+    _ = @mutable counter;
+    _ = @mutable;
     _ = move counter;
     _ = suspend read(view);
     _ = block wait();

@@ -1,4 +1,4 @@
-//! Whole-element windows through an exclusive element view `@mut [T]`.
+//! Whole-element windows through an exclusive element view `@mutable [T]`.
 #[path = "support/source.rs"]
 mod sources;
 
@@ -65,7 +65,7 @@ fn stores(body: &MachineBody) -> Vec<(&ProjectedPlace, PlaceId, &StructuralStore
 
 #[test]
 fn moving_an_element_out_of_an_exclusive_view_and_restoring_it_fills_the_same_element() {
-    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let old=move p[i]; p[i]=move old;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell],i:u64) {{let old=move p[i]; p[i]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let machine = &pkg.machines[0];
     let body = &machine.body;
@@ -116,7 +116,7 @@ fn moving_an_element_out_of_an_exclusive_view_and_restoring_it_fills_the_same_el
 
 #[test]
 fn equal_literal_selectors_repair_the_extracted_element() {
-    let src = format!("{CELL} machine edit(p:@mut [Cell]) {{let old=move p[0]; p[0]=move old;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell]) {{let old=move p[0]; p[0]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let [Parameter::Structural(view)] = body.parameters[..] else {
@@ -174,7 +174,7 @@ fn final_stores_keep_each_unproved_selector_as_evaluated() {
         (",i:u64", "0", "i", [(None, 0), (Some(1), 0)]),
         (",i:u64,j:u64", "i+1", "j+1", [(Some(1), 1), (Some(2), 1)]),
     ] {
-        let src = format!("{CELL} machine edit(p:@mut [Cell]{params}) {{let old=move p[{taken}]; p[{written}]=move old;}}");
+        let src = format!("{CELL} machine edit(p:@mutable [Cell]{params}) {{let old=move p[{taken}]; p[{written}]=move old;}}");
         let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
         let m = &pkg.machines[0];
         let pairs = psi_handoff_consumer::product_witness::returned_element_repairs(m, 0, &[], &[]).unwrap();
@@ -194,7 +194,7 @@ fn final_stores_keep_each_unproved_selector_as_evaluated() {
 
 #[test]
 fn replacing_an_occupied_element_displaces_and_disposes_the_old_value_at_the_same_occurrence() {
-    let src = format!("{CELL} machine put(p:@mut [Cell],i:u64,c:Cell) {{p[i]=c;}}");
+    let src = format!("{CELL} machine put(p:@mutable [Cell],i:u64,c:Cell) {{p[i]=c;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let Parameter::Structural(view) = body.parameters[0] else {
@@ -222,7 +222,7 @@ fn replacing_an_occupied_element_displaces_and_disposes_the_old_value_at_the_sam
 
 #[test]
 fn swapping_between_same_typed_views_repairs_each_vacancy_on_its_own_root() {
-    let src = format!("{CELL} machine swap(a:@mut [Cell],b:@mut [Cell],i:u64) {{let left=move a[i]; let right=move b[i]; a[i]=move right; b[i]=move left;}}");
+    let src = format!("{CELL} machine swap(a:@mutable [Cell],b:@mutable [Cell],i:u64) {{let left=move a[i]; let right=move b[i]; a[i]=move right; b[i]=move left;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let [
@@ -252,7 +252,7 @@ fn swapping_between_same_typed_views_repairs_each_vacancy_on_its_own_root() {
 
 #[test]
 fn reusing_a_computed_selector_repairs_the_window_with_separate_bounds_obligations() {
-    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let k=i+1; let old=move p[k]; p[k]=move old;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell],i:u64) {{let k=i+1; let old=move p[k]; p[k]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let Parameter::Structural(view) = body.parameters[0] else {
@@ -280,7 +280,7 @@ fn reusing_a_computed_selector_repairs_the_window_with_separate_bounds_obligatio
 
 #[test]
 fn recomputing_a_selector_from_the_same_values_repairs_the_active_window() {
-    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let old=move p[i+1]; p[i+1]=move old;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell],i:u64) {{let old=move p[i+1]; p[i+1]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let [Parameter::Structural(view), Parameter::Scalar(i)] = body.parameters[..] else {
@@ -338,7 +338,7 @@ fn recomputing_a_selector_from_the_same_values_repairs_the_active_window() {
 }
 
 /// Formals of every premise fixture: the view, a spare cell and two selectors.
-const PREMISED: &str = "machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64)";
+const PREMISED: &str = "machine edit(p:@mutable [Cell],c:Cell,i:u64,j:u64)";
 
 /// The entry clause `Formal(2) operator Formal(3)` that each premise fixture publishes.
 fn selector_clause(operator: PredicateOperator) -> Vec<PredicateStep> {
@@ -467,7 +467,7 @@ fn a_selector_premise_chooses_by_the_exact_selectors_it_names() {
     assert_eq!(*disposition, StructuralStoreDisposition::FillVacancy);
 
     // A literal selector is related by a clause naming that literal.
-    let src = format!("{CELL} machine edit(p:@mut [Cell],c:Cell,i:u64) requires i != 0 {{let old=move p[i]; p[0]=move c; p[i]=move old;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell],c:Cell,i:u64) requires i != 0 {{let old=move p[i]; p[0]=move c; p[i]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
     let [Parameter::Structural(view), _, Parameter::Scalar(i)] = body.parameters[..] else {
@@ -485,7 +485,7 @@ fn a_selector_premise_chooses_by_the_exact_selectors_it_names() {
 
     // With two open vacancies the store must relate to each of them.
     let src = format!(
-        "{CELL} machine edit(p:@mut [Cell],i:u64,j:u64,k:u64) requires i == j requires j != k {{let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;}}"
+        "{CELL} machine edit(p:@mutable [Cell],i:u64,j:u64,k:u64) requires i == j requires j != k {{let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;}}"
     );
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let body = &pkg.machines[0].body;
@@ -594,7 +594,7 @@ fn a_different_selector_never_repairs_the_extracted_element() {
 
 #[test]
 fn two_open_extractions_owe_disjointness_even_when_one_store_has_an_equal_selector() {
-    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64,j:u64,k:u64) requires i == j {{let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;}}");
+    let src = format!("{CELL} machine edit(p:@mutable [Cell],i:u64,j:u64,k:u64) requires i == j {{let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;}}");
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let machine = &pkg.machines[0];
     let [
@@ -617,7 +617,7 @@ fn two_open_extractions_owe_disjointness_even_when_one_store_has_an_equal_select
 #[test]
 fn assignment_captures_the_selected_element_before_evaluating_its_replacement() {
     let src = format!(
-        "{CELL} machine index(i:u64)->u64 {{i}} machine value(c:Cell)->Cell {{move c}} machine put(p:@mut [Cell],i:u64,c:Cell) {{p[index(i)]=value(move c);}}"
+        "{CELL} machine index(i:u64)->u64 {{i}} machine value(c:Cell)->Cell {{move c}} machine put(p:@mutable [Cell],i:u64,c:Cell) {{p[index(i)]=value(move c);}}"
     );
     let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
     let machine = |name: &str| {
@@ -660,7 +660,7 @@ fn assignment_captures_the_selected_element_before_evaluating_its_replacement() 
 
 #[test]
 fn a_final_selector_repair_keeps_both_entry_equalities_and_the_missing_premise_control() {
-    let source = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64,k:u64) requires i == k requires k == j {let old=move p[i]; p[j]=move old;}";
+    let source = "data Cell{v:u8;} machine edit(p:@mutable [Cell],c:Cell,i:u64,j:u64,k:u64) requires i == k requires k == j {let old=move p[i]; p[j]=move old;}";
     let without_second = source.replace(" requires k == j", "");
     for (src, equalities) in [
         (source, &[(2, 4), (4, 3)][..]),
@@ -714,11 +714,11 @@ fn a_final_selector_repair_keeps_both_entry_equalities_and_the_missing_premise_c
 /// The bounded selector twins F1/F2 and their unbounded originals A1/A2
 /// (`selector-design-challenge`), byte for byte.
 const LEASE: &str = "data Lease dropped by release {mark:u8;} machine release(y:Lease) {let Lease {mark as _}=y;} ";
-const LEASE_EDIT: &str = "machine edit(p:@mut [Lease],c:Lease,i:u64,j:u64,k:u64)";
+const LEASE_EDIT: &str = "machine edit(p:@mutable [Lease],c:Lease,i:u64,j:u64,k:u64)";
 const LEASE_SWAP: &str = "{let old=move p[i]; p[j]=move c; p[i]=move old;}";
 /// Two same-typed views swap element `i`; each has its own bound clause.
 const TWO_VIEW_SWAP: &str =
-    "machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < p.length requires i < q.length {let a=move p[i]; let b=move q[i]; p[i]=move b; q[i]=move a;}";
+    "machine edit(p:@mutable [Lease],q:@mutable [Lease],i:u64) requires i < p.length requires i < q.length {let a=move p[i]; let b=move q[i]; p[i]=move b; q[i]=move a;}";
 
 /// `Formal(selector) < Formal(view).length`: the live element count of that exact formal.
 fn element_bound(
@@ -742,7 +742,7 @@ fn edit(pkg: &omega_lowering::LoweredPackage) -> &omega_lowering::LoweredMachine
 
 #[test]
 fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_the_body() {
-    // `i < p.length` on `p: @mut [Lease]` measures the same live element count
+    // `i < p.length` on `p: @mutable [Lease]` measures the same live element count
     // each element bound of `p` is owed against. The clause is an erased term,
     // so the bounded program's body is the unbounded program's body: the same
     // extractions, stores, length observations and dispositions. Only the
@@ -839,7 +839,7 @@ fn a_length_clause_names_its_own_view_among_equal_typed_views() {
     ));
 
     // A clause on the other view leaves the bound owed.
-    let other = format!("{LEASE}machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < q.length {{let old=move p[i]; p[i]=move old;}}");
+    let other = format!("{LEASE}machine edit(p:@mutable [Lease],q:@mutable [Lease],i:u64) requires i < q.length {{let old=move p[i]; p[i]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &other)]).unwrap();
     let machine = edit(&pkg);
     assert_eq!(machine.contract.requires[0].predicate, element_bound(2, 1));
@@ -932,7 +932,7 @@ fn the_psi_bounds_reader_refuses_mutated_views_and_snapshots() {
 
 #[test]
 fn a_nominal_view_count_comes_from_the_requested_formal_in_each_context() {
-    let source = "data R { x:u8; } machine count(p:@mut [R],q:@mut [R],i:u64)->u64 requires i < p.length ensures result == q.length {q.length}";
+    let source = "data R { x:u8; } machine count(p:@mutable [R],q:@mutable [R],i:u64)->u64 requires i < p.length ensures result == q.length {q.length}";
     let mut package = sources::lower(&[("case.omg", source)]).unwrap();
     let m = package
         .machines

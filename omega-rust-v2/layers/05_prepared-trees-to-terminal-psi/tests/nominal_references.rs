@@ -191,7 +191,7 @@ fn a_payload_value_pattern_reads_only_after_its_case_matches() {
 #[test]
 fn mutable_call_writes_the_original_field_and_exits_with_the_affine_local_disposed() {
     use omega_lowering::{BlockTerminator, CallArgument, OperationKind, OperationResult, Parameter, PlaceProjection, ReferenceAccess, ReturnEdge, TypeShape};
-    let source = "data Counter { first:u64; second:u64; } machine clear(c:@mut Counter) { c.second = 0; } machine example() {let mut counter:Counter;clear(@mut counter);}";
+    let source = "data Counter { first:u64; second:u64; } machine clear(c:@mutable Counter) { c.second = 0; } machine example() {let mutable counter:Counter;clear(@mutable counter);}";
     let pkg = sources::lower(&[("counter.omg", source)]).unwrap();
     let [clear, example] = pkg.machines.as_slice() else {
         panic!("expected clear and example")

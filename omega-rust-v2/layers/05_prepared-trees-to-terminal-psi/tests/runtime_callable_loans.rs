@@ -78,7 +78,7 @@ fn mutable_callable_formal_publishes_exclusive_access_and_reborrows_on_each_call
         (&vec![byte_ref(TemplateAccess::Mut)], &Some(scalar(8)), &vec![byte_ref(TemplateAccess::Shared)], &Some(scalar(8)))
     ));
 
-    let mut invoked = lower(&format!("{MUTABLE} machine apply(f:Bump, x:@mut u8)->u8 {{ let first:u8=f(x); f(x) }}"));
+    let mut invoked = lower(&format!("{MUTABLE} machine apply(f:Bump, x:@mutable u8)->u8 {{ let first:u8=f(x); f(x) }}"));
     let expected = || RuntimeLoans {
         descriptor_parameter: 0,
         loans: vec![CallLoan {

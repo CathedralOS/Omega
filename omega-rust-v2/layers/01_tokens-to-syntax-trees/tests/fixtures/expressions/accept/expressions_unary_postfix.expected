@@ -80,7 +80,7 @@ File
         '='
         Borrow
           '@'
-          'mut'
+          'mutable'
           PathExpression 'counter'
         ';'
       Discard
@@ -88,7 +88,7 @@ File
         '='
         Borrow
           '@'
-          PathExpression 'mut'
+          PathExpression 'mutable'
         ';'
       Discard
         '_'

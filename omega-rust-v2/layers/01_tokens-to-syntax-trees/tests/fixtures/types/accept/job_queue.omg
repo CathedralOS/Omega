@@ -11,7 +11,7 @@ machine can_dispatch(queue: @Queue, required: u32) -> bool {
     queue.online && (queue.selected.flags & required) == required
 }
 
-machine enable_flags(job: @mut Job, flags: u32) {
+machine enable_flags(job: @mutable Job, flags: u32) {
     job.flags = job.flags | flags;
 }
 

@@ -1,5 +1,5 @@
-machine read_tail(v: @mut [u8], i: u64) -> u8 {
-    let tail = @mut v[i..];
+machine read_tail(v: @mutable [u8], i: u64) -> u8 {
+    let tail = @mutable v[i..];
     tail[i] = 7;
     tail[i]
 }

@@ -3,12 +3,12 @@ machine names(machine: u32, data: u32, match: u32, transition: u32, let: u32, bl
     let result = machine + data;
     let use = match + transition;
     let if = let + block;
-    let mut = move;
+    let mutable = move;
     data = 3;
     machine.run();
     block(use);
     if(result);
-    let total = if + mut;
+    let total = if + mutable;
     match = match.field;
     asm = public;
     use(e.owner);
@@ -16,8 +16,8 @@ machine names(machine: u32, data: u32, match: u32, transition: u32, let: u32, bl
 }
 
 machine mutable_name(move: u32) -> u32 {
-    let mut mut = move;
-    mut
+    let mutable mutable = move;
+    mutable
 }
 
 data machine {

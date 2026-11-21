@@ -464,9 +464,9 @@ fn both_argument_spellings_name_their_owner_and_type_shaped_values_bind() {
 // module-prefixed paths and function types.
 #[test]
 fn every_component_of_a_written_type_binds_in_source_order() {
-    let source = "domain u8::Small; domain u8::Even; const LEN: u64 = 4; data Cell { v: u8; } machine f(a: @mut [u8], b: [Cell; LEN], c: u8 in Small & Even, d: @@Cell, e: units\\Km, g: u8 -> Cell) {}";
+    let source = "domain u8::Small; domain u8::Even; const LEN: u64 = 4; data Cell { v: u8; } machine f(a: @mutable [u8], b: [Cell; LEN], c: u8 in Small & Even, d: @@Cell, e: units\\Km, g: u8 -> Cell) {}";
     let stage = resolve(&[("app", "main.omg", source), ("app", "units/km.omg", "data Km {}")]);
-    let params = "(a: @mut [u8], b: [Cell; LEN], c: u8 in Small & Even, d: @@Cell, e: units\\Km, g: u8 -> Cell)";
+    let params = "(a: @mutable [u8], b: [Cell; LEN], c: u8 in Small & Even, d: @@Cell, e: units\\Km, g: u8 -> Cell)";
     let region = at(source, params)..at(source, params) + params.len();
     let bound: Vec<_> = tree(&stage, "main.omg")
         .occurrences()
@@ -528,10 +528,10 @@ fn header_clause_parts_bind_in_their_own_roles() {
     assert_eq!(references(&stage, file, source, "limit"), [limit.clone(), limit]);
 }
 
-// GRAMMAR "statements": `let mut` with a type, assignment to a place, discard and tail.
+// GRAMMAR "statements": `let mutable` with a type, assignment to a place, discard and tail.
 #[test]
 fn statement_forms_read_and_write_the_local_their_let_introduces() {
-    let source = "machine step(seed: u8) -> u8 { let mut total: u8 = seed; total = total + 1; _ = seed; total }";
+    let source = "machine step(seed: u8) -> u8 { let mutable total: u8 = seed; total = total + 1; _ = seed; total }";
     let stage = resolve(&[("app", "main.omg", source)]);
     let total = format!("BindingPattern@{}", at(source, "total:"));
     let seed = format!("Param@{}", at(source, "seed:"));

@@ -17,7 +17,7 @@ File
           ':'
           ReferenceType
             '@'
-            'mut'
+            'mutable'
             PathType 'T'
         ')'
       Result
@@ -98,7 +98,7 @@ File
           ':'
           ReferenceType
             '@'
-            'mut'
+            'mutable'
             PathType 'Counter'
         ')'
       Result

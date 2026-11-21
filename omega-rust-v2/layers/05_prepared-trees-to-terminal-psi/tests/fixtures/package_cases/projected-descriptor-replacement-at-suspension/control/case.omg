@@ -1,1 +1,1 @@
-data Holder{r:@u8;} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};h=Holder{r:second};suspend wait()}
+data Holder{r:@u8;} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h=Holder{r:second};suspend wait()}

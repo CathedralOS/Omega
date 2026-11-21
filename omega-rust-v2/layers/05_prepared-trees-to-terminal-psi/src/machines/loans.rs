@@ -58,9 +58,9 @@ pub(super) fn descriptor(
             }
             Ok(Some(result))
         }
-        // A by-value use of an exclusive reference, `@mut` or `@write`,
+        // A by-value use of an exclusive reference, `@mutable` or `@write`,
         // transfers its loan carrier (language/ownership.md#borrows-and-aliases).
-        // From owned storage that is an ordinary field move; through a `@mut`
+        // From owned storage that is an ordinary field move; through a `@mutable`
         // parent it opens the restoration window L3 recorded. An explicit
         // reborrow is a `Borrow` node, and a call operand reborrows in
         // `references::call_argument`.

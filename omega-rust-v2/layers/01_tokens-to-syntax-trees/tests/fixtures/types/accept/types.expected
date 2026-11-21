@@ -103,7 +103,7 @@ File
         ':'
         ReferenceType
           '@'
-          'mut'
+          'mutable'
           SliceType
             '['
             PathType 'u8'
@@ -115,7 +115,7 @@ File
         ReferenceType
           '@'
           Lifetime ''' 'a'
-          'mut'
+          'mutable'
           PathType 'S'
       ','
       Param
@@ -207,7 +207,7 @@ File
         ':'
         ReferenceType
           '@'
-          PathType 'mut'
+          PathType 'mutable'
       ','
       Param
         'r'

@@ -1,7 +1,7 @@
 //! Restoration windows at a suspension
 //! (`wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration`).
 //!
-//! `move p.t` through `p: @mut Cell` vacates `p.t` and leaves restoration debt
+//! `move p.t` through `p: @mutable Cell` vacates `p.t` and leaves restoration debt
 //! there. When the call parks before `p.t = move old`, the crossing must name
 //! that open window, keep the displaced value in caller custody and keep the
 //! exclusive lender, because resuming cannot repeat the move. When the store
@@ -146,12 +146,12 @@ fn a_suspension_after_the_restoring_store_names_no_window() {
 
 #[test]
 fn displacing_an_occupied_field_before_the_crossing_leaves_no_window() {
-    // Whole-value replacement through `@mut` displaces the old value rather
+    // Whole-value replacement through `@mutable` displaces the old value rather
     // than filling a vacancy (ownership.md#borrowed-storage-restoration). The
     // displaced `T` is affine, so lowering extracts and disposes it, then fills
     // the place. Nothing is open at the call, and the store differs from the
     // restoration above only in what it displaced.
-    let text = "data T{v:u8;} data Cell{t:T;} machine wait() suspends {} machine f(p:@mut Cell) suspends { p.t = T{v:1u8}; suspend wait(); }";
+    let text = "data T{v:u8;} data Cell{t:T;} machine wait() suspends {} machine f(p:@mutable Cell) suspends { p.t = T{v:1u8}; suspend wait(); }";
     let pkg = source::lower(&[("displace.omg", text)]).unwrap();
     let body = &machine(&pkg, "f").body;
     let (opened, place) = the_move(&pkg);
@@ -196,7 +196,7 @@ fn a_store_closes_only_the_window_at_its_own_captured_place() {
     // Two fields move out; restoring `p.t` before the call closes only that
     // window. The crossing names the `p.u` window alone, and the displaced `b`
     // stays in caller custody until its own store after completion.
-    let text = "data T{v:u8;} data Cell{t:T; u:T;} machine wait() suspends {} machine f(p:@mut Cell) suspends { let a = move p.t; let b = move p.u; p.t = move a; suspend wait(); p.u = move b; }";
+    let text = "data T{v:u8;} data Cell{t:T; u:T;} machine wait() suspends {} machine f(p:@mutable Cell) suspends { let a = move p.t; let b = move p.u; p.t = move a; suspend wait(); p.u = move b; }";
     let pkg = source::lower(&[("two.omg", text)]).unwrap();
     let body = &machine(&pkg, "f").body;
     let moves: Vec<_> = body

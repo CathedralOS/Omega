@@ -142,14 +142,14 @@ impl SyntaxParser<'_> {
         statement_result
     }
 
-    /// `'let' 'mut'? pattern ( ':' type_in )? ( '=' expression )? ';'`
+    /// `'let' 'mutable'? pattern ( ':' type_in )? ( '=' expression )? ';'`
     fn parse_let(&mut self) -> Parsed {
         let let_statement = self.open();
 
         self.bump();
 
-        // `mut` is the marker only if a pattern follows it; `let mut = 3;` binds a name spelled `mut`.
-        if self.at_keyword("mut") && (self.nth_at_word(1) || self.nth_at(1, Punctuation::LeftParenthesis)) {
+        // `mutable` is the marker only if a pattern follows it; `let mutable = 3;` binds a name spelled `mutable`.
+        if self.at_keyword("mutable") && (self.nth_at_word(1) || self.nth_at(1, Punctuation::LeftParenthesis)) {
             self.bump();
         }
 

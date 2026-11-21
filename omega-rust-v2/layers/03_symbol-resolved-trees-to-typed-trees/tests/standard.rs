@@ -820,9 +820,9 @@ fn each_collection_signature_carries_the_published_primitive_contract() {
     for (primitive, access, result, arity) in [
         (Read, "@", "value", 2),
         (Element, "@", "@", 2),
-        (ElementMut, "@mut", "@mut", 2),
+        (ElementMut, "@mutable", "@mutable", 2),
         (Range, "@", "slice", 3),
-        (RangeMut, "@mut", "slice", 3),
+        (RangeMut, "@mutable", "slice", 3),
     ] {
         let id = core.collection(primitive);
         let signature = typed.signatures.iter().find(|s| &s.machine == id).unwrap();

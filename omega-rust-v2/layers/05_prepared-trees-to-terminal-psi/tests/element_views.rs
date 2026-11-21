@@ -232,9 +232,9 @@ fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
 fn mutable_length_contract_selects_a_formal_not_a_body_bound() {
     use omega_lowering::{PredicateOperator, PredicateStep};
     for (text, subject, i) in [
-        ("machine get(items:@mut [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 1),
-        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 2),
-        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < other.length { items[i] }", 1, 2),
+        ("machine get(items:@mutable [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 1),
+        ("machine get(items:@mutable [u32],other:@mutable [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 2),
+        ("machine get(items:@mutable [u32],other:@mutable [u32],i:u64)->u32 requires i < other.length { items[i] }", 1, 2),
     ] {
         let package = sources::lower(&[("contract.omg", text)]).unwrap();
         let get = machine(&package, "get");
@@ -265,10 +265,10 @@ fn a_read_keeps_the_mutable_element_descriptor_and_its_own_bound() {
     let scalar = ScalarType::Integer { signed: false, width: 32 };
     let mutable = TypeShape::MutableElementView { element: omega_lowering::ViewElement::Scalar(scalar) };
     for (text, shape, view_slot, index_slot, index_name) in [
-        ("machine get(items:@mut [u32],i:u64)->u32 { items[i] }", mutable, 0, 1, "[i]"),
+        ("machine get(items:@mutable [u32],i:u64)->u32 { items[i] }", mutable, 0, 1, "[i]"),
         ("machine get(items:@[u32],i:u64)->u32 { items[i] }", TypeShape::SharedElementView { element: omega_lowering::ViewElement::Scalar(scalar) }, 0, 1, "[i]"),
-        ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { other[i] }", mutable, 2, 1, "[i]"),
-        ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { items[j] }", mutable, 0, 3, "[j]"),
+        ("machine get(items:@mutable [u32],i:u64,other:@mutable [u32],j:u64)->u32 { other[i] }", mutable, 2, 1, "[i]"),
+        ("machine get(items:@mutable [u32],i:u64,other:@mutable [u32],j:u64)->u32 { items[j] }", mutable, 0, 3, "[j]"),
     ] {
         let package = sources::lower(&[("mutable.omg", text)]).unwrap();
         let get = machine(&package, "get");
@@ -308,7 +308,7 @@ fn nominal_view_length_returns_its_formals_element_count_and_preserves_access() 
     let observed = [
         include_str!("fixtures/package_cases/shared-nominal-view-count/case/case.omg"),
         include_str!("fixtures/package_cases/shared-nominal-view-count/control/case.omg"),
-        "data A { x:u8; } data R { x:u8; } machine count(a:@mut [A], r:@[R])->u64 {r.length}",
+        "data A { x:u8; } data R { x:u8; } machine count(a:@mutable [A], r:@[R])->u64 {r.length}",
     ].map(|text| {
         let package = sources::lower(&[("case.omg", text)]).unwrap();
         let (formal, access, owner) = psi_handoff_consumer::returned_nominal_view_count(&package, machine(&package, "count")).unwrap();

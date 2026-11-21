@@ -20,28 +20,28 @@ fn last_occurrence(
 fn returned_views_of_local_storage_are_refused_however_spelled() {
     for (source, returned) in [
         (
-            "data B{v:@u8;} data Handles{box:@mut B;} machine f(h:Handles,n:u8)->@u8{let d=h.box;d.v=@n;h.box.v}",
+            "data B{v:@u8;} data Handles{box:@mutable B;} machine f(h:Handles,n:u8)->@u8{let d=h.box;d.v=@n;h.box.v}",
             "h.box.v",
         ),
         (
-            "data B{v:@u8;} data Handles{box:@mut B;} machine f(h:@mut Handles,n:u8)->@u8{h.box.v=@n;h.box.v}",
+            "data B{v:@u8;} data Handles{box:@mutable B;} machine f(h:@mutable Handles,n:u8)->@u8{h.box.v=@n;h.box.v}",
             "h.box.v",
         ),
         (
-            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mut a=B{v:@n};let mut b=B{v:p};let d=match c {true -> @mut a,false -> @mut b,};d.v=p;a.v}",
+            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mutable a=B{v:@n};let mutable b=B{v:p};let d=match c {true -> @mutable a,false -> @mutable b,};d.v=p;a.v}",
             "a.v",
         ),
         (
-            "data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut a=B{v:p};let mut b=B{v:p};let mut d=@mut a;let old=d;d=@mut b;old.v=@n;a.v}",
+            "data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mutable a=B{v:p};let mutable b=B{v:p};let mutable d=@mutable a;let old=d;d=@mutable b;old.v=@n;a.v}",
             "a.v",
         ),
         ("machine f(x:u8)->@u8 { let v = @x; v }", "v"),
-        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:p};let d=@mut b;d.v=@n;b.v}", "b.v"),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mutable b=B{v:p};let d=@mutable b;d.v=@n;b.v}", "b.v"),
         (
-            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mut a=B{v:p};let mut b=B{v:p};let d=match c {true -> @mut a,false -> @mut b,};d.v=@n;a.v}",
+            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mutable a=B{v:p};let mutable b=B{v:p};let d=match c {true -> @mutable a,false -> @mutable b,};d.v=@n;a.v}",
             "a.v",
         ),
-        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:p};let B{v}=@mut b;v=@n;b.v}", "b.v"),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mutable b=B{v:p};let B{v}=@mutable b;v=@n;b.v}", "b.v"),
         ("machine f(x:u8)->@u8 { match @x { r -> r, } }", "match @x { r -> r, }"),
         ("machine f(x:u8)->@u8 { transition @x { r -> r, } }", "r"),
         ("machine f()->@u8 { let y:u8 = 1; match @y { r -> r, } }", "match @y { r -> r, }"),
@@ -66,7 +66,7 @@ fn returned_views_of_local_storage_are_refused_however_spelled() {
             "data D { v:u8; } machine f()->@u8 { let y = D { v: 1u8 }; match @y { D { v } -> @v, } }",
             "match @y { D { v } -> @v, }",
         ),
-        ("machine f(x:u8, p:@u8)->@u8 { let mut v = p; v = @x; v }", "v"),
+        ("machine f(x:u8, p:@u8)->@u8 { let mutable v = p; v = @x; v }", "v"),
         (
             "machine f(x:u8, y:@u8, b:bool)->@u8 { match b { true -> @x, false -> y, } }",
             "match b { true -> @x, false -> y, }",
@@ -89,10 +89,10 @@ fn returned_views_of_caller_storage_keep_their_return_obligation() {
         ("machine f(x:@u8)->@u8 { match x { r -> r, } }", "match x { r -> r, }"),
         ("data B{v:@u8;} machine f(p:@u8)->@u8{let b=B{v:p};let d=@b;d.v}", "d.v"),
         (
-            "data B{keep:@u8;scratch:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{keep:p,scratch:p};b.scratch=@n;b.keep}",
+            "data B{keep:@u8;scratch:@u8;} machine f(p:@u8,n:u8)->@u8{let mutable b=B{keep:p,scratch:p};b.scratch=@n;b.keep}",
             "b.keep",
         ),
-        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:@n};let d=@mut b;d.v=p;b.v}", "b.v"),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mutable b=B{v:@n};let d=@mutable b;d.v=p;b.v}", "b.v"),
         ("machine f(x:@u8)->@u8 { transition x { r -> r, } }", "r"),
         ("data D { v:u8; } machine f(d:@D)->@u8 { @d.v }", "@d.v"),
         (
@@ -120,7 +120,7 @@ fn returned_views_of_caller_storage_keep_their_return_obligation() {
             "data E { case A(r:@u8); case B; } machine f(e:E, p:@u8)->@u8 { match e { E::A { r } -> r, E::B -> p, } }",
             "match e { E::A { r } -> r, E::B -> p, }",
         ),
-        ("machine f(x:u8, p:@u8)->@u8 { let mut v = @x; v = p; v }", "v"),
+        ("machine f(x:u8, p:@u8)->@u8 { let mutable v = @x; v = p; v }", "v"),
     ] {
         let stage = check(&[("views.omg", source)]).unwrap_or_else(|error| panic!("{source}: {error:?}"));
         let (start, end) = last_occurrence(source, returned);
@@ -176,7 +176,7 @@ fn a_store_through_a_pattern_alias_updates_the_origin_of_the_selected_field() {
         ("b.view=@local", "slot"),
         ("($b).view=@local", "slot"),
     ] {
-        let source = format!("{schema} machine f(b:@mut Box,local:u8)->@u8{{let Box{{view as slot}}=b; {assignment}; {returned}}}");
+        let source = format!("{schema} machine f(b:@mutable Box,local:u8)->@u8{{let Box{{view as slot}}=b; {assignment}; {returned}}}");
         let error = check(&[("alias.omg", &source)]).unwrap_err();
         assert_eq!(error.span.slice(source.as_bytes()), Some(returned.as_bytes()));
         assert!(error.message.contains("invocation-local"), "{error:?}");

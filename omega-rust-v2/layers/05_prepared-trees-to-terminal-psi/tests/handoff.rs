@@ -267,7 +267,7 @@ fn public_contract_defaults_are_lowered_as_effective_bounds() {
 
 #[test]
 fn assigning_a_scalar_local_changes_only_subsequent_reads() {
-    let source = "machine read(x:u8)->u8{let mut local:u8=x; let before:u8=local; local=1u8; before +% local}";
+    let source = "machine read(x:u8)->u8{let mutable local:u8=x; let before:u8=local; local=1u8; before +% local}";
     let package = lower(&[("local.omg", source)]).unwrap();
     let body = &machine(&package, "read").body;
     let [Parameter::Scalar(original)] = body.parameters[..] else {
@@ -415,7 +415,7 @@ fn target_dependent_extent_retains_its_observed_input() {
 fn explicit_dereference_reads_and_writes_the_original_scalar() {
     use omega_lowering::{OperationKind, OperationResult, PlaceProjection};
 
-    let source = "machine update(at:@mut u8)->u8 { $at = 2u8; $at }";
+    let source = "machine update(at:@mutable u8)->u8 { $at = 2u8; $at }";
     let package = lower(&[("dereference.omg", source)]).unwrap();
     let body = &machine(&package, "update").body;
     let [Parameter::Structural(reference)] = body.parameters[..] else {

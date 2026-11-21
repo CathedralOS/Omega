@@ -163,7 +163,7 @@ File
       ':'
       ReferenceType
         '@'
-        'mut'
+        'mutable'
         PathType
           'Pool'
           TypeArgs

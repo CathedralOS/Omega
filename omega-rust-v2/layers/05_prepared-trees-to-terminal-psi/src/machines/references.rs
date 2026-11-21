@@ -620,7 +620,7 @@ pub(super) fn store_place(
         return match deepest_loan {
             None => store_intact(expressions, place, rhs, carrier, body, flow, site, None),
             // Any loan crossing makes this a store into borrowed storage, even when the
-            // path starts at an owned field that holds the `@mut`: the replaced place
+            // path starts at an owned field that holds the `@mutable`: the replaced place
             // may be a vacancy, and the displaced value is the lender's, not the owner's.
             Some(crate::ReferenceAccess::Mutable) => super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site, false),
             Some(crate::ReferenceAccess::WriteOnly) => {
