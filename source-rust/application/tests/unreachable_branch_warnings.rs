@@ -144,11 +144,21 @@ fn recursive_branches_warn_once_at_each_declaring_machines_own_arm() {
     let directory =
         fixture("source-rust/application/tests/fixtures/contracts/pass/recursive_branch_locations");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg"])
+        .args(["--timings", "--check", "main.omg"])
         .current_dir(&directory)
         .output()
         .expect("omega checks the two recursive machines");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    for phase in ["Psi 06:", "selection admission:", "advisories:"] {
+        let rows = stderr
+            .lines()
+            .filter(|line| line.contains(" ms  Product (") && line.contains(phase));
+        assert_eq!(
+            rows.count(),
+            1,
+            "{phase} must be measured exactly once: {stderr}"
+        );
+    }
     assert!(output.status.success(), "{stderr}");
     let mut lines = stderr.lines();
     let mut warnings = Vec::new();
