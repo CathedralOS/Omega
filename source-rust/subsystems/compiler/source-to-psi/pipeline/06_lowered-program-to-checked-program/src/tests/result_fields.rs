@@ -98,7 +98,7 @@ fn borrowed_completion_observations_cannot_reuse_input_snapshots() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
 machine build_entry(INPUT, bytes: @[u8]) -> Pair
-requires p.first == 0, bytes.len > 0
+requires p.first == 0, bytes.length > 0
 ensures result.first == 0
 {
     let original: u32 = p.first;

@@ -4,15 +4,15 @@
 use omega\language\core\slice_views;
 
 public machine slice_index<Element [copy]>(items: @[Element], index: u64) -> Element
-requires index < items.len {
+requires index < items.length {
     slice_views\element::<Element>(items, index)
 }
 
 public machine slice_range<'backing, Element>(
     items: @'backing [Element], start: u64, end: u64
 ) -> @'backing [Element]
-requires start <= end && end <= items.len
-ensures result.len == end - start {
+requires start <= end && end <= items.length
+ensures result.length == end - start {
     slice_views\subslice::<Element>(items, start, end)
 }
 
@@ -24,48 +24,48 @@ boundary trait SliceAccess {
     machine index_mut<T>(items: @mut [T], index: u64) -> @mut T
     reaches none
     requires
-        index < items.len
+        index < items.length
     crashes none;
 
     machine tail<T>(items: @[T]) -> @[T]
     reaches none
     requires
-        items.len > 0
+        items.length > 0
     crashes none;
 
     machine tail_mut<T>(items: @mut [T]) -> @mut [T]
     reaches none
     requires
-        items.len > 0
+        items.length > 0
     crashes none;
 
     machine from<T>(items: @[T], start: u64) -> @[T]
     reaches none
     requires
-        start <= items.len
+        start <= items.length
     crashes none;
 
     machine from_mut<T>(items: @mut [T], start: u64) -> @mut [T]
     reaches none
     requires
-        start <= items.len
+        start <= items.length
     crashes none;
 
     machine to<T>(items: @[T], end: u64) -> @[T]
     reaches none
     requires
-        end <= items.len
+        end <= items.length
     crashes none;
 
     machine to_mut<T>(items: @mut [T], end: u64) -> @mut [T]
     reaches none
     requires
-        end <= items.len
+        end <= items.length
     crashes none;
 
     machine range_mut<T>(items: @mut [T], start: u64, end: u64) -> @mut [T]
     reaches none
     requires
-        start <= end && end <= items.len
+        start <= end && end <= items.length
     crashes none;
 }

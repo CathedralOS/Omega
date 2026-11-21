@@ -12,7 +12,7 @@ the first sample whose calls are gated by `requires` and chained by
 form describes the historical probe, not a requirement to bind code to data.
 
 The discharge chain is pure contract chaining — no runtime checks:
-`clear` ESTABLISHES spare room (`length < items.len`), `push` CONSUMES it
+`clear` ESTABLISHES spare room (`length < items.length`), `push` CONSUMES it
 and GUARANTEES non-emptiness plus the predecessor bound, `get` and `pop`
 CONSUME those guarantees. Mutating calls invalidate carried facts, so each
 proof-obligated call is fed by the call before it; the reads go through

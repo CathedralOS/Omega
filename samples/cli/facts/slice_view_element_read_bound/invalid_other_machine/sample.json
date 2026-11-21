@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "index < items.len"
+    "index < items.length"
   ]
 }

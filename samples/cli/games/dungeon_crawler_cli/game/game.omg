@@ -66,7 +66,7 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
     }
 
     machine received_command(game: @mut Game, count: u64) {
-        transition count <= 256 && count <= game.input.len {
+        transition count <= 256 && count <= game.input.length {
             true -> block bounded_command(game, count),
             false -> block invalid_command(game)
         }

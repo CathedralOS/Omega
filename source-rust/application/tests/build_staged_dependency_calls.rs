@@ -593,7 +593,7 @@ fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
 fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use kit;
-machine middle(bytes: @[u8]) -> u8 requires bytes.len == 3 { bytes[1] }
+machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
 machine build(builder: @mut Build) suspends {
     Build::application(builder, "staged_byte_read");
     let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });

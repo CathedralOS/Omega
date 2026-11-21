@@ -197,7 +197,7 @@ public data PosixMetadataResult [copy] {
 }
 
 public data Metadata [copy] {
-    len: i64;
+    length: i64;
     kind: FileKind;
     permissions: Permissions;
     nlink: u64;

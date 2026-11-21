@@ -81,7 +81,7 @@ machine find_exit_at(
     command: @[u8] in Utf8,
     index: u64 in Wrapping
     ) -> Navigation {
-    transition index < exits.len {
+    transition index < exits.length {
         true -> inspect_exit(command_parser, exits, exit_count, command, index),
         false -> invalid_navigation(command_parser)
     }
@@ -96,7 +96,7 @@ machine find_exit_at(
     ) -> Navigation {
         let found: bool = direction_matches(exits[index].direction, command);
         let next_index: u64 in Wrapping = index + 1;
-        let has_next: bool = next_index < exit_count && next_index < exits.len;
+        let has_next: bool = next_index < exit_count && next_index < exits.length;
 
         transition {
             found -> navigation(NavigationChoice::Move, exits[index].destination),

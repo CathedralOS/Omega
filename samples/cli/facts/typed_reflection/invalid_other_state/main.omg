@@ -51,7 +51,7 @@ requires Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     context.calls = ((context.calls as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64;
     context.sum = ((context.sum as u64 +Wrapping) + (number as +Wrapping)) as u64;
     context.order = ((context.order as u64 +Wrapping) * (131u64 as u64 +Wrapping) + (number as +Wrapping)) as u64;
-    transition (((field.declaration_position as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64) == context.calls && field.name.len > 0u64 && field.qualified_type.len > 0u64 {
+    transition (((field.declaration_position as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64) == context.calls && field.name.length > 0u64 && field.qualified_type.length > 0u64 {
         true -> done(),
         _ -> bad()
     }

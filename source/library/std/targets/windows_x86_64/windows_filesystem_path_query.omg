@@ -60,7 +60,7 @@ reaches FilesystemMetadataQuery {
     }
     machine copy(encoded: [u8; 12288], written: i32, output: @mut [u8]) -> i32 requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
-        transition count <= 12288 && count <= output.len {
+        transition count <= 12288 && count <= output.length {
             true -> (windows_copy_canonical_bytes(@encoded, output, count)),
             false -> (-122)
         }
@@ -70,20 +70,20 @@ reaches FilesystemMetadataQuery {
 // Validate the terminator before modifying caller storage. The returned
 // extent includes it, so success never relies on the caller's prior zeroes.
 machine windows_copy_canonical_bytes(source: @[u8; 12288], output: @mut [u8], count: u64) -> i32 {
-    transition count > 0 && count <= 12288 && count <= output.len {
+    transition count > 0 && count <= 12288 && count <= output.length {
         true -> terminated(source, output, count),
         false -> (-122)
     }
     machine terminated(source: @[u8; 12288], output: @mut [u8], count: u64) -> i32
-    requires count > 0 && count <= 12288 && count <= output.len {
+    requires count > 0 && count <= 12288 && count <= output.length {
         transition source[count - 1] == 0 { true -> copy(source, output, count, 0), false -> (-31) }
     }
     machine copy(source: @[u8; 12288], output: @mut [u8], count: u64, position: u64) -> i32
-    requires count <= 12288 && count <= output.len {
+    requires count <= 12288 && count <= output.length {
         transition position < count { true -> store(source, output, count, position), false -> 0 }
     }
     machine store(source: @[u8; 12288], output: @mut [u8], count: u64, position: u64) -> i32
-    requires count <= 12288 && count <= output.len && position < count {
+    requires count <= 12288 && count <= output.length && position < count {
         output[position] = source[position];
         transition { _ -> copy(source, output, count, position + 1) }
     }

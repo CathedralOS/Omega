@@ -14,26 +14,26 @@ data Failure<'buffer> { output: @'buffer mut [u8]; reason: Reason; }
 // length check makes each later indexed observation well formed.
 trait Encoding<'buffer> : TryFrom<Request<'buffer>, Frame<'buffer>, Failure<'buffer>> {
     machine encode_sufficient(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.output.len >= 3u64
+    requires request.output.length >= 3u64
+    ensures (result in Result::Ok) && result.value.output.length >= 3u64
         && result.value.output[0u64] == 165u8
         && result.value.output[1u64] == request.value.first
         && result.value.output[2u64] == request.value.last;
 }
 Writer<'buffer> satisfies Encoding<'buffer> {
     machine try_from(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
-    ensures request.output.len < 3u64 || ((result in Result::Ok)
-        && result.value.output.len >= 3u64 && result.value.output[0u64] == 165u8
+    ensures request.output.length < 3u64 || ((result in Result::Ok)
+        && result.value.output.length >= 3u64 && result.value.output[0u64] == 165u8
         && result.value.output[1u64] == request.value.first
         && result.value.output[2u64] == request.value.last)
     {
-        transition request.output.len >= 3u64 {
+        transition request.output.length >= 3u64 {
             true -> emit(request),
             false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
         }
         machine emit(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
-        requires request.output.len >= 3u64
-        ensures (result in Result::Ok) && result.value.output.len >= 3u64
+        requires request.output.length >= 3u64
+        ensures (result in Result::Ok) && result.value.output.length >= 3u64
             && result.value.output[0u64] == 165u8
             && result.value.output[1u64] == request.value.first
             && result.value.output[2u64] == request.value.last
@@ -45,8 +45,8 @@ Writer<'buffer> satisfies Encoding<'buffer> {
         }
     }
     machine encode_sufficient(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.output.len >= 3u64
+    requires request.output.length >= 3u64
+    ensures (result in Result::Ok) && result.value.output.length >= 3u64
         && result.value.output[0u64] == 165u8
         && result.value.output[1u64] == request.value.first
         && result.value.output[2u64] == request.value.last
@@ -58,14 +58,14 @@ Writer<'buffer> satisfies Encoding<'buffer> {
 // repeated as a mathematical expression.
 trait Decoding<'buffer> {
     machine decode<'frame>(source: @'frame Frame<'buffer>) -> Result<Pair, Reason>
-    requires source.output.len >= 3u64
+    requires source.output.length >= 3u64
     ensures source.output[0u64] != 165u8 || result in Result::Ok
     ensures (result in Result::Err) || (result.value.first == source.output[1u64]
         && result.value.last == source.output[2u64]);
 }
 Reader<'buffer> satisfies Decoding<'buffer> {
     machine decode<'frame>(source: @'frame Frame<'buffer>) -> Result<Pair, Reason>
-    requires source.output.len >= 3u64
+    requires source.output.length >= 3u64
     ensures source.output[0u64] != 165u8 || result in Result::Ok
     ensures (result in Result::Err) || (result.value.first == source.output[1u64]
         && result.value.last == source.output[2u64])
@@ -80,7 +80,7 @@ Reader<'buffer> satisfies Decoding<'buffer> {
 }
 ReadFrame<'frame, 'buffer> satisfies TryFrom<@'frame Frame<'buffer>, Pair, Reason> {
     machine try_from(source: @'frame Frame<'buffer>) -> Result<Pair, Reason> {
-        transition source.output.len >= 3u64 {
+        transition source.output.length >= 3u64 {
             true -> Reader::<'buffer>::decode(source),
             false -> Result::Err { error: Reason::Exhausted }
         }
@@ -95,15 +95,15 @@ machine read_frame<'frame, 'buffer>(source: @'frame Frame<'buffer>) -> Result<Pa
 
 trait BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
+    requires request.output.length >= 3u64
     ensures (result in Result::Ok) && core\Identity::<Pair>(result.value.value, request.value)
-        && result.value.output.len >= 3u64;
+        && result.value.output.length >= 3u64;
 }
 FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
+    requires request.output.length >= 3u64
     ensures (result in Result::Ok) && core\Identity::<Pair>(result.value.value, request.value)
-        && result.value.output.len >= 3u64
+        && result.value.output.length >= 3u64
     {
         let encoded: Result<Frame<'buffer>, Failure<'buffer>> =
             Writer::<'buffer>::encode_sufficient(request);
@@ -112,8 +112,8 @@ FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
             Result::Ok { value as frame } -> restore(frame)
         }
         machine restore(frame: Frame<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
-        requires frame.output.len >= 3u64 && frame.output[0u64] == 165u8
-        ensures (result in Result::Ok) && result.value.output.len >= 3u64
+        requires frame.output.length >= 3u64 && frame.output[0u64] == 165u8
+        ensures (result in Result::Ok) && result.value.output.length >= 3u64
             && result.value.value.first == frame.output[1u64]
             && result.value.value.last == frame.output[2u64]
         {
@@ -131,9 +131,9 @@ FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
 machine selected_round_trip<'buffer, Selected satisfies BufferedRoundTrip<'buffer>>(
     request: Request<'buffer>
 ) -> Result<Request<'buffer>, Failure<'buffer>>
-requires request.output.len >= 3u64
+requires request.output.length >= 3u64
 ensures (result in Result::Ok) && core\Identity::<Pair>(result.value.value, request.value)
-        && result.value.output.len >= 3u64
+        && result.value.output.length >= 3u64
 { Selected::round_trip(request) }
 
 // The returned result occupies a field between observable neighbors.
@@ -149,9 +149,9 @@ ensures core\Identity::<Result<Request<'buffer>, Failure<'buffer>>>(result.answe
 }
 
 machine observe<'buffer>(output: @'buffer mut [u8], expected: Pair) -> bool
-requires output.len >= 3u64
+requires output.length >= 3u64
 {
-    let capacity: u64 = output.len;
+    let capacity: u64 = output.length;
     let completed: Result<Request<'buffer>, Failure<'buffer>> =
         selected_round_trip::<FirstAgreement<'buffer>>(Request { value: expected, output: output });
     let slot: ResultSlot<'buffer> = through_field(completed);
@@ -163,11 +163,11 @@ requires output.len >= 3u64
     }
     machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool
     requires core\Identity::<Pair>(restored.value, expected)
-    requires restored.output.len >= 3u64
+    requires restored.output.length >= 3u64
     {
         let bytes: bool = restored.output[0u64] == 165u8
             && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
-        let same_extent: bool = restored.output.len == capacity;
+        let same_extent: bool = restored.output.length == capacity;
         restored.output[0u64] = 166u8;
         bytes && same_extent && transport_ok
     }
@@ -177,20 +177,20 @@ requires output.len >= 3u64
 // equality promise. Runtime checks must inspect the actual returned request.
 RoundTrip<'buffer> satisfies TryFrom<Request<'buffer>, Request<'buffer>, Failure<'buffer>> {
     machine try_from(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>> {
-        transition request.output.len >= 3u64 {
+        transition request.output.length >= 3u64 {
             true -> perform(request),
             false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
         }
         machine perform(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
-        requires request.output.len >= 3u64
+        requires request.output.length >= 3u64
         { selected_round_trip::<FirstAgreement<'buffer>>(request) }
     }
 }
 
 machine observe_weak<'buffer>(output: @'buffer mut [u8], expected: Pair) -> bool
-requires output.len >= 3u64
+requires output.length >= 3u64
 {
-    let capacity: u64 = output.len;
+    let capacity: u64 = output.length;
     let completed: Result<Request<'buffer>, Failure<'buffer>> =
         convert::<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
             Request { value: expected, output: output });
@@ -202,18 +202,18 @@ requires output.len >= 3u64
         Result::Ok { value as restored } -> check_extent(restored, expected, capacity, transport_ok)
     }
     machine check_extent(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool {
-        transition restored.output.len >= 3u64 {
+        transition restored.output.length >= 3u64 {
             true -> inspect(restored, expected, capacity, transport_ok),
             false -> false
         }
     }
     machine inspect(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool
-    requires restored.output.len >= 3u64
+    requires restored.output.length >= 3u64
     {
         let preserved: bool = restored.value.first == expected.first && restored.value.last == expected.last;
         let bytes: bool = restored.output[0u64] == 165u8
             && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
-        let same_extent: bool = restored.output.len == capacity;
+        let same_extent: bool = restored.output.length == capacity;
         restored.output[0u64] = 167u8;
         preserved && bytes && same_extent && transport_ok
     }
@@ -228,7 +228,7 @@ machine short_output<'buffer>(output: @'buffer mut [u8]) -> bool {
         Result::Err { error as failure } -> inspect(failure)
     }
     machine inspect(failure: Failure<'buffer>) -> bool {
-        transition failure.output.len == 2u64 && failure.reason in Reason::Exhausted {
+        transition failure.output.length == 2u64 && failure.reason in Reason::Exhausted {
             true -> (failure.output[0u64] == 61u8 && failure.output[1u64] == 62u8),
             false -> false
         }

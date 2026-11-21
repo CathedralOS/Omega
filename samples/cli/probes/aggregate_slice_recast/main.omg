@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) {
     main.source[1].signed_value = 11;
     main.source[1].enabled = true;
     let read: @[Wide] = @main.source as @[Wide];
-    transition read.len > 1 {
+    transition read.length > 1 {
         true -> inspect(main, read),
         _ -> fail(main)
     }
@@ -70,7 +70,7 @@ machine Main::main(main: @mut Main) {
     }
     machine mutate(main: @mut Main) {
         let write: @mut [Exact] = @mut main.source as @mut [Exact];
-        transition write.len > 1 {
+        transition write.length > 1 {
             true -> write_values(main, write),
             _ -> fail(main)
         }

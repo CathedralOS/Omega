@@ -1,6 +1,6 @@
 data Windows<'buffer> { observed: @'buffer [u32]; }
 machine pick(windows: @Windows) -> u32 {
-    transition windows.observed.len >= 1 { true -> windows.observed[1], _ -> 0 }
+    transition windows.observed.length >= 1 { true -> windows.observed[1], _ -> 0 }
 }
 machine main() crashes Trap {
     let numbers: [u32; 1] = [11u32];

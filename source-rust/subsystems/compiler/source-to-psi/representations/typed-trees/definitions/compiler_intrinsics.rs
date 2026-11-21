@@ -675,7 +675,7 @@ mod tests {
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver: result,
                         selection: MemberSelection::CollectionMeasure(CollectionMeasure::Length),
-                        member: Identifier::generated("len"),
+                        member: Identifier::generated(CollectionMeasure::Length.authored_spelling()),
                         case_variant: None,
                     }));
             let mut members = arena::HandleSpan::empty();

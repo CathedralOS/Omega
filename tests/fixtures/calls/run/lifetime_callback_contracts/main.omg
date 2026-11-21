@@ -11,14 +11,14 @@ requires steps > 0u64
 {
     let mut context: Context<'input> = Context { storage: storage, count: 0u64, valid: false };
     Plan(@mut context);
-    transition context.valid && context.count <= context.storage.len {
+    transition context.valid && context.count <= context.storage.length {
         true -> checked_remaining(@mut context, steps, next),
         false -> 0u64
     }
     machine checked_remaining(context: @mut Context<'input>, steps: u64, next: @mut u64) -> u64
-    requires context.count <= context.storage.len && steps > 0u64
+    requires context.count <= context.storage.length && steps > 0u64
     {
-        let remaining: u64 = context.storage.len - context.count;
+        let remaining: u64 = context.storage.length - context.count;
         let prior_step: u64 = steps - 1u64;
         $next = remaining;
         transition prior_step == 0u64 { true -> remaining, _ -> 0u64 }

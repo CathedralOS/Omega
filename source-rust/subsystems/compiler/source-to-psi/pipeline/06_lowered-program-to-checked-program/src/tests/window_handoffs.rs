@@ -17,7 +17,7 @@ fn walk(restore: &str) -> String {
     format!(
         r#"
 data State requires self.a == self.b {{ row: [u8; 4]; y: u8; a: u8; b: u8; }}
-machine look(bytes: @[u8]) -> u64 {{ bytes.len }}
+machine look(bytes: @[u8]) -> u64 {{ bytes.length }}
 machine walk(s: @mut State) {{
     transition {{ _ -> block head(s) }}
     machine head(s: @mut State) {{

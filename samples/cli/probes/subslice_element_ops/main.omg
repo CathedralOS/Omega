@@ -3,7 +3,7 @@
 // spelling of element zero. Whole-element replacement and
 // nested re-narrowing ride the same view.
 //
-//   * `fill(exits: &mut [Exit]) requires exits.len >= 4`.
+//   * `fill(exits: &mut [Exit]) requires exits.length >= 4`.
 //   * `let tail: &mut [Exit] = &mut exits[1..3]` then
 //     `tail[1] = blank_exit(43)`.
 //   * `let nested: &mut [Exit] = &mut tail[1..2]` re-narrow.
@@ -18,7 +18,7 @@ machine blank_exit(code: u64) -> Exit {
 }
 
 machine fill(exits: @mut [Exit])
-requires exits.len >= 4
+requires exits.length >= 4
 {
     let tail: @mut [Exit] = @mut exits[1..3];
     tail[0].code = 11;

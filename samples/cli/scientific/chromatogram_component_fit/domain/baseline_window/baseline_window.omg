@@ -6,7 +6,7 @@ use omega\language\core\I32::from_f64;
 data Held<'samples> { values: @'samples mut [f64]; }
 
 public machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut samples[0..2],
@@ -15,20 +15,20 @@ ensures result.len == 2
 }
 
 machine hold<'samples>(samples: @'samples mut [f64]) -> Held<'samples>
-requires samples.len == 2
-ensures result.values.len == 2
+requires samples.length == 2
+ensures result.values.length == 2
 {
     Held { values: samples }
 }
 
 machine write_baseline(window: @mut [f64])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = 0.0;
     window[1] = 0.0;
 }
 
 machine scale_peak(window: @mut [f64])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = window[0] + 1.0;
     window[1] = window[1] + 1.0;
 }
@@ -39,7 +39,7 @@ public machine baseline_ready() -> bool {
     let mut trace: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
     write_baseline(hold(window(@mut trace, 0)).values);
     let leading: Held = hold(window(@mut trace, 0));
-    let span: u64 = leading.values.len;
+    let span: u64 = leading.values.length;
     transition span == 2 {
         true -> peak(@mut trace),
         _ -> false

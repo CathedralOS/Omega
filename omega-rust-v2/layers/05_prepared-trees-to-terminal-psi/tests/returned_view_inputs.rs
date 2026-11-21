@@ -17,7 +17,7 @@ const RELAY: &str = "machine relay(flag:bool,left:@[u8],right:@[u8],dead:@[u8])-
 const FORWARD: &str = "machine forward(flag:bool,left:@[u8],right:@[u8],dead:@[u8])->@[u8] {
     transition { _ -> relay(flag,left,right,dead), }
 }";
-const INSPECT: &str = "machine inspect(bytes:@[u8])->u64 suspends { bytes.len }";
+const INSPECT: &str = "machine inspect(bytes:@[u8])->u64 suspends { bytes.length }";
 const USE: &str = "machine use_it(flag:bool,left:@[u8],right:@[u8],dead:@[u8])->u64 suspends {
     let selected = forward(flag,left,right,dead);
     suspend inspect(selected)

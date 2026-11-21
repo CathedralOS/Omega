@@ -22,11 +22,11 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 boundary trait SelectedWindow {
     machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64] reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    ensures result.len == 2;
+    ensures result.length == 2;
 }
 X86Window satisfies SelectedWindow {
     machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64] reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    ensures result.len == 2
+    ensures result.length == 2
     {
         SelectedBodyCheck::require_tag(17u64);
         match which {
@@ -37,7 +37,7 @@ X86Window satisfies SelectedWindow {
 }
 ArmWindow satisfies SelectedWindow {
     machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64] reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    ensures result.len == 2
+    ensures result.length == 2
     {
         SelectedBodyCheck::require_tag(29u64);
         match which {
@@ -47,14 +47,14 @@ ArmWindow satisfies SelectedWindow {
     }
 }
 machine hold<'samples>(samples: @'samples mut [f64]) -> Held<'samples>
-requires samples.len == 2
-ensures result.values.len == 2
+requires samples.length == 2
+ensures result.values.length == 2
 {
     Held { values: samples }
 }
 
 machine write_pair(window: @mut [f64])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = 0.0;
     window[1] = 1.0;
 }

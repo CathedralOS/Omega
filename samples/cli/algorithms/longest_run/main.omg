@@ -33,7 +33,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
     machine step(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
-        transition index < text.len {
+        transition index < text.length {
             true -> read(text, index, previous, current, maximum),
             _ -> maximum
         }

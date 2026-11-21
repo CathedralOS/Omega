@@ -16,7 +16,7 @@ use omega\language\core\ProcessExit;
 // path 11 <- 4 <- 3 <- 1 <- 0.
 use omega_language_std\Console;
 
-data Heap<T> { items: [T; 16]; len: u64; }
+data Heap<T> { items: [T; 16]; length: u64; }
 
 data Popped<T [copy]> [copy] { value: T; }
 
@@ -27,13 +27,13 @@ machine ent_less(left: @u64, right: @u64) -> bool {
 machine push_heap<T [copy], machine Less>(h: @mut Heap<T>, value: @T)
 requires machine Less(left: @T, right: @T) -> bool;
 {
-    transition h.len < 16 { true -> place(h, value, h.len), _ -> full(h) }
+    transition h.length < 16 { true -> place(h, value, h.length), _ -> full(h) }
     machine place(h: @mut Heap<T>, value: @T, at: u64)
         requires at < 16
     {
         let tmp: T = $value;
         h.items[at] = tmp;
-        h.len = at + 1;
+        h.length = at + 1;
         transition { _ -> up(h, at) }
     }
     machine up(h: @mut Heap<T>, at: u64)
@@ -60,24 +60,24 @@ requires machine Less(left: @T, right: @T) -> bool;
 
 machine pop_heap<T [copy], machine Less>(h: @mut Heap<T>, root: @mut Popped<T>)
 requires machine Less(left: @T, right: @T) -> bool;
-    requires h.len >= 1
-    requires h.len <= 16
+    requires h.length >= 1
+    requires h.length <= 16
 {
-    transition h.len >= 2 { true -> lift(h, root), _ -> take(h, root) }
+    transition h.length >= 2 { true -> lift(h, root), _ -> take(h, root) }
     machine take(h: @mut Heap<T>, root: @mut Popped<T>)
-        requires h.len >= 1
+        requires h.length >= 1
     {
         let top: T = h.items[0];
         root.value = top;
-        h.len = 0;
+        h.length = 0;
     }
     machine lift(h: @mut Heap<T>, root: @mut Popped<T>)
-        requires h.len >= 2
-        requires h.len <= 16
+        requires h.length >= 2
+        requires h.length <= 16
     {
         let top: T = h.items[0];
         root.value = top;
-        let n: u64 = h.len - 1;
+        let n: u64 = h.length - 1;
         let moved: T = h.items[n];
         h.items[0] = moved;
         transition n >= 1 && n <= 15 {
@@ -130,7 +130,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     machine finish(h: @mut Heap<T>, n: u64)
         requires n <= 16
     {
-        h.len = n;
+        h.length = n;
     }
 }
 
@@ -154,7 +154,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         dst: [1, 2, 2, 3, 3, 4, 4, 5, 5, 11, 6, 11, 7, 8, 9, 10, 11, 11],
         wgt: [4, 2, 1, 5, 8, 10, 2, 6, 3, 4, 1, 9, 2, 3, 1, 2, 2, 5],
     };
-    main.heap.len = 0;
+    main.heap.length = 0;
     transition { _ -> clear(main, 0) }
 
     machine clear(main: @mut Main, i: u64)
@@ -179,14 +179,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         transition { _ -> step(main) }
     }
     machine step(main: @mut Main) {
-        transition main.heap.len >= 1 && main.heap.len <= 16 {
+        transition main.heap.length >= 1 && main.heap.length <= 16 {
             true -> take(main),
             _ -> score(main, 0, 0)
         }
     }
     machine take(main: @mut Main)
-        requires main.heap.len >= 1
-        requires main.heap.len <= 16
+        requires main.heap.length >= 1
+        requires main.heap.length <= 16
     {
         let mut popped: Popped<u64> = Popped { value: 0 };
         pop_heap::<ent_less>(@mut main.heap, @mut popped);

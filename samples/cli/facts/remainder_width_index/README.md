@@ -46,7 +46,7 @@ with `cannot prove index ... is within unknown slice length`. Check a twin with
 `omega --check <place>/invalid/main.omg`.
 
 The call-result place drove a checking repair: a declared measurement written
-as `ensures result == buckets.len as u64` states the same length through an
+as `ensures result == buckets.length as u64` states the same length through an
 admitted Exact cast, and the measurement contract now recognizes the length
 member under that cast. Without the repair the call-result place, the
 measurement in each target body, and every width that flows from such a
@@ -58,18 +58,18 @@ Owning task: **CONSERVATION-CONTRACT** (`TASKS.md`) under
 [numeric values](../../../../wiki/spec/language/numeric_values.md#division-and-remainder)
 and [counts, indices, and addresses](../../../../wiki/spec/language/counts_and_addresses.md#bounds-and-lowering).
 This row establishes that an unsigned remainder `value % width` with
-`buckets.len > 0` and `width == buckets.len as u64` discharges the strict index
-bound `0 <= value % width < buckets.len` across all nine places without post-hoc
+`buckets.length > 0` and `width == buckets.length as u64` discharges the strict index
+bound `0 <= value % width < buckets.length` across all nine places without post-hoc
 caller guards.
 
-- **Establishment:** `buckets.len > 0` guarantees a nonzero divisor `width > 0`
+- **Establishment:** `buckets.length > 0` guarantees a nonzero divisor `width > 0`
   and establishes `value % width < width`; combined with the exact equality
-  `width == buckets.len as u64` from local assignment, field/parameter/state
+  `width == buckets.length as u64` from local assignment, field/parameter/state
   contracts, call `ensures`, match arms, or `const WIDTH`, the slice indexing
-  obligation `value % width < buckets.len` is discharged directly at
+  obligation `value % width < buckets.length` is discharged directly at
   `buckets[value % width]` without any post-hoc caller equality guard.
 - **Identity and lifetime:** The fact tracks the exact slice descriptor length
-  `buckets.len` and the `u64` width carrier (`width`, `window.width`, or
+  `buckets.length` and the `u64` width carrier (`width`, `window.width`, or
   `WIDTH`) across local bindings, record fields, call boundaries, and state
   transitions while `buckets` remains borrowed as an immutable view and unmodified.
 - **Composition:** Calls substitute exact actuals (`measure(buckets)` and
@@ -77,7 +77,7 @@ caller guards.
   only when established on both `true` and `false` arms (both executed at
   runtime), and `other_state` proves the arrival contract on `land` before
   indexing. Each `<place>/invalid/main.omg` differs from `<place>/main.omg`
-  only in widening the width relation to `buckets.len as u64 + 1` (and `5` at
+  only in widening the width relation to `buckets.length as u64 + 1` (and `5` at
   call sites where required by the widened contract).
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Exact `u64` remainder
   arithmetic and borrowed slice indexing lower into canonical target-neutral
@@ -104,7 +104,7 @@ caller guards.
   are emitted, agreeing with Terminal Psi (`omega run --both` exit 0) across host
   targets including `windows_x86_64` and `macos_arm64`.
 
-What remains open: symbolic non-equality divisor upper bounds (`width <= buckets.len as u64` with `width > 0`) and signed remainder indexing bounds.
+What remains open: symbolic non-equality divisor upper bounds (`width <= buckets.length as u64` with `width > 0`) and signed remainder indexing bounds.
 
 ## Build-owned target-body migration
 

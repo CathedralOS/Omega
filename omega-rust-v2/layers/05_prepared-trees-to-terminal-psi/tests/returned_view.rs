@@ -16,7 +16,7 @@ fn a_returned_view_keeps_the_actual_at_the_selected_formal_position() {
     ] {
         let text = format!(
             "machine select(first:@[{element}],second:@[{element}])->@[{element}] {{ {returned} }}
-             machine inspect(bytes:@[{element}])->u64 suspends {{ bytes.len }}
+             machine inspect(bytes:@[{element}])->u64 suspends {{ bytes.length }}
              machine forward(left:@[{element}],right:@[{element}])->u64 suspends {{
                  let chosen = select(right,left);
                  let count:u64 = suspend inspect(chosen);

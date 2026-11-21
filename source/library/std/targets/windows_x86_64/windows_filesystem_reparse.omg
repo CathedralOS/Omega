@@ -25,7 +25,7 @@ reaches FilesystemMetadataQuery {
 
 machine windows_filesystem_native_read_link(path: @[u8] in Path, output: @mut [u8], count: u64) -> i64
 reaches FilesystemMetadataQuery {
-    transition count > 0 && count <= output.len { true -> block path(path, output, count), false -> (-87) }
+    transition count > 0 && count <= output.length { true -> block path(path, output, count), false -> (-87) }
     machine path(path: @[u8] in Path, output: @mut [u8], count: u64) -> i64 {
         let mut wide: [u16; 4096];
         let units: i64 = windows_wide_path(path as -Path, @mut wide);
@@ -90,20 +90,20 @@ reaches FilesystemMetadataQuery {
 machine windows_reparse_copy_bytes(source: @[u8; 24576], written: i32, output: @mut [u8], count: u64) -> i64
 requires written > 0 && written <= 24576 {
     let length: u64 = narrow_i32_to_u64_exact(written);
-    transition count <= output.len {
+    transition count <= output.length {
         true -> limit(source, length, output, count),
         false -> (-87)
     }
     machine limit(source: @[u8; 24576], length: u64, output: @mut [u8], count: u64) -> i64
-    requires length <= 24576 && count <= output.len {
+    requires length <= 24576 && count <= output.length {
         transition length < count { true -> copy(source, output, length, 0), false -> copy(source, output, count, 0) }
     }
     machine copy(source: @[u8; 24576], output: @mut [u8], count: u64, position: u64) -> i64
-    requires count <= 24576 && count <= output.len {
+    requires count <= 24576 && count <= output.length {
         transition position < count { true -> store(source, output, count, position), false -> (narrow_u64_to_i64_exact(count)) }
     }
     machine store(source: @[u8; 24576], output: @mut [u8], count: u64, position: u64) -> i64
-    requires count <= 24576 && count <= output.len && position < count {
+    requires count <= 24576 && count <= output.length && position < count {
         output[position] = source[position];
         transition { _ -> copy(source, output, count, position + 1) }
     }

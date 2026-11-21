@@ -214,7 +214,7 @@ mean its selected application, executable call or native realization is supporte
 | Index/range | Exact public-interface operator occurrence, builtin/declared meaning, collection, index/endpoints, and inclusive-end bit. |
 | Cast | Structural operand, target, arithmetic policy, qualified domain/arguments, and value/recast form; no private domain exposure through a public contract. |
 | `zero_value<T>()` | Exact qualified/alpha-normalized observed type, not layout bytes or a checker verdict. Quotients remain outside the representation-observer contract. |
-| Collection length | Exact `len` selection on fixed array/slice after preferring an actual nominal field. Package fields keep their owner. |
+| Collection length | Exact `length` selection on fixed array/slice after preferring an actual nominal field. Package fields keep their owner. |
 | Unary `!` / `~` | Authored operator occurrence finalized to checked builtin meaning before projection. |
 | Byte predicates / builtin functions | Exact closed predicate or fixed root builtin slot/kind. Same-spelled package/nested/generated declarations stay nominal; malformed receivers, static arguments, or symbol joins reject. |
 | Named operator call | Exact operator resolution and authored occurrence; static namespace is not a value receiver. Target or reference-argument drift rejects. |

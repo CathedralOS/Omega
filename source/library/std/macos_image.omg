@@ -6,7 +6,7 @@
 // is a Create-rule owned CFData handle, or zero; it retains no input reference.
 public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
     machine copy(allocator: u64, bytes: @[u8]) -> u64
-    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
+    requires bytes.length <= 0x7fff_ffff_ffff_ffffu64
     reaches none
     crashes none;
 }
@@ -45,20 +45,20 @@ public machine macos_image_snapshot(width: u32, height: u32,
     pixels: @[i32], space: u64) -> u64
 requires width > 0 && width <= 8192
 requires height > 0 && height <= 8192
-requires pixels.len == (width as u64) * (height as u64)
+requires pixels.length == (width as u64) * (height as u64)
 reaches none
 invokes MacosImageData invokes MacosImageObjects
 {
     let bytes: @[u8] = pixels as @[u8];
     // CFIndex is signed even though Omega view lengths are unsigned counts.
     // Validate the native scalar lane independently of the borrowed extent.
-    transition bytes.len <= 0x7fff_ffff_ffff_ffffu64 {
+    transition bytes.length <= 0x7fff_ffff_ffff_ffffu64 {
         true -> copy(width, height, space, bytes),
         _ -> (0)
     }
 
     machine copy(width: u32, height: u32, space: u64, bytes: @[u8]) -> u64
-    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
+    requires bytes.length <= 0x7fff_ffff_ffff_ffffu64
     invokes MacosImageData invokes MacosImageObjects
     {
         let data: u64 = MacosImageData::copy(0, bytes);

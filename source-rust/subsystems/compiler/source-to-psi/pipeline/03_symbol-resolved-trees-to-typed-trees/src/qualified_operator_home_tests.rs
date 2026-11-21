@@ -345,16 +345,16 @@ fn core_policy_comparisons_read_selected_collection_lengths() {
         "lengths.omg",
         r#"
 machine equal_length(items: @[u8], count: u64 in Trapping) -> bool {
-    count == items.len
+    count == items.length
 }
 machine bounded_length(items: @[u8], count: u64 in Trapping) -> bool
-    requires count < items.len
+    requires count < items.length
 { true }
 machine reversed_length(items: @[u8], count: u64 in Trapping) -> bool {
-    items.len > count
+    items.length > count
 }
 machine fixed_length(items: @[u8; 4], count: u64 in Trapping) -> bool {
-    count <= items.len
+    count <= items.length
 }
 "#,
     ));
@@ -446,9 +446,9 @@ fn collection_length_type_queries_use_the_retained_selection() {
     let mut program = typed(&[(
         "members.omg",
         r#"
-data Row [copy] { len: u16 in Wrapping; }
-machine selected(items: @[u8]) -> u64 { items.len }
-machine field(row: @Row) -> u16 in Wrapping { row.len }
+data Row [copy] { length: u16 in Wrapping; }
+machine selected(items: @[u8]) -> u64 { items.length }
+machine field(row: @Row) -> u16 in Wrapping { row.length }
 "#,
     )]);
     for (name, atom, policy) in [
@@ -514,7 +514,7 @@ machine field(row: @Row) -> u16 in Wrapping { row.len }
         let ExpressionNode::Member(node) = program.expression_table.expression_mut(member) else {
             unreachable!()
         };
-        node.member = "len".into();
+        node.member = "length".into();
         node.selection = MemberSelection::Unresolved;
         assert_eq!(
             crate::typing::typing_queries::declared_expression_type(&program, owner, member),

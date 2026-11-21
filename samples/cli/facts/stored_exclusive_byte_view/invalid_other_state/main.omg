@@ -6,9 +6,9 @@ machine main() crashes Trap {
     let windows: [@mut [u8]; 1] = [@mut backing[0..0]];
     transition { _ -> inspect(windows) }
     machine inspect(windows: [@mut [u8]; 1])
-    requires windows[0].len == 1
+    requires windows[0].length == 1
     {
-        let length: u64 = windows[0].len;
+        let length: u64 = windows[0].length;
         let observed: bool = windows[0][0] == 19 && length == 1;
         transition observed {
             true -> done(),

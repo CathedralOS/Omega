@@ -3,13 +3,13 @@
 // Place: call_result.
 // Expected exit: 0
 machine read(bytes: @[u8]) -> u8
-requires bytes.len == 1
+requires bytes.length == 1
 {
     bytes[0]
 }
 
 machine relay<'storage>(windows: [@'storage [u8]; 2]) -> [@'storage [u8]; 2]
-ensures result[0].len == windows[0].len && result[1].len == windows[1].len
+ensures result[0].length == windows[0].length && result[1].length == windows[1].length
 {
     windows
 }

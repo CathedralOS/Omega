@@ -1787,7 +1787,7 @@ pub(crate) mod expression {
                             self.lower_membership_expression(membership)
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            let (selection, case_variant) = self.selected_member(member);
+                            let (selection, case_variant) = self.selected_member(member)?;
                             if matches!(
                                 selection,
                                 typed::expression::MemberSelection::CollectionMeasure(
@@ -2747,15 +2747,18 @@ pub(crate) mod expression {
                 pub(crate) fn selected_member(
                     &self,
                     member: &TableMemberExpression,
-                ) -> (
-                    crate::source_state::expression::MemberSelection,
-                    Option<resolved::name::DiagnosticName>,
-                ) {
+                ) -> Result<
+                    (
+                        crate::source_state::expression::MemberSelection,
+                        Option<resolved::name::DiagnosticName>,
+                    ),
+                    diagnostics::Diagnostic,
+                > {
                     use crate::declaration_selection::CollectionMeasure;
                     use crate::source_state::expression::MemberSelection;
                     let (field, case) = self.declared_member(member);
                     if field.is_valid() {
-                        return (MemberSelection::Field(field), case);
+                        return Ok((MemberSelection::Field(field), case));
                     }
                     // A same-spelled nominal field keeps its exact selection.
                     // Only an actual builtin collection type gives this
@@ -2770,16 +2773,25 @@ pub(crate) mod expression {
                             },
                         )
                     });
-                    let selected = if collection
-                        && case.is_none()
-                        && CollectionMeasure::from_authored_spelling(member.member.as_str())
-                            == Some(CollectionMeasure::Length)
-                    {
-                        MemberSelection::CollectionMeasure(CollectionMeasure::Length)
-                    } else {
-                        MemberSelection::Unresolved
-                    };
-                    (selected, case)
+                    if collection && case.is_none() {
+                        match CollectionMeasure::from_authored_spelling(member.member.as_str()) {
+                            Some(CollectionMeasure::Length) => {
+                                return Ok((
+                                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                                    None,
+                                ));
+                            }
+                            None if member.member.is_source_backed() => {
+                                return Err(diagnostics::Diagnostic::error(format!(
+                                    "collection has no member `{}`",
+                                    member.member.as_str()
+                                ))
+                                .with_source_span(member.member.source_span()));
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok((MemberSelection::Unresolved, case))
                 }
 
                 pub(crate) fn declared_member(

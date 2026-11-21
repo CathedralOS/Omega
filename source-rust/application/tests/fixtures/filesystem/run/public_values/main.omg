@@ -91,7 +91,7 @@ crashes Trap
     }
     machine metadata(file: File) crashes Trap {
         let result: MetadataResult = block FilesystemService::metadata(file);
-        transition result { MetadataResult::Ok { meta } -> block inspected(file, meta.len, meta.modified_secs), _ -> bad() }
+        transition result { MetadataResult::Ok { meta } -> block inspected(file, meta.length, meta.modified_secs), _ -> bad() }
     }
     machine inspected(file: File, length: i64, modified: i64) crashes Trap {
         let closed: UnitResult = block FilesystemService::close(file);

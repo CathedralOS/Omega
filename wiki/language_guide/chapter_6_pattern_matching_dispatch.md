@@ -111,10 +111,10 @@ Use `match` for a pattern that could fail.
 Inside an arm, the compiler knows what the pattern established:
 
 ```omega
-let empty: bool = items.len == 0;
+let empty: bool = items.length == 0;
 transition empty {
     true -> no_items(),
-    false -> inspect_first(items)     // here: items.len != 0
+    false -> inspect_first(items)     // here: items.length != 0
 }
 ```
 

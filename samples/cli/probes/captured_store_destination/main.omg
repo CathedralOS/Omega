@@ -18,12 +18,12 @@ machine retain_byte_carrier<'storage>(bytes: @'storage mut [u8]) -> ByteBundle<'
 }
 
 machine write_captured_bytes<'storage>(home: ByteBundle<'storage>, replacement: @'storage mut [u8]) {
-    transition home.raw.len > 0 {
+    transition home.raw.length > 0 {
         true -> ready(home, replacement),
         false -> done()
     }
     machine ready(mut home: ByteBundle<'storage>, replacement: @'storage mut [u8])
-    requires home.raw.len > 0 {
+    requires home.raw.length > 0 {
         home.raw[0] = replace_byte_carrier(@write home, replacement);
     }
     machine done() {}
@@ -78,12 +78,12 @@ ensures result == 65 {
 }
 
 machine write_captured_view<'storage>(home: ViewBundle<'storage>, replacement: @'storage mut [u64]) {
-    transition home.raw.len > 0 {
+    transition home.raw.length > 0 {
         true -> ready(home, replacement),
         false -> done()
     }
     machine ready(mut home: ViewBundle<'storage>, replacement: @'storage mut [u64])
-    requires home.raw.len > 0 {
+    requires home.raw.length > 0 {
         home.raw[0] = replace_view_carrier(@write home, replacement);
     }
     machine done() {}

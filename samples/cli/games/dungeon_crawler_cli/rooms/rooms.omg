@@ -35,7 +35,7 @@ machine append_exit(
     direction: Direction,
     destination: CellId
 )
-requires command.len <= 8
+requires command.length <= 8
 {
     transition room.exit_count {
         0 -> append_exit_slot_0(room, command, direction, destination),
@@ -51,7 +51,7 @@ requires command.len <= 8
         direction: Direction,
         destination: CellId
     )
-    requires command.len <= 8
+    requires command.length <= 8
     {
         exit_command_set(@mut room.exits[0].command, command);
         room.exits[0].direction = direction;
@@ -65,7 +65,7 @@ requires command.len <= 8
         direction: Direction,
         destination: CellId
     )
-    requires command.len <= 8
+    requires command.length <= 8
     {
         exit_command_set(@mut room.exits[1].command, command);
         room.exits[1].direction = direction;
@@ -79,7 +79,7 @@ requires command.len <= 8
         direction: Direction,
         destination: CellId
     )
-    requires command.len <= 8
+    requires command.length <= 8
     {
         exit_command_set(@mut room.exits[2].command, command);
         room.exits[2].direction = direction;
@@ -93,7 +93,7 @@ requires command.len <= 8
         direction: Direction,
         destination: CellId
     )
-    requires command.len <= 8
+    requires command.length <= 8
     {
         exit_command_set(@mut room.exits[3].command, command);
         room.exits[3].direction = direction;

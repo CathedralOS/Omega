@@ -290,7 +290,7 @@ invocation reads, not whether an argument's type contains a reference. Merely
 admitting the predicate does not establish that it returns `true`.
 
 Apply the same read and fact-validity rules to records, slices, arrays and
-nested reference paths. Reading only `items.len` introduces no observation
+nested reference paths. Reading only `items.length` introduces no observation
 dependency on elements or their referents; reading an ordinary record field
 does not observe an unused sibling reference. Ordinary validity, loan, custody
 and access obligations for the input still apply. An unread reference cannot
@@ -826,9 +826,9 @@ less.
 ```omega
 machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
-requires n <= items.len
+requires n <= items.length
 {
-    items[i]             // floor: i < items.len by order reasoning
+    items[i]             // floor: i < items.length by order reasoning
 }
 
 machine area(count: u32, size: u32) -> u32
@@ -851,7 +851,7 @@ bounds.
 **Order reasoning.** An order atom compares two integer terms with `<`, `<=`
 or `==`, where each term is a literal, a subject, or a subject plus or minus a
 literal, read as mathematical integers. A subject is an exact value or place,
-including a projection such as `items.len`. A goal that is an order atom, or
+including a projection such as `items.length`. A goal that is an order atom, or
 an inequality `!=` implied by a strict one, is in the floor when it follows in
 integer arithmetic from the order atoms among the premises. The checker is
 complete for this class: transitivity through any number of atoms, equality

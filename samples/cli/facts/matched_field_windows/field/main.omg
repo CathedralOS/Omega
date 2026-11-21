@@ -10,7 +10,7 @@ data Holder {
 }
 
 machine from_field<'row>(holder: @'row mut Holder) -> @'row mut [u8]
-    ensures result.len == 2
+    ensures result.length == 2
 {
     match holder.which {
         0 -> @mut holder.bytes[0..holder.which + 2],
@@ -19,7 +19,7 @@ machine from_field<'row>(holder: @'row mut Holder) -> @'row mut [u8]
 }
 
 machine write_pair(window: @mut [u8])
-    requires window.len >= 2
+    requires window.length >= 2
 {
     window[0] = 9;
     window[1] = 8;

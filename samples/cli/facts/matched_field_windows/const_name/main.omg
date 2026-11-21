@@ -6,7 +6,7 @@
 const SPAN: i64 = 2;
 
 machine from_const<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
-    ensures result.len == 2
+    ensures result.length == 2
 {
     match which {
         0 -> @mut items[0..which + SPAN],
@@ -15,7 +15,7 @@ machine from_const<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
 }
 
 machine write_pair(window: @mut [u8])
-    requires window.len >= 2
+    requires window.length >= 2
 {
     window[0] = 9;
     window[1] = 8;

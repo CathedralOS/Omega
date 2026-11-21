@@ -30,9 +30,9 @@ comparisons, and arithmetic that fits because its operands are bounded.
 ```omega
 machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
-requires n <= items.len
+requires n <= items.length
 {
-    items[i]             // i < n <= items.len
+    items[i]             // i < n <= items.length
 }
 
 machine area(count: u32, size: u32) -> u32
@@ -86,7 +86,7 @@ warns that it is unreachable.
 
 ```omega
 machine restore(items: @mut [u8]) -> u8
-requires items.len > 0
+requires items.length > 0
 ensures result == 42
 {
     items[0] = 42;

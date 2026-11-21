@@ -6,9 +6,9 @@ ensures result <= left && result <= right &&
     transition { left < right -> left, _ -> right }
 }
 machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64 {
-    let capacity: u64 = minimum(minimum(count, other.len), 2147483647);
+    let capacity: u64 = minimum(minimum(count, other.length), 2147483647);
     let prefix: @mut [u8] = @mut buffer[0..capacity];
-    prefix.len
+    prefix.length
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 8];

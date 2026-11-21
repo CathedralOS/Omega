@@ -9,7 +9,7 @@
 //     slice tail from that index (len 5 of [u8;8]); writes through the
 //     view land in the backing array (tail[4] = 9 -> tail[7]).
 //   * Borrows forward through states with their established facts:
-//     `tail.len > 4` in the caller proves `tail[4]` in the callee.
+//     `tail.length > 4` in the caller proves `tail[4]` in the callee.
 //   * `hits` counts reached arms.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -37,14 +37,14 @@ machine Main::main(main: @mut Main) {
     }
     machine tail_view(main: @mut Main) {
         let tail: @mut [u8] = @mut main.tail[3] as @mut [u8];
-        transition tail.len > 4 {
+        transition tail.length > 4 {
             true -> write(main, tail),
             _ -> fail(main)
         }
     }
     machine write(main: @mut Main, tail: @mut [u8]) {
         tail[4] = 9;
-        transition tail.len == 5 {
+        transition tail.length == 5 {
             true -> check(main),
             _ -> fail(main)
         }

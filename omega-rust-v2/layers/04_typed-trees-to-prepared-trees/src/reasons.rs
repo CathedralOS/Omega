@@ -124,7 +124,7 @@ preparation_reasons! {
     /// A pattern selects no supported owned value.
     PatternWithoutSelection => "the selected pattern has no supported owned-value selection",
     /// A fixed-array read is out of bounds.
-    ArrayIndexOutOfBounds => "selected array read requires index < items.len",
+    ArrayIndexOutOfBounds => "selected array read requires index < items.length",
     /// A zero-filled array cannot be allocated.
     ZeroArrayNeedsStorage => "zero-filling an array requires checked preparation storage",
 

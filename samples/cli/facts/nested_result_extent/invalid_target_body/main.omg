@@ -35,9 +35,9 @@ X86Trial satisfies SelectedTrial {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let capacity: u64 = minimum(minimum(count, other.len), 2147483647);
+        let capacity: u64 = minimum(minimum(count, other.length), 2147483647);
         let prefix: @mut [u8] = @mut buffer[0..capacity];
-        prefix.len
+        prefix.length
     }
 }
 
@@ -46,9 +46,9 @@ ArmTrial satisfies SelectedTrial {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let capacity: u64 = minimum(minimum(count, other.len), 2147483647);
+        let capacity: u64 = minimum(minimum(count, other.length), 2147483647);
         let prefix: @mut [u8] = @mut buffer[0..capacity];
-        prefix.len
+        prefix.length
     }
 }
 

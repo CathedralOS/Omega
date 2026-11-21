@@ -4,8 +4,8 @@ data Measure = machine(n: u64) -> u8
     reaches none crashes none;
 
 machine pick(flag: bool, left: @mut [u32], right: @mut [u32], f: Measure) -> u8
-requires left.len < 1000
+requires left.length < 1000
 {
     let chosen = match flag {true -> left, false -> right,};
-    f(left.len)
+    f(left.length)
 }

@@ -7,7 +7,7 @@ public machine parse_transport(bytes: @[u8], input: @mut TransportInput) -> bool
     machine scan(bytes: @[u8], input: @mut TransportInput, position: u64,
                token: u64, value: i32 in Wrapping, negative: bool,
                started: bool, digit_seen: bool) -> bool {
-        transition position < bytes.len {
+        transition position < bytes.length {
             true -> character(bytes, input, position, token, value, negative, started, digit_seen, bytes[position]),
             false -> end(input, token, value, negative, started, digit_seen)
         }

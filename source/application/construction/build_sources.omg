@@ -31,18 +31,18 @@ reaches ProcessExit crashes Trap
 }
 
 machine same_build_path(left: @[u8], right: @[u8]) -> bool crashes Trap {
-    transition left.len == right.len {
+    transition left.length == right.length {
         true -> scan(left, right, 0),
         _ -> false
     }
     machine scan(left: @[u8], right: @[u8], index: u64) -> bool {
-        transition index < left.len && index < right.len {
+        transition index < left.length && index < right.length {
             true -> byte(left, right, index),
             _ -> true
         }
     }
     machine byte(left: @[u8], right: @[u8], index: u64) -> bool
-    requires index < left.len && index < right.len
+    requires index < left.length && index < right.length
     {
         transition left[index] == right[index] {
             true -> scan(left, right, index + 1),
@@ -54,15 +54,15 @@ machine same_build_path(left: @[u8], right: @[u8]) -> bool crashes Trap {
 machine build_path_valid(path: @[u8]) -> bool crashes Trap {
     transition { _ -> scan(path, 0, 0) }
     machine scan(path: @[u8], start: u64, index: u64) -> bool
-    requires start <= index && index <= path.len
+    requires start <= index && index <= path.length
     {
-        transition index < path.len {
+        transition index < path.length {
             true -> byte(path, start, index),
             _ -> component(@path[start..index])
         }
     }
     machine byte(path: @[u8], start: u64, index: u64) -> bool
-    requires start <= index && index < path.len
+    requires start <= index && index < path.length
     {
         transition path[index] {
             0 -> false,  // NUL
@@ -72,14 +72,14 @@ machine build_path_valid(path: @[u8]) -> bool crashes Trap {
         }
     }
     machine separator(path: @[u8], start: u64, index: u64) -> bool
-    requires start <= index && index < path.len
+    requires start <= index && index < path.length
     {
         transition component(@path[start..index]) {
             true -> scan(path, index + 1, index + 1),
             _ -> false
         }
     }
-    machine component(part: @[u8]) -> bool { part.len > 0 && !same_build_path(part, ".") && !same_build_path(part, "..") }
+    machine component(part: @[u8]) -> bool { part.length > 0 && !same_build_path(part, ".") && !same_build_path(part, "..") }
 }
 
 machine has_build_file(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8]) -> bool

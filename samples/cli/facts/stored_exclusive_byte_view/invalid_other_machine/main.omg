@@ -2,15 +2,15 @@
 // Place: other_machine.
 // Expected rejection: the empty descriptor does not satisfy the read's live bound.
 machine observe(windows: [@mut [u8]; 1]) -> bool
-requires windows[0].len == 1
+requires windows[0].length == 1
 {
-    let length: u64 = windows[0].len;
+    let length: u64 = windows[0].length;
     let observed: bool = windows[0][0] == 19 && length == 1;
     observed
 }
 
 machine forward(windows: [@mut [u8]; 1]) -> bool
-requires windows[0].len == 1
+requires windows[0].length == 1
 {
     observe(windows)
 }

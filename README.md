@@ -353,7 +353,7 @@ asm machine copy_header(
     packet: @[u8],
     destination: @mut [u8; 16]
 )
-requires packet.len >= 16
+requires packet.length >= 16
 registers
     r10 = address_of(@packet[0]),
     r11 = address_of(@mut destination[0]),

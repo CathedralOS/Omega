@@ -22,7 +22,7 @@ The match place still executes both choices at both low values. One arm writes a
 | local | [source](local/main.omg) | [source](invalid_local/main.omg) | the computed subslice view is bound in a local |
 | field | [source](field/main.omg) | [source](invalid_field/main.omg) | the computed subslice view is stored in a record field |
 | parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) | the computed subslice view arrives as an explicit parameter |
-| call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | a helper call returns the computed subslice view with `result.len == 2` |
+| call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | a helper call returns the computed subslice view with `result.length == 2` |
 | match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) | both match arms produce the computed subslice view |
 | const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) | named constants `ZERO` and `SPAN` supply the subslice endpoint offsets |
 | other state | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) | a successor machine receives the computed subslice view |

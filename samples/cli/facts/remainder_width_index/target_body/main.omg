@@ -4,10 +4,10 @@
 // declared measurement and selects the element.
 // Expected exit: 0
 machine measure(buckets: @[u8]) -> u64
-requires buckets.len > 0
-ensures result == buckets.len as u64
+requires buckets.length > 0
+ensures result == buckets.length as u64
 {
-    buckets.len as u64
+    buckets.length as u64
 }
 
 boundary trait SelectedBodyCheck {
@@ -32,12 +32,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedReadAt {
     machine read_at(value: u64, buckets: @[u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.length > 0;
 }
 
 X86ReadAt satisfies SelectedReadAt {
     machine read_at(value: u64, buckets: @[u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.length > 0
     {
         SelectedBodyCheck::require_tag(17u64);
         let width: u64 = measure(buckets);
@@ -47,7 +47,7 @@ X86ReadAt satisfies SelectedReadAt {
 
 ArmReadAt satisfies SelectedReadAt {
     machine read_at(value: u64, buckets: @[u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.length > 0
     {
         SelectedBodyCheck::require_tag(29u64);
         let width: u64 = measure(buckets);

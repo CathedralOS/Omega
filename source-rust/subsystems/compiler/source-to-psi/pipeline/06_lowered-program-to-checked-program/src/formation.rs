@@ -381,7 +381,7 @@ impl Scope<'_, '_> {
         .ok_or("contract extent has no exact declared descriptor")?;
         // A borrowed byte view is a descriptor with a count, exactly as an
         // element view is (byte_views.md, "Collection view establishment"):
-        // `out.len` of a `&mut [u8]` formal is that count.
+        // `out.length` of a `&mut [u8]` formal is that count.
         if !matches!(
             selected.shape,
             terminal_psi::StructuralTypeShape::ElementView { .. }

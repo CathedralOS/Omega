@@ -130,7 +130,7 @@ candidate may be installed for the call only when its own requirements follow
 from the declaration's rows. A scalar normal-return guarantee may name the
 declared result. A scalar result follows the scalar inputs in value order.
 A structural result follows the structural inputs in place order, allowing a
-guarantee such as `ensures result.len > 0u64` to observe the returned view.
+guarantee such as `ensures result.length > 0u64` to observe the returned view.
 Only normal completion binds that place. Verification substitutes the exact
 result produced by this invocation and its actual inputs when importing the
 guarantee. Checked provider admission requires each declared

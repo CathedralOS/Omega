@@ -109,19 +109,19 @@ fn a_shared_view_is_read_as_the_elements_that_tile_it() {
     // An `i32` holds four bytes, so sixteen words are sixty-four bytes.
     let bytes = |bound: u64| {
         format!(
-            "machine bytes_of(words: @[i32]) requires words.len <= 16 {{
+            "machine bytes_of(words: @[i32]) requires words.length <= 16 {{
     let bytes: @[u8] = words as @[u8];
     take(bytes);
 }}
-machine take(bytes: @[u8]) requires bytes.len <= {bound} {{ }}"
+machine take(bytes: @[u8]) requires bytes.length <= {bound} {{ }}"
         )
     };
     assert_eq!(verdict(&bytes(64)), "accepted");
     // The re-view passes straight to a slice parameter as well.
     assert_eq!(
         verdict(
-            "machine bytes_of(words: @[i32]) requires words.len <= 16 { take(words as @[u8]); }
-machine take(bytes: @[u8]) requires bytes.len <= 64 { }"
+            "machine bytes_of(words: @[i32]) requires words.length <= 16 { take(words as @[u8]); }
+machine take(bytes: @[u8]) requires bytes.length <= 64 { }"
         ),
         "accepted"
     );
@@ -131,11 +131,11 @@ machine take(bytes: @[u8]) requires bytes.len <= 64 { }"
     assert_eq!(
         verdict(
             "data Pair { low: u16; high: u16; }
-machine halves(pairs: @[Pair]) requires pairs.len <= 8 {
+machine halves(pairs: @[Pair]) requires pairs.length <= 8 {
     let halves: @[u16] = pairs as @[u16];
     take(halves);
 }
-machine take(halves: @[u16]) requires halves.len <= 16 { }"
+machine take(halves: @[u16]) requires halves.length <= 16 { }"
         ),
         "accepted"
     );
@@ -147,12 +147,12 @@ fn the_converted_count_must_fit_u64() {
         format!(
             "machine bytes_of(words: @[i32]) -> u64 {requires} {{
     let bytes: @[u8] = words as @[u8];
-    bytes.len
+    bytes.length
 }}"
         )
     };
     // A bounded word count has a byte count that fits.
-    assert_eq!(verdict(&program("requires words.len <= 16")), "accepted");
+    assert_eq!(verdict(&program("requires words.length <= 16")), "accepted");
     // Nothing bounds the word count, so four bytes per word may overflow.
     assert_eq!(verdict(&program("")), "rejected");
 }
@@ -163,7 +163,7 @@ fn a_re_view_that_does_not_tile_or_writes_is_refused() {
         "a whole-representation view whose target elements do not exactly tile its source elements";
     // One `u16` cannot hold a whole `u32`.
     refused(
-        "machine widen(halves: @[u16]) requires halves.len <= 8 {
+        "machine widen(halves: @[u16]) requires halves.length <= 8 {
     let words: @[u32] = halves as @[u32];
 }",
         UNTILED,
@@ -171,7 +171,7 @@ fn a_re_view_that_does_not_tile_or_writes_is_refused() {
     // Padding bytes have no valid byte value to read.
     refused(
         "data Padded { tag: u8; value: u32; }
-machine bytes_of(rows: @[Padded]) requires rows.len <= 8 {
+machine bytes_of(rows: @[Padded]) requires rows.length <= 8 {
     let bytes: @[u8] = rows as @[u8];
 }",
         UNTILED,
@@ -194,14 +194,14 @@ machine bytes_of(rows: @[Padded]) requires rows.len <= 8 {
 fn a_window_of_a_mutable_byte_parameter_is_lent_for_reading() {
     let program = |requires: &str| {
         format!(
-            "machine send(bytes: @[u8]) -> u64 {{ bytes.len }}
+            "machine send(bytes: @[u8]) -> u64 {{ bytes.length }}
 machine write(buffer: @mut [u8], count: u64) -> u64 {requires} {{
     send(buffer[0..count])
 }}"
         )
     };
     assert_eq!(
-        verdict(&program("requires count <= buffer.len")),
+        verdict(&program("requires count <= buffer.length")),
         "accepted"
     );
     // Without the bound the window may end past the bytes it views.
@@ -280,7 +280,7 @@ fn representation_target_constraints_must_be_established() {
     let source = |predicate: &str| {
         format!(
             "data Target {predicate} {{ value: i32; }}
-machine reinterpret(words: @[i32]) requires words.len <= 8 {{
+machine reinterpret(words: @[i32]) requires words.length <= 8 {{
     let values: @[Target] = words as @[Target];
     take(values);
 }}
@@ -301,7 +301,7 @@ machine take(values: @[Target]) {{ }}"
 fn representation_byte_target_keeps_canonical_element_identity() {
     let source = "data ByteBox { value: u8; }
 machine retain(value: ByteBox) -> u8 { value.value }
-machine bytes_of(words: @[i32]) requires words.len <= 8 {
+machine bytes_of(words: @[i32]) requires words.length <= 8 {
     let bytes: @[u8] = words as @[u8];
     take(bytes);
 }

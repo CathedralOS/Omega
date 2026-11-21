@@ -97,7 +97,7 @@ fn each_match_arm_copies_its_selected_array_to_the_join_read_by_the_index() {
 
 #[test]
 fn folding_row_length_keeps_the_index_obligation_even_when_no_row_exists() {
-    let source = "machine f(matrix:[[u8;3];0], i:u64)->u64{matrix[i].len}";
+    let source = "machine f(matrix:[[u8;3];0], i:u64)->u64{matrix[i].length}";
     let package = sources::lower(&[("bound.omg", source)]).unwrap();
     let body = &package.machines[0].body;
     let [Parameter::Structural(matrix), Parameter::Scalar(index)] = body.parameters[..] else {
@@ -289,8 +289,8 @@ fn each_match_arm_returns_its_own_owned_byte_literal() {
 
 #[test]
 fn fixed_length_preserves_receiver_evaluation_and_contract_subjects() {
-    let source = "machine f(x:[u8;3],y:[u8;5])->u64 requires x.len < y.len {pick(y).len}
-        machine pick(y:[u8;5])->[u8;5] ensures result.len == 5u64 {y}";
+    let source = "machine f(x:[u8;3],y:[u8;5])->u64 requires x.length < y.length {pick(y).length}
+        machine pick(y:[u8;5])->[u8;5] ensures result.length == 5u64 {y}";
     let package = sources::lower(&[("len.omg", source)]).unwrap();
     let [f, pick] = package.machines.as_slice() else {
         panic!("expected two machines")

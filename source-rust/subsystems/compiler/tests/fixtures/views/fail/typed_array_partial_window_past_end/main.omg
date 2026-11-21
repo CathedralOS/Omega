@@ -1,5 +1,5 @@
 machine first(view: @[u32]) -> u32
-    requires view.len == 1
+    requires view.length == 1
 {
     view[0]
 }

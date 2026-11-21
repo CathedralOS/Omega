@@ -39,18 +39,18 @@ reaches FilesystemContentWrite
 {
     transition { _ -> block remaining(file, bytes, 0) }
     machine remaining(file: File, bytes: @[u8], position: u64) -> UnitResult
-    requires position <= bytes.len {
-        transition position < bytes.len { true -> block window(file, bytes, position), false -> UnitResult::Ok }
+    requires position <= bytes.length {
+        transition position < bytes.length { true -> block window(file, bytes, position), false -> UnitResult::Ok }
     }
     machine window(file: File, bytes: @[u8], position: u64) -> UnitResult
-    requires position < bytes.len {
-        transition bytes.len - position > 4294967295 {
+    requires position < bytes.length {
+        transition bytes.length - position > 4294967295 {
             true -> block write(file, bytes, position, position + 4294967295),
-            false -> block write(file, bytes, position, bytes.len)
+            false -> block write(file, bytes, position, bytes.length)
         }
     }
     machine write(file: File, bytes: @[u8], position: u64, end: u64) -> UnitResult
-    requires position < end && end <= bytes.len {
+    requires position < end && end <= bytes.length {
         let window: @[u8] = @bytes[position..end];
         let count: i64 = block WindowsFilesystemHost::write_file(file.handle, window);
         transition count > 0 {
@@ -59,7 +59,7 @@ reaches FilesystemContentWrite
         }
     }
     machine progressed(file: File, bytes: @[u8], position: u64, end: u64, count: i64) -> UnitResult
-    requires position < end && end <= bytes.len && count > 0 {
+    requires position < end && end <= bytes.length && count > 0 {
         let written: u64 = narrow_i64_to_u64_exact(count);
         transition written <= end - position {
             true -> block remaining(file, bytes, position + written),
@@ -94,7 +94,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine windows_filesystem_read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
-    transition count <= buffer.len {
+    transition count <= buffer.length {
         true -> block acquire(path, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }

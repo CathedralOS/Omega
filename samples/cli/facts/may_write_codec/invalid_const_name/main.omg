@@ -17,7 +17,7 @@ data Counter<'a> { slot: @'a mut u64; }
 const LIMIT: u64 = 4;
 
 machine read_at(items: @[u8], index: u64) -> u8
-requires index < LIMIT && items.len == LIMIT
+requires index < LIMIT && items.length == LIMIT
 {
     items[index]
 }

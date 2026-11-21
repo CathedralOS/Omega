@@ -63,8 +63,8 @@ fn assert_upper(requires: Vec<Proposition>, first: Strict, operand: Expression, 
 #[test]
 fn an_exact_cast_transports_the_guard_for_the_same_byte_slice() {
     let header = "machine run(bytes: @[u8], other: @[u8], size: u32) -> u64 {
-        transition size <= bytes.len { true -> consume(bytes, size as u64), _ -> 0 }
-        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.len { n }
+        transition size <= bytes.length { true -> consume(bytes, size as u64), _ -> 0 }
+        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.length { n }
     }
     machine left(value: i32, limit: i64) -> i64 requires value < limit ensures result < limit { value as i64 }
     machine right(value: i32, floor: i64) -> i64 requires floor <= value ensures floor <= result { value as i64 }";
@@ -96,8 +96,8 @@ fn an_exact_cast_transports_the_guard_for_the_same_byte_slice() {
     // A wrapped size may be zero when the original size exceeds the slice.
     let truncated = "machine run(bytes: @[u8], wide: u64) -> u64 {
         let small: u32 = (wide & 0xFFFF_FFFF) as u32;
-        transition small <= bytes.len { true -> consume(bytes, wide), _ -> 0 }
-        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.len { n }
+        transition small <= bytes.length { true -> consume(bytes, wide), _ -> 0 }
+        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.length { n }
     }";
     for invalid in [shortened.as_str(), truncated] {
         let RouteVerdict::Rejected { unproved, .. } = super::entryless::judged(invalid, false)
@@ -729,7 +729,7 @@ fn a_positive_gap_and_quotient_certify_an_interior_probe() {
         ensures result <= upper
         { let middle: u64 = lower + step; middle + 1 }
         machine read(data: @[u64], lower: u64, upper: u64, step: u64) -> u64
-        requires lower < upper && upper <= data.len && step < upper - lower
+        requires lower < upper && upper <= data.length && step < upper - lower
         { let middle: u64 = lower + step; data[middle] }";
     let checked = match super::entryless::judged(source, false) {
         RouteVerdict::Accepted(checked) => checked,
@@ -760,8 +760,8 @@ fn a_positive_gap_and_quotient_certify_an_interior_probe() {
 #[test]
 fn a_unit_divisor_can_hit_the_exclusive_end_of_a_slice() {
     let body = "machine read(data: @[u64], base: u64) -> u64
-        requires base < data.len
-        { let position: u64 = base + (data.len - base) / 1; data[position] }";
+        requires base < data.length
+        { let position: u64 = base + (data.length - base) / 1; data[position] }";
     let RouteVerdict::Rejected { unproved, .. } = super::entryless::judged(body, false) else {
         panic!("division by one lands at the end of the slice");
     };

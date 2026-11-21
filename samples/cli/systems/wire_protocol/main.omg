@@ -270,13 +270,13 @@ machine packet_header(context: @mut EncodeContext, info: @reflect\FieldInfo, val
         _ -> invalid(context)
     }
     machine bounded(context: @mut EncodeContext, info: @reflect\FieldInfo, bytes: @[u8], next: u64) {
-        transition next >= 1u64 && next <= bytes.len {
+        transition next >= 1u64 && next <= bytes.length {
             true -> payload(context, info, bytes, next),
             false -> invalid(context)
         }
     }
     machine payload(context: @mut EncodeContext, info: @reflect\FieldInfo, bytes: @[u8], next: u64)
-    requires next >= 1u64 && next <= bytes.len
+    requires next >= 1u64 && next <= bytes.length
     { CompactBinary\blob_field(context, info, @bytes[1u64..next]); }
     machine invalid(context: @mut EncodeContext) { context.valid = false; }
 }
@@ -294,19 +294,19 @@ requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomH
     }
 }
 machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<SensorPacketValue> {
-    transition fields.len == 3u64 { true -> regions(bytes, fields), false -> DecodeResult::Invalid }
+    transition fields.length == 3u64 { true -> regions(bytes, fields), false -> DecodeResult::Invalid }
     machine regions(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<SensorPacketValue>
-    requires fields.len == 3u64
+    requires fields.length == 3u64
     {
         let start: u64 = fields[1u64].start;
         let end: u64 = fields[1u64].end;
-        transition start <= end && end <= bytes.len {
+        transition start <= end && end <= bytes.length {
             true -> packed(bytes, fields, start, end),
             false -> DecodeResult::Invalid
         }
     }
     machine packed(bytes: @[u8], fields: @[ScalarSlot], start: u64, end: u64) -> DecodeResult<SensorPacketValue>
-    requires fields.len == 3u64 && start <= end && end <= bytes.len
+    requires fields.length == 3u64 && start <= end && end <= bytes.length
     {
         let mut words: [u64; 4];
         transition CompactBinary\read_packed(@bytes[start..end], @mut words[..], 100u64) {
@@ -315,29 +315,29 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
         }
     }
     machine root(bytes: @[u8], fields: @[ScalarSlot], words: @[u64], count: u64) -> DecodeResult<SensorPacketValue>
-    requires fields.len == 3u64 && words.len == 4u64
+    requires fields.length == 3u64 && words.length == 4u64
     {
         let start: u64 = fields[0u64].start;
         let end: u64 = fields[0u64].end;
-        transition start <= end && end <= bytes.len {
+        transition start <= end && end <= bytes.length {
             true -> header(bytes, fields[2u64].signed, words, count, start, end),
             false -> DecodeResult::Invalid
         }
     }
     machine header(bytes: @[u8], depth: i64, words: @[u64], count: u64, start: u64, end: u64) -> DecodeResult<SensorPacketValue>
-    requires words.len == 4u64 && start <= end && end <= bytes.len
+    requires words.length == 4u64 && start <= end && end <= bytes.length
     {
         let header_bytes: @[u8] = @bytes[start..end];
         let mut header_fields: [ScalarSlot; 1];
         let mut plan: ScalarPlanContext = ScalarPlanContext { slots: @mut header_fields[..], count: 0u64, valid: true };
         reflect\inspect_record_fields::<RoomHeader, CompactBinary\plan_scalar>(@mut plan);
-        transition plan.valid && plan.count == 1u64 && plan.slots.len == 1u64 {
+        transition plan.valid && plan.count == 1u64 && plan.slots.length == 1u64 {
             true -> read_header(header_bytes, depth, words, count, @mut plan.slots[..]),
             false -> DecodeResult::Invalid
         }
     }
     machine read_header(bytes: @[u8], depth: i64, words: @[u64], count: u64, header: @mut [ScalarSlot]) -> DecodeResult<SensorPacketValue>
-    requires words.len == 4u64 && header.len == 1u64
+    requires words.length == 4u64 && header.length == 1u64
     {
         transition CompactBinary\read_payload_fields(bytes, header, 1u64, 0u64, 100u64) {
             FrameRead::Read { next } -> closed_header(bytes, next, depth, words, count, header[0u64].unsigned),
@@ -345,9 +345,9 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
         }
     }
     machine closed_header(bytes: @[u8], next: u64, depth: i64, words: @[u64], count: u64, room: u64) -> DecodeResult<SensorPacketValue>
-    requires words.len == 4u64
+    requires words.length == 4u64
     {
-        transition next == bytes.len {
+        transition next == bytes.length {
             true -> values(room, depth, count, CompactBinary\signed_from_word(words[0u64]), CompactBinary\signed_from_word(words[1u64]), CompactBinary\signed_from_word(words[2u64]), CompactBinary\signed_from_word(words[3u64])),
             false -> DecodeResult::Invalid
         }

@@ -8,7 +8,7 @@ machine main() crashes Trap {
     let detached: Settings = settings[0];
     let index: u64 = 1;
     settings[index].identifier = "omega";
-    transition settings[0].identifier.len == 6 && settings[1].identifier.len == 5 {
+    transition settings[0].identifier.length == 6 && settings[1].identifier.length == 5 {
         true -> done(),
         _ -> bad()
     }

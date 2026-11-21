@@ -305,7 +305,7 @@ fn fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field() 
     let setup = "data Packet [copy] { byte:u8; }
         const ITEMS:[Packet;2]=[Packet{byte:4u8}, Packet{byte:9u8}];
         machine pick(items:[Packet;2], i:u64)->u8{items[i].byte}";
-    let accepted = format!("{setup} const N:u8=pick(ITEMS,1u64); const LENGTH:u64=ITEMS.len;");
+    let accepted = format!("{setup} const N:u8=pick(ITEMS,1u64); const LENGTH:u64=ITEMS.length;");
     let source = package(&accepted);
     let prepared = prepare_source_package(&source).unwrap();
     for (name, expected) in [("N", 9), ("LENGTH", 2)] {
@@ -340,7 +340,7 @@ fn fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field() 
         "selected-element-read-precondition/consumer",
         assert!(
             matches!(&reads, [Ok(first), Ok(second), Err(refusal)]
-                if *first == num_bigint::BigInt::from(4) && *second == num_bigint::BigInt::from(9) && refusal.contains("selected array read requires index < items.len")),
+                if *first == num_bigint::BigInt::from(4) && *second == num_bigint::BigInt::from(9) && refusal.contains("selected array read requires index < items.length")),
             "{reads:?}"
         )
     );
@@ -353,7 +353,7 @@ fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
     use omega_typer::{TypingEnvironment, TypingProgress, type_source_package_for_preparation};
 
     for length in [2, 256] {
-        let code = format!("const BUF:[u8;{length}]=\"{}\"; const NS:[u64;1]=[BUF.len];", "x".repeat(length));
+        let code = format!("const BUF:[u8;{length}]=\"{}\"; const NS:[u64;1]=[BUF.length];", "x".repeat(length));
         let source = package(&code);
         for narrow in [false, true] {
             let TypingProgress::Complete(trees) = type_source_package_for_preparation(&source, &TypingEnvironment::default()).unwrap() else {
@@ -366,7 +366,7 @@ fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
             if narrow {
                 let byte = ValueType::Integer { signed: false, width: Some(8) };
                 ns.initializer.carrier = ValueType::Array(Box::new(byte.clone()), 1);
-                let length_op = facts.operations.iter_mut().find(|op| op.token == ".len").unwrap();
+                let length_op = facts.operations.iter_mut().find(|op| op.token == ".length").unwrap();
                 length_op.result = byte.clone();
                 for expression in &mut facts.expressions {
                     if expression.node == length_op.node {
@@ -379,14 +379,14 @@ fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
             let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
             let pass = prepare_typing_pass_with_cause(&progress, &[], None, CheckedPreparationEvidence::default());
             if narrow {
-                let Err(error) = pass else { panic!("expected refusal at BUF.len") };
-                let start = code.find("BUF.len").unwrap();
+                let Err(error) = pass else { panic!("expected refusal at BUF.length") };
+                let start = code.find("BUF.length").unwrap();
                 spec_corpus::assert_preparation_cause!(
                     error,
                     RefusalCause::Preparation(PreparationReason::UnsupportedBody),
                     "app",
                     "main.omg",
-                    (start, start + "BUF.len".len()),
+                    (start, start + "BUF.length".len()),
                     "static evaluation cannot admit this invocation: the selected body is outside the supported static evaluation fragment",
                 );
                 continue;

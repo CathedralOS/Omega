@@ -235,7 +235,7 @@ fn nested_indices_keep_their_own_root_selectors_and_bounds() {
 fn a_contract_on_one_view_cannot_supply_another_views_read_length() {
     use omega_lowering::{PredicateOperator, PredicateStep};
     for (read_view, slot) in [("left", 0), ("right", 1)] {
-        let text = format!("machine get(left:@[u8],right:@[u8],i:u64)->u8 requires i < left.len {{ {read_view}[i] }}");
+        let text = format!("machine get(left:@[u8],right:@[u8],i:u64)->u8 requires i < left.length {{ {read_view}[i] }}");
         let package = sources::lower(&[("views.omg", &text)]).unwrap();
         let machine = &package.machines[0];
         let body = &machine.body;
@@ -283,7 +283,7 @@ fn a_contract_on_one_view_cannot_supply_another_views_read_length() {
 
 #[test]
 fn an_explicit_byte_length_reads_the_descriptor_forwarded_through_a_join() {
-    let text = "machine count(items:@[u8])->u64 { items.len }
+    let text = "machine count(items:@[u8])->u64 { items.length }
               machine choose(flag:bool,left:@[u8],right:@[u8])->u64 {
                   let selected = match flag {true -> left, false -> right,}; count(selected)
               }";

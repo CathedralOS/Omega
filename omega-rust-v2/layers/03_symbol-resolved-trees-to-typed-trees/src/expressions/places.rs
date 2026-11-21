@@ -526,14 +526,14 @@ impl BodyTyper<'_, '_> {
                 None => &ty,
             };
             let field = self.unit.member_name(node_index)?;
-            if matches!(receiver, ValueType::Slice(_) | ValueType::Array(_, _) | ValueType::IndexedArray(..)) && matches!(field, "len" | "address") {
+            if matches!(receiver, ValueType::Slice(_) | ValueType::Array(_, _) | ValueType::IndexedArray(..)) && matches!(field, "length" | "address") {
                 if *access != Access::Shared {
                     return Err(TypeError::at(source, node_index, "collection metadata is read-only"));
                 }
                 let (operation, metadata_type) = if field == "address" {
                     (".address", ValueType::Address)
                 } else {
-                    (".len", ValueType::integer("u64").unwrap())
+                    (".length", ValueType::integer("u64").unwrap())
                 };
                 self.record_operator(node_index, operation, vec![ty], &metadata_type);
                 ty = metadata_type;

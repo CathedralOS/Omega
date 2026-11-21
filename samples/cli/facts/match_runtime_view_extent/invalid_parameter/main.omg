@@ -18,7 +18,7 @@ requires $visits == 0
         true -> @mut empty,
         false -> @mut other
     };
-    let last: u64 = selected.len - 1;
+    let last: u64 = selected.length - 1;
     selected[last] = 41;
 }
 

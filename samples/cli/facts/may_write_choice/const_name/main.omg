@@ -21,7 +21,7 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
 const LIMIT: u64 = 4;
 
 machine read_at(items: @[u8], index: u64) -> u8
-requires index < LIMIT && items.len == LIMIT
+requires index < LIMIT && items.length == LIMIT
 {
     items[index]
 }

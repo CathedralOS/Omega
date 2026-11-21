@@ -198,7 +198,7 @@ machine build_entry(session: @mut Session) {
 machine entry() crashes Trap {{
     let mut session: Session;
     build_entry(@mut session);
-    transition session.inner.name.len == 4 {{
+    transition session.inner.name.length == 4 {{
         true -> done(),
         _ -> bad()
     }}

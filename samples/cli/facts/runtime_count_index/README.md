@@ -52,10 +52,10 @@ agree with `native signal 5` and `interp crash: Trap`, exiting non-zero.
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` twin and a `controls/out_of_bounds/` twin that keep the exact same
-program structure but supply an out-of-bounds count (`count == 4 == items.len`, or drop the
-guard proof). The `read_at` contract `requires Index < items.len` cannot be satisfied, and proof
+program structure but supply an out-of-bounds count (`count == 4 == items.length`, or drop the
+guard proof). The `read_at` contract `requires Index < items.length` cannot be satisfied, and proof
 checking strictly refuses compilation with exit code 1 and diagnostic:
-`error: cannot prove requires contract for call read_at... (needs fact Index < items.len here)`.
+`error: cannot prove requires contract for call read_at... (needs fact Index < items.length here)`.
 
 ## Requirements and Evidence
 
@@ -63,11 +63,11 @@ checking strictly refuses compilation with exit code 1 and diagnostic:
 - **Pinned fixtures:**
 ### Specification and Lowering Layers
 
-1. **Establishment:** The runtime value-binder count `Index: u32` and the entry contract `requires Index < items.len` on generic `read_at<Index: u32>(items: &[u8]) -> u8` establish memory-safe indexing into the 4-byte slice `[9u8, 8u8, 7u8, 6u8]` at index `1` producing `8u8`. Safe access is established by the static contract discharge at the call site, without any post-hoc caller equality guard (`transition x == 100`) after the operation completes.
+1. **Establishment:** The runtime value-binder count `Index: u32` and the entry contract `requires Index < items.length` on generic `read_at<Index: u32>(items: &[u8]) -> u8` establish memory-safe indexing into the 4-byte slice `[9u8, 8u8, 7u8, 6u8]` at index `1` producing `8u8`. Safe access is established by the static contract discharge at the call site, without any post-hoc caller equality guard (`transition x == 100`) after the operation completes.
 2. **Identity and lifetime:** The dependent value-binder `Index` names the exact runtime scalar value passed at the call site while the borrowed byte view `&[u8]` retains its length `4` and backing storage lifetime throughout the function activation. No mutating write intervenes to invalidate the slice's length or buffer identity between contract discharge and element access.
 3. **Composition:** The runtime count and its bound proof travel through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into `read_at<index>(items)`. Each place's positive `<place>/main.omg` and reject twin `<place>/invalid/main.omg` differ only in the count's value or missing bound proof (`count == 4` vs `count == 1`, or dropping the `requires` contract), isolating the exact fact under test.
-4. **Soundness boundaries:** All 18 reject controls (`invalid/` and `controls/out_of_bounds/` across all 9 places) reject at source checking with `cannot prove requires contract` when `Index < items.len` is not proved. Value-binder arguments remain strictly distinguished from compile-time `const` generics: runtime values cannot masquerade as compile-time constants, and unknown fields/out-of-domain binders are caught before code emission.
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Runtime value-binder arguments lower cleanly to executable value lanes in canonical target-neutral `PSITERM\0`. Proof-only contracts (`requires Index < items.len`) are erased after proof verification, while byte-slice view descriptors (`&[u8]`) with base pointer and length are preserved. Both engines execute the identical program in `omega run --both` with matching exit codes.
+4. **Soundness boundaries:** All 18 reject controls (`invalid/` and `controls/out_of_bounds/` across all 9 places) reject at source checking with `cannot prove requires contract` when `Index < items.length` is not proved. Value-binder arguments remain strictly distinguished from compile-time `const` generics: runtime values cannot masquerade as compile-time constants, and unknown fields/out-of-domain binders are caught before code emission.
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Runtime value-binder arguments lower cleanly to executable value lanes in canonical target-neutral `PSITERM\0`. Proof-only contracts (`requires Index < items.length`) are erased after proof verification, while byte-slice view descriptors (`&[u8]`) with base pointer and length are preserved. Both engines execute the identical program in `omega run --both` with matching exit codes.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). The backing array `[u8; 4]` and slice descriptor `&[u8]` validate target layout plans (`size_of` 1-byte elements, 8-byte pointer + 8-byte length view). `CallPlan` and `StatePlan` allocate runtime value-binder arguments into standard ABI parameter registers or stack locations according to calling conventions.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects byte-indexed load instructions (`movzx` with base+index displacement on `x86_64`, `ldrb` on `arm64`), assigns register homes and disjoint stack-frame storage for the `[u8; 4]` backing array, and inserts entry prologues and multi-return epilogues respecting the `StatePlan` frame ceiling.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for the local array buffer, basic blocks and branch targets relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native binary emission produces functional executables agreeing with Terminal Psi (`omega run --both` exit 0).
@@ -83,5 +83,5 @@ wrapper and each implementation check a target tag through a second selected
 requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
 Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
 migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree), and the twin and the out-of-bounds control still reject for the missing `Index < items.len` fact. No compiler change was needed. The other hosted
+agree), and the twin and the out-of-bounds control still reject for the missing `Index < items.length` fact. No compiler change was needed. The other hosted
 targets were not executed here.

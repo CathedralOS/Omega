@@ -1,8 +1,8 @@
-//! The length of a fixed array, `array.len`. Read from source, as a Build
+//! The length of a fixed array, `array.length`. Read from source, as a Build
 //! program: a Build that holds a table asks how many rows it has.
 //!
 //! domains.md: "`[u8; N] in D` is the same exact `N`-byte fixed-array carrier
-//! as `[u8; N]`; its `.len` is `N`". Literal extents stay literal; symbolic
+//! as `[u8; N]`; its `.length` is `N`". Literal extents stay literal; symbolic
 //! extents use their own constant input. The body and its guarantees must
 //! describe that same value, whichever fields lead to the array.
 
@@ -34,8 +34,8 @@ fn the_length_of_a_fixed_array_is_the_extent_its_type_states() {
         verdict(
             "data Holder { slots: [u8; 4]; }
 data Outer { holder: Holder; }
-machine held(holder: @Holder) -> u64 ensures result == 4 { holder.slots.len }
-machine nested(outer: @Outer) -> u64 ensures result == 4 { outer.holder.slots.len }
+machine held(holder: @Holder) -> u64 ensures result == 4 { holder.slots.length }
+machine nested(outer: @Outer) -> u64 ensures result == 4 { outer.holder.slots.length }
 machine build_entry() { let outer: Outer; let seen: u64 = held(@outer.holder) + nested(@outer); }"
         ),
         "accepted"
@@ -43,7 +43,7 @@ machine build_entry() { let outer: Outer; let seen: u64 = held(@outer.holder) + 
     // A local array.
     assert_eq!(
         verdict(
-            "machine build_entry() -> u64 ensures result == 3 { let values: [u32; 3] = [1, 2, 3]; values.len }"
+            "machine build_entry() -> u64 ensures result == 3 { let values: [u32; 3] = [1, 2, 3]; values.length }"
         ),
         "accepted"
     );
@@ -54,7 +54,7 @@ fn a_guarantee_of_another_length_is_rejected() {
     // The same machine as above, promising one row more than the type has.
     let rejected = verdict(
         "data Holder { slots: [u8; 4]; }
-machine held(holder: @Holder) -> u64 ensures result == 5 { holder.slots.len }
+machine held(holder: @Holder) -> u64 ensures result == 5 { holder.slots.length }
 machine build_entry() { let holder: Holder; let seen: u64 = held(@holder); }",
     );
     assert!(rejected.starts_with("rejected"), "{rejected}");
@@ -67,7 +67,7 @@ fn the_length_of_an_array_that_must_be_evaluated_first_is_refused() {
     assert_eq!(
         verdict(
             "machine make() -> [u8; 4] { [0, 0, 0, 0] }
-machine build_entry() -> u64 { make().len }"
+machine build_entry() -> u64 { make().length }"
         ),
         "expression length of a fixed array that is not a field path while reading the body of \
          `build_entry`"
@@ -312,7 +312,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
 fn a_parameter_array_view_keeps_the_actual_extent_and_its_guard() {
     for (requirement, admitted) in [("requires N > 0u64", true), ("", false)] {
         let form = rigid_array_form(&format!(
-            "machine entry<const N: u64>(items: @[u8; N]) -> u64 {requirement} ensures result > 0u64 {{ let view: @[u8] = @items[..]; view.len }}"
+            "machine entry<const N: u64>(items: @[u8; N]) -> u64 {requirement} ensures result > 0u64 {{ let view: @[u8] = @items[..]; view.length }}"
         ));
         let verdict = judge(Ok(form)).unwrap();
         if admitted {
@@ -328,7 +328,7 @@ fn a_parameter_array_view_keeps_the_actual_extent_and_its_guard() {
 #[test]
 fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     let mut form = rigid_array_form(
-        "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }",
+        "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.length }",
     );
     let discharged = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
@@ -340,7 +340,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ scratch::<{length}u64>() }}"
+            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.length }} machine entry() -> u64 {{ scratch::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -356,7 +356,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
 #[test]
 fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     let mut form = rigid_array_form(
-        "machine entry<const N: u64>(items: @[u32; N]) -> u64 ensures result == N { let view: @[u32] = @items[..]; view.len }",
+        "machine entry<const N: u64>(items: @[u32; N]) -> u64 ensures result == N { let view: @[u32] = @items[..]; view.length }",
     );
     let found = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
@@ -368,7 +368,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ typed::<{length}u64>() }}"
+            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.length }} machine entry() -> u64 {{ typed::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -483,7 +483,7 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
 fn a_literal_const_call_keeps_the_supplied_element_permissions() {
     let source = "
 data Buffer<Element, const N: u64> { items: [Element; N]; }
-machine measure<Element, const N: u64>(value: @Buffer<Element, N>) -> u64 { value.items.len }
+machine measure<Element, const N: u64>(value: @Buffer<Element, N>) -> u64 { value.items.length }
 machine entry<Kind>(value: @Kind) -> u64
 requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
 {
@@ -605,20 +605,20 @@ fn fixed_array_contract_lengths_keep_the_exact_field_carrier() {
     let source = r#"
 data Holder { short: [u8; 2]; long: [u8; 4]; }
 machine bounded(holder: @Holder, index: u64)
-requires index < holder.long.len
+requires index < holder.long.length
 {}
 machine build_entry(holder: @Holder, index: u64)
 requires index < 4u64
 { bounded(holder, index); }
 "#;
     assert_eq!(verdict(source), "accepted");
-    let rejected = verdict(&source.replace("holder.long.len", "holder.short.len"));
+    let rejected = verdict(&source.replace("holder.long.length", "holder.short.length"));
     assert!(rejected.starts_with("rejected"), "{rejected}");
     let unestablished = verdict(
         r#"
 data Choice { case Empty; case Filled(slots: [u8; 4]); }
 machine build_entry(choice: @Choice, index: u64)
-requires index < choice.slots.len
+requires index < choice.slots.length
 {}
 "#,
     );
@@ -784,7 +784,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
 fn a_symbolic_array_length_uses_its_owned_extent_input() {
     for carrier in ["u32", "u64"] {
         let form = rigid_array_form(&format!(
-            "machine entry<const N: {carrier}>(items: @[u8; N]) -> u64 ensures result == (N as u64) {{ items.len }}"
+            "machine entry<const N: {carrier}>(items: @[u8; N]) -> u64 ensures result == (N as u64) {{ items.length }}"
         ));
         let verdict = judge(Ok(form)).unwrap();
         assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
@@ -854,7 +854,7 @@ fn a_program_that_never_applies_a_template_requirement_leaves_its_clauses_to_its
 
 #[test]
 fn an_indexed_element_contract_needs_the_count_of_its_own_view() {
-    for (bound, admitted) in [("slot < first.len", true), ("slot < second.len", false)] {
+    for (bound, admitted) in [("slot < first.length", true), ("slot < second.length", false)] {
         let source = format!(
             "machine entry(first: @[u32], second: @[u32], slot: u64) -> u32
             requires {bound}

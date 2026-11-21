@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "rejection_contains": [
     "cannot prove requires contract for call read_checked from last_of_invalid_layout",
-    "offset < backing.len"
+    "offset < backing.length"
   ]
 }

@@ -17,19 +17,19 @@ data Envelope<'view> [copy] { left: u64; graph: reflect\TypeSchema<'view>; right
 machine describe_here<T>() -> reflect\TypeSchema { reflect\schema::<T>() }
 
 machine equal_bytes(left: @[u8], right: @[u8]) -> bool {
-    transition left.len == right.len {
+    transition left.length == right.length {
         true -> scan(left, right),
         false -> false
     }
     machine scan(left: @[u8], right: @[u8]) -> bool
-    requires left.len == right.len {
-        transition left.len > 0u64 {
+    requires left.length == right.length {
+        transition left.length > 0u64 {
             true -> item(left, right),
             false -> true
         }
     }
     machine item(left: @[u8], right: @[u8]) -> bool
-    requires left.len == right.len && left.len > 0u64 {
+    requires left.length == right.length && left.length > 0u64 {
         transition left[0u64] == right[0u64] {
             true -> scan(@left[1u64..], @right[1u64..]),
             false -> false

@@ -89,7 +89,7 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<bool, EvaluationError> {
         let file = tree.resolved().file;
         let Some(operation) = tree.semantics_at(node).find_map(|record| match record {
-            NodeSemantics::Operation(op) if op.token == ".len" => Some(op),
+            NodeSemantics::Operation(op) if op.token == ".length" => Some(op),
             _ => None,
         }) else {
             return Ok(false);

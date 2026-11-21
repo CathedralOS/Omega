@@ -12,7 +12,7 @@ ensures result == 90u64
 machine probe() -> u64 {
     let bytes: @[u8] = "0123456789ABCD";
     let window: @[u8] = bytes[2u64..11u64];
-    let total: u64 = compute(window.len);
+    let total: u64 = compute(window.length);
     total - 100u64
 }
 

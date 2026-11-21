@@ -9,7 +9,7 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     transition { _ -> scan(text, frame, 0, 0, 0, false, false) }
     machine scan(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, started: bool) -> Parsed {
-        transition position < text.len {
+        transition position < text.length {
             true -> byte(text, frame, position, field, magnitude, negative, started, text[position]),
             _ -> finish(frame, field, magnitude, negative, started)
         }
@@ -26,13 +26,13 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     machine digit(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, value: u8) -> Parsed {
         let next: i64 in Wrapping = magnitude * 10 + (widen_u8_to_i32(value) as i64 +Wrapping) - 48;
-        transition next <= 1000000 && position < text.len {
+        transition next <= 1000000 && position < text.length {
             true -> scan(text, frame, position + 1, field, next, negative, true),
             _ -> (Parsed::Invalid)
         }
     }
     machine minus(text: @[u8], frame: Frame, position: u64, field: i32) -> Parsed {
-        transition position < text.len {
+        transition position < text.length {
             true -> scan(text, frame, position + 1, field, 0, true, false),
             _ -> (Parsed::Invalid)
         }
@@ -40,15 +40,15 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     machine space(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, started: bool) -> Parsed {
         transition {
-            started && field >= 0 && field < 7 && position < text.len -> store(text, frame, position, field, magnitude, negative),
+            started && field >= 0 && field < 7 && position < text.length -> store(text, frame, position, field, magnitude, negative),
             negative -> (Parsed::Invalid),
-            position < text.len -> scan(text, frame, position + 1, field, 0, false, false),
+            position < text.length -> scan(text, frame, position + 1, field, 0, false, false),
             _ -> (Parsed::Invalid)
         }
     }
     machine store(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool) -> Parsed
-    requires field >= 0 && field < 7 && position < text.len
+    requires field >= 0 && field < 7 && position < text.length
     {
         let mut next_frame: Frame = frame;
         transition negative {
@@ -58,7 +58,7 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     }
     machine signed(text: @[u8], frame: Frame, position: u64, field: i32,
         value: i64 in Wrapping) -> Parsed
-    requires field >= 0 && field < 7 && position < text.len
+    requires field >= 0 && field < 7 && position < text.length
     {
         let mut next_frame: Frame = frame;
         next_frame.values[field] = value as i64;

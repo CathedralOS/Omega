@@ -1,7 +1,7 @@
 # boundary_len_discharge
 
 First sample discharging a boundary byte-extent requirement
-against caller storage: `requires count <= buffer.len` on
+against caller storage: `requires count <= buffer.length` on
 `ByteHost::read` proves through `&mut` slices, and
 `pump(buffer: &mut [u8])`
 re-proves the length across a second boundary.

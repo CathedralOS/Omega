@@ -684,7 +684,7 @@ crashes Trap
     machine done() {}
 }
 
-// The collection type an index or `.len` applies to, through references.
+// The collection type an index or `.length` applies to, through references.
 public machine collection_row(typing: @Typing, handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {

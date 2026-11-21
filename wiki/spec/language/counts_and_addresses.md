@@ -16,7 +16,7 @@ magnitudes require no address interpretation.
 
 Compiler-facing nonnegative schema sizes, lengths, counts, and indices likewise
 use `u64`, not signed integers or `addr`. Signed offsets/addends remain signed.
-A future explicitly admitted integer-width family would not change `.len`,
+A future explicitly admitted integer-width family would not change `.length`,
 `Extent.length`, indexing, or conversion contracts through a package alias.
 
 ## Address exposure
@@ -242,8 +242,9 @@ guards, or a selected accessor's checked contract. Mutation invalidates stale
 facts under [invocation contracts](state_contracts.md#mutation-and-subject-identity).
 Range windows have the separate obligations in [numeric values](numeric_values.md#collection-bounds).
 
-A fixed array `[T; N]` has length exactly `N`. A reference to it is not a view
-of its elements; [`@array[..]`](expressions.md#views-of-a-fixed-array) forms
+The built-in field `.length` reads the element count of an array or view as
+a `u64`. For a fixed array `[T; N]` it yields exactly `N`. A reference to it is
+not a view of its elements; [`@array[..]`](expressions.md#views-of-a-fixed-array) forms
 one, whose length is known to be `N`. A growable collection's live length
 is nonnegative and at most its capacity; indexing uses that live length, not
 unused capacity. Domain qualification does not change either rule:

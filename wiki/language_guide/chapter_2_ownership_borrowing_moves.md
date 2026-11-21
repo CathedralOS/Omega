@@ -87,7 +87,7 @@ that place. Exclusive access is not a proof that the arithmetic fits; the
 
 ```omega
 machine fill(destination: @write [u8])
-requires destination.len > 0
+requires destination.length > 0
 {
     destination[0] = 42;
 }
@@ -103,7 +103,7 @@ narrowed to write-only; the reverse is not available.
 
 ```omega
 machine clear_first(items: @mut [u8])
-requires items.len > 0
+requires items.length > 0
 {
     let first: @mut u8 = @mut items[0];
     $first = 0;

@@ -22,12 +22,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedReadAt {
     machine read_at(window: @[u8], length: u64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.len && length > 0;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.length && length > 0;
 }
 
 X86ReadAt satisfies SelectedReadAt {
     machine read_at(window: @[u8], length: u64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.len && length > 0
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.length && length > 0
     {
         SelectedBodyCheck::require_tag(17u64);
         window[length - 1]
@@ -36,7 +36,7 @@ X86ReadAt satisfies SelectedReadAt {
 
 ArmReadAt satisfies SelectedReadAt {
     machine read_at(window: @[u8], length: u64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.len && length > 0
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length == window.length && length > 0
     {
         SelectedBodyCheck::require_tag(29u64);
         window[length - 1]
@@ -47,7 +47,7 @@ ArmReadAt satisfies SelectedReadAt {
 machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let window: @[u8] = @items[0..3];
-    transition SelectedReadAt::read_at(window, window.len) == 8 { true -> done(), _ -> bad() }
+    transition SelectedReadAt::read_at(window, window.length) == 8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -7,9 +7,9 @@ ensures result <= left && result <= right &&
 }
 data Bound { end: u64; }
 machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64 {
-    let bound: Bound = Bound { end: minimum(minimum(count, buffer.len), 2147483647) };
+    let bound: Bound = Bound { end: minimum(minimum(count, buffer.length), 2147483647) };
     let prefix: @mut [u8] = @mut buffer[0..bound.end];
-    prefix.len
+    prefix.length
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 8];

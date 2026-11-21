@@ -24,7 +24,7 @@ pub(crate) const INDEX_TYPE: ValueType = ValueType::Integer {
 
 pub(crate) fn collection_length(operation: &omega_typed::TypedOperation) -> Option<(&ValueType, CollectionLength)> {
     let [receiver] = operation.operands.as_slice() else { return None };
-    if operation.token != ".len" || operation.result != INDEX_TYPE {
+    if operation.token != ".length" || operation.result != INDEX_TYPE {
         return None;
     }
     let length = match receiver {
@@ -39,7 +39,7 @@ pub(crate) fn collection_length(operation: &omega_typed::TypedOperation) -> Opti
 pub(crate) fn element_view_length(operation: &omega_typed::TypedOperation) -> Option<&ValueType> {
     let [receiver] = operation.operands.as_slice() else { return None };
     let is_element_view = crate::lowering::types::element_view_access(receiver).is_some();
-    (operation.token == ".len" && operation.result == INDEX_TYPE && is_element_view).then_some(receiver)
+    (operation.token == ".length" && operation.result == INDEX_TYPE && is_element_view).then_some(receiver)
 }
 
 pub(crate) fn select_indexed_read<'a>(

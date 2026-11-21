@@ -19,7 +19,7 @@ ensures result == 2
 }
 
 machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut samples[0..which + 2],
@@ -28,7 +28,7 @@ ensures result.len == 2
 }
 
 machine window_local<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     let index: i64 = which;
     match index {
@@ -38,7 +38,7 @@ ensures result.len == 2
 }
 
 machine window_field<'row>(holder: @'row mut Holder) -> @'row mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     match holder.which {
         0 -> @mut holder.samples[0..holder.which + 2],
@@ -47,7 +47,7 @@ ensures result.len == 2
 }
 
 machine window_call<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut samples[0..endpoint()],
@@ -56,14 +56,14 @@ ensures result.len == 2
 }
 
 machine hold<'samples>(samples: @'samples mut [f64]) -> Held<'samples>
-requires samples.len == 2
-ensures result.values.len == 2
+requires samples.length == 2
+ensures result.values.length == 2
 {
     Held { values: samples }
 }
 
 machine write_pair(window: @mut [f64])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = 0.0;
     window[1] = 1.0;
 }
@@ -139,7 +139,7 @@ machine main() crashes Trap {
     let view: @mut [f64] = window(@mut trace, 0);
     let leading: Held = hold(view);
     write_pair(leading.values);
-    let span: u64 = leading.values.len;
+    let span: u64 = leading.values.length;
     transition span == 2 {
         true -> tail(@mut trace),
         false -> bad()

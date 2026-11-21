@@ -39,7 +39,7 @@ boundary trait BoundedQueueAccess {
     )
     reaches none
     requires
-        queue.length < queue.items.len
+        queue.length < queue.items.length
     crashes none;
 
     // Remove and return the head element of a provably non-empty queue.

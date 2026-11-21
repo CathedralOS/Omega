@@ -1,15 +1,15 @@
-// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.length).
 // Intended invalid: the three-entry view cannot satisfy require_four.
 data Entry { value: i32; }
 machine require_four(length: u64) -> u64
 requires length == 4
 { length }
 machine borrow(entries: @[Entry; 3]) -> @[Entry]
-ensures result.len == 3
+ensures result.length == 3
 { @entries[..] }
 machine extent(entries: @[Entry; 3]) -> u64 {
     let view: @[Entry] = borrow(entries);
-    require_four(view.len)
+    require_four(view.length)
 }
 machine main() crashes Trap {
     let entries: [Entry; 3] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }];

@@ -38,11 +38,11 @@
 //
 // Contract vocabulary notes (why the obligations are spelled as they are):
 //
-//   * `push` requires provable spare room (`length < items.len`, where
-//     `items.len` folds to the static `N` at concrete instantiations).
+//   * `push` requires provable spare room (`length < items.length`, where
+//     `items.length` folds to the static `N` at concrete instantiations).
 //   * `pop` requires a provably non-empty vector. In the concrete machine
 //     pattern it additionally spells the predecessor-index bound
-//     (`length - 1 < items.len`): with `length <= N` as a maintained data
+//     (`length - 1 < items.length`): with `length <= N` as a maintained data
 //     invariant that bound would be derivable from `length > 0`, but stage 1
 //     has no data-invariant vocabulary, so the obligation surfaces at the
 //     boundary and is discharged by `push`'s guarantees.
@@ -50,7 +50,7 @@
 //     capacity.
 //   * `as_slice` lends the first `length` elements — the view length is the
 //     vector length, not the capacity — so it carries the window obligation
-//     `length <= items.len`.
+//     `length <= items.length`.
 
 public data FixedVec<T, const N: u64> {
     items: [T; N];
@@ -73,7 +73,7 @@ boundary trait FixedVecAccess {
     machine push<T, const N: u64>(items: @mut FixedVec<T, N>, value: T)
     reaches none
     requires
-        items.length < items.items.len
+        items.length < items.items.length
     crashes none;
 
     // Remove and return the last element of a provably non-empty vector. The
@@ -100,8 +100,8 @@ boundary trait FixedVecAccess {
     machine as_slice<T, const N: u64>(items: @FixedVec<T, N>) -> @[T]
     reaches none
     requires
-        items.length <= items.items.len
+        items.length <= items.items.length
     ensures
-        result.len == items.length
+        result.length == items.length
     crashes none;
 }

@@ -2,7 +2,7 @@
 
 A checked subslice of an immutable byte-view literal preserves its exact window length of 10u64 when multiplied by 10u64 and subtracting 100u64.
 
-Every place establishes an immutable byte-view literal of 14 bytes (`"0123456789ABCD"`), takes a checked 10-byte subslice window `[2u64..12u64]` satisfying ordered proof legs `start <= end` and `end <= length`, observes its exact `.len` (`10u64`), transports that subslice or window length across the place, scales by `10u64` to `100u64`, and executes exact subtraction `total - 100u64` returning `0`.
+Every place establishes an immutable byte-view literal of 14 bytes (`"0123456789ABCD"`), takes a checked 10-byte subslice window `[2u64..12u64]` satisfying ordered proof legs `start <= end` and `end <= length`, observes its exact `.length` (`10u64`), transports that subslice or window length across the place, scales by `10u64` to `100u64`, and executes exact subtraction `total - 100u64` returning `0`.
 
 ## Places
 

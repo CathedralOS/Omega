@@ -11,9 +11,9 @@ standard-library dependency.
 - `&mut main.tail[3] as &mut [u8]` — a mutable element viewed as the
   slice tail from that index (len 5 of [u8;8]).
 - Borrows forward through states with their established facts:
-  `tail.len > 4` in the caller proves `tail[4]` in the callee; the
+  `tail.length > 4` in the caller proves `tail[4]` in the callee; the
   borrow's last use must precede any read of the backing (the
-  `tail.len` subject consumes it before `check` reads `main.tail[7]`).
+  `tail.length` subject consumes it before `check` reads `main.tail[7]`).
 - `hits` counts reached arms.
 
 Compile-checked only (no ProcessExit provider):

@@ -90,7 +90,7 @@ validation.
 
 `controls/invalid_bounds/main.omg` is a separate complete source program with
 no hosted effects. It indexes slot 4 of a four-element layer store. With the
-ordinary core slice operator imported, the required fact `index < items.len`
+ordinary core slice operator imported, the required fact `index < items.length`
 is structurally false. The control passes validation only if compilation
 rejects specifically for that `Slice::index` contract; a cache, package,
 syntax or unrelated proof refusal is not a pass.

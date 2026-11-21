@@ -1,2 +1,2 @@
 cannot prove requires contract for call consume
-needs fact `index < items.len` here
+needs fact `index < items.length` here

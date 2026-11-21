@@ -34,7 +34,7 @@ data Main {
 machine walk(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
-    transition s.len > 0 {
+    transition s.length > 0 {
         true -> walk(s[1..], acc + s[0]),
         false -> (acc as i32)
     }

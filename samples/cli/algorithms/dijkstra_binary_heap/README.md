@@ -20,4 +20,4 @@ recomputes the distance sum (150) and walks the `prev` chain from node 11
 (`11 <- 4 <- 3 <- 1 <- 0`, four hops), exiting 154 on agreement.
 
 `../invalid_dijkstra_binary_heap/` calls `pop_heap` on a heap that was never proven non-empty —
-the `requires h.len >= 1` contract must reject it.
+the `requires h.length >= 1` contract must reject it.

@@ -279,7 +279,7 @@ fn a_lifetime_requirement_is_checked_once_for_every_argument() {
 #[test]
 fn selected_generic_helpers_keep_their_ordinary_lifetime_obligations() {
     let source = r#"
-machine make<'storage>(bytes: @'storage [u8]) -> u64 { bytes.len }
+machine make<'storage>(bytes: @'storage [u8]) -> u64 { bytes.length }
 machine relay<'storage, Kind, machine Make>(bytes: @'storage [u8], other: @'storage [u8], count: @mut u64) -> u64
 requires machine Make(bytes: @'storage [u8]) -> u64 reaches none crashes none;
 { let length: u64 = Make(bytes); count = length; length }

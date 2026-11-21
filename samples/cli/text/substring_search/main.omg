@@ -2,7 +2,7 @@ use omega\language\core\ProcessExit;
 // Naive substring search: find the index of the first occurrence of `pat` in `text`, or -1 if
 // absent. For "abracadabra" / "cad" the match is at index 4. Two nested scans over carriers: an
 // outer position `i`, and an inner pattern index `j` with a running text index `k` (kept
-// incrementally as i + j, so no computed index is needed). An explicit `k < text.len` guard keeps
+// incrementally as i + j, so no computed index is needed). An explicit `k < text.length` guard keeps
 // the per-byte read in bounds and treats running off the end as a mismatch. Demonstrates nested
 // carrier loops with match/mismatch backtracking -- text search, a serious-app primitive.
 // Expected exit: 4.
@@ -46,7 +46,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine outer_pos(main: @mut Main) {
-        transition main.i < main.text.len {
+        transition main.i < main.text.length {
             true -> block start_inner(main),
             false -> block done(main)
         }
@@ -57,13 +57,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block inner(main) }
     }
     machine inner(main: @mut Main) {
-        transition main.j < main.pat.len {
+        transition main.j < main.pat.length {
             true -> block check_bound(main),
             false -> block matched(main)
         }
     }
     machine check_bound(main: @mut Main) {
-        transition main.k < main.text.len {
+        transition main.k < main.text.length {
             true -> block compare(main),
             false -> block mismatch(main)
         }

@@ -29,23 +29,23 @@ machine disjoint_reference_parameters() -> bool {
 // elements and the field after the array must retain their own values.
 data ByteTail [copy] { bytes: [u8; 9]; after: u64; }
 
-machine byte_view_length(bytes: @[u8]) -> u64 { bytes.len }
+machine byte_view_length(bytes: @[u8]) -> u64 { bytes.length }
 
 machine second_byte(bytes: @[u8]) -> u8
-requires bytes.len >= 2
+requires bytes.length >= 2
 {
     transition { _ -> read(bytes) }
-    machine read(bytes: @[u8]) -> u8 requires bytes.len >= 2 { bytes[1] }
+    machine read(bytes: @[u8]) -> u8 requires bytes.length >= 2 { bytes[1] }
 }
 
 // The product span reader uses this guard and forwards both values.
 machine byte_or_zero(bytes: @[u8], index: u64 in Trapping) -> u8 {
-    transition index < bytes.len {
+    transition index < bytes.length {
         true -> byte(bytes, index),
         _ -> absent()
     }
     machine byte(bytes: @[u8], index: u64 in Trapping) -> u8
-    requires index < bytes.len
+    requires index < bytes.length
     { bytes[index as -Trapping] }
     machine absent() -> u8 { 0 }
 }

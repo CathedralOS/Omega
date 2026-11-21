@@ -12,14 +12,14 @@ data Packet<'input> { sequence: u64; segments: [Segment<'input>; 4]; }
 machine fold_bytes(values: @[u8], checksum: u32 in Wrapping) -> u32 in Wrapping {
     transition { _ -> scan(values, 0, checksum) }
     machine scan(values: @[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
-    requires cursor <= values.len {
-        transition cursor < values.len {
+    requires cursor <= values.length {
+        transition cursor < values.length {
             true -> read(values, cursor, checksum),
             false -> checksum
         }
     }
     machine read(values: @[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
-    requires cursor < values.len {
+    requires cursor < values.length {
         let next: u32 in Wrapping = checksum * 31 + (values[cursor] as u32 +Wrapping);
         transition { _ -> scan(values, cursor + 1, next) }
     }

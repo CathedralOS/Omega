@@ -17,7 +17,7 @@ machine leading(text: @[u8; 2] in Utf8) -> Leading {
         _ -> inspect(text)
     }
     machine inspect(text: @[u8; 2] in Utf8) -> Leading {
-        transition 0 < text.len {
+        transition 0 < text.length {
             true -> read(text),
             _ -> (Leading::Empty)
         }

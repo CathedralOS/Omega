@@ -24,7 +24,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         _ -> malformed(main)
     }
     machine parse(main: @mut Main, bytes: @[u8; 256], count: u64) {
-        transition count < bytes.len {
+        transition count < bytes.length {
             true -> decode(main, bytes[..count]),
             false -> malformed(main)
         }

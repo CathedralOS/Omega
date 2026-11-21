@@ -4,7 +4,7 @@
 // dominating `value < 128` guard proves the stored
 // byte preserves `ascii_only`.
 //
-//   * `at < bytes.len && value < 128` — one guard
+//   * `at < bytes.length && value < 128` — one guard
 //     covers bounds and membership.
 //   * A named state holds `-> bool` — named states
 //     declare results like machines.
@@ -17,7 +17,7 @@
 domain [u8; 8]::Ascii requires ascii_only(self);
 
 machine replace(at: u64, bytes: @mut [u8; 8] in Ascii, value: u8) -> bool {
-    transition at < bytes.len && value < 128 {
+    transition at < bytes.length && value < 128 {
         true -> write(at, bytes, value, true),
         _ -> false
     }

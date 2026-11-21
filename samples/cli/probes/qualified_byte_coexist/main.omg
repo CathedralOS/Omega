@@ -22,7 +22,7 @@ machine head(bytes: @[u8; 4]) -> u8 {
 }
 
 machine spells_gate(bytes: @[u8]) -> bool {
-    transition { _ -> (bytes.len == 4 && bytes == "gate") }
+    transition { _ -> (bytes.length == 4 && bytes == "gate") }
 }
 
 data Main { hits: i32 in Wrapping; }

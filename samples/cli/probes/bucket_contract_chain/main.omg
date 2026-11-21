@@ -5,7 +5,7 @@
 // concrete data + attached machines carry the contracts).
 //
 // The discharge chain is pure contract chaining, no runtime checks:
-//   clear ESTABLISHES spare room (ensures length < items.len),
+//   clear ESTABLISHES spare room (ensures length < items.length),
 //   push CONSUMES it and GUARANTEES non-emptiness + the predecessor bound,
 //   get  CONSUMES push's length > index fact through the whole-window
 //        view `&bucket.items[..]`, which names the array's own storage,
@@ -25,7 +25,7 @@ data Bucket {
 // strict `<` is justified by this concrete capacity (3 > 0).
 machine Bucket::clear(bucket: @mut Bucket)
 ensures
-    bucket.length < bucket.items.len
+    bucket.length < bucket.items.length
 {
     bucket.length = 0;
 }
@@ -34,10 +34,10 @@ ensures
 // popped slot's bound for the call after it.
 machine Bucket::push(bucket: @mut Bucket, value: u8 in Wrapping)
 requires
-    bucket.length < bucket.items.len
+    bucket.length < bucket.items.length
 ensures
     bucket.length > 0,
-    bucket.length - 1 < bucket.items.len
+    bucket.length - 1 < bucket.items.length
 {
     let slots: @mut [u8] = @mut bucket.items[..];
     let index: u64 in Wrapping = bucket.length;
@@ -49,7 +49,7 @@ ensures
 machine Bucket::get(bucket: @Bucket, index: u64 in Wrapping) -> u8
 requires
     bucket.length > index,
-    index < bucket.items.len
+    index < bucket.items.length
 {
     let slots: @[u8] = @bucket.items[..];
     slots[index]
@@ -60,7 +60,7 @@ requires
 machine Bucket::pop(bucket: @mut Bucket) -> u8
 requires
     bucket.length > 0,
-    bucket.length - 1 < bucket.items.len
+    bucket.length - 1 < bucket.items.length
 {
     let slots: @[u8] = @bucket.items[..];
     let index: u64 in Wrapping = bucket.length - 1;

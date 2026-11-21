@@ -1,5 +1,5 @@
 //! Member meaning is selected once from the actual receiver type. A field
-//! called `len` remains that field; an unknown receiver gains no builtin.
+//! called `length` remains that field; an unknown receiver gains no builtin.
 
 use super::boundary_calls::typed;
 use crate::source_state::expression::{CollectionMeasure, ExpressionNode, MemberSelection};
@@ -18,7 +18,7 @@ fn members(text: &str) -> Vec<MemberSelection> {
 #[test]
 fn collection_length_is_selected_on_the_real_borrowed_receiver() {
     assert_eq!(
-        members("machine observe(items: @[u8]) -> u64 { items.len }"),
+        members("machine observe(items: @[u8]) -> u64 { items.length }"),
         vec![MemberSelection::CollectionMeasure(
             CollectionMeasure::Length
         )]
@@ -26,14 +26,30 @@ fn collection_length_is_selected_on_the_real_borrowed_receiver() {
 }
 
 #[test]
+fn unknown_collection_members_are_rejected_at_the_authored_name() {
+    for (ty, member) in [("@[u8]", "len"), ("[u16; 3]", "width")] {
+        let text = format!("machine observe(items: {ty}) -> u64 {{ items.{member} }}");
+        let error = super::boundary_calls::try_typed(&text)
+            .err()
+            .expect("unknown member");
+        assert_eq!(
+            error.message,
+            format!("collection has no member `{member}`")
+        );
+        let span = error.source_span.unwrap().span;
+        assert_eq!(&text[span.start..span.end], member);
+    }
+}
+
+#[test]
 fn a_same_spelled_record_field_keeps_its_declaration() {
     let program =
-        typed("data Counter { len: u64 } machine observe(value: Counter) -> u64 { value.len }");
+        typed("data Counter { length: u64 } machine observe(value: Counter) -> u64 { value.length }");
     let field = program
         .data_definitions()
         .iter()
         .flat_map(|data| program.data_member_fields(program.data_members(data)))
-        .find(|field| field.name.as_str() == "len")
+        .find(|field| field.name.as_str() == "length")
         .unwrap()
         .symbol;
     assert!(field.is_valid());
@@ -51,7 +67,7 @@ fn a_same_spelled_record_field_keeps_its_declaration() {
 #[test]
 fn a_noncollection_cannot_acquire_length_from_its_spelling() {
     assert_eq!(
-        members("machine observe(value: u64) -> u64 { value.len }"),
+        members("machine observe(value: u64) -> u64 { value.length }"),
         vec![MemberSelection::Unresolved]
     );
 }
@@ -99,7 +115,7 @@ fn elaborated(
 fn a_length_read_uses_the_exact_formals_entry_extent() {
     for view in ["@[u8]", "@mut [u8]"] {
         let result = judged(&format!(
-            "machine entry(items: {view}) -> u64 requires items.len > 0 {{ items.len - 1 }}"
+            "machine entry(items: {view}) -> u64 requires items.length > 0 {{ items.length - 1 }}"
         ));
         let super::RouteVerdict::Accepted(accepted) = result else {
             panic!("{view}: {result:?}")
@@ -117,7 +133,7 @@ fn a_stored_element_length_reads_its_exact_descriptor() {
     for carrier in ["[Ticket]", "@[Ticket]"] {
         let result = judged(&format!(
             "data Ticket {{ number: u32; }}
-             machine entry(tickets: {carrier}) -> u64 requires tickets.len > 0 {{ tickets.len - 1 }}"
+             machine entry(tickets: {carrier}) -> u64 requires tickets.length > 0 {{ tickets.length - 1 }}"
         ));
         let super::RouteVerdict::Accepted(accepted) = result else {
             panic!("{carrier}: {result:?}");
@@ -136,7 +152,7 @@ fn another_element_descriptors_extent_cannot_justify_this_length() {
     let result = judged(
         "data Ticket { number: u32; }
          machine entry(left: @[Ticket], right: @[Ticket]) -> u64
-         requires left.len > 0 { right.len - 1 }",
+         requires left.length > 0 { right.length - 1 }",
     );
     assert!(
         matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
@@ -148,7 +164,7 @@ fn another_element_descriptors_extent_cannot_justify_this_length() {
 #[test]
 fn another_views_extent_cannot_justify_this_length() {
     let result = judged(
-        "machine entry(left: @[u8], right: @[u8]) -> u64 requires left.len > 0 { right.len - 1 }",
+        "machine entry(left: @[u8], right: @[u8]) -> u64 requires left.length > 0 { right.length - 1 }",
     );
     assert!(
         matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
@@ -161,9 +177,9 @@ fn another_views_extent_cannot_justify_this_length() {
 fn a_copied_view_keeps_its_formals_extent_without_an_extra_source_read() {
     let result = judged(
         r#"
-machine entry<'a>(items: @'a [u8]) -> u64 requires items.len > 0 {
+machine entry<'a>(items: @'a [u8]) -> u64 requires items.length > 0 {
     let local: @'a [u8] = items;
-    local.len - 1
+    local.length - 1
 }
 "#,
     );
@@ -187,22 +203,22 @@ machine entry<'a>(items: @'a [u8]) -> u64 requires items.len > 0 {
 #[test]
 fn a_call_binds_length_to_its_actual_descriptor_version() {
     for (parameters, requirement, body) in [
-        ("items: @'a [u8]", "items.len > 0", "required(items)"),
+        ("items: @'a [u8]", "items.length > 0", "required(items)"),
         (
             "items: @'a [u8]",
-            "items.len > 0",
+            "items.length > 0",
             "let local: @'a [u8] = items; required(local)",
         ),
         (
             "holder: @Holder<'a>",
-            "holder.left.len > 0",
+            "holder.left.length > 0",
             "required(holder.left)",
         ),
     ] {
         let source = format!(
             r#"
 data Holder<'held> {{ left: @'held [u8]; right: @'held [u8]; }}
-machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 {{ items.len - 1 }}
+machine required<'a>(items: @'a [u8]) -> u64 requires items.length > 0 {{ items.length - 1 }}
 machine entry<'a>({parameters}) -> u64 requires {requirement} {{ {body} }}
 "#
         );
@@ -219,8 +235,8 @@ fn a_call_cannot_use_another_fields_length() {
     let result = judged(
         r#"
 data Holder<'held> { left: @'held [u8]; right: @'held [u8]; }
-machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
-machine entry<'a>(holder: @Holder<'a>) -> u64 requires holder.left.len > 0 {
+machine required<'a>(items: @'a [u8]) -> u64 requires items.length > 0 { items.length - 1 }
+machine entry<'a>(holder: @Holder<'a>) -> u64 requires holder.left.length > 0 {
     required(holder.right)
 }
 "#,
@@ -238,10 +254,10 @@ fn a_call_cannot_reuse_length_from_before_an_overlapping_mutable_call() {
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
 machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
-machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
+machine required<'a>(items: @'a [u8]) -> u64 requires items.length > 0 { items.length - 1 }
 machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
-requires holder.bytes.len > 0 {
-    let before: u64 = holder.bytes.len;
+requires holder.bytes.length > 0 {
+    let before: u64 = holder.bytes.length;
     replace(holder, replacement);
     required(holder.bytes)
 }
@@ -266,9 +282,9 @@ machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     0
 }
 machine required<'a>(items: @'a [u8], ignored: u64) -> u64
-requires items.len > 0 { items.len - 1 }
+requires items.length > 0 { items.length - 1 }
 machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
-requires holder.bytes.len > 0 {
+requires holder.bytes.length > 0 {
     let captured: @'a [u8] = holder.bytes;
     required(captured, replace(holder, replacement))
 }
@@ -290,9 +306,9 @@ machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     0
 }
 machine required<'a>(items: @'a [u8], ignored: u64) -> u64
-requires items.len > 0 { items.len - 1 }
+requires items.length > 0 { items.length - 1 }
 machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
-requires holder.bytes.len > 0 {
+requires holder.bytes.length > 0 {
     required(holder.bytes, replace(holder, replacement))
 }
 "#,
@@ -312,7 +328,7 @@ machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
-machine length(items: @[u8], ignored: u64) -> u64 { items.len }
+machine length(items: @[u8], ignored: u64) -> u64 { items.length }
 machine entry<'a>() -> u64 {
     let original: @'a [u8] = "long";
     let replacement: @'a [u8] = "x";
@@ -374,7 +390,7 @@ machine entry<'a>() -> u64 {
     let mut holder: Holder<'a> = Holder { bytes: original };
     let returned: @'a [u8] = echo(holder.bytes);
     replace(@mut holder, replacement);
-    returned.len
+    returned.length
 }
 "#,
     );
@@ -432,9 +448,9 @@ fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 requires holder.bytes.len > 0 {
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 requires holder.bytes.length > 0 {
     holder.bytes = replacement;
-    holder.bytes.len - 1
+    holder.bytes.length - 1
 }
 "#,
     );
@@ -450,7 +466,7 @@ fn measuring_a_call_result_keeps_the_bases_real_call_requirement() {
     let result = judged(
         r#"
 machine produce<'a>(items: @'a [u8]) -> @'a [u8] requires 1u64 == 0u64 { items }
-machine entry(items: @[u8]) -> u64 { produce(items).len }
+machine entry(items: @[u8]) -> u64 { produce(items).length }
 "#,
     );
     assert!(
@@ -468,8 +484,8 @@ fn a_mutable_call_keeps_a_saved_scalar_but_invalidates_a_fresh_extent() {
 data Holder<'held> {{ bytes: @'held [u8]; }}
 machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) {{ holder.bytes = replacement; }}
 machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
-requires holder.bytes.len > 0 {{
-    let before: u64 = holder.bytes.len;
+requires holder.bytes.length > 0 {{
+    let before: u64 = holder.bytes.length;
     replace(holder, replacement);
     {returned}
 }}
@@ -481,7 +497,7 @@ requires holder.bytes.len > 0 {{
         matches!(saved, super::RouteVerdict::Accepted(_)),
         "{saved:?}"
     );
-    let fresh = judged(&source("holder.bytes.len - 1"));
+    let fresh = judged(&source("holder.bytes.length - 1"));
     assert!(
         matches!(fresh, super::RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::OperationSafety { .. }))),
@@ -500,10 +516,10 @@ boundary trait Fill {
 }
 machine normalize(outcome: i64) -> i64 { outcome }
 machine entry(bytes: @mut [u8], position: @mut i64) -> i64
-requires bytes.len >= 1024
+requires bytes.length >= 1024
 reaches Fill invokes Fill
 {
-    let index: u64 = bytes.len - 4;
+    let index: u64 = bytes.length - 4;
     let before: u8 = bytes[index];
     let outcome: i64 = Fill::read_dir(0, bytes, position);
     let normalized: i64 = normalize(outcome);
@@ -656,9 +672,9 @@ fn an_overlapping_mutable_call_on_a_backedge_invalidates_the_next_read() {
 data Holder<'held> {{ bytes: @'held [u8]; }}
 machine touch<'a>(holder: {access} Holder<'a>, replacement: @'a [u8]) {{ {body} }}
 machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {{
-    let before: u64 = holder.bytes.len;
+    let before: u64 = holder.bytes.length;
     touch(holder, replacement);
-    holder.bytes.len
+    holder.bytes.length
 }}
 "#
         );
@@ -826,7 +842,7 @@ machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {{
 }
 
 /// A ranked loop over an owned record sequence. The loop header's
-/// `requires position <= tickets.len` names its own parameter's length; each
+/// `requires position <= tickets.length` names its own parameter's length; each
 /// arrival must prove it of the sequence that edge actually passes. `next`
 /// is the recursive call, so the twins differ only in which sequence the
 /// backedge passes as `tickets`.
@@ -834,10 +850,10 @@ fn ranked_sequence_loop(next: &str) -> String {
     format!(
         "data Ticket {{ number: u32; }}
 machine count(tickets: [Ticket], other: [Ticket], position: u64) -> u64
-terminates by (tickets.len - position) -> Nat::Descending
-requires position <= tickets.len
+terminates by (tickets.length - position) -> Nat::Descending
+requires position <= tickets.length
 {{
-    transition position < tickets.len {{
+    transition position < tickets.length {{
         true -> {next},
         false -> position
     }}
@@ -912,7 +928,7 @@ fn a_rebound_sequence_cannot_inherit_the_loop_length_premise() {
     assert!(
         unproved.iter().any(|row| {
             matches!(row.kind, super::ObligationKind::ArrivalInvariant { .. })
-                && row.statement.contains("position + 1 <= other.len")
+                && row.statement.contains("position + 1 <= other.length")
         }),
         "{unproved:?}"
     );

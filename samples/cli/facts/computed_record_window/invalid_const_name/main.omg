@@ -5,7 +5,7 @@ data Held<'samples> { values: @'samples mut [f64]; }
 // Reject: the computed matched window is length 1, against its length-2 promise.
 const SPAN: i64 = 1;
 machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'samples mut [f64]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut samples[0..which + SPAN],
@@ -13,14 +13,14 @@ ensures result.len == 2
     }
 }
 machine hold<'samples>(samples: @'samples mut [f64]) -> Held<'samples>
-requires samples.len == 2
-ensures result.values.len == 2
+requires samples.length == 2
+ensures result.values.length == 2
 {
     Held { values: samples }
 }
 
 machine write_pair(window: @mut [f64])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = 0.0;
     window[1] = 1.0;
 }

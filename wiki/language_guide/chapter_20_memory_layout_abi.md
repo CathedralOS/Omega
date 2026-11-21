@@ -82,7 +82,7 @@ const player_bytes: u64 = size_of::<Player>();
 const player_alignment: u64 = align_of::<Player>();
 
 machine header_is_aligned(packet: @[u8]) -> bool
-requires packet.len >= 16
+requires packet.length >= 16
 {
     align_of(packet) >= 16          // alignment of this actual location
 }

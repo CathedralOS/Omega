@@ -20,8 +20,8 @@ integer reached through a field. In descriptive notation, not new source syntax:
 ```text
 Held<'a> has slot: &'a u64
 
-has_two(items: &[Held<'a>]) = (items.len == 2)
-    observed input: items.len
+has_two(items: &[Held<'a>]) = (items.length == 2)
+    observed input: items.length
     no observation of element contents or slot referents
 
 slot_positive(held: &Held<'a>) = (held.slot > 0)
@@ -76,7 +76,7 @@ deep snapshot is added.
   so accepting the predicate never means assuming its result is true.
 - Migrate the existing
   `fail/facts/computed_subslice_extent_nested_reference_elements_rejected`
-  program to a positive control for `items.len == 2` over reference-bearing
+  program to a positive control for `items.length == 2` over reference-bearing
   elements. Reuse the frozen fixture sources rather than adding new facts files.
   Element/referent writes that leave the metadata and input validity intact do
   not create an observation dependency for a known length-only predicate.

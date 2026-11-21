@@ -1,12 +1,12 @@
 use omega\language\core\ProcessExit;
 // Parse an integer from a `[u8;N] in Utf8` carrier string (`atoi`) -- a core
 // text-processing primitive. It walks the digits, bounded by the string's
-// runtime `.len`, accumulating `result = result*10 + (digit - '0')`:
+// runtime `.length`, accumulating `result = result*10 + (digit - '0')`:
 //
 //   result = 0
 //   for each byte b in text: result = result * 10 + (b - 48)
 //
-// Composes a `.len`-bounded loop, runtime carrier byte reads, named widening,
+// Composes a `.length`-bounded loop, runtime carrier byte reads, named widening,
 // a guard-proven Exact loop counter, and an honestly-Wrapping accumulator (digit
 // bytes carry no range facts, so the multiply-accumulate declares its domain).
 // Parsing "150" yields 150 (a dynamic, 3-digit parse -- the length is read at
@@ -32,7 +32,7 @@ machine parse_decimal(text: @[u8; 3] in Utf8) -> i32 in Wrapping {
     machine step(text: @[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
-        transition index < text.len {
+        transition index < text.length {
             true -> digit(text, index, result),
             _ -> (result)
         }

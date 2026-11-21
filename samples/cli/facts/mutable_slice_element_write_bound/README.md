@@ -1,9 +1,9 @@
 # Mutable slice writes preserve their extent
 
 Writing an element through a mutable slice view (`&mut [u64]`) whose length is
-guarded (`view.len >= 2u64`) proves safe indexed element mutation at
-`view[1u64]` while preserving the slice extent lower bound (`view.len >= 2u64`)
-to discharge exact subtraction `view.len - 2u64` across all nine places.
+guarded (`view.length >= 2u64`) proves safe indexed element mutation at
+`view[1u64]` while preserving the slice extent lower bound (`view.length >= 2u64`)
+to discharge exact subtraction `view.length - 2u64` across all nine places.
 
 `storage_view(&mut backing)` returns the fixed-array field of a record as a
 mutable slice. Its captured origin remains that field of the original record;

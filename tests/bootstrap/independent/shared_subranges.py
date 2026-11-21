@@ -14,8 +14,8 @@ encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py
 
 FIRST = '''data Buffer { bytes: [u8; 3]; }
 machine first(part: @[u8]) -> u8 {
-    transition part.len > 0 { true -> byte(part), _ -> 0 }
-    machine byte(part: @[u8]) -> u8 requires part.len > 0 { part[0] }
+    transition part.length > 0 { true -> byte(part), _ -> 0 }
+    machine byte(part: @[u8]) -> u8 requires part.length > 0 { part[0] }
 }\n'''
 MAIN = '''machine main() -> u8 {
     let mut buffer: Buffer; buffer.bytes[0] = 41; buffer.bytes[1] = 42; buffer.bytes[2] = 43;
@@ -23,7 +23,7 @@ MAIN = '''machine main() -> u8 {
 }\n'''
 
 
-def program(range_, requires='lo <= hi && hi <= source.len', lo=1, hi=2, terminal=False):
+def program(range_, requires='lo <= hi && hi <= source.length', lo=1, hi=2, terminal=False):
     body = 'first(@source[' + range_ + '])'
     if terminal:
         body = 'transition { _ -> local(@source[' + range_ + ']) } machine local(part: @[u8]) -> u8 { first(part) }'
@@ -41,32 +41,33 @@ CASES = (
     ('repeated-tail', FIRST + """machine cut(source: @[u8], lo: u64, hi: u64) -> u8 {
         transition { _ -> walk(source) }
         machine walk(part: @[u8]) -> u8 {
-            transition part.len > 1 { true -> step(part), _ -> finish(part) }
+            transition part.length > 1 { true -> step(part), _ -> finish(part) }
         }
-        machine step(part: @[u8]) -> u8 requires part.len > 1 { transition { _ -> walk(@part[1..]) } }
+        machine step(part: @[u8]) -> u8 requires part.length > 1 { transition { _ -> walk(@part[1..]) } }
         machine finish(part: @[u8]) -> u8 { first(part) }
     }
 """ + MAIN.replace('LO', '1').replace('HI', '2'), 43),
-    ('empty-at-end', program('lo..lo', 'lo <= source.len', lo=3), 0),
-    ('open-end', program('lo..', 'lo <= source.len'), 42),
-    ('open-start', program('..hi', 'hi <= source.len'), 41),
+    ('empty-at-end', program('lo..lo', 'lo <= source.length', lo=3), 0),
+    ('open-end', program('lo..', 'lo <= source.length'), 42),
+    ('open-start', program('..hi', 'hi <= source.length'), 41),
     ('whole', program('..', ''), 41),
-    ('metadata-empty', program('source.len..source.len', ''), 0),
-    ('explicit-length', program('lo..source.len', 'lo <= source.len'), 42),
-    ('literal', program('1..2', 'source.len >= 2'), 42),
+    ('metadata-empty', program('source.length..source.length', ''), 0),
+    ('explicit-length', program('lo..source.length', 'lo <= source.length'), 42),
+    ('literal', program('1..2', 'source.length >= 2'), 42),
 )
 REFUSALS = (
-    ('missing-order', program('lo..hi', 'hi <= source.len'), 2),
+    ('retired-length-endpoint', program('lo..source.len', 'lo <= source.length'), 2),
+    ('missing-order', program('lo..hi', 'hi <= source.length'), 2),
     ('missing-extent', program('lo..hi', 'lo <= hi'), 2),
-    ('reversed-order', program('lo..hi', 'hi <= lo && hi <= source.len', lo=2, hi=1), 2),
+    ('reversed-order', program('lo..hi', 'hi <= lo && hi <= source.length', lo=2, hi=1), 2),
     ('beyond-end', program('lo..hi', lo=0, hi=4), 2),
-    ('empty-not-readable', program('lo..lo', 'lo <= source.len', lo=3).replace(FIRST,
-        'data Buffer { bytes: [u8; 3]; } machine first(part: @[u8]) -> u8 requires part.len > 0 { part[0] }'), 2),
+    ('empty-not-readable', program('lo..lo', 'lo <= source.length', lo=3).replace(FIRST,
+        'data Buffer { bytes: [u8; 3]; } machine first(part: @[u8]) -> u8 requires part.length > 0 { part[0] }'), 2),
     ('inclusive-unsupported', program('lo..=hi'), 2),
     ('mutable-from-shared', program('lo..hi').replace('first(@source[', 'first(@mut source['), 2),
-    ('effectful-endpoint', program('lo..endpoint()', 'lo <= source.len') + 'machine endpoint() -> u64 { 2 }', 2),
+    ('effectful-endpoint', program('lo..endpoint()', 'lo <= source.length') + 'machine endpoint() -> u64 { 2 }', 2),
     ('wrong-slice', FIRST + '''machine cut(source: @[u8], other: @[u8], lo: u64, hi: u64) -> u8
-        requires lo <= hi && hi <= other.len { first(@source[lo..hi]) }
+        requires lo <= hi && hi <= other.length { first(@source[lo..hi]) }
         machine main() -> u8 { let buffer: Buffer; cut(@buffer.bytes[..], @buffer.bytes[..], 1, 2) }''', 2),
     ('bool-endpoint', FIRST + '''machine cut(source: @[u8], hi: bool) -> u8 { first(@source[0..hi]) }
         machine main() -> u8 { let buffer: Buffer; cut(@buffer.bytes[..], true) }''', 1),

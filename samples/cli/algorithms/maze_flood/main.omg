@@ -180,7 +180,7 @@ machine render_row(search: @MazeSearch, line: @mut [u8; 16] in Ascii,
         let first: i32 in Wrapping = column_index * 3;
         let second: i32 in Wrapping = first + 1;
         transition cell_index >= 0 && cell_index < 25
-            && first >= 0 && first < line.len && second >= 0 && second < line.len {
+            && first >= 0 && first < line.length && second >= 0 && second < line.length {
             true -> read(search, line, row, column_index, cell_index, first, second),
             _ -> false
         }

@@ -15,20 +15,20 @@ machine at_least(value: @u32, minimum: u32) -> bool { $value >= minimum }
 
 machine compact<T [copy], machine Predicate>(events: @mut [T], minimum: u32) -> u64
 requires machine Predicate(event: @T, minimum: u32) -> bool;
-ensures result <= events.len
+ensures result <= events.length
 {
     transition { _ -> scan(events, minimum, 0, 0) }
 
     machine scan(events: @mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
-    requires retained <= cursor && cursor <= events.len {
-        transition cursor < events.len {
+    requires retained <= cursor && cursor <= events.length {
+        transition cursor < events.length {
             true -> visit(events, minimum, cursor, retained),
             _ -> (retained)
         }
     }
 
     machine visit(events: @mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
-    requires retained <= cursor && cursor < events.len {
+    requires retained <= cursor && cursor < events.length {
         let selected: bool = Predicate(@events[cursor], minimum);
         transition selected {
             true -> keep(events, minimum, cursor, retained),
@@ -37,7 +37,7 @@ ensures result <= events.len
     }
 
     machine keep(events: @mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
-    requires retained <= cursor && cursor < events.len {
+    requires retained <= cursor && cursor < events.length {
         events[retained] = events[cursor];
         transition { _ -> scan(events, minimum, cursor + 1, retained + 1) }
     }

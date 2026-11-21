@@ -1,10 +1,10 @@
 # Read-Only Byte-Pool Relocation Bound Fact Row
 
-Fact: a read-only byte-pool slice literal ("omega") establishes a static 5-byte length bound (bytes.len >= 5u64 && bytes.len <= 5u64), proving safe indexed byte projection bytes[4u64] and exact length subtraction bytes.len - 5u64 across all nine places.
+Fact: a read-only byte-pool slice literal ("omega") establishes a static 5-byte length bound (bytes.length >= 5u64 && bytes.length <= 5u64), proving safe indexed byte projection bytes[4u64] and exact length subtraction bytes.length - 5u64 across all nine places.
 
-Every place establishes or transports an immutable read-only byte-pool slice literal `"omega"` with static length 5 (`bytes.len >= 5u64 && bytes.len <= 5u64`). This static bound establishes two distinct verification obligations across all nine language places:
-1. **Safe indexed projection:** `bytes[4u64]` requires `4u64 < bytes.len`. Since `bytes.len >= 5u64`, the index is statically proved in range, projecting byte `97u8` (`'a'`) without runtime bounds checks.
-2. **Exact length subtraction:** `bytes.len - 5u64` requires `bytes.len >= 5u64`, which is statically proved by the slice bound, discharging exact unsigned subtraction to `0u64` without underflow.
+Every place establishes or transports an immutable read-only byte-pool slice literal `"omega"` with static length 5 (`bytes.length >= 5u64 && bytes.length <= 5u64`). This static bound establishes two distinct verification obligations across all nine language places:
+1. **Safe indexed projection:** `bytes[4u64]` requires `4u64 < bytes.length`. Since `bytes.length >= 5u64`, the index is statically proved in range, projecting byte `97u8` (`'a'`) without runtime bounds checks.
+2. **Exact length subtraction:** `bytes.length - 5u64` requires `bytes.length >= 5u64`, which is statically proved by the slice bound, discharging exact unsigned subtraction to `0u64` without underflow.
 
 Only the transport mechanism of the read-only byte-pool slice literal changes across the nine places.
 
@@ -47,8 +47,8 @@ The authored exit code `0` is strictly discriminative. A 1-token perturbation of
 ### Reject Twins
 
 Each place has an `invalid/` twin (`sample.json` + `expected.txt`) that breaks only the construct's own contract, input, or domain (never a post-hoc caller guard):
-- **Obligation class (`local`, `field`, `parameter`, `call_result`, `match_join`, `other_state`, `other_machine`, `target_body`):** Call/transition contract precondition (`cannot prove requires contract`) when the read-only byte-pool literal is shortened from 5 bytes (`"omega"`) to 4 bytes (`"omeg"`), failing `bytes.len >= 5u64 && bytes.len <= 5u64`.
-- **Obligation class (`const_name`):** Exact unsigned subtraction range obligation (`may overflow `u64``) when the named subtrahend constant is increased from `5u64` to `6u64`, failing `bytes.len - SUBTRAHEND` under `bytes.len >= 5u64 && bytes.len <= 5u64`.
+- **Obligation class (`local`, `field`, `parameter`, `call_result`, `match_join`, `other_state`, `other_machine`, `target_body`):** Call/transition contract precondition (`cannot prove requires contract`) when the read-only byte-pool literal is shortened from 5 bytes (`"omega"`) to 4 bytes (`"omeg"`), failing `bytes.length >= 5u64 && bytes.length <= 5u64`.
+- **Obligation class (`const_name`):** Exact unsigned subtraction range obligation (`may overflow `u64``) when the named subtrahend constant is increased from `5u64` to `6u64`, failing `bytes.length - SUBTRAHEND` under `bytes.length >= 5u64 && bytes.length <= 5u64`.
 
 None reaches native execution.
 
@@ -77,11 +77,11 @@ All 18 positive and reject places are pinned in the compiler corpus:
 ## Requirements and Evidence
 
 - **Parent outcome:** `READONLY-BYTE-POOL-RELOCATION` / `BYTE-VIEW-BOUND-DISCHARGE` (`TASKS.md`)
-- **Requirement established:** Static length bounds on read-only byte-pool slice literals (`bytes.len >= 5u64 && bytes.len <= 5u64`) are established at literal definition and preserved across all nine language places, proving safe indexed byte projection (`bytes[4u64]`) without bounds checks and discharging exact unsigned length subtraction (`bytes.len - 5u64`) without underflow across all four hosted native targets.
+- **Requirement established:** Static length bounds on read-only byte-pool slice literals (`bytes.length >= 5u64 && bytes.length <= 5u64`) are established at literal definition and preserved across all nine language places, proving safe indexed byte projection (`bytes[4u64]`) without bounds checks and discharging exact unsigned length subtraction (`bytes.length - 5u64`) without underflow across all four hosted native targets.
 
 ### Full 8-Layer Specification and Lowering Evidence
 
-- **Establishment:** Read-only byte literal `"omega"` introduces static bounds `bytes.len >= 5u64 && bytes.len <= 5u64` into the proof context at definition. Safe index projection `bytes[4u64]` is proved by `4u64 < bytes.len` directly from `bytes.len >= 5u64`, and exact subtraction `bytes.len - 5u64` is proved non-negative without requiring post-hoc caller equality guards.
+- **Establishment:** Read-only byte literal `"omega"` introduces static bounds `bytes.length >= 5u64 && bytes.length <= 5u64` into the proof context at definition. Safe index projection `bytes[4u64]` is proved by `4u64 < bytes.length` directly from `bytes.length >= 5u64`, and exact subtraction `bytes.length - 5u64` is proved non-negative without requiring post-hoc caller equality guards.
 - **Identity and lifetime:** The byte slice literal is backed by immutable constant pool storage with indefinite lifetime. Slice descriptors `(address, length)` preserve their storage identity and exact length across local variables, record fields, parameters, return values, match joins, state transitions, machine calls, and target-scoped bodies without aliasing corruption.
 - **Composition:** The static byte-pool length bound composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), supplying the required preconditions of helper machines and state transitions. Positive places and their reject twins differ only in the construct's own input (`"omega"` vs `"omeg"`) or constant subtrahend (`5u64` vs `6u64`).
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with static proof verification diagnostics (`cannot prove requires contract` or `may overflow `u64``), proving that out-of-bounds indexing and underflowing subtraction are soundly rejected before native emission.

@@ -4,20 +4,20 @@ public machine [] read<'backing, Element [copy]>(
     items: @'backing [Element], index: u64
 ) -> Element
 reaches none
-requires index < items.len
+requires index < items.length
 crashes none;
 
 public machine [..] range<'backing, Element>(
     items: @'backing [Element], start: u64, end: u64
 ) -> @'backing [Element]
 reaches none
-requires start <= end && end <= items.len
-ensures result.len == end - start
+requires start <= end && end <= items.length
+ensures result.length == end - start
 crashes none;
 
 public machine view<'backing, Element, const Extent: u64>(
     items: @'backing [Element; Extent]
 ) -> @'backing [Element]
 reaches none
-ensures result.len == Extent
+ensures result.length == Extent
 crashes none;

@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: const_name.
 machine inspect(bytes: @[u8]) -> u8
-requires ascii_only(bytes) && bytes.len >= 1
+requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 const initial: u8 = 65u8;
 machine probe() -> u8 {

@@ -14,10 +14,10 @@ Selected satisfies ByteObserver {
 machine validated_count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 {
     transition prefix == 17 && suffix == 23 { true -> window(bytes), false -> (255) }
     machine window(bytes: @[u8]) -> u64 {
-        transition bytes.len > 0 { true -> first(bytes), false -> (0) }
+        transition bytes.length > 0 { true -> first(bytes), false -> (0) }
     }
-    machine first(bytes: @[u8]) -> u64 requires bytes.len > 0 {
-        transition bytes[0] == 41 { true -> (bytes.len), false -> (255) }
+    machine first(bytes: @[u8]) -> u64 requires bytes.length > 0 {
+        transition bytes[0] == 41 { true -> (bytes.length), false -> (255) }
     }
 }
 
@@ -55,7 +55,7 @@ machine from_ordered(payload: Payload) -> CountResult {
 }
 
 machine from_owned(payload: Payload) -> CountResult
-requires payload.length <= payload.bytes.len
+requires payload.length <= payload.bytes.length
 {
     let count: u64 = Selected::count(17, payload.bytes[0..payload.length], 23);
     let mut observed: Observation;
@@ -66,18 +66,18 @@ requires payload.length <= payload.bytes.len
     }
 }
 machine from_borrowed(payload: @Payload) -> CountResult
-requires payload.length <= payload.bytes.len
+requires payload.length <= payload.bytes.length
 {
     transition { _ -> inspect(payload) }
     machine inspect(payload: @Payload) -> CountResult
-    requires payload.length <= payload.bytes.len
+    requires payload.length <= payload.bytes.length
     {
         let count: u64 = ByteObserver::count::<Selected>(17, payload.bytes[0..payload.length], 23);
         CountResult::Ok { count: count }
     }
 }
 machine from_view(bytes: @[u8]) -> CountResult {
-    let count: u64 = Selected::count(17, bytes[0..bytes.len], 23);
+    let count: u64 = Selected::count(17, bytes[0..bytes.length], 23);
     CountResult::Ok { count: count }
 }
 machine main() crashes Trap {

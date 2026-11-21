@@ -54,7 +54,7 @@ machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> Me
     }
     machine valid(metadata: WindowsFileMetadata) -> MetadataResult {
         MetadataResult::Ok { meta: Metadata {
-            len: metadata.length,
+            length: metadata.length,
             kind: windows_filesystem_kind(metadata.attributes, metadata.reparse_tag),
             permissions: Permissions::Readonly { value: (metadata.attributes & 1) != 0 },
             nlink: widen_u32_to_u64(metadata.links),

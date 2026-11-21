@@ -10,7 +10,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-machine count(bytes: @[u8]) -> u64 { bytes.len }
+machine count(bytes: @[u8]) -> u64 { bytes.length }
 
 data Main {
     buf: [u8; 8];

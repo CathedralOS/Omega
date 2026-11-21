@@ -18,7 +18,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         _ -> bad(main)
     }
     machine field_windows(main: @mut Main, left: @mut [i32 in Wrapping], right: @mut [i32 in Wrapping])
-    requires left.len >= 1 && right.len >= 1
+    requires left.length >= 1 && right.length >= 1
     {
         left[0] = 3;
         right[0] = 9;
@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> local_windows(main, @mut row[0..2], @mut row[2..4]) }
     }
     machine local_windows(main: @mut Main, left: @mut [i32 in Wrapping], right: @mut [i32 in Wrapping])
-    requires left.len >= 1 && right.len >= 1
+    requires left.length >= 1 && right.length >= 1
     {
         left[0] = 5;
         right[0] = 7;

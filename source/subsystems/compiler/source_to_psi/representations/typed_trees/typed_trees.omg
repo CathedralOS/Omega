@@ -82,7 +82,7 @@ requires
 
 // What a name, call or projection selected. A call selects one machine of
 // the overload family resolution bound; a transition target its state; a
-// `.field` the common field it projects, or a collection's `.len` its count.
+// `.field` the common field it projects, or a collection's `.length` its count.
 public data Selection [copy] {
     case None;
     case Machine(handle: u64 in Trapping);

@@ -194,7 +194,7 @@ fn ordinary_and_terminal_calls_retain_the_same_input_loan_until_completion() {
         (true, "transition{_ -> suspend inspect(right),}"),
     ] {
         let text = format!(
-            "machine inspect(bytes:@[u8])->u64 suspends {{bytes.len}} machine forward(left:@[u8],right:@[u8],dead:@[u8])->u64 suspends {{{invocation}}}"
+            "machine inspect(bytes:@[u8])->u64 suspends {{bytes.length}} machine forward(left:@[u8],right:@[u8],dead:@[u8])->u64 suspends {{{invocation}}}"
         );
         let pkg = source::lower(&[("loan.omg", &text)]).unwrap();
         let body = &pkg
@@ -221,7 +221,7 @@ fn ordinary_and_terminal_calls_retain_the_same_input_loan_until_completion() {
 
 #[test]
 fn suspension_before_a_choice_retains_its_inputs_and_afterward_retains_only_its_result() {
-    let text = "machine wait() suspends {} machine inspect(view:@[u8])->u64 suspends{view.len} machine forward(flag:bool,left:@[u8],right:@[u8],dead:@[u8])->u64 suspends {suspend wait(); let selected = match flag {true -> left, false -> right,}; suspend inspect(selected)}";
+    let text = "machine wait() suspends {} machine inspect(view:@[u8])->u64 suspends{view.length} machine forward(flag:bool,left:@[u8],right:@[u8],dead:@[u8])->u64 suspends {suspend wait(); let selected = match flag {true -> left, false -> right,}; suspend inspect(selected)}";
     let package = source::lower(&[("two_crossings.omg", text)]).unwrap();
     let body = &package
         .machines

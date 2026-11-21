@@ -38,7 +38,7 @@ machine read_axis(row: @[i64 in Wrapping; 4]) -> i64 in Wrapping {
 // the trailing half. The match selects one shared window of that row. Both
 // windows have length 2, and that length is part of the result contract.
 machine reactant_window<'row>(row: @'row [i64 in Wrapping; 4], which: i64) -> @'row [i64 in Wrapping]
-ensures result.len == 2 {
+ensures result.length == 2 {
     match which {
         0 -> @row[0..2],
         _ -> @row[2..4]
@@ -48,7 +48,7 @@ ensures result.len == 2 {
 // The same two halves, lent exclusively so the caller can store coefficients
 // through the selected window. Both arms still have length 2.
 machine mutable_reactant_window<'row>(row: @'row mut [i64 in Wrapping; 4], which: i64) -> @'row mut [i64 in Wrapping]
-ensures result.len == 2 {
+ensures result.length == 2 {
     match which {
         0 -> @mut row[0..2],
         _ -> @mut row[2..4]
@@ -56,13 +56,13 @@ ensures result.len == 2 {
 }
 
 machine write_reactants(window: @mut [i64 in Wrapping])
-requires window.len >= 2 {
+requires window.length >= 2 {
     window[0] = 2;
     window[1] = 1;
 }
 
 machine read_window(window: @[i64 in Wrapping]) -> i64 in Wrapping
-requires window.len >= 1 {
+requires window.length >= 1 {
     window[0]
 }
 

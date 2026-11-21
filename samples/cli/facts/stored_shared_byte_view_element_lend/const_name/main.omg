@@ -3,7 +3,7 @@
 // Place: const_name.
 // Expected exit: 0
 machine read(bytes: @[u8]) -> u8
-requires bytes.len == 1
+requires bytes.length == 1
 {
     bytes[0]
 }

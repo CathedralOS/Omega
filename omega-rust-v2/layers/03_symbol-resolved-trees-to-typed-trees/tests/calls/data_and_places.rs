@@ -312,7 +312,7 @@ fn projecting_owned_storage_and_borrowing_metadata_preserves_place_authority() {
     for code in [
         "data P{n:u8;} machine f(p:P)->@u8{@p.n}",
         "machine f(p:[u8;4])->@u8{@p[0]}",
-        "machine f(v:@mut [u8]){ _ = @mut v.len; }",
+        "machine f(v:@mut [u8]){ _ = @mut v.length; }",
     ] {
         assert!(check(&[("borrow.omg", code)]).is_err(), "{code}");
     }
@@ -412,7 +412,7 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
             assert_eq!(access.machine.path, "indexing\\element_mut");
         }
     }
-    for place in ["array.len", "((array.len))"] {
+    for place in ["array.length", "((array.length))"] {
         let source = format!("machine f() {{let mut array:[u8;2]; {place}=3;}}");
         assert_eq!(check(&[("metadata.omg", &source)]).unwrap_err().message, "collection metadata is read-only");
     }

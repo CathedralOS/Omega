@@ -47,7 +47,7 @@ data LineReadResult {
 `Invalid` is the first, ZII-valid case. It means no completed read result is
 established, not EOF, a successful empty line, or a recoverable OS error. Every
 normal return from `read_line` establishes one of the other three cases. Their
-counts satisfy `count <= destination.len` and bind the written prefix to that
+counts satisfy `count <= destination.length` and bind the written prefix to that
 invocation. Constructing a same-shaped result independently establishes no I/O
 observation. Non-Unit results retain ordinary strict-use and case checking.
 

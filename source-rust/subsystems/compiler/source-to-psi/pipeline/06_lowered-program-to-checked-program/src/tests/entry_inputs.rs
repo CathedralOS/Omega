@@ -294,7 +294,7 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
 machine entry(bytes: @[u8], other: @[u8], index: u64) -> u8 {
-    transition index < bytes.len { true -> next(INPUT, index), false -> 255u8 }
+    transition index < bytes.length { true -> next(INPUT, index), false -> 255u8 }
     machine next(bytes: @[u8], index: u64) -> u8 {
         transition { _ -> fetch(bytes, index) }
     }
@@ -345,7 +345,7 @@ OTHER_BODY
 fn private_arrival_retains_a_guard_on_the_computed_argument() {
     let source = r#"
 machine entry(bytes: @[u8], index: u64) -> u8 {
-    transition index < bytes.len { true -> lead(bytes, index), false -> 255u8 }
+    transition index < bytes.length { true -> lead(bytes, index), false -> 255u8 }
     machine lead(bytes: @[u8], index: u64) -> u8 {
         let first: u8 = bytes[index];
         transition first > 0 && first < 128 {
@@ -355,7 +355,7 @@ machine entry(bytes: @[u8], index: u64) -> u8 {
     }
     machine following(bytes: @[u8], index: u64, first: u8) -> u8 {
         let next: u64 = index + 1;
-        transition first >= 194 && first <= 244 && next < bytes.len {
+        transition first >= 194 && first <= 244 && next < bytes.length {
             true -> fetch(bytes, first, INPUT),
             false -> 255u8
         }
@@ -372,7 +372,7 @@ machine entry(bytes: @[u8], index: u64) -> u8 {
     };
     accepted.publish_invocation().unwrap();
 
-    let verdict = judge_source_arrivals(&source.replace("INPUT", "bytes.len"), &helpers);
+    let verdict = judge_source_arrivals(&source.replace("INPUT", "bytes.length"), &helpers);
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
         panic!("the original guard does not justify a different index: {verdict:?}");
     };

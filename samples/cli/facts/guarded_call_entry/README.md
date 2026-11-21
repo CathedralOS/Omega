@@ -1,7 +1,7 @@
 # Guarded invocation entry after opaque callbacks
 
-After an opaque callback, fresh `count <= slots.len` and preserved immutable
-`work > 0` admit the nested call's `slots.len - count` and `work - 1`.
+After an opaque callback, fresh `count <= slots.length` and preserved immutable
+`work > 0` admit the nested call's `slots.length - count` and `work - 1`.
 Every place copies this fact and consumes both obligations directly.
 
 Owner: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in [TASKS.md](../../../../TASKS.md),

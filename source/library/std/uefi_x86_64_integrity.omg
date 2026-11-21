@@ -8,13 +8,13 @@ public machine validate_table(
 ) -> bool
 terminates
 {
-    transition bytes.len >= 24 {
+    transition bytes.length >= 24 {
         true -> header(bytes, signature, minimum_revision, minimum_size),
         _ -> (false)
     }
 
     machine header(bytes: @[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
-    requires bytes.len >= 24
+    requires bytes.length >= 24
     {
         let signature_low: u32 = read_u32(bytes);
         let signature_high: u32 = read_u32(bytes[4..]);
@@ -25,14 +25,14 @@ terminates
         let reserved: u32 = read_u32(bytes[20..]);
         transition actual_signature == signature && revision >= minimum_revision
             && reserved == 0 && header_size >= 24 && header_size >= minimum_size
-            && header_size <= bytes.len {
+            && header_size <= bytes.length {
             true -> checksum(bytes, header_size as u64, expected_crc),
             _ -> (false)
         }
     }
 
     machine checksum(bytes: @[u8], header_size: u64, expected_crc: u32) -> bool
-    requires header_size <= bytes.len
+    requires header_size <= bytes.length
     {
         let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF, header_size);
         computed == expected_crc

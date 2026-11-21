@@ -50,10 +50,10 @@ fn a_boundary_normal_guarantee_observes_its_returned_view() {
 data Token { id: u64; }
 boundary trait Fs {
     machine path(token: @Token) -> @[u8]
-    ensures result.len > 0u64
+    ensures result.length > 0u64
     reaches none crashes none;
 }
-machine needs_bytes(bytes: @[u8]) requires bytes.len > 0u64 {}
+machine needs_bytes(bytes: @[u8]) requires bytes.length > 0u64 {}
 machine consume(token: @Token) reaches Fs invokes Fs {
     let view: @[u8] = Fs::path(token);
     needs_bytes(view);
@@ -64,7 +64,7 @@ machine entry() reaches Fs invokes Fs {
 }
 "#;
     assert_eq!(verdict(source), "accepted");
-    let unpromised = source.replace("ensures result.len > 0u64", "");
+    let unpromised = source.replace("ensures result.length > 0u64", "");
     let result = crate::checking::judge(elaborate(&unpromised)).unwrap();
     assert!(
         matches!(&result, RouteVerdict::Rejected { unproved, .. }
@@ -160,13 +160,13 @@ machine read(value: @u8) -> u8 { $value }
 machine entry() -> u8 reaches Fs invokes Fs {
     let mut token: Token = Token { bytes: [47u8, 61u8] };
     let view: @[u8] = Fs::path(@token);
-    match view.len > 0u64 { true -> read(@view[0]), false -> 0u8 }
+    match view.length > 0u64 { true -> read(@view[0]), false -> 0u8 }
 }
 "#;
     assert_eq!(verdict(source), "accepted");
     let changed = source.replace(
-        "    match view.len",
-        "    token.bytes[0] = 5u8;\n    match view.len",
+        "    match view.length",
+        "    token.bytes[0] = 5u8;\n    match view.length",
     );
     let result = crate::checking::judge(elaborate(&changed)).unwrap();
     assert!(
@@ -373,7 +373,7 @@ fn provider_permission_cannot_be_claimed_as_owned_storage(source: &str) {
 fn provider_indexed_view_payloads_keep_their_actual_lender() {
     let program = r#"
 data Token { id: u64; }
-boundary trait Fs { machine path(token: @Token) -> @[u8] ensures result.len > 0u64 reaches none crashes none; }
+boundary trait Fs { machine path(token: @Token) -> @[u8] ensures result.length > 0u64 reaches none crashes none; }
 machine see(value: @u8) {}
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };

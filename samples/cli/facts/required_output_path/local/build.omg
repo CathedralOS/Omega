@@ -42,5 +42,5 @@ machine settle(builder: @mut Build, settled: OutputCompletion) {
 }
 
 machine select_path(builder: @mut Build, path: @[u8]) {
-    transition path.len > 0 { true -> select_entry(builder, path[0]), false -> wrong(builder) }
+    transition path.length > 0 { true -> select_entry(builder, path[0]), false -> wrong(builder) }
 }

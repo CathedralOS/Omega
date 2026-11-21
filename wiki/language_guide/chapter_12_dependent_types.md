@@ -7,7 +7,7 @@ count to a capacity stored next to it. That is all "dependent" means here.
 
 ```omega
 machine get(items: @[u8], index: u64) -> u8
-requires index < items.len
+requires index < items.length
 {
     items[index]
 }
@@ -76,7 +76,7 @@ requires width in 1..=1024
 requires height in 1..=1024
 requires x < width
 requires y < height
-requires pixels.len == width * height
+requires pixels.length == width * height
 {
     pixels[y * width + x]
 }
@@ -113,7 +113,7 @@ Each round must establish what the next round requires:
 
 ```omega
 machine clear(buffer: @mut [u8], remaining: u64)
-requires remaining <= buffer.len
+requires remaining <= buffer.length
 terminates by remaining -> Nat\Descending
 {
     transition remaining == 0 {
@@ -123,7 +123,7 @@ terminates by remaining -> Nat\Descending
 
     machine step(buffer: @mut [u8], remaining: u64)
     requires remaining > 0
-    requires remaining <= buffer.len
+    requires remaining <= buffer.length
     terminates by remaining -> Nat\Descending
     {
         buffer[remaining - 1] = 0;
@@ -132,7 +132,7 @@ terminates by remaining -> Nat\Descending
 }
 ```
 
-Start it with `clear(buffer, buffer.len)`. The `false` arm knows
+Start it with `clear(buffer, buffer.length)`. The `false` arm knows
 `remaining > 0`, so `remaining - 1` is a valid index, and the next call's
 `requires` follows.
 

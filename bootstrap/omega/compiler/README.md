@@ -112,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 30,311 lines / 1,198,639 bytes with SHA-256
-`2d6109c993f1994c66457b4f4723a37aabcdf56c5e88a8d2b326aca3d579b30d`.
+The manifest materializes 30,311 lines / 1,198,645 bytes with SHA-256
+`8dc0bee09f15dce0649a439f9998a00873af2e6d3c2ba93babb1cd9481b1bc52`.
 The manifest itself is 2,905 bytes, SHA-256
-`38d2b00abd7fc5fdc533fa8c4aa8767eb6fca32072a29bca5721c5efde21f462`;
+`b30642488d7f8aeb28564b76acdb233aa51cd0d56418a7aa4fabedac01f4b686`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -513,14 +513,14 @@ checked selectors and element stride as a record field.
 
 A machine taking `@[u8]` can read the live length of a shared byte slice.
 A literal index needs a proved lower bound on that length. A scalar index
-can also carry the declared requirement `index < bytes.len`. A half-open
-endpoint can use `index <= bytes.len`; it still needs a strict bound for
+can also carry the declared requirement `index < bytes.length`. A half-open
+endpoint can use `index <= bytes.length`; it still needs a strict bound for
 a byte read. Two parameters with the same plain `u8`, `u32` or `u64` type
 may require `start <= index` or
 `start < index`. At each call or transfer the compiler substitutes both
 actual arguments. Literals, pure selected comparisons and preserved entry
 requirements can establish the relation on that exact pair. A true conjunction
-can supply either of its comparisons. With `index < bytes.len`, the plain
+can supply either of its comparisons. With `index < bytes.length`, the plain
 `u64` successor `index + 1` cannot overflow and can reach the endpoint.
 Reading at that successor requires a further bound. A preserved strict pair
 `unit < limit` likewise establishes that `unit + 1` fits its unsigned carrier. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
@@ -531,7 +531,7 @@ construction input and reads the last byte through a nested call.
 [Shared byte slices](shared_byte_slices.epsilon)
 
 A shared incoming slice can also be narrowed with pure, checked `u64`
-endpoints. The compiler proves `start <= end <= source.len` for that exact
+endpoints. The compiler proves `start <= end <= source.length` for that exact
 slice; omitted endpoints mean zero and the captured length. Equality admits
 empty views at the end without authorizing a read. The emitted descriptor
 retains the same backing, evaluates start before end exactly once, and stages
@@ -561,7 +561,7 @@ capacity of 512. Alpha still performs the checked addition. The complete
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
 machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
-It checks the nested reader's `index < spelling.len` requirement. The full
+It checks the nested reader's `index < spelling.length` requirement. The full
 file passes the bodies of `source_set_add`, `add_package`, `add_dependency`
 and `store_name`. Its next coverage refusal identifies `source_set_byte_or_nul`
 at file byte 14,466. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)

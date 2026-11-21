@@ -103,7 +103,7 @@ machine linux_x86_64_posix_decode_metadata(filesystem: @mut PosixFilesystem) -> 
         let atime: i64 = stat.value.atime;
         // Linux stat has reserved words here, not a birth timestamp.
         let details: PosixMetadata = PosixMetadata { mode: mode, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize };
-        let metadata: Metadata = Metadata { len: len, kind: posix_metadata_kind(mode), permissions: Permissions::Posix { mode: mode & 4095 }, nlink: nlink, posix: PosixMetadataResult::Ok { details: details }, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported }, changed_secs: ctime };
+        let metadata: Metadata = Metadata { length: len, kind: posix_metadata_kind(mode), permissions: Permissions::Posix { mode: mode & 4095 }, nlink: nlink, posix: PosixMetadataResult::Ok { details: details }, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported }, changed_secs: ctime };
         MetadataResult::Ok { meta: metadata }
     }
 }

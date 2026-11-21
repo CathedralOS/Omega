@@ -499,11 +499,11 @@ fn bracket_contracts_publish_exact_bounds_and_range_length() {
     let core = omega_toolchain::core_interface();
     assert_eq!(selected, core.collection(Read));
     for op in [Read, Element, ElementMut] {
-        assert_eq!(typed_predicates(library, core.collection(op), Requires), ["index<items.len"]);
+        assert_eq!(typed_predicates(library, core.collection(op), Requires), ["index<items.length"]);
     }
     for op in [Range, RangeMut] {
-        assert_eq!(typed_predicates(library, core.collection(op), Requires), ["start<=end", "end<=items.len"]);
-        assert_eq!(typed_predicates(library, core.collection(op), Ensures), ["result.len==end-start"]);
+        assert_eq!(typed_predicates(library, core.collection(op), Requires), ["start<=end", "end<=items.length"]);
+        assert_eq!(typed_predicates(library, core.collection(op), Ensures), ["result.length==end-start"]);
     }
 }
 

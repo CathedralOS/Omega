@@ -83,7 +83,7 @@ fn a_read_of_one_same_typed_element_view_measures_only_that_view() {
 
 #[test]
 fn an_explicit_element_length_is_an_element_count_of_the_exact_view() {
-    let text = "machine count(other:@[u16],items:@[u16])->u64 { items.len }";
+    let text = "machine count(other:@[u16],items:@[u16])->u64 { items.length }";
     let package = sources::lower(&[("count.omg", text)]).unwrap();
     let body = &machine(&package, "count").body;
     let [Parameter::Structural(other), Parameter::Structural(items)] = body.parameters[..] else {
@@ -140,7 +140,7 @@ fn byte_and_element_views_keep_distinct_descriptors_and_operations() {
 fn an_element_length_contract_names_its_exact_view_and_supplies_no_twin_bound() {
     use omega_lowering::{PredicateOperator, PredicateStep};
     for (read_view, slot) in [("items", 1), ("other", 0)] {
-        let text = format!("machine get(other:@[u32],items:@[u32],i:u64)->u32 requires i < items.len {{ {read_view}[i] }}");
+        let text = format!("machine get(other:@[u32],items:@[u32],i:u64)->u32 requires i < items.length {{ {read_view}[i] }}");
         let package = sources::lower(&[("contract.omg", &text)]).unwrap();
         let machine = &package.machines[0];
         // The clause measures `items` (formal 1), never its same-typed twin.
@@ -198,7 +198,7 @@ fn an_element_length_contract_names_its_exact_view_and_supplies_no_twin_bound() 
 #[test]
 fn an_element_length_guarantee_names_the_exact_view() {
     use omega_lowering::{PredicateOperator, PredicateStep};
-    let text = "machine count(other:@[u16],items:@[u16])->u64 ensures result == items.len { items.len }";
+    let text = "machine count(other:@[u16],items:@[u16])->u64 ensures result == items.length { items.length }";
     let package = sources::lower(&[("count.omg", text)]).unwrap();
     let count = machine(&package, "count");
     assert_eq!(
@@ -215,9 +215,9 @@ fn an_element_length_guarantee_names_the_exact_view() {
 #[test]
 fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
     use omega_lowering::PredicateStep;
-    let text = "machine bytes(b:@[u8],i:u64)->u8 requires i < b.len { b[i] }
-                machine fixed(a:[u8;4],i:u64)->bool requires i < a.len { true }
-                machine elements(e:@[i8],i:u64)->i8 requires i < e.len { e[i] }";
+    let text = "machine bytes(b:@[u8],i:u64)->u8 requires i < b.length { b[i] }
+                machine fixed(a:[u8;4],i:u64)->bool requires i < a.length { true }
+                machine elements(e:@[i8],i:u64)->i8 requires i < e.length { e[i] }";
     let package = sources::lower(&[("kinds.omg", text)]).unwrap();
     for (name, step) in [
         ("bytes", PredicateStep::ByteSequenceLength),
@@ -232,9 +232,9 @@ fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
 fn mutable_length_contract_selects_a_formal_not_a_body_bound() {
     use omega_lowering::{PredicateOperator, PredicateStep};
     for (text, subject, i) in [
-        ("machine get(items:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }", 0, 1),
-        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }", 0, 2),
-        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < other.len { items[i] }", 1, 2),
+        ("machine get(items:@mut [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 1),
+        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < items.length { items[i] }", 0, 2),
+        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < other.length { items[i] }", 1, 2),
     ] {
         let package = sources::lower(&[("contract.omg", text)]).unwrap();
         let get = machine(&package, "get");
@@ -308,7 +308,7 @@ fn nominal_view_length_returns_its_formals_element_count_and_preserves_access() 
     let observed = [
         include_str!("fixtures/package_cases/shared-nominal-view-count/case/case.omg"),
         include_str!("fixtures/package_cases/shared-nominal-view-count/control/case.omg"),
-        "data A { x:u8; } data R { x:u8; } machine count(a:@mut [A], r:@[R])->u64 {r.len}",
+        "data A { x:u8; } data R { x:u8; } machine count(a:@mut [A], r:@[R])->u64 {r.length}",
     ].map(|text| {
         let package = sources::lower(&[("case.omg", text)]).unwrap();
         let (formal, access, owner) = psi_handoff_consumer::returned_nominal_view_count(&package, machine(&package, "count")).unwrap();

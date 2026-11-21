@@ -2,11 +2,11 @@
 // Invalid control: the 1024-byte lower bound is not established.
 machine write_first(first: @mut u8) { $first = 41; }
 machine preserve_suffix(bytes: @mut [u8])
-requires bytes.len >= 3
+requires bytes.length >= 3
 {
-    let saved: u8 = bytes[bytes.len - 4];
+    let saved: u8 = bytes[bytes.length - 4];
     write_first(@mut bytes[0]);
-    bytes[bytes.len - 4] = saved;
+    bytes[bytes.length - 4] = saved;
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 1024];

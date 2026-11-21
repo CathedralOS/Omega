@@ -6613,7 +6613,7 @@ machine OmegaScalarCompiler::check_place(
         }
     }
     state metadata(name: OmegaRelativeSpan) {
-        transition self.span_equals(source, name.start, name.end, "len") {
+        transition self.span_equals(source, name.start, name.end, "length") {
             1 -> length()
             _ -> unsupported()
         }

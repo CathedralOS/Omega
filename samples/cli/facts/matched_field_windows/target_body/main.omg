@@ -24,12 +24,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedFromTarget {
     machine from_target<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.length == 2;
 }
 
 X86FromTarget satisfies SelectedFromTarget {
     machine from_target<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.length == 2
     {
         SelectedBodyCheck::require_tag(17u64);
         match which {
@@ -41,7 +41,7 @@ X86FromTarget satisfies SelectedFromTarget {
 
 ArmFromTarget satisfies SelectedFromTarget {
     machine from_target<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.length == 2
     {
         SelectedBodyCheck::require_tag(29u64);
         match which {
@@ -52,7 +52,7 @@ ArmFromTarget satisfies SelectedFromTarget {
 }
 
 machine write_pair(window: @mut [u8])
-    requires window.len >= 2
+    requires window.length >= 2
 {
     window[0] = 9;
     window[1] = 8;

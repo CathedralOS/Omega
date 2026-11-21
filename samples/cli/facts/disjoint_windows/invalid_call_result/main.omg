@@ -6,7 +6,7 @@ machine boundary() -> u64
 ensures result == 1
 { 1 }
 machine exercise(items: @mut [i32]) -> bool
-requires items.len == 4
+requires items.length == 4
 {
     let split: u64 = boundary();
     let a: @mut [i32] = @mut items[0..2];

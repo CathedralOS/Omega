@@ -1,2 +1,2 @@
 cannot prove requires contract for call read_at
-needs fact `Index < items.len` here
+needs fact `Index < items.length` here

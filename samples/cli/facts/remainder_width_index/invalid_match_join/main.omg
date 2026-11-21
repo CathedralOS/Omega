@@ -4,17 +4,17 @@
 // width still indexes the view.
 // Expected exit: 0
 machine measure(buckets: @[u8]) -> u64
-requires buckets.len > 0
-ensures result == buckets.len as u64
+requires buckets.length > 0
+ensures result == buckets.length as u64
 {
-    buckets.len as u64
+    buckets.length as u64
 }
 
 machine pick(value: u64, buckets: @[u8], flag: bool) -> u8
-requires buckets.len > 0 && buckets.len < 100
+requires buckets.length > 0 && buckets.length < 100
 {
     let width: u64 = match flag {
-        true -> (buckets.len as u64) + 1,
+        true -> (buckets.length as u64) + 1,
         false -> measure(buckets)
     };
     buckets[value % width]

@@ -264,7 +264,7 @@ hold readers over different things:
 
 ```omega
 data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64
-    requires output.len > 0
+    requires output.length > 0
     reaches none
     crashes none;
 
@@ -274,7 +274,7 @@ data Reader<'a, some S> {
 }
 
 machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
-requires output.len > 0
+requires output.length > 0
 {
     (reader.read)(reader.state, output)
 }

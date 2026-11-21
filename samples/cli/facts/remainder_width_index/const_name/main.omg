@@ -5,7 +5,7 @@
 const WIDTH: u64 = 4;
 
 machine pick(value: u64, buckets: @[u8]) -> u8
-requires buckets.len > 0 && buckets.len as u64 == WIDTH
+requires buckets.length > 0 && buckets.length as u64 == WIDTH
 {
     buckets[value % WIDTH]
 }
