@@ -32,6 +32,8 @@ impl PackagePolicyBaseline {
         {
             return Err("package policy components disagree about package or target");
         }
+        self.public_api
+            .type_aliases_for_version(self.schema_version)?;
         self.public_api.validate_canonical_structure(self.package)?;
         self.callables.validate_canonical_structure()?;
         self.selected_providers.validate_canonical_structure()?;

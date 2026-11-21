@@ -202,6 +202,7 @@ fn declaration_policy(
         consts: declarations.public_consts(package)?,
         operators: Vec::new(),
         data: declarations.public_data(package)?,
+        type_aliases: Some(declarations.public_type_aliases(package)?),
     };
     let callables = declarations.callables(package, services)?;
     let representation = representation_target(target)?;
@@ -324,11 +325,6 @@ fn require_supported_inventory(
     for declaration in typed.all_operators().filter(|row| row.is_public) {
         if owned(declaration.symbol)? {
             return Err(unavailable("public operator contracts"));
-        }
-    }
-    for declaration in typed.type_aliases().iter().filter(|row| row.is_public) {
-        if owned(declaration.symbol)? {
-            return Err(unavailable("public type-alias contracts"));
         }
     }
     for declaration in typed.wire_schemas().iter().filter(|row| row.is_public) {

@@ -31,6 +31,23 @@ pub(super) fn render(
         policy.public_consts().len(),
         policy.public_operators().len()
     )?;
+    match &policy.public_api().type_aliases {
+        Some(aliases) => {
+            writeln!(output, "  public type aliases {}", aliases.len())?;
+            for alias in aliases {
+                writeln!(
+                    output,
+                    "    {} = {}",
+                    names.name(&alias.identity),
+                    alias.expansion.canonical()
+                )?;
+            }
+        }
+        None => writeln!(
+            output,
+            "  public type aliases unavailable in this review format"
+        )?,
+    }
     for constant in policy.public_consts() {
         writeln!(output, "  constant {}", names.name(constant.identity()))?;
     }

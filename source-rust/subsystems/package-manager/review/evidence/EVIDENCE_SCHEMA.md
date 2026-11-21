@@ -16,6 +16,11 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+Whole-package baseline version 40 adds the public type alias inventory, including
+checked binder positions, conformance bounds and the normalized expansion. Older
+baselines omit this field. Each alias has its own public interface row and adds
+no permission.
+
 Whole-package baseline version 39 can record the provider application a Build
 accepted. Selected-provider component version 28 records it as tag 2 followed by
 the optional canonical static application. The containing plan identifies the

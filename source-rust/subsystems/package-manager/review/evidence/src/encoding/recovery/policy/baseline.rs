@@ -36,6 +36,7 @@ impl PackagePolicyBaseline {
             schema_version,
             BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
                 | crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS
+                | crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);

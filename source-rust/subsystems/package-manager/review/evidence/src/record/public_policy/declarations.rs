@@ -82,6 +82,16 @@ pub struct PackagePolicyOperatorShape {
     pub(crate) published_crash: Vec<PackagePolicyCrashRoute>,
 }
 
+/// The alias owns a public name and binders. Its expansion is the existing carrier's checked type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackagePolicyTypeAlias {
+    pub identity: PackageReviewNominalIdentity,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub conformance_bounds: Vec<PackageReviewConformanceBound>,
+    pub expansion: PackageReviewTypeIdentity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyDataShape {
     pub identity: PackageReviewNominalIdentity,

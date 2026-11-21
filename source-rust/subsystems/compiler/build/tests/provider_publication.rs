@@ -1056,3 +1056,59 @@ public boundary trait TimeHost {
     assert!(grant.permitted.classes().is_empty());
     assert!(review("unrelated::ticks").is_err());
 }
+
+#[test]
+fn review_retains_public_alias_names_with_their_normalized_expansions() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-public-aliases",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::package(builder, "public_aliases"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+public data KeyHash<K> = machine(key: @K) -> u64;
+public data Renamed<T> = machine(key: @T) -> u64;
+public data Word = u32;
+public data SameWord = Word;
+public data WordPair = [Word; 2];
+data LocalAlias = i64;
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let policy = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap()
+        .policy;
+    let aliases = policy.public_api.type_aliases.as_deref().unwrap();
+    let [hash, renamed, same, word, pair] = aliases else {
+        panic!("expected all five public aliases")
+    };
+    assert_eq!(
+        (
+            &*same.identity.path,
+            &*word.identity.path,
+            &*pair.identity.path
+        ),
+        ("SameWord", "Word", "WordPair")
+    );
+    assert_eq!(hash.identity.path, "KeyHash");
+    assert_eq!(renamed.identity.path, "Renamed");
+    assert_eq!(hash.type_parameters.len(), 1);
+    assert_eq!(hash.expansion, renamed.expansion);
+    assert_eq!(same.expansion, word.expansion);
+    assert_ne!(pair.expansion, word.expansion);
+    assert!(policy.public_data().is_empty());
+}

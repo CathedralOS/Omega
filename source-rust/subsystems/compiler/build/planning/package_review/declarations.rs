@@ -204,16 +204,10 @@ impl<'a> PolicySource<'a> {
                     ));
                 }
                 Some(_) if exposure == PackageReviewSemanticDependencyExposure::PublicInterface => {
-                    let retained = self
-                        .typed()
-                        .data_definition_by_symbol(symbol)
-                        .is_some_and(|definition| definition.is_public)
-                        || self
-                            .typed()
-                            .domain_definition(symbol)
-                            .is_some_and(|definition| definition.is_public)
-                        || self.typed().conformance_by_symbol(symbol).is_some_and(|definition| definition.is_public)
-                        || self.typed().trait_definition_by_symbol(symbol).is_some_and(|definition| definition.is_public);
+                    let retained = matches!(symbols.get(symbol).kind,
+                        symbols::SymbolKind::Data | symbols::SymbolKind::Domain | symbols::SymbolKind::Conformance | symbols::SymbolKind::Trait | symbols::SymbolKind::TypeAlias)
+                        && source_compiler::representations::source_state::visibility::declaration_visibility(self.typed(), symbol)
+                            .is_some_and(|declaration| declaration.is_public());
                     if !retained {
                         return Err(unavailable(
                             "a private semantic dependency of a public type",
@@ -239,6 +233,46 @@ impl<'a> PolicySource<'a> {
             relevance: field.relevance,
             type_identity: self.declared_type(owner, field.type_reference)?,
         })
+    }
+
+    pub(super) fn public_type_aliases(
+        &self,
+        package: PackageKeyIdentity,
+    ) -> Result<Vec<review_evidence::record::PackagePolicyTypeAlias>, Vec<Diagnostic>> {
+        let mut aliases = Vec::new();
+        for alias in self
+            .typed()
+            .type_aliases()
+            .iter()
+            .filter(|row| row.is_public)
+        {
+            if !self.owns(alias.symbol, package)? {
+                if source_compiler::representations::source_state::source_subjects::contains(
+                    self.typed(),
+                    alias.symbol,
+                    &[Some(package)],
+                    source_provenance::DependencyScope::Build,
+                )
+                .map_err(unavailable)?
+                {
+                    return Err(unavailable("Build-scope public type alias contracts"));
+                }
+                continue;
+            }
+            aliases.push(review_evidence::record::PackagePolicyTypeAlias {
+                identity: self.nominal(alias.symbol)?,
+                lifetime_parameter_count: alias.lifetime_parameters.len(),
+                type_parameters: self.type_parameters(alias.symbol)?,
+                conformance_bounds: self.conformance_bounds(
+                    alias.symbol,
+                    &alias.lifetime_parameters,
+                    &alias.conformance_bounds,
+                )?,
+                expansion: self.declared_type(alias.symbol, alias.expansion)?,
+            });
+        }
+        aliases.sort_by(|left, right| left.identity.cmp(&right.identity));
+        Ok(aliases)
     }
 
     pub(super) fn public_data(
