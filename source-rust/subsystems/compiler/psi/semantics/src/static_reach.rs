@@ -94,7 +94,9 @@ fn position(machines: &[MachineId], machine: MachineId) -> Result<usize> {
         .map_err(|_| "static reach names an absent machine")
 }
 
-fn substitute<'term>(
+/// Apply selected callback arguments to a checked reach term. A dependency
+/// without a matching actual remains a projection in the result.
+pub fn substitute<'term>(
     term: &'term StaticReachTerm,
     arguments: &'term [StaticReachArgument],
     published: impl Fn(MachineId) -> Option<&'term StaticReachTerm>,

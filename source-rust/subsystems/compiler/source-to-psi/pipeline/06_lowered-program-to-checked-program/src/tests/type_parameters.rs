@@ -1515,6 +1515,93 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
 }
 
 #[test]
+fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
+    let text = r#"
+        boundary trait Output {}
+        machine measure<Element>(items: @[Element]) -> u64 { 41u64 }
+        machine layer<machine Pick, Element>(items: @[Element]) -> u64
+        requires machine Pick(items: @[Element]) -> u64;
+        { Pick(items) }
+        machine invoke<machine Read, Payload>(value: @Payload) -> u64
+        requires machine Read(value: @Payload) -> u64 reaches none;
+        { Read(value) }
+        public machine entry<Element>(items: @[Element]) -> u64 {
+            invoke::<layer<measure<Element>,Element>>(items)
+        }
+        machine main() {
+            let bytes: [u8; 2] = [7u8, 31u8];
+            let measured: u64 = entry::<u8>(@bytes[..]);
+        }
+    "#;
+    let form = callback_form(text).unwrap();
+    assert!(
+        form.static_reach_applications
+            .iter()
+            .flat_map(|row| &row.arguments)
+            .any(|argument| !argument.arguments.is_empty())
+    );
+    let mut wrong = form.clone();
+    let argument = wrong
+        .static_reach_applications
+        .iter_mut()
+        .flat_map(|row| &mut row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap();
+    argument.arguments[0].conformance = argument.conformance;
+    assert!(
+        judge(Ok(wrong)).is_err(),
+        "a different checked application cannot close the callback"
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let effectful = text.replace(
+        "machine measure<Element>(items: @[Element]) -> u64",
+        "machine measure<Element>(items: @[Element]) -> u64 reaches Output",
+    );
+    // An applied template cannot prove a crash-free promise from its fixed
+    // routes when the actual selected callback can trap.
+    let crash = text.replace("u64 { 41u64 }", "u64 crashes Trap { crash Trap; }");
+    let mut crash = callback_form(&crash).expect("an open crash requirement permits the selection");
+    let selected = crash
+        .static_reach_applications
+        .iter()
+        .flat_map(|row| &row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap()
+        .conformance;
+    crash.static_conformances[selected as usize]
+        .required
+        .crash_policy = semantic_vocabulary::CallableCrashPolicy::Closed;
+    let refusal = crate::checking::static_contracts::admit(&crash).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "the nested callback's crash routes need coverage at its invocation"
+    );
+
+    // Lower with an upper bound that genuinely permits Output. Tighten the
+    // exact outer question after lowering to exercise this checker directly.
+    let allowed = effectful.replace("u64 reaches none;", "u64 reaches Output;");
+    let mut effectful = callback_form(&allowed).expect("the nested callback may reach Output");
+    let selected = effectful
+        .static_reach_applications
+        .iter()
+        .flat_map(|row| &row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap()
+        .conformance;
+    effectful.static_conformances[selected as usize]
+        .envelope
+        .service_reach = terminal_check_tables::contracts::StaticServiceCeiling::Closed(Vec::new());
+    let refusal = crate::checking::static_contracts::admit(&effectful).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Conflict, "{refusal:?}");
+    assert_eq!(
+        refusal.detail,
+        "implementation exceeds the static requirement's authored service ceiling"
+    );
+}
+
+#[test]
 fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
     let verdict = judge(callback_form(
         r#"
