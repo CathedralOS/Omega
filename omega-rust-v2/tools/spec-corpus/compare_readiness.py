@@ -32,6 +32,7 @@ from sample_diagnostics import escape
 
 # Ordered for display. The keys are the first column of the tab-separated output.
 GROUPS = {
+    "measurement-blocked": "Cases whose comparison is blocked by measurement",
     "regression": "Previously passing cases that now block",
     "new-blocker": "Newly measured blockers, absent from the earlier report",
     "fixtures-added": "Additional fixtures reached the same refusal; original inputs and stops were preserved",
@@ -273,6 +274,10 @@ def compare(before, after):
         relation = input_relation(*inputs)
         retained_changed = relation != "unknown" and retained_stop_changed(*inputs)
         entry = {"case": key, "before": a, "after": b, "changes": changes, "blocks": (was, now), "relation": relation}
+        if old.get("measurement_blocker") or new.get("measurement_blocker"):
+            entry["changes"] = [*changes, ("measurement blocker", old.get("measurement_blocker"), new.get("measurement_blocker"))]
+            groups["measurement-blocked"].append(entry)
+            continue
         if measured_on_other_input(was, now, changes, relation, retained_changed):
             dropped = inputs[0].keys() - inputs[1].keys()
             outcomes = later_outcomes(dropped, after)
@@ -362,7 +367,8 @@ def accounting(groups, unchanged):
     """Rows that partition each report's blockers; every count comes from one group."""
     still = sum(len(groups[g]) for g in ("stop-changed", "fixtures-added", "witness-changed", "text-only")) + len(unchanged)
     other = [entry["blocks"] for entry in groups["input-replaced"]]
-    return [
+    incomplete = [entry["blocks"] for entry in groups["measurement-blocked"]]
+    rows = [
         ("Blocked in both, same or unrecorded programs", still, still),
         ("Measured on a different program", sum(was for was, _ in other), sum(now for _, now in other)),
         ("No longer blocking while still measured", len(groups["unblocked"]), None),
@@ -370,6 +376,9 @@ def accounting(groups, unchanged):
         ("Regressions of previously passing cases", None, len(groups["regression"])),
         ("Newly measured", None, len(groups["new-blocker"])),
     ]
+    if incomplete:
+        rows.append(("Comparison blocked by measurement", sum(was for was, _ in incomplete), sum(now for _, now in incomplete)))
+    return rows
 
 
 def unrecorded(entries):

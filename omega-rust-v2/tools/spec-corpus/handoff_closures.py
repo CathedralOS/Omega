@@ -3,6 +3,8 @@
 Use the original bare case label, product or checker-input, and all required
 psi-output labels joined by '|'. The mapping is a reviewed assertion of relevance
 for that exact fixture; a related test of a different fixture is not a migration.
+While l5_refusals.tsv is invalid no closure is credited: an open refusal
+registration for the same case cannot be ruled out.
 """
 import csv
 from pathlib import Path
@@ -49,7 +51,14 @@ def apply(report):
     if not closures:
         return
     # Even if an open test disappeared and produced no case, its registration conflicts.
-    open_labels = {label for row in refusal_evidence.registrations() for label in row.gap_labels}
+    # An invalid refusal registry cannot rule that conflict out, so it credits no closure.
+    try:
+        open_labels = {label for row in refusal_evidence.registrations() for label in row.gap_labels}
+        registry_error = None
+    except ValueError as error:
+        open_labels, registry_error = set(), str(error)
+        report["measurement_errors"].append(
+            f"{REGISTRY.name}: {len(closures)} closures not credited because {refusal_evidence.REGISTRY.name} is invalid: {error}")
     assertions = report["lowering_evidence"]["assertions"]
     for case, (scope, labels) in closures.items():
         key = "handoff/" + case
@@ -69,8 +78,15 @@ def apply(report):
         if missing:
             detail = "No passing comparison for " + ", ".join(missing)
             report["measurement_errors"].append(f"{key}: {detail}")
-        report["cases"][key] = {"cohort": "handoff", "stage": "L5", "status": "inspection failed" if missing else STATUS[scope],
+        if registry_error:
+            detail = (f"Closure not credited: {refusal_evidence.REGISTRY.name} is invalid ({registry_error}), "
+                      "so a registered open refusal for this case cannot be ruled out. " + detail)
+        report["cases"][key] = {"cohort": "handoff", "stage": "L5",
+                                "status": "inspection failed" if missing or registry_error else STATUS[scope],
                                 "detail": detail, "required_output_checks": labels, "output_receipts": receipts}
+        if registry_error and not missing:
+            # All outputs were compared. Only registry validation prevents credit.
+            report["cases"][key]["measurement_blocker"] = refusal_evidence.REGISTRY.name
 
 
 def summary(report):

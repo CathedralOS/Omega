@@ -1,9 +1,13 @@
 """Regression checks: an L5 refusal pinned by a green test cannot pass unaccounted."""
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
+import handoff_closures
 import refusal_evidence
 from refusal_evidence import Refusal
-from check_layer_readiness import readiness_exit
+from check_layer_readiness import case_blocks_readiness, readiness_exit
 
 LIMIT = Refusal("tests/contracts.rs", "unsupported_predicate_call_is_refused_at_its_occurrence", "contracts.omg",
                 "unsupported typed contract predicate record", "1", "limitation", "test:call in a contract predicate",
@@ -144,6 +148,92 @@ class RefusalAccountingTests(unittest.TestCase):
         r["last_layer"] = "L4"
         refusal_evidence.apply(r, [])
         self.assertEqual(r["measurement_errors"], [])
+
+    def test_a_duplicate_gap_label_blocks_without_crediting_either_row(self):
+        label = "owned element move"
+        first, second = INVALID._replace(gap="registry:" + label), UNRESOLVED._replace(gap="registry:" + label)
+        rows = [first, second, LIMIT]
+        r = report(refused(first) + refused(second) + refused(LIMIT),
+                   [(row.target, row.test, "ok") for row in rows], gap(LIMIT, "call in a contract predicate"))
+        refusal_evidence.apply(r, rows)
+        self.assertEqual(len(r["measurement_errors"]), 1, r["measurement_errors"])
+        error = r["measurement_errors"][0]
+        self.assertIn("duplicate gap label: " + label, error)
+        self.assertIn(f"{first.target}::{first.test}", error)
+        self.assertIn(f"{second.target}::{second.test}", error)
+        accounting = r["refusal_accounting"]
+        self.assertEqual((accounting["registered"], accounting["credited"], accounting["unclassified"]), (3, [], []))
+        self.assertEqual(len(accounting["unaccounted"]), 2)
+        # The unrelated limitation is still accounted exactly as with a valid registry.
+        self.assertEqual(len(accounting["open"]), 1)
+        self.assertEqual(r["cases"]["handoff/call in a contract predicate"]["refusal_reason"], LIMIT.message)
+        case = r["cases"]["handoff/" + label]
+        self.assertEqual(case["status"], "inspection failed")
+        self.assertTrue(case_blocks_readiness(case))
+        self.assertIn(first.message, case["detail"])
+        self.assertIn(second.message, case["detail"])
+        self.assertEqual(readiness_exit(r), 1)
+        self.assertTrue(any("registry error" in line for line in refusal_evidence.summary(r)))
+
+    def test_a_damaged_registry_file_is_reported_instead_of_raised(self):
+        header = "\t".join([*Refusal._fields[:5], "class", *Refusal._fields[6:]]) + "\n"
+
+        def line(row):
+            return "\t".join(row) + "\n"
+        duplicate = UNRESOLVED._replace(target=LIMIT.target, test=LIMIT.test, file=LIMIT.file, message="other refusal",
+                                        gap="registry:call in a contract predicate")
+        bodies = {
+            "duplicate": (header + line(LIMIT._replace(gap="registry:call in a contract predicate")) + line(duplicate),
+                          "duplicate gap label", True),
+            "malformed": (header + line(LIMIT) + "tests/x.rs\tonly\n", "malformed L5 refusal registration at line 3", False),
+            "header": ("target\ttest\n" + line(LIMIT), "invalid L5 refusal registry header", False),
+            "empty": (header, "empty L5 refusal registry", False),
+        }
+        for name, (body, message, trusted) in bodies.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory, "l5_refusals.tsv")
+                path.write_text(body, encoding="utf-8", newline="")
+                registry = refusal_evidence.read(path)
+                self.assertEqual(registry.trusted, trusted)
+                r = report(refused(LIMIT), [(LIMIT.target, LIMIT.test, "ok")], gap(LIMIT, "call in a contract predicate"))
+                with patch.object(refusal_evidence, "load", return_value=registry):
+                    refusal_evidence.apply(r)
+                self.assertTrue(any(e.startswith("l5_refusals.tsv: " + message) for e in r["measurement_errors"]),
+                                r["measurement_errors"])
+                self.assertEqual(r["refusal_accounting"]["credited"], [])
+                self.assertEqual(r["refusal_accounting"]["open"], [])
+                self.assertEqual(len(r["refusal_accounting"]["unaccounted"]), 1)
+                self.assertEqual(readiness_exit(r), 1)
+
+    def test_the_driver_hooks_read_a_damaged_registry_once_and_credit_no_closure(self):
+        rows = refusal_evidence.registrations()
+        self.assertIs(refusal_evidence.load(), refusal_evidence.load())
+        self.assertEqual(rows, refusal_evidence.load().rows)
+        labelled = next(row for row in rows if row.gap_labels)
+        copy = labelled._replace(test="a_second_registration_of_the_same_label")
+        header = "\t".join([*Refusal._fields[:5], "class", *Refusal._fields[6:]])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "l5_refusals.tsv")
+            path.write_text("\n".join([header, *("\t".join(row) for row in (*rows, copy))]) + "\n",
+                            encoding="utf-8", newline="")
+            refusal_evidence.load.cache_clear()
+            refusal_evidence.registrations.cache_clear()
+            self.addCleanup(refusal_evidence.registrations.cache_clear)
+            self.addCleanup(refusal_evidence.load.cache_clear)
+            r = report([], [])
+            r["lowering_evidence"] = {"assertions": {}}
+            with patch.object(refusal_evidence, "REGISTRY", path), \
+                    patch.object(refusal_evidence, "read", wraps=refusal_evidence.read) as read:
+                refusal_evidence.apply(r)
+                handoff_closures.apply(r)
+                self.assertEqual(read.call_count, 1)
+        self.assertTrue(any(e.startswith("l5_refusals.tsv: duplicate gap label: " + labelled.gap_labels[0])
+                            for e in r["measurement_errors"]), r["measurement_errors"])
+        self.assertTrue(any("closures not credited because l5_refusals.tsv is invalid" in e for e in r["measurement_errors"]))
+        closures = [case for case in r["cases"].values() if "required_output_checks" in case]
+        self.assertTrue(closures)
+        self.assertTrue(all(case["status"] == "inspection failed" for case in closures))
+        self.assertEqual(readiness_exit(r), 1)
 
 if __name__ == "__main__":
     unittest.main()

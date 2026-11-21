@@ -111,6 +111,16 @@ def grouped(before, after):
 
 
 class ReadinessComparisonTests(unittest.TestCase):
+    def test_a_damaged_registry_does_not_turn_a_passing_output_into_a_compiler_regression(self):
+        verified = report({CONFORMANCE: CONFORMANCE_PASSED, IMPORT: CONFORMANCE_PASSED})
+        withheld = {**CONFORMANCE_PASSED, "status": "inspection failed", "measurement_blocker": "l5_refusals.tsv"}
+        damaged = report({CONFORMANCE: withheld, IMPORT: CONFORMANCE_FAILED})
+        for before, after, expected_group, counts in [(verified, damaged, "regression", (0, 1)), (damaged, verified, "unblocked", (1, 0))]:
+            groups, placed, unchanged = grouped(before, after)
+            self.assertEqual(placed, {CONFORMANCE: "measurement-blocked", IMPORT: expected_group})
+            self.assertIn(("Comparison blocked by measurement", *counts), compare.accounting(groups, unchanged))
+            self.assertIn("l5_refusals.tsv", compare.markdown(before, after, groups, unchanged))
+
     def test_a_disappeared_blocker_is_removed_and_never_unblocked(self):
         # 094024Z -> 095021Z: absent from the later report.
         groups, placed, _ = grouped(report({OMITTED: OMITTED_BLOCKED}), report({}))

@@ -21,7 +21,7 @@ def capture(label, expr):
     return f"Running {check.target} (binary)\n---- {check.test} stdout ----\nOMEGA_L5_ASSERT\t{label}\t{expr}\n"
 
 
-def measure(*, statuses=("ok",), join=capture(JOIN, EXPR), scope="product", cases=None, refusals=()):
+def measure(*, statuses=("ok",), join=capture(JOIN, EXPR), scope="product", cases=None, refusals=(), registry_error=None):
     tests = [{"target": CHECKS[label].target, "test": CHECKS[label].test, "status": status}
              for label, outcomes in [(JOIN, statuses), (CALL, ["ok"])] for status in outcomes]
     report = {"last_layer": "L5", "suites": {"L5": {"tests": tests}}, "measurement_errors": [], "cases": dict(cases or {})}
@@ -31,7 +31,8 @@ def measure(*, statuses=("ok",), join=capture(JOIN, EXPR), scope="product", case
         states = lowering.credit_assertions(receipts, lowering.test_results(report), errors)
         report["lowering_evidence"] = {"assertions": {label: dict(check._asdict(), state=states[label], comparison=receipts.get(label))
                                                      for label, check in CHECKS.items()}}
-        with patch.object(closures, "REGISTRY") as registry, patch.object(closures.refusal_evidence, "registrations", return_value=refusals):
+        with patch.object(closures, "REGISTRY") as registry, patch.object(closures.refusal_evidence, "registrations",
+                                                                                       return_value=refusals, side_effect=registry_error):
             registry.open.return_value = StringIO(f"{HEADER}{CASE}\t{scope}\t{JOIN}|{CALL}\n")
             closures.apply(report)
     return report
@@ -75,6 +76,16 @@ class HandoffClosureTests(unittest.TestCase):
             self.assertEqual(report["cases"], cases)
             self.assertTrue(any("conflicts" in error for error in report["measurement_errors"]))
             self.assertNotIn("output_receipts", open_case)
+
+    def test_an_invalid_refusal_registry_credits_no_closure(self):
+        report = measure(registry_error=ValueError("duplicate gap label: example gap"))
+        case = report["cases"][KEY]
+        self.assertEqual(case["status"], "inspection failed")
+        self.assertTrue(case_blocks_readiness(case))
+        self.assertIn("duplicate gap label", case["detail"])
+        self.assertEqual(len(report["measurement_errors"]), 1, report["measurement_errors"])
+        self.assertIn("closures not credited", report["measurement_errors"][0])
+        self.assertEqual(closures.summary(report), [])
 
     def test_registry_rejects_duplicate_cases_conflicting_scopes_and_non_product_labels(self):
         row = f"{CASE}\tproduct\t{JOIN}\n"
