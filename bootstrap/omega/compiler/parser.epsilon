@@ -554,7 +554,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             73 -> reach_tail_token()
             74 -> indexed_index_token()
             76 -> local_data_name_token()
-            77 -> local_data_name_after_mut_token()
+            77 -> local_data_name_after_mutable_token()
             78 -> local_data_colon_token()
             79 -> local_data_initial_value_token()
             80 -> additive_call_argument_token()
@@ -1794,7 +1794,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             source,
             self.scan.token_start,
             self.scan.token_end,
-            "mut"
+            "mutable"
         ) {
             1 -> retain_machine_parameter_leading_mutable()
             _ -> begin_machine_parameter()
@@ -1825,7 +1825,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             source,
             self.scan.token_start,
             self.scan.token_end,
-            "mut"
+            "mutable"
         ) {
             1 -> retain_machine_parameter_leading_mutable()
             _ -> begin_machine_parameter()
@@ -1896,7 +1896,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             source,
             self.scan.token_start,
             self.scan.token_end,
-            "mut"
+            "mutable"
         ) {
             1 -> retain_machine_binding_mutable()
             _ -> machine_binding_write_or_name_identifier()
@@ -3178,9 +3178,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             source,
             self.scan.token_start,
             self.scan.token_end,
-            "mut"
+            "mutable"
         ) {
-            1 -> retain_possible_local_data_mut()
+            1 -> retain_possible_local_data_mutable()
             _ -> retain_local_data_name()
         }
     }
@@ -3201,20 +3201,20 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    state retain_possible_local_data_mut() {
+    state retain_possible_local_data_mutable() {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(77) }
     }
 
-    state local_data_name_after_mut_token() {
+    state local_data_name_after_mutable_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Identifier -> retain_mutable_local_data_name()
-            OmegaTokenKind::Keyword -> local_data_name_after_mut_keyword()
+            OmegaTokenKind::Keyword -> local_data_name_after_mutable_keyword()
             _ -> local_data_colon_token()
         }
     }
 
-    state local_data_name_after_mut_keyword() {
+    state local_data_name_after_mutable_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::SelfType -> local_data_colon_token()
             OmegaKeywordKind::SelfValue -> local_data_colon_token()
@@ -3606,7 +3606,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
     state borrow_access_or_operand_identifier() {
-        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "mut") {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "mutable") {
             1 -> retain_borrow_access(OmegaUnaryOperatorKind::MutableBorrow)
             _ -> borrow_write_or_operand()
         }
@@ -10132,7 +10132,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             source,
             self.scan.token_start,
             self.scan.token_end,
-            "mut"
+            "mutable"
         ) {
             1 -> retain_type_reference_mutable()
             _ -> type_reference_write_or_type_identifier()

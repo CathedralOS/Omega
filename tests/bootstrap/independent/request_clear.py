@@ -21,36 +21,36 @@ from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
 
 CALLER = b"""machine main() -> u8 {
-    let mut request: Request;
+    let mutable request: Request;
     request.length = 1;
     request.observed = 7 as +Trapping;
     request.bytes[65535] = 42;
-    clear(@mut request);
+    clear(@mutable request);
     let canary: u8 = request.bytes[65535];
-    let ok: bool = request.length == 0 && request.observed == 0 && remember(@mut request, canary);
+    let ok: bool = request.length == 0 && request.observed == 0 && remember(@mutable request, canary);
     let result: u8 = request.bytes[0];
     result
 }
-machine remember(request: @mut Request, canary: u8) -> bool {
+machine remember(request: @mutable Request, canary: u8) -> bool {
     request.bytes[0] = canary;
     true
 }
 """
 
 STAGE_CALLER = b"""machine main() -> u8 crashes Trap {
-    let mut request: Request;
-    clear(@mut request);
-    request_stage(@mut request, 42);
+    let mutable request: Request;
+    clear(@mutable request);
+    request_stage(@mutable request, 42);
     request_byte(@request, 0 as +Trapping)
 }
 """
 
 FULL_BUFFER_CALLER = b"""machine main() -> u8 crashes Trap {
-    let mut request: Request;
+    let mutable request: Request;
     request.length = 65536;
     request.observed = 65536 as +Trapping;
     request.bytes[65535] = 42;
-    request_stage(@mut request, 7);
+    request_stage(@mutable request, 7);
     let last: u8 = request.bytes[65535];
     transition request.length == 65536 && request.observed == 65537 && last == 42 {
         true -> pass(),

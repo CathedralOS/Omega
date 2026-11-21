@@ -263,7 +263,7 @@ machine Main::main(&mut self) {
     assert self.parser.call_expressions[1].first_machine_argument == 0;
     assert self.parser.call_expressions[1].machine_argument_count == 1;
     assert self.parser.static_machine_arguments[2].path_member_count == 2;
-    self.parser.parse_view("machine p(builder: @mut Build) { Build::select_provider::<Exit, std\\NativeExit>(builder, alpha_bootstrap); }");
+    self.parser.parse_view("machine p(builder: @mutable Build) { Build::select_provider::<Exit, std\\NativeExit>(builder, alpha_bootstrap); }");
     self.check_complete();
     assert self.parser.call_statements[0].name_member_count == 2;
     assert self.parser.call_statements[0].machine_argument_count == 2;
@@ -349,10 +349,17 @@ machine Main::main(&mut self) {
 
     // These declarations and clear body are exact canonical source bytes;
     // the ordinary caller adds no parser-specific recognition or lowering.
-    self.parser.parse_view("public data SourceId [copy] {\n    value: u32 in Trapping;\n}\n\n\npublic data SourceUnit\nrequires\n    length <= 131072,\n{\n    id: SourceId;\n    bytes: [u8; 131072] in Trapping;\n    length: u64;\n    last_retained: bool;\n}\n\n\nmachine source_unit_clear(source_unit: @mut SourceUnit, id: SourceId) {\n    source_unit.id = id;\n    source_unit.length = 0;\n    source_unit.last_retained = true;\n}\n\nmachine caller() { let mut unit: SourceUnit; let id: SourceId = SourceId { value: 42 as +Trapping }; source_unit_clear(@mut unit, id); }");
+    self.parser.parse_view("public data SourceId [copy] {\n    value: u32 in Trapping;\n}\n\n\npublic data SourceUnit\nrequires\n    length <= 131072,\n{\n    id: SourceId;\n    bytes: [u8; 131072] in Trapping;\n    length: u64;\n    last_retained: bool;\n}\n\n\nmachine source_unit_clear(source_unit: @mutable SourceUnit, id: SourceId) {\n    source_unit.id = id;\n    source_unit.length = 0;\n    source_unit.last_retained = true;\n}\n\nmachine caller() { let mutable unit: SourceUnit; let id: SourceId = SourceId { value: 42 as +Trapping }; source_unit_clear(@mutable unit, id); }");
     self.check_source_unit_clear_rows();
 
-    self.parser.parse_view("machine p() { take(@value, @mut value, @write value); }");
+    self.parser.parse_view("machine p() { let mut x: u8; }");
+    self.check_refused();
+    self.parser.parse_view("machine p(x: @mut P) {}");
+    self.check_refused();
+    self.parser.parse_view("machine p() { take(@mut value); }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { take(@value, @mutable value, @write value); }");
     self.check_complete();
     assert self.parser.call_statement_count == 1;
     assert self.parser.unary_expression_count == 0;
@@ -360,13 +367,13 @@ machine Main::main(&mut self) {
     self.check_borrow_argument(1, 1);
     self.check_borrow_argument(2, 2);
 
-    self.parser.parse_view("machine p() { take(@mut value as -Trapping); }");
+    self.parser.parse_view("machine p() { take(@mutable value as -Trapping); }");
     self.check_borrow_cast(0);
 
-    self.parser.parse_view("machine p() { take(@mut items[0] as -Trapping); }");
+    self.parser.parse_view("machine p() { take(@mutable items[0] as -Trapping); }");
     self.check_borrow_cast(1);
 
-    self.parser.parse_view("machine p() { take(@mut (value as -Trapping)); }");
+    self.parser.parse_view("machine p() { take(@mutable (value as -Trapping)); }");
     self.check_cast_inside_borrow();
 
     self.parser.parse_view("machine p() { take(!@value as -Trapping); }");
@@ -380,7 +387,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { take(@");
     self.check_syntax_refused(20, 20);
 
-    self.parser.parse_view("machine p() { take(@mut ; }");
+    self.parser.parse_view("machine p() { take(@mutable ; }");
     self.check_refused();
 
     self.parser.parse_view("machine p() { take(value); }");
@@ -431,7 +438,7 @@ machine Main::main(&mut self) {
     self.check_record_expression(self.parser.struct_literal_fields[0].value, 0);
     self.check_record_expression(self.parser.struct_literal_fields[1].value, 1);
 
-    self.parser.parse_view("machine p() { take(@mut Packet {left:(7 + read()), right:!false}); }");
+    self.parser.parse_view("machine p() { take(@mutable Packet {left:(7 + read()), right:!false}); }");
     self.check_record_field_frames();
 
     self.parser.parse_view("machine p() { take(Packet {left: Leaf {word:}, right: Leaf {word:9}}); }");
@@ -453,10 +460,10 @@ machine Main::main(&mut self) {
 
     // A domain-removal view keeps its borrow and cast below the indexed
     // place; the selector owns a fresh expression frame.
-    self.parser.parse_view("machine append(source_unit:@mut SourceUnit, byte:u8) { (@mut source_unit.bytes as -Trapping)[source_unit.length] = byte; } machine read(source_unit:@SourceUnit, index:u64 in Trapping)->u8 { (@source_unit.bytes as -Trapping)[index as -Trapping] }");
+    self.parser.parse_view("machine append(source_unit:@mutable SourceUnit, byte:u8) { (@mutable source_unit.bytes as -Trapping)[source_unit.length] = byte; } machine read(source_unit:@SourceUnit, index:u64 in Trapping)->u8 { (@source_unit.bytes as -Trapping)[index as -Trapping] }");
     self.check_domain_view_indices();
 
-    self.parser.parse_view("machine p(){ before(); ((@mut matrix as -D)[rows[next((offset() + 1))]])[column()] = value(); }");
+    self.parser.parse_view("machine p(){ before(); ((@mutable matrix as -D)[rows[next((offset() + 1))]])[column()] = value(); }");
     self.check_nested_index_custody();
 
     self.parser.parse_view("machine p(){ consume(7, Packet { value: (@array as -D)[(next() as -D)] }, 9); }");
@@ -1274,7 +1281,7 @@ machine Main::check_domain_view_indices(&mut self) {
     self.check_index_expression(self.parser.assignment_statements[0].target, 0);
     self.check_view_index_base(0, 0, 1);
     assert self.parser.assignment_statements[0].start == self.parser.indexed_expressions[0].start;
-    assert self.parser.assignment_statements[0].start == 55;
+    assert self.parser.assignment_statements[0].start == 59;
     assert self.parser.assignment_statements[0].end > self.parser.indexed_expressions[0].end;
     self.check_index_expression(self.parser.statements[1].item_index, 1);
     self.check_view_index_base(1, 1, 0);

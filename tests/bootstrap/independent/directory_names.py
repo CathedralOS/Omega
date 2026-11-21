@@ -239,7 +239,7 @@ def quoted_byte_cases(packet):
     for name, source, at, status in [
         ("short", b'machine main()->u8{read("ab",2)}' + index, b"machine main", 2),
         ("invalid-escape", br'machine main()->u8{first("\q")}' + first, br"\q", 1),
-        ("immutable", b'data Cell{value:u8;}machine main()->u8{write("a")}machine write(x:@mut Cell)->u8{x.value=7;42}', b'"a"', 2),
+        ("immutable", b'data Cell{value:u8;}machine main()->u8{write("a")}machine write(x:@mutable Cell)->u8{x.value=7;42}', b'"a"', 2),
     ]:
         wire, rows = packet([source], ["main.omg"])
         yield "quoted-image-" + name, wire, struct.pack("<BII", 0, status, rows[0][1] + source.index(at))
@@ -401,7 +401,7 @@ requires marker <= 7,
 }"""
     caller = b"""use types\\Buffers;
 machine main()->u8{
-    let mut pair:Buffers;
+    let mutable pair:Buffers;
     pair.unit.length=131072;
     pair.path.length=256;
     pair.marker=7;
@@ -438,7 +438,7 @@ machine main()->u8{
     files.extend(copy_declaration(source, name) for name in [b"DependencyRow", b"PackageRow", b"SourceRange", b"DependencyScope"])
     reader = b"""use inputs\\SourceSet;
 machine main()->u8{
- let mut sources:SourceSet;
+ let mutable sources:SourceSet;
  sources.unit_count=512;
  sources.byte_count=4194304;
  sources.path_byte_count=16384;
@@ -467,16 +467,16 @@ def record_reference_cases(encode):
     unit = declaration(text, b"public data SourceUnit\n")
     identifier = declaration(text, b"public data SourceId ")
     clear = declaration(text, b"machine source_unit_clear(")
-    wrapper = b"""public machine clear_unit(unit:@mut SourceUnit,id:SourceId){source_unit_clear(unit,id);}
+    wrapper = b"""public machine clear_unit(unit:@mutable SourceUnit,id:SourceId){source_unit_clear(unit,id);}
 public machine retained(unit:@SourceUnit)->bool{unit.last_retained}
 """
     caller = b"""use store\\SourceUnit;use store\\SourceId;use store\\clear_unit;use store\\retained;
 machine main()->u8{
- let mut unit:SourceUnit;
+ let mutable unit:SourceUnit;
  unit.bytes[7]=42;
  unit.length=11;
  let id:SourceId=SourceId{value:17 as +Trapping};
- clear_unit(@mut unit,id);
+ clear_unit(@mutable unit,id);
  transition retained(@unit) && unit.length==0 && unit.id.value==17 {true->unit.bytes[7],_->0}
 }"""
 
@@ -487,7 +487,7 @@ machine main()->u8{
 
     wire, _, _, _ = packet()
     yield "product-source-unit-forward-reference", wire, 42
-    shared = caller.replace(b"@mut unit,id", b"@unit,id")
+    shared = caller.replace(b"@mutable unit,id", b"@unit,id")
     wire, _, _, rows = packet(main=shared)
     yield "source-unit-readonly-actual", wire, struct.pack("<BII", 0, 2, rows[0][1] + shared.index(b"@unit,id"))
     missing = wrapper.replace(b"unit:@SourceUnit", b"unit:@Missing")
@@ -508,20 +508,20 @@ def evaluated_guard_cases(encode):
         ("guard-call-without-bound", signature + transfer + read + array, (2, b"machine choose")),
     ]
     header = (b"data Cell{value:u8;}"
-              b"machine dirty(c:@mut Cell)->bool{c.value=2;true}"
-              b"machine drive(stable:@Cell,other:@mut Cell)->u8 {"
+              b"machine dirty(c:@mutable Cell)->bool{c.value=2;true}"
+              b"machine drive(stable:@Cell,other:@mutable Cell)->u8 {"
               b"transition stable.value<2 {true->choose(stable,other),_ ->7}"
-              b"machine choose(stable:@Cell,other:@mut Cell)->u8 requires stable.value<2 {")
+              b"machine choose(stable:@Cell,other:@mutable Cell)->u8 requires stable.value<2 {")
     use = (b"transition dirty(other){true->use(stable),_ ->7}}"
            b"machine use(stable:@Cell)->u8 requires stable.value<2 {42}}"
-           b"machine main()->u8{let mut left:Cell;let mut right:Cell;drive(@left,@mut right)}")
+           b"machine main()->u8{let mutable left:Cell;let mutable right:Cell;drive(@left,@mutable right)}")
     cases.append(("guard-call-disjoint-write", header + use, 42))
-    overlap = (b"data Cell{value:u8;}machine dirty(c:@mut Cell)->bool{c.value=2;true}"
-               b"machine drive(c:@mut Cell)->u8{transition c.value<2{true->choose(c),_ ->7}"
-               b"machine choose(c:@mut Cell)->u8 requires c.value<2 {"
+    overlap = (b"data Cell{value:u8;}machine dirty(c:@mutable Cell)->bool{c.value=2;true}"
+               b"machine drive(c:@mutable Cell)->u8{transition c.value<2{true->choose(c),_ ->7}"
+               b"machine choose(c:@mutable Cell)->u8 requires c.value<2 {"
                b"transition dirty(c){true->use(c),_ ->7}}"
-               b"machine use(c:@mut Cell)->u8 requires c.value<2 {42}}"
-               b"machine main()->u8{let mut cell:Cell;drive(@mut cell)}")
+               b"machine use(c:@mutable Cell)->u8 requires c.value<2 {42}}"
+               b"machine main()->u8{let mutable cell:Cell;drive(@mutable cell)}")
     cases.append(("guard-call-overlapping-write", overlap, (2, b"machine drive")))
     # A left conjunct was true before dirty wrote its referent. The target
     # must not recover it from the Boolean value of the whole condition.
@@ -605,24 +605,24 @@ def sum_equality_cases(encode):
          b"transition echo(Mode::First)!=echo(Mode::Second) && "
          b"echo(Mode::Second)==echo(Mode::Second)" + finish + b"}"),
         ("sum-equality-left-observed-before-mutation", carrier +
-         b"data Holder{mode:Mode;}machine change(holder:@mut Holder)->Mode{"
-         b"holder.mode=Mode::Second;holder.mode}machine main()->u8{let mut holder:Holder;"
-         b"holder.mode=Mode::First;let different:bool=holder.mode!=change(@mut holder);"
+         b"data Holder{mode:Mode;}machine change(holder:@mutable Holder)->Mode{"
+         b"holder.mode=Mode::Second;holder.mode}machine main()->u8{let mutable holder:Holder;"
+         b"holder.mode=Mode::First;let different:bool=holder.mode!=change(@mutable holder);"
          b"transition different && holder.mode==Mode::Second" + finish + b"}"),
         ("sum-equality-evaluation-order", carrier +
-         b"data Counter{value:u8;}machine first(counter:@mut Counter)->Mode{"
-         b"counter.value=1;Mode::First}machine second(counter:@mut Counter)->Mode{"
+         b"data Counter{value:u8;}machine first(counter:@mutable Counter)->Mode{"
+         b"counter.value=1;Mode::First}machine second(counter:@mutable Counter)->Mode{"
          b"transition counter.value==1{true->Mode::Second,_->Mode::First}}"
-         b"machine main()->u8{let mut counter:Counter;"
-         b"transition first(@mut counter)!=second(@mut counter)" + finish + b"}"),
+         b"machine main()->u8{let mutable counter:Counter;"
+         b"transition first(@mutable counter)!=second(@mutable counter)" + finish + b"}"),
         ("sum-equality-authorized-effect", carrier +
          b"machine risky()->Mode crashes Trap{Mode::First}"
          b"machine compare()->bool crashes Trap{Mode::First==risky()}"
          b"machine main()->u8 crashes Trap{transition compare()" + finish + b"}"),
         ("sum-equality-loan-independent-place", carrier + b"data Holder{mode:Mode;}"
-         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,Mode::First==Mode::First)}"
-         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
-         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}"),
+         b"machine blocked(holder:@mutable Holder)->bool{transition{_->next(holder,Mode::First==Mode::First)}"
+         b"machine next(holder:@mutable Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mutable holder:Holder;transition blocked(@mutable holder)" + finish + b"}"),
     ]:
         yield name, packet(source)[0], 42
 
@@ -679,9 +679,9 @@ def sum_equality_cases(encode):
          b"machine compare()->bool crashes none{Mode::First==risky()}"
          b"machine main()->u8{42}", b"machine compare", 2),
         ("sum-equality-retains-loans", carrier + b"data Holder{mode:Mode;}"
-         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,holder.mode==Mode::First)}"
-         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
-         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}", b"machine blocked", 1),
+         b"machine blocked(holder:@mutable Holder)->bool{transition{_->next(holder,holder.mode==Mode::First)}"
+         b"machine next(holder:@mutable Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mutable holder:Holder;transition blocked(@mutable holder)" + finish + b"}", b"machine blocked", 1),
         ("sum-equality-retains-copy-check", carrier.replace(b"[copy]", b"") +
          b"machine main()->u8{let a:Mode=Mode::First;transition a==a" + finish + b"}", b"machine main", 2),
     ]:
@@ -797,7 +797,7 @@ def storage_window_cases(encode):
         ("storage-record-last-valid", b"data Region{left:[u8;536870912];right:[u8;536870912];}machine main()->u8{42}"),
         ("storage-payload-last-valid", b"data Region [copy]{case Value(bytes:[u8;1073741816]);}machine main()->u8{42}"),
         ("storage-arena-last-valid", b"data Reserve [copy]{bytes:[u8;1073741808];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}"),
-        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.length>=2 {bytes[1]}machine main()->u8{let mut b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
+        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.length>=2 {bytes[1]}machine main()->u8{let mutable b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
     ]:
         yield name, packet(source)[0], 42
 
@@ -826,12 +826,12 @@ def storage_window_cases(encode):
     # Both complete 45,156,664-byte owners are live at once. Calls touch the
     # final word and an earlier constrained field independently; aliasing or
     # result/parameter backing reuse changes the observable result.
-    main = (b"machine mark(tree:@mut SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
-            b"machine poison(tree:@mut SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
+    main = (b"machine mark(tree:@mutable SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
+            b"machine poison(tree:@mutable SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
             b"machine inspect(a:@SyntaxTrees,b:@SyntaxTrees)->bool{"
             b"a.accepted && !b.accepted && a.root_count==42 && b.root_count==7}"
-            b"machine main()->u8{let mut a:SyntaxTrees;let mut b:SyntaxTrees;"
-            b"mark(@mut a);poison(@mut b);transition inspect(@a,@b){true->42,_->7}}")
+            b"machine main()->u8{let mutable a:SyntaxTrees;let mutable b:SyntaxTrees;"
+            b"mark(@mutable a);poison(@mutable b);transition inspect(@a,@b){true->42,_->7}}")
     yield "storage-product-two-complete-syntax-trees", packet(dependencies + declarations + main)[0], 42
 
 
@@ -848,7 +848,7 @@ def nominal_array_cases(encode):
     definitions = (ROOT / "source/application/construction/main.omg").read_bytes()
     storage = declaration(definitions, b"data ConstructionInput {")
     caller = b"""machine main()->u8{
-    let mut a:ConstructionInput;
+    let mutable a:ConstructionInput;
     a.unit_count=305;
     a.bytes[4194303]=255;
     a.bytes[4194302]=41;
@@ -861,7 +861,7 @@ def nominal_array_cases(encode):
     definitions = (ROOT / "source/subsystems/compiler/alpha/emit.omg").read_bytes()
     emitter = declaration(definitions, b"public data AlphaEmitter {")
     caller = b"""use alpha\\AlphaEmitter;machine main()->u8{
-    let mut a:AlphaEmitter;
+    let mutable a:AlphaEmitter;
     a.bytes[2097151]=42;
     a.labels[10239]=73;
     a.marks[65535]=99;
@@ -873,7 +873,7 @@ def nominal_array_cases(encode):
     storage = b"public data Packet{bytes:[u8;9];tail:u64;}"
     length = b"public machine length(bytes:@[u8])->u64{bytes.length}"
     for name, end in [("borrow-retained-byte-array", b"9"), ("borrow-past-retained-byte-array", b"10")]:
-        main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mut p:Packet;p.bytes[8]=42;p.tail=77;"
+        main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mutable p:Packet;p.bytes[8]=42;p.tail=77;"
                 b"let n:u64=length(@p.bytes[7.." + end + b"]);"
                 b"transition n==2&&p.tail==77{true->p.bytes[8],_->7}}")
         data, _, _, rows = packet([(0, main), (1, length), (1, storage)], ["main.omg", "length.omg", "packet.omg"], "wire")
@@ -883,7 +883,7 @@ def nominal_array_cases(encode):
     # Two directories expose the same spelling and layout. The field's owner
     # file chooses the element identity and declares the indexable extent.
     caller = b"""use types\\Shelf;use left\\Part;machine main()->u8{
-    let mut s:Shelf;
+    let mutable s:Shelf;
     let p:Part=Part{byte:42};
     s.parts[2]=p;
     let saved:Part=s.parts[2];
@@ -1006,20 +1006,20 @@ def predicate_transition_sources():
     yield "predicate-first-true", b"machine main()->u8{transition{true->42,true->7,_ ->1}}", 42
     yield "predicate-effects-ordered", (
         b"data Counter {value:u8;} "
-        b"machine mark(counter:@mut Counter, expected:u8, next:u8)->bool {"
+        b"machine mark(counter:@mutable Counter, expected:u8, next:u8)->bool {"
         b"let answer:bool=counter.value==expected;counter.value=next;answer} "
-        b"machine main()->u8{let mut counter:Counter;transition{"
-        b"mark(@mut counter,9,1)->99,mark(@mut counter,1,2)->counter.value,"
-        b"mark(@mut counter,2,3)->98,_ ->97}}"), 2
+        b"machine main()->u8{let mutable counter:Counter;transition{"
+        b"mark(@mutable counter,9,1)->99,mark(@mutable counter,1,2)->counter.value,"
+        b"mark(@mutable counter,2,3)->98,_ ->97}}"), 2
     yield "predicate-evaluated-once", (
-        b"data Counter {flipped:bool;} machine flip(counter:@mut Counter)->bool {"
+        b"data Counter {flipped:bool;} machine flip(counter:@mutable Counter)->bool {"
         b"let old:bool=counter.flipped;counter.flipped=!old;!old} "
-        b"machine main()->u8{let mut counter:Counter;transition{flip(@mut counter)->selected(counter.flipped),_ ->1}"
+        b"machine main()->u8{let mutable counter:Counter;transition{flip(@mutable counter)->selected(counter.flipped),_ ->1}"
         b"machine selected(flipped:bool)->u8{transition flipped{true->42,_ ->7}}}"), 42
     yield "predicate-short-circuit", (
-        b"data Counter {value:u8;} machine touch(counter:@mut Counter)->bool{counter.value=9;true} "
-        b"machine main()->u8{let mut counter:Counter;transition{"
-        b"false && touch(@mut counter)->98,true || touch(@mut counter)->counter.value,_ ->97}}"), 0
+        b"data Counter {value:u8;} machine touch(counter:@mutable Counter)->bool{counter.value=9;true} "
+        b"machine main()->u8{let mutable counter:Counter;transition{"
+        b"false && touch(@mutable counter)->98,true || touch(@mutable counter)->counter.value,_ ->97}}"), 0
 
     # A refusal tuple is (guest status, exact source-coordinate spelling).
     yield "predicate-nonboolean", b"machine main()->u8{transition{1->42,_ ->0}}", (1, b"1->")
@@ -1032,12 +1032,12 @@ def predicate_transition_sources():
 
     yield "predicate-checked-arrival", (
         b"data B {bytes:[u8;2];} machine choose(index:u64)->u8{transition{index<2->read(index),_ ->0}"
-        b"machine read(index:u64)->u8 requires index<2 {let mut b:B;b.bytes[1]=42;b.bytes[index]}}"
+        b"machine read(index:u64)->u8 requires index<2 {let mutable b:B;b.bytes[1]=42;b.bytes[index]}}"
         b"machine main()->u8{choose(1)}"), 42
     yield "predicate-failed-guard-kills-entry-fact", (
         b"data Cell requires length<=2,{bytes:[u8;2];length:u64;} "
-        b"machine mutate(cell:@mut Cell)->bool{cell.length=2;false} "
-        b"machine choose(cell:@mut Cell)->u8 requires cell.length<2 {transition{mutate(cell)->0,_ ->cell.bytes[cell.length]}} "
+        b"machine mutate(cell:@mutable Cell)->bool{cell.length=2;false} "
+        b"machine choose(cell:@mutable Cell)->u8 requires cell.length<2 {transition{mutate(cell)->0,_ ->cell.bytes[cell.length]}} "
         b"machine main()->u8{0}"), (2, b"machine choose")
 
 
@@ -1188,7 +1188,7 @@ def private_arrival_sources():
     yield 'explicit-too-weak', b"machine choose(index:u64)->u8{transition index<2{true->read(index),_ ->0}"+body.replace(b'->u8{',b'->u8 requires index<=2 {')+b"}"+main, (2,0)
     cyclic=b"machine read(index:u64)->u8{let bytes:[u8;2]=[41,42];transition index<2{true->read(index),_ ->bytes[index]}}"
     yield 'terminal-cycle', b"machine choose(index:u64)->u8{transition index<2{true->read(index),_ ->0}"+cyclic+b"}"+main, (2,151)
-    field=(b"data B requires count<=2,{bytes:[u8;2];count:u64;} machine choose(box:@B,index:u64)->u8{transition index<box.count{true->read(box,index),_ ->0}machine read(box:@B,index:u64)->u8{box.bytes[index]}}machine main()->u8{let mut box:B;box.count=2;box.bytes[1]=42;choose(@box,1)}")
+    field=(b"data B requires count<=2,{bytes:[u8;2];count:u64;} machine choose(box:@B,index:u64)->u8{transition index<box.count{true->read(box,index),_ ->0}machine read(box:@B,index:u64)->u8{box.bytes[index]}}machine main()->u8{let mutable box:B;box.count=2;box.bytes[1]=42;choose(@box,1)}")
     yield 'field-upper-bound', field, 42
     yield 'field-upper-bound-too-wide', field.replace(b'count<=2',b'count<=3'), (2,121)
     yield 'field-upper-bound-inclusive', field.replace(b'index<box.count',b'index<=box.count'), (2,122)
@@ -1212,7 +1212,7 @@ def private_arrival_full_sources():
     functions = b"".join(declaration(syntax, b"public machine " + name + b"(") for name in
         (b"static_integer_is_valid", b"same_type_form", b"syntax_trees_integer_literal"))
     yield "full-product-compile", data + functions + b"machine main()->u8{42}", 42
-    caller = b'machine main()->u8 crashes Trap {let mut store:SyntaxTrees;store.integer_literal_count=2;store.integer_literals[0]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};store.integer_literals[1]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:0u64 as +Trapping,..};let right:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:1u64 as +Trapping,..};let first:IntegerLiteral=syntax_trees_integer_literal(@store,0 as +Trapping);transition first.magnitude==4u64 as +Wrapping && same_type_form(@store,left,right){true->42,_ ->7}}'
+    caller = b'machine main()->u8 crashes Trap {let mutable store:SyntaxTrees;store.integer_literal_count=2;store.integer_literals[0]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};store.integer_literals[1]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:0u64 as +Trapping,..};let right:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:1u64 as +Trapping,..};let first:IntegerLiteral=syntax_trees_integer_literal(@store,0 as +Trapping);transition first.magnitude==4u64 as +Wrapping && same_type_form(@store,left,right){true->42,_ ->7}}'
     yield "full-product-equal", data + functions + caller, 42
     changed = caller.replace(b"magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left", b"magnitude:5u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left")
     assert changed != caller
