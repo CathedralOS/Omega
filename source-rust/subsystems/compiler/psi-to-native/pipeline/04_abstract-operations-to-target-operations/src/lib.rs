@@ -5,6 +5,7 @@ use verified_optimization_input::publication::{
     SemanticEmissionFacts, target_replay::BodyPublication,
 };
 
+mod descriptor_input;
 mod emission_facts;
 mod preparation;
 mod target_lowering;

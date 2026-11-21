@@ -46,6 +46,23 @@ The Rust compiler's front end also separates tokenization, parsing and name
 resolution. Its later stages produce Psi. The Epsilon compiler's executable
 product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compiler/source-to-psi/pipeline)
 
+### Private helper arrivals
+
+A private nested helper with no authored `requires` can infer one unsigned
+parameter interval needed by fixed-array reads. The compiler checks its body
+under that proposed condition, then revisits every ordinary and terminal arrival
+before the owner may emit. Actual argument identities, representation-preserving
+carrier removal, pure terminal guards and recorded mutation effects govern the
+proof. A guarded field's declared upper bound can close `index < count <= extent`.
+
+This provision covers same-owner static arrivals with an acyclic predecessor
+graph. Public/free entries, explicit contracts, uncalled helpers and recursive
+arrivals do not acquire inferred conditions. Ordinary calls currently transport
+literal or existing entry facts. Broader copied-value and call-site inference
+remains `Incomplete`. The constructor regressions named `private-arrival-*`
+check these boundaries, including exact product declarations on the full
+`SyntaxTrees` carrier.
+
 ## Retention inventory
 
 | Retained file | Canonical role | Deletion condition |
@@ -95,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 29,650 lines / 1,170,024 bytes with SHA-256
-`b4fe2af05f4c75957002b913d7601aad47fab7113a089868f95b2f51ecbf5e2a`.
+The manifest materializes 30,311 lines / 1,198,639 bytes with SHA-256
+`2d6109c993f1994c66457b4f4723a37aabcdf56c5e88a8d2b326aca3d579b30d`.
 The manifest itself is 2,905 bytes, SHA-256
-`100e4831ca1f8541d6cfd2794d57822d8b5c6c472964e599b920c2e93d692cd0`;
+`38d2b00abd7fc5fdc533fa8c4aa8767eb6fca32072a29bca5721c5efde21f462`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -513,8 +530,25 @@ argument evaluation. The storage test forwards the final two bytes of the
 construction input and reads the last byte through a nested call.
 [Shared byte slices](shared_byte_slices.epsilon)
 
-Mutable slices, dynamic range endpoints, other domains and structural
-equivalence of separately spelled array value types remain outside this profile.
+A shared incoming slice can also be narrowed with pure, checked `u64`
+endpoints. The compiler proves `start <= end <= source.len` for that exact
+slice; omitted endpoints mean zero and the captured length. Equality admits
+empty views at the end without authorizing a read. The emitted descriptor
+retains the same backing, evaluates start before end exactly once, and stages
+before any callee parameter is overwritten. Nested transfers may narrow an
+incoming shared loan but cannot introduce local array backing.
+
+Mutable slices, effectful or inclusive range endpoints, other domains and
+structural equivalence of separately spelled array value types remain outside
+this profile. Dynamic ranges do not yet supply a derived length to a callee's
+entry contract; that unsupported proof cannot become an assumed fact.
+
+`tests/bootstrap/independent/shared_subranges.py CONSTRUCTOR NEW_DIRECTORY`
+runs normal closed-set requests, then executes accepted tapes on Alpha. It
+covers endpoint order, backing identity, empty/open ranges, argument staging,
+tail reuse and refusal twins. `--product-helpers` additionally requires all
+three unchanged Build-path helper callers to execute; this remains a separate
+acceptance while later guard/call coverage is unfinished.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements of the production `SourceSet`. It checks a copy taken before a write,
@@ -542,7 +576,10 @@ establish bounds at nested arrivals, with pure actual expressions required for
 contract-bearing calls. No private requirement is inferred from a later access.
 An overlapping write or exclusive call invalidates the entry version. Call
 mutation ranges are retained before checking the next operand, including within
-the same expression; disjoint sibling ranges preserve their evidence.
+the same expression; disjoint sibling ranges preserve their evidence. When a transition condition calls a
+machine, its target may use independently established bounds that survived
+the call. The checker discards proof derived from the condition itself and
+checks retained writes before reusing an entry bound.
 The collection is captured before
 the selector and the resulting destination before the RHS; selector mutation
 cannot redirect a pending store. A scoped collection loan remains live during

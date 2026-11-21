@@ -1894,10 +1894,7 @@ pub(crate) mod image_output {
             || artifact.semantic_code_attribution() != image.semantic_code_attribution()
             || artifact.port_effects() != image.port_effects()
             || artifact.boundary_settlements() != image.boundary_settlements()
-            || !crate::object::object_artifact::image_foreign_calls_match_object(
-                artifact,
-                image.foreign_calls(),
-            )
+            || artifact.foreign_calls() != image.foreign_calls()
         {
             return Err(Diagnostic::error(
                 "terminal object and executable image have different semantic or evidence identity",

@@ -10,6 +10,9 @@ path = "src/lib.rs"
 
 [dependencies]
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "../12_selected-form-encoding-to-resolved-layout" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+runtime-abi = { path = "../../targets/runtime-abi" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 installation-admission = { path = "../../verification/installation-admission" }
 physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }

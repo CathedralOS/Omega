@@ -161,7 +161,7 @@ pub fn publish_fragment_object(
     Ok(PublishedFragmentObject { object, runtime })
 }
 
-/// Publish a completed body from its issued object alone.
+/// Prepare the independently issued body for image composition.
 ///
 /// ```compile_fail,E0308
 /// fn substitute_view(view: object_file::ObjectPublication) {
@@ -171,14 +171,8 @@ pub fn publish_fragment_object(
 pub fn emit_fragment_object(
     issued: object_file::PublishedFunctionObject,
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
-    let (publication, replay) = issued.into_parts();
-    let mut object = image_emission::build_function_fragment_object_artifact(publication)
+    let object = image_emission::prepare_object_for_image(issued)
         .map_err(|error| native_artifact_error("fragment object publication", error))?;
-    if let Some(replay) = replay {
-        object
-            .attach_issued_replay(replay)
-            .map_err(|error| vec![error])?;
-    }
     Ok(FragmentObjectProjection { object })
 }
 

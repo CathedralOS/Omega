@@ -1,58 +1,53 @@
 //! Resolve the foreign-call physical plan against current placed instruction
 //! spans. No selected function or earlier executable program is read here.
-use super::carriers::{ObjectArtifact, ObjectForeignCall};
-use super::errors::ObjectError;
 use machine_code::foreign_call_plans::{
     ForeignCallPlanError, InstructionSpanObligation, InstructionSpanSequence,
     PhysicalForeignCallPlan,
 };
 use semantic_vocabulary::MachineId;
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 
-impl From<ForeignCallPlanError> for ObjectError {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForeignCall {
+    pub machine: MachineId,
+    pub owner: CallSiteOwner,
+    pub operation_ordinal: usize,
+    pub binding: target_vocabulary::NormalizedForeignCallBinding,
+    pub provider_execution: machine_code::ExternalExecutionRecord,
+    pub caller_live_bytes: u32,
+    pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
+    pub callback_addresses: Vec<machine_code::CallbackAddressMaterialization>,
+    pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,
+    pub x86_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
+    pub aarch64_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
+    pub text_offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ForeignCallPlacementError {
+    ForeignCallProgramMismatch,
+    InvalidForeignCallSite {
+        caller: MachineId,
+        owner: CallSiteOwner,
+        offset: usize,
+    },
+    Plan(ForeignCallPlanError),
+}
+
+impl From<ForeignCallPlanError> for ForeignCallPlacementError {
     fn from(error: ForeignCallPlanError) -> Self {
-        match error {
-            ForeignCallPlanError::TextSizeOverflow => Self::TextSizeOverflow,
-            ForeignCallPlanError::InvalidForeignCallProjection {
-                caller,
-                owner,
-                reason,
-            } => Self::InvalidForeignCallProjection {
-                caller,
-                owner,
-                reason,
-            },
-            ForeignCallPlanError::InvalidForeignCallArgument {
-                caller,
-                owner,
-                import,
-                parameter,
-                reason,
-                transport,
-            } => Self::InvalidForeignCallArgument {
-                caller,
-                owner,
-                import,
-                parameter,
-                reason,
-                transport,
-            },
-            ForeignCallPlanError::ForeignCallOwnerNotInProvenance { caller, owner } => {
-                Self::ForeignCallOwnerNotInProvenance { caller, owner }
-            }
-            ForeignCallPlanError::DuplicateForeignCallOwner { caller, owner } => {
-                Self::DuplicateForeignCallOwner { caller, owner }
-            }
-        }
+        Self::Plan(error)
     }
 }
+diagnostics::debug_display!(ForeignCallPlacementError);
+impl std::error::Error for ForeignCallPlacementError {}
 
 pub fn derive_normalized_foreign_call_custody(
     plans: &machine_code::foreign_call_plans::PhysicalForeignCallPlans,
     section: &machine_code::RelocationFreeTextSectionPlacement,
-) -> Result<Vec<ObjectForeignCall>, ObjectError> {
+) -> Result<Vec<ObjectForeignCall>, ForeignCallPlacementError> {
     if plans.psi != section.psi || plans.target != section.target {
-        return Err(ObjectError::ForeignCallProgramMismatch);
+        return Err(ForeignCallPlacementError::ForeignCallProgramMismatch);
     }
     plans
         .calls
@@ -98,13 +93,15 @@ pub fn resolve_instruction_sequence(
 pub fn place_foreign_call(
     plan: &PhysicalForeignCallPlan,
     section: &machine_code::RelocationFreeTextSectionPlacement,
-) -> Result<ObjectForeignCall, ObjectError> {
+) -> Result<ObjectForeignCall, ForeignCallPlacementError> {
     let record = &plan.record;
     let owner = CallSiteOwner::from(record.invocation_site);
-    let invalid = |reason| ObjectError::InvalidForeignCallProjection {
-        caller: plan.machine,
-        owner,
-        reason,
+    let invalid = |reason| {
+        ForeignCallPlacementError::from(ForeignCallPlanError::InvalidForeignCallProjection {
+            caller: plan.machine,
+            owner,
+            reason,
+        })
     };
     let mut functions = section
         .functions
@@ -204,22 +201,26 @@ pub fn place_foreign_call(
                 parameter_index: argument.parameter_index,
                 source: argument.source,
                 placement: argument.placement.clone(),
-                code_offset: usize::try_from(offset).map_err(|_| ObjectError::TextSizeOverflow)?,
-                byte_count: usize::try_from(count).map_err(|_| ObjectError::TextSizeOverflow)?,
+                code_offset: usize::try_from(offset)
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
+                byte_count: usize::try_from(count)
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
             })
         })
-        .collect::<Result<_, ObjectError>>()?;
+        .collect::<Result<_, ForeignCallPlacementError>>()?;
     let scalar_result = plan
         .result
         .as_ref()
         .map(|result| {
             let (offset, count) = fragment_instruction_span(fragment, result.instruction)
                 .ok_or_else(|| invalid("scalar result normalization has no emitted span"))?;
-            Ok::<_, ObjectError>(machine_code::ForeignCallScalarResultRecord {
+            Ok::<_, ForeignCallPlacementError>(machine_code::ForeignCallScalarResultRecord {
                 home: result.home,
                 source: result.source.clone(),
-                code_offset: usize::try_from(offset).map_err(|_| ObjectError::TextSizeOverflow)?,
-                byte_count: usize::try_from(count).map_err(|_| ObjectError::TextSizeOverflow)?,
+                code_offset: usize::try_from(offset)
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
+                byte_count: usize::try_from(count)
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
             })
         })
         .transpose()?;
@@ -230,16 +231,17 @@ pub fn place_foreign_call(
                 .ok_or_else(|| invalid("foreign control save has no emitted span"))?;
             let (restore, restore_count) = fragment_instruction_span(fragment, control.restore)
                 .ok_or_else(|| invalid("foreign control restore has no emitted span"))?;
-            Ok::<_, ObjectError>(machine_code::ForeignCallFloatingControlRecord {
+            Ok::<_, ForeignCallPlacementError>(machine_code::ForeignCallFloatingControlRecord {
                 target: section.target,
                 saved_slot_byte_offset: control.saved_slot_byte_offset,
-                save_offset: usize::try_from(save).map_err(|_| ObjectError::TextSizeOverflow)?,
+                save_offset: usize::try_from(save)
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
                 save_byte_count: usize::try_from(save_count)
-                    .map_err(|_| ObjectError::TextSizeOverflow)?,
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
                 restore_offset: usize::try_from(restore)
-                    .map_err(|_| ObjectError::TextSizeOverflow)?,
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
                 restore_byte_count: usize::try_from(restore_count)
-                    .map_err(|_| ObjectError::TextSizeOverflow)?,
+                    .map_err(|_| ForeignCallPlanError::TextSizeOverflow)?,
             })
         })
         .transpose()?;
@@ -269,19 +271,13 @@ pub fn place_foreign_call(
     })
 }
 
-pub(crate) fn image_foreign_calls_match_object(
-    artifact: &ObjectArtifact,
-    image_rows: &[ObjectForeignCall],
-) -> bool {
-    image_rows == artifact.foreign_calls()
-}
 fn callback_address_custody(
     record: &selected_instructions::SelectedNormalizedForeignCall,
     placed: &[machine_code::PlacedCallbackAddressMaterialization],
     caller: MachineId,
     owner: CallSiteOwner,
-) -> Result<Vec<machine_code::CallbackAddressMaterialization>, ObjectError> {
-    let invalid = || ObjectError::InvalidForeignCallSite {
+) -> Result<Vec<machine_code::CallbackAddressMaterialization>, ForeignCallPlacementError> {
+    let invalid = || ForeignCallPlacementError::InvalidForeignCallSite {
         caller,
         owner,
         offset: 0,

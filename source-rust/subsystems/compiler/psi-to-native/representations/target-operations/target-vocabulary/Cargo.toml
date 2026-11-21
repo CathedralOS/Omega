@@ -23,7 +23,6 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 
 runtime-abi = { path = "../../../targets/runtime-abi" }
-terminal-semantics = { path = "../../../../psi-semantics" }
 
 
 optimization-core = { path = "../../optimization-records" }

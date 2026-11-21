@@ -1,6 +1,7 @@
 
 machine AlphaTapeBuffer::initialize(&mut self) {
     self.length = 0;
+    self.literal_span_count = 0;
     self.label_count = 0;
     self.fixup_count = 0;
     self.status = 0;
@@ -1057,7 +1058,8 @@ machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
     }
 
     state check_length() {
-        transition (self.length > 0) && (self.length <= 16777212) {
+        transition (self.length > 0) && (self.length <= 16777212) &&
+            (self.literal_span_count >= 0) && (self.literal_span_count <= 512) {
             true -> clear_starts(0)
             _ -> invalid_length()
         }
@@ -1066,7 +1068,7 @@ machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
     state clear_starts(cursor: i32) {
         transition cursor < self.length {
             true -> clear_start(cursor)
-            _ -> first_scan(0)
+            _ -> first_scan(0, 0)
         }
     }
 
@@ -1077,33 +1079,64 @@ machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
         }
     }
 
-    state first_scan(pc: i32) {
-        transition pc < self.length {
-            true -> first_instruction(pc)
-            _ -> return 1
+    state first_scan(pc: i32, span: i32) {
+        transition span < self.literal_span_count {
+            true -> before_data(pc, span, self.literal_starts[span])
+            _ -> code(pc, span, self.length)
         }
     }
 
-    state first_instruction(pc: i32) {
+    state before_data(pc: i32, span: i32, start: i32) {
+        transition pc == start {
+            true -> skip_data(pc, span, self.literal_ends[span])
+            _ -> code(pc, span, start)
+        }
+    }
+
+    // Every data span must follow its own unconditional jump to the first
+    // instruction after it. No byte inside can become a target or fallthrough.
+    state skip_data(pc: i32, span: i32, end: i32) {
+        transition (pc >= 9) && (end > pc) && (end < self.length) &&
+            (self.instruction_starts[pc - 9] == 1) && (self.bytes[pc - 9] == 12) &&
+            (self.decode_address(pc - 8) == end) {
+            true -> first_scan(end, span + 1)
+            _ -> invalid_instruction(pc, end)
+        }
+    }
+
+    state code(pc: i32, span: i32, limit: i32) {
+        transition (pc >= 0) && (pc < limit) && (limit <= self.length) {
+            true -> first_instruction(pc, span, limit)
+            _ -> finish(pc, span)
+        }
+    }
+    state finish(pc: i32, span: i32) {
+        transition (pc == self.length) && (span == self.literal_span_count) {
+            true -> return 1
+            _ -> invalid_instruction(pc, span)
+        }
+    }
+
+    state first_instruction(pc: i32, span: i32, limit: i32) {
         let opcode: i32 = self.bytes[pc];
         let shape: i32 = alpha_instruction_shape(opcode);
         transition shape {
             0 -> invalid_instruction(pc, opcode)
-            _ -> first_extent(pc, shape % 16)
+            _ -> first_extent(pc, span, limit, shape % 16)
         }
     }
 
-    state first_extent(pc: i32, width: i32) {
-        transition width <= self.length - pc {
-            true -> mark_start(pc, width)
+    state first_extent(pc: i32, span: i32, limit: i32, width: i32) {
+        transition width <= limit - pc {
+            true -> mark_start(pc, span, width)
             _ -> invalid_instruction(pc, width)
         }
     }
 
-    state mark_start(pc: i32, width: i32) {
+    state mark_start(pc: i32, span: i32, width: i32) {
         self.instruction_starts[pc] = 1;
         transition true {
-            true -> first_scan(pc + width)
+            true -> first_scan(pc + width, span)
         }
     }
 
@@ -1118,8 +1151,8 @@ machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
 
 // Replay the completed payload independently of emitter call order. Rebuild
 // its partition, then require every direct jump/call target to land on a
-// reconstructed instruction start. Inline data and implicit zero-filled suffix
-// instructions are deliberately not admitted.
+// reconstructed instruction start. Only declared, jumped-over literal spans
+// have bytes outside that partition.
 machine AlphaTapeBuffer::validate_structure(&mut self) -> i32 {
     transition self.rebuild_instruction_partition() {
         1 -> second_scan(0)
@@ -1128,8 +1161,14 @@ machine AlphaTapeBuffer::validate_structure(&mut self) -> i32 {
 
     state second_scan(pc: i32) {
         transition pc < self.length {
-            true -> second_instruction(pc)
+            true -> second_start(pc)
             _ -> return 1
+        }
+    }
+    state second_start(pc: i32) {
+        transition self.instruction_starts[pc] {
+            1 -> second_instruction(pc)
+            _ -> second_scan(pc + 1)
         }
     }
 

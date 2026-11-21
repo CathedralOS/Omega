@@ -581,6 +581,36 @@ fn check_callback_publication(retain_body_source: bool) {
         object.object().check_bindings(&missing_private),
         Err("object publication changed the closed physical program's private references")
     );
+    if let Some(retained) = object.retained_fragment_source() {
+        let issued = retained.published_object();
+        let sections = issued.sections();
+        let callback = fixture.occurrences[0].callback_thunk_identity();
+        let (symbol, declaration) =
+            object_file::object_function_reference(&sections.object, callback)
+                .expect("the body object already declares the callback before composition");
+        assert_eq!(declaration.section, object_file::SymbolSection::None);
+        let source = retained.publication();
+        let inspect = |relocations: &object_file::RelocationPlan| {
+            object_file::body_object::imports::readback(
+                &source, &sections.object, relocations, &sections.functions,
+            )
+        };
+        assert_eq!(inspect(&sections.relocations).unwrap(), sections.foreign_calls);
+        let (field, _) = sections.relocations.records()
+            .find(|(_, row)| row.symbol_handle == symbol)
+            .expect("the body materializes its callback address");
+        let mut redirected = sections.relocations.clone();
+        let registrar = sections.object.layout.normalized_imports.iter().next().unwrap().symbol;
+        redirected.record_set.records.get_mut(field).symbol_handle = registrar;
+        assert!(matches!(inspect(&redirected), Err(object_file::body_object::Error::Mismatch(
+            "fragment import callback relocation differs"
+        ))));
+        assert_eq!(sections.relocations, *object.relocations());
+        assert_eq!(sections.text_bytes, object.text_bytes());
+        assert_eq!(sections.foreign_calls, object.foreign_calls());
+        assert!(sections.object.check_bindings(&missing_private).is_err());
+        assert!(sections.object.check_bindings(&changed_import).is_err());
+    }
     let calls = &object.foreign_call_plans().calls;
     assert!(
         !calls.is_empty(),

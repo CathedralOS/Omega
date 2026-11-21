@@ -451,10 +451,12 @@ pub(crate) mod capabilities {
                                     ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?,
                                 );
                             }
-                            let Some(invocation) = callable_invocations
-                                .as_ref()
-                                .ok_or_else(malformed)?
-                                .checked_operation(&callable_values, machine_id, operation.id)
+                            let Some(invocation) = callable_values
+                                .checked_operation(
+                                    callable_invocations.as_ref().ok_or_else(malformed)?,
+                                    machine_id,
+                                    operation.id,
+                                )
                                 .map_err(|reason| {
                                     TerminalInterpretError::ScalarApplicationEvaluation(
                                         reason.into(),

@@ -21,6 +21,10 @@ data AlphaTapeBuffer {
     fixup_operands: [i32; 1864134];
     fixup_resolved: [u8; 1864134];
     length: i32;
+    // One immutable literal span per source unit, or one for pooled compilation.
+    literal_starts: [i32; 512];
+    literal_ends: [i32; 512];
+    literal_span_count: i32;
     label_count: i32;
     fixup_count: i32;
     status: i32;

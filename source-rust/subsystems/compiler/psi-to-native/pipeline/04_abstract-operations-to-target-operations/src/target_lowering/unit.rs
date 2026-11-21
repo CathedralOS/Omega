@@ -956,7 +956,7 @@ pub(crate) mod boundary_call {
                     }
                     let catalog = structural_types.catalog();
                     let descriptor_input =
-                        target_operations::descriptor_input_guard_for_call_with_closed_scalars(
+                        crate::descriptor_input::descriptor_input_guard_for_call_with_closed_scalars(
                             foreign,
                             catalog,
                             &scalar_arguments,

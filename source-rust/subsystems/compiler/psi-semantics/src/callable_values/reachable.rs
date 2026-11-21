@@ -12,74 +12,28 @@ pub struct CallableInvocationRoot {
 
 pub type CallableInvocationRoots = Vec<CallableInvocationRoot>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ReachedCallableTarget {
-    Declaration(MachineId),
-    Callable(CallableValuePossibilities),
-    /// The current operation has opaque code, not an absent call edge.
-    Opaque,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReachableCallableInvocation {
-    pub caller: MachineId,
-    pub invocation: CallableInvocation,
-    pub target: ReachedCallableTarget,
-    pub selected_machines: Vec<MachineId>,
-}
-
-impl ReachableCallableInvocation {
-    pub fn targets_are_resolved(&self) -> bool {
-        !self.selected_machines.is_empty()
-            && match &self.target {
-                ReachedCallableTarget::Declaration(_) => true,
-                ReachedCallableTarget::Callable(values) => values.is_resolved(),
-                ReachedCallableTarget::Opaque => false,
-            }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReachableCallableInvocations {
-    pub roots: Vec<MachineId>,
-    pub reached_machines: Vec<MachineId>,
-    pub invocations: Vec<ReachableCallableInvocation>,
-    pub inputs: Vec<(CallableFormalInput, CallableValuePossibilities)>,
-}
-
-impl ReachableCallableInvocations {
-    pub fn site(
-        &self,
-        caller: MachineId,
-        site: CallableInvocationSite,
-    ) -> Option<&ReachableCallableInvocation> {
-        self.invocations
-            .binary_search_by_key(&(caller, site), |row| (row.caller, row.invocation.site))
-            .ok()
-            .map(|position| &self.invocations[position])
-    }
-
+impl CallableValueProgram<'_> {
     /// A missing summary row is allowed only for an authenticated source
     /// occurrence whose control-flow position cannot be reached from entry.
-    pub fn checked_operation(
+    pub fn checked_operation<'summary>(
         &self,
-        program: &CallableValueProgram<'_>,
+        summary: &'summary ReachableCallableInvocations,
         caller: MachineId,
         operation: OperationId,
-    ) -> CallableValueResult<Option<&ReachableCallableInvocation>> {
+    ) -> CallableValueResult<Option<&'summary ReachableCallableInvocation>> {
         let site = CallableInvocationSite::Invocation(InvocationSite::Operation(operation));
-        let source = program.body(caller)?.invocation(site)?;
-        program.validate_occurrence(caller, source)?;
-        if self.reached_machines.binary_search(&caller).is_err() {
+        let source = self.body(caller)?.invocation(site)?;
+        self.validate_occurrence(caller, source)?;
+        if summary.reached_machines.binary_search(&caller).is_err() {
             return Err("callable summary has no established caller entry");
         }
-        if let Some(reached) = self.site(caller, site) {
+        if let Some(reached) = summary.site(caller, site) {
             if &reached.invocation != source {
                 return Err("callable summary changed its exact source occurrence");
             }
             return Ok(Some(reached));
         }
-        let flow = program.flow(caller)?;
+        let flow = self.flow(caller)?;
         let reach = crate::descriptors::descriptor_results::payload_reachability::predecessors(
             flow,
             source.position,
@@ -89,22 +43,6 @@ impl ReachableCallableInvocations {
             return Err("callable summary lost a reached source occurrence");
         }
         Ok(None)
-    }
-
-    pub fn operation(
-        &self,
-        caller: MachineId,
-        operation: OperationId,
-    ) -> CallableValueResult<Option<&ReachableCallableInvocation>> {
-        let mut matches = self
-            .invocations
-            .iter()
-            .filter(|row| row.caller == caller && row.invocation.operation == Some(operation));
-        let first = matches.next();
-        if matches.next().is_some() {
-            return Err("reached callable invocation has an ambiguous operation association");
-        }
-        Ok(first)
     }
 }
 
