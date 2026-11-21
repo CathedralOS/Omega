@@ -33,12 +33,75 @@ pub(super) enum Relation {
     Disjoint,
 }
 
+/// One operand of an authored entry clause that relates two selectors.
+#[derive(Clone, Debug, PartialEq)]
+enum PremiseOperand {
+    /// The entry value of this scalar formal.
+    Formal(ValueId),
+    Integer(num_bigint::BigInt),
+}
+
+/// An entry clause of the form `a == b` or `a != b` over scalar formals and
+/// integer literals, taken from the published `contract.requires`.
+///
+/// Psi fixes a store's disposition before the checker runs, so lowering must
+/// pick an encoding: fill the open vacancy or displace a distinct occupied
+/// element. Such a clause tells lowering which encoding the program means. It
+/// is not a verdict: the clause stays in the published contract, both
+/// selectors stay at their occurrences, and the lowered-form checker must
+/// establish the same relation from that premise
+/// (`wiki/spec/terminal-psi/loans.md#captured-places-and-available-premises`).
+/// Lowering does no premise reasoning beyond this exact clause shape; any other
+/// premise leaves the relation unproved.
+#[derive(Clone, Debug)]
+pub(crate) struct SelectorPremise {
+    left: PremiseOperand,
+    right: PremiseOperand,
+    equal: bool,
+}
+
+/// Collect the selector relations stated directly by `requires` clauses.
+pub(crate) fn selector_premises(
+    requires: &[crate::ContractClause],
+    parameters: &[crate::Parameter],
+) -> Vec<SelectorPremise> {
+    use crate::{Parameter, PredicateOperator, PredicateStep};
+    let operand = |step: &PredicateStep| match step {
+        PredicateStep::Formal(index) => match parameters.get(*index) {
+            Some(Parameter::Scalar(value)) => Some(PremiseOperand::Formal(*value)),
+            _ => None,
+        },
+        PredicateStep::Integer(value) => Some(PremiseOperand::Integer(value.clone())),
+        _ => None,
+    };
+    requires
+        .iter()
+        .filter_map(|clause| {
+            let [left, right, PredicateStep::Apply(operator)] = clause.predicate.as_slice() else {
+                return None;
+            };
+            let equal = match operator {
+                PredicateOperator::Equal => true,
+                PredicateOperator::NotEqual => false,
+                _ => return None,
+            };
+            Some(SelectorPremise {
+                left: operand(left)?,
+                right: operand(right)?,
+                equal,
+            })
+        })
+        .collect()
+}
+
 /// Compare two captured places. View elements match by their evaluated
 /// selector only; each occurrence keeps its own bound obligation and length
 /// observation, so those never decide identity. Distinct literal indices select
-/// disjoint elements. Two unrelated SSA values can select the same element.
+/// disjoint elements. Two unrelated SSA values can select the same element
+/// unless an authored entry clause relates them.
 pub(super) fn relate(
     body: &MachineBody,
+    premises: &[SelectorPremise],
     left: &ProjectedPlace,
     right: &ProjectedPlace,
 ) -> Relation {
@@ -48,7 +111,7 @@ pub(super) fn relate(
     for (a, b) in left.path.iter().zip(&right.path) {
         match (a, b) {
             (PlaceProjection::ViewElement { index: a, .. }, PlaceProjection::ViewElement { index: b, .. }) => {
-                match compare_selectors(body, a.selector, b.selector) {
+                match compare_selectors(body, premises, a.selector, b.selector) {
                     Relation::Same => {}
                     result => return result,
                 }
@@ -64,13 +127,17 @@ pub(super) fn relate(
     }
 }
 
-/// Classify only equality of an SSA value and equality or inequality of literal indices.
+/// Classify congruent selectors as the same and unequal literal indices as
+/// disjoint. Otherwise an authored entry clause that equates or separates
+/// exactly these two selectors decides; every other pair, including selectors
+/// that only arithmetic or a less direct premise would relate, stays unproved.
 fn compare_selectors(
     body: &MachineBody,
+    premises: &[SelectorPremise],
     left: ValueId,
     right: ValueId,
 ) -> Relation {
-    if left == right {
+    if congruent(body, left, right) {
         return Relation::Same;
     }
     let literal = |value: ValueId| {
@@ -90,11 +157,95 @@ fn compare_selectors(
                 Relation::Disjoint
             }
         }
-        _ => Relation::Unproved,
+        _ => premised(body, premises, left, right),
     }
 }
 
-/// The receiver, selector and view carrier of an index through `@mut [T]`.
+/// The relation an authored clause states between these exact selectors.
+/// A formal matches only its own entry value, never a later assignment; a
+/// literal matches only a selector that is that integer constant. Both
+/// selectors must share a scalar type.
+fn premised(
+    body: &MachineBody,
+    premises: &[SelectorPremise],
+    left: ValueId,
+    right: ValueId,
+) -> Relation {
+    if body.values[left.index()].ty != body.values[right.index()].ty {
+        return Relation::Unproved;
+    }
+    let names = |operand: &PremiseOperand, selector: ValueId| match operand {
+        PremiseOperand::Formal(value) => *value == selector,
+        PremiseOperand::Integer(expected) => matches!(
+            &body.values[selector.index()].origin,
+            crate::ValueOrigin::Operation(op)
+                if matches!(&body.operations[op.index()].kind, OperationKind::Constant(crate::ScalarLiteral::Integer(v)) if v == expected)
+        ),
+    };
+    let mut stated = None;
+    for premise in premises {
+        let relates = (names(&premise.left, left) && names(&premise.right, right)) || (names(&premise.left, right) && names(&premise.right, left));
+        // Contradictory clauses leave the store with no single meaning.
+        if relates && stated.replace(premise.equal).is_some_and(|prior| prior != premise.equal) {
+            return Relation::Unproved;
+        }
+    }
+    match stated {
+        Some(true) => Relation::Same,
+        Some(false) => Relation::Disjoint,
+        None => Relation::Unproved,
+    }
+}
+
+/// Two scalar values are congruent when they are the same SSA value, or when
+/// the same pure scalar operation produced each of them from congruent
+/// operands. Equal literals are the operand-free case. These operations read
+/// no storage, so an unchanged operand value is the whole input; a load, a
+/// call or a block parameter never matches another occurrence. The checker
+/// re-derives the same equality from these operations
+/// (`wiki/spec/terminal-psi/fact_validity.md#equality-relations`).
+fn congruent(
+    body: &MachineBody,
+    left: ValueId,
+    right: ValueId,
+) -> bool {
+    if left == right {
+        return true;
+    }
+    if body.values[left.index()].ty != body.values[right.index()].ty {
+        return false;
+    }
+    let operation = |value: ValueId| match &body.values[value.index()].origin {
+        crate::ValueOrigin::Operation(op) => Some(&body.operations[op.index()].kind),
+        _ => None,
+    };
+    let (Some(a), Some(b)) = (operation(left), operation(right)) else {
+        return false;
+    };
+    let all = |a: &[ValueId], b: &[ValueId]| a.len() == b.len() && a.iter().zip(b).all(|(a, b)| congruent(body, *a, *b));
+    match (a, b) {
+        (OperationKind::Constant(a), OperationKind::Constant(b)) => a == b,
+        (OperationKind::Boolean { primitive: p, operands: a }, OperationKind::Boolean { primitive: q, operands: b }) => p == q && all(a, b),
+        (OperationKind::ExactNumericCast { operand: a }, OperationKind::ExactNumericCast { operand: b }) => congruent(body, *a, *b),
+        (
+            OperationKind::TrappingInteger {
+                primitive: p,
+                left: a,
+                right: c,
+            },
+            OperationKind::TrappingInteger {
+                primitive: q,
+                left: b,
+                right: d,
+            },
+        ) => p == q && congruent(body, *a, *b) && congruent(body, *c, *d),
+        (OperationKind::Integer { operation: p, operands: a }, OperationKind::Integer { operation: q, operands: b }) => p == q && all(a, b),
+        _ => false,
+    }
+}
+
+/// The receiver, selector and view carrier of an index through `@mut [T]`,
+/// for a nominal or a scalar element.
 fn receiver(
     expressions: &Expressions<'_>,
     node: usize,
@@ -109,7 +260,10 @@ fn receiver(
         NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
         _ => None,
     })?;
-    crate::lowering::types::mutable_element_view(carrier)?;
+    let scalar = matches!(crate::lowering::types::scalar_element_view(carrier), Some((Access::Mut, _)));
+    if crate::lowering::types::mutable_element_view(carrier).is_none() && !scalar {
+        return None;
+    }
     Some((*base, *selector, carrier.clone()))
 }
 
@@ -176,20 +330,86 @@ pub(super) fn store_element(
         },
         _ => return Err(LoweringError::new(&site, "element store requires an exclusive element view")),
     };
+    if let Ok(scalar) = crate::lowering::types::scalar_carrier(&element) {
+        return store_scalar_element(expressions, place, rhs, &element, scalar, body, flow);
+    }
     let destination = element_place(expressions, place, &element, false, body, flow)?;
     super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site)
 }
 
-/// Check the exact typed element selection, then evaluate the selector once
-/// and observe the same view's length at this occurrence.
-fn element_place(
+/// `view[i] = value` through `@mut [T]` with a scalar `T`: replace one
+/// element in place (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
+/// A scalar element needs no restoration window; the write displaces nothing
+/// with custody. Evaluate the selector, then the value, then observe the same
+/// view's length immediately before the write, which owes `index < length`.
+fn store_scalar_element(
+    expressions: &Expressions<'_>,
+    place: usize,
+    rhs: usize,
+    element: &ValueType,
+    scalar: crate::ScalarType,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<(), LoweringError> {
+    let tree = expressions.tree;
+    let site = site_at(tree, place);
+    let refuse = |message: &str| LoweringError::new(&site, message);
+    let (selector, root) = selected_view(expressions, place, element, false, body)?;
+    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableScalarElementView { element: scalar }) {
+        return Err(refuse("element view descriptor disagrees with its element type"));
+    }
+    let index_ty = expressions
+        .types
+        .id_for(&super::access::INDEX_TYPE)
+        .map_err(|e| refuse(&e.to_string()))?;
+    let OperationResult::Scalar(index) = expressions.lower(selector, &super::access::INDEX_TYPE, body, flow)? else {
+        return Err(refuse("element selector requires a scalar value"));
+    };
+    if body.values[index.index()].ty != index_ty {
+        return Err(refuse("element selector requires a u64 value"));
+    }
+    let OperationResult::Scalar(value) = expressions.lower(rhs, element, body, flow)? else {
+        return Err(refuse("element write requires a scalar value"));
+    };
+    let element_ty = expressions.types.id_for(element).map_err(|e| refuse(&e.to_string()))?;
+    if body.values[value.index()].ty != element_ty {
+        return Err(refuse("element write value disagrees with its element type"));
+    }
+    let OperationResult::Scalar(length) = body.push_operation(
+        OperationOutput::Scalar(index_ty),
+        OperationKind::ElementViewLength { source: root },
+        site.clone(),
+    ) else {
+        unreachable!("a length observation produces a scalar")
+    };
+    let obligation = crate::BoundsObligationId(super::body::next_id(body.diagnostics.bounds.len()));
+    body.diagnostics.bounds.push(site_at(tree, selector));
+    body.push_operation(
+        OperationOutput::Unit,
+        OperationKind::ElementViewWrite {
+            destination: root,
+            path: Vec::new(),
+            index,
+            value,
+            length,
+            obligation,
+        },
+        site,
+    );
+    Ok(())
+}
+
+/// The exact typed selection of one element through a machine-parameter
+/// `@mut [T]`: the exclusive core element primitive, its bound, the view's
+/// exclusive loan and, for a move, the restoration debt. Returns the selector
+/// node and the view's own descriptor.
+fn selected_view(
     expressions: &Expressions<'_>,
     node: usize,
     element: &ValueType,
     moving: bool,
-    body: &mut MachineBody,
-    flow: &mut BlockFlow,
-) -> Result<ProjectedPlace, LoweringError> {
+    body: &MachineBody,
+) -> Result<(usize, crate::PlaceId), LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
     let file = resolved.file;
@@ -264,6 +484,23 @@ fn element_place(
     if body.places[root.index()].origin != crate::PlaceOrigin::Parameter {
         return Err(refuse("element window requires a machine-parameter view"));
     }
+    Ok((selector, root))
+}
+
+/// Check the exact typed element selection, then evaluate the selector once
+/// and observe the same view's length at this occurrence.
+fn element_place(
+    expressions: &Expressions<'_>,
+    node: usize,
+    element: &ValueType,
+    moving: bool,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<ProjectedPlace, LoweringError> {
+    let tree = expressions.tree;
+    let site = site_at(tree, tree.resolved().file.ungroup(node));
+    let refuse = |message: &str| LoweringError::new(&site, message);
+    let (selector, root) = selected_view(expressions, node, element, moving, body)?;
     let element_ty = expressions
         .types
         .id_for(element)

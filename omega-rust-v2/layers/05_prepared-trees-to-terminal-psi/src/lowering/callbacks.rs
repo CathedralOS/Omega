@@ -9,10 +9,15 @@ pub(crate) struct Callback<'a> {
     pub slot: usize,
     pub selection: &'a TypedSignature,
     pub bound: &'a CallableType,
+    /// The applied bound's preconditions over its own formals. Every
+    /// invocation of this binder owes them; the selected machine keeps its own
+    /// premises on its published contract for the checker's refinement.
+    pub requires: Vec<crate::ContractClause>,
 }
 
 impl<'a> Callback<'a> {
     pub fn bind(
+        prepared: &omega_prepared::PreparedTrees<'_>,
         slot: usize,
         selection: &MachineApplication,
         bound: &'a CallableType,
@@ -29,10 +34,8 @@ impl<'a> Callback<'a> {
             || !selection.enclosing_arguments.is_empty()
             || bound.requirement.is_some()
             || bound.has_guarantee
-            || bound.requires
             || bound.reach.as_ref().is_some_and(|r| !r.is_empty())
             || bound.crash_ceiling.as_ref().is_some_and(|r| !r.is_empty())
-            || sig.requires
             || sig.has_guarantee
             || sig.satisfies.is_some()
             || sig.parameters.iter().map(|(_, v)| v).ne(&bound.parameters)
@@ -42,7 +45,15 @@ impl<'a> Callback<'a> {
         {
             return Err(bad());
         }
-        Ok(Self { slot, selection: sig, bound })
+        // The alias signature owns the clauses. Lower them through the same
+        // interface path an open template binder uses, so the two agree.
+        let requires = if bound.requires {
+            let (origin, node) = prepared.typed().callable_origin(&bound.contract).ok_or_else(bad)?;
+            crate::declarations::type_expression::callable_interface(prepared, &origin, node, bound)?.requires
+        } else {
+            Vec::new()
+        };
+        Ok(Self { slot, selection: sig, bound, requires })
     }
     pub fn lower_call(
         &self,
@@ -101,6 +112,7 @@ impl<'a> Callback<'a> {
             result: (self.bound.result != ValueType::NoResult)
                 .then(|| id(&self.bound.result))
                 .transpose()?,
+            requires: self.requires.clone(),
             pause: self.bound.pause,
             terminates: self.bound.terminates,
             empty_reach: self.bound.reach.is_some(),
@@ -142,8 +154,8 @@ pub(crate) fn stored_ceilings<'a>(typed: &'a omega_typed::TypedTrees<'_>) -> Has
 /// Specialize the L3 pause formula of one instance: its fixed term united with,
 /// per callback binder, the selected closed callback's own demand intersected
 /// with that binder's term. A call can carry reach while retaining this envelope.
-/// `None` keeps unsupported routes closed: an unbound or unknown target, any
-/// blocking, and a runtime or stored descriptor that may pause. Only synchronous
+/// `None` keeps unsupported callback routes closed: an unbound or unknown target,
+/// a blocking callback, or a runtime or stored descriptor that may pause. Only synchronous
 /// suspension of known, locally selected targets is admitted.
 pub(crate) fn realized_pause(
     effects: &MachineEffects,
@@ -152,13 +164,14 @@ pub(crate) fn realized_pause(
     summaries: &HashMap<&DeclarationId, &MachineEffects>,
     stored: &HashMap<&omega_typed::Site, bool>,
 ) -> Option<PauseEffects> {
+    // Crash routes have their own invocation checks and instance dependency
+    // rows. A crash ceiling is not a pause demand.
     let known = |sig: &TypedSignature| {
         summaries.get(&sig.machine).copied().filter(|row| {
             !sig.pause.declared().block
                 && !row.pause.block
                 && row.reach.is_empty()
                 && sig.reach.as_ref().is_none_or(Vec::is_empty)
-                && sig.crash_ceiling.as_ref().is_none_or(Vec::is_empty)
         })
     };
     // A selected callback is closed, so its whole demand is its fixed term.
@@ -188,6 +201,7 @@ pub(crate) fn realized_pause(
     for (&slot, &bound) in &effects.callback_pause {
         realized.union(demand(slot)?.intersect(bound));
     }
-    // Blocking stays unsupported until it has its own lowering.
-    (!realized.block).then_some(realized)
+    // A declaration may publish a blocking envelope even if it is not called.
+    // The call consumer still refuses an actual crossing with that envelope.
+    Some(realized)
 }

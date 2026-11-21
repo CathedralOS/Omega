@@ -54,18 +54,26 @@ impl ConstantEvaluation<'_, '_> {
         if slot.direction != SlotDirection::ProgramToProvider {
             return Err(UNSELECTED_SLOT.into());
         }
-        let target = self.target.ok_or(UNSELECTED_SLOT)?;
+        let candidates = || {
+            self.providers.checked.iter().filter(|proof| {
+                std::ptr::eq(proof.trees, self.trees)
+                    && proof.call == call.node
+                    && proof.binding.requirement == slot.requirement
+                    && proof.realization.arguments == slot.arguments
+                    && proof.application.as_ref().map(|selected| &selected.requirement) == application
+            })
+        };
+        let Some(target) = self.target else {
+            // Before target selection a provider checked for this exact call,
+            // slot and application waits for the target it names. Without one
+            // the slot stays unselected.
+            let waiting = candidates().any(|proof| self.applicable_provider(proof, call, None).is_ok());
+            return Err(if waiting { PreparationReason::ProofNeedsTarget } else { UNSELECTED_SLOT }.into());
+        };
         let mut refusal = None;
         let mut selected: Option<(&CheckedProvider<'_, '_>, Option<&TypedCall>)> = None;
-        for proof in self.providers.checked.iter().filter(|proof| {
-            std::ptr::eq(proof.trees, self.trees)
-                && proof.call == call.node
-                && proof.binding.requirement == slot.requirement
-                && proof.realization.arguments == slot.arguments
-                && proof.application.as_ref().map(|selected| &selected.requirement) == application
-                && target.identity() == &proof.target
-        }) {
-            match self.applicable_provider(proof, call, target) {
+        for proof in candidates().filter(|proof| target.identity() == &proof.target) {
+            match self.applicable_provider(proof, call, Some(target)) {
                 Err(reason) => {
                     if refusal.is_none() {
                         refusal = Some(reason);
@@ -103,11 +111,12 @@ impl ConstantEvaluation<'_, '_> {
     /// Judge one candidate without recording anything. The certificate must
     /// realize its own conformance row, match the selected plan, depend only on
     /// observations of the selected target and preserve the positional application.
+    /// Without a target only the target-independent conditions are judged.
     fn applicable_provider<'proof>(
         &self,
         proof: &'proof CheckedProvider<'_, '_>,
         call: &TypedCall,
-        target: &crate::TargetSemantics,
+        target: Option<&crate::TargetSemantics>,
     ) -> Result<Option<&'proof TypedCall>, PreparationReason> {
         let binding = proof.binding;
         let realization = &proof.realization;
@@ -123,19 +132,21 @@ impl ConstantEvaluation<'_, '_> {
         {
             return Err(PreparationReason::ProviderConformanceMismatch);
         }
-        let observation = TargetObservation::SelectedRealization {
-            target: proof.target.clone(),
-            realization: realization.clone(),
-        };
-        if !target.matches_observation(&observation) {
-            return Err(PreparationReason::ProviderTargetPlanMismatch);
-        }
-        if !proof
-            .observations
-            .iter()
-            .all(|observation| target.matches_observation(observation))
-        {
-            return Err(PreparationReason::ProviderProofTargetChanged);
+        if let Some(target) = target {
+            let observation = TargetObservation::SelectedRealization {
+                target: proof.target.clone(),
+                realization: realization.clone(),
+            };
+            if !target.matches_observation(&observation) {
+                return Err(PreparationReason::ProviderTargetPlanMismatch);
+            }
+            if !proof
+                .observations
+                .iter()
+                .all(|observation| target.matches_observation(observation))
+            {
+                return Err(PreparationReason::ProviderProofTargetChanged);
+            }
         }
         let implementation = &binding.implementation;
         if let Some(selected) = &proof.application {

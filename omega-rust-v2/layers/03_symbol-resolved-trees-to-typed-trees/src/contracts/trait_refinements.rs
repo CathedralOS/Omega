@@ -81,6 +81,10 @@ pub(crate) fn check_trait_refinements(
 ) -> Result<(), TypeError> {
     let mut all: Vec<_> = catalog.refinements.values().flatten().cloned().collect();
     all.sort_by_cached_key(|r| (r.site.package.clone(), r.site.file.clone(), r.site.span.get_start_offset()));
+    out.refinement_bases = catalog.trait_parents.iter()
+        .filter(|(id, _)| catalog.refinements.contains_key(**id))
+        .map(|(&id, base)| (id.clone(), base.clone()))
+        .collect();
     out.refinements = all;
     for obligation in &out.obligations {
         if !dependencies.node_is_ready(obligation.node) {
@@ -122,7 +126,7 @@ pub(crate) fn check_trait_refinements(
                         || r.prohibits_suspend && effects.pause.suspend
                         || reach
                             .as_ref()
-                            .is_some_and(|allowed| effects.reach.iter().any(|s| !allowed.contains(s)))
+                            .is_some_and(|allowed| effects.reach.iter().any(|s| !catalog.reach_covers(allowed, s)))
                     {
                         return Err(TypeError::for_site(
                             &obligation.site,

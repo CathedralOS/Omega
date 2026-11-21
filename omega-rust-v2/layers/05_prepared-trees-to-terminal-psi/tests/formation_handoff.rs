@@ -4,9 +4,13 @@
 //!
 //! Each test locates the obligation in the prepared package by kind and source
 //! site, lowers those same prepared trees through the shared helper, and compares
-//! L5's stopping point with that site. No input carrying one of these kinds
-//! reaches Psi yet, so every case pins a located refusal and reports it with
-//! `known_gap`. A refusal is not evidence of output. Where a twin without the
+//! L5's output or stopping point with that site. A plain scalar `ZeroField`
+//! supplies the SSA operand for the omitted declaration slot; `EstablishData`
+//! joins the constructor operands to the result schema's goals. A closed machine
+//! retains the integer argument that each direct width formation must establish.
+//! The indexed record preserves its open and closed formation questions, and a
+//! closed restricted evidence argument preserves the bound and dispatch. Other
+//! inputs below still stop before Psi. A refusal is not evidence of output. Where a twin without the
 //! obligation lowers, its Psi shows the operation at the same site that the
 //! refused input lacks. Where both twins refuse, the stop does not depend on the
 //! obligation at all.
@@ -26,18 +30,26 @@ use omega_lowering::{LoweredPackage, LoweringError, MachineBody, OperationKind, 
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_typed::{ObligationKind, Site, TypingObligation};
 
-/// Prepare one file, read the prepared package, then lower the same trees.
-fn lower<T>(
+use std::ops::Range;
+
+/// Read the obligations and run the requested check on the same prepared trees.
+fn with_prepared<T>(
     file: &str,
     source: &str,
     read: impl FnOnce(&PreparedTrees<'_>) -> T,
-) -> (Vec<TypingObligation>, T, Result<LoweredPackage, LoweringError>) {
+) -> (Vec<TypingObligation>, T) {
     let package = sources::resolve(&[(file, source)]);
     let prepared = prepare_source_package(&package).unwrap_or_else(|error| panic!("{file}: preparation failed: {error:?}\n{source}"));
     let obligations = prepared.typed().obligations.clone();
-    let observed = read(&prepared);
-    let lowered = sources::lower_prepared(&prepared, &[(file, source)]);
-    (obligations, observed, lowered)
+    (obligations, read(&prepared))
+}
+
+fn refusal(file: &str, source: &str, span: Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
+    with_prepared(file, source, |prepared| sources::refuse_prepared(prepared, &[(file, source)], file, span, message))
+}
+
+fn lower(file: &str, source: &str) -> (Vec<TypingObligation>, Result<LoweredPackage, LoweringError>) {
+    with_prepared(file, source, |prepared| sources::lower_prepared(prepared, &[(file, source)]))
 }
 
 fn spelled<'s>(
@@ -62,20 +74,6 @@ fn spells(
     text: &str,
 ) -> bool {
     site.package == "app" && site.file == file && site.span.slice(source.as_bytes()) == Some(text.as_bytes())
-}
-
-fn encloses(
-    outer: &Site,
-    inner: &Site,
-) -> bool {
-    outer.file == inner.file && outer.span.get_start_offset() <= inner.span.get_start_offset() && inner.span.get_end_offset() <= outer.span.get_end_offset()
-}
-
-fn refused(
-    lowered: Result<LoweredPackage, LoweringError>,
-    source: &str,
-) -> LoweringError {
-    lowered.expect_err(&format!("L5 now lowers this input; replace the pin with a Psi comparison:\n{source}"))
 }
 
 /// The one operation of `machine` whose retained site spells `text`.
@@ -120,40 +118,79 @@ fn producer<'a>(
     &body.operations[id.index()].kind
 }
 
-/// L3 hands the omitted `retries` field and its instantiated type to the checker
-/// at the construction. In an executable body L5 stops at exactly that site. The
-/// twin writes the zero and lowers, so the omission alone causes the stop. Its Psi
-/// shows the record establishment with a zero in the `retries` slot that the
-/// omitted form still needs.
 #[test]
-fn an_omitted_field_stops_at_its_construction_while_the_written_zero_lowers() {
+fn zero_field_supplies_the_exact_declared_slot_at_the_construction() {
+    use omega_lowering::{OperationResult, ScalarType, TypeShape};
     let file = "zero_field.omg";
     let omitted = "data Options {count:u8; retries:u16;} machine build(){let options=Options{count:1,..};}";
-    let (obligations, (), lowered) = lower(file, omitted, |_| ());
-    let zero: Vec<_> = obligations
-        .iter()
-        .filter_map(|o| match &o.kind {
-            ObligationKind::ZeroField { field, ty } => Some((o, field, ty)),
-            _ => None,
-        })
-        .collect();
-    let [(obligation, field, ty)] = zero.as_slice() else {
-        panic!("expected one omitted field, found {zero:?}")
-    };
-    assert_eq!(spelled(&obligation.site, file, omitted), "Options{count:1,..}");
-    assert_eq!((field.path.as_str(), ty.to_string()), ("Options::retries", "u16".to_owned()));
-    let error = refused(lowered, omitted);
-    assert_eq!(error.site, obligation.site);
-    assert_eq!(error.message, "construction requires additional establishment evidence");
-    known_gap::report(
-        "omitted field zero in executable construction",
-        "The record construction needs the typed zero of Options::retries in its declared slot",
-        omitted,
-        &error,
-    );
+    let other = omitted.replace("retries:u16", "timeout:u32");
+    let same = omitted.replace("count:u8", "count:u16");
+    let swapped = same.replace("count:1", "retries:1");
+    for (source, names, widths, slot, literal) in [
+        (omitted, ["Options::count", "Options::retries"], [8, 16], 1, "Options{count:1,..}"),
+        (other.as_str(), ["Options::count", "Options::timeout"], [8, 32], 1, "Options{count:1,..}"),
+        (same.as_str(), ["Options::count", "Options::retries"], [16, 16], 1, "Options{count:1,..}"),
+        (swapped.as_str(), ["Options::count", "Options::retries"], [16, 16], 0, "Options{retries:1,..}"),
+    ] {
+        let (_, (site, lowered)) = with_prepared(file, source, |prepared| {
+            let tree = prepared.typed().trees().next().unwrap();
+            let zeros: Vec<_> = prepared.typed().obligations.iter().filter(|o| matches!(o.kind, ObligationKind::ZeroField { .. })).collect();
+            let [obligation] = zeros.as_slice() else { panic!("one ZeroField expected, found {zeros:?}") };
+            let node = obligation.node.node;
+            let construction = tree.construction(node).expect("obligation on the constructor");
+            let [written] = construction.initializers.as_slice() else { panic!("one authored operand") };
+            assert_eq!(written.position, 1 - slot);
+            assert_eq!(tree.resolved().file.span(written.expression).slice(source.as_bytes()), Some(b"1".as_slice()));
+            let declaration = &prepared.typed().record_fields[&construction.owner][slot];
+            assert!(matches!(&obligation.kind, ObligationKind::ZeroField {field, ty} if field == &declaration.declaration && ty == &declaration.ty
+                && field.path == names[slot] && ty.to_string() == format!("u{}", widths[slot])));
+            (obligation.site.clone(), sources::lower_prepared(prepared, &[(file, source)]).unwrap())
+        });
+        assert_eq!(spelled(&site, file, source), literal);
+        if source == omitted || source == other {
+            assert_eq!((site.span.get_start_offset(), site.span.get_end_offset()), (66, 85));
+        }
+        let body = &lowered.machines.iter().find(|m| m.declaration.path == "build").unwrap().body;
+        let [one, zero, establish] = body.operations.as_slice() else { panic!("two operands followed by one construction") };
+        assert_eq!(one.kind, OperationKind::Constant(ScalarLiteral::Integer(1.into())));
+        assert_eq!(spelled(&body.diagnostics.operations[one.id.index()], file, source), "1");
+        assert_eq!(zero.kind, OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+        assert_eq!(body.diagnostics.operations[zero.id.index()], site);
+        assert_eq!(body.diagnostics.operations[establish.id.index()], site);
+        let OperationKind::EstablishRecord {fields} = &establish.kind else { panic!("expected a record") };
+        let OperationResult::Structural(home) = establish.result else { panic!("expected fresh storage") };
+        let schema = lowered.data.iter().find(|d| d.carrier == body.places[home.index()].ty).unwrap();
+        assert_eq!(schema.declaration.path, "Options");
+        assert_eq!(fields.len(), 2);
+        let OperationResult::Scalar(zero_value) = zero.result else { panic!("zero must define an SSA value") };
+        if source == omitted {
+            spec_corpus::observe_handoff!(
+                psi "psi-output/omitted-field-zero",
+                assert_eq!((fields[1].field.path.as_str(), &fields[1].operand), ("Options::retries", &ValueOperand::Scalar(zero_value))),
+            );
+        } else if source == other {
+            spec_corpus::observe_handoff!(
+                psi "psi-output/omitted-timeout-zero",
+                assert_eq!(
+                    (fields[1].field.path.as_str(), &fields[1].operand, lowered.types.get(body.values[zero_value.index()].ty)),
+                    ("Options::timeout", &ValueOperand::Scalar(zero_value), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 32 }))),
+                ),
+            );
+        }
+        for (i, f) in fields.iter().enumerate() {
+            assert_eq!(f.field, schema.fields[i].declaration);
+            assert_eq!(f.field.path, names[i]);
+            let ValueOperand::Scalar(v) = f.operand else { panic!("expected a scalar initializer") };
+            let backing = if i == slot { zero } else { one };
+            assert_eq!(OperationResult::Scalar(v), backing.result);
+            assert_eq!(body.values[v.index()].origin, ValueOrigin::Operation(backing.id));
+            assert_eq!(body.values[v.index()].ty, schema.fields[i].carrier);
+            assert_eq!(lowered.types.get(schema.fields[i].carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer {signed:false, width:widths[i]})));
+        }
+    }
 
     let written = omitted.replace("count:1,..", "count:1,retries:0");
-    let (obligations, (), lowered) = lower(file, &written, |_| ());
+    let (obligations, lowered) = lower(file, &written);
     assert!(
         !obligations
             .iter()
@@ -168,27 +205,157 @@ fn an_omitted_field_stops_at_its_construction_while_the_written_zero_lowers() {
         panic!("expected both declared slots, found {fields:?}")
     };
     assert_eq!([count.field.path.as_str(), retries.field.path.as_str()], ["Options::count", "Options::retries"]);
+    assert_eq!(producer(body, &count.operand), &OperationKind::Constant(ScalarLiteral::Integer(1.into())));
     assert_eq!(producer(body, &retries.operand), &OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+    let (_, written_zero) = operation_spelled(&package, "build", &written, "0");
+    assert!(matches!(written_zero.result, OperationResult::Scalar(v) if retries.operand == ValueOperand::Scalar(v)));
 }
 
-/// `EstablishData` sits on the construction of a predicate-bearing record and on a
-/// bare case of a predicate-bearing sum. A value that satisfies the predicate and
-/// one that violates it stop at the same site with the same message, so the stop is
-/// not a verdict on the predicate. Removing the predicate removes the obligation and
-/// the same construction lowers to its establishment operation.
 #[test]
-fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_the_predicate() {
+fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
+    use omega_lowering::{CallTarget, OperationResult, ScalarType, TypeShape};
+    let file = "case_zero.omg";
+    let source = "data Choice{case First(x:u8,flag:bool,y:u8); case Other(flag:bool);}
+        machine left()->u8{1} machine right()->u8{2}
+        machine build(){let choice=Choice::First{y:right(),x:left(),..};}";
+    let (obligations, lowered) = lower(file, source);
+    let zeros: Vec<_> = obligations.iter().filter(|o| matches!(&o.kind, ObligationKind::ZeroField {..})).collect();
+    let [zero] = zeros.as_slice() else { panic!("one omitted payload field") };
+    assert!(matches!(&zero.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::Bool} if field.path == "Choice::First::flag"));
+    assert_eq!(spelled(&zero.site, file, source), "Choice::First{y:right(),x:left(),..}");
+    let package = lowered.unwrap();
+    let machine = |path| package.machines.iter().find(|m| m.declaration.path == path).unwrap();
+    let body = &machine("build").body;
+    let [right, left, flag, construct] = body.operations.as_slice() else { panic!("two calls, one zero, one constructor") };
+    for (op, target, text) in [(right, "right", "right()"), (left, "left", "left()")] {
+        assert!(matches!(op.kind, OperationKind::Call {callee: CallTarget::Machine(id), ..} if id == machine(target).id));
+        assert_eq!(spelled(&body.diagnostics.operations[op.id.index()], file, source), text);
+    }
+    assert_eq!(flag.kind, OperationKind::Constant(ScalarLiteral::Boolean(false)));
+    assert_eq!(body.diagnostics.operations[flag.id.index()], zero.site);
+    assert_eq!(body.diagnostics.operations[construct.id.index()], zero.site);
+    let OperationKind::EstablishCase {case, fields} = &construct.kind else { panic!("expected case construction") };
+    assert_eq!(case.path, "Choice::First");
+    let OperationResult::Structural(home) = construct.result else { panic!("expected a constructed Choice") };
+    let schema = package.data.iter().find(|d| d.declaration.path == "Choice").unwrap();
+    assert_eq!(body.places[home.index()].ty, schema.carrier);
+    let active = schema.cases.iter().find(|c| &c.declaration == case).expect("case belongs to Choice");
+    assert_eq!((fields.len(), active.fields.len()), (3, 3));
+    assert_eq!(package.types.get(active.fields[1].carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Boolean)));
+    let expected = [("Choice::First::x", left), ("Choice::First::flag", flag), ("Choice::First::y", right)];
+    for ((field, declared), (path, backing)) in fields.iter().zip(&active.fields).zip(expected) {
+        assert_eq!(field.field.path, path);
+        assert_eq!(field.field, declared.declaration);
+        let ValueOperand::Scalar(v) = field.operand else { panic!("expected scalar input for {path}") };
+        assert_eq!(OperationResult::Scalar(v), backing.result);
+        assert_eq!(body.values[v.index()].ty, declared.carrier, "carrier for {path}");
+    }
+}
+
+/// `..` supplies no borrowed reference, so an omitted `@u8` field makes the
+/// construction invalid no matter what a checker could prove: no zero of that
+/// type borrows nothing. Changing only the field type to `u8` lets the same
+/// literal lower with the zero in the `handle` slot.
+#[test]
+fn zero_field_cannot_supply_a_reference() {
+    let file = "zero_field.omg";
+    let literal = "Options{count:1,..}";
+    let source = "data Options{count:u8;handle:@u8;} machine build(){let options=Options{count:1,..};}";
+    let (obligations, error) = refusal(file, source, sources::unique_span(source, literal),
+        "omitted field `Options::handle` of type `@u8` needs a borrowed reference, which `..` never supplies");
+    assert!(obligations.iter().any(|o| matches!(o.kind, ObligationKind::ZeroField {..}) && o.site == error.site));
+    assert!(
+        obligations
+            .iter()
+            .any(|o| matches!(&o.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::Reference(..)} if field.path == "Options::handle"))
+    );
+    let scalar = source.replace("handle:@u8", "handle:u8");
+    let (_, lowered) = lower(file, &scalar);
+    let package = lowered.unwrap_or_else(|error| panic!("the scalar twin lowers: {error:?}"));
+    let body = &package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "build")
+        .unwrap()
+        .body;
+    // The zero and the record both report the literal's site; select the record.
+    let records: Vec<_> = body
+        .operations
+        .iter()
+        .filter_map(|op| match &op.kind {
+            OperationKind::EstablishRecord { fields } if spells(&body.diagnostics.operations[op.id.index()], file, &scalar, literal) => Some(fields),
+            _ => None,
+        })
+        .collect();
+    let [fields] = records.as_slice() else {
+        panic!("expected one record establishment at {literal}, found {records:?}")
+    };
+    let [count, handle] = fields.as_slice() else {
+        panic!("expected both declared slots, found {fields:?}")
+    };
+    assert_eq!([count.field.path.as_str(), handle.field.path.as_str()], ["Options::count", "Options::handle"]);
+    assert_eq!(producer(body, &handle.operand), &OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+}
+
+fn result_schema<'a>(package: &'a LoweredPackage, body: &MachineBody, op: &PsiOperation) -> &'a omega_lowering::LoweredData {
+    let omega_lowering::OperationResult::Structural(home) = op.result else { panic!("expected structural result") };
+    let carrier = body.places[home.index()].ty;
+    let Some(omega_lowering::TypeShape::Nominal(id)) = package.types.get(carrier) else { panic!("expected nominal result") };
+    let schema = &package.data[id.get() - 1];
+    assert_eq!(schema.carrier, carrier);
+    schema
+}
+
+#[test]
+fn omitted_operand_is_the_subject_of_the_independent_declaration_goal() {
+    use omega_lowering::{PredicateOperator, PredicateStep};
+    let source = "data Options requires self.n>0 {count:u8;n:u8;} machine build(){let options=Options{count:1,..};}";
+    // Same constructor, operands and carriers; change only which slot `self` selects.
+    for (source, slot) in [(source.to_owned(), 1), (source.replace("self.n", "self.count"), 0)] {
+        let (obligations, product) = lower("zero_field.omg", &source);
+        let package = product.unwrap();
+        let body = &package.machines[0].body;
+        let [one, zero, op] = body.operations.as_slice() else { panic!("written, omitted and constructed") };
+        let site = &body.diagnostics.operations[op.id.index()];
+        assert_eq!(spelled(site, "zero_field.omg", &source), "Options{count:1,..}");
+        assert!(obligations.iter().any(|o| &o.site == site && matches!(&o.kind, ObligationKind::EstablishData(id) if id.path == "Options")));
+        assert!(obligations.iter().any(|o| &o.site == site && matches!(&o.kind, ObligationKind::ZeroField {field,..} if field.path == "Options::n")));
+        let schema = result_schema(&package, body, op);
+        let OperationKind::EstablishRecord { fields } = &op.kind else { panic!("expected record") };
+        let [count, n] = fields.as_slice() else { panic!("expected two slots") };
+        assert_eq!((&count.field, &n.field), (&schema.fields[0].declaration, &schema.fields[1].declaration));
+        assert_eq!((count.field.path.as_str(), n.field.path.as_str()), ("Options::count", "Options::n"));
+        assert_eq!(producer(body, &count.operand), &one.kind);
+        assert_eq!(producer(body, &n.operand), &zero.kind);
+        assert_eq!(one.kind, OperationKind::Constant(ScalarLiteral::Integer(1.into())));
+        assert_eq!(zero.kind, OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+        let [goal] = schema.requires.as_slice() else { panic!("expected one goal") };
+        let expected = [PredicateStep::SelfValue, PredicateStep::Field(fields[slot].field.clone()), PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)];
+        if slot == 1 {
+            spec_corpus::observe_handoff!(psi "psi-output/omitted-establishment-goal",
+                assert_eq!((&goal.predicate[..], producer(body, &fields[slot].operand)), (&expected[..], &OperationKind::Constant(ScalarLiteral::Integer(0.into())))),
+            );
+        } else {
+            assert_eq!(goal.predicate, expected);
+        }
+    }
+}
+
+/// Both literal values owe the same goal; the checker receives different actuals.
+#[test]
+fn executable_constructions_select_their_own_default_domain_goals() {
+    use omega_lowering::{PredicateOperator, PredicateStep};
     let file = "establish.omg";
     let record = ("data Positive requires self.n > 0 {n:u8;}", "data Positive {n:u8;}", "Positive");
     let sum = ("data Mode requires true {case On; case Off;}", "data Mode {case On; case Off;}", "Mode");
-    let mut reported = false;
     for ((declaration, plain, owner), construction) in [
         (record, "Positive{n:1}"),
         (record, "Positive{n:0}"),
         (sum, "Mode::On"),
+        (sum, "Mode::Off"),
     ] {
         let source = format!("{declaration} machine make(){{let value={construction};}}");
-        let (obligations, (), lowered) = lower(file, &source, |_| ());
+        let (obligations, product) = lower(file, &source);
         let establish: Vec<_> = obligations
             .iter()
             .filter(|o| matches!(o.kind, ObligationKind::EstablishData(_)))
@@ -201,21 +368,45 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
             "{obligation:?}"
         );
         assert_eq!(spelled(&obligation.site, file, &source), construction);
-        let error = refused(lowered, &source);
-        assert_eq!(error.site, obligation.site, "{construction}");
-        assert_eq!(error.message, "construction requires additional establishment evidence", "{construction}");
-        if !reported {
-            reported = true;
-            known_gap::report(
-                "establishment evidence in executable construction",
-                "The construction needs the establishment of its declaration predicate for the checker",
-                &source,
-                &error,
-            );
+        let package = product.unwrap();
+        let (body, op) = operation_spelled(&package, "make", &source, construction);
+        assert_eq!(body.diagnostics.operations[op.id.index()], obligation.site);
+        let schema = result_schema(&package, body, op);
+        assert_eq!(schema.declaration.path, owner);
+        let [goal] = schema.requires.as_slice() else { panic!("expected one establishment goal") };
+        match &op.kind {
+            OperationKind::EstablishRecord { fields } => {
+                let [field] = fields.as_slice() else { panic!("one field operand") };
+                assert_eq!(field.field, schema.fields[0].declaration);
+                assert_eq!(field.field.path, "Positive::n");
+                let predicate = [PredicateStep::SelfValue, PredicateStep::Field(field.field.clone()), PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)];
+                if construction == "Positive{n:1}" {
+                    spec_corpus::observe_handoff!(psi "psi-output/establish-positive-one",
+                        assert_eq!((&goal.predicate[..], producer(body, &field.operand)), (&predicate[..], &OperationKind::Constant(ScalarLiteral::Integer(1.into())))),
+                    );
+                } else {
+                    spec_corpus::observe_handoff!(psi "psi-output/establish-positive-zero",
+                        assert_eq!((&goal.predicate[..], producer(body, &field.operand)), (&predicate[..], &OperationKind::Constant(ScalarLiteral::Integer(0.into())))),
+                    );
+                }
+            }
+            OperationKind::EstablishCase { case, fields } => {
+                assert!(fields.is_empty());
+                assert_eq!(case.path, construction);
+                if construction == "Mode::On" {
+                    spec_corpus::observe_handoff!(psi "psi-output/establish-mode-on",
+                        assert_eq!((case, &goal.predicate[..]), (&schema.cases[0].declaration, &[PredicateStep::Boolean(true)][..])),
+                    );
+                } else {
+                    assert_eq!(case, &schema.cases[1].declaration);
+                    assert_eq!(goal.predicate, [PredicateStep::Boolean(true)]);
+                }
+            }
+            other => panic!("unexpected constructor {other:?}"),
         }
 
         let source = source.replace(declaration, plain);
-        let (obligations, (), lowered) = lower(file, &source, |_| ());
+        let (obligations, lowered) = lower(file, &source);
         assert!(
             !obligations
                 .iter()
@@ -224,6 +415,7 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
         );
         let package = lowered.unwrap_or_else(|error| panic!("{construction}: the predicate-free twin lowers: {error:?}"));
         let (body, operation) = operation_spelled(&package, "make", &source, construction);
+        assert!(result_schema(&package, body, operation).requires.is_empty());
         match (&operation.kind, owner) {
             (OperationKind::EstablishRecord { fields }, "Positive") => {
                 let [field] = fields.as_slice() else {
@@ -233,19 +425,13 @@ fn establishment_stops_at_its_construction_whether_or_not_the_value_satisfies_th
                 let value = if construction.contains("n:1") { 1 } else { 0 };
                 assert_eq!(producer(body, &field.operand), &OperationKind::Constant(ScalarLiteral::Integer(value.into())));
             }
-            (OperationKind::EstablishCase { case, fields }, "Mode") => assert_eq!((case.path.as_str(), fields.len()), ("Mode::On", 0)),
+            (OperationKind::EstablishCase { case, fields }, "Mode") => assert_eq!((case.path.as_str(), fields.len()), (construction, 0)),
             (other, _) => panic!("{construction}: unexpected establishment {other:?}"),
         }
     }
 }
 
-/// The domain's access clause carries the selected plan machine for evaluation.
-/// L5 stops at that clause, the obligation's own site, before any declaration
-/// could retain the domain, policy or plan machine.
-#[test]
-fn an_access_plan_stops_at_its_own_policy_clause() {
-    let file = "access_plan.omg";
-    let source = "use omega\\language\\core;
+const ACCESS_PLAN: &str = "use omega\\language\\core;
                   use omega\\language\\core\\reflect;
                   use omega\\language\\core\\access;
                   domain i32::Locked access Rule;
@@ -254,7 +440,14 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
                           new_plan::<'t>(@schema, Issuance::Unrestricted{})
                       }
                   }";
-    let (obligations, (), lowered) = lower(file, source, |_| ());
+
+/// The domain's access clause carries the selected plan machine for evaluation.
+/// L5 stops at that clause before it publishes a governed domain.
+#[test]
+fn an_access_plan_stops_at_its_own_policy_clause() {
+    let file = "access_plan.omg";
+    let source = ACCESS_PLAN;
+    let (obligations, error) = refusal(file, source, sources::unique_span(source, "access Rule"), "unsupported domain member: Access");
     let plans: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
@@ -267,90 +460,251 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
     };
     assert_eq!((domain.path.as_str(), machine.path.as_str()), ("i32::Locked", "Rule::plan"));
     assert_eq!(spelled(&obligation.site, file, source), "access Rule");
-    let error = refused(lowered, source);
     assert_eq!(error.site, obligation.site);
     assert_eq!(error.message, "unsupported domain member: Access");
     known_gap::report(
         "access plan evaluation at its domain",
-        "The domain needs its policy, arguments and plan machine for evaluation",
+        "Typing selects Rule::plan, but preparation has not supplied its evaluated result on the domain schema",
         source,
         &error,
     );
 }
 
-/// L3 infers the closed application `sum<13>` and records positivity of the open
-/// width at each `u<N>` occurrence in the template. L3 itself rejects a closed zero
-/// width. L5 stops at the template's declaration while planning the instance, so
-/// neither the closed application nor the open obligation reaches Psi.
+/// The same evaluation request can have two different issuance operands. Neither
+/// the request nor the imported constructor's postconditions are its result.
 #[test]
-fn an_open_width_stops_at_its_closed_const_application() {
+fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
+    let only = ACCESS_PLAN.replace("Unrestricted{}", "Only{..}");
+    // The exact bytes of target/l5owner/policy/empty/access_plan.omg.
+    let empty = ACCESS_PLAN.replace("Unrestricted{}", "Only{routes: []}");
+    for (source, case) in [
+        (ACCESS_PLAN, "Issuance::Unrestricted"),
+        (only.as_str(), "Issuance::Only"),
+        (empty.as_str(), "Issuance::Only"),
+    ] {
+        with_prepared("policy.omg", source, |prepared| {
+            let typed = prepared.typed();
+            let [selection] = typed.access_policies.as_slice() else {
+                panic!("expected one access selection")
+            };
+            assert_eq!(spelled(&selection.site, "policy.omg", source), "access Rule");
+            assert_eq!(
+                (selection.domain.path.as_str(), selection.policy.path.as_str(), selection.plan_machine.path.as_str()),
+                ("i32::Locked", "Rule", "Rule::plan")
+            );
+            assert!(selection.arguments.is_empty());
+            let core = omega_toolchain::core_interface();
+            let row = typed
+                .conformance_rows
+                .iter()
+                .find(|row| row.conformance.as_ref() == Some(&selection.policy) && &row.requirement.declaration == core.access_plan_requirement())
+                .unwrap();
+            assert_eq!(row.implementation, selection.plan_machine);
+            let calls: Vec<_> = typed.calls.iter().filter(|call| call.caller.as_ref() == Some(&selection.plan_machine)).collect();
+            let [call] = calls.as_slice() else {
+                panic!("expected one plan constructor call")
+            };
+            assert_eq!(&call.machine, core.id("access\\new_plan"));
+            let [schema, issuance] = call.operands.as_slice() else {
+                panic!("expected schema and issuance arguments")
+            };
+            assert_eq!(spelled(&schema.site, "policy.omg", source), "@schema");
+            let tree = typed.trees().nth(issuance.node.file).unwrap();
+            let construction = tree.construction(issuance.node.node).unwrap();
+            assert_eq!(&construction.owner, core.id("Issuance"));
+            assert_eq!(construction.case.as_ref(), Some(core.id(case)));
+            // Only the explicit spelling writes `routes`. Its `[]` is the declared
+            // owned `[CallableInfo<'t>]` field at the constructed issuance's own
+            // `'t`, with no elements; it is not a view and not a `[T; 0]` value.
+            let written: Vec<_> = construction
+                .initializers
+                .iter()
+                .map(|field| field.expression)
+                .collect();
+            if source == empty {
+                use omega_typed::ValueType::{Applied, Slice};
+                let [routes] = written.as_slice() else {
+                    panic!("expected the written routes field, found {written:?}")
+                };
+                assert_eq!(tree.resolved().file.span(*routes).slice(source.as_bytes()), Some(&b"[]"[..]));
+                assert!(tree.resolved().file.nodes[*routes].children.is_empty());
+                let Applied(_, lifetime) = &construction.carrier else {
+                    panic!("Issuance is applied to its lifetime")
+                };
+                let published: Vec<_> = tree
+                    .semantics_at(*routes)
+                    .filter_map(|record| match record {
+                        omega_typed::NodeSemantics::Expression(expression) => Some(expression.ty.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                let element = Applied(Box::new(core.id(r"reflect\CallableInfo").clone()), lifetime.clone());
+                assert_eq!(published, [Slice(Box::new(element))]);
+            } else {
+                assert!(written.is_empty(), "{case} writes no field: {written:?}");
+            }
+
+            let library = typed.library.unwrap();
+            let signature = library.signatures.iter().find(|s| s.machine == call.machine).unwrap();
+            let declaration = library.trees().nth(signature.node.file).unwrap();
+            assert!(declaration.resolved().file.child(signature.node.node, omega_parser::NodeKind::Body).is_none());
+            assert!(typed.obligations.iter().any(|o| {
+                o.site == signature.site && matches!(&o.kind, ObligationKind::VerifyLibraryImplementation(id) if id == &call.machine)
+            }));
+        });
+    }
+}
+
+/// With the selection removed, lowering still has to package the declared plan
+/// template. Its call does not name a local machine in this package.
+#[test]
+fn an_unselected_policy_template_still_calls_the_library_constructor() {
+    let source = ACCESS_PLAN.replace(" access Rule;", ";");
+    let constructor = "new_plan::<'t>(@schema, Issuance::Unrestricted{})";
+    let (obligations, error) = refusal(
+        "unused.omg", &source, sources::unique_span(&source, constructor), "template call needs its packaged declaration",
+    );
+    assert!(!obligations.iter().any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. })));
+    assert_eq!(spelled(&error.site, "unused.omg", &source), constructor);
+}
+
+/// Positive Psi controls only for the policy-free carrier. `Unrestricted`
+/// would still require an evaluated policy; it is not this declaration.
+#[test]
+fn removing_the_policy_and_its_implementation_leaves_the_exact_plain_carrier() {
+    let (prefix, _) = ACCESS_PLAN.split_once(" access Rule;").unwrap();
+    let plain = format!("{prefix};");
+    let domains = [plain.clone(), plain.replace("i32::Locked", "u32::Locked")].map(|source| {
+        let (obligations, product) = lower("plain.omg", &source);
+        assert!(!obligations.iter().any(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. })));
+        let package = product.unwrap();
+        let [domain] = package.domains.as_slice() else {
+            panic!("expected one plain domain")
+        };
+        assert_eq!(domain.declaration.package, "app");
+        assert!(domain.requires.is_empty());
+        (domain.declaration.path.clone(), package.types.get(domain.carrier).cloned().unwrap())
+    });
+    use omega_lowering::{ScalarType::Integer, TypeShape::PrimitiveScalar};
+    spec_corpus::observe_handoff!(
+        psi "psi-output/policy-free-domain-controls",
+        assert_eq!(domains, [
+            ("i32::Locked".to_owned(), PrimitiveScalar(Integer { signed: true, width: 32 })),
+            ("u32::Locked".to_owned(), PrimitiveScalar(Integer { signed: false, width: 32 }))
+        ]),
+    );
+}
+
+/// Follow the actual call edge rather than looking up a specialization by name.
+fn called_sum<'a>(pkg: &'a LoweredPackage, source: &str, caller: &str, text: &str) -> &'a omega_lowering::LoweredMachine {
+    use omega_lowering::{CallRequirement, CallSite, CallTarget, Parameter};
+    let (body, op) = operation_spelled(pkg, caller, source, text);
+    let OperationKind::Call { callee: CallTarget::Machine(id), arguments, requirements } = &op.kind else { panic!("expected direct call") };
+    let [Parameter::Scalar(x), Parameter::Scalar(y)] = body.parameters[..] else { panic!("two formals") };
+    assert_eq!(arguments, &[ValueOperand::Scalar(x), ValueOperand::Scalar(y)]);
+    assert_eq!(requirements, &[CallRequirement { site: CallSite::Operation(op.id), clause: 0 }]);
+    let sum = pkg.machines.iter().find(|m| m.id == *id).unwrap();
+    assert_eq!((sum.declaration.package.as_str(), sum.declaration.path.as_str()), ("app", "sum"));
+    assert_eq!(sum.contract.requires.len(), 1);
+    sum
+}
+
+fn unsigned(width: u64) -> omega_lowering::TypeShape {
+    omega_lowering::TypeShape::PrimitiveScalar(omega_lowering::ScalarType::Integer { signed: false, width })
+}
+
+/// The declared `u64` carrier of a static integer binder; it is not a runtime type row.
+const U64: omega_lowering::ScalarType = omega_lowering::ScalarType::Integer { signed: false, width: 64 };
+
+#[test]
+fn inferred_width_reaches_the_selected_sum_and_its_formation_sites() {
+    use omega_lowering::{ArithmeticPolicy, BlockTerminator, IntegerOperation, IntegerPrimitive, OperationResult, Parameter, PositiveWidth,
+        PredicateOperator, PredicateStep, ReturnEdge, StaticArgument};
     let file = "width.omg";
     let source = "machine sum<const N:u64>(x:u<N>,y:u<N>)->u<N> requires N>0{x+%y} machine pair(x:u13,y:u13)->u13{sum(x,y)}";
-    let (obligations, (template, arguments), lowered) = lower(file, source, |prepared| {
-        let typed = prepared.typed();
-        let template = typed
-            .signatures
-            .iter()
-            .find(|signature| signature.machine.path == "sum")
-            .expect("sum is typed")
-            .site
-            .clone();
-        let call = typed
-            .calls
-            .iter()
-            .find(|call| call.machine.path == "sum")
-            .expect("pair calls sum");
-        (
-            template,
-            call.type_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>(),
-        )
+    let (obligations, pkg) = with_prepared(file, source, |prepared| {
+        let call = prepared.typed().calls.iter().find(|c| c.machine.path == "sum").unwrap();
+        assert_eq!(call.type_arguments, [omega_typed::ValueType::static_size(13)]);
+        sources::lower_prepared(prepared, &[(file, source)]).unwrap()
     });
-    assert_eq!(arguments, ["13"]);
-    let widths: Vec<_> = obligations
-        .iter()
-        .filter(|o| matches!(o.kind, ObligationKind::PositiveWidth(_)))
-        .collect();
-    assert!(
-        widths
-            .iter()
-            .any(|o| spells(&o.site, file, source, "u<N>") && encloses(&template, &o.site)),
-        "{widths:?}"
-    );
-    let error = refused(lowered, source);
-    assert_eq!(error.site, template);
-    assert_eq!(error.message, "open generic machine requires a closed application before lowering");
-    known_gap::report(
-        "open width of a closed const-integer machine application",
-        "The call needs the closed instance sum<13> and the template's width requirement",
-        source,
-        &error,
-    );
+    let sum = called_sum(&pkg, source, "pair", "sum(x,y)");
+    let [StaticArgument::Integer { carrier, value }] = &sum.arguments[..] else { panic!("one static integer") };
+    let mut expected: Vec<_> = obligations.iter().filter_map(|o| match &o.kind {
+        ObligationKind::PositiveWidth(omega_typed::ValueType::Parameter { owner, index }) if owner.path == "sum" => {
+            assert_eq!(spelled(&o.site, file, source), "u<N>");
+            Some(PositiveWidth { argument: *index, site: o.site.clone() })
+        }
+        _ => None,
+    }).collect();
+    expected.sort_by_key(|goal| goal.site.span.get_start_offset());
+    assert_eq!(expected.iter().map(|g| (g.argument, g.site.span.get_start_offset())).collect::<Vec<_>>(), [(0,27), (0,34), (0,41)]);
+    spec_corpus::observe_handoff!(psi "psi-output/closed-width-sites",
+        assert_eq!((&sum.positive_widths, carrier, value), (&expected, &U64, &13.into())));
+    let (_, call) = operation_spelled(&pkg, "pair", source, "sum(x,y)");
+    let OperationKind::Call { callee, requirements, .. } = &call.kind else { panic!("direct call") };
+    spec_corpus::observe_handoff!(psi "psi-output/closed-width-call",
+        assert_eq!((callee, requirements.as_slice()), (&omega_lowering::CallTarget::Machine(sum.id),
+            [omega_lowering::CallRequirement { site: omega_lowering::CallSite::Operation(call.id), clause: 0 }].as_slice())));
+    let width = sum.result_type.unwrap();
+    assert_eq!(sum.parameter_types, [width, width]);
+    let req = &sum.contract.requires[0];
+    assert_eq!(spelled(&req.site, file, source), "requires N>0");
+    spec_corpus::observe_handoff!(psi "psi-output/closed-width-requirement",
+        assert_eq!((pkg.types.get(width), req.predicate.as_slice()), (Some(&unsigned(13)),
+            [PredicateStep::Integer(13.into()), PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)].as_slice())));
+    let (body, add) = operation_spelled(&pkg, "sum", source, "x+%y");
+    let [Parameter::Scalar(x), Parameter::Scalar(y)] = body.parameters[..] else { panic!("two operands") };
+    spec_corpus::observe_handoff!(psi "psi-output/closed-width-operation",
+        assert_eq!(add.kind, OperationKind::Integer {
+            operation: IntegerOperation { primitive: IntegerPrimitive::Add, policy: ArithmeticPolicy::Wrapping, obligations: vec![] },
+            operands: vec![x, y],
+        }));
+    let OperationResult::Scalar(v) = add.result else { panic!("scalar result") };
+    assert_eq!(body.values[v.index()].ty, width);
+    assert!(matches!(body.blocks[0].terminator, BlockTerminator::Return {result: ReturnEdge::Scalar(result), ..} if result == v));
+}
+
+/// Both calls have the very same u17 runtime signature. The width comes from
+/// slot 1; slot 0 changes the premise, not the operation's carrier. L5 must
+/// hand even a false premise to the checker, not decide admission itself.
+#[test]
+fn same_width_distinct_static_arguments_keep_their_own_requirements() {
+    use omega_lowering::{PredicateOperator, PredicateStep, StaticArgument};
+    let source = "machine sum<const K:u64,const N:u64>(x:u<N>,y:u<N>)->u<N> requires K>0{x+%y} machine pair(x:u17,y:u17)->u17{sum::<0,17>(x,y)} machine other(x:u17,y:u17)->u17{sum::<5,17>(x,y)}";
+    let pkg = lower("slots.omg", source).1.unwrap();
+    let first = called_sum(&pkg, source, "pair", "sum::<0,17>(x,y)");
+    let second = called_sum(&pkg, source, "other", "sum::<5,17>(x,y)");
+    assert_eq!(first.declaration, second.declaration);
+    assert_ne!(first.id, second.id);
+    for (sum, k) in [(first, 0), (second, 5)] {
+        let [StaticArgument::Integer { carrier, .. }, _] = &sum.arguments[..] else { panic!("two arguments") };
+        assert_eq!(*carrier, U64);
+        assert_eq!(sum.arguments, [StaticArgument::Integer { carrier: *carrier, value: k.into() }, StaticArgument::Integer { carrier: *carrier, value: 17.into() }]);
+        let width = sum.result_type.unwrap();
+        assert_eq!(sum.parameter_types, [width, width]);
+        assert_eq!(pkg.types.get(width), Some(&unsigned(17)));
+        assert_eq!(sum.positive_widths.iter().map(|w| w.argument).collect::<Vec<_>>(), [1,1,1]);
+    }
+    let premise = |k: u64| [PredicateStep::Integer(k.into()), PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)];
+    spec_corpus::observe_handoff!(psi "psi-output/same-width-distinct-premises",
+        assert_eq!((&first.contract.requires[0].predicate[..], &second.contract.requires[0].predicate[..]), (&premise(0)[..], &premise(5)[..])));
 }
 
 /// A recursive field that changes `Link<3>` to `Link<4>` hands the next application
 /// to the verifier at the use. The twin keeps the same argument and carries no such
-/// obligation. Both stop at the same `const` binder of the data declaration, before
-/// either the use or the field type is read, so neither refusal is evidence about
-/// the recursive formation or the field's width.
+/// obligation. A shared field names its referent without materializing a recursive layout.
 #[test]
-fn recursive_formation_stops_at_the_const_binder_of_its_data() {
+fn recursive_formation_carries_the_next_application_not_an_unfolded_layout() {
+    use omega_psi::{DataArgument, DataFormation, ScalarType, TypeExpression, TypeExpressionStep as Step, TypeShape};
     let file = "recursive.omg";
     let changing = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine caller(x:Link<3>){}";
     let same = changing.replace("@Link<N+1>", "@Link<N>");
-    let binder = |error: &LoweringError, source: &str| {
-        assert_eq!(error.message, "generic data requires a closed application before lowering");
-        assert_eq!(spelled(&error.site, file, source), "<const N:u64>");
-    };
-
-    let (obligations, (), lowered) = lower(file, changing, |_| ());
+    let (obligations, psi) = lower(file, changing);
     assert!(
         obligations
             .iter()
-            .any(|o| matches!(&o.kind, ObligationKind::FormRecursiveApplication { declaration, arguments }
-                if declaration.path == "Link" && arguments.iter().map(ToString::to_string).eq(["4"]))
+            .any(|o| matches!(&o.kind, ObligationKind::FormRecursiveApplication { declaration, active_arguments, arguments }
+                if active_arguments.iter().map(ToString::to_string).eq(["3"]) && declaration.path == "Link" && arguments.iter().map(ToString::to_string).eq(["4"]))
                 && spells(&o.site, file, changing, "Link<3>")),
         "{obligations:?}"
     );
@@ -360,54 +714,356 @@ fn recursive_formation_stops_at_the_const_binder_of_its_data() {
             .any(|o| matches!(o.kind, ObligationKind::PositiveWidth(_)) && spells(&o.site, file, changing, "u<N>")),
         "{obligations:?}"
     );
-    let error = refused(lowered, changing);
-    binder(&error, changing);
-    known_gap::report(
-        "recursive formation of const-indexed data",
-        "The use needs Link<3> and the next application Link<4> handed to the verifier",
-        changing,
-        &error,
-    );
-
-    let (obligations, (), lowered) = lower(file, &same, |_| ());
+    let (obligations, twin) = lower(file, &same);
     assert!(
         !obligations
             .iter()
             .any(|o| matches!(o.kind, ObligationKind::FormRecursiveApplication { .. })),
         "{obligations:?}"
     );
-    binder(&refused(lowered, &same), &same);
+    let carrier = ScalarType::Integer { signed: false, width: 64 };
+    for (source, next, psi) in [(changing, 4, psi.unwrap()), (same.as_str(), 3, twin.unwrap())] {
+        let [template] = psi.data_templates.as_slice() else { panic!("one Link template") };
+        let [link] = psi.data.as_slice() else { panic!("one closed Link schema") };
+        assert_eq!(link.declaration.path, "Link");
+        assert_eq!(link.declaration, template.declaration);
+        assert_eq!(psi.machines[0].parameter_types, [link.carrier]);
+        assert_eq!(psi.types.get(link.carrier), Some(&TypeShape::Nominal(link.id)));
+        assert_eq!(link.type_arguments, [DataArgument::Integer {carrier,value:3.into()}]);
+        let [edge, width] = link.fields.as_slice() else {panic!("next, value")};
+        assert_eq!((edge.declaration.path.as_str(), width.declaration.path.as_str()), ("Link::next", "Link::value"));
+        assert_eq!(psi.types.get(width.carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer {signed:false,width:3})));
+        let Some(TypeShape::IndexedSharedReference(id)) = psi.types.get(edge.carrier) else { panic!("shared recursion") };
+        assert_eq!(psi.types.indexed_referent(*id), Some((&link.declaration, [DataArgument::Integer { carrier, value: next.into() }].as_slice())));
+        let parameter = Step::GenericParameter { owner: link.declaration.clone(), index:0 };
+        let integer = |n: i32| Step::StaticInteger { carrier, value: n.into() };
+        let mut referred = vec![parameter.clone()];
+        if next == 4 {
+            referred.extend([integer(1), Step::IndexSum { carrier, operands: 2 }]);
+        }
+        referred.extend([
+            Step::Named { declaration: link.declaration.clone(), argument_count: 1 },
+            Step::Reference(omega_psi::TemplateAccess::Shared),
+        ]);
+        assert_eq!(template.fields[0].ty.0, referred);
+        assert_eq!(template.fields[1].ty.0, [parameter.clone(), Step::IndexedInteger { signed: false }]);
+        let width_questions: Vec<_> = template.formation.iter().filter_map(|(site,q)| match q {
+            DataFormation::PositiveWidth(ty) => Some((spelled(site,file,source), ty)), _ => None,
+        }).collect();
+        if next == 4 {
+            spec_corpus::observe_handoff!(psi "psi-output/indexed-field-width", assert_eq!(width_questions, [("u<N>", &TypeExpression(vec![parameter.clone()]))]));
+        } else { assert_eq!(width_questions, [("u<N>", &TypeExpression(vec![parameter.clone()]))]); }
+        let recursive: Vec<_> = template.formation.iter().filter_map(|(site,q)| match q {
+            DataFormation::RecursiveApplication {active_arguments, arguments} => Some((spelled(site,file,source), active_arguments.as_slice(), arguments.as_slice())), _ => None,
+        }).collect();
+        if next == 4 {
+            let addition = DataFormation::IntegerOperation {
+                operation: omega_psi::IntegerOperation {
+                    primitive: omega_psi::IntegerPrimitive::Add,
+                    policy: omega_psi::ArithmeticPolicy::Exact,
+                    obligations: vec![omega_psi::IntegerObligation::ResultFitsCarrier],
+                },
+                carrier,
+                operands: [TypeExpression(vec![parameter.clone()]), TypeExpression(vec![integer(1)])],
+            };
+            assert!(template.formation.iter().any(|(site, q)| spelled(site, file, source) == "N+1" && q == &addition));
+            let prior = [TypeExpression(vec![parameter.clone(), integer(1), Step::IndexSum {carrier,operands:2}])];
+            let open = [TypeExpression(vec![parameter, integer(1), integer(1), Step::IndexSum {carrier,operands:3}])];
+            let closed = [TypeExpression(vec![integer(4)])];
+            let actual = [TypeExpression(vec![integer(3)])];
+            spec_corpus::observe_handoff!(psi "psi-output/recursive-index-formation", assert_eq!(recursive, [
+                ("@Link<N+1>", prior.as_slice(), open.as_slice()),
+                ("Link<3>", actual.as_slice(), closed.as_slice()),
+            ]));
+        } else { assert!(recursive.is_empty()); }
+    }
 }
 
-/// Selecting `Quiet` for a binder bounded by the restricted alias `Local` records
-/// `RefineEvidence` at the call. L3 already checked Quiet's rows against the
-/// restriction's effect ceilings. L5 stops earlier, at the alias declaration that
-/// names the restricted trait, so the call carrying the evidence is never lowered.
+/// Returning `x.next` from an owned `Link<3>` returns a loan into the storage
+/// that `x.next` already borrows, not a borrow of `x` itself. Psi forms the
+/// result by reborrowing through the stored `@Link<4>`. That stored loan is the
+/// parent, and the public result type is the very row of the `Link::next`
+/// field, naming `Link<4>` without its layout. The plain `Node`/`Leaf` twin
+/// uses the same mechanism. A Psi-only reader recovers the formal, field and
+/// referent. Without the crossing it refuses, because the result would then
+/// point into `x`'s own carrier storage. L6 judges the lifetime relation.
 #[test]
-fn refined_evidence_stops_at_the_restricted_trait_alias() {
-    let file = "refine.omg";
-    let source = "trait Log{machine put() blocks;} trait Local=Log{machine * blocks false reaches none terminates;} Quiet satisfies Log{machine put(){}} Busy satisfies Log{machine put() blocks {}} machine use_it<const E:Local>(){E::put()} machine f(){use_it::<Quiet>()}";
-    let (obligations, (), lowered) = lower(file, source, |_| ());
-    let refinements: Vec<_> = obligations
-        .iter()
-        .filter(|o| matches!(o.kind, ObligationKind::RefineEvidence { .. }))
-        .collect();
-    let [obligation] = refinements.as_slice() else {
-        panic!("expected one evidence refinement, found {refinements:?}")
+fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
+    use omega_psi::{DataArgument, PlaceOrigin, PlaceProjection, ReferenceAccess, ReturnEdge, ScalarType, TypeShape};
+    use psi_handoff_consumer::{ReturnedStoredLoan, returned_stored_loan};
+    let file = "load_next.omg";
+    let source = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine read(x:Link<3>)->@Link<4>{x.next}";
+    let (obligations, psi) = lower(file, source);
+    let mut psi = psi.unwrap_or_else(|error| panic!("the original program must lower: {error:?}"));
+    // The typer's return obligation sits at the field read that forms the loan.
+    let returned: Vec<_> = obligations.iter().filter(|o| matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine.path == "read")).collect();
+    let [returned] = returned.as_slice() else { panic!("one ReturnBorrow: {obligations:?}") };
+    assert_eq!(spelled(&returned.site, file, source), "x.next");
+    let carrier = ScalarType::Integer { signed: false, width: 64 };
+    let [link] = psi.data.as_slice() else { panic!("one closed Link schema") };
+    let next = link.fields.iter().find(|f| f.declaration.path == "Link::next").expect("Link::next");
+    let read = psi.machines.iter().find(|m| m.declaration.path == "read").expect("read");
+    assert_eq!(read.parameter_types, [link.carrier]);
+    assert_eq!(read.result_type, Some(next.carrier));
+    let Some(TypeShape::IndexedSharedReference(id)) = psi.types.get(next.carrier) else { panic!("indexed shared result") };
+    assert_eq!(psi.types.indexed_referent(*id), Some((&link.declaration, [DataArgument::Integer { carrier, value: 4.into() }].as_slice())));
+    let (body, borrow) = operation_spelled(&psi, "read", source, "x.next");
+    let [omega_lowering::Parameter::Structural(formal)] = body.parameters[..] else { panic!("one owned formal") };
+    let expected = omega_lowering::ProjectedPlace {
+        root: formal,
+        path: vec![PlaceProjection::Field(next.declaration.clone()), PlaceProjection::Referent],
     };
-    let ObligationKind::RefineEvidence { binder, implementation } = &obligation.kind else {
+    assert_eq!(borrow.kind, OperationKind::BorrowPlace { source: expected, access: ReferenceAccess::Shared });
+    let omega_lowering::OperationResult::Structural(descriptor) = borrow.result else { panic!("a descriptor place") };
+    assert_eq!((body.places[descriptor.index()].ty, body.places[descriptor.index()].origin), (next.carrier, PlaceOrigin::Operation(borrow.id)));
+    let [block] = body.blocks.as_slice() else { panic!("one block") };
+    assert!(matches!(&block.terminator, omega_lowering::BlockTerminator::Return { result: ReturnEdge::Structural { source, .. }, .. } if *source == descriptor));
+    spec_corpus::observe_handoff!(psi "psi-output/returned-indexed-field-loan", assert_eq!(
+        returned_stored_loan(&psi, "read"),
+        Ok(ReturnedStoredLoan {
+            formal: 0,
+            fields: vec!["Link::next".into()],
+            referent: "Link".into(),
+            arguments: vec![DataArgument::Integer { carrier, value: 4.into() }],
+        })
+    ));
+
+    // The plain record is the same read with a materialized referent schema.
+    let plain = "data Leaf{v:u8;} data Node{next:@Leaf;} machine read(x:Node)->@Leaf{x.next}";
+    let (_, twin) = lower(file, plain);
+    let twin = twin.unwrap_or_else(|error| panic!("the plain twin must lower: {error:?}"));
+    assert_eq!(
+        returned_stored_loan(&twin, "read"),
+        Ok(ReturnedStoredLoan { formal: 0, fields: vec!["Node::next".into()], referent: "Leaf".into(), arguments: vec![] })
+    );
+
+    // Dropping the crossing would borrow the field slot inside x.
+    let read = psi.machines.iter_mut().find(|m| m.declaration.path == "read").unwrap();
+    let OperationKind::BorrowPlace { source, .. } = &mut read.body.operations[0].kind else { unreachable!() };
+    assert_eq!(source.path.pop(), Some(PlaceProjection::Referent));
+    assert_eq!(returned_stored_loan(&psi, "read"), Err("the borrow must cross the stored descriptor, not select the record's own field"));
+}
+
+/// Returning a stored `@mut Leaf` by value from an owned record transfers the
+/// caller's loan out of the field (language/ownership.md: "A by-value
+/// reference transfers or copies its loan carrier"). The result is that stored
+/// loan itself, so it points into the original backing; nothing copies it,
+/// downgrades it to a shared read, or discards it with the record.
+#[test]
+fn reading_a_stored_exclusive_reference_transfers_its_loan() {
+    use omega_lowering::{BlockTerminator, CleanupAction, PlaceProjection, ProjectedPlace, ReturnEdge};
+    use psi_handoff_consumer::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
+    let file = "load_next.omg";
+    let source = "data Leaf{v:u8;} data Node{next:@mut Leaf;} machine read(x:Node)->@mut Leaf{x.next}";
+    let (obligations, package) = lower(file, source);
+    let mut package = package.unwrap();
+    // L3 hands the return relation to the checker; L5 keeps it for L6.
+    assert!(
+        obligations
+            .iter()
+            .any(|o| matches!(&o.kind, omega_typed::ObligationKind::ReturnBorrow { machine } if machine.path == "read"))
+    );
+    let machine = &package.machines[0];
+    let body = &machine.body;
+    let [omega_lowering::Parameter::Structural(x)] = body.parameters[..] else {
+        panic!("one incoming record")
+    };
+    let [op] = body.operations.as_slice() else { panic!("one transfer") };
+    let OperationKind::MoveStructural { source: moved } = &op.kind else {
+        panic!("a by-value exclusive read must transfer, not copy or reborrow: {:?}", op.kind)
+    };
+    assert_eq!(moved.root, x);
+    assert!(matches!(moved.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Node::next"));
+    let [block] = body.blocks.as_slice() else { panic!("one block") };
+    let BlockTerminator::Return {
+        result: ReturnEdge::Structural { source: returned, .. },
+        cleanup,
+        ..
+    } = &block.terminator
+    else {
+        panic!("a structural return")
+    };
+    assert_eq!(op.result, omega_lowering::OperationResult::Structural(*returned));
+    assert!(cleanup.is_empty(), "the only field left the record with the result");
+    let expected = ReturnedExclusive {
+        origin: ExclusiveOrigin::Transfer,
+        formal: 0,
+        path: vec!["Node::next".into()],
+        moves_of_source: 1,
+        cleanup: vec![],
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/stored-exclusive-transfer", assert_eq!(returned_exclusive(&package, "read"), Ok(expected)));
+
+    // Corrupted products the reader must reject or tell apart.
+    let moved = moved.clone();
+    let original = package.machines[0].body.operations[0].kind.clone();
+    package.machines[0].body.operations[0].kind = OperationKind::CopyStructural { source: moved.clone() };
+    assert_eq!(returned_exclusive(&package, "read"), Err("an exclusive reference is copied"));
+    package.machines[0].body.operations[0].kind = OperationKind::BorrowPlace {
+        source: ProjectedPlace {
+            root: x,
+            path: [moved.path.clone(), vec![PlaceProjection::Referent]].concat(),
+        },
+        access: omega_lowering::ReferenceAccess::Shared,
+    };
+    assert_eq!(returned_exclusive(&package, "read"), Err("a mutable reborrow became shared"));
+    package.machines[0].body.operations[0].kind = original;
+    let BlockTerminator::Return { cleanup, .. } = &mut package.machines[0].body.blocks[0].terminator else {
         unreachable!()
     };
-    assert_eq!((binder.declaration.path.as_str(), implementation.path.as_str()), ("Local", "Quiet"));
-    assert_eq!(spelled(&obligation.site, file, source), "use_it::<Quiet>()");
-    let error = refused(lowered, source);
-    assert_eq!(error.message, "trait binders, inheritance and restrictions require an applied trait interface");
-    assert_eq!(spelled(&error.site, file, source), "Log");
-    assert_eq!(error.site.span.get_start_offset(), source.find("=Log").unwrap() + 1);
-    known_gap::report(
-        "refined evidence through a restricted trait alias",
-        "The call needs the restricted trait Local and the evidence that Quiet refines it",
-        source,
-        &error,
+    cleanup.push(CleanupAction::DiscardRoot(x));
+    assert_eq!(returned_exclusive(&package, "read"), Err("cleanup discards the transferred loan"));
+}
+
+/// Exporting `use_it` owes external callers its open interface, so the package
+/// publishes the template beside the closed instance that `f` selects. The
+/// template names the binder's restricted trait `Local` and calls the base
+/// requirement `Log::put` through that binder. A consumer reading Psi alone
+/// follows `Local` to its base and finds the requirement and the wildcard row
+/// (`reaches none`) that the checker must hold every later selection to.
+#[test]
+fn a_closed_restricted_instance_does_not_replace_an_exported_template() {
+    use omega_lowering::{MachineTemplateBinder, TemplateCallTarget, TemplateStep};
+    use psi_handoff_consumer::machine_templates::restricted_member;
+    let file = "export.omg";
+    let template = "machine use_it<const E:Local>(){E::put()}";
+    let prefix = "public trait Log{machine put();} public trait Local=Log{machine * reaches none;} Quiet satisfies Log{machine put(){}}";
+    let program = |wrapper: &str| format!("{prefix} {wrapper} machine f(){{use_it::<Quiet>()}}");
+    let local = lower(file, &program(template)).1.unwrap();
+    assert!(local.machines.iter().any(|m| m.declaration.path == "use_it"));
+    assert!(local.machine_templates.is_empty());
+
+    // The exact bytes of the readiness fixture `handoff/exported wrapper with a restricted evidence binder`.
+    let public = program(&format!("public {template}"));
+    let package = lower(file, &public).1.unwrap();
+    assert!(
+        package.machines.iter().any(|m| m.declaration.path == "use_it"),
+        "f still calls its closed instance"
     );
+    let [open] = package.machine_templates.as_slice() else {
+        panic!("expected the exported use_it template")
+    };
+    let [MachineTemplateBinder::Implementation(slot)] = open.parameters.as_slice() else {
+        panic!("expected the evidence binder, got {:?}", open.parameters)
+    };
+    let [TemplateStep::Call(call)] = open.body.as_slice() else {
+        panic!("expected the one member call")
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exported-restricted-template",
+        assert!(
+            open.public && open.declaration.path == "use_it" && slot.declaration.path == "Local" && slot.arguments.is_empty()
+                && matches!(&call.target, TemplateCallTarget::Member { binder: 0, requirement } if requirement.path == "Log::put")
+                && open.result.is_none()
+        ),
+    );
+    assert_eq!(spelled(&call.site, file, &public), "E::put()");
+    let member = restricted_member(&package, open, 0).expect("Local resolves to its published base");
+    let limits: Vec<_> = member
+        .limits
+        .iter()
+        .map(|row| (row.prohibits_block, row.prohibits_suspend, row.reach.as_deref(), row.requires_termination))
+        .collect();
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exported-restricted-template-consumer",
+        assert_eq!(
+            (member.restriction.path.as_str(), member.base.path.as_str(), member.requirement.declaration.path.as_str(), limits.as_slice()),
+            ("Local", "Log", "Log::put", [(false, false, Some(&[][..]), false)].as_slice())
+        ),
+    );
+
+    // Without the local caller, only the template remains; the call through
+    // `Local` still names the base requirement.
+    let alone = format!("{} public {template}", prefix.replace(" Quiet satisfies Log{machine put(){}}", ""));
+    let package = lower(file, &alone).1.unwrap();
+    assert!(package.machines.iter().all(|m| m.declaration.path != "use_it"));
+    let [open] = package.machine_templates.as_slice() else {
+        panic!("expected the exported use_it template")
+    };
+    assert_eq!(
+        restricted_member(&package, open, 0).map(|m| m.requirement.declaration.path.as_str()),
+        Some("Log::put")
+    );
+}
+
+/// The selected instance owes the wildcard bound, not a nominal satisfaction
+/// of Local. Follow both calls through the public package after preparation.
+#[test]
+fn restricted_evidence_reaches_the_selected_base_member() {
+    use omega_lowering::{CallTarget, MemberRealization, StaticArgument};
+    let file = "refine.omg";
+    let source = "trait Log{machine put() blocks;} trait Local=Log{machine * blocks false reaches none terminates;} Quiet satisfies Log{machine put(){}} Busy satisfies Log{machine put() blocks {}} machine use_it<const E:Local>(){E::put()} machine f(){use_it::<Quiet>()}";
+    let wrong_selection = source.replace("::<Quiet>", "::<Busy>");
+    let wrong_package = sources::resolve(&[(file, &wrong_selection)]);
+    let Err(omega_preparation::PreparationFailure::Typing(error)) = omega_preparation::prepare_source_package_diagnosed(&wrong_package) else {
+        panic!("the blocking Busy row must be rejected by typing at selection")
+    };
+    assert_eq!(error.message, "Busy::put exceeds the refined contract of Local");
+    assert_eq!(error.span.slice(wrong_selection.as_bytes()), Some(&b"use_it::<Busy>()"[..]));
+    let twin = wrong_selection.replace("put() blocks {}", "put(){}");
+    let changed_bound = source.replace("reaches none terminates", "suspends false");
+    let packages = [(source, "Quiet"), (twin.as_str(), "Busy"), (changed_bound.as_str(), "Quiet")].map(|(text, selected)| {
+        let (obligations, package) = with_prepared(file, text, |prepared| {
+            let typed = prepared.typed();
+            let [row] = typed.refinements.as_slice() else { panic!("expected Local's restriction") };
+            assert_eq!(row.schema.path, "Local");
+            assert_eq!(typed.refinement_bases[&row.schema].declaration.path, "Log");
+            sources::lower_prepared(prepared, &[(file, text)]).unwrap()
+        });
+        let refinements: Vec<_> = obligations.iter().filter_map(|o| match &o.kind {
+            ObligationKind::RefineEvidence { binder, implementation } => Some((spelled(&o.site, file, text), binder.declaration.path.as_str(), implementation.path.as_str())),
+            _ => None,
+        }).collect();
+        assert_eq!(refinements.len(), 1);
+        let call = format!("use_it::<{selected}>()");
+        assert_eq!(refinements[0], (call.as_str(), "Local", selected));
+        (package, selected)
+    });
+    let mut bounds = Vec::new();
+    let mut dispatch = Vec::new();
+    for (package, selected) in &packages {
+        let log = package.traits.iter().find(|t| t.declaration.path == "Log").unwrap();
+        let local = package.traits.iter().find(|t| t.declaration.path == "Local").unwrap();
+        let restriction = local.restriction.as_ref().unwrap();
+        let [row] = restriction.all_members.as_slice() else { panic!("expected one wildcard") };
+        let [put] = log.requirements.as_slice() else { panic!("expected one base requirement") };
+        assert_eq!(put.pause.block, Some(true));
+        assert!(local.requirements.is_empty());
+        assert_eq!(restriction.base.declaration, log.declaration);
+        assert!(restriction.base.arguments.is_empty());
+        bounds.push((row.prohibits_block, row.prohibits_suspend, row.reach.as_deref(), row.requires_termination));
+        let busy = package.machines.iter().find(|m| m.declaration.path == "Busy::put").unwrap();
+        assert_eq!(busy.contract.realized_pause.block, *selected != "Busy");
+        let f = package.machines.iter().find(|m| m.declaration.path == "f").unwrap();
+        let by_id = |id| package.machines.iter().find(|m| m.id == id).unwrap();
+        let target = |m: &omega_lowering::LoweredMachine| {
+            let [op] = m.body.operations.as_slice() else { panic!("expected one call in {:?}", m.body) };
+            let OperationKind::Call { callee, .. } = op.kind else { panic!("not a call") };
+            callee
+        };
+        let CallTarget::Machine(id) = target(f) else { panic!("not a direct call") };
+        let instance = by_id(id);
+        assert_eq!(instance.declaration.path, "use_it");
+        let [StaticArgument::Conformance { declaration, bound }] = instance.arguments.as_slice() else { panic!("not selected evidence") };
+        let CallTarget::Member(slot) = target(instance) else { panic!("not a member call") };
+        let member = &package.member_calls[slot];
+        let MemberRealization::Conformance { declaration: supplied, machine } = &member.target else { panic!("not local evidence") };
+        let conf = package.conformances.iter().find(|c| c.declaration.path == *selected).unwrap();
+        let [impl_row] = conf.members.as_slice() else { panic!("expected one supplying row") };
+        assert_eq!(impl_row.implementation.path, format!("{selected}::put"));
+        assert_eq!(member.requirement, impl_row.requirement);
+        assert_eq!(member.requirement.declaration, put.declaration);
+        assert_eq!(member.owner, restriction.base);
+        assert_eq!(conf.implemented, restriction.base);
+        assert_eq!(member.restriction.as_ref(), Some(bound));
+        assert_eq!((&bound.declaration, bound.arguments.len()), (&local.declaration, 0));
+        assert_eq!((declaration, supplied, &by_id(*machine).declaration), (&conf.declaration, &conf.declaration, &impl_row.implementation));
+        dispatch.push((bound.declaration.path.as_str(), declaration.path.as_str(), member.requirement.declaration.path.as_str(), by_id(*machine).declaration.path.as_str()));
+    }
+    spec_corpus::observe_handoff!(psi "psi-output/restricted-base-bound", assert_eq!(bounds, [
+        (true, false, Some(&[][..]), true), (true, false, Some(&[][..]), true), (true, true, None, false),
+    ]));
+    spec_corpus::observe_handoff!(psi "psi-output/restricted-evidence-dispatch", assert_eq!(dispatch, [
+        ("Local", "Quiet", "Log::put", "Quiet::put"), ("Local", "Busy", "Log::put", "Busy::put"), ("Local", "Quiet", "Log::put", "Quiet::put"),
+    ]));
 }

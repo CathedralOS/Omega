@@ -3,8 +3,8 @@
 
 mod support;
 
-use omega_lexer::lex;
-use omega_parser::parse_file;
+use omega_lexer::{SourceSpan, lex};
+use omega_parser::{NodeKind, parse_file};
 
 fn get_dump(source: &str) -> String {
     let tokens = lex(source.as_bytes()).unwrap();
@@ -38,6 +38,29 @@ fn a_trailing_operand_comma_adds_only_its_token() {
             let expected = without_comma.replacen(&format!("{last_operand_line}\n"), &format!("{last_operand_line}\n{indent}','\n"), 1);
             assert_eq!(get_dump(&source), expected, "{source}");
         }
+    }
+}
+
+#[test]
+fn repeated_assembly_operands_keep_their_own_source_spans() {
+    for (source, has_trailing_comma) in [
+        ("asm machine f() { add x, x; ret }", false),
+        ("asm machine f() { add x, x,; ret }", true),
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let tree = parse_file(source.as_bytes(), &tokens).unwrap();
+        let syntax = tree.index(source, &tokens).unwrap();
+        let instruction = syntax.nodes.iter().find(|node| node.kind == NodeKind::Instruction).unwrap();
+        let operands: Vec<_> = instruction.children.iter().map(|&child| (syntax.nodes[child].kind, syntax.span(child))).collect();
+        assert_eq!(operands, [
+            (NodeKind::PathExpression, SourceSpan::new(22, 23)),
+            (NodeKind::PathExpression, SourceSpan::new(25, 26)),
+        ]);
+        let mut expected = vec![("add", SourceSpan::new(18, 21)), (",", SourceSpan::new(23, 24))];
+        if has_trailing_comma {
+            expected.push((",", SourceSpan::new(26, 27)));
+        }
+        assert_eq!(instruction.leaves.iter().map(|leaf| (leaf.text, leaf.span)).collect::<Vec<_>>(), expected);
     }
 }
 

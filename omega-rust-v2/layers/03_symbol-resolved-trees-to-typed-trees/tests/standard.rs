@@ -324,6 +324,49 @@ fn an_inbound_slot_counts_as_entry_and_an_outbound_provider_propagates_entries()
 }
 
 #[test]
+fn direct_boundary_entry_checks_the_callers_invocation_ceiling() {
+    use omega_typer::{BoundarySlot, RequirementSlot, Site, SlotDirection, TypingEnvironment, type_stage_in_environment};
+
+    let source = "trait Host{machine enter();} trait Other{machine tick();} machine direct() invokes Other {Host::enter()}";
+    let file = "slot.omg";
+    let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+    let sources = [StageSource {
+        package: "app",
+        source: ParsedSource { logical_path: file, text: source, tokens: &tokens, tree: &tree },
+    }];
+    let names = omega_resolver::resolve_stage(&sources, &[]).unwrap();
+    let outbound = BoundarySlot {
+        requirement: RequirementSlot {
+            declaration: names.declarations.iter().find(|id| id.path == "Host::enter").unwrap().clone(),
+            trait_arguments: vec![],
+        },
+        arguments: vec![],
+        direction: SlotDirection::ProgramToProvider,
+    };
+    let inbound = BoundarySlot { direction: SlotDirection::EnvironmentToProgram, ..outbound.clone() };
+    let run = |slots: &[BoundarySlot]| type_stage_in_environment(&names, &TypingEnvironment { boundary_slots: slots, ..Default::default() });
+    let call = "Host::enter()";
+    let start = source.find(call).unwrap();
+    let end = start + call.len();
+    let site = Site { package: "app".into(), file: file.into(), span: omega_lexer::SourceSpan::new(start, end) };
+
+    // The outbound control must match the applied slot, not merely type as an ordinary call.
+    let stage = run(std::slice::from_ref(&outbound)).unwrap();
+    assert_eq!(stage.boundary_calls, [(site.clone(), outbound.clone())]);
+
+    let refused = |slots: &[BoundarySlot], message: &str| {
+        let error = run(slots).expect_err("the boundary call must be refused");
+        assert!(!error.waiting_for_static_value());
+        assert_eq!((&*error.package, &*error.file, error.span, &*error.message), ("app", file, site.span, message));
+        #[cfg(feature = "diagnostic-origins")]
+        diagnostic_origin::report_return(&error, "", Some(("app", file, start, end, message)));
+    };
+    refused(std::slice::from_ref(&inbound), "call exceeds the declared synchronous invocation ceiling");
+    refused(&[outbound, inbound], "competing directions for an applied boundary slot");
+}
+
+#[test]
 fn raw_stages_cannot_define_sealed_toolchain_operations() {
     let text = "machine read() {}";
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
@@ -876,4 +919,255 @@ fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
     }
     check(r"machine field(n:u8)->u8{n} machine use_field()->u8{field(1)}").unwrap();
     check(r"use omega\language\core\reflect; machine shadow(field:u8)->u8{field}").unwrap();
+}
+
+/// The access policy program of the L5 access-plan tests, byte for byte. `Rule::plan`
+/// calls the toolchain's bodyless `new_plan`, so it is a real selection of the one
+/// library machine that carries an implementation obligation.
+const ACCESS_PLAN: &str = "use omega\\language\\core;
+                  use omega\\language\\core\\reflect;
+                  use omega\\language\\core\\access;
+                  domain i32::Locked access Rule;
+                  Rule satisfies AccessPolicy {
+                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                          new_plan::<'t>(@schema, Issuance::Unrestricted{})
+                      }
+                  }";
+
+/// The toolchain's own source of the library declaration.
+const CORE_ACCESS: &str = include_str!("../../../toolchain/core/access.omg");
+
+/// Type one `app` package through the standard profile.
+fn check_files(files: &[(&str, &str)]) -> Result<TypedStage, omega_typer::TypeError> {
+    let lexed: Vec<_> = files
+        .iter()
+        .map(|(path, text)| {
+            let tokens = omega_lexer::lex(text.as_bytes()).expect("the package must lex");
+            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).expect("the package must parse");
+            (*path, *text, tokens, tree)
+        })
+        .collect();
+    let inputs: Vec<_> = lexed
+        .iter()
+        .map(|(path, text, tokens, tree)| StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: path,
+                text,
+                tokens,
+                tree,
+            },
+        })
+        .collect();
+    let resolved = resolve_source_package(&inputs).expect("the package must resolve");
+    type_source_package(&resolved).map(|trees| trees.into_facts())
+}
+
+fn implementation_rows(stage: &TypedStage) -> Vec<&omega_typer::TypingObligation> {
+    stage
+        .obligations
+        .iter()
+        .filter(|o| matches!(o.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(_)))
+        .collect()
+}
+
+/// The `new_plan` declaration as the toolchain file spells it.
+fn core_declaration() -> &'static str {
+    let start = CORE_ACCESS.find("public machine new_plan").unwrap();
+    let end = CORE_ACCESS.find("service_count == 0;").unwrap() + "service_count == 0;".len();
+    &CORE_ACCESS[start..end]
+}
+
+/// L3 publishes one `VerifyLibraryImplementation` for the toolchain's `new_plan`: the
+/// only supplied, bodyless machine that publishes a guarantee. The row sits on the
+/// library declaration, the call in `Rule::plan` selects the same identity, and a
+/// package that never calls the machine imports the identical row.
+#[test]
+fn a_selected_library_constructor_carries_one_implementation_obligation_at_its_declaration() {
+    use omega_parser::NodeKind::{Body, Ensures};
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let stage = check_files(&[("policy.omg", ACCESS_PLAN)]).unwrap();
+    let library = stage.library.expect("admitted library");
+    let rows = implementation_rows(&stage);
+    let [row] = rows.as_slice() else {
+        panic!("expected one library implementation row, found {rows:?}")
+    };
+    let omega_typer::ObligationKind::VerifyLibraryImplementation(subject) = &row.kind else {
+        unreachable!()
+    };
+
+    // The row is the library's: its site spells the declaration in the toolchain file.
+    assert_eq!(
+        (row.site.package.as_str(), row.site.file.as_str(), row.site.span.slice(CORE_ACCESS.as_bytes())),
+        (
+            omega_toolchain::TOOLCHAIN_PACKAGE,
+            "language/core/access/access.omg",
+            Some(core_declaration().as_bytes())
+        )
+    );
+    // Its node is the bodyless signature in the library forest, which publishes four guarantees.
+    let signature = library
+        .signatures
+        .iter()
+        .find(|s| &s.machine == subject)
+        .unwrap();
+    assert_eq!((signature.node, &signature.site), (row.node, &row.site));
+    let tree = library.trees().nth(row.node.file).unwrap();
+    assert!(tree.resolved().file.child(row.node.node, Body).is_none());
+    assert!(signature.has_guarantee && core.supplies(subject));
+    assert_eq!(typed_predicates(library, subject, Ensures).len(), 4);
+    assert!(
+        tree.semantics_at(row.node.node)
+            .any(|fact| matches!(fact, omega_typer::NodeSemantics::Obligation(found) if found == *row))
+    );
+    // No other supplied identity has a row: views and layout queries publish no guarantee,
+    // and collection primitives are excluded by the producer.
+    for other in library
+        .signatures
+        .iter()
+        .filter(|s| core.supplies(&s.machine) && &s.machine != selected)
+    {
+        assert!(
+            core.collection_primitive(&other.machine).is_some() || !other.has_guarantee,
+            "{:?}",
+            other.machine
+        );
+    }
+
+    // The real selection: the policy's plan machine calls exactly this declaration.
+    let calls: Vec<_> = stage
+        .calls
+        .iter()
+        .filter(|c| {
+            c.caller
+                .as_ref()
+                .is_some_and(|caller| caller.path == "Rule::plan")
+        })
+        .collect();
+    let [call] = calls.as_slice() else {
+        panic!("expected one call in Rule::plan, found {calls:?}")
+    };
+    spec_corpus::observe_handoff!(
+        "library-implementation-obligation/producer",
+        assert_eq!((subject, &call.machine), (selected, selected))
+    );
+
+    // Removing the policy and its implementation leaves no call, and the imported row is unchanged.
+    let (prefix, _) = ACCESS_PLAN.split_once(" access Rule;").unwrap();
+    let unused = check_files(&[("policy.omg", &format!("{prefix};"))]).unwrap();
+    assert!(!unused.calls.iter().any(|c| &c.machine == selected));
+    assert_eq!(implementation_rows(&unused), [*row]);
+}
+
+/// The same declaration bytes at the toolchain's logical path, but in the `app` package,
+/// differ from the supplied machine only by package. L3 refuses the bodyless copy at its
+/// declaration. A checked-body machine at that path types and adds no row of its own.
+#[test]
+fn a_same_path_copy_in_another_package_cannot_acquire_library_supply() {
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let path = "language/core/access/access.omg";
+    let declaration = core_declaration();
+    let copy = format!("use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n\n{declaration}\n");
+    let error = check_files(&[(path, &copy)]).expect_err("an app declaration cannot use the toolchain's supply");
+    let at = copy.find(declaration).unwrap();
+    spec_corpus::observe_handoff!(
+        "library-implementation-obligation/refusal",
+        assert_eq!(
+            (
+                error.package.as_str(),
+                error.file.as_str(),
+                error.span.get_start_offset()..error.span.get_end_offset(),
+                error.message.as_str()
+            ),
+            ("app", path, at..at + declaration.len(), "bodyless machine has no authorized supply")
+        ),
+    );
+    #[cfg(feature = "diagnostic-origins")]
+    diagnostic_origin::report_return(
+        &error,
+        "",
+        Some(("app", path, at, at + declaration.len(), "bodyless machine has no authorized supply")),
+    );
+
+    let checked = check_files(&[(path, "public machine new_plan(x: u8) -> u8 { x }")]).unwrap();
+    let local = checked
+        .signatures
+        .iter()
+        .find(|s| s.machine.package == "app")
+        .unwrap();
+    assert_eq!((local.machine.package.as_str(), local.machine.path.as_str()), ("app", selected.path.as_str()));
+    assert_ne!(&local.machine, selected);
+    let rows = implementation_rows(&checked);
+    let [row] = rows.as_slice() else {
+        panic!("expected only the imported row, found {rows:?}")
+    };
+    assert!(matches!(&row.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(id) if id == selected));
+}
+
+/// `target/l5owner/policy/empty/access_plan.omg`, byte for byte.
+const EMPTY_ROUTES: &str = r"use omega\language\core;
+                  use omega\language\core\reflect;
+                  use omega\language\core\access;
+                  domain i32::Locked access Rule;
+                  Rule satisfies AccessPolicy {
+                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                          new_plan::<'t>(@schema, Issuance::Only{routes: []})
+                      }
+                  }";
+
+/// The type L3 publishes for the expression spelled exactly at `start..end`.
+fn expression_at(
+    stage: &TypedStage,
+    start: usize,
+    end: usize,
+) -> omega_typer::ValueType {
+    let mut found = stage
+        .expressions
+        .iter()
+        .filter(|e| e.site.file == "app.omg" && (e.site.span.get_start_offset(), e.site.span.get_end_offset()) == (start, end));
+    let ty = found
+        .next()
+        .unwrap_or_else(|| panic!("no expression at bytes {start}..{end}"))
+        .ty
+        .clone();
+    assert!(found.next().is_none(), "two expressions at bytes {start}..{end}");
+    ty
+}
+
+/// resources/access.md spells `Issuance::Only { routes: [] }` for a policy that
+/// admits nobody. The `[]` builds the owned `[CallableInfo<'t>]` field itself,
+/// with the element identity of the constructed `Issuance<'t>`: the same `'t`
+/// that `Rule::plan` passes to `new_plan`, not a fresh inferred lifetime.
+#[test]
+fn an_explicit_empty_route_list_lands_at_the_declared_routes_field() {
+    use omega_typer::ValueType::{Applied, Slice};
+    assert_eq!((EMPTY_ROUTES.len(), &EMPTY_ROUTES[414..416]), (462, "[]"));
+    let stage = check(EMPTY_ROUTES).unwrap();
+    let construction = "Issuance::Only{routes: []}";
+    let start = EMPTY_ROUTES.find(construction).unwrap();
+    let Applied(issuance, arguments) = expression_at(&stage, start, start + construction.len()) else {
+        panic!("Issuance::Only must publish its applied data type")
+    };
+    assert_eq!(
+        (issuance.package.as_str(), issuance.path.as_str()),
+        ("@omega/toolchain", r"language\core\Issuance")
+    );
+    let [lifetime] = arguments.as_slice() else {
+        panic!("Issuance takes one lifetime")
+    };
+    assert!(!matches!(lifetime, omega_typer::ValueType::InferredLifetime { .. }), "{lifetime:?}");
+    let Slice(element) = expression_at(&stage, 414, 416) else {
+        panic!("the routes literal must publish the owned [CallableInfo<'t>] field type")
+    };
+    let Applied(info, element_arguments) = *element else {
+        panic!("routes holds CallableInfo")
+    };
+    assert_eq!(
+        (info.package.as_str(), info.path.as_str()),
+        ("@omega/toolchain", r"language\core\reflect\CallableInfo")
+    );
+    assert_eq!(element_arguments.as_slice(), std::slice::from_ref(lifetime));
+    assert_eq!(stage.access_policies.len(), 1);
 }

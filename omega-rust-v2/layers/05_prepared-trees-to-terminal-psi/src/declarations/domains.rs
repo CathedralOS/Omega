@@ -14,7 +14,7 @@ pub(crate) enum DomainDeclaration {
 
 enum DomainDefinition {
     Named(Vec<ContractClause>),
-    Alias(Vec<DeclarationId>),
+    Alias(Vec<omega_psi::DomainAtom>),
 }
 
 pub(crate) struct DomainSchema<'a> {
@@ -23,6 +23,7 @@ pub(crate) struct DomainSchema<'a> {
     pub site: Site,
     public: bool,
     parameters: Vec<crate::TemplateBinder>,
+    index_binders: Vec<usize>,
     definition: DomainDefinition,
 }
 
@@ -33,6 +34,76 @@ impl DomainSchema<'_> {
             DomainDefinition::Named(_) => None,
             DomainDefinition::Alias(_) => None,
         }
+    }
+
+    pub(crate) fn into_template(self) -> Result<LoweredDomain<crate::TypeExpression>, LoweringError> {
+        let DomainDefinition::Named(requires) = self.definition else {
+            return Err(LoweringError::new(&self.site, "carrier-generic domain alias needs an applied expansion"));
+        };
+        Ok(LoweredDomain {
+            declaration: crate::identity::declaration(self.declaration, &self.site)?,
+            carrier: super::type_expression::type_expression(self.carrier, &self.site)?,
+            parameters: self.parameters,
+            index_binders: self.index_binders,
+            public: self.public,
+            requires,
+            site: self.site,
+        })
+    }
+
+    /// Whether the declaration authors any requirement, whether or not it has binders.
+    pub(crate) fn has_predicates(&self) -> bool {
+        matches!(&self.definition, DomainDefinition::Named(clauses) if !clauses.is_empty())
+    }
+
+    /// The authored clauses at one application of this domain. Each index
+    /// binder reads the closed argument at that binder's head position, so
+    /// `Bound<5>` of `Bound<N> requires self > N` states `self > 5`.
+    /// `None` means some clause reads a binder the application does not close;
+    /// the caller must refuse rather than publish a qualification without it.
+    pub(crate) fn applied_predicates(
+        &self,
+        arguments: &[ValueType],
+    ) -> Option<Vec<ContractClause>> {
+        let DomainDefinition::Named(clauses) = &self.definition else {
+            return None;
+        };
+        if arguments.is_empty() {
+            return self.predicates().map(<[_]>::to_vec);
+        }
+        if arguments.len() != self.index_binders.len() {
+            return None;
+        }
+        let closed = |slot: usize| {
+            let position = self.index_binders.iter().position(|&binder| binder == slot)?;
+            match &arguments[position] {
+                ValueType::StaticInteger { value, .. } => Some(crate::PredicateStep::Integer(value.clone())),
+                ValueType::StaticValue {
+                    carrier,
+                    value: omega_typed::StaticValue::Bool(value),
+                } if **carrier == ValueType::Bool => Some(crate::PredicateStep::Boolean(*value)),
+                _ => None,
+            }
+        };
+        clauses
+            .iter()
+            .map(|clause| {
+                let predicate = clause
+                    .predicate
+                    .iter()
+                    .map(|step| match step {
+                        crate::PredicateStep::ValueIndex(slot) => closed(*slot),
+                        // Domain clauses own no mathematical terms; never substitute inside one.
+                        crate::PredicateStep::MathematicalTerm(_) => None,
+                        other => Some(other.clone()),
+                    })
+                    .collect::<Option<_>>()?;
+                Some(ContractClause {
+                    predicate,
+                    site: clause.site.clone(),
+                })
+            })
+            .collect()
     }
 
     pub(crate) fn lower(
@@ -48,6 +119,7 @@ impl DomainSchema<'_> {
         Ok(match self.definition {
             DomainDefinition::Named(requires) => DomainDeclaration::Named(LoweredDomain {
                 parameters: self.parameters,
+                index_binders: self.index_binders,
                 declaration,
                 carrier,
                 public,
@@ -58,10 +130,9 @@ impl DomainSchema<'_> {
                 declaration,
                 carrier,
                 public,
-                members: members
-                    .iter()
-                    .map(|id| crate::identity::declaration(id, &site))
-                    .collect::<Result<_, _>>()?,
+                parameters: self.parameters,
+                index_binders: self.index_binders,
+                members,
                 site,
             }),
         })
@@ -92,29 +163,45 @@ pub(crate) fn read_domain<'a>(
     let head = file
         .child(node, NodeKind::PathType)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed head"))?;
-    if matches!(resolved.symbol(head), Some(Symbol::Declaration(parent)) if parent.kind == NodeKind::Domain) || !carrier.domains().is_empty() {
+    if matches!(resolved.symbol(head), Some(Symbol::Declaration(parent)) if parent.kind == NodeKind::Domain) && carrier.domains().is_empty() {
         return Err(LoweringError::new(&site_at(tree, head), "inherited domain requires its parent qualification"));
     }
-    if crate::lowering::types::scalar_carrier(carrier).is_err() {
-        return Err(LoweringError::new(&site_at(tree, head), "domain carrier requires a fixed scalar"));
-    }
     let public = resolved.exports().any(|export| &export.id == declaration);
+    let index_binders = resolved
+        .arguments_for(head, declaration)
+        .iter()
+        .map(|&arg| {
+            let slot = match resolved.symbol(arg) {
+                Some(Symbol::Binding { binder_node, .. }) => file
+                    .generic_parameters(node)
+                    .position(|(_, binder, _)| binder == *binder_node),
+                _ => None,
+            };
+            slot.ok_or_else(|| LoweringError::new(&site_at(tree, arg), "domain index has no declaration binder"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if let Some(members) = prepared.typed().domain_alias_members.get(declaration) {
-        if !parameters.is_empty() || members.iter().any(|member| !member.arguments.is_empty()) {
-            return Err(LoweringError::new(&site, "domain alias requires indexed qualification lowering"));
-        }
+        let atoms = members
+            .iter()
+            .map(|member| {
+                Ok(omega_psi::DomainAtom {
+                    declaration: crate::identity::declaration(&member.declaration, &site)?,
+                    arguments: member
+                        .arguments
+                        .iter()
+                        .map(|arg| super::type_expression::declaration_term(arg, &site))
+                        .collect::<Result<_, _>>()?,
+                })
+            })
+            .collect::<Result<_, LoweringError>>()?;
         return Ok(DomainSchema {
             declaration,
             carrier,
             site,
             public,
             parameters,
-            definition: DomainDefinition::Alias(
-                members
-                    .iter()
-                    .map(|member| member.declaration.clone())
-                    .collect(),
-            ),
+            index_binders,
+            definition: DomainDefinition::Alias(atoms),
         });
     }
     let mut requires = Vec::new();
@@ -148,6 +235,7 @@ pub(crate) fn read_domain<'a>(
         carrier,
         public,
         parameters,
+        index_binders,
         definition: DomainDefinition::Named(requires),
         site,
     })

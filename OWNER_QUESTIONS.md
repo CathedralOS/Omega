@@ -64,4 +64,44 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="named-domain-casts-checked-replacement"></a>
+### 1. Acceptance of an explicit domain replacement in checked Psi
+
+For an already tagged distance, the language accepts `distance as -Km +Degrees` and preserves the numeric payload. Can a checked package express that single authored cast today using an erasure and an establishment that both refer to its source occurrence, or does acceptance require a further normative rule under `NAMED-DOMAIN-CASTS`? The open point concerns what a conforming consumer may accept. The choice of compiler data structures remains delegated.
+
+[Domain casts](wiki/spec/language/domains.md#domain-casts) requires simultaneous accounting, single-value preservation and a separate justification for every newly added membership. [Scalar qualifications](wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications) permits strict addition and erasure individually and explicitly leaves the combined cast's Terminal form open. The [qualification encoding](wiki/spec/terminal-psi/encoding.md) defines checks on each arrival. In V2, removing only `A` succeeds and adding `B` while keeping `A` succeeds. Replacing `A` with `B` stops at the cast. A ruling should preserve the authored occurrence and make every new predicate or issuer obligation available for independent checking. [V2 witness](omega-rust-v2/layers/05_prepared-trees-to-terminal-psi/tests/domains.rs)
+
+<a id="named-domain-casts-inherited-establishment"></a>
+### 2. Evidence for establishing a child domain that requires its parent
+
+A checked value may need both `Positive` and `Positive::Small`, for example when a bounded positive quantity crosses a package boundary. For `7 as +Positive +Positive::Small`, may independently checked evidence for `Positive` on that arrival supply the parent required by the child's predicate? Does the same rule apply when the incoming value already carries the parent? A routed parent would still need its own issuer evidence.
+
+[Domain casts](wiki/spec/language/domains.md#domain-casts) shows the first form as valid and requires an ancestor-complete result. The [Terminal Psi encoding](wiki/spec/terminal-psi/encoding.md) requires the proved and vacuous origins to have an empty list of required memberships. The child has a nonempty list even when the parent arrives with valid evidence. V2 currently refuses a predicate-bearing child at the cast. A tag-only parent and child can lower together on an ordinary addition. Which evidence may a checker admit for the inherited case without allowing a child's declaration to manufacture its parent's authority? [V2 domain fixtures](omega-rust-v2/layers/05_prepared-trees-to-terminal-psi/tests/domains.rs)
+
+<a id="descending-rank-entry-expressions"></a>
+### 3. Which entry expressions may supply a descending natural rank?
+
+Does `const K:u64 = 3; machine f(n:u64) terminates by K + n {}` declare a valid ranking witness? The answer determines whether typing must reject the authored expression or lowering must preserve it for the checker. `K - n` and the explicit bounded-distance view already reach Psi. Replacing the subtraction with addition, wrapping subtraction, or a second subtraction stops before checking.
+
+The [language ranking rule](wiki/spec/language/termination.md#ranking) describes a subject and a selected view. The [Terminal Psi control-flow rule](wiki/spec/terminal-psi/control_flow.md#safety-and-progress) describes one exact subtraction and the bounded-distance view’s saturating subtraction. Rewriting an authored expression to another view also changes the witness the checker receives. Which expressions are lawful at entry, and when do two such witnesses have the same identity?
+
+<a id="transparent-alias-carry-assertions"></a>
+### 4. May a transparent alias explicitly restate its target’s carry policy?
+
+A transparent alias of `u64` cannot acquire a new restriction on suspension. May it explicitly declare the four carry axes with exactly the values `u64` already has? If the target already restricts suspension, may the alias spell a weaker floor while continuing to inherit the restriction? These cases determine which declarations typing accepts and what downstream consumers can rely on. V2 prepares both forms and currently stops in lowering.
+
+[Transparent aliases](wiki/spec/language/generics.md#transparent-type-aliases) equates an alias and its expansion. The [carry policy](wiki/spec/resources/carry.md) combines the structurally derived policy with an authored floor. Neither example changes the effective target policy under intersection. Should the written list be a checked equality assertion, a redundant floor, or unavailable on aliases?
+
+<a id="machine-hypothesis-without-a-binder"></a>
+### 5. Does a theorem’s machine hypothesis require an explicit binder?
+
+When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? V2 types a citation with no such argument and then stops in lowering. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
+
+[Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) describes nested machine-shaped requirements. Its [proof-construction example](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) binds `machine Step` explicitly. An answer settles which declarations type and what evidence a citation must supply.
+
+<a id="whole-subject-region-constructor"></a>
+### 6. Which core declaration names the whole subject of an access policy?
+
+A domain can restrict reads of an entire value to one machine and writes to another. The documented policy passes `TypeSchema::root(@schema)` to both rule constructors. Which ordinary core declaration should a caller select to identify that whole subject? The access chapter gives the spelling and its meaning. The machine declaration rule reserves `::` for specific owners, and reflection defines `TypeSchema` as data. [Access plan construction](wiki/spec/resources/access.md) · [Worked domain policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority) · [Machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state) · [Semantic reflection](wiki/spec/language/reflection.md)
+
+V2's resolver stops at `TypeSchema::root` even when the reader and writer constructors are available. With the whole region expressed as `AccessRegion::Subject { schema: schema }` and the lifetime argument supplied, the same rule call reaches typing successfully. Is that case part of the authored interface, or should callers use a module-level core machine? The choice settles the public API. The whole-subject meaning and the intersection of repeated rules are already specified.

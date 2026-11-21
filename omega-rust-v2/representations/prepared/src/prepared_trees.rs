@@ -1,6 +1,6 @@
-use crate::{PreparationDependencies, PreparationResourceReceipt, PreparedValue, TargetObservation};
+use crate::{PreparationDependencies, PreparationResourceReceipt, PreparedFloat, PreparedValue, TargetObservation};
 use num_bigint::BigInt;
-use omega_resolved::DeclarationId;
+use omega_resolved::{DeclarationId, TreeNodeId};
 use omega_typed::{SpecializedIndexValue, TypeError, TypedTrees};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,6 +15,8 @@ pub struct PreparedTrees<'text> {
     target_observations: Vec<TargetObservation>,
     resource_receipt: Option<PreparationResourceReceipt>,
     dependencies: PreparationDependencies,
+    /// Sorted by node, then format.
+    landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
 }
 
 impl<'text> PreparedTrees<'text> {
@@ -28,7 +30,10 @@ impl<'text> PreparedTrees<'text> {
         target_observations: Vec<TargetObservation>,
         resource_receipt: Option<PreparationResourceReceipt>,
         dependencies: PreparationDependencies,
+        mut landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
     ) -> Self {
+        landed_floats.sort_unstable_by_key(|(node, value)| (*node, value.format() == omega_target_contract::FloatFormat::Binary64));
+        landed_floats.dedup();
         Self {
             typed,
             constants,
@@ -37,7 +42,26 @@ impl<'text> PreparedTrees<'text> {
             target_observations,
             resource_receipt,
             dependencies,
+            landed_floats,
         }
+    }
+
+    /// The bits of the anonymous numeric expression that typing landed at
+    /// `node` in `format`, rounded once to nearest, ties to even. `None` when
+    /// no such landing exists or two landings there disagree.
+    pub fn landed_float(
+        &self,
+        node: TreeNodeId,
+        format: omega_target_contract::FloatFormat,
+    ) -> Option<PreparedFloat> {
+        let start = self.landed_floats.partition_point(|(at, _)| *at < node);
+        let mut matches = self.landed_floats[start..]
+            .iter()
+            .take_while(|(at, _)| *at == node)
+            .filter(|(_, value)| value.format() == format)
+            .map(|(_, value)| *value);
+        let first = matches.next()?;
+        matches.next().is_none().then_some(first)
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {

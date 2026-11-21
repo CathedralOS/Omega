@@ -179,40 +179,45 @@ impl SyntaxParser<'_> {
         }
     }
 
-    /// With `ahead` just past a name: true if `satisfies` follows, directly or after `<...>`.
-    ///
-    /// The scan over `<...>` stops at the first `;`, `{` or `}`, so it never runs past the end of
-    /// the statement or declaration it started in.
+    /// Look for the `satisfies` after a name and its optional binder list.
+    /// Array extents and grouped generic arguments contain expressions. Within
+    /// those groups, `<` and `>` can be comparisons and `;` can introduce an extent.
     fn conformance_follows(
         &self,
         mut ahead: usize,
     ) -> bool {
-        if self.nth_at(ahead, Punctuation::Less) {
-            let mut angle_depth = 0usize;
-
-            loop {
-                match self.nth_punctuation(ahead) {
-                    Some(Punctuation::Less) => angle_depth += 1,
-                    Some(Punctuation::Greater) => {
-                        angle_depth = angle_depth.saturating_sub(1);
-
-                        if angle_depth == 0 {
-                            break;
-                        }
-                    }
-                    Some(Punctuation::Semicolon | Punctuation::LeftBrace | Punctuation::RightBrace) => return false,
-                    Some(_) => {}
-                    None if !self.nth_exists(ahead) => return false,
-                    None => {}
-                }
-
-                ahead += 1;
-            }
-
-            ahead += 1;
+        if !self.nth_at(ahead, Punctuation::Less) {
+            return self.nth_at_keyword(ahead, "satisfies");
         }
 
-        self.nth_at_keyword(ahead, "satisfies")
+        let mut angles = 1usize;
+        let mut groups = 0usize;
+        ahead += 1;
+        while self.nth_exists(ahead) {
+            match self.nth_punctuation(ahead) {
+                Some(Punctuation::LeftBracket | Punctuation::LeftParenthesis) => groups += 1,
+                // A nested type argument can itself be a record constructor.
+                Some(Punctuation::LeftBrace) if groups > 0 || angles > 1 => groups += 1,
+                Some(Punctuation::RightBracket | Punctuation::RightParenthesis | Punctuation::RightBrace) => {
+                    if groups == 0 {
+                        return false;
+                    }
+                    groups -= 1;
+                }
+                _ if groups > 0 => {}
+                Some(Punctuation::Less) => angles += 1,
+                Some(Punctuation::Greater) => {
+                    angles -= 1;
+                    if angles == 0 {
+                        return self.nth_at_keyword(ahead + 1, "satisfies");
+                    }
+                }
+                Some(Punctuation::Semicolon | Punctuation::LeftBrace) => return false,
+                _ => {}
+            }
+            ahead += 1;
+        }
+        false
     }
 
     /// Module components precede the declared name and its optional static members.
@@ -349,7 +354,7 @@ impl SyntaxParser<'_> {
 
             self.expect_word("a parameter name or `)`")?;
             self.expect(Punctuation::Colon, "`:`")?;
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
             self.close(param, NodeKind::Param);
 
             if !self.eat(Punctuation::Comma) {
@@ -368,7 +373,7 @@ impl SyntaxParser<'_> {
         let result = self.open();
 
         self.bump();
-        self.parse_type_in(TypePosition::Plain)?;
+        self.parse_type_in(TypePosition::Result)?;
         self.close(result, NodeKind::Result);
 
         Ok(())

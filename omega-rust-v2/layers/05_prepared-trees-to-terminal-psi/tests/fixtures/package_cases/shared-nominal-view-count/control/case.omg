@@ -1,0 +1,1 @@
+data R { x:u8; } machine count(p:@mut [R])->u64 {p.len}

@@ -151,7 +151,7 @@ impl SyntaxParser<'_> {
             return Ok(());
         }
 
-        let expression = self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
+        let expression = self.parse_expression(ExpressionContext::PATTERN)?;
         let is_path = self.has_kind(expression, NodeKind::PathExpression);
 
         if is_path && self.at(Punctuation::LeftBrace) {

@@ -276,6 +276,10 @@ fn each_match_arm_returns_its_own_owned_byte_literal() {
         for (op, byte) in [(first, bytes[0]), (second, bytes[1])] {
             assert_eq!(op.kind, OperationKind::Constant(ScalarLiteral::Integer(byte.into())));
         }
+        let (OperationResult::Scalar(a), OperationResult::Scalar(b)) = (first.result, second.result) else {
+            panic!("expected two scalar byte values")
+        };
+        assert_eq!(array.kind, OperationKind::EstablishScalarArray { elements: vec![a, b] });
         let OperationResult::Structural(place) = array.result else {
             panic!("expected an owned array place")
         };

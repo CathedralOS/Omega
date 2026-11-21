@@ -531,8 +531,9 @@ impl ConstantEvaluation<'_, '_> {
             let PreparedValue::Integer(value) = value else {
                 return Err(UNSUPPORTED_BODY.into());
             };
-            return fits(value.clone(), carrier)
-                .ok_or_else(|| EvaluationError::from(PreparationReason::FrozenConstantOutsideCarrier).at_node(resolved.file.node_id(node)));
+            // materialize checks the value at freeze; constant_reference checks
+            // that this read uses the very same initializer carrier.
+            return Ok(value.clone());
         }
         if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
             let ValueType::StaticInteger { value, carrier: actual } = argument else {

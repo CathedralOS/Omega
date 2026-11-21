@@ -62,20 +62,20 @@ impl Catalog<'_> {
                     format!("machine {name} cannot qualify a declaration outside its body"),
                 ));
             }
+            let qualifier = file.nodes[head].qualifier_span().expect("qualified machine head");
             let symbol = match slots.as_slice() {
                 [] => return Err(file.error(NameErrorKind::UnresolvedMachineOwner, span, format!("unresolved machine owner {name}"))),
+                // A single family match is unambiguous, but its carrier may still be wrong.
+                [_] if attachments.iter().any(|a| a.carrier_deferred) => self.domain_candidates(&slots, &attachments, String::new()),
                 [slot] if matches!(self.entries[*slot].id.kind, Domain | Trait | Conformance) => Symbol::Declaration(self.entries[*slot].id.clone()),
                 [_] => return Err(file.error(NameErrorKind::IneligibleMachineOwner, span, format!("{name} cannot qualify a machine declaration"))),
-                _ => self
-                    .occurrence_symbol(file, ctx, span, &slots, &attachments)
-                    .map_err(|_| file.error(NameErrorKind::AmbiguousMachineOwner, span, format!("ambiguous machine owner {name}")))?,
+                _ => self.occurrence_symbol(file, ctx, qualifier, &slots, &attachments, None).map_err(|cause| {
+                    file.error(NameErrorKind::AmbiguousMachineOwner, qualifier, format!("ambiguous machine owner {name}: {}", cause.message))
+                })?,
             };
             for slot in slots {
                 self.require_carrier(file, slot, head, span, visibility)?;
             }
-            let qualifier = file.nodes[head]
-                .qualifier_span()
-                .expect("qualified machine head");
             owner = Some(symbol.clone());
             uses.push(super::usage(file, head, NameRole::Qualifier, qualifier, symbol));
         }

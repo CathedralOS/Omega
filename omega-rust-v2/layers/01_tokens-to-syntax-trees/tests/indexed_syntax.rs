@@ -464,3 +464,51 @@ fn an_indexed_tree_has_one_root_and_uses_the_original_token_positions() {
     events.extend([TreeEvent::Open(NodeKind::File), TreeEvent::Close]);
     assert!(SyntaxTree::new(events, Vec::new()).index("", &[]).is_none());
 }
+
+#[test]
+fn conformance_binders_preserve_the_same_syntax_as_data_binders() {
+    for ty in [
+        r"[reflect\CallableInfo; N]",
+        "[[u8; 2]; N]",
+        "[u8; width(N > 1)]",
+        "[u8; width(N < 1)]",
+        "[u8; width(Count { n: N })]",
+        "Pair<Count { n: N }, u8>",
+        "Pair<(N > 1), u8>",
+        "Pair<u8, Pair<u8, u8>>",
+    ] {
+        let binders = format!("<const N: u64, const Routes: {ty}>");
+        let shape = |prefix, suffix, kind| {
+            let source = format!("{prefix}Policy{binders}{suffix}");
+            let tokens = lex(source.as_bytes()).unwrap();
+            let tree = parse_file(source.as_bytes(), &tokens).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            let index = tree.index(&source, &tokens).unwrap();
+            let decl = index.child(0, kind).unwrap();
+            let params = index.child(decl, NodeKind::GenericParams).unwrap();
+            assert_eq!(index.span(params).slice(source.as_bytes()), Some(binders.as_bytes()));
+            let names: Vec<_> = index
+                .generic_parameters(decl)
+                .map(|(name, _, _)| name.text)
+                .collect();
+            assert_eq!(names, ["N", "Routes"]);
+            let first = index.nodes[params].first_token;
+            index.nodes[params..index.nodes[params].end]
+                .iter()
+                .map(|node| (node.kind, node.children.len(), node.first_token - first, node.end_token - first))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            shape("public ", " satisfies AccessPolicy {}", NodeKind::Conformance),
+            shape("data ", " {}", NodeKind::Data),
+            "{ty}"
+        );
+    }
+    for source in [
+        "Pair<A; B> satisfies T {}",
+        "A<const X: [u8; 4)> satisfies T {}",
+        "Pair<A {}",
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        assert!(parse_file(source.as_bytes(), &tokens).is_err(), "{source}");
+    }
+}

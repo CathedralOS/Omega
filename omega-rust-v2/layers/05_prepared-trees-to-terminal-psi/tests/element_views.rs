@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -231,19 +229,75 @@ fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
 }
 
 #[test]
-fn an_element_length_contract_on_a_mutable_view_still_rejects() {
-    let text = "machine get(items:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }";
-    let error = sources::lower(&[("contract.omg", text)]).unwrap_err();
-    assert_eq!(error.message, "unsupported contract predicate expression");
-    known_gap::report("mutable element-view length contract", "Psi needs the element count of the mutable formal", text, &error);
-    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items.len".as_slice()));
+fn mutable_length_contract_selects_a_formal_not_a_body_bound() {
+    use omega_lowering::{PredicateOperator, PredicateStep};
+    for (text, subject, i) in [
+        ("machine get(items:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }", 0, 1),
+        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }", 0, 2),
+        ("machine get(items:@mut [u32],other:@mut [u32],i:u64)->u32 requires i < other.len { items[i] }", 1, 2),
+    ] {
+        let package = sources::lower(&[("contract.omg", text)]).unwrap();
+        let get = machine(&package, "get");
+        assert_eq!(get.contract.requires.len(), 1);
+        spec_corpus::observe_handoff!(
+            psi "psi-output/mutable-element-length-subject",
+            assert_eq!(get.contract.requires[0].predicate, [
+                PredicateStep::Formal(i), PredicateStep::Formal(subject), PredicateStep::ElementViewLength,
+                PredicateStep::Apply(PredicateOperator::LessThan),
+            ]),
+        );
+        let body = &get.body;
+        let Parameter::Structural(items) = body.parameters[0] else { panic!("expected items descriptor") };
+        if i == 2 {
+            assert_ne!(body.parameters[0], body.parameters[1]);
+            assert_eq!(get.parameter_types[0], get.parameter_types[1]);
+        }
+        let [count, read] = body.operations.as_slice() else { panic!("expected count and read") };
+        assert_eq!(count.kind, OperationKind::ElementViewLength { source: items });
+        let OperationKind::ElementViewRead { source, index, length, obligation, .. } = read.kind else { panic!("expected read") };
+        assert_eq!((source, Parameter::Scalar(index), OperationResult::Scalar(length)), (items, body.parameters[i], count.result));
+        assert_eq!(body.diagnostics.bounds[obligation.get() - 1].span.slice(text.as_bytes()), Some(&b"i"[..]));
+    }
 }
 
 #[test]
-fn a_mutable_element_view_is_not_an_immutable_parameter() {
-    let text = "machine get(items:@mut [u32],i:u64)->u32 { items[i] }";
-    let error = sources::lower(&[("mutable.omg", text)]).unwrap_err();
-    assert_eq!(error.message, "no Psi lowering for carrier @mut [u32]");
-    known_gap::report("mutable element-view read", "Psi needs the mutable descriptor, selector and bounds obligation", text, &error);
-    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items".as_slice()));
+fn a_read_keeps_the_mutable_element_descriptor_and_its_own_bound() {
+    let scalar = ScalarType::Integer { signed: false, width: 32 };
+    let mutable = TypeShape::MutableScalarElementView { element: scalar };
+    for (text, shape, view_slot, index_slot, index_name) in [
+        ("machine get(items:@mut [u32],i:u64)->u32 { items[i] }", mutable, 0, 1, "[i]"),
+        ("machine get(items:@[u32],i:u64)->u32 { items[i] }", TypeShape::SharedElementView { element: scalar }, 0, 1, "[i]"),
+        ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { other[i] }", mutable, 2, 1, "[i]"),
+        ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { items[j] }", mutable, 0, 3, "[j]"),
+    ] {
+        let package = sources::lower(&[("mutable.omg", text)]).unwrap();
+        let get = machine(&package, "get");
+        let body = &get.body;
+        let (Parameter::Structural(items), Parameter::Scalar(i)) = (body.parameters[view_slot], body.parameters[index_slot]) else {
+            panic!("expected descriptor and selector")
+        };
+        if body.parameters.len() == 4 {
+            assert_ne!(body.parameters[0], body.parameters[2]);
+            assert_ne!(body.parameters[1], body.parameters[3]);
+        }
+        let [count, read] = body.operations.as_slice() else { panic!("expected count and read") };
+        let OperationResult::Scalar(measured) = count.result else { panic!("expected scalar count") };
+        let OperationKind::ElementViewRead { source, index, length, obligation, path } = &read.kind else { panic!("expected element read") };
+        let descriptor = body.places[items.index()].ty;
+        assert_eq!(get.parameter_types[view_slot], descriptor);
+        let span = sources::unique_span(text, index_name);
+        let selector_site = omega_lexer::SourceSpan::new(span.start + 1, span.end - 1);
+        spec_corpus::observe_handoff!(
+            psi "psi-output/mutable-element-read",
+            assert_eq!(
+                (package.types.get(descriptor), &count.kind, *source, *index, *length, body.diagnostics.bounds[obligation.get() - 1].span),
+                (Some(&shape), &OperationKind::ElementViewLength { source: items }, items, i, measured, selector_site),
+            ),
+        );
+        assert!(path.is_empty());
+        assert_eq!(package.types.get(body.values[measured.index()].ty), Some(&TypeShape::PrimitiveScalar(U64)));
+        let OperationResult::Scalar(value) = read.result else { panic!("expected element value") };
+        assert_eq!(package.types.get(body.values[value.index()].ty), Some(&TypeShape::PrimitiveScalar(scalar)));
+        assert!(matches!(body.blocks[0].terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == value));
+    }
 }

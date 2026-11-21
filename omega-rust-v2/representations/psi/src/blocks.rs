@@ -6,6 +6,8 @@ pub struct BranchBlock {
     pub id: BlockId,
     pub scalar_parameters: Vec<ValueId>,
     pub structural_parameters: Vec<PlaceId>,
+    /// Every incoming edge owes these predicates, even if it carries no completion request.
+    pub scalar_domain_invariants: Vec<ScalarDomainInvariant>,
     pub operations: Range<usize>,
     pub terminator: BlockTerminator,
 }
@@ -60,6 +62,9 @@ pub struct SuccessorEdge {
     pub arguments: Vec<ValueId>,
     /// The edge supplies the argument value and its target supplies the fresh parameter at this position.
     pub scalar_qualification_changes: Vec<ScalarQualificationChange>,
+    /// One row per domain this jump establishes at an argument, each with its own origin.
+    /// An argument with completions has no qualification change; neither is a proof verdict.
+    pub domain_completions: Vec<DomainCompletion>,
     /// Each structural input transfers or copies into its corresponding target parameter.
     pub structural_arguments: Vec<crate::ValueOperand>,
     pub cleanup: Vec<CleanupAction>,
@@ -69,6 +74,36 @@ pub struct SuccessorEdge {
 pub struct CaseSelection {
     pub source:crate::ProjectedPlace,
     pub case:crate::DeclarationId,
+}
+
+/// On this jump, the fresh destination parameter at `argument_index` gains `domain`,
+/// which its argument lacks. `domain` is the exact atom of the destination type,
+/// with its ordered closed arguments, so `Above<5>` and `Above<6>` are different rows.
+/// `origin` is that membership's scalar return origin.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DomainCompletion {
+    pub argument_index: usize,
+    pub domain: crate::DomainAtom,
+    pub origin: CompletionOrigin,
+}
+
+/// The completion origins of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompletionOrigin {
+    /// A predicate-free, route-free tag with no required membership. It owes nothing.
+    Vacuous,
+    /// An unrestricted predicate domain. The destination's block invariant retains the
+    /// predicate, and every arrival owes it; the row itself is not a proof.
+    Proved,
+}
+
+/// The named domain's complete `requires` list with `self` bound to this block parameter
+/// and each index binder bound to the atom's closed argument in head order.
+/// Refers to the owned declaration; no formula, including a called predicate, is re-selected.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScalarDomainInvariant {
+    pub subject: ValueId,
+    pub domain: crate::DomainAtom,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

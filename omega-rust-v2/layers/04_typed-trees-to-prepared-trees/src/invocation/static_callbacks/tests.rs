@@ -175,6 +175,89 @@ fn a_checked_refinement_authorizes_only_its_exact_callable_binding() {
 }
 
 #[test]
+fn a_target_dependent_refinement_waits_for_target_selection() {
+    use crate::{LayoutExtent, LayoutGeometry, SelectedLayout, TargetIdentity, TargetSemantics};
+    // The program of `a_checked_refinement_authorizes_only_its_exact_callable_binding`.
+    let source = "machine identity(n:u64)->u64 requires n == n {n}
+                  data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
+                  const VALUE:u64=apply::<identity>(3u64);";
+    let word = ValueType::Integer {
+        signed: false,
+        width: Some(64),
+    };
+    let identity = TargetIdentity {
+        profile: "test".into(),
+        semantics_version: 1,
+        realization: (&b"callback target"[..]).into(),
+    };
+    let target = |plan: &'static [u8]| {
+        TargetSemantics::new(
+            identity.clone(),
+            [SelectedLayout {
+                target: identity.clone(),
+                subject: word.clone(),
+                schema: (&b"u64"[..]).into(),
+                plan: plan.into(),
+                geometry: LayoutGeometry {
+                    extent: LayoutExtent::Fixed(8),
+                    alignment: Some(8),
+                },
+            }],
+            [],
+        )
+        .unwrap()
+    };
+    let (selected, changed) = (target(b"first plan"), target(b"second plan"));
+    let (_, observation) = selected
+        .observe_layout(omega_typer::LayoutQuery::Size, &word)
+        .unwrap();
+    let original = typed(source);
+    let TypingProgress::Complete(trees) = &original else { unreachable!() };
+    let evidence = || {
+        let mut refinement = check_reflexivity(trees).unwrap();
+        refinement.observations.push(observation.clone());
+        CheckedPreparationEvidence::default().with_callable_refinement(refinement)
+    };
+    let declaration = &trees.constants[0].declaration;
+    let frozen = |target| match prepare_typing_pass(&original, &[], target, evidence()) {
+        Ok(crate::PreparedPass {
+            answers: PreparationAnswers::Frozen {
+                constants,
+                open_target_constants,
+            },
+            target_observations,
+            ..
+        }) => (constants, open_target_constants, target_observations),
+        other => panic!("expected a frozen pass: {other:?}"),
+    };
+    // No target: VALUE keeps its recipe at the initializer that checks the refinement.
+    let (constants, open, observed) = frozen(None);
+    assert!(constants.is_empty() && observed.is_empty());
+    let retained = &open[declaration];
+    assert_eq!(retained.span.slice(source.as_bytes()), Some(b"apply::<identity>(3u64)".as_slice()));
+    assert_eq!(
+        retained.message,
+        format!("{ADMISSION}the checked proof depends on target input and no target is selected")
+    );
+    // Controls: the selected plan admits VALUE; a changed plan still needs a refinement.
+    let (constants, open, observed) = frozen(Some(&selected));
+    assert!(open.is_empty());
+    assert_eq!(constants[declaration], PreparedValue::Integer(3.into()));
+    assert_eq!(observed, std::slice::from_ref(&observation));
+    let stale = match crate::preparation::typing_pass::evaluate_pass(&original, &[], Some(&changed), evidence(), &Default::default()) {
+        Err(refusal) => refusal,
+        Ok(_) => panic!("a changed plan cannot replay the refinement"),
+    };
+    assert_callback_refusal(
+        &stale,
+        PreparationReason::CallbackNeedsRefinement,
+        source,
+        "apply::<identity>(3u64)",
+        &format!("{ADMISSION}{NEEDS_REFINEMENT}"),
+    );
+}
+
+#[test]
 fn a_skipped_contract_call_uses_the_refinement_from_its_own_selection() {
     let declarations = "data Check = machine(n:u64)->bool reaches none crashes none;
         machine identity(n:u64)->bool requires n == n reaches none crashes none {true}

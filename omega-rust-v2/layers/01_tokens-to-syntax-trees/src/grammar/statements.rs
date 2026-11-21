@@ -156,7 +156,7 @@ impl SyntaxParser<'_> {
         self.parse_pattern()?;
 
         if self.eat(Punctuation::Colon) {
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
         }
 
         if self.eat(Punctuation::Equal) {
@@ -179,7 +179,7 @@ impl SyntaxParser<'_> {
         // room for the opening one. Experiment 4.
         let statement = self.open();
 
-        self.parse_expression(ExpressionContext::FULL)?;
+        self.parse_expression(ExpressionContext::STATEMENT_HEAD)?;
 
         if self.at(Punctuation::Equal) {
             self.bump();

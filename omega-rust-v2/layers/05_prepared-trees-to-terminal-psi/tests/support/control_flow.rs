@@ -22,6 +22,22 @@ pub fn check_operation_ownership(body: &MachineBody) -> Result<(), &'static str>
             return Err("result does not name its defining operation");
         }
     }
+    // A value or place also points back to its defining operation. A missing
+    // result would otherwise pass the forward check as a unit operation.
+    for (index, value) in body.values.iter().enumerate() {
+        if let ValueOrigin::Operation(id) = value.origin
+            && !matches!(body.operations.get(id.index()).map(|op| op.result), Some(OperationResult::Scalar(result)) if result.index() == index)
+        {
+            return Err("scalar origin names an operation that does not return that value");
+        }
+    }
+    for (index, place) in body.places.iter().enumerate() {
+        if let PlaceOrigin::Operation(id) = place.origin
+            && !matches!(body.operations.get(id.index()).map(|op| op.result), Some(OperationResult::Structural(result)) if result.index() == index)
+        {
+            return Err("place origin names an operation that does not return that place");
+        }
+    }
     let mut pending = vec![0];
     let mut reached = vec![false; body.blocks.len()];
     let mut owned = vec![false; body.operations.len()];

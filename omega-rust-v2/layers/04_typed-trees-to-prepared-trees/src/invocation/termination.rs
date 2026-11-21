@@ -2,6 +2,7 @@ use super::static_callbacks::CallbackApplication;
 use super::*;
 
 use crate::TargetObservation;
+use crate::evaluation::constant_evaluation::ObservationReplay;
 use omega_typed::{MachineApplication, MachineEffects, TypedTrees};
 use std::cell::OnceCell;
 use std::collections::{HashMap, VecDeque};
@@ -491,7 +492,7 @@ impl ConstantEvaluation<'_, '_> {
                 .map(|proof| self.check_recursive_component(proof, graph))
                 .collect()
         });
-        let mut changed_selection = false;
+        let (mut needs_target, mut changed_selection) = (false, false);
         let mut wrong_edge = false;
         if let Some(application) = application() {
             for (proof, &valid) in self.termination.evidence.iter().zip(validity) {
@@ -509,18 +510,25 @@ impl ConstantEvaluation<'_, '_> {
                     wrong_edge = true;
                     continue;
                 }
-                if !proof.observations.iter().all(|used| {
-                    self.target
-                        .is_some_and(|target| target.matches_observation(used))
-                }) {
-                    changed_selection = true;
-                    continue;
+                match self.replay_observations(&proof.observations) {
+                    ObservationReplay::Replays => {}
+                    ObservationReplay::NeedsTarget => {
+                        needs_target = true;
+                        continue;
+                    }
+                    ObservationReplay::Changed => {
+                        changed_selection = true;
+                        continue;
+                    }
                 }
                 for observation in &proof.observations {
                     self.record_observation(observation.clone());
                 }
                 return Ok(Some(proof));
             }
+        }
+        if needs_target {
+            return Err(PreparationReason::ProofNeedsTarget.into());
         }
         if changed_selection {
             return Err(PreparationReason::TerminationProofTargetChanged.into());

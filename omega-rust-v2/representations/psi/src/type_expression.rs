@@ -10,9 +10,13 @@ pub enum TypeExpressionStep {
     Scalar(ScalarType),
     LevelKind,
     Level(BigUint),
+    /// The universe level of the preceding type; not necessarily a closed numeral.
+    LevelOf,
     Universe {
         strict: bool,
     },
+    /// Static machine argument, including its lexical application (not a descriptor).
+    MachineSelection(Box<crate::TemplateSelection>),
     GenericParameter {
         owner: DeclarationId,
         index: usize,
@@ -32,6 +36,23 @@ pub enum TypeExpressionStep {
     Slice,
     Array(u64),
     IndexedArray,
+    /// Apply the checked, monomorphic static field recipe to the preceding operands.
+    StaticCall {
+        machine: DeclarationId,
+        operands: usize,
+        site: Site,
+    },
+    StaticInteger {
+        carrier: ScalarType,
+        value: num_bigint::BigInt,
+    },
+    IndexSum {
+        carrier: ScalarType,
+        operands: usize,
+    },
+    IndexedInteger {
+        signed: bool,
+    },
     /// The carrier precedes the arguments of each domain in order.
     Qualified(Vec<(DeclarationId, usize)>),
     Function,

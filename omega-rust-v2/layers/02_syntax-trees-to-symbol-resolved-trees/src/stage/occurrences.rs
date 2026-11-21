@@ -280,7 +280,7 @@ impl Catalog<'_> {
                     });
                     if !visible.is_empty() {
                         let deferred = attachments.iter().any(|a| a.carrier_deferred && visible.contains(&a.slot));
-                        match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
+                        match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments, found.family.as_ref())) {
                             Ok(symbol) => {
                                 if type_name && let Some(qualifier) = self.application_qualifier(file, ctx, n, &path, &visible)? {
                                     uses.push(qualifier);
@@ -405,7 +405,7 @@ impl Catalog<'_> {
                             .collect();
                         if !visible.is_empty() {
                             let deferred = attachments.iter().any(|a| a.carrier_deferred && visible.contains(&a.slot));
-                            match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
+                            match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments, found.family.as_ref())) {
                                 Ok(symbol) => names.push(symbol),
                                 Err(error) => {
                                     refusal.get_or_insert(error);
@@ -424,7 +424,7 @@ impl Catalog<'_> {
                 } else {
                     let deferred = attachments.iter().any(|a| a.carrier_deferred && candidates.contains(&a.slot));
                     check_candidates(&candidates, deferred)?;
-                    self.occurrence_symbol(file, ctx, span, &candidates, &attachments)?
+                    self.occurrence_symbol(file, ctx, span, &candidates, &attachments, found.family.as_ref())?
                 };
                 if let Some(qualifier) = self.application_qualifier(file, ctx, n, &path, &candidates)? {
                     uses.push(qualifier);
@@ -483,7 +483,7 @@ impl Catalog<'_> {
                         };
                         let target = match carrier {
                             Some(carrier) => carrier,
-                            None => self.occurrence_symbol(file, ctx, prefix_span, &prefix_owners, &prefix_attachments)?,
+                            None => self.occurrence_symbol(file, ctx, prefix_span, &prefix_owners, &prefix_attachments, None)?,
                         };
                         let site = usage(file, n, role, prefix_span, target);
                         let index = if uses.last() == Some(&site) {

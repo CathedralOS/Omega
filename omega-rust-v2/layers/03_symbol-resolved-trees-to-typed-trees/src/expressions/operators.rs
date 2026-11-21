@@ -17,28 +17,44 @@ impl BodyTyper<'_, '_> {
         operands: &[CallOperand],
     ) -> Result<Option<ValueType>, TypeError> {
         let source = self.unit.file;
-        let Some(family) = self.catalog.token_bindings.get(token) else {
-            return Ok(None);
-        };
-        let mut selected = Vec::new();
-        let indices = &self.catalog.types.indices;
-        let mut waiting = false;
-        for &id in family {
+        enum Candidate<'a> {
+            Ready(&'a crate::TypedSignature),
+            WaitingForHome(&'a crate::TypedSignature),
+            Pending(Option<&'a crate::declarations::declaration_catalog::PendingSignature>, usize),
+        }
+        let ready = self.catalog.token_bindings.get(token).into_iter().flatten().map(|&id| {
             let signature = &self.catalog.signatures[id];
             let binding = signature
                 .operator
                 .as_ref()
                 .expect("operator family indexes checked declarations");
+            (id, binding.public, binding.home.as_ref(), Candidate::Ready(signature))
+        });
+        let pending = self.catalog.pending_operators.get(token).into_iter().flatten().map(|binding| {
+            let candidate = match self.catalog.signatures.get(binding.machine) {
+                Some(signature) => Candidate::WaitingForHome(signature),
+                None => Candidate::Pending(self.catalog.pending_signatures.get(binding.machine), binding.arity),
+            };
+            (binding.machine, binding.public, binding.declared_home, candidate)
+        });
+        let mut selected = Vec::new();
+        let indices = &self.catalog.types.indices;
+        let mut waiting = false;
+        for (id, public, home, candidate) in ready.chain(pending) {
             let visible = if let Some(owner) = &id.enclosing_machine {
                 std::iter::successors(self.caller.as_ref(), |caller| caller.enclosing_machine.as_ref()).any(|scope| scope == owner)
             } else {
-                id.package == source.package || binding.public
+                id.package == source.package || public
             };
-            if signature.parameters.len() != operands.len() || !self.unit.can_select_from(&id.package) || !visible {
+            let arity = match candidate {
+                Candidate::Ready(s) | Candidate::WaitingForHome(s) => s.parameters.len(),
+                Candidate::Pending(_, arity) => arity,
+            };
+            if arity != operands.len() || !self.unit.can_select_from(&id.package) || !visible {
                 continue;
             }
             let mut contexts = Vec::new();
-            let participates = match &binding.home {
+            let participates = match home {
                 Some(home) if home.kind == NodeKind::Domain => operands
                     .iter()
                     .any(|op| op.value.domains().iter().any(|d| &d.declaration == home)),
@@ -58,11 +74,11 @@ impl BodyTyper<'_, '_> {
                     }
                     !contexts.is_empty()
                 }
+                // The completed parameters may infer a domain home instead of a nominal one.
+                None if matches!(candidate, Candidate::Pending(..)) && operands.iter().any(|op| !op.value.domains().is_empty()) => true,
                 nominal_home => operands.iter().enumerate().any(|(i, op)| {
                     nominal_operator_operand(token, i, &op.value).is_some_and(|carrier| {
-                        nominal_home
-                            .as_ref()
-                            .map_or_else(|| carrier.package == id.package, |home| carrier == home)
+                        nominal_home.map_or_else(|| carrier.package == id.package, |home| carrier == home)
                     })
                 }),
             };
@@ -77,6 +93,13 @@ impl BodyTyper<'_, '_> {
                     owner
                         .as_ref()
                         .map_or_else(|| t.clone(), |slot| t.substitute(&slot.declaration, &slot.trait_arguments))
+                };
+                let signature = match candidate {
+                    Candidate::Ready(signature) | Candidate::WaitingForHome(signature) => signature,
+                    Candidate::Pending(partial, _) => {
+                        waiting |= partial.is_none_or(|partial| self.unfinished_call_may_match(source.nodes[node_index].kind, id, partial, operands, capture));
+                        continue;
+                    }
                 };
                 let mut args = vec![None; self.catalog.types.arity(id)];
                 let mut subjects = Vec::with_capacity(operands.len());
@@ -100,6 +123,10 @@ impl BodyTyper<'_, '_> {
                 let Some(args) = args.into_iter().collect::<Option<Vec<_>>>() else {
                     continue;
                 };
+                if matches!(candidate, Candidate::WaitingForHome(_)) {
+                    waiting = true;
+                    continue;
+                }
                 selected.push(SelectedMachine {
                     machine: id,
                     explicit_arguments: &[],

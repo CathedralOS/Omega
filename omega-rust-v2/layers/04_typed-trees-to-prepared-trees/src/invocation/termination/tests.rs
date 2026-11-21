@@ -451,6 +451,21 @@ fn termination_replays_the_exact_target_plan_used_by_its_proof() {
         "static evaluation cannot admit this invocation: the checked termination proof depends on a different target selection",
     );
     assert!(evaluator.observations.borrow().is_empty());
+    // Before target selection the same proof is neither valid nor stale: the
+    // demand waits for a target at the same occurrence.
+    evaluator.target = None;
+    let Err(crate::evaluation::constant_evaluation::StaticDemandError::OpenTarget(open)) = evaluator.evaluate_demand(&demand) else {
+        panic!("without a target the proof's layout observation cannot be replayed yet");
+    };
+    spec_corpus::assert_preparation_cause!(
+        open,
+        crate::RefusalCause::Preparation(PreparationReason::ProofNeedsTarget),
+        "app",
+        "main.omg",
+        (start, start + occurrence.len()),
+        "static evaluation cannot admit this invocation: the checked proof depends on target input and no target is selected",
+    );
+    assert!(evaluator.observations.borrow().is_empty());
     evaluator.target = Some(&original);
     assert_eq!(
         evaluator

@@ -142,3 +142,71 @@ fn equally_visible_query_and_machine_report_both_identities() {
     assert_eq!(refusal.span.get_start_offset(), text.rfind("field").unwrap());
     assert_eq!(refusal.span.slice(text.as_bytes()), Some(b"field".as_slice()));
 }
+
+#[test]
+fn admitted_dependency_edges_reach_only_their_requester_beside_the_toolchain_edge() {
+    use omega_resolver::{Dependency, NameErrorKind};
+    use omega_toolchain::resolve_admitted_packages;
+
+    let files = [
+        ("app", "main.omg", r"use kit\score; use omega\language\core; machine f() -> u32 { score() }"),
+        ("lib", "main.omg", "public machine v() -> u32 { 1 }"),
+        ("lib", "other.omg", "public machine score() -> u32 { 7 }"),
+        ("tool", "main.omg", r"use kit\score; machine g() -> u32 { score() }"),
+    ];
+    let parsed: Vec<_> = files
+        .iter()
+        .map(|(_, _, text)| {
+            let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+            (tokens, tree)
+        })
+        .collect();
+    let sources = |count: usize| -> Vec<StageSource> {
+        files
+            .iter()
+            .zip(&parsed)
+            .take(count)
+            .map(|((package, path, text), (tokens, tree))| StageSource {
+                package,
+                source: ParsedSource {
+                    logical_path: path,
+                    text,
+                    tokens,
+                    tree,
+                },
+            })
+            .collect()
+    };
+    let kit = Dependency {
+        requester: "app",
+        alias: "kit",
+        package: "lib",
+    };
+    let resolved = resolve_admitted_packages(&sources(3), &[kit]).unwrap();
+    let call = files[0].2.rfind("score").unwrap();
+    assert!(
+        resolved
+            .uses()
+            .any(|name| name.span.get_start_offset() == call && matches!(&name.target, Symbol::Declaration(id) if id.package == "lib" && id.path == "score"))
+    );
+
+    // Without the admitted edge the same root has no `kit` alias.
+    let missing = resolve_admitted_packages(&sources(3), &[]).unwrap_err();
+    assert_eq!((missing.package.as_str(), missing.message.as_str()), ("app", r"unavailable import kit\score"));
+    assert_eq!(missing.span.get_start_offset(), files[0].2.find("kit").unwrap());
+
+    // The edge belongs to `app`; a second requester naming the same alias has no authority.
+    let other = resolve_admitted_packages(&sources(4), &[kit]).unwrap_err();
+    assert_eq!((other.package.as_str(), other.message.as_str()), ("tool", r"unavailable import kit\score"));
+
+    // An admitted edge cannot retarget the toolchain alias the profile supplies.
+    let retarget = Dependency {
+        requester: "app",
+        alias: "omega",
+        package: "lib",
+    };
+    let conflict = resolve_admitted_packages(&sources(3), &[kit, retarget]).unwrap_err();
+    assert_eq!(conflict.kind, NameErrorKind::ConflictingDependencyAlias);
+    assert_eq!(conflict.message, "conflicting packages for dependency alias omega");
+}

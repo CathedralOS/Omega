@@ -318,14 +318,55 @@ fn each_product_can_be_read_without_the_code_that_built_it() {
         let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
         let syntax = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
         assert_eq!(assignment_spelling(&text, &tokens, &syntax), Some("="));
-        let package = resolve(&[("size.omg", &text)]);
+        // The library declares the same two machines and its own SIZE in its size.omg.
+        // Only the application calls a machine. Selecting by path alone would credit the library call too.
+        let library = "machine three()->u64 {5u64} machine four()->u64 {6u64} const SIZE:u64=8u64;";
+        let library_tokens = omega_lexer::lex(library.as_bytes()).unwrap();
+        let library_syntax = omega_parser::parse_file(library.as_bytes(), &library_tokens).unwrap();
+        let sources = [
+            omega_resolver::StageSource {
+                package: "lib",
+                source: omega_resolver::ParsedSource {
+                    logical_path: "size.omg",
+                    text: library,
+                    tokens: &library_tokens,
+                    tree: &library_syntax,
+                },
+            },
+            omega_resolver::StageSource {
+                package: "app",
+                source: omega_resolver::ParsedSource {
+                    logical_path: "size.omg",
+                    text: &text,
+                    tokens: &tokens,
+                    tree: &syntax,
+                },
+            },
+        ];
+        let package = omega_toolchain::resolve_admitted_packages(&sources, &[]).unwrap();
         let prepared = prepare_source_package(&package).unwrap();
         let typed = prepared.typed();
-        assert!(resolves_reference_to(typed.resolved(), selected));
-        assert!(!resolves_reference_to(typed.resolved(), other));
-        assert!(selected_nullary_call(typed, selected));
-        assert!(!selected_nullary_call(typed, other));
-        assert_eq!(frozen_integer(&prepared, "SIZE"), Some(expected));
+        let declaration = |package: &str, path: &str| {
+            let mut matches = typed
+                .resolved()
+                .declarations
+                .iter()
+                .filter(|id| id.package == package && id.path == path);
+            let id = matches.next().expect("fixture declaration exists");
+            assert!(matches.next().is_none(), "fixture declaration is unambiguous");
+            id
+        };
+        for (package, name, was_called) in [
+            ("app", selected, true),
+            ("app", other, false),
+            ("lib", selected, false),
+        ] {
+            let callee = declaration(package, name);
+            assert_eq!(resolves_reference_to(typed.resolved(), callee), was_called);
+            assert_eq!(selected_nullary_call(typed, callee), was_called);
+        }
+        assert_eq!(frozen_integer(&prepared, declaration("app", "SIZE")), Some(expected));
+        assert_eq!(frozen_integer(&prepared, declaration("lib", "SIZE")), Some(8));
     }
 }
 

@@ -16,6 +16,8 @@ pub enum NameContext {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Symbol {
     Declaration(DeclarationId),
+    /// Callables that typing selects among: overloads at one path, or the requirements
+    /// one trait member path reaches through the trait's parents.
     Candidates(Vec<DeclarationId>),
     /// These visible domains compete only if their typed carriers agree with the written qualifier.
     DomainCandidates {

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from typing_sites import GOLDEN_TEST, HEADER, SOURCE, attach_witnesses, details, finish, parse, record_return, source_link, summary
+from typing_sites import rendered_outcomes, rendered_summary, GOLDEN_TEST, HEADER, SOURCE, attach_witnesses, details, finish, parse, record_return, source_link, summary
 
 
 def _tsv(*rows, count=None):
@@ -47,6 +47,28 @@ class TypingSitesTests(unittest.TestCase):
         self.assertIn("disagrees with the literal", inventory["errors"][0])
         rendered = "\n".join(details(inventory, Path.cwd()))
         self.assertIn(f"Returned “expected callable” to `{target}::callable`", rendered)
+
+    def test_exact_credit_stays_with_its_returned_message_and_compiler_origin(self):
+        inventory = parse(_tsv("a.rs\t3\t5\tf\tat\tdynamic\treason", "a.rs\t4\t5\tg\tat\ttemplate\tbad {x}"))
+        target, test = "tests/x.rs", "returns_two"
+        report = {"suites": {"L3": {"tests": [{"target": target, "test": test, "status": "ok"}]}},
+                  "rule_diagnostics": {"L3": {}}, "measurement_errors": []}
+        for line, texts in [(3, ["red", "blue"]), (4, ["red"])]:
+            for message in texts:
+                record_return(report, "L3", target, (target, test),
+                              f"OMEGA_TYPING_RETURN\t\t{SOURCE}/a.rs\t{line}\t5\trefused\tapp\tf.omg\t0\t1\t{len(message)}\t{message}")
+        # The CLI compares red only at line 3, plus a package-only green return.
+        for message in ["red", "green"]:
+            report["rule_diagnostics"]["L3"][message] = {
+                "verified": True, "observation": {"reason": message, "compiler_site": {"path": f"{SOURCE}/a.rs", "line": 3, "column": 5}}}
+        attach_witnesses(inventory, report)
+        self.assertFalse(inventory["errors"])
+        self.assertEqual([rendered_outcomes(row) for row in inventory["rows"]],
+                         [{"blue": "helper", "green": "package", "red": "package"}, {"red": "helper"}])
+        result = rendered_summary(inventory["rows"])
+        self.assertIn("4 distinct combinations", result)
+        self.assertIn("full diagnostic for 2.", result)
+        self.assertIn("weaker check for another: 1.", result)
 
     def test_exact_api_credit_requires_a_passing_test_and_the_independent_expected_tuple(self):
         target, name = "tests/specialization_receipts.rs", "check"
@@ -109,6 +131,13 @@ class TypingSitesTests(unittest.TestCase):
                     self.assertEqual(report["measurement_errors"], [])
                     self.assertEqual(bool(inventory["errors"]), mutation != "none")
                     self.assertEqual(inventory["rows"][0].get("fixtures", []), ["numbers/reject/value.omg"] if mutation == "none" else [])
+                    text = "\n".join(details(inventory, root))
+                    if mutation == "none":
+                        self.assertIn("| **Total** | 1 | 0 | 0 | 0 | 1 | 1 | 0 | 0 |", text)
+                        self.assertIn("Missing full comparison: Handwritten fixture match only (1)\n\n- [a.rs:11:4]", text)
+                    else:
+                        self.assertIn("Evidence gaps unavailable", text)
+                        self.assertNotIn("| **Total**", text)
 
     def test_malformed_or_repeated_test_results_cannot_supply_stage_witnesses(self):
         target, test = "tests/x.rs", "check"
@@ -149,6 +178,35 @@ class TypingSitesTests(unittest.TestCase):
         self.assertIn("missing or malformed footer", parse("\n".join([*HEADER, good]))["errors"])
         self.assertIn("rows are unsorted or repeat a location", parse(_tsv("b.rs\t1\t1\t-\tat\tliteral\tm", good))["errors"])
 
+    def test_module_gaps_count_distinct_sites_and_list_their_exact_origins(self):
+        path, other = "expressions/calls.rs", "typing/calls.rs"
+        inventory = parse(_tsv(*(f"{path}\t3\t{col}\tf\tat\tliteral\tbad" for col in (1, 2, 3, 4)),
+                               f"{other}\t3\t1\tg\tat\tliteral\tbad"))
+        target = "tests/typed.rs"
+        report = {"suites": {"L3": {"tests": []}}, "measurement_errors": [], "rule_diagnostics": {"L3": {}}}
+        for col, name, checked, status in [(1, "overlap", True, "ok"), (1, "another", True, "ok"),
+                                           (2, "sighting", False, "ok"), (3, "failed", True, "FAILED"),
+                                           (4, "api", True, "ok")]:
+            report["suites"]["L3"]["tests"].append({"target": target, "test": name, "status": status})
+            tag = "OMEGA_TYPING_RETURN_CHECKED" if checked else "OMEGA_TYPING_RETURN"
+            marker = f"{tag}\t\t{SOURCE}/{path}\t3\t{col}\trefused\tp\tf.omg\t0\t2\t3\tbad"
+            record_return(report, "L3", target, (target, name), marker + ("\tp\tf.omg\t0\t2\tbad" if checked else ""))
+        for module, col, verified in [(path, 1, True), (path, 3, False), (other, 1, True)]:
+            observation = {"compiler_site": {"path": f"{SOURCE}/{module}", "line": 3, "column": col}, "reason": "bad"}
+            report["rule_diagnostics"]["L3"][f"{module}:{col}"] = {"observation": observation, "verified": verified}
+        attach_witnesses(inventory, report)
+        self.assertEqual(report["measurement_errors"] + inventory["errors"], [])
+        text = "\n".join(details(inventory, Path.cwd()))
+        self.assertIn(f"| [`{path}`](#typing-module-0) | 4 | 2 | 1 | 2 | 2 | 0 | 1 | 1 |", text)
+        self.assertIn(f"| [`{other}`](#typing-module-1) | 1 | 0 | 1 | 1 | 0 | 0 | 0 | 0 |", text)
+        self.assertIn("| **Total** | 5 | 2 | 2 | 3 | 2 | 0 | 1 | 1 |", text)
+        self.assertIn(f"#### Missing full comparison: No recorded return (1)\n\n- [{path}:3:3]", text)
+        self.assertIn(f"#### Missing full comparison: Helper return only (1)\n\n- [{path}:3:2]", text)
+        self.assertEqual(text.count(f"[{path}:3:1]"), 1)
+        self.assertNotIn("::failed", text)
+        inventory["command"] = {"exit": 0}
+        self.assertIn("No full API or package comparison was recorded for 2 sites", summary({"typing_sites": inventory})[1])
+
     def test_report_summary_links_and_failure(self):
         with tempfile.TemporaryDirectory() as name:
             directory = Path(name)
@@ -161,7 +219,8 @@ class TypingSitesTests(unittest.TestCase):
                 finish(report, directory, {})
             text = (directory / "typing-sites.md").read_text(encoding="utf-8")
             self.assertIn(f"]({source_link('a.rs', directory)}#L3)", text)
-            self.assertIn("## Unsupported-form fallbacks (not rules) (1)", text)
+            self.assertIn("| Unsupported-form fallbacks (not rules) | 1 | 0 | 0 | 1 |", text)
+            self.assertIn("No full API or package comparison was recorded for 2 sites", summary(report)[1])
             self.assertIn("2 explicit `TypeError` call sites (1 literal, 1 unsupported)", summary(report)[1])
             self.assertEqual(report["measurement_errors"], [])
             with mock.patch.object(subprocess, "run", side_effect=OSError("no mbx")):

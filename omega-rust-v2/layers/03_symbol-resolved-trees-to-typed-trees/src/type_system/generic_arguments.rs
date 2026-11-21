@@ -376,20 +376,23 @@ impl ResolvedSourceFile<'_> {
         types: &TypeCatalog<'_>,
         enclosing: &[(DeclarationId, Vec<ValueType>)],
     ) -> Result<Vec<ValueType>, TypeError> {
-        let at = |message| TypeError::at(self.file, node, message);
         let kind = match schema.kind {
             NodeKind::Trait => "trait",
             NodeKind::Conformance => "conformance",
             NodeKind::Machine | NodeKind::AsmMachine => "machine",
-            _ => return Err(at(format!("{} has no selectable generic arguments", schema.path))),
+            _ => return Err(TypeError::at(self.file, node, format!("{} has no selectable generic arguments", schema.path))),
         };
         let arity = types
             .generics
             .get(schema)
             .map(|g| g.parameters.len())
-            .ok_or_else(|| at(format!("missing {kind} declaration for {}", schema.path)))?;
+            .ok_or_else(|| TypeError::at(self.file, node, format!("missing {kind} declaration for {}", schema.path)))?;
         if actual.len() != arity {
-            return Err(at(format!("{} expects {arity} {kind} arguments, found {}", schema.path, actual.len())));
+            return Err(TypeError::at(
+                self.file,
+                node,
+                format!("{} expects {arity} {kind} arguments, found {}", schema.path, actual.len()),
+            ));
         }
         let arguments = self.applied_formals(node, schema, actual, types, |value| value.in_enclosing_scopes(enclosing))?;
         for (index, (&arg, value)) in actual.iter().zip(&arguments).enumerate() {
@@ -400,7 +403,7 @@ impl ResolvedSourceFile<'_> {
         let mut requirements = Vec::new();
         types
             .require_type_application(schema, &arguments, &mut requirements)
-            .map_err(at)?;
+            .map_err(|message| TypeError::at(self.file, node, message))?;
         types.formations.retain(self, node, requirements);
         Ok(arguments)
     }

@@ -87,6 +87,33 @@ fn a_compact_integer_use_retains_an_applied_declaration_for_typing() {
 }
 
 #[test]
+fn machine_heads_retain_deferred_carriers_even_with_only_one_domain() {
+    for declarations in ["domain u<8>::Ready;", "domain u<16>::Ready;", "domain u<8>::Ready; domain u<16>::Ready;"] {
+        for token in ["+ ", ""] {
+            let source = format!("{declarations} machine {token}u8::Ready::add(a:u8,b:u8)->u8{{a}}");
+            let stage = resolve(&[("app", "main.omg", &source)], &[]).unwrap();
+            let qualifier = stage
+                .uses()
+                .find(|u| u.role == NameRole::Qualifier && u.span.slice(source.as_bytes()) == Some(b"u8::Ready"))
+                .unwrap();
+            let Symbol::DomainCandidates { candidates, .. } = &qualifier.target else {
+                panic!("{source}: lost carrier evidence: {:?}", qualifier.target)
+            };
+            let domains: Vec<_> = stage.declarations.iter().filter(|id| id.path == "u::Ready").collect();
+            assert_eq!(domains.len(), declarations.matches("domain").count());
+            assert_eq!(candidates.len(), domains.len());
+            assert!(domains.iter().all(|id| candidates.iter().any(|c| c.carrier_deferred && &c.declaration == *id)));
+            if !token.is_empty() {
+                let [operator] = stage.operator_declarations.as_slice() else {
+                    panic!("expected one operator")
+                };
+                assert_eq!(operator.declared_home.as_ref(), Some(&qualifier.target));
+            }
+        }
+    }
+}
+
+#[test]
 fn two_applied_declarations_keep_distinct_width_arguments_in_the_public_interface() {
     let text = "public domain u<8>::Ready; public domain u<16>::Ready; machine f(x:u8 in u8::Ready){}";
     let stage = resolve(&[("app", "main.omg", text)], &[]).unwrap();

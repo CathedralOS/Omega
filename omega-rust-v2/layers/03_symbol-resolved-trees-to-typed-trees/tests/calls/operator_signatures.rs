@@ -192,6 +192,81 @@ fn explicit_and_inferred_foreign_operator_homes_are_rejected_at_the_same_boundar
     assert_eq!(error.message, "a conformance supplies the trait's token and cannot bind one");
 }
 
+// Exercise the L2/L3 boundary, not a source-package rule. Start with a known-good
+// binding and corrupt only its owner or its machine identity in the resolved table.
+#[test]
+fn malformed_operator_records_are_not_authored_typing_reasons() {
+    use omega_resolved::{IndexedSource, OperatorDeclaration, ResolutionIndex, ResolvedStage, Symbol, SymbolResolvedTrees, TreeBindings};
+
+    let source = "data P{} machine - flip(x:P){}";
+    let resolved = support::resolve_packages(&[("game", "op.omg", source)], &[]);
+    let original = &resolved.operator_declarations[0];
+    let tree = resolved.trees().next().unwrap();
+    let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+    let syntax = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+    let with_binding = |home, machine| {
+        let file = IndexedSource::new(0, "game", "op.omg", String::new(), syntax.index(source, &tokens).unwrap());
+        let bindings = TreeBindings {
+            uses: tree.occurrences().cloned().collect(),
+            definitions: tree.declaration_nodes()
+                .map(|(node, id)| (node, resolved.declarations.iter().position(|d| d == id).unwrap()))
+                .collect(),
+            ..Default::default()
+        };
+        let operator = OperatorDeclaration {
+            node: original.node,
+            public: original.public,
+            token: original.token.clone(),
+            declared_home: home,
+            machine,
+        };
+        let index = ResolutionIndex {
+            direct_dependencies: Default::default(),
+            domain_carriers: Default::default(),
+            direct_trait_parents: Default::default(),
+            trait_parents: Default::default(),
+        };
+        SymbolResolvedTrees::new(vec![(file, bindings)], ResolvedStage::new(index, resolved.declarations.clone(), vec![], vec![operator]))
+    };
+    omega_typer::type_stage(&with_binding(None, original.machine.clone())).unwrap();
+    let mut absent = original.machine.clone();
+    std::sync::Arc::make_mut(&mut absent.name).path = "absent".into();
+    let start = source.find('-').unwrap();
+    for (forest, message) in [
+        (with_binding(Some(Symbol::Builtin("bool".into())), original.machine.clone()), "expected an exact declaration"),
+        (with_binding(None, absent), "operator has no typed signature"),
+    ] {
+        let error = omega_typer::type_stage(&forest).unwrap_err();
+        assert_eq!((error.package.as_str(), error.file.as_str()), ("game", "op.omg"));
+        assert_eq!(error.span, omega_lexer::SourceSpan::new(start, start + 1));
+        assert_eq!(error.message, message);
+        assert_eq!(error.reason(), None);
+        assert!(!error.waiting_for_static_value());
+        #[cfg(feature = "diagnostic-origins")]
+        support::report_return(&error, "", Some(("game", "op.omg", start, start + 1, message)));
+    }
+}
+
+#[test]
+fn operator_binding_checks_keep_arity_first_and_distinct_origins() {
+    use omega_typer::OperatorDeclarationError::*;
+    #[cfg(feature = "diagnostic-origins")]
+    let mut origins = std::collections::HashSet::new();
+    for (source, cause, message) in [
+        ("machine + plus(x:u8){}", IncorrectArity, "incorrect operator arity"),
+        ("machine + plus(x:u8,y:u8){}", PrimitiveFamily, "cannot bind a compiler-owned primitive operator family"),
+        ("data P{} machine + plus(x:P,y:P){} machine + sum(x:P,y:P){}", DuplicateBinding, "duplicate normalized operator binding"),
+    ] {
+        let error = check(&[("op.omg", source)]).unwrap_err();
+        let start = source.rfind('+').unwrap();
+        assert_eq!(error.span, omega_lexer::SourceSpan::new(start, start + 1));
+        assert_eq!(error.message, message);
+        assert_eq!(error.reason(), Some(cause.into()));
+        #[cfg(feature = "diagnostic-origins")]
+        assert!(origins.insert(error.diagnostic_origin()));
+    }
+}
+
 #[test]
 fn a_directory_qualifies_an_operator_name_without_becoming_an_operand_type() {
     let source = "data Point{} machine + drawing\\add(x:Point,y:Point)->Point{x} machine sum(x:Point,y:Point)->Point{x+y}";

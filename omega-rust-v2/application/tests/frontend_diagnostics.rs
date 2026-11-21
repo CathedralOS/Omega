@@ -4,6 +4,8 @@
 //! repeat the earlier stop unchanged. L5 inputs use `source lower`: each positive twin lowers,
 //! and the refused input must already pass `source prepare`, so lowering owns the failure.
 use std::{fs, path::Path, process::Command};
+#[path = "support/diagnostic_occurrence.rs"]
+mod diagnostic_occurrence;
 
 struct Case<'a> {
     stage: &'static str,
@@ -60,7 +62,8 @@ fn check(case: Case<'_>) {
     let actual = String::from_utf8(bad.stderr).unwrap();
     assert_eq!(bad.status.code(), Some(1), "source {action}: {actual}");
     assert!(bad.stdout.is_empty());
-    assert_eq!(actual.trim_end(), expected);
+    let rendered = actual.strip_suffix('\n').expect("diagnostic must end with a newline");
+    assert_eq!(rendered, expected);
     let controls = if after_preparation {
         assert!(
             neighbor.status.success() && neighbor.stdout.is_empty() && neighbor.stderr.is_empty(),
@@ -79,8 +82,12 @@ fn check(case: Case<'_>) {
         "good-twin-prepares,lower-repeats-stop"
     };
     println!(
-        "OMEGA_FRONTEND\t{}\t{name}\t{action}\t{}\tcase.omg\t{line}\t{column}\t{start}\t{end}\t{controls}\t{}",
-        case.stage, case.producer, spec_corpus::diagnostic_field(case.reason)
+        "OMEGA_FRONTEND\t{}\t{name}\t{action}\t{}\tcase.omg\t{line}\t{column}\t{start}\t{end}\t{controls}\t{}\t{}\t{}",
+        case.stage,
+        case.producer,
+        spec_corpus::diagnostic_field(case.reason),
+        spec_corpus::diagnostic_field(rendered),
+        diagnostic_occurrence::fields("case.omg", case.bad, start, case.occurrence)
     );
 }
 
@@ -276,31 +283,56 @@ fn unavailable_target_for_a_required_extent() {
     });
 }
 
-// These inputs prepare and stop only when `source lower` builds Psi. The matching layer witnesses
-// are omega-lowering `declarations::aliases_with_attributes_still_refuse` and
-// `domains::unsupported_domain_clause_is_refused_at_its_predicate_call`.
 #[test]
-fn attributed_alias_refused_by_lowering() {
+fn a_crashing_helper_cannot_supply_a_total_predicate_application() {
+    // A total predicate term needs a terminating helper with no crash route
+    // (wiki/spec/language/state_contracts.md). Changing only the helper's published
+    // ceiling to `Trap` moves the stop to the application inside the domain clause.
+    // The occurrence is the last `predicate()`, after `&&`, not the declaration's name.
+    let good = "machine predicate()->bool reaches none crashes none terminates {true}\r\ndomain i32::Guarded requires true && predicate();";
+    let bad = good.replace("crashes none", "crashes Trap");
     check(Case {
         stage: "L5",
         producer: "lowering",
-        good: b"// alias\r\ndata Alias = u64;",
-        bad: b"// alias\r\ndata Alias [copy] = u64;",
-        occurrence: b"u64",
-        reason: "data alias or unsupported member requires declaration lowering",
+        good: good.as_bytes(),
+        bad: bad.as_bytes(),
+        occurrence: b"predicate()",
+        reason: "predicate application requires a terminating helper with an empty crash ceiling",
     });
 }
 
-const GUARD: &str = "machine predicate()->bool reaches none crashes none terminates {true}\r\ndomain i32::Guarded requires true && self > 0;";
 #[test]
-fn domain_predicate_call_refused_by_lowering() {
-    let bad = GUARD.replace("self > 0", "predicate()");
+fn a_transparent_alias_cannot_change_its_targets_multiplicity() {
+    check(Case {
+        stage: "L3",
+        producer: "typer",
+        good: b"// alias\r\ndata Alias [copy] = u64;",
+        bad: b"// alias\r\ndata Alias [linear] = u64;",
+        occurrence: b"data Alias [linear] = u64;",
+        reason: "a transparent alias cannot change its target's multiplicity",
+    });
+}
+
+#[test]
+fn a_transparent_alias_cannot_change_its_targets_carry() {
+    check(Case {
+        stage: "L3",
+        producer: "typer",
+        good: b"// alias\r\ndata Alias [copy] = u64;",
+        bad: b"// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;",
+        occurrence: b"carry(suspension:forbidden,cpu:same,thread:any,address:movable,)",
+        reason: "a transparent alias cannot change its target's carry",
+    });
+}
+
+#[test]
+fn a_carry_annotated_alias_stops_at_its_attributes() {
     check(Case {
         stage: "L5",
         producer: "lowering",
-        good: GUARD.as_bytes(),
-        bad: bad.as_bytes(),
-        occurrence: b"predicate()",
-        reason: "unsupported typed contract predicate record",
+        good: b"// alias\r\ndata Alias [copy] = u64;",
+        bad: b"// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;",
+        occurrence: b"[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]",
+        reason: "transparent alias carry policy requires a checked relation to its expansion",
     });
 }

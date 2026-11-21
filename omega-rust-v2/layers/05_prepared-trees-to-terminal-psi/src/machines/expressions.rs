@@ -1,5 +1,5 @@
 use super::body::{MachineBodyValues, check_container, next_id, site_at, unsupported_node};
-use super::branches::{BlockFlow, BooleanArm};
+use super::branches::{BlockFlow, BooleanArm, TestedDispatch, tested_dispatch, value_patterns};
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
     BlockId, BooleanPrimitive, CallArgument, CallTarget, LoweringError, LoweringTypes, MachineBody, OperationId, OperationKind, OperationResult, Place,
@@ -54,6 +54,8 @@ pub(crate) struct Expressions<'a> {
     pub(super) data: &'a [crate::LoweredData],
     pub(super) callees: &'a crate::machines::calls::Callees<'a>,
     pub(super) bindings: Vec<(usize, OperationResult)>,
+    /// Selector relations stated by this machine's published entry clauses.
+    pub(super) selector_premises: Vec<super::view_loans::SelectorPremise>,
 }
 
 #[derive(Clone, Copy)]
@@ -66,18 +68,27 @@ pub(super) enum OperationOutput {
 enum PendingOperation {
     Construct(super::construction::Constructor),
     Integer(super::arithmetic::LoweredInteger),
+    Float(crate::FloatOperation),
     Boolean(BooleanPrimitive),
-    ExactIntegerCast,
+    ExactNumericCast,
     ScalarBitRecast {
-        width: u64,
-        source_signed: bool,
-        destination_signed: bool,
+        access: crate::ReferenceAccess,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
     },
     Call {
         callee: CallTarget,
-        requirement_count: usize,
+        owed: super::calls::OwedClauses,
         borrowed: Vec<Option<CallArgument>>,
         pause: crate::PauseEffects,
+    },
+    ApplyTheorem {
+        theorem: crate::DeclarationId,
+        arguments: Vec<crate::TheoremArgument>,
+        /// One entry per formal: a closed literal, or `None` for the next
+        /// visited binding operand.
+        literals: Vec<Option<ScalarLiteral>>,
+        requirement_count: usize,
     },
     FixedArrayRead(Vec<usize>),
     ProjectedScalarRead(Vec<crate::PlaceProjection>),
@@ -104,7 +115,13 @@ enum ExpressionStep<'a> {
     Qualify {
         node: usize,
         target: TypeId,
-        direction: crate::QualificationDirection,
+        change: super::casts::ScalarChange,
+    },
+    SplitIntegerMatch {
+        dispatch: usize,
+        subject_carrier: &'a ValueType,
+        carrier: &'a ValueType,
+        ty: Option<TypeId>,
     },
     SplitMatch {
         subject: usize,
@@ -185,8 +202,9 @@ impl Expressions<'_> {
                     .iter()
                     .rev()
                     .find(|(binder, _)| binder == binder_node)
-                    .and_then(|(_, result)| match result {
-                        OperationResult::Scalar(value) if body.values[value.index()].ty == ty => Some(*value),
+                    .map(|(_, result)| read_local(body, *result, site.clone()))
+                    .and_then(|result| match result {
+                        OperationResult::Scalar(value) if body.values[value.index()].ty == ty => Some(value),
                         _ => None,
                     })
                     .ok_or_else(error);
@@ -249,6 +267,26 @@ impl Expressions<'_> {
         value.into_call_argument(site)
     }
 
+    /// The operand a match arm supplies to its join parameter. An exclusive
+    /// descriptor is affine: the edge transfers the arm's descriptor, so the
+    /// join parameter becomes its only name and the arm's source binding is
+    /// consumed on that arrival. The checker judges any later use of it.
+    fn join_argument(
+        &self,
+        value: OperationResult,
+        carrier: &ValueType,
+        body: &MachineBody,
+        site: &Site,
+    ) -> Result<CallArgument, LoweringError> {
+        if crate::lowering::types::is_exclusive_descriptor(carrier) {
+            let OperationResult::Structural(place) = value else {
+                return Err(LoweringError::new(site, "an exclusive descriptor arm must supply a structural descriptor"));
+            };
+            return Ok(CallArgument::MoveWhole(place));
+        }
+        self.value_argument(value, body, site)
+    }
+
     pub(super) fn bind_local(
         &self,
         node: usize,
@@ -257,6 +295,24 @@ impl Expressions<'_> {
         flow: &mut BlockFlow,
     ) -> Result<OperationResult, LoweringError> {
         let site = site_at(self.tree.resolved().file, node);
+        if crate::lowering::types::is_exclusive_descriptor(carrier) {
+            let value = self.lower(node, carrier, body, flow)?;
+            let OperationResult::Structural(source) = value else {
+                return Err(LoweringError::new(&site, "an exclusive descriptor requires a structural place"));
+            };
+            // A named descriptor transfers into its new binding. A fresh result
+            // already has its own place, including a match's join parameter.
+            if self.bindings.iter().any(|(_, bound)| *bound == value) {
+                return Ok(body.push_operation(
+                    OperationOutput::Structural(body.places[source.index()].ty),
+                    OperationKind::MoveStructural {
+                        source: crate::ProjectedPlace { root: source, path: Vec::new() },
+                    },
+                    site,
+                ));
+            }
+            return Ok(value);
+        }
         if crate::lowering::types::place_reference(carrier).is_some() {
             return self.lower(node, carrier, body, flow);
         }
@@ -298,7 +354,7 @@ impl Expressions<'_> {
         node: usize,
         body: &mut MachineBody,
         flow: &mut BlockFlow,
-    ) -> Result<(CallTarget, Vec<CallArgument>, usize, crate::PauseEffects), LoweringError> {
+    ) -> Result<(CallTarget, Vec<CallArgument>, super::calls::OwedClauses, crate::PauseEffects), LoweringError> {
         let file = self.tree.resolved().file;
         let carrier = &self.signature.result;
         let mut call_node = node;
@@ -312,15 +368,7 @@ impl Expressions<'_> {
             }
             call_node = *inner;
         }
-        if let Some(runtime) = super::runtime_calls::select_runtime_call(self, call_node, carrier, body)? {
-            let mut arguments = Vec::with_capacity(runtime.operands.len());
-            for &(operand, formal) in &runtime.operands {
-                let result = self.lower(operand, formal, body, flow)?;
-                arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
-            }
-            return Ok((runtime.callee, arguments, 0, runtime.acknowledgements));
-        }
-        let call = super::calls::select_direct_call(self.tree, self.signature, call_node, carrier, self.types, self.callees)?;
+        let call = super::calls::select_call(self, call_node, carrier, body)?;
         if self.callees.may_park(call.callee) && crate::lowering::types::uses_structural_place(carrier) {
             return Err(unsupported_node(
                 file,
@@ -329,15 +377,15 @@ impl Expressions<'_> {
             ));
         }
         let mut arguments = Vec::with_capacity(call.operands.len());
-        for (operand, (_, carrier)) in call.operands.iter().zip(&call.signature.parameters) {
-            if let Some(argument) = super::references::call_argument(self, operand.node.node, carrier, body)? {
+        for (operand, carrier) in call.operands {
+            if let Some(argument) = super::references::call_argument(self, operand, carrier, body)? {
                 arguments.push(argument);
             } else {
-                let result = self.lower(operand.node.node, carrier, body, flow)?;
-                arguments.push(self.call_value_argument(result, body, &operand.site)?);
+                let result = self.lower(operand, carrier, body, flow)?;
+                arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
             }
         }
-        Ok((call.callee, arguments, call.requirement_count, call.acknowledgements))
+        Ok((call.callee, arguments, call.owed, call.acknowledgements))
     }
 
     pub(crate) fn lower(
@@ -364,8 +412,30 @@ impl Expressions<'_> {
                         .types
                         .id_for(carrier)
                         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-                    if let (PreparedValue::Array(elements), ValueType::Array(element, length)) = (value, carrier) {
-                        work.push(array_construction(self.types, node, ty, element, *length, elements.len(), &site)?);
+                    let nominal = match value {
+                        PreparedValue::Record { owner, fields } => Some((owner, None, fields)),
+                        PreparedValue::Sum { owner, case, fields } => Some((owner, Some(case), fields)),
+                        _ => None,
+                    };
+                    if let Some((owner, case, fields)) = nominal && carrier.nominal_parts().is_some() {
+                        let schema = super::construction::schema(self, ty, owner, false, &site)?;
+                        if schema.cleanup_target.is_some() {
+                            return Err(LoweringError::new(&site, "frozen construction cannot establish a value with cleanup"));
+                        }
+                        let (plan, visits) = super::construction::plan(self, carrier, schema, owner, case, fields.iter().enumerate(), &site)?;
+                        work.push(ExpressionStep::Emit {
+                            node,
+                            output: OperationOutput::Structural(ty),
+                            operation: PendingOperation::Construct(plan),
+                            arity: visits.len(),
+                        });
+                        work.extend(
+                            visits.into_iter().rev().map(|(value, carrier)| ExpressionStep::Frozen { node, value, carrier }),
+                        );
+                    } else if let (PreparedValue::Array(elements), ValueType::Array(element, length)) = (value, carrier) {
+                        // Nominal children here are fresh complete places, not reads of live storage.
+                        let supported = self.types.can_forward_value(element) || crate::lowering::types::contains_nominal_value(element);
+                        work.push(array_construction(node, ty, element, *length, elements.len(), supported, &site)?);
                         work.extend(
                             elements
                                 .iter()
@@ -378,15 +448,33 @@ impl Expressions<'_> {
                     }
                     continue;
                 }
-                ExpressionStep::Qualify { node, target, direction } => {
+                ExpressionStep::Qualify { node, target, change } => {
                     let Some(OperationResult::Scalar(source)) = values.pop() else {
                         return Err(unsupported_node(file, node, "scalar qualification requires a scalar value"));
                     };
-                    let result = flow.change_scalar_qualification(block, source, target, direction, site_at(file, node));
+                    let result = flow.change_scalar_qualification(block, source, target, change, site_at(file, node));
                     values.push(OperationResult::Scalar(result));
                     continue;
                 }
-                ExpressionStep::Visit { node, carrier, landing } => (node, carrier, landing),
+                ExpressionStep::Visit { node, carrier, landing } => {
+                    if file.nodes[node].kind == NodeKind::PathExpression
+                        && let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node)
+                        && let Some(place) = flow.payload_bindings.get(binder_node)
+                    {
+                        values.push(OperationResult::Scalar(place.read_binding(self, *binder_node, node, carrier, block)?));
+                        continue;
+                    }
+                    (node, carrier, landing)
+                }
+                ExpressionStep::SplitIntegerMatch { dispatch, subject_carrier, carrier, ty } => {
+                    let Some(OperationResult::Scalar(value)) = values.pop() else {
+                        return Err(unsupported_node(file, file.nodes[dispatch].children[0], "integer pattern needs a scalar subject"));
+                    };
+                    let captured = value_patterns::Subject::Integer(value, subject_carrier);
+                    let targets = value_patterns::lower(self, dispatch, captured, block, flow)?;
+                    work.push(ExpressionStep::MatchArms { targets, carrier, ty });
+                    continue;
+                }
                 ExpressionStep::SplitMatch { subject, arms, carrier, ty } => {
                     let Some(OperationResult::Scalar(condition)) = values.pop() else {
                         return Err(unsupported_node(file, subject, "Boolean dispatch requires a scalar subject"));
@@ -433,7 +521,7 @@ impl Expressions<'_> {
                     let site = site_at(file, expression);
                     let argument = match (ty, value) {
                         (None, OperationResult::Unit) => None,
-                        (Some(_), _) => Some(self.value_argument(value, block, &site)?),
+                        (Some(_), _) => Some(self.join_argument(value, carrier, block, &site)?),
                         _ => return Err(LoweringError::new(&site, "unit match arm produced a value")),
                     };
                     flow.jump_with_result(block, join, argument, site);
@@ -505,8 +593,9 @@ impl Expressions<'_> {
                     let kind = match operation {
                         PendingOperation::Construct(plan) => plan.finish(self, operands, block, &site_at(file, node))?,
                         PendingOperation::Integer(_)
+                        | PendingOperation::Float(_)
                         | PendingOperation::Boolean(_)
-                        | PendingOperation::ExactIntegerCast
+                        | PendingOperation::ExactNumericCast
                         | PendingOperation::EstablishScalarArray => {
                             let operands = operands
                                 .map(|operand| match operand {
@@ -516,33 +605,43 @@ impl Expressions<'_> {
                                 .collect::<Result<Vec<_>, _>>()?;
                             match operation {
                                 PendingOperation::Integer(operation) => operation.emit(operands),
+                                // Every canonical float operator rounds nearest-even; directed
+                                // rounding has its own named requirements, not operator syntax.
+                                PendingOperation::Float(operation) => OperationKind::Float {
+                                    operation,
+                                    semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+                                    operands,
+                                },
                                 PendingOperation::Boolean(primitive) => OperationKind::Boolean { primitive, operands },
-                                PendingOperation::ExactIntegerCast => OperationKind::ExactIntegerCast { operand: operands[0] },
+                                PendingOperation::ExactNumericCast => OperationKind::ExactNumericCast { operand: operands[0] },
                                 PendingOperation::EstablishScalarArray => OperationKind::EstablishScalarArray { elements: operands },
                                 _ => unreachable!(),
                             }
                         }
                         PendingOperation::ScalarBitRecast {
-                            width,
-                            source_signed,
-                            destination_signed,
+                            access,
+                            source_referent,
+                            destination_referent,
                         } => {
                             let [OperationResult::Structural(source)] = *operands.as_slice() else {
                                 return Err(unsupported_node(file, node, "recast requires one source descriptor"));
                             };
                             drop(operands);
                             let expected = crate::TypeShape::ScalarReference {
-                                referent: crate::ScalarType::Integer { signed: source_signed, width },
-                                access: crate::ReferenceAccess::Shared,
+                                referent: source_referent,
+                                access,
                             };
                             if self.types.get(block.places[source.index()].ty) != Some(&expected) {
                                 return Err(unsupported_node(file, node, "recast source descriptor disagrees with its typed view"));
                             }
-                            OperationKind::ScalarBitRecast {
-                                source,
-                                width,
-                                source_signed,
-                                destination_signed,
+                            match access {
+                                crate::ReferenceAccess::Shared => OperationKind::ScalarBitRecast { source, source_referent, destination_referent },
+                                crate::ReferenceAccess::Mutable => OperationKind::MutableScalarBitRecast {
+                                    lender: source,
+                                    source_referent,
+                                    destination_referent,
+                                },
+                                crate::ReferenceAccess::WriteOnly => return Err(unsupported_node(file, node, "write-only views admit no recast")),
                             }
                         }
                         PendingOperation::EstablishStructuralArray => {
@@ -557,7 +656,7 @@ impl Expressions<'_> {
                         PendingOperation::Call {
                             pause,
                             callee,
-                            requirement_count,
+                            owed,
                             borrowed,
                         } => {
                             let site = site_at(file, node);
@@ -571,12 +670,40 @@ impl Expressions<'_> {
                             let operation = OperationId(next_id(block.operations.len()));
                             drop(operands);
                             super::calls::record_acknowledgement(block, crate::CallSite::Operation(operation), pause);
-                            let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Operation(operation), requirement_count);
+                            let requirements = super::calls::owe(block, crate::CallSite::Operation(operation), owed);
                             OperationKind::Call {
                                 callee,
                                 arguments,
                                 requirements,
                             }
+                        }
+                        PendingOperation::ApplyTheorem {
+                            theorem,
+                            arguments,
+                            literals,
+                            requirement_count,
+                        } => {
+                            let subjects = literals
+                                .into_iter()
+                                .map(|literal| match literal {
+                                    Some(literal) => Ok(crate::ProofSubject::Literal(literal)),
+                                    None => match operands.next() {
+                                        Some(OperationResult::Scalar(value)) => Ok(crate::ProofSubject::Input(value)),
+                                        _ => Err(unsupported_node(file, node, "a theorem citation subject needs a scalar value")),
+                                    },
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                            if operands.next().is_some() {
+                                return Err(unsupported_node(file, node, "a theorem citation has an unused subject value"));
+                            }
+                            drop(operands);
+                            let operation = OperationId(next_id(block.operations.len()));
+                            OperationKind::ApplyTheorem(Box::new(crate::TheoremApplication {
+                                theorem,
+                                arguments,
+                                subjects,
+                                requirements: crate::declarations::contracts::call_requirements(crate::CallSite::Operation(operation), requirement_count),
+                            }))
                         }
                         PendingOperation::CollectionLength(length) => {
                             let [OperationResult::Structural(source)] = *operands.as_slice() else {
@@ -627,7 +754,7 @@ impl Expressions<'_> {
                                 OperationResult::Scalar(index),
                             ] = *operands.as_slice()
                             else {
-                                return Err(unsupported_node(file, node, "element read requires a shared element view and a scalar index"));
+                                return Err(unsupported_node(file, node, "element read requires a structural descriptor and a scalar index"));
                             };
                             drop(operands);
                             // The bound compares element counts observed on this very descriptor.
@@ -693,7 +820,10 @@ impl Expressions<'_> {
                 values.push(super::runtime_calls::descriptor_value(self, expression, carrier, block)?);
                 continue;
             }
-            if crate::lowering::types::is_reference_descriptor(carrier) {
+            if crate::lowering::types::is_reference_descriptor(carrier)
+                || node.kind == NodeKind::Borrow && carrier == &self.signature.result
+                    && crate::declarations::regions::direct(carrier, &self.signature.machine).is_some()
+            {
                 if let (NodeKind::Paren, [inner]) = (node.kind, node.children.as_slice()) {
                     super::loans::check_descriptor(tree, expression, carrier, &self.signature.machine)?;
                     work.push(ExpressionStep::Visit {
@@ -733,7 +863,8 @@ impl Expressions<'_> {
                 values.push(super::view_loans::move_element(self, expression, carrier, block, flow)?);
                 continue;
             }
-            if crate::lowering::types::contains_nominal_value(carrier)
+            if (crate::lowering::types::contains_nominal_value(carrier)
+                || node.kind == NodeKind::FieldAccess && matches!(carrier, ValueType::Array(..)) && self.types.can_forward_value(carrier))
                 && matches!(node.kind, NodeKind::Move | NodeKind::Dereference | NodeKind::FieldAccess | NodeKind::PathExpression)
                 && (node.kind != NodeKind::PathExpression || matches!(resolved.symbol(expression), Some(Symbol::Binding { .. })))
             {
@@ -745,32 +876,35 @@ impl Expressions<'_> {
                     .semantics_at(expression)
                     .any(|s| matches!(s, NodeSemantics::Call(_)))
             {
-                if let Some(runtime) = super::runtime_calls::select_runtime_call(self, expression, carrier, block)? {
-                    let output = match carrier {
-                        ValueType::NoResult => OperationOutput::Unit,
-                        _ => OperationOutput::Scalar(lookup_type()?),
-                    };
+                if let Some(citation) = super::theorem_citations::select(self.prepared, self.tree, self.signature, expression, carrier, self.callees)? {
+                    // Only named bindings are read; a closed literal is
+                    // published in the citation and computed by no operation.
+                    let mut visits = Vec::with_capacity(citation.subjects.len());
+                    let mut literals = Vec::with_capacity(citation.subjects.len());
+                    for subject in citation.subjects {
+                        match subject {
+                            super::theorem_citations::CitedSubject::Binding(node, carrier) => {
+                                visits.push(ExpressionStep::Visit { node, carrier, landing: None });
+                                literals.push(None);
+                            }
+                            super::theorem_citations::CitedSubject::Literal(literal) => literals.push(Some(literal)),
+                        }
+                    }
                     work.push(ExpressionStep::Emit {
                         node: expression,
-                        output,
-                        operation: PendingOperation::Call {
-                            borrowed: runtime.operands.iter().map(|_| None).collect(),
-                            callee: runtime.callee,
-                            requirement_count: 0,
-                            pause: runtime.acknowledgements,
+                        output: OperationOutput::Unit,
+                        operation: PendingOperation::ApplyTheorem {
+                            theorem: citation.theorem,
+                            arguments: citation.arguments,
+                            literals,
+                            requirement_count: citation.requirement_count,
                         },
-                        arity: runtime.operands.len(),
+                        arity: visits.len(),
                     });
-                    work.extend(
-                        runtime
-                            .operands
-                            .iter()
-                            .rev()
-                            .map(|&(node, carrier)| ExpressionStep::Visit { node, carrier, landing: None }),
-                    );
+                    work.extend(visits.into_iter().rev());
                     continue;
                 }
-                let call = super::calls::select_direct_call(self.tree, self.signature, expression, carrier, self.types, self.callees)?;
+                let call = super::calls::select_call(self, expression, carrier, block)?;
                 let output = match carrier {
                     ValueType::NoResult => OperationOutput::Unit,
                     ty if crate::lowering::types::uses_structural_place(ty) => OperationOutput::Structural(lookup_type()?),
@@ -778,11 +912,11 @@ impl Expressions<'_> {
                 };
                 let mut borrowed = Vec::with_capacity(call.operands.len());
                 let mut visits = Vec::new();
-                for (operand, (_, formal)) in call.operands.iter().zip(&call.signature.parameters) {
-                    let argument = super::references::call_argument(self, operand.node.node, formal, block)?;
+                for (operand, formal) in call.operands {
+                    let argument = super::references::call_argument(self, operand, formal, block)?;
                     if argument.is_none() {
                         visits.push(ExpressionStep::Visit {
-                            node: operand.node.node,
+                            node: operand,
                             carrier: formal,
                             landing: None,
                         });
@@ -795,7 +929,7 @@ impl Expressions<'_> {
                     operation: PendingOperation::Call {
                         borrowed,
                         callee: call.callee,
-                        requirement_count: call.requirement_count,
+                        owed: call.owed,
                         pause: call.acknowledgements,
                     },
                     arity: visits.len(),
@@ -815,7 +949,9 @@ impl Expressions<'_> {
                     "qualified scalar requires membership establishment lowering",
                 ));
             }
-            if crate::lowering::types::scalar_carrier(carrier).is_ok()
+            // Reading through a loan or a field copies stored bits, so a float
+            // reads like any other stored scalar.
+            if crate::lowering::types::stored_scalar(carrier).is_ok()
                 && (node.kind == NodeKind::Dereference
                     || node.kind == NodeKind::FieldAccess
                         && tree
@@ -913,7 +1049,7 @@ impl Expressions<'_> {
                                 .id_for(index_type)
                                 .map_err(|e| LoweringError::new(&site_at(file, *selector), e.to_string()))?,
                         }
-                    } else if crate::lowering::types::shared_element_view(read.root_carrier).is_some() {
+                    } else if crate::lowering::types::scalar_element_view(read.root_carrier).is_some() {
                         let [(selector, index_type)] = read.selectors.as_slice() else {
                             return Err(unsupported_node(file, expression, "element view read requires one selector"));
                         };
@@ -938,19 +1074,42 @@ impl Expressions<'_> {
                 continue;
             }
             if node.kind == NodeKind::Match {
-                if carrier != &ValueType::NoResult && !self.types.can_forward_value(carrier) && !crate::lowering::types::contains_nominal_value(carrier) {
+                // A shared reference arm copies its descriptor onto the edge, like a
+                // shared view; the join parameter then names the arriving loan.
+                // An exclusive descriptor transfers instead (see `join_argument`).
+                let shared_reference = matches!(crate::lowering::types::place_reference(carrier), Some((crate::ReferenceAccess::Shared, _)));
+                if carrier != &ValueType::NoResult
+                    && !self.types.can_forward_value(carrier)
+                    && !crate::lowering::types::contains_nominal_value(carrier)
+                    && !shared_reference
+                    && !crate::lowering::types::is_exclusive_descriptor(carrier)
+                {
                     return Err(unsupported_node(file, expression, "interior match requires a supported result carrier"));
                 }
                 let ty = (carrier != &ValueType::NoResult)
                     .then(lookup_type)
                     .transpose()?;
                 crate::machines::branches::check_match_result(tree, expression, carrier, &self.signature.machine)?;
-                if let Some(targets) = super::references::dispatch_cases(self, expression, block, flow)? {
+                let tested = tested_dispatch(file, expression);
+                if let Some(TestedDispatch::Literal { subject }) = tested {
+                    match value_patterns::plan(self, subject, block)? {
+                        value_patterns::SubjectPlan::EvaluateInteger(subject_carrier) => {
+                            work.push(ExpressionStep::SplitIntegerMatch { dispatch: expression, subject_carrier, carrier, ty });
+                            work.push(ExpressionStep::Visit { node: subject, carrier: subject_carrier, landing: None });
+                        }
+                        value_patterns::SubjectPlan::Captured(subject) => {
+                            let targets = value_patterns::lower(self, expression, subject, block, flow)?;
+                            work.push(ExpressionStep::MatchArms { targets, carrier, ty });
+                        }
+                    }
+                    continue;
+                }
+                if let Some(TestedDispatch::Guards) = tested {
+                    let targets = crate::machines::branches::lower_guards(self, expression, block, flow)?;
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
-                if crate::machines::branches::has_guards(file, expression) {
-                    let targets = crate::machines::branches::lower_guards(self, expression, block, flow)?;
+                if let Some(targets) = super::references::dispatch_cases(self, expression, block, flow)? {
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
@@ -961,6 +1120,16 @@ impl Expressions<'_> {
                     carrier: &ValueType::Bool,
                     landing: None,
                 });
+                continue;
+            }
+            if inherited.is_none()
+                && let Some(bits) = crate::machines::arithmetic::folded_float(tree, self.prepared, expression, carrier)?
+            {
+                values.push(block.push_operation(
+                    OperationOutput::Scalar(lookup_type()?),
+                    OperationKind::Constant(ScalarLiteral::IeeeFloat(bits)),
+                    site_at(file, expression),
+                ));
                 continue;
             }
             if matches!(node.kind, NodeKind::Binary | NodeKind::Unary)
@@ -998,14 +1167,14 @@ impl Expressions<'_> {
                             .iter()
                             .any(|t| matches!(t, ValueType::Reference(..)))
                     {
-                        let recast = super::casts::scalar_bit_recast(op, &obligations, &self.signature.machine)?;
+                        let recast = super::casts::scalar_recast(op, &obligations, &self.signature.machine)?;
                         work.push(ExpressionStep::Emit {
                             node: expression,
                             output: OperationOutput::Structural(lookup_type()?),
                             operation: PendingOperation::ScalarBitRecast {
-                                width: recast.width,
-                                source_signed: recast.source_signed,
-                                destination_signed: recast.destination_signed,
+                                access: recast.access,
+                                source_referent: recast.source_referent,
+                                destination_referent: recast.destination_referent,
                             },
                             arity: 1,
                         });
@@ -1017,14 +1186,14 @@ impl Expressions<'_> {
                         continue;
                     }
                     let cast = super::casts::scalar_cast(op, &obligations, self.types)?;
-                    if let Some(direction) = cast.change {
+                    if let Some(change) = cast.change {
                         work.push(ExpressionStep::Qualify {
                             node: expression,
                             target: lookup_type()?,
-                            direction,
+                            change,
                         });
                     }
-                    if cast.convert_integer {
+                    if cast.convert {
                         let ty = self
                             .types
                             .id_for(carrier.carrier())
@@ -1032,7 +1201,7 @@ impl Expressions<'_> {
                         work.push(ExpressionStep::Emit {
                             node: expression,
                             output: OperationOutput::Scalar(ty),
-                            operation: PendingOperation::ExactIntegerCast,
+                            operation: PendingOperation::ExactNumericCast,
                             arity: 1,
                         });
                     }
@@ -1074,6 +1243,12 @@ impl Expressions<'_> {
                         _ => return Err(unsupported_node(file, expression, "unsupported typed Boolean primitive")),
                     };
                     PendingOperation::Boolean(primitive)
+                } else if op
+                    .operands
+                    .iter()
+                    .all(|t| matches!(t, ValueType::Float32 | ValueType::Float64))
+                {
+                    PendingOperation::Float(crate::machines::arithmetic::lower_float(op, &obligations)?)
                 } else {
                     PendingOperation::Integer(crate::machines::arithmetic::lower_integer(op, &obligations, &self.signature.machine)?)
                 };
@@ -1114,12 +1289,12 @@ impl Expressions<'_> {
                     .id_for(element)
                     .map_err(|e| LoweringError::new(&site, e.to_string()))?;
                 work.push(array_construction(
-                    self.types,
                     expression,
                     lookup_type()?,
                     element,
                     *length,
                     bytes.len(),
+                    self.types.can_forward_value(element),
                     &site,
                 )?);
                 for &value in bytes {
@@ -1138,18 +1313,9 @@ impl Expressions<'_> {
                     };
                     let site = site_at(file, expression);
                     // Owned nominal elements arrive as completed places, each consumed once.
-                    work.push(
-                        if super::fixed_arrays::owned_elements(self.types, self.data, element, *length, elements.len(), &site)? {
-                            ExpressionStep::Emit {
-                                node: expression,
-                                output: OperationOutput::Structural(lookup_type()?),
-                                operation: PendingOperation::EstablishStructuralArray,
-                                arity: elements.len(),
-                            }
-                        } else {
-                            array_construction(self.types, expression, lookup_type()?, element, *length, elements.len(), &site)?
-                        },
-                    );
+                    let supported = super::fixed_arrays::owned_elements(self.types, self.data, element, *length, elements.len(), &site)?
+                        || self.types.can_forward_value(element);
+                    work.push(array_construction(expression, lookup_type()?, element, *length, elements.len(), supported, &site)?);
                     work.extend(elements.iter().rev().map(|&node| ExpressionStep::Visit {
                         node,
                         carrier: element,
@@ -1203,7 +1369,7 @@ impl Expressions<'_> {
                         if actual != lookup_type()? {
                             return Err(unsupported_node(file, expression, "binding has an incompatible carrier"));
                         }
-                        values.push(value);
+                        values.push(read_local(block, value, site_at(file, expression)));
                         continue;
                     }
                     _ => return Err(unsupported_node(file, expression, "unsupported value binding")),
@@ -1288,18 +1454,18 @@ fn return_semantics<'a>(
 }
 
 fn array_construction<'a>(
-    types: &crate::LoweringTypes,
     node: usize,
     ty: TypeId,
     element: &ValueType,
     extent: u64,
     count: usize,
+    supported: bool,
     site: &Site,
 ) -> Result<ExpressionStep<'a>, LoweringError> {
-    if u64::try_from(count) != Ok(extent) || !types.can_forward_value(element) {
+    if u64::try_from(count) != Ok(extent) || !supported {
         return Err(LoweringError::new(site, "array construction requires a matching extent and copyable elements"));
     }
-    let operation = if matches!(element, ValueType::Array(..)) {
+    let operation = if matches!(element, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)) {
         PendingOperation::EstablishStructuralArray
     } else {
         PendingOperation::EstablishScalarArray
@@ -1312,6 +1478,30 @@ fn array_construction<'a>(
     })
 }
 
+/// The current value of a bound local. A primitive local homed for a borrow
+/// is read from its home, since the home, not its initializer, is the local.
+pub(super) fn read_local(
+    body: &mut MachineBody,
+    binding: OperationResult,
+    site: Site,
+) -> OperationResult {
+    let OperationResult::Structural(home) = binding else {
+        return binding;
+    };
+    let place = body.places[home.index()];
+    match place.origin {
+        crate::PlaceOrigin::Operation(id) if matches!(body.operations[id.index()].kind, OperationKind::EstablishPrimitiveLocal { .. }) => body.push_operation(
+            OperationOutput::Scalar(place.ty),
+            OperationKind::PrimitiveScalarRead {
+                source: home,
+                path: Vec::new(),
+            },
+            site,
+        ),
+        _ => binding,
+    }
+}
+
 fn frozen_literal(
     value: &PreparedValue,
     carrier: &ValueType,
@@ -1320,6 +1510,20 @@ fn frozen_literal(
     match value {
         PreparedValue::Bool(value) if *carrier == ValueType::Bool => Ok(ScalarLiteral::Boolean(*value)),
         PreparedValue::Integer(value) if carrier.contains_integer(value) => Ok(ScalarLiteral::Integer(value.clone())),
+        // An unspecified NaN has no exact bits to store; materializing it needs
+        // non-NaN proof, canonicalization or a selected exact NaN.
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::Binary32(bits),
+            ..
+        } if *carrier == ValueType::Float32 => Ok(ScalarLiteral::IeeeFloat(crate::IeeeFloatBits::Binary32(*bits))),
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::Binary64(bits),
+            ..
+        } if *carrier == ValueType::Float64 => Ok(ScalarLiteral::IeeeFloat(crate::IeeeFloatBits::Binary64(*bits))),
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::UnspecifiedNaN(_),
+            ..
+        } => Err(LoweringError::new(site, "an unspecified NaN constant has no exact bits to materialize")),
         _ => Err(LoweringError::new(site, "frozen constant does not match the supported return carrier")),
     }
 }

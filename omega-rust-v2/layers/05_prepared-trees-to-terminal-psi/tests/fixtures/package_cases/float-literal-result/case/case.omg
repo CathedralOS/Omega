@@ -1,0 +1,1 @@
+machine one() -> f32 { 1.0 }

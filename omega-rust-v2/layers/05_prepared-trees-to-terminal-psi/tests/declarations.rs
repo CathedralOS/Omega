@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -207,13 +205,17 @@ fn default_domains_retain_truth_and_exact_fields_after_preparation_is_dropped() 
 }
 
 #[test]
-fn unsupported_data_requirement_refuses_the_package_at_the_predicate_call() {
+fn data_requirement_applies_the_selected_predicate_at_its_occurrence() {
     let source = "machine predicate()->bool reaches none crashes none terminates {true}
                   data Guarded requires true && predicate() {}";
-    let error = lower(&[("guard.omg", source)]).unwrap_err();
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
-    assert_eq!(error.message, "unsupported typed contract predicate record");
-    known_gap::report("call in a data requirement", "The data schema needs the predicate and its selected call", source, &error);
+    let package = lower(&[("guard.omg", source)]).unwrap();
+    let schema = &package.data[0];
+    let predicate = &package.machines[0].declaration;
+    assert_eq!((schema.declaration.path.as_str(), predicate.path.as_str()), ("Guarded", "predicate"));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/data-requirement-call",
+        assert!(matches!(schema.requires[0].predicate.as_slice(), [PredicateStep::Boolean(true), PredicateStep::MachineApplication {callee, site, ..}, PredicateStep::Apply(PredicateOperator::And)] if callee == predicate && site.span.slice(source.as_bytes()) == Some(b"predicate()"))),
+    );
 }
 
 #[test]
@@ -281,12 +283,148 @@ fn transparent_aliases_share_the_underlying_schema_and_field_carrier() {
 }
 
 #[test]
-fn aliases_with_attributes_still_refuse() {
+fn alias_multiplicity_asserts_the_expansion_without_creating_an_owner() {
     let source = "data Alias [copy] = u64;";
-    let error = lower(&[("alias.omg", source)]).unwrap_err();
-    assert_eq!(error.message, "data alias or unsupported member requires declaration lowering");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"u64".as_slice()));
-    known_gap::report("attributed data alias", "The alias needs its attributes and expansion", source, &error);
+    let plain = lower(&[("alias.omg", "data Alias = u64;")]).unwrap();
+    let files = [("alias.omg", source)];
+    let package = {
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let typed = prepared.typed();
+        let (id, target) = typed.type_alias_targets.iter().find(|(id, _)| id.path == "Alias").unwrap();
+        assert_eq!(target, &omega_typer::ValueType::Integer { signed: false, width: Some(64) });
+        assert_eq!(typed.type_alias_properties[id].multiplicity, Multiplicity::Copy);
+        assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
+        sources::lower_prepared(&prepared, &files).unwrap()
+    };
+    let ([alias], [unmarked]) = (package.aliases.as_slice(), plain.aliases.as_slice()) else {
+        panic!("expected one alias in each package");
+    };
+    assert_eq!(alias.declaration.path, "Alias");
+    assert_eq!(alias.site.span.slice(source.as_bytes()), Some(source.as_bytes()));
+    assert_eq!(unmarked.target, AliasTarget::Builtin("u64".into()));
+    spec_corpus::observe_handoff!(psi "psi-output/alias-multiplicity-assertion",
+        assert_eq!(
+            (alias.asserted_multiplicity, unmarked.asserted_multiplicity, &alias.target, package.data.len()),
+            (Some(Multiplicity::Copy), None, &unmarked.target, 0)
+        ),
+    );
+
+    let source = "data Lease [linear] {} data Handle [linear] = Lease; data Slot { handle:Handle; }";
+    let package = lower(&[("alias.omg", source)]).unwrap();
+    let ([handle], [lease, slot]) = (package.aliases.as_slice(), package.data.as_slice()) else {
+        panic!("the alias should introduce no third schema");
+    };
+    assert_eq!(handle.asserted_multiplicity, Some(Multiplicity::Linear));
+    assert_eq!(handle.target, AliasTarget::Declaration(lease.declaration.clone()));
+    assert_eq!(lease.multiplicity, Multiplicity::Linear);
+    assert_eq!(slot.fields[0].carrier, lease.carrier);
+}
+
+#[test]
+fn alias_multiplicity_cannot_override_the_expansion() {
+    for source in ["data Alias [linear] = u64;", "data Alias [copy] = @mut u64;", "data Alias<T> [copy] = T;"] {
+        let resolved = sources::resolve(&[("alias.omg", source)]);
+        let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
+        assert_eq!(error.message, "a transparent alias cannot change its target's multiplicity");
+        assert_eq!(error.file, "alias.omg");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(source.as_bytes()));
+    }
+}
+
+#[test]
+fn alias_assertion_survives_structural_and_generic_expansion() {
+    use omega_lowering::{DeclarationTerm, TemplateBinder, TypeExpression, TypeExpressionStep};
+    let source = "data Words [copy] = [u64;2]; data Same<T [copy]> [copy] = T;";
+    let package = lower(&[("alias.omg", source)]).unwrap();
+    let [_, words] = package.aliases.as_slice() else { panic!("expected Same and Words") };
+    let AliasTarget::Structural(ty) = words.target else { panic!("expected array type row") };
+    let Some(TypeShape::FixedArray { element, length: 2 }) = package.types.get(ty) else { panic!("expected two elements") };
+    assert_eq!(package.types.get(*element), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 64 })));
+    assert_eq!(words.asserted_multiplicity, Some(Multiplicity::Copy));
+    let (same, expansion) = alias_expansion(&package, "Same");
+    assert_eq!(same.asserted_multiplicity, Some(Multiplicity::Copy));
+    assert_eq!(expansion.parameters, [TemplateBinder::Type { multiplicity: Some(Multiplicity::Copy) }]);
+    assert_eq!(expansion.expansion, DeclarationTerm::Type(TypeExpression(vec![TypeExpressionStep::GenericParameter {
+        owner: same.declaration.clone(), index: 0,
+    }])));
+}
+
+/// The original case: `u64` demands nothing, so an alias that forbids suspension
+/// and pins the CPU would change `u64` itself. Typing refuses it before lowering.
+#[test]
+fn alias_carry_cannot_add_a_demand_to_its_expansion() {
+    let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
+    let resolved = sources::resolve(&[("alias.omg", source)]);
+    let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
+    assert_eq!(error.message, "a transparent alias cannot change its target's carry");
+    assert_eq!(error.file, "alias.omg");
+    let attribute = "carry(suspension:forbidden,cpu:same,thread:any,address:movable,)";
+    assert_eq!(error.span.slice(source.as_bytes()), Some(attribute.as_bytes()));
+    let control = lower(&[("alias.omg", "// alias\r\ndata Alias [copy] = u64;")]).unwrap();
+    let [alias] = control.aliases.as_slice() else { panic!("one alias") };
+    assert_eq!((alias.asserted_multiplicity, &alias.target), (Some(Multiplicity::Copy), &AliasTarget::Builtin("u64".into())));
+}
+
+/// A list equal to `u64`'s derived carry adds no demand. Whether an alias may
+/// author it at all is an open spec question, so lowering still stops there.
+#[test]
+fn alias_with_carry_stops_at_its_attributes() {
+    let source = "// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;";
+    let files = [("alias.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let typed = prepared.typed();
+    let (id, target) = typed.type_alias_targets.iter().find(|(id, _)| id.path == "Alias").unwrap();
+    assert_eq!(target, &omega_typed::ValueType::Integer { signed: false, width: Some(64) });
+    let properties = &typed.type_alias_properties[id];
+    assert_eq!(properties.multiplicity, Multiplicity::Copy);
+    assert_eq!(properties.carry, Some(omega_typed::Carry {
+        allows_suspension: true, requires_same_cpu: false, requires_same_thread: false, requires_stable_address: false,
+    }));
+    assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
+    sources::refuse_prepared(
+        &prepared,
+        &files,
+        "alias.omg",
+        sources::unique_span(source, "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]"),
+        "transparent alias carry policy requires a checked relation to its expansion",
+    );
+}
+
+#[test]
+fn parked_alias_uses_the_selected_nominal_carriers_carry() {
+    use omega_lowering::{OwnedCustody, Parameter};
+    for (selected, allowed) in [("Mobile", true), ("Fixed", false)] {
+        let source = format!("data Mobile [carry(suspension:allowed,cpu:any,thread:any,address:movable,)] {{key:u64;}}
+            data Fixed [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] {{key:u64;}}
+            data Alias = {selected};
+            data Held {{item:Alias;}}
+            machine wait() suspends {{}}
+            machine hold(x:Held)->Held suspends {{suspend wait();x}}");
+        let package = lower(&[("alias.omg", &source)]).unwrap();
+        let [alias] = package.aliases.as_slice() else { panic!("one alias") };
+        assert_eq!(alias.declaration.path, "Alias");
+        let target = package.data.iter().find(|d| d.declaration.path == selected).unwrap();
+        assert_eq!(package.data.len(), 3);
+        let held = package.data.iter().find(|d| d.declaration.path == "Held").unwrap();
+        let [item] = held.fields.as_slice() else { panic!("one live field") };
+        assert_eq!(item.declaration.path, "Held::item");
+        let body = &package.machines.iter().find(|m| m.declaration.path == "hold").unwrap().body;
+        let [crossing] = body.suspension_sites.as_slice() else { panic!("one suspension") };
+        let [owner] = crossing.retained_owners.as_slice() else { panic!("one retained owner") };
+        assert_eq!(body.parameters, [Parameter::Structural(owner.place)]);
+        assert_eq!(owner.custody, OwnedCustody::Caller);
+        assert!(owner.moved.is_empty());
+        spec_corpus::observe_handoff!(psi "psi-output/parked-alias-target-carry",
+            assert_eq!(
+                (&alias.target, package.types.get(owner.ty), package.types.get(item.carrier), target.carry.as_ref()),
+                (&AliasTarget::Declaration(target.declaration.clone()), Some(&TypeShape::Nominal(held.id)), Some(&TypeShape::Nominal(target.id)),
+                    Some(&omega_typed::Carry { allows_suspension: allowed, requires_same_cpu: !allowed,
+                        requires_same_thread: false, requires_stable_address: !allowed }))
+            ),
+        );
+    }
 }
 
 fn alias_expansion<'a>(

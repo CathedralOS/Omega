@@ -141,6 +141,7 @@ dependencies = [
  "omega-typed",
  "omega-typer",
  "spec-corpus",
+ "tree-handoff-consumer",
 ]
 
 [[package]]

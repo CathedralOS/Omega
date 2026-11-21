@@ -1,6 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::type_error::SourceTypeError;
-use crate::{BoundarySlot, InvocationTarget, RequirementSlot, Site, SlotDirection, TypeError, TypedCall, TypedStage, ValueType};
+use crate::{BoundarySlot, InvocationTarget, RequirementSlot, SlotDirection, TypeError, TypedCall, TypedStage, ValueType};
 use omega_resolved::DeclarationId;
 use std::collections::{HashMap, HashSet};
 
@@ -85,7 +85,7 @@ pub(crate) fn compose_callback_invocations<'a>(
         };
         allowed.iter().any(|a|matches!(a,InvocationTarget::Declaration(slot) if slot==req || catalog.requirements.get(&slot.declaration).is_some_and(|r|r.contains(&&req.declaration)) && slot.trait_arguments==req.trait_arguments))
     };
-    let error = |site: &Site| TypeError::for_site(site, "call exceeds the declared synchronous invocation ceiling");
+    const EXCEEDS_CEILING: &str = "call exceeds the declared synchronous invocation ceiling";
     for &index in &graph.direct {
         let call = &out.calls[index];
         let slots = boundary_slots.iter().filter(|s| {
@@ -114,7 +114,7 @@ pub(crate) fn compose_callback_invocations<'a>(
             {
                 let target = InvocationTarget::Declaration(slot.requirement.clone());
                 if !admits(caller, &target) {
-                    return Err(error(&call.site));
+                    return Err(TypeError::for_site(&call.site, EXCEEDS_CEILING));
                 }
                 rows.get_mut(caller).unwrap().insert(target);
             }
@@ -124,7 +124,7 @@ pub(crate) fn compose_callback_invocations<'a>(
         let call = &out.indirect_calls[index];
         if let Some(owner) = &call.caller {
             if !admits(owner, &call.entry) {
-                return Err(error(&call.site));
+                return Err(TypeError::for_site(&call.site, EXCEEDS_CEILING));
             }
             rows.get_mut(owner).unwrap().insert(call.entry.clone());
         }
@@ -136,7 +136,7 @@ pub(crate) fn compose_callback_invocations<'a>(
         |call, caller, entry| {
             let supplied = through(call, entry);
             if !admits(caller, &supplied) {
-                return Err(error(&call.site));
+                return Err(TypeError::for_site(&call.site, EXCEEDS_CEILING));
             }
             Ok(Some(supplied))
         },

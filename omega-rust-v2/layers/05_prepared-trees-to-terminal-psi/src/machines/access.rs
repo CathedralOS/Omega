@@ -35,12 +35,11 @@ pub(crate) fn collection_length(operation: &omega_typed::TypedOperation) -> Opti
     Some((receiver, length))
 }
 
-/// `.len` of a shared element view: its own element count, never a byte count.
-/// It is deliberately absent from [`collection_length`]; contract predicates
-/// classify it separately as their own element-count step.
+/// A scalar or nominal-element descriptor stores its live element count.
 pub(crate) fn element_view_length(operation: &omega_typed::TypedOperation) -> Option<&ValueType> {
     let [receiver] = operation.operands.as_slice() else { return None };
-    (operation.token == ".len" && operation.result == INDEX_TYPE && crate::lowering::types::shared_element_view(receiver).is_some()).then_some(receiver)
+    let is_element_view = crate::lowering::types::scalar_element_view(receiver).is_some() || crate::lowering::types::mutable_element_view(receiver).is_some();
+    (operation.token == ".len" && operation.result == INDEX_TYPE && is_element_view).then_some(receiver)
 }
 
 pub(crate) fn select_indexed_read<'a>(
@@ -77,32 +76,34 @@ pub(crate) fn select_indexed_read<'a>(
             })
             .ok_or_else(|| refuse(base, "indexed read has no typed receiver"))?;
         let byte_view = crate::lowering::types::is_shared_byte_view(carrier);
-        let element_view = crate::lowering::types::shared_element_view(carrier).is_some();
+        let element_view = crate::lowering::types::scalar_element_view(carrier);
         if byte_view {
             if !selectors.is_empty() || !matches!(element, ValueType::Integer { signed: false, width: Some(8) }) {
                 return Err(refuse(selected, "shared byte view read requires a single byte selector"));
             }
-        } else if element_view {
+        } else if element_view.is_some() {
             // The result carrier is exactly the declared element; byte views never supply it.
             let exact = matches!(carrier, ValueType::Reference(_, slice) if matches!(slice.as_ref(), ValueType::Slice(inner) if inner.as_ref() == element));
             if !selectors.is_empty() || !exact {
-                return Err(refuse(selected, "shared element view read requires one selector of its exact scalar element"));
+                return Err(refuse(selected, "element view read requires one selector of its exact scalar element"));
             }
         } else if !matches!(carrier, ValueType::Array(inner, _) if inner.as_ref() == element) {
             return Err(refuse(base, "indexed read requires an owned fixed-array receiver"));
         }
-        let view = byte_view || element_view;
+        // The path crosses the declared loan. The core Read itself needs only
+        // the shared borrow checked by check_read, even for an exclusive root.
+        let through = element_view.map(|(access, _)| access).or(byte_view.then_some(&Access::Shared));
         let expected_base = file.node_id(file.ungroup(base));
         let expected_selector = file.node_id(selector);
         if projections.next().is_none_or(|step| {
-            step.base != expected_base || step.through != view.then_some(Access::Shared) || step.projection != Some(Projection::Index(expected_selector))
+            step.base != expected_base || step.through.as_ref() != through || step.projection != Some(Projection::Index(expected_selector))
         }) {
             return Err(refuse(selected, "indexed read disagrees with its typed place projection"));
         }
         let selector_carrier = check_read(tree, selected, base, element)?;
         selectors.push((selector, selector_carrier));
         let root = file.ungroup(base);
-        if view || file.nodes[root].kind != NodeKind::Index {
+        if through.is_some() || file.nodes[root].kind != NodeKind::Index {
             selectors.reverse();
             return Ok(IndexedRead {
                 root: base,

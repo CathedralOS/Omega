@@ -66,6 +66,7 @@ impl BodyTyper<'_, '_> {
     pub(super) fn refine_callable(
         &mut self,
         node_index: usize,
+        selection_node: usize,
         c: &CallableType,
         formal: Option<(DeclarationId, usize)>,
         selection: &MachineApplication,
@@ -94,17 +95,16 @@ impl BodyTyper<'_, '_> {
                 "selected machine has incompatible callable signature",
             ));
         }
-        if let Some(required) = &c.requirement
-            && signature.satisfies.as_ref().is_none_or(|selected| {
-                selected.declaration != required.declaration
-                    || !selected
-                        .trait_arguments
-                        .iter()
-                        .map(instantiate)
-                        .eq(required.trait_arguments.iter().cloned())
-            })
-        {
-            return Err(TypeError::at(self.unit.file, node_index, "selected machine lacks the exact satisfaction edge"));
+        if let Some(required) = &c.requirement {
+            let Some(selected) = &signature.satisfies else {
+                return Err(TypeError::at(self.unit.file, selection_node, "selected machine lacks the exact satisfaction edge"));
+            };
+            if selected.declaration != required.declaration {
+                return Err(TypeError::at(self.unit.file, selection_node, "selected machine satisfies a different requirement"));
+            }
+            if !selected.trait_arguments.iter().map(instantiate).eq(required.trait_arguments.iter().cloned()) {
+                return Err(TypeError::for_reason(&site_at(self.unit.file, selection_node), crate::TraitEvidenceError::WrongTraitApplication));
+            }
         }
         let pause = signature.pause.declared();
         if pause.suspend && !c.pause.suspend || pause.block && !c.pause.block {

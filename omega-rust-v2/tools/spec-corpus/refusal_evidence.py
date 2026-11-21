@@ -6,7 +6,8 @@ l5_refusals.tsv. A registration names the exact test, site file, message and
 number of occurrences, and classifies the refusal:
 
 - invalid: deliberately invalid input whose refusal the L5 contract assigns to
-  lowering. Only these are credited, and only from a passing test.
+  lowering. Only these are credited, and only from a passing test. A registry
+  label preserves the case identity when a former gap is an intended rejection.
 - limitation: a valid input L5 does not lower yet. It is an open gap.
 - checker: L5 stopped on a proof that the lowered-form checker must judge.
 - unresolved: validity or ownership is not settled by the L5 contract, code or
@@ -74,19 +75,18 @@ def validate(rows):
         if row.cls not in CLASSES or not row.occurrences.isdecimal() or int(row.occurrences) < 1:
             raise ValueError(f"invalid class or occurrence count: {row}")
         if row.cls == "invalid":
-            if row.gap != "-":
-                raise ValueError(f"an intended refusal reports no gap: {row}")
+            if row.gap != "-" and (row.gap_source != "registry" or not all(row.gap_labels)):
+                raise ValueError(f"an intended refusal needs a registry case label or a dash: {row}")
             if LIMITATION_WORDING.search(row.message):
                 raise ValueError(f"message admits a missing lowering and cannot be an intended refusal: {row.message}")
             if not any(document in row.reference for document in CONTRACT_DOCUMENTS):
                 raise ValueError(f"an intended refusal must cite the public L5 contract: {row}")
-        else:
-            if row.gap_source not in {"test", "registry"} or not all(row.gap_labels):
-                raise ValueError(f"an open refusal needs a test or registry gap label: {row}")
-            for label in row.gap_labels:
-                if label in labels:
-                    raise ValueError(f"duplicate gap label: {label}")
-                labels.add(label)
+        elif row.gap_source not in {"test", "registry"} or not all(row.gap_labels):
+            raise ValueError(f"an open refusal needs a test or registry gap label: {row}")
+        for label in row.gap_labels:
+            if label in labels:
+                raise ValueError(f"duplicate gap label: {label}")
+            labels.add(label)
     return rows
 
 
@@ -166,8 +166,10 @@ def apply(report, rows=None):
         entry = f"{site} · {row.file}: {row.message} ×{count} · {row.reference}"
         if row.cls == "invalid":
             accounting["credited"].append(entry)
-            continue
-        accounting["open"].append(f"{row.cls} · {entry}")
+            case_status, kind = "intended rejection verified", "Invalid input"
+        else:
+            accounting["open"].append(f"{row.cls} · {entry}")
+            case_status, kind = OPEN_CLASSES[row.cls]
         for label in row.gap_labels:
             key = "handoff/" + label
             case = report["cases"].get(key)
@@ -177,14 +179,16 @@ def apply(report, rows=None):
                     errors.append(f"missing gap report for registered L5 limitation: {key} ({site})")
                 elif case["status"] != "open gap" or case["stage"] != "L5" or evidence not in case["detail"]:
                     errors.append(f"gap report {key} does not record the registered refusal {row.file}: {row.message}")
+                else:
+                    case["refusal_reason"] = row.message
             elif case is not None:
                 errors.append(f"registry gap label collides with a reported case: {key}")
             else:
-                status, kind = OPEN_CLASSES[row.cls]
                 report["cases"][key] = {
-                    "cohort": "handoff", "stage": "L5", "status": status,
+                    "cohort": "handoff", "stage": "L5", "status": case_status,
                     "detail": f"{kind}. {row.justification} Observed {row.message} at {row.file} in {site}.",
                     "registered_refusal": row.cls,
+                    "refusal_reason": row.message,
                 }
             if key in report["cases"] and row.key in locations:
                 if row.gap_source == "registry":

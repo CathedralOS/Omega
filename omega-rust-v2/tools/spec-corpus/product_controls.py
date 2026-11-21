@@ -2,11 +2,25 @@
 TARGET = "tests/negative_controls.rs"
 CONTROLS = {
     "branch-target/swapped": "swapped_branch_targets_fail_the_returned_input_witness",
+    "runtime-dispatch/swapped-arms": "swapped_dispatch_arms_fail_the_arriving_descriptor_witness",
     "scalar-operand/swapped": "swapped_equal_typed_boundary_scalars_fail_the_operand_witness",
     **{f"restoration/{change}/{witness}": "restoration_turned_into_replacement_fails_the_vacancy_witness"
        for change in ("replace-unrestricted", "dispose-live") for witness in ("vacancy", "moved-place")},
     **{f"residual/Pair::{field}/{change}": "residual_cleanup_on_the_transferred_field_fails_the_sibling_witness"
        for field in ("left", "right") for change in ("transferred-field", "whole-root", "omitted")},
+    **{f"join-arrival/{change}": "a_normalized_or_redirected_arm_fails_the_join_arrival_witness"
+       for change in ("disposed-remainder", "same-field")},
+    **{f"premised-selector/{relation}/{change}": "a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected_element"
+       for relation, changes in (("equal", ("clause-operator", "store-through-vacated-selector")),
+                                 ("distinct", ("clause-operator", "displaced-element-kept"))) for change in changes},
+    **{f"cycle-claim/{change}": "a_claim_or_actual_from_the_sibling_back_edge_fails_the_cycle_witness"
+       for change in ("sibling-successor", "sibling-actuals")},
+    **{f"cycle-cleanup/{change}": "a_back_edge_cleanup_dropped_or_copied_to_its_guard_fails_the_completion_witness"
+       for change in ("omitted", "guard-edge")},
+    **{f"runtime-contract/{change}": "a_changed_carrier_contract_guarantee_or_debt_fails_the_runtime_call_contract_witness"
+       for change in ("descriptor-carrier", "callable-identity", "guarantee-dropped", "guarantee-bound", "debt-dropped")},
+    **{f"runtime-joined/{change}": "a_redirected_view_swapped_descriptor_or_changed_terminal_debt_fails_the_joined_call_witnesses"
+       for change in ("view-source", "descriptor-arrivals", "terminal-debt-dropped", "terminal-debt-order")},
 }
 
 
@@ -32,3 +46,11 @@ def finish(report):
         observed.setdefault(label, {"test": test})["verified"] = verified
         if not verified and statuses.get(test) != "FAILED":
             report["measurement_errors"].append(f"missing product corruption check: {label} · {TARGET}::{test}")
+
+
+def summary(controls):
+    """One sentence naming each registered family, read from the labels rather than written by hand."""
+    families = sorted({label.split("/", 1)[0] for label in controls})
+    return (f"Psi corruption checks rejected {sum(bool(row.get('verified')) for row in controls.values())} "
+            f"of {len(controls)} registered changes in {len(families)} families: {', '.join(families)}. "
+            "Each check first accepts the real product. The evidence JSON records why it rejected each changed product.")

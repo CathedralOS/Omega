@@ -7,6 +7,16 @@
 mod diagnostic_twins;
 use diagnostic_twins::{Case, check};
 
+#[path = "typing_cases/invocation_ceiling.rs"]
+mod invocation_ceiling;
+
+#[path = "typing_cases/reviewed_call_inputs.rs"]
+mod reviewed_call_inputs;
+#[path = "typing_cases/reviewed_value_inputs.rs"]
+mod reviewed_value_inputs;
+#[path = "typing_cases/reviewed_static_inputs.rs"]
+mod reviewed_static_inputs;
+
 mod direct_call_pause {
     use super::*;
     use omega_typer::DirectCallPauseError::{self, *};
@@ -134,6 +144,80 @@ fn mixed_width_operands_have_no_matching_operator() {
         reason: "no matching operator + for u8 and u16",
         rule: "Numbers and operators",
     });
+}
+
+mod operator_declaration {
+    use super::*;
+    use omega_typer::OperatorDeclarationError::{self, *};
+
+    fn twin(good: &str, bad: &str, message: &str, cause: OperatorDeclarationError) {
+        diagnostic_twins::check_with_reason(Case {
+            layer: "L3", producer: "typer", rule: "Numbers and operators",
+            good: &[("op.omg", good)], bad: &[("op.omg", bad)],
+            file: "op.omg", occurrence: "+", reason: message,
+        }, None, Some(cause.into()));
+    }
+
+    #[test]
+    fn competing_declared_homes() {
+        // Both imports really attach Ready to u8. One spelling defers the width check to L3.
+        let east = ("east/defs.omg", "public domain u<8>::Ready;");
+        let west = ("west/defs.omg", "public domain u8::Ready;");
+        let head = "machine + u8::Ready::add(x:u8,y:u8)->u8{x}";
+        check(Case {
+            layer: "L3", producer: "typer", rule: "Numbers and operators",
+            good: &[east, west, ("op.omg", &format!("use east; {head}"))],
+            bad: &[east, west, ("op.omg", &format!("use east; use west; {head}"))],
+            file: "op.omg", occurrence: "+",
+            reason: r"competing declarations: root\east\u::Ready, root\west\u8::Ready (root\east\u::Ready on u, import op.omg@4..8) (root\west\u8::Ready on u8, import op.omg@14..18)",
+        });
+    }
+
+    #[test]
+    fn conformance_binds_token() {
+        let good = "trait Add<T>{machine + add(x:T,y:T)->T;} Impl satisfies Add<u8>{machine add(x:u8,y:u8)->u8{x}}";
+        twin(good, &good.replace("machine add", "machine + add"),
+            "a conformance supplies the trait's token and cannot bind one", ConformanceBindsToken);
+    }
+
+    #[test]
+    fn multiple_semantic_homes() {
+        let good = "domain u8::P; domain u8::Q;\nmachine + add(x:u8 in P,y:u8 in P)->u8 in P{x}";
+        twin(good, &good.replace("y:u8 in P", "y:u8 in Q"),
+            "operator declaration has multiple possible semantic homes", MultipleSemanticHomes);
+    }
+
+    #[test]
+    fn foreign_home() {
+        let good = r"use omega\language\core; trait Local{} machine + Local::add(x:u8,y:u8)->u8{x}";
+        twin(good, &good.replace("Local::add", r"core\AccessPolicy::add"),
+            "only the declaring package may bind an operator for this home", ForeignHome);
+    }
+
+    #[test]
+    fn foreign_nominal_operands() {
+        let good = r"use omega\language\core; data Point{} data P=Point; machine + add(x:P,y:P)->P{x}";
+        twin(good, &good.replace("=Point", r"=core\Exposure"),
+            "only a nominal operand's declaring package may bind this operator", ForeignNominalOperands);
+    }
+
+    #[test]
+    fn incorrect_arity() {
+        let good = "data P{} machine + add(x:P,y:P)->P{x}";
+        twin(good, &good.replace(",y:P", ""), "incorrect operator arity", IncorrectArity);
+    }
+
+    #[test]
+    fn primitive_family() {
+        let good = "domain u8::P; machine + add(x:u8 in P,y:u8)->u8{y}";
+        twin(good, &good.replace(" in P", ""), "cannot bind a compiler-owned primitive operator family", PrimitiveFamily);
+    }
+
+    #[test]
+    fn duplicate_binding() {
+        let good = "data P{} data Q{} data Operand=Q;\nmachine + first(x:P,y:P)->P{x}\nmachine + second(x:P,y:Operand)->P{x}";
+        twin(good, &good.replace("=Q", "=P"), "duplicate normalized operator binding", DuplicateBinding);
+    }
 }
 
 // Numbers and operators: fractional history must be acknowledged at an integer landing.
@@ -270,16 +354,9 @@ fn indexed_read_requires_a_copy_element() {
 // Cleanup: the selected machine consumes exactly one owned carrier.
 #[test]
 fn cleanup_must_consume_one_owned_carrier() {
-    check(Case {
-        layer: "L3",
-        producer: "typer",
-        good: &[("cleanup.omg", "data Lease dropped by finish { slot: u8; }\nmachine finish(value: Lease) {}")],
-        bad: &[("cleanup.omg", "data Lease dropped by finish { slot: u8; }\nmachine finish(value: @Lease) {}")],
-        file: "cleanup.omg",
-        occurrence: "dropped by finish",
-        reason: "cleanup must consume exactly one owned carrier and return no value",
-        rule: "Cleanup",
-    });
+    let good = "data Lease dropped by finish { slot: u8; }\nmachine finish(value: Lease) {}";
+    check_cleanup_selection(good, &good.replace("value: Lease", "value: @Lease"), "dropped by finish",
+        "cleanup must consume exactly one owned carrier and return no value", omega_typer::CleanupSelectionError::InvalidSignature);
 }
 
 // Domains: an explicit domain cast accounts for every domain of its operand.
@@ -381,7 +458,7 @@ fn conformance_requirement_is_supplied_once() {
 fn an_alias_cycle_requires_a_dependency_on_the_selected_integer_width() {
     let good = "domain u8::Base; domain u16::Ready; domain u8::Ready = u<8>::Base; domain u16::Base = u<16>::Ready; machine f(x:u8 in Ready){}";
     let bad = good.replace("domain u8::Base;", "domain u8::Base = u<8>::Ready;");
-    check(Case {
+    diagnostic_twins::check_with_reason(Case {
         layer: "L3",
         producer: "typer",
         good: &[("aliases.omg", good)],
@@ -390,7 +467,22 @@ fn an_alias_cycle_requires_a_dependency_on_the_selected_integer_width() {
         occurrence: "u8::Base",
         reason: "cyclic domain alias",
         rule: "Domains",
-    });
+    }, None, Some(omega_typer::DefinitionCycleError::DomainAlias.into()));
+}
+
+#[test]
+fn a_transparent_alias_cycle_reports_the_dependency_in_the_first_file() {
+    let left = "data Left = Right;";
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("left.omg", left), ("right.omg", "data Right = u8;")],
+        bad: &[("left.omg", left), ("right.omg", "data Right = Left;")],
+        file: "left.omg",
+        occurrence: "Right",
+        reason: "cyclic type alias or binder kind",
+        rule: "Applications",
+    }, None, Some(omega_typer::DefinitionCycleError::TypeAliasOrBinderKind.into()));
 }
 
 // Reach ceilings: L2 resolves the service name; L3 requires that it name a boundary trait.
@@ -593,11 +685,71 @@ machine caller() { block may_wait(); }";
         "block block may_wait()", "repeated or reversed call acknowledgement", "Evidence and effects");
 }
 
+fn check_hypothesis_change(
+    good: &str, original: &str, replacement: &str, occurrence: &str, reason: &str,
+    cause: omega_typer::LogicalHypothesisError,
+) {
+    assert_eq!(good.matches(original).count(), 1);
+    let bad = good.replacen(original, replacement, 1);
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("main.omg", good)],
+        bad: &[("main.omg", &bad)],
+        file: "main.omg",
+        occurrence,
+        reason,
+        rule: "Mathematical terms and assembly",
+    }, None, Some(cause.into()));
+}
+
+#[test]
+fn a_logical_hypothesis_cannot_promise_an_observed_type_result() {
+    let source = "machine theorem<machine Step>(x:u8)\nrequires machine Step(y:u8)->core\\Strict<0> requires y != 0;\nrequires x != 0 {}";
+    check_hypothesis_change(source, "->core\\Strict<0>", "->u8", "->u8",
+        "logical hypothesis cannot promise an observed Type result", omega_typer::LogicalHypothesisError::ObservedResult);
+}
+
+#[test]
+fn a_nested_hypothesis_checks_its_result_at_the_outer_application() {
+    let source = "data Output = core\\Squash<u8>; machine theorem<T,machine Step>() requires machine Step() requires machine Inner()->T; ; {} machine base(){} machine use_it(){theorem::<Output,base>()}";
+    check_hypothesis_change(source, "core\\Squash<u8>", "u8", "theorem::<Output,base>",
+        "logical hypothesis cannot promise an observed Type result", omega_typer::LogicalHypothesisError::ObservedResult);
+}
+
+#[test]
+fn a_hypothesis_without_a_machine_slot_checks_its_specialized_authority() {
+    let source = "machine theorem<T>() requires machine Step(x:T); {} machine use_it(){theorem::<@u8>()}";
+    check_hypothesis_change(source, "@u8", "@mut u8", "theorem::<@mut u8>",
+        "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
+}
+
+#[test]
+fn a_logical_result_cannot_gain_a_runtime_carrier_at_specialization() {
+    let source = "data Output = core\\Squash<u8>; machine theorem<T,machine Step>() requires machine Step(x:T)->T; {} machine keep(x:Output)->Output{x} machine use_it(){theorem::<Output,keep>()}";
+    check_hypothesis_change(source, "core\\Squash<u8>", "u8", "theorem::<Output,keep>",
+        "logical hypothesis cannot promise an observed Type result", omega_typer::LogicalHypothesisError::ObservedResult);
+}
+
+#[test]
+fn a_logical_parameter_cannot_gain_write_authority_at_specialization() {
+    let source = "data Input = @u8; machine theorem<T,machine Step>() requires machine Step(x:T); {} machine sink(x:Input){} machine use_it(){theorem::<Input,sink>()}";
+    check_hypothesis_change(source, "@u8", "@write u8", "theorem::<Input,sink>",
+        "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
+}
+
+#[test]
+fn an_explicit_lifetime_cannot_hide_exclusive_hypothesis_authority() {
+    let source = "machine theorem<'life,machine Step>() requires machine Step(value:@'life u8); {}";
+    check_hypothesis_change(source, "@'life u8", "@'life mut u8", "value:@'life mut u8",
+        "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
+}
+
 #[test]
 fn a_logical_hypothesis_cannot_suspend() {
     let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine use_theorem(x:u8){theorem::<lemma>(x)}";
-    check_source_change(source, "Step(y:u8) requires", "Step(y:u8) suspends requires",
-        "suspends", "logical hypothesis cannot promise executable effects", "Mathematical terms and assembly");
+    check_hypothesis_change(source, "Step(y:u8) requires", "Step(y:u8) suspends requires",
+        "suspends", "logical hypothesis cannot promise executable effects", omega_typer::LogicalHypothesisError::ExecutableEffect);
 }
 
 #[test]
@@ -605,6 +757,46 @@ fn a_carry_declaration_needs_all_four_axes() {
     let source = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
     check_source_change(source, "address:movable,", "",
         "carry(suspension:allowed,cpu:same,thread:any,)", "carry requires exactly four axes", "Data and bindings");
+}
+
+#[test]
+fn a_callback_requirement_preserves_the_selected_trait_arguments() {
+    let good = "trait Step<T>{machine run<U>(x:u8)->u8;}
+        machine selected<T>(x:u8)->u8 satisfies Step<T>::run {x}
+        machine accept<const F:Step<u8>::run>(){}
+        machine f(){accept::<selected::<u8>>()}";
+    let bad = good.replace("selected::<u8>", "selected::<bool>");
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("callback.omg", good)],
+        bad: &[("callback.omg", &bad)],
+        file: "callback.omg",
+        occurrence: "selected::<bool>",
+        reason: "selected evidence has the wrong trait application",
+        rule: "Evidence and effects",
+    }, None, Some(omega_typer::TraitEvidenceError::WrongTraitApplication.into()));
+}
+
+#[test]
+fn explicit_evidence_must_satisfy_the_selected_trait_application() {
+    let source = |argument| format!(
+        "trait Step<T>{{machine run(x:T)->T;}}\n\
+         ByteStep satisfies Step<u8>{{machine run(x:u8)->u8{{x}}}}\n\
+         BoolStep satisfies Step<bool>{{machine run(x:bool)->bool{{x}}}}\n\
+         machine selected<const E:Step<u8>>(x:u8)->u8{{E::run(x)}}\n\
+         machine f(x:u8)->u8{{selected::<{argument}>(x)}}"
+    );
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("evidence.omg", &source("ByteStep"))],
+        bad: &[("evidence.omg", &source("BoolStep"))],
+        file: "evidence.omg",
+        occurrence: "BoolStep",
+        reason: "selected evidence has the wrong trait application",
+        rule: "Evidence and effects",
+    }, None, Some(omega_typer::TraitEvidenceError::WrongTraitApplication.into()));
 }
 
 #[test]
@@ -665,14 +857,87 @@ fn cleanup_must_select_one_exact_machine() {
     let source = "data Handle dropped by release { mark: u8; }
 machine release(h: Handle) { let Handle { mark as _ } = h; }
 ";
-    check_source_change(
-        source,
-        "dropped by release",
-        "dropped by true",
-        "true",
-        "cleanup must select one exact machine",
-        "Cleanup",
+    check_cleanup_selection(source, &source.replace("by release", "by true"), "true",
+        "cleanup must select one exact machine", omega_typer::CleanupSelectionError::NotExactMachine);
+}
+
+fn check_cleanup_selection(good: &str, bad: &str, occurrence: &str, reason: &str, cause: omega_typer::CleanupSelectionError) {
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3", producer: "typer", good: &[("cleanup.omg", good)], bad: &[("cleanup.omg", bad)],
+        file: "cleanup.omg", occurrence, reason, rule: "Cleanup",
+    }, None, Some(cause.into()));
+}
+
+#[test]
+fn a_resolved_cleanup_declaration_needs_a_machine_signature() {
+    // An unknown name would be refused by the resolver, not by signature lookup.
+    let good = "const token = 1u8; machine finish(x:R){} data R dropped by finish {}";
+    check_cleanup_selection(good, &good.replace("by finish", "by token"), "token",
+        "cleanup must select one exact machine", omega_typer::CleanupSelectionError::NotExactMachine);
+}
+
+#[test]
+fn cleanup_checks_the_normalized_carriers_package() {
+    let good = r"use omega\language\core; data Local {} data Carrier=Local;
+        domain Carrier::Marked dropped by finish; machine finish(x:Carrier){}";
+    check_cleanup_selection(good, &good.replace("=Local", r"=core\Exposure"), "dropped by finish",
+        "cleanup selection requires the carrier's owning package", omega_typer::CleanupSelectionError::ForeignCarrier);
+}
+
+#[test]
+fn indexed_cleanup_accepts_the_carrier_and_index_and_rejects_a_missing_index() {
+    let good = "domain<T,const N:u8> T::Level<N> dropped by finish<T>;
+        machine finish<U>(x:U){} machine read(x:u8 in u8::Level<2>){}";
+    let bad = good.replace("Level<2>", "Level");
+    check(Case {
+        layer: "L3", producer: "typer", rule: "Domains",
+        good: &[("cleanup.omg", good)], bad: &[("cleanup.omg", &bad)],
+        file: "cleanup.omg", occurrence: "u8::Level", reason: "incorrect indexed domain arity",
+    });
+}
+
+#[test]
+fn cleanup_rejects_an_unbound_machine_argument_before_substitution() {
+    let good = "domain<T> u8::Mark<T> dropped by end<T>; machine end<U>(x:u8){} machine read(x:u8 in Mark<u8>){}";
+    let bad = good.replace("Mark<T>", "Mark").replace("Mark<u8>", "Mark");
+    check_cleanup_selection(good, &bad, "u8 in Mark", "incomplete cleanup domain application",
+        omega_typer::CleanupSelectionError::IncompleteDomainApplication);
+}
+
+#[test]
+fn indexed_cleanup_compares_the_substituted_machine_arguments() {
+    let good = "data R dropped by end<R,u8> {} domain<U,T> T::Mark<U> dropped by end<T,U>;
+        machine end<X,Y>(r:X){} machine read(x:R in R::Mark<u8>){}";
+    check_cleanup_selection(good, &good.replace("Mark<u8>", "Mark<u16>"), "R in R::Mark<u16>",
+        "conflicting cleanup selections on one owned subject", omega_typer::CleanupSelectionError::ConflictingSelections);
+}
+
+#[test]
+fn indexed_cleanup_preserves_const_arguments_across_domain_binder_orders() {
+    let good = "domain<T,const N:u8> T::A<N> dropped by end<T,N>;
+        domain<const M:u8,U> U::B<M> dropped by end<U,M>;
+        machine end<V,const K:u8>(x:V){} machine read(x:u8){let guarded=x as +A<1> +B<1>;}";
+    let bad = good.replace("+B<1>", "+B<2>");
+    check_cleanup_selection(
+        good, &bad, "x as +A<1> +B<2>", "conflicting cleanup selections on one owned subject",
+        omega_typer::CleanupSelectionError::ConflictingSelections,
     );
+}
+
+#[test]
+fn qualified_cleanup_selections_must_agree_on_machine_arguments() {
+    let good = "data R dropped by finish<u8> {} domain R::Live dropped by finish<u8>;
+        machine finish<T>(x:R){} machine read(x:R in Live){}";
+    check_cleanup_selection(good, &good.replace("Live dropped by finish<u8>", "Live dropped by finish<u16>"), "R in Live",
+        "conflicting cleanup selections on one owned subject", omega_typer::CleanupSelectionError::ConflictingSelections);
+}
+
+#[test]
+fn expression_cleanup_selections_must_agree_on_machine_identity() {
+    let good = "domain u8::A dropped by finish; domain u8::B dropped by finish;
+        machine finish(x:u8){} machine other(x:u8){} machine read(x:u8){let tagged=x as +A +B;}";
+    check_cleanup_selection(good, &good.replace("B dropped by finish", "B dropped by other"), "x as +A +B",
+        "conflicting cleanup selections on one owned subject", omega_typer::CleanupSelectionError::ConflictingSelections);
 }
 
 fn check_crash(good: &str, bad: &str, occurrence: &str, reason: &str, cause: omega_typer::CrashDeclarationError) {
@@ -820,34 +1085,38 @@ fn crashes_none_conflicts_with_a_declared_route() {
     );
 }
 
+fn check_cleanup_effect(good: &str, bad: &str, reason: &str, cause: omega_typer::CleanupEffectError) {
+    let source = |effect: &str| format!("data Lease dropped by finish {{ slot: u8; }}\nmachine finish(value: Lease){effect} {{ let Lease {{ slot as _ }} = value; }}\n");
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("main.omg", &source(good))],
+        bad: &[("main.omg", &source(bad))],
+        file: "main.omg",
+        occurrence: "dropped by finish",
+        reason,
+        rule: "Cleanup",
+    }, None, Some(cause.into()));
+}
+
 #[test]
 fn cleanup_cannot_publish_a_crash_route() {
-    let source = "data Lease dropped by finish { slot: u8; }
-machine finish(value: Lease) crashes none { let Lease { slot as _ } = value; }
-";
-    check_source_change(
-        source,
-        "crashes none",
-        "crashes Trap",
-        "dropped by finish",
-        "cleanup cannot publish a crash route",
-        "Cleanup",
-    );
+    check_cleanup_effect(" crashes none", " crashes Trap", "cleanup cannot publish a crash route", omega_typer::CleanupEffectError::PublishesCrashRoute);
+}
+
+#[test]
+fn cleanup_cannot_publish_an_abort_route() {
+    check_cleanup_effect(" crashes none", " crashes Abort", "cleanup cannot publish a crash route", omega_typer::CleanupEffectError::PublishesCrashRoute);
 }
 
 #[test]
 fn cleanup_cannot_block_or_suspend() {
-    let source = "data Lease dropped by finish { slot: u8; }
-machine finish(value: Lease) { let Lease { slot as _ } = value; }
-";
-    check_source_change(
-        source,
-        "finish(value: Lease)",
-        "finish(value: Lease) suspends",
-        "dropped by finish",
-        "cleanup cannot block or suspend",
-        "Cleanup",
-    );
+    check_cleanup_effect("", " suspends", "cleanup cannot block or suspend", omega_typer::CleanupEffectError::MayPause);
+}
+
+#[test]
+fn cleanup_cannot_block() {
+    check_cleanup_effect("", " blocks", "cleanup cannot block or suspend", omega_typer::CleanupEffectError::MayPause);
 }
 
 #[test]
@@ -900,13 +1169,13 @@ machine first(pair: Pair) -> u32 {
 #[test]
 fn a_logical_hypothesis_cannot_supply_mutable_authority() {
     let source = "machine theorem<machine Step>()\nrequires machine Step(value: @u8);\n{}\n";
-    check_source_change(
+    check_hypothesis_change(
         source,
         "@u8",
         "@mut u8",
         "value: @mut u8",
         "logical hypothesis cannot supply mutable authority",
-        "Mathematical terms and assembly",
+        omega_typer::LogicalHypothesisError::MutableAuthority,
     );
 }
 

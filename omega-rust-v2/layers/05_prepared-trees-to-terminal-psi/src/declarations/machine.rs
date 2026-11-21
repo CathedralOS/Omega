@@ -58,7 +58,7 @@ pub(crate) fn machine_header(
             NodeKind::Requires => requires.push(contracts::lower_clause(prepared, tree, contracts::ClauseOwner::Machine(sig), child)?),
             NodeKind::Ensures => ensures.push(contracts::lower_clause(prepared, tree, contracts::ClauseOwner::Machine(sig), child)?),
             NodeKind::Terminates if file.nodes[child].children.is_empty() => {}
-            NodeKind::Terminates if ranking.is_none() => ranking = Some(super::ranking::authored(tree, sig, child)?),
+            NodeKind::Terminates if ranking.is_none() => ranking = Some(super::ranking::authored(prepared, tree, sig, child)?),
             _ => return Err(LoweringError::new(&site_at(tree, child), format!("unsupported machine header: {kind:?}"))),
         }
     }
@@ -72,17 +72,17 @@ pub(crate) fn machine_header(
     {
         return Err(LoweringError::new(&sig.site, "machine requires contract or effects lowering"));
     }
-    // The specialized envelope must exist, never block, and stay within the
-    // instance's declared ceiling.
+    // Publish the operational envelope, distinct from the declared ceiling.
+    // Blocking crossings (not the unused declaration) need call lowering.
     let realized_pause = realized_pause
-        .filter(|p| !p.block && !(p.suspend && sig.pause.suspend == Some(false)))
+        .filter(|p| !(p.block && sig.pause.block == Some(false) || p.suspend && sig.pause.suspend == Some(false)))
         .ok_or_else(|| LoweringError::new(&sig.site, "machine requires contract or effects lowering"))?;
     // Calls reference these clauses by index. Append the domain predicates after
     // the authored clauses, binding self to its signature slot.
     for (index, (_, ty)) in sig.parameters.iter().enumerate() {
-        append_domain_predicates(&mut requires, ty, crate::PredicateStep::Formal(index), domains);
+        append_domain_predicates(&mut requires, ty, crate::PredicateStep::Formal(index), domains)?;
     }
-    append_domain_predicates(&mut ensures, &sig.result, crate::PredicateStep::Result, domains);
+    append_domain_predicates(&mut ensures, &sig.result, crate::PredicateStep::Result, domains)?;
     let crash_routes = super::crash_routes::lower_routes(
         prepared,
         tree,
@@ -91,7 +91,6 @@ pub(crate) fn machine_header(
         &sig.site,
         sig.crash_ceiling.as_deref(),
     )?;
-    super::crash_routes::check_invocations(prepared, sig)?;
     let contract = MachineContract {
         public: tree.resolved().is_exported(sig.node.node),
         promises_termination: sig.terminates,
@@ -99,6 +98,7 @@ pub(crate) fn machine_header(
         realized_reach: super::members::reach(&effects.reach,|v|instance.application.instantiate(v),&sig.site)?,
         has_empty_crash_ceiling: sig.crash_ceiling.as_ref().is_some_and(Vec::is_empty),
         crash_routes,
+        callback_crash_routes: tree.callback_routes.iter().map(|(_, row)| row.clone()).collect(),
         pause_bounds: sig.pause,
         realized_pause,
         requires,
@@ -113,12 +113,17 @@ pub(super) fn append_domain_predicates(
     ty: &omega_typed::ValueType,
     subject: crate::PredicateStep,
     domains: &[super::domains::DomainSchema<'_>],
-) {
+) -> Result<(), LoweringError> {
     for member in ty.domains() {
         // Type interning reports unsupported memberships at the declared type.
         if let Ok(index) = domains.binary_search_by(|d| d.declaration.cmp(&member.declaration)) {
-            for template in domains[index].predicates().unwrap_or_default() {
-                let mut clause = template.clone();
+            let domain = &domains[index];
+            // A qualified formal or result without its specialized clause would
+            // let a caller skip the predicate, so an unclosed application refuses.
+            let applied = domain
+                .applied_predicates(&member.arguments)
+                .ok_or_else(|| LoweringError::new(&domain.site, "applied scalar qualification requires a closed argument for each predicate index"))?;
+            for mut clause in applied {
                 for step in &mut clause.predicate {
                     if *step == crate::PredicateStep::SelfValue {
                         *step = subject.clone();
@@ -128,4 +133,5 @@ pub(super) fn append_domain_predicates(
             }
         }
     }
+    Ok(())
 }

@@ -1,0 +1,23 @@
+group	case	field	before	after
+report		revision	e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9	e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9
+report		fingerprint	7e3cf3eb2109c59f8890c198c96acc2b8de6bca5085218db76261d374371285a	d6b2b187f12812bcd4654c38319aa0fac2fde5d4816074023ff4e59a930e0f63
+report		last_layer	L5	L5
+report		cases	3	3
+report		blocking	3	2
+report		measurement_errors	0	0
+accounting		Blocked in both, same or unrecorded programs	1	1
+accounting		Measured on a different program	1	1
+accounting		No longer blocking while still measured	1
+accounting		Blocked before and no longer measured	0
+accounting		Regressions of previously passing cases		0
+accounting		Newly measured		0
+witness-changed	handoff/arithmetic on float reads	test	tests/recasts.rs::float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic	tests/recasts.rs::float_views_do_not_admit_owned_bit_casts_or_float_arithmetic
+input-replaced	handoff/carry policy on a transparent data alias	blocks	blocks	blocks
+input-replaced	handoff/carry policy on a transparent data alias	inputs	prepared alias.omg sha256:ba29e38372749c25	prepared alias.omg sha256:cca52b69c1b1b9d9
+input-replaced	handoff/carry policy on a transparent data alias	locations	app/alias.omg:2:12 bytes 21..92 "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]"	app/alias.omg:2:12 bytes 21..89 "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]"
+input-replaced	handoff/carry policy on a transparent data alias	earlier inputs in the later report	prepared alias.omg sha256:ba29e38372749c25	sha256:ba29e38372749c25 no fixture records this source; successful fixtures record none
+unblocked	handoff/cleanup in a ranked component	status	checker input blocked	checker input compared; judgement pending
+unblocked	handoff/cleanup in a ranked component	reason	ranked recursion needs a terminal call or a non-suspending direct scalar call	checker input compared; judgement pending
+unblocked	handoff/cleanup in a ranked component	locations	app/ranking.omg:2:46 bytes 85..114 "{ let lease=Lease {mark:0}; }"
+unblocked	handoff/cleanup in a ranked component	test	tests/ranking.rs::selected_cleanup_participates_in_the_recursive_component
+unblocked	handoff/cleanup in a ranked component	inputs	prepared ranking.omg sha256:ea28aa43237a89e3	not recorded

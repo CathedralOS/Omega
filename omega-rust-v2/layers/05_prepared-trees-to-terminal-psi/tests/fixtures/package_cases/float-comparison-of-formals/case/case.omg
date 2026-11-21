@@ -1,0 +1,1 @@
+machine less(a: f32, b: f32) -> bool { a < b }

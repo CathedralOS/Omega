@@ -117,9 +117,7 @@ impl Frontier {
         source: &ProjectedPlace,
         site: &Site,
     ) -> Result<(), LoweringError> {
-        let Some(position) = self.0.iter().position(|r| r.place == source.root) else {
-            return Err(LoweringError::new(site, "owned transfer has no live source root"));
-        };
+        let position = self.live(source, site)?;
         let root = &mut self.0[position];
         if super::overlaps_moved_path(&root.moved, &source.path) {
             return Err(LoweringError::new(site, "owned transfer overlaps previously moved storage"));
@@ -131,6 +129,40 @@ impl Frontier {
             root.moved.sort_unstable();
         }
         Ok(())
+    }
+
+    /// An authored `move`. A duplicate or prefix-overlapping move is the
+    /// lowered-form checker's refusal (terminal-psi/ownership.md#partial-ownership-and-residuals).
+    /// The published operations keep both moves in order, so the checker
+    /// finds the second one at its own site. Cleanup covers only storage that
+    /// no move claimed: the moved paths stay the maximal claimed prefixes.
+    /// L5's own cleanup actions and arguments still use the strict `take`.
+    fn transfer(
+        &mut self,
+        source: &ProjectedPlace,
+        site: &Site,
+    ) -> Result<(), LoweringError> {
+        let position = self.live(source, site)?;
+        let root = &mut self.0[position];
+        if source.path.is_empty() {
+            self.0.remove(position);
+        } else if !root.moved.iter().any(|hole| source.path.starts_with(hole)) {
+            root.moved.retain(|hole| !hole.starts_with(&source.path));
+            root.moved.push(source.path.clone());
+            root.moved.sort_unstable();
+        }
+        Ok(())
+    }
+
+    fn live(
+        &self,
+        source: &ProjectedPlace,
+        site: &Site,
+    ) -> Result<usize, LoweringError> {
+        self.0
+            .iter()
+            .position(|r| r.place == source.root)
+            .ok_or_else(|| LoweringError::new(site, "owned transfer has no live source root"))
     }
 
     fn replace(
@@ -181,18 +213,73 @@ impl Frontier {
         Ok(())
     }
 
+    /// The frontier holds only owned storage. Transferring an exclusive loan
+    /// carrier, such as a `@mut [T]` view arriving at a join, moves no cleanup
+    /// custody, exactly as `MoveStructural` of such a place does not.
     fn consume_arguments(
         &mut self,
         arguments: &[CallArgument],
-        site: &Site,
+        context: &CleanupContext<'_>,
     ) -> Result<(), LoweringError> {
         for arg in arguments {
-            if let CallArgument::MoveWhole(place) = arg {
-                self.take(&ProjectedPlace { root: *place, path: vec![] }, site)?;
+            if let CallArgument::MoveWhole(place) = arg
+                && owned(context.places[place.index()].ty, context.types, context.data)
+            {
+                self.take(&ProjectedPlace { root: *place, path: vec![] }, context.site)?;
             }
         }
         Ok(())
     }
+}
+
+/// An intact value of this carrier can be displaced without inspecting its
+/// contents. Copy permission alone does not retire a stored descriptor or
+/// run a nominal cleanup. A whole sum has to permit displacement in any case.
+pub(in crate::machines) fn plain_copy_storage(
+    ty: TypeId,
+    types: &LoweringTypes,
+    data: &[LoweredData],
+) -> bool {
+    enum Visit {
+        Enter(TypeId),
+        Finish(TypeId),
+    }
+    use Visit::{Enter, Finish};
+    let mut pending = vec![Enter(ty)];
+    let mut active = std::collections::HashSet::new();
+    let mut complete = std::collections::HashSet::new();
+    while let Some(visit) = pending.pop() {
+        let ty = match visit {
+            Finish(ty) => {
+                active.remove(&ty);
+                complete.insert(ty);
+                continue;
+            }
+            Enter(ty) if complete.contains(&ty) => continue,
+            Enter(ty) => ty,
+        };
+        if !active.insert(ty) {
+            return false;
+        }
+        pending.push(Finish(ty));
+        match types.get(ty) {
+            Some(TypeShape::PrimitiveScalar(_)) => {}
+            Some(TypeShape::FixedArray { element, .. }) => pending.push(Enter(*element)),
+            Some(TypeShape::Nominal(id)) => {
+                let Some(schema) = data.get(id.get() - 1) else { return false };
+                if schema.multiplicity != Multiplicity::Copy || schema.cleanup_target.is_some() {
+                    return false;
+                }
+                let fields = schema
+                    .fields
+                    .iter()
+                    .chain(schema.cases.iter().flat_map(|case| &case.fields));
+                pending.extend(fields.map(|field| Enter(field.carrier)));
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
 pub(in crate::machines) fn owned(
@@ -278,6 +365,7 @@ pub(in crate::machines) fn schedule(
                 state.establish(parameter);
             }
         }
+        let mut contents = parked::LocalContents::default();
         for ordinal in block.operations.clone() {
             let site = &body.diagnostics.operations[ordinal];
             let context = CleanupContext {
@@ -286,12 +374,14 @@ pub(in crate::machines) fn schedule(
                 data,
                 site,
             };
+            contents.observe(&body.operations[ordinal], &body.mutable_homes);
             // Snapshot ownership before this call consumes its arguments.
             if let OperationKind::Call { callee, arguments, .. } = &body.operations[ordinal].kind
                 && callees.may_park(*callee)
             {
                 let lineage = parked::Lineage {
                     operations: &body.operations[..ordinal],
+                    contents: &contents,
                     mutable_homes: &body.mutable_homes,
                 };
                 let call = crate::CallSite::Operation(body.operations[ordinal].id);
@@ -299,7 +389,7 @@ pub(in crate::machines) fn schedule(
             }
             let op = &mut body.operations[ordinal];
             match &mut op.kind {
-                OperationKind::MoveStructural { source } if owned(body.places[source.root.index()].ty, types, data) => state.take(source, site)?,
+                OperationKind::MoveStructural { source } if owned(body.places[source.root.index()].ty, types, data) => state.transfer(source, site)?,
                 OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
                     for field in fields {
                         if let crate::ValueOperand::MoveWhole(value) = field.operand {
@@ -340,7 +430,7 @@ pub(in crate::machines) fn schedule(
                         *disposition = state.replace(destination, ty, &context)?;
                     }
                 }
-                OperationKind::Call { arguments, .. } => state.consume_arguments(arguments, site)?,
+                OperationKind::Call { arguments, .. } => state.consume_arguments(arguments, &context)?,
                 _ => {}
             }
             if let OperationResult::Structural(place) = op.result
@@ -351,42 +441,34 @@ pub(in crate::machines) fn schedule(
         }
         let mut arrive = |edge: &crate::SuccessorEdge, mut incoming: Frontier| -> Result<(), LoweringError> {
             let site = &body.diagnostics.edges[edge.id.get() - 1];
-            incoming.consume_arguments(&edge.structural_arguments, site)?;
-            incoming.consume_cleanups(
-                &edge.cleanup,
-                &CleanupContext {
-                    places: &body.places,
-                    types,
-                    data,
-                    site,
-                },
-            )?;
+            let context = CleanupContext {
+                places: &body.places,
+                types,
+                data,
+                site,
+            };
+            incoming.consume_arguments(&edge.structural_arguments, &context)?;
+            incoming.consume_cleanups(&edge.cleanup, &context)?;
             let target = edge.target;
             if predecessors[target.get() - 1] > 1 {
-                let context = CleanupContext {
-                    places: &body.places,
-                    types,
-                    data,
-                    site,
-                };
                 // Writable homes keep exact vacant paths for field-by-field restoration.
                 incoming
                     .0
                     .retain(|root| body.mutable_homes.contains(&root.place) || !root.exhausted(&context));
             }
+            // Disagreeing arrivals are the lowered-form checker's refusal
+            // (terminal-psi/control_flow.md#graph-and-frontier). Each arriving
+            // edge and the transfers before it stay in Psi, so the checker can
+            // replay every arrival and compare what survives. Lowering schedules
+            // the join's later cleanup from the first arrival it visits
+            // (breadth-first from entry, a true edge before its false edge);
+            // the checker judges that cleanup only when every arrival agrees.
             let slot = &mut arrivals[target.get() - 1];
-            match slot {
-                Some(previous) if previous != &incoming => Err(LoweringError::new(
-                    &body.diagnostics.body,
-                    "structural join requires a common incoming ownership frontier",
-                )),
-                Some(_) => Ok(()),
-                None => {
-                    *slot = Some(incoming);
-                    pending.push_back(target.get() - 1);
-                    Ok(())
-                }
+            if slot.is_none() {
+                *slot = Some(incoming);
+                pending.push_back(target.get() - 1);
             }
+            Ok(())
         };
         match &mut block.terminator {
             BlockTerminator::Jump(edge) => arrive(edge, state)?,
@@ -413,13 +495,17 @@ pub(in crate::machines) fn schedule(
                 let site = &body.diagnostics.edges[id.get() - 1];
                 if callees.may_park(*callee) {
                     let context = CleanupContext { places: &body.places, types, data, site };
+                    for arg in arguments.iter() {
+                        contents.operand(arg);
+                    }
                     let lineage = parked::Lineage {
                         operations: &body.operations[..block.operations.end],
+                        contents: &contents,
                         mutable_homes: &body.mutable_homes,
                     };
                     crossings.record(crate::CallSite::Edge(*id), &state, arguments, &context, &lineage)?;
                 }
-                state.consume_arguments(arguments, site)?;
+                state.consume_arguments(arguments, &CleanupContext { places: &body.places, types, data, site })?;
                 *cleanup = dispositions(&state, &body.places, types, data, site)?;
             }
             // Exit abandons the bound domain: no cleanup, receipt or merged frontier.
@@ -480,7 +566,7 @@ impl CleanupContext<'_> {
             if root.moved.binary_search(&path).is_ok() {continue;}
             let holes=root.holes_below(&path);
             if let Some(&TypeShape::FixedArray {element,length})=types.get(ty)
-                && (!holes.is_empty() || ensure_disposable(element,types,data,site).is_err())
+                && (!holes.is_empty() || ensure_disposable(element,types,data,site,LinearDebt::Refuse).is_err())
             {
                 // Each intact child contributes at least one action. Keep only
                 // the descending cursor and the current child's path in scratch.
@@ -494,7 +580,10 @@ impl CleanupContext<'_> {
                     return Err(LoweringError::new(site, "partial transfer needs a nominal field roster"));
                 };
                 let schema = &data[id.get() - 1];
-                if schema.carry.is_some() || schema.multiplicity == Multiplicity::Linear || schema.cleanup_target.is_some() {
+                // A partially moved value with a selected cleanup still lists
+                // its live complement. No action invokes the cleanup on it:
+                // L6 compares the moves with that selection and refuses.
+                if schema.carry.is_some() || schema.multiplicity == Multiplicity::Linear {
                     return Err(LoweringError::new(
                         site,
                         "partial transfer requires active case, carry or linear disposition evidence",
@@ -519,20 +608,28 @@ impl CleanupContext<'_> {
                     });
                     continue;
                 }
-                if let Err(error) = ensure_disposable(ty, types, data, site) {
+                if let Err(error) = ensure_disposable(ty, types, data, site, LinearDebt::Refuse) {
                     let Some(TypeShape::Nominal(id)) = types.get(ty) else {
                         return Err(error);
                     };
                     let record = &data[id.get() - 1];
-                    if record.multiplicity == Multiplicity::Linear || record.carry.is_some() || !record.cases.is_empty() {
+                    if record.multiplicity == Multiplicity::Linear && record.carry.is_none() {
+                        // A dying linear value has no authorized disposition here. Publish
+                        // the discard the edge performs so the checker can refuse it against
+                        // the declared multiplicity, as it judges an affine discard. Contents
+                        // that need their own action still stop here: one discard cannot
+                        // stand in for a cleanup call or a loan restoration.
+                        ensure_disposable(ty, types, data, site, LinearDebt::Publish)?;
+                    } else if record.multiplicity == Multiplicity::Linear || record.carry.is_some() || !record.cases.is_empty() {
                         return Err(error);
+                    } else {
+                        for field in &record.fields {
+                            let mut child = path.clone();
+                            child.push(PlaceProjection::Field(field.declaration.clone()));
+                            pending.push(Work::Region(child,field.carrier));
+                        }
+                        continue;
                     }
-                    for field in &record.fields {
-                        let mut child = path.clone();
-                        child.push(PlaceProjection::Field(field.declaration.clone()));
-                        pending.push(Work::Region(child,field.carrier));
-                    }
-                    continue;
                 }
                 if path.is_empty() {
                     actions.push(CleanupAction::DiscardRoot(root.place));
@@ -548,11 +645,20 @@ impl CleanupContext<'_> {
     }
 }
 
+/// Whether a discard may name linear storage. `Publish` leaves the verdict on
+/// that discard to the checker, which reads the multiplicity from the Psi data.
+#[derive(Clone, Copy, PartialEq)]
+enum LinearDebt {
+    Refuse,
+    Publish,
+}
+
 fn ensure_disposable(
     ty: TypeId,
     types: &LoweringTypes,
     data: &[LoweredData],
     site: &Site,
+    linear: LinearDebt,
 ) -> Result<(), LoweringError> {
     let mut pending = vec![ty];
     let mut visited = std::collections::BTreeSet::new();
@@ -562,35 +668,25 @@ fn ensure_disposable(
         }
         match types.get(ty) {
             Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }) => {}
-            // Dropping a stored shared reference ends only that loan. The
-            // referent is never visited, so its own obligations stay with its owner.
+            // A stored reference or view is a loan carrier, not an owner of its
+            // referent. Discarding it ends that loan, exactly as overwriting the
+            // field would, and never visits the referent. The lowered-form checker
+            // judges when the lender regains access from the lowered loan
+            // operations; no cleanup action restores it.
             Some(
-                TypeShape::ScalarReference {
-                    access: crate::ReferenceAccess::Shared,
-                    ..
-                }
-                | TypeShape::NominalReference {
-                    access: crate::ReferenceAccess::Shared,
-                    ..
-                },
+                TypeShape::ScalarReference { .. }
+                | TypeShape::NominalReference { .. }
+                | TypeShape::IndexedSharedReference(_)
+                | TypeShape::MutableElementView { .. }
+                | TypeShape::MutableScalarElementView { .. }
+                | TypeShape::SharedElementView { .. }
+                | TypeShape::SharedByteView,
             ) => {}
-            // An exclusive descriptor must restore its parent. No cleanup action
-            // carries that restoration, so discarding it would hide the window.
-            Some(
-                TypeShape::ScalarReference {
-                    access: crate::ReferenceAccess::Mutable,
-                    ..
-                }
-                | TypeShape::NominalReference {
-                    access: crate::ReferenceAccess::Mutable,
-                    ..
-                }
-                | TypeShape::MutableElementView { .. },
-            ) => return Err(LoweringError::new(site, "normal exit needs restoration evidence for an embedded exclusive loan")),
             Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
             Some(TypeShape::Nominal(id)) => {
                 let schema = &data[id.get() - 1];
-                if schema.multiplicity == Multiplicity::Linear || schema.carry.is_some() || schema.cleanup_target.is_some() {
+                let linear_refused = schema.multiplicity == Multiplicity::Linear && linear == LinearDebt::Refuse;
+                if linear_refused || schema.carry.is_some() || schema.cleanup_target.is_some() {
                     return Err(LoweringError::new(site, "normal exit needs an authorized disposition for owned storage"));
                 }
                 pending.extend(

@@ -4,7 +4,7 @@
 //! its alias terms expand after that. A carrier-deferred candidate set needs only the heads
 //! of its candidates to select one, and only the selected domain becomes an alias dependency.
 use super::type_catalog::TypeCatalog;
-use crate::TypeError;
+use crate::{DefinitionCycleError, TypeError};
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
 use omega_resolved::{DeclarationId, NameContext, Symbol};
@@ -277,12 +277,11 @@ pub(crate) fn index_type_definitions<'a>(
                 State::Complete => continue,
                 State::Waiting => return Err(types.indices.wait(unit.file, node)),
                 State::Visiting => {
-                    let reason = if is_domain {
-                        "cyclic domain alias"
-                    } else {
-                        "cyclic type alias or binder kind"
-                    };
-                    return Err(TypeError::at(unit.file, expression, reason));
+                    let site = omega_typed::site_at(unit.file, expression);
+                    if is_domain {
+                        return Err(TypeError::for_reason(&site, DefinitionCycleError::DomainAlias));
+                    }
+                    return Err(TypeError::for_reason(&site, DefinitionCycleError::TypeAliasOrBinderKind));
                 }
                 State::Unseen => states[id] = State::Visiting,
             }

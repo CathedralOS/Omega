@@ -115,6 +115,10 @@ pub struct TypedStage {
     pub domain_carriers: std::collections::HashMap<DeclarationId, ValueType>,
     /// The underlying type of a transparent alias in its defining binder scope.
     pub type_alias_targets: std::collections::HashMap<DeclarationId, ValueType>,
+    /// Authored properties on transparent aliases. Explicit multiplicity has been
+    /// checked against the expansion, not installed as a new ownership identity.
+    /// Carry axes here describe the attribute, not a checked floor on the expansion.
+    pub type_alias_properties: std::collections::HashMap<DeclarationId, DataProperties>,
     /// The normalized constituents of each domain alias, including their arguments.
     pub domain_alias_members: std::collections::HashMap<DeclarationId, Vec<crate::DomainApplication>>,
     pub static_data_shapes: std::collections::HashMap<ValueType, StaticDataShape>,
@@ -143,6 +147,8 @@ pub struct TypedStage {
     /// Execution calls of an exact canonical terminal requirement, in call order.
     pub external_completions: Vec<crate::ExternalCompletion>,
     pub invocation_ceilings: Vec<(DeclarationId, Site, InvocationTarget)>,
+    /// Immediate applied base of each transparent restriction (not a nominal satisfaction target).
+    pub refinement_bases: std::collections::BTreeMap<DeclarationId, crate::RequirementSlot>,
     pub refinements: Vec<TraitRefinement>,
     pub indirect_calls: Vec<IndirectCall>,
     pub memberships: Vec<TypedMembership>,

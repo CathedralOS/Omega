@@ -5,8 +5,12 @@ use omega_psi::{
 };
 
 mod assembly;
+mod domain_completions;
+mod floats;
 mod trapping;
-pub use assembly::assembly_branch;
+pub use assembly::{LocationSupply, assembly_branch, assembly_changed_registers, assembly_location, assembly_location_supply, assembly_state_writes};
+pub use domain_completions::cast_completions;
+pub use floats::{FloatScalar, evaluate_float_body};
 pub use trapping::{DivisionOutcome, observe_byte_division};
 
 /// Every terminal external exit of a body, read from published terminators alone.
@@ -113,6 +117,32 @@ pub fn returned_reborrow(body: &omega_psi::MachineBody) -> Option<&omega_psi::Pr
     }
 }
 
+/// Pairs `(earlier, later)` of transfers out of one root whose paths are equal
+/// or one is a prefix of the other, read from a straight-line body's ordered
+/// operations alone. This shows that the published checker input locates a
+/// repeated transfer. It is not the checker's verdict: it ignores branches,
+/// refills and every other ownership rule.
+pub fn overlapping_transfers(body: &omega_psi::MachineBody) -> Vec<(omega_psi::OperationId, omega_psi::OperationId)> {
+    let [block] = body.blocks.as_slice() else {
+        panic!("the reader replays one straight-line block")
+    };
+    let mut moved: Vec<(&omega_psi::ProjectedPlace, omega_psi::OperationId)> = Vec::new();
+    let mut pairs = Vec::new();
+    for op in &body.operations[block.operations.clone()] {
+        let omega_psi::OperationKind::MoveStructural { source } = &op.kind else {
+            continue;
+        };
+        if let Some((_, earlier)) = moved
+            .iter()
+            .find(|(path, _)| path.root == source.root && (path.path.starts_with(&source.path) || source.path.starts_with(&path.path)))
+        {
+            pairs.push((*earlier, op.id));
+        }
+        moved.push((source, op.id));
+    }
+    pairs
+}
+
 /// Follow the returned place to its defining transfer and read precisely what survives on that edge.
 pub fn returned_move<'a>(
     body: &'a omega_psi::MachineBody,
@@ -165,19 +195,78 @@ pub fn suspending_local_calls(
 mod parked_byte_views;
 pub use parked_byte_views::check_parked_byte_views;
 
+mod stored_exclusive;
+pub use stored_exclusive::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
+
 mod joined_loans;
 pub use joined_loans::check_joined_loan;
 
+mod exclusive_joins;
+pub use exclusive_joins::{ExclusiveJoin, JoinedUse, exclusive_join, local_descriptor_move};
+
 mod returned_view;
-pub use returned_view::returned_view_backing;
+pub use returned_view::{recursive_view_backings, returned_view_backing};
+
+mod element_writes;
+pub use element_writes::{ElementWrite, element_writes};
+
+mod field_stores;
+pub use field_stores::{StoredDescriptor, parked_field_stores};
+
+mod write_only;
+pub use write_only::{WriteOnlyStore, closed_copy_storage, write_only_stores};
+
+mod parked_windows;
+pub use parked_windows::{ParkedWindow, StoreKind, parked_windows, window_stores};
+
+mod parked_view_sources;
+pub use parked_view_sources::{ProviderInvocation, ViewSources, parked_view_sources};
 
 mod parked_handles;
 pub use parked_handles::check_parked_handles;
 
 mod embedded_fields;
-pub use embedded_fields::{check_incoming_fields, check_constructed_field};
+pub use embedded_fields::{check_constructed_field, check_incoming_fields, discarded_loan_fields, parked_replacement_origin};
 
 mod parked_owner_borrows;
-pub use parked_owner_borrows::check_parked_owner_borrow;
+pub use parked_owner_borrows::{ParkedFieldLoan, ParkedLoanBacking, check_parked_owner_borrow, parked_field_loan_carry, parked_field_loans};
+
+mod parked_field_reborrows;
+pub use parked_field_reborrows::{ParkedFieldReborrow, parked_field_reborrow};
+
+mod returned_field_loans;
+pub use returned_field_loans::{ReturnedStoredLoan, returned_stored_loan};
 
 pub mod product_witness;
+
+mod dependency_call;
+pub use dependency_call::{ReturnedCall, returned_call};
+
+mod theorem_citations;
+pub use theorem_citations::{CitationObligations, ProofCitation, theorem_citations, theorem_proof};
+
+mod hooked_transfers;
+pub use hooked_transfers::{HookedFieldTransfer, hooked_field_transfers};
+
+mod ranking;
+pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
+
+mod primitive_homes;
+mod copyable_homes;
+pub use copyable_homes::{CopyableHome, parked_copyable_homes, plain_carry};
+pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
+
+mod scalar_terms;
+pub use scalar_terms::{Operand, Term, call_arguments, integer_comparisons};
+
+mod callback_premises;
+pub use callback_premises::{CallbackPremises, callback_premises};
+
+/// Open templates evaluated or resolved from Psi alone.
+pub mod machine_templates;
+
+mod template_operands;
+pub use template_operands::template_field_argument;
+
+mod view_bounds;
+pub use view_bounds::{ViewElementBound, returned_element_count_formal, view_element_bounds};

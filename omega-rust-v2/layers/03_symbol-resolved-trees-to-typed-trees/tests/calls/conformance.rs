@@ -406,3 +406,53 @@ fn a_selection_row_uses_the_machine_when_a_mathematical_definition_shares_its_na
     assert_eq!(row.implementation.path, "mapping");
     assert_eq!(row.implementation.kind, omega_parser::NodeKind::Machine);
 }
+
+/// L2 hands every requirement that the written row path reaches to typing, including one
+/// inherited from a parent trait with the same name. The row's machine selects one by its
+/// signature. Requirements that accept the same machine still make the row ambiguous, and a
+/// signature-free `satisfies` path still needs exactly one requirement.
+#[test]
+fn rows_select_by_signature_between_a_child_requirement_and_its_parents() {
+    let parent = "trait P { machine f(x: u8) -> u8; }\n";
+    let rest =
+        "trait C: P { machine f(x: u16) -> u16; }\nmachine g(x: u8) -> u8 { x }\nmachine h(x: u16) -> u16 { x }\nSink satisfies C { C::f = g; C::f = h; }\n";
+    let original = format!("{parent}{rest}");
+    for files in [
+        vec![("a.omg", original.as_str())],
+        vec![("a.omg", rest), ("b.omg", parent)],
+    ] {
+        let stage = check(&files).unwrap();
+        let rows: Vec<_> = stage
+            .conformance_rows
+            .iter()
+            .map(|row| {
+                (
+                    row.requirement.declaration.path.as_str(),
+                    row.requirement.declaration.operands.clone(),
+                    row.implementation.path.as_str(),
+                )
+            })
+            .collect();
+        spec_corpus::observe_handoff!(
+            "trait-requirement-family/consumer",
+            assert_eq!(
+                rows,
+                [
+                    ("P::f", vec!["u8".to_string()], "g"),
+                    ("C::f", vec!["u16".to_string()], "h")
+                ],
+                "{files:?}"
+            )
+        );
+    }
+
+    let same_shape = "trait P { machine f(x: u8) -> u8; }\ntrait C: P { machine f(x: u8) -> u8; }\nmachine g(x: u8) -> u8 { x }\nmachine h(x: u8) -> u8 { x }\nSink satisfies C { C::f = g; C::f = h; }\n";
+    let error = check(&[("a.omg", same_shape)]).unwrap_err();
+    assert_eq!(error.message, "ambiguous conformance row");
+    assert_eq!(error.span.slice(same_shape.as_bytes()), Some(b"C::f = g;".as_slice()));
+
+    let edge = "trait P { machine f(x: u8) -> u8; }\ntrait C: P { machine f(x: u16) -> u16; }\nmachine h(x: u16) -> u16 satisfies C::f { x }\n";
+    let error = check(&[("a.omg", edge)]).unwrap_err();
+    assert_eq!(error.message, "requirement selection needs an exact machine");
+    assert_eq!(error.span.get_start_offset(), edge.rfind("C::f").unwrap());
+}

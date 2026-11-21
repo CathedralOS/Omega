@@ -29,10 +29,6 @@ fn residual_ordinals(
         .collect()
 }
 
-fn lowering_error(source: &str) -> String {
-    sources::lower(&[("arrays.omg", source)]).unwrap_err().message
-}
-
 #[test]
 fn moving_sibling_zero_or_one_returns_that_ordinal_and_disposes_only_the_other() {
     for (selected, remaining) in [(0u64, 1u64), (1, 0)] {
@@ -221,32 +217,120 @@ fn reassembling_every_ordinal_consumes_each_element_once() {
     assert!(cleanup.is_empty(), "every ordinal transferred; nothing remains to dispose: {cleanup:?}");
 }
 
+fn site_span(
+    body: &omega_lowering::MachineBody,
+    id: omega_lowering::OperationId,
+) -> std::ops::Range<usize> {
+    let site = &body.diagnostics.operations[id.index()];
+    assert_eq!((site.package.as_str(), site.file.as_str()), ("app", "arrays.omg"));
+    site.span.get_start_offset()..site.span.get_end_offset()
+}
+
+/// The lowered-form checker refuses the second transfer of one element
+/// (terminal-psi/ownership.md#partial-ownership-and-residuals). L5 publishes
+/// both transfers in source order, each at its own site, and disposes only
+/// the ordinal neither transfer claimed.
 #[test]
-fn transferring_one_ordinal_twice_rejects() {
+fn transferring_one_ordinal_twice_publishes_both_ordered_transfers_for_the_checker() {
     let source = format!("{TOKEN} machine twice(items:[Token;2])->[Token;2]{{[move items[0], move items[0]]}}");
-    assert_eq!(lowering_error(&source), "owned transfer overlaps previously moved storage");
+    let package = sources::lower(&[("arrays.omg", &source)]).unwrap();
+    let body = &package.machines[0].body;
+    let [Parameter::Structural(root)] = body.parameters[..] else {
+        panic!("owned array parameter expected")
+    };
+    let [first, second, array] = body.operations.as_slice() else {
+        panic!("two element transfers followed by the array literal")
+    };
+    for transfer in [first, second] {
+        assert!(matches!(&transfer.kind, OperationKind::MoveStructural { source } if source.root == root && source.path == [PlaceProjection::FixedIndex(0)]));
+    }
+    assert_eq!(site_span(body, first.id), sources::span_within(&source, "[move items[0],", "move items[0]"));
+    assert_eq!(site_span(body, second.id), sources::span_within(&source, ", move items[0]", "move items[0]"));
+    assert!(
+        matches!(&array.kind, OperationKind::EstablishStructuralArray { elements } if elements.iter().map(|p| OperationResult::Structural(*p)).eq([first.result, second.result]))
+    );
+    let BlockTerminator::Return { cleanup, .. } = &body.blocks[0].terminator else {
+        panic!("return expected")
+    };
+    assert_eq!(residual_ordinals(cleanup, root), [vec![1]], "only the unclaimed ordinal is disposed");
+    spec_corpus::observe_handoff!(psi "psi-output/repeated-element-transfer", assert_eq!(psi_handoff_consumer::overlapping_transfers(body), [(first.id, second.id)]));
+    // Selecting the other ordinal first is the lawful twin: the reader finds no overlap.
+    let twin = source.replacen("move items[0]", "move items[1]", 1);
+    let lawful = sources::lower(&[("arrays.omg", &twin)]).unwrap();
+    assert_eq!(psi_handoff_consumer::overlapping_transfers(&lawful.machines[0].body), []);
 }
 
+/// The checker refuses a whole-array transfer after one of its elements moved.
+/// L5 publishes the element transfer, then the whole transfer at the returned
+/// `items`. The moved element stays owned by `first`, which the exit disposes.
 #[test]
-fn a_partially_transferred_array_cannot_leave_whole() {
+fn a_whole_array_transfer_after_an_element_transfer_is_published_for_the_checker() {
     let source = format!("{TOKEN} machine whole(items:[Token;2])->[Token;2]{{let first=move items[0]; items}}");
-    assert_eq!(lowering_error(&source), "owned transfer overlaps previously moved storage");
+    let package = sources::lower(&[("arrays.omg", &source)]).unwrap();
+    let body = &package.machines[0].body;
+    let [Parameter::Structural(root)] = body.parameters[..] else {
+        panic!("owned array parameter expected")
+    };
+    let [element, whole] = body.operations.as_slice() else {
+        panic!("an element transfer followed by the whole transfer")
+    };
+    assert!(matches!(&element.kind, OperationKind::MoveStructural { source } if source.root == root && source.path == [PlaceProjection::FixedIndex(0)]));
+    assert!(matches!(&whole.kind, OperationKind::MoveStructural { source } if source.root == root && source.path.is_empty()));
+    assert_eq!(site_span(body, element.id), sources::unique_span(&source, "move items[0]"));
+    assert_eq!(site_span(body, whole.id), sources::span_within(&source, "; items}", "items"));
+    let OperationResult::Structural(first) = element.result else {
+        panic!("the element transfer binds `first`")
+    };
+    let BlockTerminator::Return {
+        result: omega_lowering::ReturnEdge::Structural { source: returned, .. },
+        cleanup,
+        ..
+    } = &body.blocks[0].terminator
+    else {
+        panic!("structural return expected")
+    };
+    assert_eq!(OperationResult::Structural(*returned), whole.result);
+    assert_eq!(cleanup, &[CleanupAction::DiscardRoot(first)]);
+    spec_corpus::observe_handoff!(psi "psi-output/whole-array-after-element-transfer", assert_eq!(psi_handoff_consumer::overlapping_transfers(body), [(element.id, whole.id)]));
+    // Returning a reassembled array instead of `items` changes one expression and transfers each element once.
+    let twin = source.replace("; items}", "; [move first, move items[1]]}");
+    let lawful = sources::lower(&[("arrays.omg", &twin)]).unwrap();
+    assert_eq!(psi_handoff_consumer::overlapping_transfers(&lawful.machines[0].body), []);
 }
 
+/// An owned extraction must name its unique element (language/ownership.md#paths-and-control-flow),
+/// and a fixed-array claim path uses only literal indexes; dynamic indexes
+/// reject (terminal-psi/ownership.md#claim-paths). The program is invalid, so
+/// L5 refuses at the runtime selector. Only the selector differs in the twin.
 #[test]
 fn a_runtime_selector_supplies_no_static_ordinal() {
     let source = format!("{TOKEN} machine pick(items:[Token;2], i:u64)->Token{{move items[i]}}");
-    assert_eq!(lowering_error(&source), "owned element transfer requires a literal or frozen constant selector");
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, "[i]", "i"),
+        "owned element transfer requires a literal or frozen constant selector",
+    );
+    let literal = source.replace("move items[i]", "move items[1]");
+    let package = sources::lower(&[("arrays.omg", &literal)]).unwrap();
+    let body = &package.machines[0].body;
+    let [Parameter::Structural(root), Parameter::Scalar(_)] = body.parameters[..] else {
+        panic!("owned array and scalar selector parameters expected")
+    };
+    let (taken, cleanup) = psi_handoff_consumer::returned_move(body, &body.blocks[0]).expect("the result is the selected element");
+    assert_eq!((taken.root, taken.path.as_slice()), (root, [PlaceProjection::FixedIndex(1)].as_slice()));
+    assert_eq!(residual_ordinals(cleanup, root), [vec![0]]);
 }
 
 #[test]
 fn an_ordinal_outside_the_declared_extent_rejects() {
     let source = format!("{TOKEN} machine pick(items:[Token;2])->Token{{move items[2]}}");
-    let error = sources::lower(&[("arrays.omg", &source)]).unwrap_err();
-    assert_eq!(error.message, "owned element transfer selects outside its fixed array");
-    assert_eq!(error.site.file, "arrays.omg");
-    let selector = source.rfind("[2]").unwrap() + 1;
-    assert_eq!((error.site.span.get_start_offset(), error.site.span.get_end_offset()), (selector, selector + 1));
+    sources::refuse(
+        &[("arrays.omg", &source)],
+        "arrays.omg",
+        sources::span_within(&source, "items[2]", "2"),
+        "owned element transfer selects outside its fixed array",
+    );
 }
 
 #[test]

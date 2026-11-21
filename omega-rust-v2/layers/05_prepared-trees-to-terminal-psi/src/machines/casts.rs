@@ -1,31 +1,21 @@
-use crate::{LoweringError, LoweringTypes, QualificationDirection};
+use crate::{LoweringError, LoweringTypes, QualificationDirection, ScalarType};
 use omega_resolved::DeclarationId;
 use omega_typed::{Access, ObligationKind, TypedOperation, TypingObligation, ValueType};
 
-/// An admitted same-storage view change between unqualified primitive
-/// integral referents of one exact semantic width.
-pub(super) struct ScalarBitRecast<'a> {
-    /// The checked source reference carrier; the operand lowers at this type.
+/// Inputs to the scalar view compatibility judgment, not a judgment result.
+/// Semantic integer widths and Boolean validity do not specify storage layout.
+pub(super) struct ScalarRecast<'a> {
+    pub access: crate::ReferenceAccess,
     pub source: &'a ValueType,
-    pub width: u64,
-    pub source_signed: bool,
-    pub destination_signed: bool,
+    pub source_referent: ScalarType,
+    pub destination_referent: ScalarType,
 }
 
-/// L3 recorded a typed `Recast` between two references of one access. Psi can
-/// carry exactly the case where both referents are unqualified fixed-width
-/// integers of equal width: every bit pattern of either carrier is a valid
-/// pattern of the other, so the view reinterprets the top bit (sign versus
-/// magnitude) without converting, extending or truncating any value.
-/// Floats, Booleans, nominal or qualified referents, unequal widths and
-/// mutable views stay refused: they need layout, validity, domain or source
-/// handback judgments that this handoff cannot carry. The emitted operation
-/// is the checker's recast subject; L5 establishes no compatibility fact.
-pub(super) fn scalar_bit_recast<'a>(
+pub(super) fn scalar_recast<'a>(
     operation: &'a TypedOperation,
     obligations: &[&TypingObligation],
     machine: &DeclarationId,
-) -> Result<ScalarBitRecast<'a>, LoweringError> {
+) -> Result<ScalarRecast<'a>, LoweringError> {
     let error = |message| LoweringError::new(&operation.site, message);
     let [source] = operation.operands.as_slice() else {
         return Err(error("recast requires one source view"));
@@ -37,28 +27,22 @@ pub(super) fn scalar_bit_recast<'a>(
     if operation.token != "as" || from_access != to_access {
         return Err(error("recast cannot change access authority"));
     }
-    match from_access {
-        Access::Shared => {}
-        Access::Mut => return Err(error("mutable recast needs source handback evidence that Psi cannot carry")),
+    let access = match from_access {
+        Access::Shared => crate::ReferenceAccess::Shared,
+        Access::Mut => crate::ReferenceAccess::Mutable,
         Access::Write => return Err(error("write-only views admit no recast")),
-    }
-    let (
-        ValueType::Integer {
-            signed: source_signed,
-            width: Some(source_width),
-        },
-        ValueType::Integer {
-            signed: destination_signed,
-            width: Some(destination_width),
-        },
-    ) = (from.as_ref(), to.as_ref())
-    else {
-        return Err(error("recast requires unqualified fixed-width integral referents"));
     };
-    if *source_width == 0 || source_width != destination_width {
-        return Err(error("recast requires referents of exactly equal semantic width"));
-    }
-    if source_signed == destination_signed {
+    let scalar = |referent: &ValueType| {
+        if matches!(referent, ValueType::Integer { width: Some(0), .. }) {
+            return Err(error("recast requires positive referent widths"));
+        }
+        // A recast only views stored bits, so an IEEE float referent is a
+        // stored scalar like any integer; nothing here computes on it.
+        crate::lowering::types::stored_scalar(referent).map_err(|_| error("recast requires unqualified scalar referents"))
+    };
+    let source_referent = scalar(from)?;
+    let destination_referent = scalar(to)?;
+    if source_referent == destination_referent {
         return Err(error("recast between identical carriers has no Psi view change"));
     }
     let mut recast = false;
@@ -72,22 +56,32 @@ pub(super) fn scalar_bit_recast<'a>(
     if !recast {
         return Err(error("recast lacks its typed representation obligation"));
     }
-    Ok(ScalarBitRecast {
+    Ok(ScalarRecast {
+        access,
         source,
-        width: *source_width,
-        source_signed: *source_signed,
-        destination_signed: *destination_signed,
+        source_referent,
+        destination_referent,
     })
 }
 
 pub(super) struct ScalarCast<'a> {
     pub operand_type: &'a ValueType,
-    pub convert_integer: bool,
-    pub change: Option<QualificationDirection>,
+    /// An exact carrier change between two numeric carriers.
+    pub convert: bool,
+    pub change: Option<ScalarChange>,
+}
+
+pub(super) enum ScalarChange {
+    Ordinary(QualificationDirection),
+    /// Every added domain atom once, in destination order, with its own origin.
+    Completion(Vec<(omega_psi::DomainAtom, omega_psi::CompletionOrigin)>),
 }
 
 /// L3 has resolved each named domain and accounted for the written entries.
 /// Psi can encode a strict addition or erasure on one same-carrier edge.
+/// An ordinary addition introduces only predicate-free tags, so an addition
+/// that includes a predicate names every added domain with its origin instead.
+/// Each row keeps the application's closed arguments, so `Above<5>` owes `self > 5`.
 pub(super) fn scalar_cast<'a>(
     operation: &'a TypedOperation,
     obligations: &[&TypingObligation],
@@ -100,7 +94,7 @@ pub(super) fn scalar_cast<'a>(
     let target = &operation.result;
     let literal = matches!(source, ValueType::Exact { .. });
     if operation.token != "as"
-        || crate::lowering::types::scalar_carrier(target.carrier()).is_err()
+        || crate::lowering::types::stored_scalar(target.carrier()).is_err()
         || types.id_for(target).is_err()
         || !literal && types.id_for(source).is_err()
     {
@@ -112,29 +106,54 @@ pub(super) fn scalar_cast<'a>(
         .iter()
         .filter(|atom| !before.contains(atom))
         .collect::<Vec<_>>();
-    if added
-        .iter()
-        .any(|member| types.has_domain_predicate(&member.declaration))
-    {
-        return Err(error("adding a predicate-bearing domain requires a retained establishment proof"));
-    }
     let removes = before.iter().any(|atom| !after.contains(atom));
     let change = match (added.is_empty(), removes) {
-        (false, false) => Some(QualificationDirection::Add),
-        (true, true) => Some(QualificationDirection::Erase),
+        (false, false) => {
+            let establishment = |atom: &omega_typed::DomainApplication| types.domain_establishment(&atom.declaration);
+            for atom in &added {
+                if establishment(atom).is_some_and(|d| d.predicate && d.requires_parent) {
+                    return Err(error("predicate completion does not support a domain requiring parent membership"));
+                }
+            }
+            if !added
+                .iter()
+                .any(|atom| establishment(atom).is_some_and(|d| d.predicate))
+            {
+                Some(ScalarChange::Ordinary(QualificationDirection::Add))
+            } else {
+                // encoding.md: a vacuous origin introduces only a predicate-free, route-free tag
+                // whose required memberships are empty.
+                let mut completions = Vec::with_capacity(added.len());
+                for atom in &added {
+                    let origin = match establishment(atom) {
+                        Some(d) if d.predicate => omega_psi::CompletionOrigin::Proved,
+                        Some(d) if d.requires_parent => {
+                            return Err(error("vacuous completion does not support a domain requiring parent membership"));
+                        }
+                        Some(_) => omega_psi::CompletionOrigin::Vacuous,
+                        None => return Err(error("cast completion requires a local domain declaration")),
+                    };
+                    completions.push((LoweringTypes::domain_atom(atom, &operation.site)?, origin));
+                }
+                Some(ScalarChange::Completion(completions))
+            }
+        }
+        (true, true) => Some(ScalarChange::Ordinary(QualificationDirection::Erase)),
         (true, false) => None,
         (false, true) => return Err(error("Psi has no specified edge for simultaneous domain removal and addition")),
     };
-    let convert_integer = !literal && source.carrier() != target.carrier();
-    if convert_integer
-        && !(before.is_empty()
-            && matches!(source, ValueType::Integer { width: Some(_), .. })
-            && matches!(target.carrier(), ValueType::Integer { width: Some(_), .. }))
-    {
+    // domains.md#carrier-casts: `value as T` keeps the denoted value, so a
+    // change between fixed-width integer and IEEE carriers is one exact
+    // conversion whose representability the checker proves. It is neither a
+    // bit reinterpretation (that is a reference recast) nor a rounding
+    // conversion (those are named destination requirements).
+    let convert = !literal && source.carrier() != target.carrier();
+    let numeric = |ty: &ValueType| matches!(ty, ValueType::Integer { width: Some(_), .. } | ValueType::Float32 | ValueType::Float64);
+    if convert && !(before.is_empty() && numeric(source) && numeric(target.carrier())) {
         return Err(error("unsupported scalar carrier conversion"));
     }
     let mut pending = added;
-    let mut needs_conversion = convert_integer;
+    let mut needs_conversion = convert;
     for obligation in obligations {
         match &obligation.kind {
             ObligationKind::EstablishDomain(domain) => {
@@ -154,7 +173,7 @@ pub(super) fn scalar_cast<'a>(
     }
     Ok(ScalarCast {
         operand_type: if literal { target.carrier() } else { source },
-        convert_integer,
+        convert,
         change,
     })
 }

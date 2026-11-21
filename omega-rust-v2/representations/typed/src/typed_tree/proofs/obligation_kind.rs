@@ -26,12 +26,16 @@ pub enum ObligationKind {
     /// A recursive type edge changes the arguments of a declaration with static formation requirements.
     FormRecursiveApplication {
         declaration: DeclarationId,
+        /// The earlier occurrence of this declaration on the active formation path.
+        active_arguments: Vec<ValueType>,
         arguments: Vec<ValueType>,
     },
     Termination(DeclarationId),
     TotalCrashGuard,
     AdmitMathematicalAssumption(DeclarationId),
-    /// Linking a library machine requires a checked implementation of its published contract.
+    /// The toolchain's implementation of this bodyless library machine must establish its
+    /// published guarantees. L3 records it at the library declaration, and every importing
+    /// package receives the row unchanged.
     VerifyLibraryImplementation(DeclarationId),
     ProveGuarantee {
         machine: DeclarationId,

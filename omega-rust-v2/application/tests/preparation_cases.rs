@@ -15,19 +15,20 @@ const TERMINATION: &str = "A local declaration after a tail expression";
 const DISCARD: &str = "An explicit discard evaluates its operand";
 const FROZEN_VALUES: &str = "L4 evaluates integers, Booleans, floating-point values";
 const NAMED_READS: &str = "Named reads connect each prepared constant";
+const TYPED_CAUSE: &str = "Every refusal L4 renders carries its typed cause";
 
-fn check_kind(expected: PreparationReason, case: &Case<'_>) {
+fn check_kind(expected: impl Into<RefusalCause>, case: &Case<'_>) {
     let package = diagnostic_twins::resolve_root_package(case.bad).unwrap();
     let failure = omega_preparation::prepare_source_package_diagnosed(&package).expect_err("negative twin prepared");
     assert!(matches!(failure, PreparationFailure::Preparation(_)), "{failure:?}");
     let source = case.bad.iter().find(|(file, _)| *file == case.file).unwrap().1;
     let start = source.rfind(case.occurrence).unwrap();
     spec_corpus::assert_preparation_refusal!(
-        failure, RefusalCause::Preparation(expected), "root", case.file, (start, start + case.occurrence.len()), case.reason,
+        failure, expected.into(), "root", case.file, (start, start + case.occurrence.len()), case.reason,
     );
 }
 
-fn check(expected: PreparationReason, case: Case<'_>) {
+fn check(expected: impl Into<RefusalCause>, case: Case<'_>) {
     check_kind(expected, &case);
     diagnostic_twins::check(case);
 }
@@ -216,6 +217,86 @@ fn exact_intermediate_overflow_refuses_the_call() {
         occurrence: "compute(127)",
         reason: refusal!("exact addition exceeds its selected integer carrier"),
         rule: FROZEN_VALUES,
+    });
+}
+
+#[test]
+fn an_open_callable_has_no_runtime_descriptor_layout() {
+    let good = r"use omega\language\core; data F=machine(x:u8)->u8 reaches none crashes none; const SIZE:u64=core\size_of::<F>();";
+    let bad = good.replace(" reaches none", "");
+    check(RefusalCause::TargetLayout("the selected layout query needs a data type with runtime storage"), Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("callback.omg", good)],
+        bad: &[("callback.omg", &bad)],
+        file: "callback.omg",
+        occurrence: r"core\size_of::<F>()",
+        reason: refusal!("the selected layout query needs a data type with runtime storage"),
+        rule: TYPED_CAUSE,
+    });
+}
+
+#[test]
+fn a_proof_only_layout_query_cannot_be_deferred_for_target_selection() {
+    let good = r"use omega\language\core; const VALUE:u64=core\size_of::<u8>();";
+    let bad = good.replace("::<u8>", r"::<core\Squash<u8>>");
+    check(RefusalCause::TargetLayout("the selected layout query needs a data type with runtime storage"), Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("geometry.omg", good)],
+        bad: &[("geometry.omg", &bad)],
+        file: "geometry.omg",
+        occurrence: r"core\size_of::<core\Squash<u8>>()",
+        reason: refusal!("the selected layout query needs a data type with runtime storage"),
+        rule: TYPED_CAUSE,
+    });
+}
+
+#[test]
+fn a_shift_count_at_the_carrier_width_forwards_the_integer_refusal() {
+    let good = "machine shift(n:u7,k:u64)->u7{n << k}\nconst VALUE:u7=shift(1,6);";
+    let bad = good.replace("shift(1,6)", "shift(1,7)");
+    check(RefusalCause::IntegerPrimitive("static shift count outside carrier width"), Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("shift.omg", good)],
+        bad: &[("shift.omg", &bad)],
+        file: "shift.omg",
+        occurrence: "shift(1,7)",
+        reason: refusal!("static shift count outside carrier width"),
+        rule: TYPED_CAUSE,
+    });
+}
+
+// Small values fit even this carrier; only wrapping below zero needs its enormous modulus.
+#[test]
+fn a_forwarded_integer_refusal_identifies_the_nested_call_in_its_defining_file() {
+    let helpers = ("helpers.omg", "machine shift(n:u7,k:u64)->u7{n << k}\nmachine via(k:u64)->u7{shift(1,k)}");
+    check(RefusalCause::IntegerPrimitive("static shift count outside carrier width"), Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[helpers, ("use.omg", "const VALUE:u7=via(6);")],
+        bad: &[helpers, ("use.omg", "const VALUE:u7=via(7);")],
+        file: "helpers.omg",
+        occurrence: "shift(1,k)",
+        reason: refusal!("static shift count outside carrier width\ncall chain: via -> shift"),
+        rule: TYPED_CAUSE,
+    });
+}
+
+#[test]
+fn wrapping_below_zero_forwards_the_integer_allocation_budget_refusal() {
+    let good = "machine prev(x:u18446744073709551615)->u18446744073709551615{x -% 1}\nconst VALUE:u18446744073709551615=prev(1);";
+    let bad = good.replace("prev(1)", "prev(0)");
+    check(RefusalCause::IntegerPrimitive("static evaluation exceeds the integer allocation budget"), Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("budget.omg", good)],
+        bad: &[("budget.omg", &bad)],
+        file: "budget.omg",
+        occurrence: "prev(0)",
+        reason: refusal!("static evaluation exceeds the integer allocation budget"),
+        rule: TYPED_CAUSE,
     });
 }
 

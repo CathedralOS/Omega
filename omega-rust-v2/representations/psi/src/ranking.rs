@@ -1,11 +1,13 @@
 //! Private ranking witnesses for authored `terminates by` clauses.
 //!
 //! A witness binds the well-founded relation, each member's rank over its own
-//! formals, and one claim for every in-component control edge. It carries no
-//! verdict: well-foundedness, every comparison, the rank bounds and the global
-//! every-cycle descent rule remain checker obligations. Identities are owned
-//! and independent of source trees and of any native representation.
-use crate::{BlockId, DeclarationId, EdgeId, MachineId, Parameter, ScalarType, Site, ValueId};
+//! formals and integer constants (one operand, a saturating distance or one
+//! exact subtraction), and one claim for every in-component control
+//! edge. It carries no verdict: well-foundedness, every comparison, the rank
+//! bounds, the global every-cycle descent rule and the judgment of a member
+//! that authored no rank remain checker obligations. Identities are owned and
+//! independent of source trees and of any native representation.
+use crate::{BlockId, CallSite, DeclarationId, EdgeId, MachineId, Parameter, ScalarType, Site, ValueId};
 use num_bigint::BigInt;
 
 /// The order shared by one reconstructed component. The carrier, including
@@ -22,34 +24,77 @@ pub enum RankOrder {
     NaturalDescending,
 }
 
-/// A normalized view result. `Operand` is a member formal index in a member
-/// rank, and an actual argument value of the caller in an edge claim.
+/// One operand of a normalized rank. `Input` is a member formal index in a
+/// member rank, and an actual argument value of the caller in an edge claim.
+/// A constant is the evaluated value of a closed integer subject, such as a
+/// named `const`; substitution never changes it.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RankExpression<Operand> {
-    /// `Nat::Descending`: the subject is the rank.
-    Operand(Operand),
-    /// `Nat::BoundedDistance`: unsigned saturating `limit - cursor`.
-    SaturatingDistance { cursor: Operand, limit: Operand },
+pub enum RankOperand<Input> {
+    Input(Input),
+    Constant(BigInt),
 }
 
-impl<Operand: Copy> RankExpression<Operand> {
-    pub fn operands(&self) -> Vec<Operand> {
+impl<Input: Copy> RankOperand<Input> {
+    pub fn input(&self) -> Option<Input> {
         match self {
-            Self::Operand(operand) => vec![*operand],
-            Self::SaturatingDistance { cursor, limit } => vec![*cursor, *limit],
+            Self::Input(input) => Some(*input),
+            Self::Constant(_) => None,
         }
     }
 
-    /// Substitute every operand simultaneously; any unresolved operand rejects.
+    fn try_map<Other>(
+        &self,
+        map: &mut impl FnMut(Input) -> Option<Other>,
+    ) -> Option<RankOperand<Other>> {
+        Some(match self {
+            Self::Input(input) => RankOperand::Input(map(*input)?),
+            Self::Constant(value) => RankOperand::Constant(value.clone()),
+        })
+    }
+}
+
+/// A normalized view result over [`RankOperand`]s.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RankExpression<Input> {
+    /// `Nat::Descending`: the subject is the rank.
+    Operand(RankOperand<Input>),
+    /// `Nat::BoundedDistance`: unsigned saturating `limit - cursor`.
+    SaturatingDistance { cursor: RankOperand<Input>, limit: RankOperand<Input> },
+    /// `Nat::Descending` over one authored exact subtraction, such as
+    /// `MAX - index`. Operand order is the authored order. The rank is defined
+    /// only where `minuend - subtrahend` fits the carrier: the subtraction's
+    /// own formation question at entry and on every successor belongs to the
+    /// checker, as for any exact integer operation.
+    ExactDifference {
+        minuend: RankOperand<Input>,
+        subtrahend: RankOperand<Input>,
+    },
+}
+
+impl<Input: Copy> RankExpression<Input> {
+    /// The inputs in operand order; constants contribute none.
+    pub fn inputs(&self) -> Vec<Input> {
+        match self {
+            Self::Operand(operand) => operand.input().into_iter().collect(),
+            Self::SaturatingDistance { cursor, limit } => cursor.input().into_iter().chain(limit.input()).collect(),
+            Self::ExactDifference { minuend, subtrahend } => minuend.input().into_iter().chain(subtrahend.input()).collect(),
+        }
+    }
+
+    /// Substitute every input simultaneously; any unresolved input rejects.
     pub fn try_map<Other>(
         &self,
-        mut map: impl FnMut(Operand) -> Option<Other>,
+        mut map: impl FnMut(Input) -> Option<Other>,
     ) -> Option<RankExpression<Other>> {
         Some(match self {
-            Self::Operand(operand) => RankExpression::Operand(map(*operand)?),
+            Self::Operand(operand) => RankExpression::Operand(operand.try_map(&mut map)?),
             Self::SaturatingDistance { cursor, limit } => RankExpression::SaturatingDistance {
-                cursor: map(*cursor)?,
-                limit: map(*limit)?,
+                cursor: cursor.try_map(&mut map)?,
+                limit: limit.try_map(&mut map)?,
+            },
+            Self::ExactDifference { minuend, subtrahend } => RankExpression::ExactDifference {
+                minuend: minuend.try_map(&mut map)?,
+                subtrahend: subtrahend.try_map(&mut map)?,
             },
         })
     }
@@ -64,25 +109,39 @@ pub struct RankBounds {
     pub site: Site,
 }
 
-/// The comparison an edge claims. The checker proves it on the actual
-/// successor arguments; producing the claim proves nothing.
+/// Comparison obligation in *unchecked* Psi. Even a named role must be
+/// proved on the actual successor arguments before it can be used.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RankComparison {
+    /// No role selected. Checking must establish one of the two comparisons
+    /// below in the edge's context, and strict edges must break every cycle.
+    /// This is not a third role in a checked component.
+    Pending,
     /// `successor_rank <= source_rank`
     Preserving,
     /// `successor_rank < source_rank`
     Strict,
 }
 
-/// One in-component edge: the exact terminator edge of the owning machine,
-/// the block it leaves, its member target and the target rank substituted
-/// with the actual successor arguments.
+/// One in-component invocation. Rank substitution is at the call, not at
+/// the caller's later resumption or exit. This is not runtime eligibility.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RankedEdge {
     pub block: BlockId,
-    pub edge: EdgeId,
+    pub call: CallSite,
+    /// For an ordinary scalar call immediately forwarded by a cleanup-free
+    /// return, the matching return edge. Other continuations remain in the
+    /// body; a rank claim does not turn them into constant-stack transfers.
+    pub forwarding_return: Option<EdgeId>,
     pub target: MachineId,
-    pub successor: RankExpression<ValueId>,
+    /// The target's entry rank over the actual successor arguments. `None`
+    /// when the target member authored no `terminates by` clause: the edge
+    /// still belongs to the component, but there is no target rank to
+    /// substitute and the comparison stays `Pending`.
+    pub successor: Option<RankExpression<ValueId>>,
+    /// Compare `successor` to the owning member's `source_rank`. The owner
+    /// supplies entry requirements; the block and call identify the path and
+    /// operation premises. A pending comparison uses the very same inputs.
     pub comparison: RankComparison,
 }
 
@@ -92,19 +151,22 @@ pub struct MachineRanking {
     /// Exact admitted view declaration that normalized the authored subject.
     pub view: DeclarationId,
     pub relation: RankRelation,
-    /// Entry rank over this machine's immutable scalar formals.
+    /// Entry rank over this machine's immutable scalar formals and constants.
     pub rank: RankExpression<usize>,
     pub bounds: Option<RankBounds>,
     pub site: Site,
-    /// Canonical member set of the reconstructed component, ascending.
+    /// Canonical member set of the reconstructed component, ascending. It
+    /// includes members without a ranking of their own; their outgoing edges
+    /// are the calls and terminal transfers of their bodies.
     pub component: Vec<MachineId>,
-    /// Claims for every internal edge leaving this member, ascending by edge.
+    /// Claims for every internal edge leaving this member, in block order, operations before terminator.
     pub edges: Vec<RankedEdge>,
 }
 
 impl MachineRanking {
     /// The source rank at an edge of this member: its rank over the entry
-    /// formals. Structural or missing formals have no scalar rank.
+    /// formals, constants unchanged. Structural or missing formals have no
+    /// scalar rank.
     pub fn source_rank(
         &self,
         parameters: &[Parameter],

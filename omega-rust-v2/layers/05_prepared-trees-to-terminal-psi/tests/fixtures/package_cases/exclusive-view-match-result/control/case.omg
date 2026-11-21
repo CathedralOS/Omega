@@ -1,0 +1,1 @@
+machine pick(flag: bool, left: @[u32], right: @[u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; chosen.len }

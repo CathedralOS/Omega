@@ -12,7 +12,7 @@ impl BlockId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct EdgeId(pub NonZeroUsize);
 
 impl EdgeId {
@@ -47,7 +47,7 @@ impl PlaceId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct OperationId(pub NonZeroUsize);
 
 impl OperationId {
@@ -107,8 +107,28 @@ pub enum OperationKind {
         primitive: BooleanPrimitive,
         operands: Vec<ValueId>,
     },
-    ExactIntegerCast {
+    /// `value as T` between two numeric carriers. The result denotes the same
+    /// value in its own carrier; nothing rounds, truncates, wraps or saturates.
+    /// The operand and result types select what the checker must prove: an
+    /// integer result must contain the value; an IEEE result must represent the
+    /// integer or float value exactly (binary32 to binary64 always does); an
+    /// integer result from an IEEE operand needs a finite integral value in
+    /// range, and negative zero is not an integer value.
+    ExactNumericCast {
         operand: ValueId,
+    },
+    /// One canonical IEEE 754 operation on operands of one format: negation,
+    /// the four arithmetic operations, or a comparison with a Boolean result.
+    /// `semantics` is the operation's executable contract. Under
+    /// `Ieee754NearestEvenV1` each arithmetic result is the exact result rounded
+    /// once to nearest, ties to even, with quiet non-finite results; ordered
+    /// comparisons and `==` are false on NaN, `!=` is true, and signed zeros
+    /// compare equal. The operation is total and owes no obligation. Psi names
+    /// no realization: the selected target's realization table supplies one later.
+    Float {
+        operation: crate::FloatOperation,
+        semantics: crate::FloatSemantics,
+        operands: Vec<ValueId>,
     },
     /// The operation itself stops with Trap if its primitive fails on these input
     /// carriers. Only the successful value reaches the following operation or edge.
@@ -126,6 +146,15 @@ pub enum OperationKind {
         arguments: Vec<CallArgument>,
         requirements: Vec<crate::CallRequirement>,
     },
+    /// Construct a descriptor for this packaged machine under `contract`.
+    /// The checker must establish the machine's refinement of the contract.
+    ConstructCallableDescriptor {
+        machine: crate::MachineId,
+        contract: crate::CallableContractId,
+    },
+    /// An erased proof application of a logical theorem. Its result is always
+    /// `OperationResult::Unit`; see `TheoremApplication`.
+    ApplyTheorem(Box<crate::TheoremApplication>),
     /// The same descriptor under the destination contract. The checker judges
     /// that the source value's contract refines `contract`; no target changes.
     RefineCallableDescriptor {
@@ -147,20 +176,26 @@ pub enum OperationKind {
         source: ProjectedPlace,
         access: crate::ReferenceAccess,
     },
-    /// Representation recast of a scalar reference descriptor: the result
-    /// views the same backing, with the same access, provenance and lifetime,
-    /// as `source`. Both referents are unqualified fixed-width integers of
-    /// exactly `width` semantic bits and differ only in signedness, so the
-    /// stored bits are reinterpreted as stored: the top bit is the sign under
-    /// a signed carrier and the `2^(width-1)` magnitude bit under an unsigned
-    /// one. This is not a value conversion, extension, truncation or owned
-    /// bit cast. The operation is the checker's recast-compatibility subject;
-    /// its formation establishes no compatibility, domain or handback fact.
+    /// Same-backing shared scalar view. This operation owns the obligation
+    /// to compare the selected layouts of its two referents and prove source
+    /// validity implies destination validity at this place. It supplies no
+    /// compatibility fact. The source and result descriptors retain their
+    /// respective referent types, with unchanged authority and lifetime.
     ScalarBitRecast {
         source: PlaceId,
-        width: u64,
-        source_signed: bool,
-        destination_signed: bool,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
+    },
+    /// Same-backing exclusive scalar view. `lender` is the input descriptor
+    /// and identifies the loan to which valid storage is owed at handback,
+    /// including obligations of the underlying declared place. The result
+    /// carries this debt even when forwarded. Immediate established use needs
+    /// compatible geometry, exclusive custody and validity in both directions;
+    /// this operation neither proves those facts nor performs restoration.
+    MutableScalarBitRecast {
+        lender: PlaceId,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
     },
     /// Take the live value through an exclusive loan. The source path must be
     /// re-established before the loan can be released.
@@ -188,11 +223,33 @@ pub enum OperationKind {
         obligation: crate::BoundsObligationId,
         path: Vec<crate::ElementLeafStep>,
     },
+    /// Replace the scalar at `path` inside element `index` of an exclusive
+    /// scalar element view, bounded by `length`: the same descriptor's element
+    /// count observed immediately before this write. The extent and every other
+    /// element stay unchanged; nothing is read or displaced with custody. An
+    /// empty path selects a scalar element
+    /// (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
+    ElementViewWrite {
+        destination: PlaceId,
+        path: Vec<crate::ElementLeafStep>,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: crate::BoundsObligationId,
+    },
+    /// Zero every leaf of fresh storage for the result's nominal record. The
+    /// operation carries the binding's `ZeroValue` obligation: the checker judges
+    /// each default-domain clause of that schema, and of each schema it contains,
+    /// for the all-zero value. Lowering neither discharges nor assumes them.
     EstablishZeroedStructural,
+    /// Owes every default-domain clause of the result's nominal schema at
+    /// this operation, with `self` formed from this case and its payload.
     EstablishCase {
         case: crate::DeclarationId,
         fields: Vec<FieldInitializer>,
     },
+    /// Owes every default-domain clause of the result's nominal schema at
+    /// this operation, with `self` formed from these field operands.
     EstablishRecord {
         fields: Vec<FieldInitializer>,
     },
@@ -215,7 +272,9 @@ pub enum OperationKind {
         field: crate::DeclarationId,
         value: ValueId,
     },
-    /// Replace the scalar in original storage reached through an exclusive loan.
+    /// Replace the scalar in the original storage this place selects: storage
+    /// reached through an exclusive loan, or, at an empty path, a primitive
+    /// home listed in `MachineBody::mutable_homes`.
     ProjectedScalarStore {
         destination: ProjectedPlace,
         value: ValueId,
@@ -238,6 +297,16 @@ pub enum OperationKind {
     },
     EstablishScalarArray {
         elements: Vec<ValueId>,
+    },
+    /// Home an initialized primitive local so it can be borrowed. The result
+    /// is an unrestricted, unqualified, claim-free place of the value's exact
+    /// primitive type; every loan of the local borrows this one home.
+    /// Later reads of the local are `PrimitiveScalarRead`s of the home, not
+    /// equality with `value`. A mutable local's home is in
+    /// `MachineBody::mutable_homes`, and each assignment is a
+    /// `ProjectedScalarStore` into it at an empty path.
+    EstablishPrimitiveLocal {
+        value: ValueId,
     },
     /// Each place supplies one complete element, in source order. An owned
     /// element transfers once and continues beneath `FixedIndex(ordinal)`.
@@ -327,6 +396,25 @@ pub enum PlaceProjection {
 pub enum ScalarLiteral {
     Integer(BigInt),
     Boolean(bool),
+    /// Exact IEEE 754 bits; the value type names the format.
+    IeeeFloat(IeeeFloatBits),
+}
+
+/// Exact interchange bits of one IEEE value, already rounded where a literal
+/// landed. Variant order follows the Terminal Psi value tags: 1 binary32, 2 binary64.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum IeeeFloatBits {
+    Binary32(u32),
+    Binary64(u64),
+}
+
+impl IeeeFloatBits {
+    pub fn format(self) -> crate::IeeeFloatFormat {
+        match self {
+            Self::Binary32(_) => crate::IeeeFloatFormat::Binary32,
+            Self::Binary64(_) => crate::IeeeFloatFormat::Binary64,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -353,12 +441,18 @@ pub enum ReturnEdge {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct MachineBody {
+    /// The descriptor at each explicit binding occurrence and its destination
+    /// ordinal in `LoweredMachine::regions`. The checker judges the relation.
+    pub lifetime_bindings: Vec<(PlaceId, usize)>,
     pub call_acknowledgements: Vec<crate::CallAcknowledgement>,
+    /// Calls that invoke a closed static callable binder, in emission order.
+    pub callback_invocations: Vec<crate::CallbackInvocation>,
     pub suspension_sites: Vec<crate::SuspensionSite>,
     pub blocks: Vec<crate::BranchBlock>,
     pub operations: Vec<PsiOperation>,
     pub parameters: Vec<Parameter>,
-    /// Owned homes whose source binding permits mutation.
+    /// Owned record homes and primitive local homes whose source binding
+    /// permits mutation.
     pub mutable_homes: Vec<PlaceId>,
     pub places: Vec<Place>,
     pub values: Vec<Value>,

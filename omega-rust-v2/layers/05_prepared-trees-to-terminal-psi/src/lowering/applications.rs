@@ -19,6 +19,7 @@ pub(crate) struct MachineInstance<'a> {
 /// Root declarations are already sorted. Follow their checked executable calls
 /// in occurrence order so file order cannot change an instance's machine ID.
 pub(crate) fn plan<'a>(
+    prepared: &omega_prepared::PreparedTrees<'_>,
     declarations: &[&'a TypedSignature],
     trees: &'a [TypedTree<'a>],
     typed: &'a omega_typed::TypedTrees<'a>,
@@ -42,7 +43,17 @@ pub(crate) fn plan<'a>(
 
     for &sig in declarations {
         let file = trees[sig.node.file].resolved().file;
-        if file.generic_parameters(sig.node.node).next().is_none() {
+        // A helper with no *own* parameters can still require its lexical application.
+        let captures = std::iter::successors(sig.machine.enclosing_machine.as_ref(), |owner| owner.enclosing_machine.as_ref())
+            .any(|owner| typed.generic_parameters.get(owner).is_some_and(|p| !p.parameters.is_empty()));
+        // A lifetime used inside a generic carrier still needs its open template.
+        // A direct reference slot can instead name the region on one executable body.
+        let telescope = typed.generic_parameters.get(&sig.machine);
+        let region_only = crate::declarations::regions::single_body(sig, telescope)
+            && telescope.is_some_and(|params| {
+                file.generic_parameters(sig.node.node).map(|(_, _, kind)| kind).eq(params.parameters.iter().map(|p| p.kind))
+            });
+        if !captures && (region_only || file.generic_parameters(sig.node.node).next().is_none()) {
             let app = MachineApplication {
                 machine: Box::new(sig.machine.clone()),
                 arguments: vec![],
@@ -72,12 +83,12 @@ pub(crate) fn plan<'a>(
                     .iter()
                     .find(|(owner, i, _)| *owner == template.machine && *i == slot)
                     .ok_or_else(|| LoweringError::new(&template.site, "static callback lacks its typed binder contract"))?;
-                callbacks.push(Callback::bind(slot, selected, &bound.2, &templates)?);
+                callbacks.push(Callback::bind(prepared, slot, selected, &bound.2, &templates)?);
             }
         }
-        let tree = LoweringTree::for_application(&trees[template.node.file], &signature, &application, &callbacks)?;
+        let tree = LoweringTree::for_application(typed, &trees[template.node.file], &signature, &application, &callbacks)?;
         for call in by_caller.get(&template.machine).into_iter().flatten() {
-            let next = if let Some(selected) = selected_implementation(typed, &templates, trees, call, &application)? {
+            let next = if let Some(selected) = selected_implementation(typed, &templates, call, &application)? {
                 selected
             } else {
                 let Some(&target) = templates.get(&call.machine) else { continue };
@@ -86,15 +97,25 @@ pub(crate) fn plan<'a>(
                 if count == 0 && call.type_arguments.is_empty() && call.enclosing_arguments.is_empty() {
                     continue;
                 }
+                let arguments: Vec<_> = call.type_arguments.iter().map(|v| application.instantiate(v)).collect();
+                let binders = typed.generic_parameters.get(&target.machine);
                 if !call.enclosing_arguments.is_empty()
-                    || count != call.type_arguments.len()
+                    || count != arguments.len()
                     || !target_file
                         .generic_parameters(target.node.node)
-                        .zip(&call.type_arguments)
-                        .all(|((_, _, kind), arg)| {
-                            kind == NodeKind::TypeParam && !matches!(arg, ValueType::MachineSelection(_))
-                                || kind == NodeKind::ConstParam
-                                    && matches!(application.instantiate(arg), ValueType::MachineSelection(_) | ValueType::Implementation(_))
+                        .zip(&arguments)
+                        .enumerate()
+                        .all(|(slot, ((_, _, kind), arg))| match (kind, arg) {
+                            (NodeKind::ConstParam, ValueType::StaticInteger { carrier, value }) => {
+                                // Admit closed integer values and direct forwarding, not computed families.
+                                matches!(call.type_arguments[slot], ValueType::StaticInteger { .. } | ValueType::Parameter { .. })
+                                    && binders.filter(|p| p.equations.is_empty() && p.witness_count == 0)
+                                        .and_then(|p| p.parameters.get(slot)).and_then(|p| p.carrier.as_deref()) == Some(carrier.as_ref())
+                                    && carrier.contains_integer(value)
+                            }
+                            (NodeKind::ConstParam, ValueType::MachineSelection(_) | ValueType::Implementation(_)) => true,
+                            (NodeKind::TypeParam, _) => !matches!(arg, ValueType::MachineSelection(_) | ValueType::StaticInteger { .. }),
+                            _ => false,
                         })
                 {
                     return Err(LoweringError::new(
@@ -104,11 +125,7 @@ pub(crate) fn plan<'a>(
                 }
                 MachineApplication {
                     machine: Box::new(target.machine.clone()),
-                    arguments: call
-                        .type_arguments
-                        .iter()
-                        .map(|v| application.instantiate(v))
-                        .collect(),
+                    arguments,
                     enclosing_arguments: vec![],
                 }
             };
@@ -151,7 +168,6 @@ pub(crate) fn plan<'a>(
 fn selected_implementation(
     typed: &omega_typed::TypedTrees<'_>,
     templates: &HashMap<&DeclarationId, &TypedSignature>,
-    trees: &[TypedTree<'_>],
     call: &TypedCall,
     application: &MachineApplication,
 ) -> Result<Option<MachineApplication>, LoweringError> {
@@ -168,23 +184,28 @@ fn selected_implementation(
     let target = templates
         .get(implementation)
         .ok_or_else(|| LoweringError::new(&call.site, "selected conformance implementation needs its packaged generic body"))?;
-    let file = trees[target.node.file].resolved().file;
-    let arguments = key.static_arguments();
-    let selection = |arg: &ValueType| matches!(arg, ValueType::MachineSelection(_) | ValueType::Implementation(_));
-    if file.generic_parameters(target.node.node).count() != arguments.len()
-        || !file
-            .generic_parameters(target.node.node)
-            .zip(arguments)
-            .all(|((_, _, kind), arg)| kind == NodeKind::TypeParam && !selection(arg) || kind == NodeKind::ConstParam && selection(arg))
-    {
+    let instance = MachineApplication {
+        machine: Box::new(target.machine.clone()),
+        arguments: key.static_arguments().to_vec(),
+        enclosing_arguments: vec![],
+    };
+    let supported = typed.generic_parameters.get(implementation).is_some_and(|params| {
+        params.parameters.len() == instance.arguments.len()
+            && params.parameters.iter().zip(&instance.arguments).all(|(param, arg)| match arg {
+                ValueType::StaticInteger { carrier, .. } => {
+                    param.kind == NodeKind::ConstParam
+                        && matches!(carrier.as_ref(), ValueType::Integer { width: Some(1..), .. })
+                        && param.carrier.as_deref().is_some_and(|ty| instance.instantiate(ty) == **carrier)
+                }
+                ValueType::MachineSelection(_) | ValueType::Implementation(_) => param.kind == NodeKind::ConstParam,
+                _ => param.kind == NodeKind::TypeParam,
+            })
+    });
+    if !supported {
         return Err(LoweringError::new(
             &target.site,
             "selected implementation binders require a supported closed application",
         ));
     }
-    Ok(Some(MachineApplication {
-        machine: Box::new(target.machine.clone()),
-        arguments: arguments.to_vec(),
-        enclosing_arguments: vec![],
-    }))
+    Ok(Some(instance))
 }

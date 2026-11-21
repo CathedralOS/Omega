@@ -63,7 +63,10 @@ pub(crate) fn check_machine_effects(
             let Some(row) = &call.contract.reach else {
                 return Err(TypeError::for_reason(&call.site, crate::CallbackEffectError::OpenReachUnderCeiling));
             };
-            if row.iter().any(|service| !ceiling.contains(service)) {
+            if row
+                .iter()
+                .any(|service| !catalog.reach_covers(ceiling, service))
+            {
                 return Err(TypeError::for_reason(&call.site, crate::CallbackEffectError::ExceedsServiceReach));
             }
         }
@@ -91,20 +94,25 @@ pub(crate) fn check_machine_effects(
                 arguments: required.arguments.iter().map(|t| call.instantiate(t)).collect(),
             };
             for (refinement, owner) in catalog.evidence_refinements(call.evidence.as_ref()) {
-                if let Some(allowed) = &refinement.reach
-                    && !allowed.iter().any(|s| {
-                        s.service == service.service
-                            && s.arguments
+                if let Some(allowed) = &refinement.reach {
+                    let allowed: Vec<_> = allowed
+                        .iter()
+                        .map(|s| ServiceApplication {
+                            service: s.service.clone(),
+                            arguments: s
+                                .arguments
                                 .iter()
                                 .map(|a| a.substitute(&owner.declaration, &owner.trait_arguments))
-                                .eq(service.arguments.iter().cloned())
-                    })
-                {
-                    return Ok(None);
+                                .collect(),
+                        })
+                        .collect();
+                    if !catalog.reach_covers(&allowed, &service) {
+                        return Ok(None);
+                    }
                 }
             }
             if let Some(bound) = &catalog.signatures[caller].reach {
-                if !bound.contains(&service) {
+                if !catalog.reach_covers(bound, &service) {
                     return Err(TypeError::for_site(
                         &call.site,
                         format!("call exceeds service reach for {}", service.service.path),
@@ -142,14 +150,15 @@ pub(crate) fn check_machine_effects(
                 || pause.block && !contract.pause.block
                 || contract.reach.as_ref().is_some_and(|row| {
                     reach[machine].iter().any(|s| {
-                        !row.contains(&ServiceApplication {
+                        let service = ServiceApplication {
                             service: s.service.clone(),
                             arguments: s
                                 .arguments
                                 .iter()
                                 .map(|argument| selection.instantiate(argument))
                                 .collect(),
-                        })
+                        };
+                        !catalog.reach_covers(row, &service)
                     })
                 })
             {

@@ -17,10 +17,20 @@ impl OwnedCrossings {
         self.sites.sort_unstable_by_key(|(call, _)| Self::key(*call));
     }
 
-    fn key(call: crate::CallSite) -> (bool, usize) {
+    /// A total order over every call coordinate; only calls and terminal
+    /// edges park, so cleanup sites never match a recorded crossing.
+    fn key(call: crate::CallSite) -> (u8, usize, usize) {
         match call {
-            crate::CallSite::Operation(id) => (false, id.index()),
-            crate::CallSite::Edge(id) => (true, id.get() - 1),
+            crate::CallSite::Operation(id) => (0, id.index(), 0),
+            crate::CallSite::Edge(id) => (1, id.get() - 1, 0),
+            crate::CallSite::Cleanup(crate::CleanupSite {
+                list: crate::CleanupList::Edge(id),
+                action,
+            }) => (2, id.get() - 1, action),
+            crate::CallSite::Cleanup(crate::CleanupSite {
+                list: crate::CleanupList::Store(id),
+                action,
+            }) => (3, id.index(), action),
         }
     }
 
@@ -82,11 +92,89 @@ impl OwnedCrossings {
     }
 }
 
+/// Reaching values for freshly constructed writable records in one basic block.
+/// Keys identify storage, not the value moved into it. Each home keeps the
+/// whole value it last received and, after it, each store into one of its
+/// fields, oldest first. A writable alias loses the ability to track stores at
+/// this root at all. Never carry one predecessor's witness through a join.
+#[derive(Default)]
+pub(super) struct LocalContents(std::collections::BTreeMap<usize, Option<Contents>>);
+
+#[derive(Clone)]
+pub(super) struct Contents {
+    whole: PlaceId,
+    stores: Vec<(Vec<PlaceProjection>, PlaceId)>,
+}
+
+impl Contents {
+    /// The value that supplies `path` of the home, with the rest of the path
+    /// inside it: the newest store at a prefix of `path`, otherwise the whole value.
+    fn reaching(
+        &self,
+        path: &[PlaceProjection],
+    ) -> (PlaceId, Vec<PlaceProjection>) {
+        for (stored, value) in self.stores.iter().rev() {
+            if path.starts_with(stored) {
+                return (*value, path[stored.len()..].to_vec());
+            }
+        }
+        (self.whole, path.to_vec())
+    }
+}
+
+impl LocalContents {
+    pub(super) fn operand(&mut self, operand: &ValueOperand) {
+        if let ValueOperand::Borrow { place, access } = operand && *access != ReferenceAccess::Shared {
+            self.0.remove(&place.root.index());
+        }
+    }
+
+    pub(super) fn observe(&mut self, op: &crate::PsiOperation, mutable_homes: &[PlaceId]) {
+        if mutable_homes.is_empty() {
+            return;
+        }
+        match &op.kind {
+            OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
+                for field in fields {
+                    self.operand(&field.operand);
+                }
+                if matches!(op.kind, OperationKind::EstablishRecord { .. })
+                    && let OperationResult::Structural(place) = op.result
+                    && mutable_homes.contains(&place)
+                {
+                    self.0.insert(place.index(), Some(Contents { whole: place, stores: Vec::new() }));
+                }
+            }
+            OperationKind::BorrowPlace { source, access } if *access != ReferenceAccess::Shared => {
+                self.0.remove(&source.root.index());
+            }
+            OperationKind::Call { arguments, .. } => {
+                for arg in arguments {
+                    self.operand(arg);
+                }
+            }
+            OperationKind::StructuralStore { destination, value, .. } => {
+                if let Some(current) = self.0.get_mut(&destination.root.index()) {
+                    if mutable_homes.contains(value) || destination.path.contains(&PlaceProjection::Referent) {
+                        *current = None;
+                    } else if destination.path.is_empty() {
+                        *current = Some(Contents { whole: *value, stores: Vec::new() });
+                    } else if let Some(contents) = current {
+                        contents.stores.push((destination.path.clone(), *value));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Only a writable home can have its own fields replaced. A write through a
 /// reference changes its referent while preserving the descriptor itself.
 pub(super) struct Lineage<'a> {
     pub(super) operations: &'a [crate::PsiOperation],
     pub(super) mutable_homes: &'a [PlaceId],
+    pub(super) contents: &'a LocalContents,
 }
 
 /// An owner row describes custody of its storage. Each live descriptor in that
@@ -146,8 +234,7 @@ fn embedded_loans(
 /// record field initializer, a field-only transfer or copy, or a decomposed
 /// component each name exactly one source. A shared reborrow stays in the
 /// lineage and continues from its parent descriptor. Joins, call results,
-/// borrows of local storage and writable homes
-/// have no single unchanged source.
+/// borrows of local storage and intermediate writable sources have no traced origin.
 fn origin(
     mut place: PlaceId,
     path: &[PlaceProjection],
@@ -157,9 +244,13 @@ fn origin(
 ) -> Option<EmbeddedLoanOrigin> {
     let mut path = path.to_vec();
     let mut reborrows = Vec::new();
-    // Each step reaches a place established by an earlier operation.
-    for _ in 0..=context.places.len() {
-        if lineage.mutable_homes.contains(&place) {
+    // Only the initial lookup describes storage at *this crossing*. An
+    // initializer read an earlier value; never consult the current home there.
+    if lineage.mutable_homes.contains(&place) {
+        (place, path) = lineage.contents.0.get(&place.index())?.as_ref()?.reaching(&path);
+    }
+    for depth in 0..=context.places.len() {
+        if depth != 0 && lineage.mutable_homes.contains(&place) {
             return None;
         }
         match context.places.get(place.index())?.origin {

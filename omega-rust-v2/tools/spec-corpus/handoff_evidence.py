@@ -1,4 +1,5 @@
 """Relate observed handoffs to the rules listed in V2's layer documents."""
+from itertools import chain
 from pathlib import Path
 import re
 import callable_alias_evidence
@@ -26,23 +27,19 @@ IDENTITY_TESTS = {
     "OTHER": "alias_selects_other_equal_valued_constant",
 }
 IDENTITY_CONTROL = "each_stage_reader_distinguishes_substituted_other_product"
-# These L4 promises have no L5 consumer comparison, for different reasons. Each
-# stays an unverified consumer. The reason only says what kind of work would close it.
+# These L4 promises have open handoffs. A measured consumer for one case can
+# coexist with an observed L5 refusal for a different case in the same paragraph.
 # "l5 refusal": L5 refuses the valid product; a registered L5 test pins that stop.
 # "unmeasured": L5 reads the product, but no L5 test lowers a package that exercises it.
 # "outside pipeline": neither the L5 contract nor lowering reads the product.
 GAP_TESTS = "tests/preparation_handoff_gaps.rs"
 PREPARATION_CONSUMERS = {
-    "A specialized field request": ("l5 refusal", "L5 needs the field extents for the applied record.",
-                                    ("nested_field_owner_arguments_stop_at_generic_data_lowering", ("specialized field owner arguments",))),
-    "A local declaration after": ("l5 refusal", "Lowering the enclosing generic machine is required to inspect the two constants in Psi.",
-                                  ("nested_helper_constants_stop_at_the_open_enclosing_template",
-                                   ("nested helper enclosing static argument via helper(input)", "nested helper enclosing static argument via invoke::<helper>(input)"))),
-    "L4 specializes the selected body's": ("unmeasured", "L4's unit test supplies a checked invocation fact and observes its target dependencies. "
+    "Proofs supplied by the checker": ("unmeasured", "L4's unit test supplies a checked invocation fact and observes its target dependencies. "
                                            "The public preparation round accepts such facts, but only L4 test code can construct one today. "
                                            "No L5 test observes those dependencies in Psi from the same prepared package.", None),
     "A bounded preparation compares": ("outside pipeline", "Preparation publishes the grant and certified maxima on PreparedTrees::resource_receipt(). "
-                                       "Neither the L5 contract nor lowering reads that receipt.", None),
+                                       "Lowering needs no admission data, so neither the L5 contract nor lowering reads that receipt. L7 publication, "
+                                       "which retains the ceiling in published builds, is not started. The bound comes from the L6 checker; only L4 tests build one today.", None),
 }
 # Why a product entry has no consumer comparison in this run. None of these is evidence.
 CONSUMER_SCOPES = {
@@ -50,7 +47,7 @@ CONSUMER_SCOPES = {
     "l5 refusal": "L5 refuses the valid product; the stop was observed in this run",
     "l5 refusal outside run": "L5 refusal pinned by a test outside this run",
     "outside pipeline": "no L5 contract paragraph or lowering code reads the product",
-    "unmeasured": "no consumer comparison or pinned L5 refusal",
+    "unmeasured": "no consumer comparison or pinned L5 refusal for the registered input",
 }
 GOLDEN_TESTS = {
     "L0": ("golden_fixtures", "accept_fixtures_lex_to_their_expected_tokens", "reject_fixtures_fail_with_their_expected_error"),
@@ -132,7 +129,7 @@ def record(report, suite, target, current_test, line):
         return
     if key in group:
         report["measurement_errors"].append(f"duplicate handoff observation: {key}")
-        if suite == "L0" and group is observations["goldens"]:
+        if group is observations["goldens"]:
             group[key] = None
     else:
         group[key] = value
@@ -239,8 +236,8 @@ def check_lexer_fixtures(row, fixture_dir, evidence, results, errors):
     return unconfirmed
 
 
-def finish(report, directory):
-    evidence = report.get("handoff_observations", {"identity": {}, "goldens": {}, "assertions": {}})
+def collect_rules(report):
+    evidence = report.setdefault("handoff_observations", {"identity": {}, "goldens": {}, "assertions": {}})
     errors = report["measurement_errors"]
     measured = dict.fromkeys(DOCUMENTS, True)
     results = reviewed_comparisons.test_results(report)
@@ -345,23 +342,45 @@ def finish(report, directory):
             for item in row.get("named_requirements", []):
                 if not item["verified"]:
                     errors.append(f"{stage} {row['rule']}: unconfirmed named {item['kind']}: {item['name']}")
-    classify_consumers(report, outlines, results)
     report["handoff_rules"] = outlines
+
+
+def preparation_diagnostic_consumers(report):
+    """A diagnosed package and its prepare/lower commands consume L4's refusal."""
+    result = report.get("preparation_reasons", {})
+    if not result.get("measured"):
+        return
+    matches = [row for row in report["handoff_rules"]["L4"] if row["rule"].startswith("Every refusal L4 renders carries its typed cause.")]
+    if len(matches) != 1:
+        report["measurement_errors"].append("L4: expected one typed refusal contract for the package consumer")
+        return
+    owned = (witness for reason in result["reasons"].values() for witness in reason["witnesses"])
+    for witness in chain(owned, result["forwarded"]):
+        if witness["suite"] == "CLI" and witness["status"] == "ok":
+            matches[0]["consumer"].append(
+                f"CLI · {witness['test']} · {witness['cause']} at {witness['file']} "
+                f"bytes {witness['byte_start']}..{witness['byte_end']} · prepare and lower returned the complete refusal")
+
+
+def finish(report, directory):
+    outlines = report["handoff_rules"]
+    preparation_diagnostic_consumers(report)
+    classify_consumers(report, outlines, reviewed_comparisons.test_results(report))
     report["unverified_contracts"] = unverified_contracts(outlines, report.get("last_layer", "L4"))
-    write_details(directory, outlines, evidence)
+    write_details(directory, outlines, report["handoff_observations"])
 
 
 def confirmed_stops(report, results, test, labels):
-    """Details of the pinned L5 refusals, only when every label came from its passing registered test."""
+    """Keep each pinned L5 refusal attributed to its passing registered test."""
     if results.get(("L5", GAP_TESTS, test)) != "ok":
-        return []
-    stops = []
+        return {}
+    stops = {}
     for label in labels:
         case = report.get("cases", {}).get("handoff/" + label)
         if (not case or case.get("status") != "open gap" or case.get("stage") != "L5"
                 or str(case.get("target", "")).replace("\\", "/") != GAP_TESTS or case.get("test") != test):
-            return []
-        stops.append(case["detail"])
+            continue
+        stops[label] = case["detail"]
     return stops
 
 
@@ -373,28 +392,35 @@ def classify_consumers(report, outlines, results):
             report["measurement_errors"].append(f"L4: expected one contract entry for consumer reason {prefix!r}")
     for stage, rows in outlines.items():
         for row in rows:
-            row.pop("consumer_scope", None)
-            if row["refusal_only_rule"] or row["consumer"]:
+            for key in ("consumer_scope", "consumer_context", "observed_stops", "unobserved_l5_cases"):
+                row.pop(key, None)
+            if row["refusal_only_rule"]:
                 continue
-            known = [value for prefix, value in PREPARATION_CONSUMERS.items() if stage == "L4" and row["rule"].startswith(prefix)]
+            known = next((value for prefix, value in PREPARATION_CONSUMERS.items()
+                          if stage == "L4" and row["rule"].startswith(prefix)), None)
+            if known and known[2] and cutoff >= "L5":
+                test, labels = known[2]
+                stops = confirmed_stops(report, results, test, labels)
+                missing = [label for label in labels if label not in stops]
+                if missing:
+                    row["unobserved_l5_cases"] = missing
+                if stops:
+                    # A different input may successfully cross this same boundary.
+                    row.update(consumer_scope="l5 refusal", consumer_context=known[1], observed_stops=list(stops.values()))
+                    continue
+                row.update(consumer_scope="unmeasured", observed_stops=[],
+                           consumer_context=f"{known[1]} No pinned L5 refusal was observed in {GAP_TESTS}::{test}.")
+                continue
+            if row["consumer"]:
+                continue
             if any(site.startswith("consumer:") for site in row.get("outside_run", ())):
                 row["consumer_scope"] = "later suite"
-            elif not known:
-                row["consumer_scope"] = "unmeasured"
-            else:
-                kind, explanation, pinned = known[0]
+            elif known:
+                kind, explanation, pinned = known
+                row["consumer_scope"] = "l5 refusal outside run" if pinned else kind
                 row["consumer_context"] = explanation
-                row["consumer_scope"] = kind
-                if kind == "l5 refusal":
-                    test, labels = pinned
-                    if cutoff < "L5":
-                        row["consumer_scope"] = "l5 refusal outside run"
-                    else:
-                        row["observed_stops"] = confirmed_stops(report, results, test, labels)
-                        if not row["observed_stops"]:
-                            # The registered stop did not run as pinned. Claim no reason at all.
-                            row["consumer_scope"] = "unmeasured"
-                            row["consumer_context"] += f" The pinned L5 refusal in {GAP_TESTS}::{test} was not observed."
+            else:
+                row["consumer_scope"] = "unmeasured"
 
 
 def unverified_contracts(outlines, last_layer):
@@ -407,12 +433,16 @@ def unverified_contracts(outlines, last_layer):
                 missing = [] if row["direct"] else ["producer"]
                 if stage < last_layer and not row["consumer"]:
                     missing.append("consumer")
+                elif stage < last_layer and row.get("observed_stops"):
+                    missing.append("L5 product for refused input")
+                if stage < last_layer and row["consumer"] and row.get("unobserved_l5_cases"):
+                    missing.append("L5 outcome for registered input")
             if missing:
                 # Keep the gap visible at this cutoff. A registered later check has not run.
                 sides = {"direct" if side == "producer" else "refusals" if side == "refusal" else side for side in missing}
                 later = [site for site in row.get("outside_run", ()) if site.partition(":")[0] in sides]
                 gap = {"stage": stage, "line": row["line"], "rule": row["rule"], "missing": missing, "later_checks": later}
-                if "consumer" in missing and row.get("consumer_scope"):
+                if row.get("consumer_scope") and ("consumer" in missing or row.get("observed_stops") or row.get("unobserved_l5_cases")):
                     gap["consumer_scope"] = row["consumer_scope"]
                 gaps.append(gap)
     return gaps
@@ -445,11 +475,15 @@ def write_details(directory, outlines, evidence):
             if row.get("consumer_context"):
                 lines.append("  - " + row["consumer_context"])
                 lines.extend("  - Observed stop: " + detail for detail in row.get("observed_stops", ()))
+                lines.extend("  - Missing L5 observation: " + label for label in row.get("unobserved_l5_cases", ()))
             for field, title in (("direct", "Producer"), ("consumer", "Consumer"), ("refusals", "Exact refusal"),
                                  ("outside_run", "Outside selected suites"), ("failed_checks", "Failed comparison"),
                                  ("failed_tests", "Enclosing test failed")):
                 hits = row.get(field, [])
-                if hits or (field in {"direct", "consumer"} and not row["refusal_only_rule"]):
+                if field == "consumer" and len(hits) > 1:
+                    lines.append("  - Consumer checks")
+                    lines.extend("    - " + hit for hit in hits)
+                elif hits or (field in {"direct", "consumer"} and not row["refusal_only_rule"]):
                     lines.append(f"  - {title}: " + (", ".join(hits) if hits else "no mapped observation"))
         lines.append("")
     (directory / "handoffs.md").write_text("\n".join(lines), encoding="utf-8")
@@ -484,11 +518,11 @@ def consumer_scope_summary(report):
     groups = {}
     for stage, rows in report["handoff_rules"].items():
         for row in rows:
-            if not row["refusal_only_rule"] and not row["consumer"]:
+            if not row["refusal_only_rule"] and (not row["consumer"] or row.get("observed_stops") or row.get("unobserved_l5_cases")):
                 groups.setdefault(row.get("consumer_scope", "unmeasured"), []).append(f"{stage} line {row['line']}")
     if not groups:
         return []
-    lines = ["", "Product entries without a consumer comparison in this run, by reason. None of them counts as consumer evidence.", "",
+    lines = ["", "Open consumer handoffs. A successful comparison for one input can coexist with an observed L5 refusal for another.", "",
              "| Reason | Entries | Contract lines |", "| --- | ---: | --- |"]
     for scope, title in CONSUMER_SCOPES.items():
         if scope in groups:
