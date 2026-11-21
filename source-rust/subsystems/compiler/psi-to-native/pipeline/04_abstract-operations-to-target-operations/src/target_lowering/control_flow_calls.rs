@@ -1659,13 +1659,15 @@ pub(crate) mod calls {
             shape: placement.shape,
             placement: placement.placement.clone(),
         };
-        // Present an array's backing before classifying ordinary reference
-        // and descriptor arguments. Every addressable root uses the same
-        // checked window, including a field or a block arrival.
-        if prepared.parameter(argument.place).is_some()
-            || live.structural_homes.contains_key(&argument.place)
-            || live.block_views.contains(&argument.place)
-            || live.address_joins.contains(&argument.place)
+        // Only view formals can receive an array window. Resolving an argument's
+        // backing asks for its byte extent, which opaque loans need never reveal.
+        if types
+            .get(declaration.structural_type)
+            .is_some_and(|ty| ty.shape.is_view_descriptor())
+            && (prepared.parameter(argument.place).is_some()
+                || live.structural_homes.contains_key(&argument.place)
+                || live.block_views.contains(&argument.place)
+                || live.address_joins.contains(&argument.place))
         {
             let root = crate::target_lowering::unit::argument_roots::resolve(
                 argument.place,
