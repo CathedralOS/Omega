@@ -2840,12 +2840,12 @@ impl<'a> Replay<'a> {
         match owner {
             DescriptorInvocationOwner::Operation(_)
             | DescriptorInvocationOwner::InvokeNoNormal(_) => {
-                self.snapshots.get(&machine)?.ready()?.before.get(&position)
+                self.snapshots.get(&machine).array_trace(line!())?.ready().array_trace(line!())?.before.get(&position)
             }
             DescriptorInvocationOwner::Cleanup { .. } => self
                 .snapshots
-                .get(&machine)?
-                .ready()?
+                .get(&machine).array_trace(line!())?
+                .ready().array_trace(line!())?
                 .invocations
                 .get(&(position, owner)),
         }
@@ -2886,15 +2886,15 @@ impl<'a> Replay<'a> {
             detail: Some(detail),
         };
         if depth >= 128 {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
         *failure = DescriptorGraphError::MissingOrAmbiguousMachine(identity);
-        let machine = self.machine(identity)?;
+        let machine = self.machine(identity).array_trace(line!())?;
         *failure = incomplete(
             None,
             "descriptor case graph or invocation owners are incomplete",
         );
-        super::case_flow::validate_graph(self, machine)?;
+        super::case_flow::validate_graph(self, machine).array_trace(line!())?;
         let normal_exit_positions = machine
             .normal_exits
             .iter()
@@ -2908,7 +2908,7 @@ impl<'a> Replay<'a> {
             let Some(calls) = calls else {
                 continue;
             };
-            let step = machine.flow.get(position)?;
+            let step = machine.flow.get(position).array_trace(line!())?;
             let normal_exit = normal_exit_positions.contains(position);
             let edges = step
                 .successors
@@ -2916,7 +2916,7 @@ impl<'a> Replay<'a> {
                 .filter_map(|edge| edge.edge)
                 .collect::<BTreeSet<_>>();
             if calls.windows(2).any(|pair| pair[0].owner >= pair[1].owner) {
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             let mut exit_edge = None;
             let mut operation_seen = false;
@@ -2927,7 +2927,7 @@ impl<'a> Replay<'a> {
                         | DescriptorInvocationOwner::InvokeNoNormal(_)
                 ) {
                     if operation_seen {
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                     operation_seen = true;
                 }
@@ -2936,11 +2936,11 @@ impl<'a> Replay<'a> {
                         if !step.successors.is_empty()
                             || exit_edge.is_some_and(|previous| previous != edge)
                         {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
                         exit_edge = Some(edge);
                     } else if !edges.contains(&edge) {
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                 }
             }
@@ -2951,9 +2951,9 @@ impl<'a> Replay<'a> {
         );
         let case_storage = super::case_flow::Storage::new(self, machine);
         if !machine.flow.contains_key(&machine.entry) {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        let mut states = States::from([(machine.entry, self.initial(machine)?)]);
+        let mut states = States::from([(machine.entry, self.initial(machine).array_trace(line!())?)]);
         let mut arrivals = States::new();
         let mut invocation_states = InvocationStates::new();
         let mut normal_exits = States::new();
@@ -2966,14 +2966,14 @@ impl<'a> Replay<'a> {
             );
             visits += 1;
             if visits > machine.flow.len().saturating_mul(4096).max(4096) {
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             *failure = incomplete(
                 Some(position),
                 "descriptor flow point has no exact incoming state",
             );
-            let before = states.get(&position)?.clone();
-            let step = machine.flow.get(&position)?;
+            let before = states.get(&position).array_trace(line!())?.clone();
+            let step = machine.flow.get(&position).array_trace(line!())?;
             let after = {
                 let reads = DescriptorReadDepth::at(machine, &before, Some(&states));
                 *failure = incomplete(
@@ -2993,7 +2993,7 @@ impl<'a> Replay<'a> {
                         reads: &reads,
                     },
                     &case_storage,
-                )?;
+                ).array_trace(line!())?;
                 after.contents_invalidated |=
                     machine.unresolved_contents_writes.contains(&position);
                 // Escaping a value keeps its loans alive; it does not write
@@ -3012,7 +3012,7 @@ impl<'a> Replay<'a> {
                 );
                 if let Some(constructors) = machine.case_constructors.get(&position) {
                     for constructor in constructors {
-                        super::case_flow::establish(self, machine, &mut after, constructor)?;
+                        super::case_flow::establish(self, machine, &mut after, constructor).array_trace(line!())?;
                     }
                 }
                 if let Some(transfers) = machine.contents_transfers.get(&position) {
@@ -3031,7 +3031,7 @@ impl<'a> Replay<'a> {
                 );
                 if let Some(origins) = machine.originations.get(&position) {
                     let completed =
-                        Some((machine.id, (position.0, position.1.checked_add(1)?)));
+                        Some((machine.id, (position.0, position.1.checked_add(1).array_trace(line!())?)));
                     for (location, origin) in origins {
                         let origin = if matches!(origin, DescriptorCallOrigin::Argument { source, projection } if *source == location.root && location.path.is_empty() && projection == &Projection::new(&[]))
                             && machine.place_types.get(&location.root).is_some_and(|ty| {
@@ -3068,7 +3068,7 @@ impl<'a> Replay<'a> {
                     *failure = self
                         .failed_invocation_preparation(call)
                         .unwrap_or_else(|| incomplete(Some(position), detail));
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
                 after
             };
@@ -3088,7 +3088,7 @@ impl<'a> Replay<'a> {
                 .get(&position)
                 .is_some_and(|cases| cases.len() != step.successors.len())
             {
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             if normal_exit_positions.contains(&position) {
                 let calls = machine
@@ -3103,7 +3103,7 @@ impl<'a> Replay<'a> {
                     })
                     .collect::<BTreeSet<_>>();
                 if calls.len() > 1 {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
                 *failure = incomplete(
                     Some(position),
@@ -3118,7 +3118,7 @@ impl<'a> Replay<'a> {
                     depth,
                     &case_storage,
                     &mut invocation_states,
-                )?;
+                ).array_trace(line!())?;
                 normal_exits.insert(position, completed);
             }
             for (ordinal, edge) in step.successors.iter().enumerate() {
@@ -3127,7 +3127,7 @@ impl<'a> Replay<'a> {
                     "descriptor successor has no actual target flow point",
                 );
                 if !machine.flow.contains_key(&edge.target) {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
                 *failure = incomplete(
                     Some(position),
@@ -3144,7 +3144,7 @@ impl<'a> Replay<'a> {
                         &mut selected,
                         predicate,
                         *truth,
-                    )?
+                    ).array_trace(line!())?
                 {
                     continue;
                 }
@@ -3161,7 +3161,7 @@ impl<'a> Replay<'a> {
                     depth,
                     &case_storage,
                     &mut invocation_states,
-                )?;
+                ).array_trace(line!())?;
                 *failure = incomplete(
                     Some(position),
                     "descriptor successor binding cannot be reconstructed",
@@ -3175,7 +3175,7 @@ impl<'a> Replay<'a> {
                         edge,
                         &case_storage,
                         &reads,
-                    )?
+                    ).array_trace(line!())?
                 };
                 match states.get_mut(&edge.target) {
                     None => {
@@ -4462,3 +4462,11 @@ impl State {
 
 #[cfg(test)]
 mod snapshot_tests;
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}

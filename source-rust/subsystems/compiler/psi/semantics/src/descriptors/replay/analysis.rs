@@ -1404,7 +1404,7 @@ impl<'a> DescriptorAnalysis<'a> {
                         .origins
                         .into_iter()
                         .map(|origin| self.replay.flatten(machine, origin))
-                        .collect::<Option<_>>()?,
+                        .collect::<Option<_>>().array_trace(line!())?,
                     preserves_incoming: effect.preserves_incoming,
                 })
             })
@@ -1415,7 +1415,7 @@ impl<'a> DescriptorAnalysis<'a> {
         identity: MachineId,
         position: DescriptorPosition,
     ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
-        let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+        let owner = self.replay.machine(identity).array_trace(line!())?.direct_call(position).array_trace(line!())?.owner;
         self.symbolic_call_stored_effects_at(identity, position, owner)
     }
     pub fn symbolic_call_stored_effects_at(
@@ -1424,25 +1424,25 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         owner: DescriptorInvocationOwner,
     ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
-        self.replay.prepare_states(identity)?;
-        let machine = self.replay.machine(identity)?;
-        let before = self.replay.invocation_state(identity, position, owner)?;
-        let call = machine.invocation(position, owner)?;
+        self.replay.prepare_states(identity).array_trace(line!())?;
+        let machine = self.replay.machine(identity).array_trace(line!())?;
+        let before = self.replay.invocation_state(identity, position, owner).array_trace(line!())?;
+        let call = machine.invocation(position, owner).array_trace(line!())?;
         if call.argument_contents.iter().any(Option::is_none) {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        let summary = self.replay.cached_invocation_summary(call)?;
+        let summary = self.replay.cached_invocation_summary(call).array_trace(line!())?;
         if summary.invalidates_contents {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
         let mut replacements = BTreeMap::new();
-        for effect in summary.effects.observed()? {
+        for effect in summary.effects.observed().array_trace(line!())? {
             let destination =
                 self.replay
-                    .actual_contents(machine, call, effect.parameter, &effect.steps)?;
+                    .actual_contents(machine, call, effect.parameter, &effect.steps).array_trace(line!())?;
             let mut origins = BTreeSet::new();
             for origin in &effect.origins {
-                origins.extend(self.replay.substitute(machine, before, call, origin)?);
+                origins.extend(self.replay.substitute(machine, before, call, origin).array_trace(line!())?);
             }
             self.replay.contents_replacements(
                 machine,
@@ -1450,7 +1450,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 &destination,
                 Some(origins),
                 &mut replacements,
-            )?;
+            ).array_trace(line!())?;
         }
         replacements
             .into_iter()
@@ -1465,14 +1465,14 @@ impl<'a> DescriptorAnalysis<'a> {
                     } => return None,
                     DescriptorPayloadTarget::Incoming(query) => query,
                 };
-                let origins = value?;
+                let origins = value.array_trace(line!())?;
                 let preserves_incoming = self
                     .replay
                     .read_contents(machine, before, &destination)
                     .is_some_and(|previous| previous.is_subset(&origins));
                 Some(DescriptorStoredCallEffect {
                     destination,
-                    origins: self.replay.symbolic(machine, origins)?,
+                    origins: self.replay.symbolic(machine, origins).array_trace(line!())?,
                     preserves_incoming,
                 })
             })
@@ -1484,11 +1484,11 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         owner: DescriptorInvocationOwner,
     ) -> Result<DescriptorFlowStep, DescriptorGraphError> {
-        self.replay.prepare_states_checked(identity)?;
+        self.replay.prepare_states_checked(identity).array_trace(line!())?;
         let machine = self
             .replay
             .machine(identity)
-            .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+            .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity)).array_trace(line!())?;
         let call = machine.invocation(position, owner).ok_or(
             DescriptorGraphError::IncompleteMachine {
                 machine: identity,
@@ -1496,7 +1496,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 successor: None,
                 detail: None,
             },
-        )?;
+        ).array_trace(line!())?;
         let before = self
             .replay
             .invocation_state(identity, position, owner)
@@ -1505,9 +1505,9 @@ impl<'a> DescriptorAnalysis<'a> {
                 position: Some(position),
                 successor: None,
                 detail: None,
-            })?;
+            }).array_trace(line!())?;
         let mut step = DescriptorFlowStep::default();
-        self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
+        self.append_invocation_flow(machine, position, call, before, &mut step, None).array_trace(line!())?;
         Ok(step)
     }
     pub fn flow(
@@ -1524,7 +1524,7 @@ impl<'a> DescriptorAnalysis<'a> {
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
     ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
         let formations = std::mem::take(&mut rules.captures);
-        let mut flow = self.prepare_flow(identity, Some(rules))?;
+        let mut flow = self.prepare_flow(identity, Some(rules)).array_trace(line!())?;
         for (position, source, destination) in formations {
             let failed = |detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
@@ -1534,7 +1534,7 @@ impl<'a> DescriptorAnalysis<'a> {
             };
             let destination = self
                 .location(identity, position, &destination)
-                .ok_or_else(|| failed("captured reference has no local destination"))?;
+                .ok_or_else(|| failed("captured reference has no local destination")).array_trace(line!())?;
             if let Some(source) = self.location(identity, position, &source) {
                 rules.captures.insert((position, source, destination));
                 continue;
@@ -1544,18 +1544,18 @@ impl<'a> DescriptorAnalysis<'a> {
             // the new reference. An unknown address cannot supply this edge.
             let origins = self
                 .captured_storage_family(identity, position, &source)
-                .map_err(failed)?;
+                .map_err(failed).array_trace(line!())?;
             let machine = self
                 .replay
                 .machine(identity)
-                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity)).array_trace(line!())?;
             for origin in origins {
                 let DescriptorCallOrigin::Argument { source, projection } = origin else {
                     return Err(failed("captured residence has no input-relative storage"));
                 };
                 if projection
                     .has_captured_reference_crossing()
-                    .map_err(failed)?
+                    .map_err(failed).array_trace(line!())?
                 {
                     return Err(failed(
                         "captured residence requires the storage on the far side of a reference",
@@ -1564,22 +1564,22 @@ impl<'a> DescriptorAnalysis<'a> {
                 let fixed = machine.export_input_projection(&projection);
                 let path = fixed
                     .captured_storage_path()
-                    .ok_or_else(|| failed("captured residence has no fixed inline address"))?;
+                    .ok_or_else(|| failed("captured residence has no fixed inline address")).array_trace(line!())?;
                 let location = descriptor_location(
                     self.replay.types,
                     source,
                     *machine
                         .place_types
                         .get(&source)
-                        .ok_or_else(|| failed("captured residence has no local storage type"))?,
+                        .ok_or_else(|| failed("captured residence has no local storage type")).array_trace(line!())?,
                     &path,
                     None,
                 )
-                .ok_or_else(|| failed("captured residence does not name storage in its input"))?;
+                .ok_or_else(|| failed("captured residence does not name storage in its input")).array_trace(line!())?;
                 let edge = (location, destination.clone());
                 let step = flow
                     .get_mut(&position)
-                    .ok_or_else(|| failed("captured residence has no flow step"))?;
+                    .ok_or_else(|| failed("captured residence has no flow step")).array_trace(line!())?;
                 if !step.derivations.contains(&edge) {
                     step.derivations.push(edge.clone());
                 }
@@ -1602,18 +1602,18 @@ impl<'a> DescriptorAnalysis<'a> {
             successor: None,
             detail: None,
         };
-        self.replay.prepare_states_checked(identity)?;
+        self.replay.prepare_states_checked(identity).array_trace(line!())?;
         let machine = self
             .replay
             .machine(identity)
-            .ok_or_else(|| incomplete(None))?;
+            .ok_or_else(|| incomplete(None)).array_trace(line!())?;
         let states = self
             .replay
             .snapshots
             .get(&identity)
             .and_then(|cached| cached.ready())
             .map(|prepared| &prepared.before)
-            .ok_or_else(|| incomplete(None))?;
+            .ok_or_else(|| incomplete(None)).array_trace(line!())?;
         let mut flow = machine.flow.clone();
         let normal_exits = machine
             .normal_exits
@@ -1647,13 +1647,13 @@ impl<'a> DescriptorAnalysis<'a> {
                 .definitions
                 .iter()
                 .map(&mut canonical)
-                .collect::<Result<_, _>>()?;
+                .collect::<Result<_, _>>().array_trace(line!())?;
             if !step.definitions.is_empty() {
                 let aliases = before
                     .slots
                     .keys()
                     .filter_map(|location| {
-                        let canonical_location = canonical(location).ok()?;
+                        let canonical_location = canonical(location).ok().array_trace(line!())?;
                         step.definitions
                             .iter()
                             .any(|definition| definition.contains(&canonical_location))
@@ -1669,7 +1669,7 @@ impl<'a> DescriptorAnalysis<'a> {
             let mut observations = step
                 .observed_inputs()
                 .map(&mut canonical)
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>, _>>().array_trace(line!())?;
             for input in step.observed_inputs() {
                 if input.path.is_empty()
                     && let Some(Some(origins)) = before.slots.get(input)
@@ -1692,29 +1692,29 @@ impl<'a> DescriptorAnalysis<'a> {
             step.derivations = step
                 .derivations
                 .iter()
-                .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
-                .collect::<Result<_, DescriptorGraphError>>()?;
+                .map(|(source, destination)| Ok((canonical(source).array_trace(line!())?, canonical(destination).array_trace(line!())?)))
+                .collect::<Result<_, DescriptorGraphError>>().array_trace(line!())?;
             step.value_transfers = step
                 .value_transfers
                 .iter()
-                .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
-                .collect::<Result<_, DescriptorGraphError>>()?;
+                .map(|(source, destination)| Ok((canonical(source).array_trace(line!())?, canonical(destination).array_trace(line!())?)))
+                .collect::<Result<_, DescriptorGraphError>>().array_trace(line!())?;
             step.scalar_value_stores = step
                 .scalar_value_stores
                 .iter()
-                .map(|(destination, source)| Ok((canonical(destination)?, *source)))
-                .collect::<Result<_, DescriptorGraphError>>()?;
+                .map(|(destination, source)| Ok((canonical(destination).array_trace(line!())?, *source)))
+                .collect::<Result<_, DescriptorGraphError>>().array_trace(line!())?;
             step.authority_derivations = step
                 .authority_derivations
                 .iter()
-                .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
-                .collect::<Result<_, DescriptorGraphError>>()?;
+                .map(|(source, destination)| Ok((canonical(source).array_trace(line!())?, canonical(destination).array_trace(line!())?)))
+                .collect::<Result<_, DescriptorGraphError>>().array_trace(line!())?;
             for edge in &mut step.successors {
                 edge.definitions = edge
                     .definitions
                     .iter()
                     .map(&mut canonical)
-                    .collect::<Result<_, DescriptorGraphError>>()?;
+                    .collect::<Result<_, DescriptorGraphError>>().array_trace(line!())?;
             }
             if residence_rules.is_some() {
                 for edge in &mut step.successors {
@@ -1722,7 +1722,7 @@ impl<'a> DescriptorAnalysis<'a> {
                         if let crate::descriptors::descriptor_lifetimes::DescriptorFlowSource::Location(source) =
                             &mut binding.source
                         {
-                            *source = canonical(source)?;
+                            *source = canonical(source).array_trace(line!())?;
                         }
                     }
                 }
@@ -1738,7 +1738,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     before,
                     step,
                     residence_rules.as_deref_mut(),
-                )?;
+                ).array_trace(line!())?;
             }
             for edge in &mut step.successors {
                 edge.effects.clear();
@@ -1770,7 +1770,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     before,
                     &mut effect,
                     residence_rules.as_deref_mut(),
-                )?;
+                ).array_trace(line!())?;
                 step.inputs.extend(effect.inputs.iter().cloned());
                 step.inputs.extend(
                     effect
@@ -1782,7 +1782,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 if let Some(index) = edge_positions.get(&owner_edge) {
                     step.successors[*index].effects.push((call.owner, effect));
                 } else if !normal_exits.contains(position) {
-                    return Err(incomplete_step());
+                    return { eprintln!("ARRAY STOP analysis:{}", line!()); Err(incomplete_step()) };
                 }
             }
             let mut inputs: Vec<_> = step.observed_inputs().cloned().collect();
@@ -1824,7 +1824,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let summary = self
             .replay
             .cached_invocation_summary(call)
-            .ok_or_else(incomplete_step)?;
+            .ok_or_else(incomplete_step).array_trace(line!())?;
         step.may_escape |= summary.invalidates_contents;
         let mut outputs = Vec::new();
         if let EffectObservations::Unobserved(writes) = &summary.effects {
@@ -1838,13 +1838,13 @@ impl<'a> DescriptorAnalysis<'a> {
                     &DescriptorReadDepth::at(machine, before, None),
                     |_| {},
                 )
-                .ok_or_else(incomplete_step)?;
+                .ok_or_else(incomplete_step).array_trace(line!())?;
             if !unknown.is_empty() {
                 step.may_escape = true;
                 for (argument, contents) in call.arguments.iter().zip(&call.argument_contents) {
                     let input = match argument {
-                        Some(source) => canonical(source)?,
-                        None => contents.as_ref().ok_or_else(incomplete_step)?.observation(),
+                        Some(source) => canonical(source).array_trace(line!())?,
+                        None => contents.as_ref().ok_or_else(incomplete_step).array_trace(line!())?.observation(),
                     };
                     step.inputs.push((Some(input), None));
                 }
@@ -1854,7 +1854,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     DescriptorPayloadTarget::Storage {
                         location,
                         completed: None,
-                    } => step.definitions.push(canonical(location)?),
+                    } => step.definitions.push(canonical(location).array_trace(line!())?),
                     DescriptorPayloadTarget::Incoming(query) => {
                         step.inputs.push((Some(query.observation()), None));
                         step.may_escape = true;
@@ -1882,11 +1882,11 @@ impl<'a> DescriptorAnalysis<'a> {
             let query = self
                 .replay
                 .actual_contents(machine, call, effect.parameter, &effect.steps)
-                .ok_or_else(incomplete_step)?;
+                .ok_or_else(incomplete_step).array_trace(line!())?;
             let targets = self
                 .replay
                 .contents_targets(machine, before, &query)
-                .ok_or_else(incomplete_step)?;
+                .ok_or_else(incomplete_step).array_trace(line!())?;
             let strong = targets.len() == 1
                 && matches!(
                     targets.first(),
@@ -1916,7 +1916,7 @@ impl<'a> DescriptorAnalysis<'a> {
                                         Some(
                                             self.replay
                                                 .actual_slot(call, *position, path)
-                                                .ok_or_else(incomplete_step)?,
+                                                .ok_or_else(incomplete_step).array_trace(line!())?,
                                         ),
                                         None,
                                     ))
@@ -1929,7 +1929,7 @@ impl<'a> DescriptorAnalysis<'a> {
                                     Some(
                                         self.replay
                                             .actual_contents(machine, call, *position, steps)
-                                            .ok_or_else(incomplete_step)?
+                                            .ok_or_else(incomplete_step).array_trace(line!())?
                                             .observation(),
                                     ),
                                     None,
@@ -1940,7 +1940,7 @@ impl<'a> DescriptorAnalysis<'a> {
                                             call.arguments
                                                 .get(*position)
                                                 .and_then(Option::as_ref)
-                                                .ok_or_else(incomplete_step)?
+                                                .ok_or_else(incomplete_step).array_trace(line!())?
                                                 .clone(),
                                         ),
                                         None,
@@ -1957,14 +1957,14 @@ impl<'a> DescriptorAnalysis<'a> {
             let result_type = *machine
                 .place_types
                 .get(&result.root)
-                .ok_or_else(incomplete_step)?;
+                .ok_or_else(incomplete_step).array_trace(line!())?;
             let slots: &[DescriptorResultSlot] = if summary.result.is_unobserved() {
                 &[]
             } else {
                 summary
                     .result
                     .slots()
-                    .ok_or_else(incomplete_step)?
+                    .ok_or_else(incomplete_step).array_trace(line!())?
                     .as_slice()
             };
             for slot in slots {
@@ -1973,7 +1973,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     destination.path.extend_from_slice(path);
                     outputs.push((destination, slot.origins.as_slice(), true));
                     Ok::<(), DescriptorGraphError>(())
-                })?;
+                }).array_trace(line!())?;
             }
             for packet in summary.result.contents() {
                 let mut destination = result.clone();
@@ -1981,21 +1981,21 @@ impl<'a> DescriptorAnalysis<'a> {
                 let expected = self
                     .replay
                     .unknown_contents_type(machine, &destination)
-                    .ok_or_else(incomplete_step)?;
+                    .ok_or_else(incomplete_step).array_trace(line!())?;
                 step.definitions.push(destination.clone());
                 if packet.origins.is_empty() {
                     if !summary
                         .result_cases
                         .excludes_payload(result_type, &packet.path)
                     {
-                        return Err(incomplete_step());
+                        return { eprintln!("ARRAY STOP analysis:{}", line!()); Err(incomplete_step()) };
                     }
                     continue;
                 }
                 for origin in &packet.origins {
                     if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
                         if produced.structural_type != expected {
-                            return Err(incomplete_step());
+                            return { eprintln!("ARRAY STOP analysis:{}", line!()); Err(incomplete_step()) };
                         }
                         outputs.push((destination.clone(), std::slice::from_ref(origin), true));
                         continue;
@@ -2005,21 +2005,21 @@ impl<'a> DescriptorAnalysis<'a> {
                         path,
                     } = origin
                     else {
-                        return Err(incomplete_step());
+                        return { eprintln!("ARRAY STOP analysis:{}", line!()); Err(incomplete_step()) };
                     };
                     let mut source = call
                         .arguments
                         .get(*parameter)
                         .and_then(Option::as_ref)
-                        .ok_or_else(incomplete_step)?
+                        .ok_or_else(incomplete_step).array_trace(line!())?
                         .clone();
                     source.path.extend_from_slice(path);
                     let source = self
                         .replay
                         .canonical_contents_packet(machine, before, &source)
-                        .ok_or_else(incomplete_step)?;
+                        .ok_or_else(incomplete_step).array_trace(line!())?;
                     if self.replay.unknown_contents_type(machine, &source) != Some(expected) {
-                        return Err(incomplete_step());
+                        return { eprintln!("ARRAY STOP analysis:{}", line!()); Err(incomplete_step()) };
                     }
                     step.inputs.push((Some(source.clone()), None));
                     step.derivations.push((source, destination.clone()));
@@ -2034,7 +2034,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 self.replay
                     .slot_kind
                     .owned_slots(self.replay.types, result.root, result_type)
-                    .ok_or_else(incomplete_step)?
+                    .ok_or_else(incomplete_step).array_trace(line!())?
                     .into_iter()
                     .map(|slot| slot.path)
                     .collect::<Vec<_>>()
@@ -2044,7 +2044,7 @@ impl<'a> DescriptorAnalysis<'a> {
             for path in &unknown {
                 let mut destination = result.clone();
                 destination.path.extend_from_slice(path);
-                let destination = canonical(&destination)?;
+                let destination = canonical(&destination).array_trace(line!())?;
                 if !step.definitions.contains(&destination) {
                     step.definitions.push(destination.clone());
                 }
@@ -2052,13 +2052,13 @@ impl<'a> DescriptorAnalysis<'a> {
                     match argument {
                         Some(source) => step
                             .derivations
-                            .push((canonical(source)?, destination.clone())),
+                            .push((canonical(source).array_trace(line!())?, destination.clone())),
                         None => {
                             step.inputs.push((
                                 Some(
                                     contents
                                         .as_ref()
-                                        .ok_or_else(incomplete_step)?
+                                        .ok_or_else(incomplete_step).array_trace(line!())?
                                         .observation(),
                                 ),
                                 None,
@@ -2070,7 +2070,7 @@ impl<'a> DescriptorAnalysis<'a> {
             }
         }
         for (destination, origins, strong) in outputs {
-            let destination = canonical(&destination)?;
+            let destination = canonical(&destination).array_trace(line!())?;
             if strong && !step.definitions.contains(&destination) {
                 step.definitions.push(destination.clone());
             }
@@ -2124,14 +2124,14 @@ impl<'a> DescriptorAnalysis<'a> {
                         let Some(source) = call
                             .arguments
                             .get(*position)
-                            .ok_or_else(incomplete_step)?
+                            .ok_or_else(incomplete_step).array_trace(line!())?
                             .as_ref()
                         else {
                             let mut query = call
                                 .argument_contents
                                 .get(*position)
                                 .and_then(Option::as_ref)
-                                .ok_or_else(incomplete_step)?
+                                .ok_or_else(incomplete_step).array_trace(line!())?
                                 .clone();
                             query.steps.extend(
                                 path.iter().cloned().map(DescriptorContentsStep::Address),
@@ -2151,7 +2151,7 @@ impl<'a> DescriptorAnalysis<'a> {
                             .argument_contents
                             .get(*position)
                             .and_then(Option::as_ref)
-                            .ok_or_else(incomplete_step)?
+                            .ok_or_else(incomplete_step).array_trace(line!())?
                             .clone();
                         query.steps.extend_from_slice(steps);
                         step.inputs.push((Some(query.observation()), None));
@@ -2165,14 +2165,14 @@ impl<'a> DescriptorAnalysis<'a> {
                         let Some(source) = call
                             .arguments
                             .get(*position)
-                            .ok_or_else(incomplete_step)?
+                            .ok_or_else(incomplete_step).array_trace(line!())?
                             .as_ref()
                         else {
                             let query = call
                                 .argument_contents
                                 .get(*position)
                                 .and_then(Option::as_ref)
-                                .ok_or_else(incomplete_step)?;
+                                .ok_or_else(incomplete_step).array_trace(line!())?;
                             step.inputs.push((Some(query.observation()), None));
                             step.may_escape = true;
                             continue;
@@ -2182,10 +2182,10 @@ impl<'a> DescriptorAnalysis<'a> {
                             let root_type = *machine
                                 .place_types
                                 .get(&source.root)
-                                .ok_or_else(incomplete_step)?;
+                                .ok_or_else(incomplete_step).array_trace(line!())?;
                             let mut spelling =
                                 descriptor_path(self.replay.types, root_type, &source.path)
-                                    .ok_or_else(incomplete_step)?;
+                                    .ok_or_else(incomplete_step).array_trace(line!())?;
                             spelling.extend_from_slice(&projection.path);
                             source = descriptor_location(
                                 self.replay.types,
@@ -2194,12 +2194,12 @@ impl<'a> DescriptorAnalysis<'a> {
                                 &spelling,
                                 None,
                             )
-                            .ok_or_else(incomplete_step)?;
+                            .ok_or_else(incomplete_step).array_trace(line!())?;
                         }
                         source
                     }
                 };
-                let pair = (canonical(&source)?, destination.clone());
+                let pair = (canonical(&source).array_trace(line!())?, destination.clone());
                 if spatial
                     && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                     && let Some(rules) = residence_rules.as_deref_mut()
@@ -2209,10 +2209,10 @@ impl<'a> DescriptorAnalysis<'a> {
                         *machine
                             .place_types
                             .get(&pair.0.root)
-                            .ok_or_else(incomplete_step)?,
+                            .ok_or_else(incomplete_step).array_trace(line!())?,
                         &pair.0.path,
                     )
-                    .ok_or_else(incomplete_step)?;
+                    .ok_or_else(incomplete_step).array_trace(line!())?;
                     if !DescriptorSlotKind::Views.is_slot(self.replay.types, source_type) {
                         rules
                             .captures
@@ -2246,4 +2246,12 @@ impl<'a> DescriptorAnalysis<'a> {
         }
         Ok(())
     }
+}
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
 }
