@@ -889,9 +889,8 @@ impl PolicySource<'_> {
             let original = declaration_symbols
                 .get(boundary.id)
                 .ok_or_else(|| unavailable("the accepted requirement's source declaration"))?;
-            let template = source
-                .closed_requirement_application(*original)
-                .map_or(*original, |closed| closed.template);
+            let application = source.closed_requirement_application(*original);
+            let template = application.map_or(*original, |closed| closed.template);
             let index = signatures
                 .binary_search_by_key(&symbol_key(template), |signature| {
                     symbol_key(signature.symbol)
@@ -901,6 +900,23 @@ impl PolicySource<'_> {
             if source.trait_requirement_callable_identity_text(service, signature) != canonical {
                 return Err(unavailable("one exact authored service requirement"));
             }
+            let checked_signature = if let Some(closed) = application {
+                let receiver =
+                    source.type_identity_text(closed.portable_trait_application_identity);
+                if closed.declaring_trait != service.symbol
+                    || receiver.as_deref() != plan.schema.root_application_identity()
+                    || !closed.local_arguments.is_empty()
+                {
+                    return Err(unavailable("the selected provider's exact applied method"));
+                }
+                closed.signature
+            } else if receiver.keeps_declared_signatures(source) {
+                signature
+            } else {
+                return Err(unavailable(
+                    "the selected provider's applied requirement signature",
+                ));
+            };
             let requirement = self.nominal(signature.symbol)?;
             let row = self.prepare_row(
                 declarations,
@@ -911,7 +927,7 @@ impl PolicySource<'_> {
                 requirement.clone(),
             )?;
             let (projected, _) = self.checked_method(
-                signature,
+                checked_signature,
                 boundary,
                 method,
                 &plan.schema,
