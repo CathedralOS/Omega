@@ -25,7 +25,7 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-operations = { path = "../../representations/target-operations" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi-semantics" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

@@ -1,15 +1,8 @@
-# Terminal codec
+# Psi artifact codec
 
-This crate owns the sealed Terminal Psi module and the artifact envelope that
-carries it between stages. The canonical encoding, validation and vocabulary
-encoders live in [terminal-wire](../wire/README.md); this crate re-exports all
-of it, so its users name one crate. A native form that needs only a vocabulary
-encoder depends on `terminal-wire` instead, and `mbx xtask check-boundary`
-refuses any path from a form after stage 02's preparation to this crate.
+The artifact codec seals a [Psi program](../../../../../../wiki/spec/terminal-psi/product.md) and packages its sections for another stage or host to reopen. It re-exports [terminal-wire](../wire/README.md), which validates and encodes the program according to the [canonical encoding specification](../../../../../../wiki/spec/terminal-psi/encoding.md). The [receiving host](../authorization/authorization.rs) decides whether to trust the producer.
 
-Public contract: [Terminal product](../../../../../../../wiki/spec/terminal-psi/product.md).
-The [canonical encoding contract](../../../../../../../wiki/spec/terminal-psi/encoding.md)
-defines canonical form and section identity.
+Native representations that need a vocabulary encoder for their own identities use `terminal-wire` directly. `mbx xtask check-boundary` keeps representations after stage 02 independent of the artifact codec.
 
 - [closed_module.rs](src/closed_module.rs) seals a module: it keeps the
   module, its closed type catalog, canonical bytes and identity together, and

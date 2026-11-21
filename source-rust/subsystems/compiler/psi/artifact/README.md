@@ -1,6 +1,6 @@
 # Psi artifacts
 
-A producer publishes one portable program. A consumer can reopen its saved `.psi`, check the identity of the bytes and decide whether to trust the producer. The program itself is defined by [Psi](../psi/psi.rs).
+A producer publishes one portable program. A consumer can reopen its saved `.psi`, check the identity of the bytes and decide whether to trust the producer. The program itself is defined by [Psi](../psi.rs).
 
 | Responsibility | Owner |
 | --- | --- |

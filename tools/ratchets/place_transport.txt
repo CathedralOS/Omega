@@ -9,9 +9,9 @@
 3 source-rust/subsystems/compiler/foundation/numerics/src/lib.rs
 4 source-rust/subsystems/compiler/foundation/semantic-records/src/scalar_terms.rs
 7 source-rust/subsystems/compiler/foundation/semantic-records/src/storage.rs
-1 source-rust/subsystems/compiler/psi-artifact/wire/src/semantic_module.rs
-1 source-rust/subsystems/compiler/psi-artifact/wire/src/term_wire.rs
-3 source-rust/subsystems/compiler/psi-artifact/wire/src/wire_fields.rs
+1 source-rust/subsystems/compiler/psi/artifact/wire/src/semantic_module.rs
+1 source-rust/subsystems/compiler/psi/artifact/wire/src/term_wire.rs
+3 source-rust/subsystems/compiler/psi/artifact/wire/src/wire_fields.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_lifetimes.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_results.rs
 1 source-rust/subsystems/compiler/psi-semantics/src/descriptors/replay/case_flow/values.rs

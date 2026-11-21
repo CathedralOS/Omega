@@ -10,9 +10,9 @@ path = "publication.rs"
 [dependencies]
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
-psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 
 [dev-dependencies]
 terminal-psi = { path = "../../../psi" }

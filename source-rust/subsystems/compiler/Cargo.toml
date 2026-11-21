@@ -11,7 +11,7 @@ path = "compiler.rs"
 compiler-identity = { path = "foundation/compiler-identity" }
 review-evidence = { path = "../package-manager/review/evidence" }
 provider-acceptance = { path = "build/providers/acceptance" }
-psi-entry-memory = { path = "psi-execution-inputs/entry-memory" }
+psi-entry-memory = { path = "psi/execution-inputs/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/publication" }
@@ -20,8 +20,8 @@ source-admission = { path = "source-to-psi/representations/source-files/custody"
 source-compiler = { path = "source-to-psi" }
 source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
-terminal-codec = { path = "psi-artifact/codec" }
-psi-authorization = { path = "psi-artifact/authorization" }
+terminal-codec = { path = "psi/artifact/codec" }
+psi-authorization = { path = "psi/artifact/authorization" }
 
 [dev-dependencies]
 symbols = { path = "foundation/declaration-identity" }

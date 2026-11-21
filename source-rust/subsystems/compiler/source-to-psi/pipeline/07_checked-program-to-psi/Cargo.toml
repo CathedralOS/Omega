@@ -15,10 +15,10 @@ test-support = ["prepared-typed-trees-to-lowered-program/test-support", "lowered
 
 [dependencies]
 artifacts = { path = "../../../foundation/measurements" }
-psi-publication-records = { path = "../../../psi-artifact/publication" }
+psi-publication-records = { path = "../../../psi/artifact/publication" }
 source-provider-publication = { path = "../../representations/published-target-providers" }
-psi-authorization = { path = "../../../psi-artifact/authorization" }
-psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
+psi-authorization = { path = "../../../psi/artifact/authorization" }
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
@@ -36,18 +36,18 @@ record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
-optimization = { path = "../../../psi-artifact/optimization-selections" }
+optimization = { path = "../../../psi/artifact/optimization-selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../../representations/lowered-program" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi-semantics" }
 lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-program" }
 
 [dev-dependencies]
 evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
-psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }

@@ -13,11 +13,11 @@ native-execution-reach = { path = "../../../representations/target-bound-program
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 provider-correspondence = { path = "../../../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
-psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }
+psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
 terminal-semantics = { path = "../../../../psi-semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../representations/function-identity" }

@@ -27,4 +27,4 @@ terminal-semantics = { path = "../../../../psi-semantics" }
 
 
 optimization-core = { path = "../../optimization-records" }
-terminal-wire = { path = "../../../../psi-artifact/wire" }
+terminal-wire = { path = "../../../../psi/artifact/wire" }

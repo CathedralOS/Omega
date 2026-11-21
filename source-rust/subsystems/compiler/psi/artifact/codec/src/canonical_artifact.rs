@@ -764,7 +764,7 @@ mod tests {
         use ::wire::digest_encoder::{content_identity, hex};
 
         let bytes = include_bytes!(
-            "../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
+            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
         );
         let received = CanonicalTerminalArtifact::from_bytes(bytes).unwrap();
         // A fresh seal encodes the decoded fields without retaining the received semantic bytes.
