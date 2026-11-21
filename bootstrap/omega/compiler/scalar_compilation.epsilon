@@ -28,6 +28,8 @@ data OmegaCheckedValueKind {
     case ProcessTerminal;
     case LowBits;
     case SharedByteRange;
+    case QuotedBytes;
+    case SharedByteSubrange;
     case SharedByteRead;
     case ExactSubtraction;
     case NullarySumComparison;
@@ -136,6 +138,7 @@ data OmegaScalarCompiler {
     process_entry: OmegaRelativeSpan;
     terminal_calls: [i32; 4096];
     byte_ranges: [OmegaByteRange; 16384];
+    byte_subranges: [OmegaByteSubrange; 16384];
     construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];
     query_path: OmegaNamePath;
@@ -1281,6 +1284,7 @@ machine OmegaScalarCompiler::expression_type(
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
+        OmegaExpressionKind::String -> return omega_shared_byte_slice()
         OmegaExpressionKind::Integer -> return self.literal_carrier(source, row)
         OmegaExpressionKind::Boolean -> return 1
         OmegaExpressionKind::Indexed -> return self.index_result_type(source, state_index, before, expression)
@@ -1482,6 +1486,7 @@ machine OmegaScalarCompiler::check_value(
     }
     state expression_kind(row: OmegaExpressionSyntax) {
     transition row.kind {
+        OmegaExpressionKind::String -> return self.check_quoted_bytes(expression, expected)
         OmegaExpressionKind::Path -> path()
         OmegaExpressionKind::Indexed -> indexed()
         OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
@@ -2821,7 +2826,9 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::IndexedRead -> return self.emit_place_value(expression)
         OmegaCheckedValueKind::ProjectedRead -> member(self.value_payloads[expression])
         OmegaCheckedValueKind::ForwardedReference -> return self.emit_value_load(self.value_payloads[expression])
+        OmegaCheckedValueKind::QuotedBytes -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
         OmegaCheckedValueKind::SharedByteRange -> return self.emit_byte_range(expression)
+        OmegaCheckedValueKind::SharedByteSubrange -> return self.emit_byte_subrange(expression)
         OmegaCheckedValueKind::SharedByteRead -> return self.emit_shared_byte_read(expression)
         OmegaCheckedValueKind::LowBits -> return self.emit_low_bits(expression)
         OmegaCheckedValueKind::ExactSubtraction -> word(self.parser.binary_expressions[self.value_payloads[expression]])
@@ -3985,7 +3992,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state check_machine(index: i32) {
         transition (self.construction.active == 1) && (index == self.construction.unit_end) {
-            true -> emit_machine(self.construction.unit_first)
+            true -> emit_unit_literals(self.construction.unit_first)
             _ -> next_machine(index)
         }
     }
@@ -5127,7 +5134,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state adapter_ready() {
         transition self.construction.active {
             1 -> start_unit(0)
-            _ -> emit_machine(0)
+            _ -> emit_unit_literals(0)
         }
     }
     state start_unit(unit: i32) {
@@ -5147,6 +5154,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition self.prepare_nested_parameters(source, unit) {
             1 -> check_machine(self.construction.unit_first)
             _ -> return
+        }
+    }
+
+    state emit_unit_literals(first: i32) {
+        self.emission_resource = 12;
+        transition self.emit_quoted_image(source) {
+            1 -> emit_machine(first)
+            _ -> emission_failure()
         }
     }
 
@@ -7457,8 +7472,20 @@ machine OmegaScalarCompiler::check_forward_reference(
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
+        OmegaExpressionKind::String -> return self.check_quoted_bytes(expression, expected)
         OmegaExpressionKind::Path -> path(row)
+        OmegaExpressionKind::Borrow -> subrange_borrow(row)
+        OmegaExpressionKind::Indexed -> subrange(expression)
         _ -> unsupported()
+    }
+    state subrange_borrow(row: OmegaExpressionSyntax) {
+        transition row.payload1 == 0 { true -> subrange(row.payload0) _ -> unsupported() }
+    }
+    state subrange(indexed: i32) {
+        transition expected == omega_shared_byte_slice() {
+            true -> return self.check_forward_byte_subrange(source, state_index, before, expression, indexed)
+            _ -> unsupported()
+        }
     }
     state path(row: OmegaExpressionSyntax) {
         transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
@@ -7892,6 +7919,7 @@ machine OmegaScalarCompiler::prove_place_bound(
 machine OmegaScalarCompiler::pure_value(&mut self, expression: i32) -> i32 {
     transition self.parser.expressions[expression].kind {
         OmegaExpressionKind::Path -> return 1
+        OmegaExpressionKind::String -> return 1
         OmegaExpressionKind::Integer -> return 1
         OmegaExpressionKind::Boolean -> return 1
         OmegaExpressionKind::Borrow -> return self.pure_value(self.parser.expressions[expression].payload0)
@@ -8094,25 +8122,34 @@ machine OmegaScalarCompiler::guard_bound_pair(&mut self, root: i32, offset: i32,
     }
 }
 
-// Contract-bearing calls currently require pure actual expressions and a pure
-// guard. This explicit coverage boundary prevents later argument evaluation
-// from invalidating a referenced field after its guard was observed. Copied
-// snapshots remain independent; broader effect summaries are not guessed.
+// Actual arguments must preserve every fact used to prove this arrival. A
+// call in the selected condition may already have run. Discard its Boolean
+// evidence; each entry-bound proof still checks the writes recorded so far.
 machine OmegaScalarCompiler::check_call_bounds(
     &mut self, source: &[u8], state_index: i32, before: i32,
     first_argument: i32, count: i32, target: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition self.bound_count[target] == 0 {
-        true -> return 1
-        _ -> guarded()
-    }
-    state guarded() {
-        transition ((guard < 0) || (self.pure_value(guard) == 1)) &&
-            (self.pure_arguments(first_argument, count) == 1) {
-            true -> requirement(0)
+    transition self.bound_count[target] == 0 { true -> return 1 _ -> arguments() }
+    state arguments() {
+        transition self.pure_arguments(first_argument, count) {
+            1 -> condition()
             _ -> unsupported()
         }
     }
+    state condition() {
+        transition (guard >= 0) && (self.pure_value(guard) == 0) {
+            true -> return self.prove_call_bounds(source, state_index, before, first_argument, count, target, -1, 0)
+            _ -> return self.prove_call_bounds(source, state_index, before, first_argument, count, target, guard, truth)
+        }
+    }
+    state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+}
+
+machine OmegaScalarCompiler::prove_call_bounds(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    first_argument: i32, count: i32, target: i32, guard: i32, truth: i32
+) -> i32 {
+    transition true { true -> requirement(0) }
     state requirement(index: i32) {
         transition index < self.bound_count[target] {
             true -> actual(index, self.entry_bounds[self.bound_first[target] + index])
@@ -8176,6 +8213,7 @@ machine OmegaScalarCompiler::check_call_bounds(
     }
     state length(index: i32, bound: OmegaEntryBound, argument: i32) {
         transition self.value_kinds[argument] {
+            OmegaCheckedValueKind::QuotedBytes -> known(index, bound, self.parser.expressions[argument].payload2)
             OmegaCheckedValueKind::SharedByteRange -> known(index, bound, self.byte_ranges[argument].length)
             OmegaCheckedValueKind::ForwardedReference -> forward(index, bound, self.value_payloads[argument])
             _ -> unsupported()
