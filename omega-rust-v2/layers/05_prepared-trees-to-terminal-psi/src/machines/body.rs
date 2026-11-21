@@ -360,6 +360,7 @@ pub(crate) fn check_container(
     Ok(())
 }
 
+#[cfg_attr(feature = "diagnostic-origins", track_caller)]
 pub(crate) fn unsupported_node(
     file: &IndexedSource<'_>,
     node: usize,

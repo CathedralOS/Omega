@@ -274,7 +274,7 @@ impl BodyTyper<'_, '_> {
             return match self.type_expression(callee)? {
                 ty @ ValueType::Function(..) => self.mathematical_application(node_index, callee, None, ty, &source.nodes[args].children, expected),
                 ValueType::Callable(c) => self.indirect(node_index, callee, args, &c),
-                _ => Err(TypeError::at(source, callee, "indirect call requires a callable value")),
+                _ => Err(TypeError::for_reason(&crate::site_at(source, callee), crate::IndirectCallShapeError::NotCallableValue)),
             };
         }
         match self.unit.symbol(callee) {
@@ -292,7 +292,7 @@ impl BodyTyper<'_, '_> {
             }) => return Err(TypeError::at(source, callee, "logical evidence cannot be executed")),
             Some(Symbol::Binding { span, .. }) => {
                 let Some(ValueType::Callable(c)) = self.locals.get(span).cloned() else {
-                    return Err(TypeError::at(source, callee, "indirect call requires a callable value"));
+                    return Err(TypeError::for_reason(&crate::site_at(source, callee), crate::IndirectCallShapeError::NotCallableValue));
                 };
                 return self.indirect(node_index, callee, args, &c);
             }

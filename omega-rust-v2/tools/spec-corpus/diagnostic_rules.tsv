@@ -67,7 +67,7 @@ L3	a_machine_cannot_satisfy_an_ordinary_machine	Evidence and effects
 L3	a_carry_declaration_cannot_repeat_an_axis	Data and bindings
 L3	a_data_declaration_cannot_mix_fields_and_cases	Data and bindings
 L3	a_decimal_exponent_must_be_representable	Numbers and operators
-L3	an_indirect_call_requires_a_callable_parameter	Calls
+L3	an_indirect_call_requires_a_callable_parameter	Calls	indirect-call-shape:NotCallableValue
 L3	a_reflection_query_rejects_its_own_type_arguments	Calls
 L3	a_case_pattern_belongs_to_the_subject_sum	Patterns and places
 L3	an_access_policy_supplies_the_registered_plan_requirement	Access plans and progress
@@ -94,7 +94,18 @@ L3	callback_effects::open_reach_under_a_finite_ceiling	Evidence and effects	call
 L3	callback_effects::bounded_reach_exceeds_the_caller	Evidence and effects	callback-effect:ExceedsServiceReach
 L3	callback_effects::block_does_not_acknowledge_suspension	Evidence and effects	callback-effect:MissingPauseAcknowledgement
 L3	callback_effects::acknowledgement_preserves_the_caller_ceiling	Evidence and effects	callback-effect:ExceedsPauseCeiling
-L3	a_callback_call_must_match_its_declared_arity	Calls
+L3	a_callback_call_must_match_its_declared_arity	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::local_long	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::forwarded_short	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::forwarded_long	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::runtime_short	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::runtime_long	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::computed_short	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::computed_long	Calls	indirect-call-shape:OperandCountMismatch
+L3	indirect_call_shape::computed_value	Calls	indirect-call-shape:NotCallableValue
+L3	indirect_call_shape::static_contract	Calls	indirect-call-shape:MissingCallableContract
+L3	indirect_call_shape::direct_short	Calls
+L3	indirect_call_shape::direct_long	Calls
 L3	a_crash_clause_requires_a_builtin_cause	Evidence and effects	crash-declaration:UnknownCause
 L3	cleanup_cannot_publish_a_crash_route	Cleanup
 L3	cleanup_cannot_block_or_suspend	Cleanup

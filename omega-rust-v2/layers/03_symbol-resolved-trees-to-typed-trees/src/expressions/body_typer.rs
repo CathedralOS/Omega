@@ -4,7 +4,7 @@ use omega_typed::site_at;
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::place_facts;
-use crate::expressions::storage_origin::{Origin, StoragePlace};
+use crate::expressions::storage_origin::{Origin, StoragePlace, StorageRoot};
 use crate::{ObligationKind, Site, TypedStage, TypingObligation, ValueType};
 use omega_tokens::SourceSpan;
 use std::collections::{HashMap, HashSet};
@@ -29,7 +29,7 @@ pub(super) struct BodyTyper<'a, 'stage> {
     pub(super) subject: Option<ValueType>,
     pub(super) caller: Option<omega_resolved::DeclarationId>,
     /// Origins of the values bindings hold; absent means `Origin::Caller`.
-    pub(super) binding_origins: HashMap<SourceSpan, Origin>,
+    pub(super) binding_origins: HashMap<StorageRoot, Origin>,
     /// Bindings that name a field of borrowed storage in place.
     pub(super) borrowed_places: HashMap<SourceSpan, (usize, StoragePlace)>,
     /// Origins of typed expressions, by node index; absent means `Origin::Caller`.

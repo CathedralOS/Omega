@@ -40,6 +40,11 @@ typing_reasons! {
     Dispatch(DispatchError, "dispatch") {
         UncoveredSubject => "dispatch does not cover its subject",
     },
+    IndirectCallShape(IndirectCallShapeError, "indirect-call-shape") {
+        OperandCountMismatch => "incorrect callback arity",
+        NotCallableValue => "indirect call requires a callable value",
+        MissingCallableContract => "static binder requires a callable contract",
+    },
     CrashDeclaration(CrashDeclarationError, "crash-declaration") {
         GuardOnNone => "crashes none cannot carry a route guard",
         UnknownCause => "crash clause requires Trap, Abort or none",

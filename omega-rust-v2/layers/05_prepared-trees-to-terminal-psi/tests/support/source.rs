@@ -56,6 +56,10 @@ pub fn lower_prepared(
         let detail = match &product {
             Ok(_) => "produced Psi".to_owned(),
             Err(error) => {
+                #[cfg(feature = "diagnostic-origins")]
+                let suffix = origin_suffix(error.diagnostic_origin());
+                #[cfg(not(feature = "diagnostic-origins"))]
+                let suffix = "";
                 let site = &error.site;
                 let start = site.span.get_start_offset();
                 let end = site.span.get_end_offset();
@@ -69,7 +73,7 @@ pub fn lower_prepared(
                     Some(format!("{}\t{}\t{}", pos.get_line(), pos.get_column(), selected.escape_debug()))
                 });
                 format!(
-                    "refused: {message} at {}\t{}\t{}\t{start}\t{end}\t{}",
+                    "refused: {message} at {}\t{}\t{}\t{start}\t{end}\t{}{suffix}",
                     site.file,
                     site.package,
                     site.file,
@@ -84,4 +88,15 @@ pub fn lower_prepared(
         control_flow::check_operation_ownership(&machine.body).expect("lowered operation ownership");
     }
     Ok(lowered)
+}
+
+#[cfg(feature = "diagnostic-origins")]
+fn origin_suffix(origin: &std::panic::Location<'_>) -> String {
+    const PREFIX: &str = "layers/05_prepared-trees-to-terminal-psi/";
+    let path = origin.file().replace('\\', "/");
+    let relative = path.strip_prefix(PREFIX)
+        .or_else(|| path.rsplit_once(&format!("/{PREFIX}")).map(|(_, tail)| tail))
+        .unwrap_or(&path);
+    assert!(relative.starts_with("src/") && relative.ends_with(".rs"), "non-L5 origin {path}");
+    format!("\t{PREFIX}{relative}\t{}\t{}", origin.line(), origin.column())
 }

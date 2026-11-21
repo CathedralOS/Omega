@@ -250,6 +250,7 @@ enum Step<'a> {
     },
     CoerceFloat {
         site: TreeNodeId,
+        in_initializer: bool,
         carrier: ValueType,
     },
     ProjectFields { receiver: ValueType, fields: Vec<OwnedFieldRead> },
@@ -601,7 +602,7 @@ impl ConstantEvaluation<'_, '_> {
                 execution.values.push(PreparedValue::Integer(value));
             }
             Step::ApplyFloat { site, format, operation } => self.apply_float(site, format, operation, execution)?,
-            Step::CoerceFloat { site, carrier } => self.coerce_float(site, &carrier, execution)?,
+            Step::CoerceFloat { site, in_initializer, carrier } => self.coerce_float(site, in_initializer, &carrier, execution)?,
             Step::ReadArray { initializer_site } => {
                 let index = execution.pop_integer();
                 let Some(PreparedValue::Array(elements)) = execution.values.pop() else {

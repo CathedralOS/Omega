@@ -276,14 +276,14 @@ fn lower(
 ) -> Result<MachineTemplate, LoweringError> {
     let typed = prepared.typed();
     let file = tree.resolved().file;
-    let bad = || LoweringError::new(&sig.site, "open generic machine requires a closed application before lowering");
-    let params = typed.generic_parameters.get(&sig.machine).ok_or_else(bad)?;
+    const OPEN_TEMPLATE: &str = "open generic machine requires a closed application before lowering";
+    let params = typed.generic_parameters.get(&sig.machine).ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
     if file.nodes[sig.node.node].has_boundary_modifier()
         || params.witness_count != 0
         || !params.equations.is_empty()
         || file.generic_parameters(sig.node.node).count() != params.parameters.len()
     {
-        return Err(bad());
+        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     let mut parameters = Vec::new();
     let mut bounds = Vec::new();
@@ -293,7 +293,7 @@ fn lower(
         .enumerate()
     {
         if kind != param.kind {
-            return Err(bad());
+            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
         let binder = match kind {
             NodeKind::TypeParam if param.carrier.is_none() => MachineTemplateBinder::Type(TemplateBinder::Type {
@@ -304,12 +304,12 @@ fn lower(
                     .callable_bounds
                     .iter()
                     .find(|(d, i, _)| d == &sig.machine && *i == index)
-                    .ok_or_else(bad)?;
+                    .ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
                 bounds.push((index, bound));
                 let (requirement, interface) = if let Some(slot) = &bound.requirement {
                     // Nominal predicates refer to the exact requirement declaration.
                     if bound.requires || bound.has_guarantee {
-                        return Err(bad());
+                        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
                     }
                     let interface = TemplateCallable {
                         parameters: bound
@@ -342,7 +342,7 @@ fn lower(
                     let (origin, input) = prepared
                         .typed()
                         .callable_origin(&bound.contract)
-                        .ok_or_else(bad)?;
+                        .ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
                     let interface = super::type_expression::callable_interface(prepared, &origin, input, bound)?;
                     (None, interface)
                 };
@@ -351,59 +351,59 @@ fn lower(
                     signature: Box::new(interface),
                 }
             }
-            _ => return Err(bad()),
+            _ => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         };
         parameters.push(binder);
     }
     if bounds.is_empty() {
-        return Err(bad());
+        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     let effects = typed
         .machine_effects
         .iter()
         .find(|e| e.machine == sig.machine)
-        .ok_or_else(bad)?;
+        .ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
     if !effects.reach.is_empty() || effects.fixed_pause != Default::default() {
-        return Err(bad());
+        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     let invokes: Vec<_> = effects
         .invokes
         .iter()
         .map(|entry| match entry {
             InvocationTarget::StaticParameter { owner, index } if owner == &sig.machine && bounds.iter().any(|b| b.0 == *index) => Ok(*index),
-            _ => Err(bad()),
+            _ => Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         })
         .collect::<Result<_, _>>()?;
-    let body_node = file.child(sig.node.node, NodeKind::Body).ok_or_else(bad)?;
+    let body_node = file.child(sig.node.node, NodeKind::Body).ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
     let mut body = Vec::new();
     let mut result = None;
     for &statement in &file.nodes[body_node].children {
         let [outer] = *file.nodes[statement].children.as_slice() else {
-            return Err(bad());
+            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         };
         let mut call = outer;
         while file.nodes[call].kind == NodeKind::CallMarker {
             let [inner] = *file.nodes[call].children.as_slice() else {
-                return Err(bad());
+                return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
             };
             call = inner;
         }
         if result.is_some() || file.nodes[call].kind != NodeKind::Call || tree.semantics_at(statement).next().is_some() {
-            return Err(bad());
+            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
         let (operation, ty) = lower_call(tree, sig, call, &bounds)?;
         if outer != call && (operation.acknowledgements == Default::default() || (outer..call).any(|n| !typed_subject(tree, n, ty))) {
-            return Err(bad());
+            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
         if let TemplateCallTarget::StaticBinder(slot) = operation.target
             && !invokes.contains(&slot)
         {
-            return Err(bad());
+            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
         match file.nodes[statement].kind {
             NodeKind::Tail if ty == &sig.result && ty != &ValueType::NoResult => result = Some(body.len()),
             NodeKind::ExpressionStatement if ty == &ValueType::NoResult => {}
-            _ => return Err(bad()),
+            _ => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         }
         body.push(operation);
     }
@@ -412,10 +412,10 @@ fn lower(
         .keys()
         .any(|slot| !invokes.contains(slot))
     {
-        return Err(bad());
+        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     if body.is_empty() || result.is_some() != (sig.result != ValueType::NoResult) {
-        return Err(bad());
+        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     super::crash_routes::check_template_invocations(prepared, sig)?;
     Ok(MachineTemplate {

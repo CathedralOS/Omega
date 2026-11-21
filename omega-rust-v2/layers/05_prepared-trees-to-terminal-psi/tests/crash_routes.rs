@@ -173,6 +173,61 @@ fn a_generic_instance_keeps_the_route_of_its_declaration() {
 }
 
 #[test]
+fn a_nominal_member_keeps_the_selected_crash_guard_and_actual_under_an_empty_ceiling() {
+    for clause in ["", " crashes Trap v == 0 "] {
+        let source = format!(
+            "trait Step {{ machine next(v:u8)->u8; }}
+             machine risky(v:u8)->u8{clause}{{v}}
+             Local satisfies Step {{ Step::next=risky; }}
+             machine use_step<const E:Step>(n:u8)->u8{{E::next(n)}}
+             machine outer(a:u8)->u8 crashes none {{use_step::<Local>(a)}}"
+        );
+        let package = lower(&source);
+        let outer = machine(&package, "outer");
+        assert!(outer.contract.has_empty_crash_ceiling && outer.contract.crash_routes.is_empty());
+        let [call] = outer.body.operations.as_slice() else {
+            panic!("expected the application of use_step")
+        };
+        let OperationKind::Call {
+            callee: CallTarget::Machine(instance),
+            arguments,
+            ..
+        } = &call.kind
+        else {
+            panic!("expected the selected local machine")
+        };
+        psi_handoff_consumer::product_witness::call_reads_formals(&outer.body, arguments, &[0]).unwrap();
+        let wrapper = machine(&package, "use_step");
+        assert_eq!(*instance, wrapper.id);
+        let [call] = wrapper.body.operations.as_slice() else {
+            panic!("expected the call to Step::next")
+        };
+        let (selection, arguments) = psi_handoff_consumer::member_call(&package, &call.kind).unwrap();
+        assert_eq!(selection.requirement.declaration.path, "Step::next");
+        psi_handoff_consumer::product_witness::call_reads_formals(&wrapper.body, arguments, &[0]).unwrap();
+        let omega_lowering::MemberRealization::Conformance {
+            declaration,
+            machine: selected,
+        } = &selection.target
+        else {
+            panic!("expected the implementation supplied by Local")
+        };
+        assert_eq!(declaration.path, "Local");
+        let risky = machine(&package, "risky");
+        assert_eq!(*selected, risky.id);
+        if clause.is_empty() {
+            assert!(risky.contract.crash_routes.is_empty());
+        } else {
+            let [route] = risky.contract.crash_routes.as_slice() else {
+                panic!("expected one route on the selected implementation")
+            };
+            assert_eq!(route.cause, CrashCause::Trap);
+            assert_eq!(guard(route), [Formal(0), Integer(0.into()), Apply(Equal)]);
+        }
+    }
+}
+
+#[test]
 fn a_routed_callback_selection_is_refused_before_its_guard_is_lost() {
     let routed = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x}
                   data ByteStep=machine(x:u8)->u8;

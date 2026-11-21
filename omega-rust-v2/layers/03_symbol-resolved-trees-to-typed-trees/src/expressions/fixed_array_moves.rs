@@ -71,9 +71,10 @@ impl BodyTyper<'_, '_> {
         let actual = self.type_expression_with_expected_type(selector, Some(&index))?;
         self.check_destination(selector, &actual, &index)?;
         self.record_place(node, base, None, Some(crate::Projection::Index(source.node_id(selector))));
-        let origin = self.origin(base).whole();
+        let origin = self.origin(base);
         self.set_origin(node, origin);
-        let place = self.storage_place(base);
+        let mut place = self.storage_place(base);
+        place.backing = place.backing.project(super::storage_origin::Component::Element);
         self.places.insert(node, place);
         Ok(element)
     }

@@ -547,9 +547,7 @@ fn a_decimal_exponent_must_be_representable() {
 
 #[test]
 fn an_indirect_call_requires_a_callable_parameter() {
-    let source = "data Ready=machine()->bool reaches none crashes none; machine f(cb:Ready)->bool{cb()}";
-    check_source_change(source, "cb:Ready", "cb:bool",
-        "cb", "indirect call requires a callable value", "Calls");
+    indirect_call_shape::runtime_value();
 }
 
 #[test]
@@ -793,16 +791,12 @@ mod callback_effects {
     }
 }
 
+#[path = "support/indirect_call_shape.rs"]
+mod indirect_call_shape;
+
 #[test]
 fn a_callback_call_must_match_its_declared_arity() {
-    check_source_change(
-        "data Step = machine(x:u8)->u8;\nmachine apply<const F:Step>(x:u8)->u8 { F(x) }\n",
-        "F(x)",
-        "F()",
-        "F()",
-        "incorrect callback arity",
-        "Calls",
-    );
+    indirect_call_shape::local_short();
 }
 
 #[test]

@@ -60,6 +60,31 @@ fn change_selected_part(facts: &mut TypedStage) {
 const OUTSIDE: &str = "a closed argument is outside its selected carrier";
 
 #[test]
+fn an_out_of_range_static_integer_reports_the_parameter_read() {
+    let source = "machine get<const N:u8>()->u8{N} const ANSWER:u8=get::<42u8>();";
+    witness(
+        source,
+        |value| assert_eq!(*value, PreparedValue::Integer(42.into())),
+        |facts| {
+            let read = facts.expressions.iter().find(|row| row.site.span.slice(source.as_bytes()) == Some(b"N")).unwrap();
+            assert_eq!(read.static_argument_slot, Some(0));
+            assert_eq!(read.ty, BYTE);
+            assert!(!facts.landings.iter().any(|landing| landing.node == read.node));
+            let call = facts.calls.iter_mut().find(|call| call.machine.path == "get").unwrap();
+            let [ValueType::StaticInteger { value, carrier }] = call.type_arguments.as_mut_slice() else {
+                panic!("expected a closed integer argument")
+            };
+            assert_eq!(carrier.as_ref(), &BYTE);
+            assert_eq!(*value, 42.into());
+            *value = 256.into();
+        },
+        ("{N}", "N"),
+        PreparationReason::ArgumentOutsideCarrier,
+        OUTSIDE,
+    );
+}
+
+#[test]
 fn an_invalid_closed_argument_cannot_freeze_a_scalar_or_a_whole_record() {
     for (ty, body) in [("u8", "P.n"), ("Part", "P"), ("u16", "P.wide")] {
         let source = format!("data Part [copy]{{n:u8; wide:u16;}} machine get<const P:Part>()->{ty} {{{body}}} const ANSWER:{ty}=get::<Part{{n:42u8,wide:256u16}}>();");

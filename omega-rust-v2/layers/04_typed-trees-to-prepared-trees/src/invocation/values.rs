@@ -541,7 +541,8 @@ impl ConstantEvaluation<'_, '_> {
             if actual.as_ref() != carrier {
                 return Err(UNSUPPORTED_ARGUMENT.into());
             }
-            return fits(value.clone(), carrier).ok_or_else(|| UNSUPPORTED_ARGUMENT.into());
+            return fits(value.clone(), carrier)
+                .ok_or_else(|| EvaluationError::from(PreparationReason::ArgumentOutsideCarrier).at_node(resolved.file.node_id(node)));
         }
         if let Some(PreparedValue::Integer(value)) = scope.binding(tree, node, carrier) {
             return Ok(value);

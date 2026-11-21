@@ -228,11 +228,12 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<(), EvaluationError> {
         let graph = self.local_call_graph();
         let component = graph.components[index];
-        let internal_call = call
+        let active_caller = call
             .caller
             .as_ref()
             .and_then(|caller| self.signatures().get(caller))
-            .is_some_and(|&(caller, signature)| graph.components[caller] == component && execution.active.contains(&signature.node));
+            .filter(|(_, signature)| execution.active.contains(&signature.node));
+        let internal_call = active_caller.is_some_and(|&(caller, _)| graph.components[caller] == component);
         let reentry = execution.active.contains(&signature.node)
             && RecursiveApplication::select(call, |value| scope.instantiate(value)).is_none_or(|arguments| {
                 // A Build-selected provider has its own application.
@@ -251,15 +252,64 @@ impl ConstantEvaluation<'_, '_> {
         if !graph.is_cyclic(index) && reentry {
             return Err(CYCLIC_INVOCATION.into());
         }
-        self.admit_selected_termination(
-            index,
-            signature,
-            tree,
-            || RecursiveApplication::select(call, |argument| scope.instantiate(argument)),
-            edge,
-            execution,
-        )
-        .map(|_| ())
+        let application = || RecursiveApplication::select(call, |argument| scope.instantiate(argument));
+        self.admit_selected_termination(index, signature, tree, application, edge, &execution.chain)?;
+        // Direct calls from an active body inherit its completed traversal.
+        // A provider can select an implementation outside that local graph.
+        if (active_caller.is_none() || signature.machine != call.machine)
+            && graph.edges[index].iter().any(|edge| graph.reaches_ranking[edge.callee])
+        {
+            self.admit_reachable_rankings(index, application().ok_or(CYCLIC_INVOCATION)?, &execution.chain)?;
+        }
+        Ok(())
+    }
+
+    /// A local caller needs its callees' progress before it executes. Follow
+    /// every direct path to a required ranking, including untaken branches.
+    /// Each certified component has finitely many checked applications and edges.
+    fn admit_reachable_rankings(
+        &self,
+        root: usize,
+        application: RecursiveApplication,
+        entry_chain: &[TreeNodeId],
+    ) -> Result<(), EvaluationError> {
+        let graph = self.local_call_graph();
+        let mut checked = HashSet::from([(root, application.clone())]);
+        let mut chain = entry_chain.to_vec();
+        let mut pending = vec![(root, application, graph.edges[root].iter())];
+        while let Some((caller, caller_application, edges)) = pending.last_mut() {
+            let Some(edge) = edges.next() else {
+                pending.pop();
+                chain.pop();
+                continue;
+            };
+            if !graph.reaches_ranking[edge.callee] {
+                continue;
+            }
+            let caller = &self.trees.signatures[*caller];
+            let call = edge.call;
+            let caller_tree = self.tree(caller.node)?;
+            if !matches_source_occurrence(caller_tree.resolved().file, call.node, &call.site) {
+                return Err(CYCLIC_INVOCATION.into());
+            }
+            if selected_call(&caller_tree, call.node.node, call.use_site).map_err(|error| error.at_node(call.node))? != Some(call) {
+                return Err(EvaluationError::from(PreparationReason::NotOneOrdinaryInvocation).at_node(call.node));
+            }
+            let selected = RecursiveApplication::select(call, |argument| caller_application.instantiate(&caller.machine, argument)).ok_or(CYCLIC_INVOCATION)?;
+            if !checked.insert((edge.callee, selected.clone())) {
+                continue;
+            }
+            chain.push(call.node);
+            let signature = &self.trees.signatures[edge.callee];
+            let tree = self.tree(signature.node)?;
+            self.admit_selected_termination(edge.callee, signature, &tree, || Some(selected.clone()), None, &chain)
+                .map_err(|error| match error {
+                    EvaluationError::Refused(reason, None) => self.call_refusal(reason, &chain, &[]),
+                    other => other,
+                })?;
+            pending.push((edge.callee, selected, graph.edges[edge.callee].iter()));
+        }
+        Ok(())
     }
 
     pub(super) fn admit_callback_termination(
@@ -323,7 +373,7 @@ impl ConstantEvaluation<'_, '_> {
                     })
                 },
                 None,
-                execution,
+                &execution.chain,
             )?;
             // Follow the actual call even within a certified component. Its
             // termination certificate covers ranking; each edge supplies its
@@ -422,7 +472,7 @@ impl ConstantEvaluation<'_, '_> {
         tree: &TypedTree<'_>,
         application: impl FnOnce() -> Option<RecursiveApplication>,
         edge: Option<(&TypedCall, &Scope<'_>)>,
-        execution: &Execution<'_>,
+        chain: &[TreeNodeId],
     ) -> Result<Option<&CheckedRecursiveComponent<'_, '_>>, EvaluationError> {
         let file = tree.resolved().file;
         let ranked = file.nodes[signature.node.node]
@@ -480,7 +530,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         if cyclic {
             let cycle = graph.cycle_from(index);
-            return Err(self.call_refusal(CYCLIC_INVOCATION, &execution.chain, &cycle));
+            return Err(self.call_refusal(CYCLIC_INVOCATION, chain, &cycle));
         }
         Err(PreparationReason::RankedBodyNeedsProof.into())
     }
@@ -615,6 +665,7 @@ struct LocalCallGraph<'trees> {
     external_calls: Vec<Vec<&'trees TypedCall>>,
     components: Vec<usize>,
     component_sizes: Vec<usize>,
+    reaches_ranking: Vec<bool>,
 }
 
 impl<'trees> LocalCallGraph<'trees> {
@@ -692,12 +743,28 @@ impl<'trees> LocalCallGraph<'trees> {
             }
             component_sizes.push(count);
         }
-        Self {
+        let mut graph = Self {
             edges,
             external_calls,
             components,
             component_sizes,
+            reaches_ranking: vec![false; size],
+        };
+        // Most local calls need no ranking anywhere below them. Mark the
+        // callers of ranked or recursive machines once for this typed package.
+        pending.extend((0..size).filter(|&index| graph.is_cyclic(index)));
+        pending.extend(
+            trees
+                .ranking_witnesses
+                .iter()
+                .filter_map(|rank| signatures.get(&rank.machine).map(|&(index, _)| index)),
+        );
+        while let Some(index) = pending.pop() {
+            if !std::mem::replace(&mut graph.reaches_ranking[index], true) {
+                pending.extend(&reverse_edges[index]);
+            }
         }
+        graph
     }
 
     /// Recover one cycle for the refusal. The invocation itself has not run.

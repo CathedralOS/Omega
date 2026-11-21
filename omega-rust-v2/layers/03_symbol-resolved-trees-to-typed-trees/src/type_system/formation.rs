@@ -4,11 +4,12 @@ use super::type_catalog::TypeCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
 use crate::type_system::substitution::TypeInference;
-use crate::{ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
+use crate::{ObligationKind, Site, StaticValueDemand, StaticValueRequest, TypeError, TypedStage, TypingObligation, ValueType};
 use omega_resolved::{DeclarationId, TreeNodeId};
-use omega_typed::site_at;
+use omega_typed::{ClosedArguments, site_at};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 #[derive(PartialEq)]
 pub(super) enum TypeRequirement {
@@ -20,6 +21,7 @@ pub(super) enum TypeRequirement {
 pub(crate) struct SiteRequirements {
     owner: Option<DeclarationId>,
     rows: Vec<TypeRequirement>,
+    enclosing_requests: Vec<StaticValueRequest>,
 }
 pub(crate) type FormationSites = BTreeMap<(Site, TreeNodeId), SiteRequirements>;
 
@@ -70,6 +72,7 @@ impl Formations {
             .or_insert_with(|| SiteRequirements {
                 owner: unit.specialization_owner(node).cloned(),
                 rows: Vec::new(),
+                enclosing_requests: Vec::new(),
             });
         for row in requirements {
             if !checked.rows.contains(&row) {
@@ -80,10 +83,29 @@ impl Formations {
 
     pub(crate) fn check(
         &self,
+        units: &[ResolvedSourceFile<'_>],
         types: &TypeCatalog<'_>,
         output: &mut TypedStage,
     ) -> Result<(), TypeError> {
-        let sites = self.local.borrow();
+        let mut sites = self.local.borrow_mut();
+        // A type argument inside a static expression must finish formation before
+        // that expression can run. Record the recipe before closing any tuples.
+        let requests = types.indices.specialized_requests();
+        if !requests.is_empty() {
+            for ((_, node), site) in sites.iter_mut() {
+                if site
+                    .rows
+                    .iter()
+                    .any(|row| matches!(row, TypeRequirement::Application(..)))
+                {
+                    let file = units[node.file].file;
+                    site.enclosing_requests = std::iter::successors(Some(node.node), |&n| file.nodes[n].parent)
+                        .find_map(|n| requests.get(&file.node_id(n)))
+                        .cloned()
+                        .unwrap_or_default();
+                }
+            }
+        }
         let all_sites = sites
             .values()
             .chain(self.imported.into_iter().flat_map(|m| m.values()));
@@ -92,7 +114,7 @@ impl Formations {
         let mut proofs = Vec::new();
         for call in &output.calls {
             let applications = graph
-                .specialize(types, &call.machine, call.node, |ty| call.instantiate(ty))
+                .specialize(types, &call.machine, call.node, None, |ty| call.instantiate(ty))
                 .map_err(|m| TypeError::for_site(&call.site, m))?;
             graph.check_applications(types, applications, &call.site, call.node, &mut proofs)?;
         }
@@ -104,7 +126,7 @@ impl Formations {
             } = &obligation.kind
             {
                 let applications = graph
-                    .specialize(types, id, obligation.node, |ty| ty.substitute(id, generic_arguments))
+                    .specialize(types, id, obligation.node, None, |ty| ty.substitute(id, generic_arguments))
                     .map_err(|m| TypeError::for_site(&obligation.site, m))?;
                 graph.check_applications(types, applications, &obligation.site, obligation.node, &mut proofs)?;
             }
@@ -113,7 +135,7 @@ impl Formations {
             for row in &checked.rows {
                 let kind = match row {
                     TypeRequirement::Application(id, args) => {
-                        graph.check_applications(types, vec![(id.clone(), args.clone())], site, *node, &mut proofs)?;
+                        graph.check_applications(types, vec![(id.clone(), args.clone(), None)], site, *node, &mut proofs)?;
                         continue;
                     }
                     TypeRequirement::Index(ValueType::IndexedInteger { width, .. }) => ObligationKind::PositiveWidth(*width.clone()),
@@ -173,8 +195,9 @@ fn check_runtime_arguments<'a>(
     Ok(())
 }
 
-type Application = (DeclarationId, Vec<ValueType>);
-struct DeclarationRequirements<'a>(HashMap<&'a DeclarationId, Vec<&'a TypeRequirement>>);
+type Application = (DeclarationId, Vec<ValueType>, Option<Arc<StaticValueDemand>>);
+type RequirementUse<'a> = (&'a TypeRequirement, &'a [StaticValueRequest]);
+struct DeclarationRequirements<'a>(HashMap<&'a DeclarationId, Vec<RequirementUse<'a>>>);
 impl<'a> DeclarationRequirements<'a> {
     fn from_sites(
         types: &'a TypeCatalog<'_>,
@@ -189,7 +212,10 @@ impl<'a> DeclarationRequirements<'a> {
                 if matches!(row, TypeRequirement::RuntimeParameter(..)) {
                     continue;
                 }
-                by_owner.entry(owner).or_default().push(row);
+                by_owner
+                    .entry(owner)
+                    .or_default()
+                    .push((row, site.enclosing_requests.as_slice()));
                 if let TypeRequirement::Application(target, args) = row {
                     for (scope, _) in types.scoped_arguments(target, args) {
                         callers.entry(scope).or_default().push(owner);
@@ -216,19 +242,42 @@ impl<'a> DeclarationRequirements<'a> {
         types: &TypeCatalog<'_>,
         owner: &DeclarationId,
         node: TreeNodeId,
+        consumer: Option<&Arc<StaticValueDemand>>,
         apply: impl Fn(&ValueType) -> ValueType,
     ) -> Result<Vec<Application>, String> {
         let mut nested = Vec::new();
-        for row in self.0.get(owner).into_iter().flatten() {
+        for &(row, requests) in self.0.get(owner).into_iter().flatten() {
             match row {
                 TypeRequirement::RuntimeParameter(..) => {}
                 TypeRequirement::Index(value) => {
                     let applied = apply(value);
                     applied.validate_closed_indices()?;
-                    types.indices.retain_demands_at(node, &applied);
+                    if types.indices.retain_demands_at(node, &applied)
+                        && let Some(consumer) = consumer
+                    {
+                        types.indices.block_demand(consumer);
+                    }
                 }
                 TypeRequirement::Universe(subject, sort) => TypeCatalog::check_universe_member(&apply(subject), &apply(sort))?,
-                TypeRequirement::Application(id, args) => nested.push((id.clone(), args.iter().map(&apply).collect())),
+                TypeRequirement::Application(id, args) => {
+                    let arguments: Vec<_> = args.iter().map(&apply).collect();
+                    if !requests.is_empty() {
+                        let formals = types.specialization_formals(owner);
+                        let selected = formals.iter().map(&apply).collect::<Vec<_>>();
+                        if let Ok(closed) = ClosedArguments::try_from(selected) {
+                            let selected = closed.into_values();
+                            for request in requests {
+                                let dependent = StaticValueDemand::Specialized {
+                                    request: request.clone(),
+                                    arguments: selected.clone(),
+                                };
+                                nested.push((id.clone(), arguments.clone(), Some(Arc::new(dependent))));
+                            }
+                            continue;
+                        }
+                    }
+                    nested.push((id.clone(), arguments, consumer.cloned()));
+                }
             }
         }
         Ok(nested)
@@ -250,7 +299,7 @@ impl<'a> DeclarationRequirements<'a> {
         let mut active = HashSet::new();
         let mut checked = HashSet::new();
         while let Some(step) = work.pop() {
-            let (id, args) = match step {
+            let (id, args, consumer) = match step {
                 Work::Leave(id) => {
                     active.remove(&id);
                     continue;
@@ -268,7 +317,7 @@ impl<'a> DeclarationRequirements<'a> {
             let mut nested = Vec::new();
             for (scope, _) in types.scoped_arguments(&id, &args) {
                 nested.extend(
-                    self.specialize(types, scope, node, |value| types.apply_type_arguments(value, &id, &args))
+                    self.specialize(types, scope, node, consumer.as_ref(), |value| types.apply_type_arguments(value, &id, &args))
                         .map_err(|m| TypeError::for_site(site, m))?,
                 );
             }
