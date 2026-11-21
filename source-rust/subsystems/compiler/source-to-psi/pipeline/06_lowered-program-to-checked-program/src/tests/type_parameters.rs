@@ -1555,8 +1555,21 @@ fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
         "machine measure<T>(value: @T) -> u64",
         "machine measure<T>(value: @T) -> u64 reaches Output",
     );
-    let form = callback_form(&effectful).expect("the effectful nested callback lowers");
-    let refusal = crate::checking::static_contracts::admit(&form).unwrap_err();
+    // Lower with an upper bound that genuinely permits Output. Tighten the
+    // exact outer question after lowering to exercise this checker directly.
+    let allowed = effectful.replace("u64 reaches none;", "u64 reaches Output;");
+    let mut effectful = callback_form(&allowed).expect("the nested callback may reach Output");
+    let selected = effectful
+        .static_reach_applications
+        .iter()
+        .flat_map(|row| &row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap()
+        .conformance;
+    effectful.static_conformances[selected as usize]
+        .envelope
+        .service_reach = terminal_check_tables::contracts::StaticServiceCeiling::Closed(Vec::new());
+    let refusal = crate::checking::static_contracts::admit(&effectful).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Conflict, "{refusal:?}");
     assert_eq!(
         refusal.detail,
