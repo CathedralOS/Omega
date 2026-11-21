@@ -1074,7 +1074,7 @@ fn a_library_constructor_keeps_its_guarantees_in_its_defining_forest() {
         !library
             .obligations
             .iter()
-            .any(|o| matches!(o.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(_))),
+            .any(|o| matches!(&o.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(owner) if owner == selected)),
         "a checked body is not a bodyless library implementation"
     );
     assert!(!unused.calls.iter().any(|c| &c.machine == selected));

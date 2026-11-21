@@ -380,7 +380,7 @@ fn borrowed_local_scalar_is_homed_and_read_through_its_float_view() {
     let OperationResult::Scalar(initializer) = constant.result else {
         panic!("the initializer is a scalar")
     };
-    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: initializer });
+    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: initializer, receiving_domains: None });
     let OperationResult::Structural(home_place) = home.result else {
         panic!("the home is a place")
     };
@@ -449,7 +449,7 @@ fn borrowed_scalar_formal_has_one_home_for_every_view() {
     let [home, first, second, read] = body.operations.as_slice() else {
         panic!("expected home, two calls and a read: {:#?}", body.operations)
     };
-    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: formal });
+    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: formal, receiving_domains: None });
     let OperationResult::Structural(home_place) = home.result else {
         panic!("the home is a place")
     };
@@ -508,7 +508,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     else {
         panic!("a scalar initializer, a home and a descriptor")
     };
-    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: one });
+    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: one, receiving_domains: None });
     assert_eq!(body.mutable_homes, [home_place]);
     assert!(
         matches!(&borrow.kind, OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared } if source.root == home_place && source.path.is_empty())
@@ -742,4 +742,39 @@ fn a_borrowed_scalar_home_stays_in_the_parked_activation() {
             "{src}"
         );
     }
+}
+
+#[test]
+fn borrowing_a_qualified_scalar_preserves_the_receiving_predicate_at_its_home() {
+    let case = include_str!("fixtures/package_cases/borrow-of-a-qualified-scalar-formal/case/case.omg");
+    let control = include_str!("fixtures/package_cases/borrow-of-a-qualified-scalar-formal/control/case.omg");
+    let package = sources::lower(&[("case.omg", case)]).unwrap();
+    let control = sources::lower(&[("case.omg", control)]).unwrap();
+    let observed = |p: &LoweredPackage| {
+        let m = &p.machines[0];
+        let (formal, set) = psi_handoff_consumer::borrowed_scalar_formal(p, m).unwrap();
+        let domains = set.into_iter().flat_map(|set| p.types.domain_atoms(set).unwrap()).map(|(decl, args)| {
+            assert!(args.is_empty());
+            decl.clone()
+        }).collect::<Vec<_>>();
+        (formal, domains)
+    };
+    let [small] = &package.domains[..] else { panic!("expected a single domain") };
+    assert_eq!(small.declaration.path, "u8::Small");
+    let requirement = &package.machines[0].contract.requires;
+    let [clause] = &requirement[..] else { panic!("expected the entry predicate of Small") };
+    assert_eq!(clause.predicate, [
+        omega_psi::PredicateStep::Formal(0), omega_psi::PredicateStep::Integer(10.into()),
+        omega_psi::PredicateStep::Apply(omega_psi::PredicateOperator::LessThan)
+    ]);
+    spec_corpus::observe_handoff!(psi "psi-output/qualified-scalar-home", assert_eq!(
+        (observed(&package), observed(&control)), ((0, vec![small.declaration.clone()]), (1, vec![]))
+    ));
+    let mut corrupt = package;
+    let home = corrupt.machines[0].body.operations.iter_mut().find_map(|op| match &mut op.kind {
+        OperationKind::EstablishPrimitiveLocal { receiving_domains, .. } => Some(receiving_domains),
+        _ => None,
+    }).unwrap();
+    *home = None;
+    assert!(psi_handoff_consumer::borrowed_scalar_formal(&corrupt, &corrupt.machines[0]).is_none());
 }

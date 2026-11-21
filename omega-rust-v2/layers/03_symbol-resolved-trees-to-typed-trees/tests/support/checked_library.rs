@@ -430,13 +430,88 @@ fn guarantee_rows<'a>(
         .collect()
 }
 
-fn implementation_rows(library: &CheckedLibrary) -> usize {
-    library
-        .trees
-        .obligations
-        .iter()
-        .filter(|o| matches!(o.kind, crate::ObligationKind::VerifyLibraryImplementation(_)))
-        .count()
+/// Inspect the declarations independently of L3's signature flags and obligation emission.
+#[derive(Default)]
+struct ImplementationAudit {
+    machines: usize,
+    supplied: usize,
+    exempt_guarantees: usize,
+    eligible: std::collections::BTreeSet<omega_resolver::DeclarationId>,
+}
+
+fn audit_library(library: &CheckedLibrary) -> ImplementationAudit {
+    use omega_parser::NodeKind::{Body, Ensures, Machine};
+    let core = omega_toolchain::core_interface();
+    let mut audit = ImplementationAudit::default();
+    let mut supplied = std::collections::BTreeSet::new();
+    let collections: std::collections::BTreeSet<_> = omega_toolchain::CollectionPrimitive::ALL.into_iter().map(|id| core.collection(id)).collect();
+    for tree in library.trees.trees() {
+        let source = tree.resolved();
+        for (node, machine) in source.declaration_nodes().filter(|(_, id)| id.kind == Machine) {
+            audit.machines += 1;
+            if !core.supplies(machine) {
+                continue;
+            }
+            assert!(supplied.insert(machine), "duplicate catalog declaration {machine:?}");
+            assert!(source.file.child(node, Body).is_none(), "two supplies for {machine:?}");
+            if source.file.child(node, Ensures).is_some() {
+                if collections.contains(machine) {
+                    audit.exempt_guarantees += 1;
+                } else {
+                    assert!(audit.eligible.insert(machine.clone()), "duplicate eligible machine {machine:?}");
+                }
+            }
+        }
+    }
+
+    // A partial forest cannot establish catalog-wide absence. Reconcile the exact
+    // identities of both rankings, the layout queries and every collection primitive.
+    let mut expected = collections;
+    expected.extend(core.ranking_views().into_iter().map(|(ranking, _)| ranking));
+    expected.extend([core.id("size_of"), core.id("align_of")]);
+    assert_eq!(supplied, expected, "the audited declarations must cover every closed-catalog supply");
+    audit.supplied = supplied.len();
+
+    let mut emitted = std::collections::BTreeSet::new();
+    for row in &library.trees.obligations {
+        if let crate::ObligationKind::VerifyLibraryImplementation(machine) = &row.kind {
+            let tree = library.trees.trees().nth(row.node.file).unwrap();
+            assert_eq!(tree.resolved().declaration_at(row.node.node), Some(machine));
+            assert!(tree.semantics_at(row.node.node).any(|fact| matches!(fact, crate::NodeSemantics::Obligation(found) if found == row)));
+            assert!(emitted.insert(machine.clone()), "duplicate implementation debt for {machine:?}");
+        }
+    }
+    assert_eq!(emitted, audit.eligible, "the library must owe every qualifying declaration exactly once");
+    audit
+}
+
+#[test]
+fn audit_closed_catalog_guarantees_against_their_implementation_obligations() {
+    let shipped = audit_library(super::checked_library());
+    let core = omega_toolchain::core_interface();
+    let rank = core.id(r"Nat\Descending");
+
+    // Preserve the authorized identity and change one clause in its own package.
+    let (changed, _) = check_toolchain("language/core/Nat/nat.omg", |text| {
+        let signature = "public machine Descending(value: u64) -> u64";
+        assert_eq!(text.matches(signature).count(), 1);
+        text.replace(signature, &format!("{signature} ensures result == value"))
+    }).unwrap();
+    let mut expected = shipped.eligible.clone();
+    expected.insert(rank.clone());
+    assert_eq!(audit_library(changed).eligible, expected);
+
+    // An actual caller selects the altered declaration. Its implementation debt
+    // belongs to the defining library even when an importer relies on the guarantee.
+    let caller = resolve("client", r"use omega\language\core\Nat; machine use_rank(x: u64) -> u64 { Descending(x) }",
+        &[Dependency { requester: "client", alias: "omega", package: omega_toolchain::TOOLCHAIN_PACKAGE }], core.exports());
+    let client = type_admitted_stage(&caller, Some(changed), &Default::default()).unwrap();
+    assert!(client.calls.iter().any(|call| &call.machine == rank));
+    assert!(client.obligations.iter().all(|row| !matches!(&row.kind, crate::ObligationKind::VerifyLibraryImplementation(_))));
+
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        println!("OMEGA_LIBRARY_IMPLEMENTATION_AUDIT\t{}\t{}\t{}\t{}", shipped.machines, shipped.supplied, shipped.exempt_guarantees, shipped.eligible.len());
+    }
 }
 
 /// The toolchain types `access\new_plan` as an ordinary checked body. Its four guarantees
@@ -498,11 +573,7 @@ fn the_toolchain_checks_new_plan_as_an_ordinary_body_and_keeps_its_guarantees_op
                 .any(|fact| matches!(fact, crate::NodeSemantics::Obligation(found) if found == *row))
         );
     }
-    assert_eq!(
-        implementation_rows(library),
-        0,
-        "no supplied bodyless machine outside the collection family publishes a guarantee"
-    );
+    assert!(!audit_library(library).eligible.contains(constructor));
 }
 
 /// The signature/bodyless twin. The same declaration without its body, in the toolchain's own
@@ -616,7 +687,7 @@ fn altered_guarantees_become_the_bodys_own_open_rows() {
             "result.reach.service_count == 0"
         ]
     );
-    assert_eq!(implementation_rows(library), 0);
+    assert!(!audit_library(library).eligible.contains(constructor));
     let Err(error) = check_toolchain(ACCESS_FILE, |text| bodyless(&alter(text))) else {
         panic!("an altered bodyless new_plan must not type")
     };

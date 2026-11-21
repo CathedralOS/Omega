@@ -14,6 +14,7 @@ pub(crate) struct TraitSchema<'a> {
     pub declaration: &'a DeclarationId,
     public: bool,
     boundary: bool,
+    parent: Option<crate::TemplateRequirementSlot>,
     restriction: Option<crate::TraitRestriction>,
     site: Site,
     parameters: Vec<crate::TemplateBinder>,
@@ -85,6 +86,7 @@ pub(crate) fn read_trait<'a>(
             declaration,
             public: resolved.is_exported(node),
             boundary: false,
+            parent: None,
             restriction: Some(crate::TraitRestriction {
                 base: crate::TemplateRequirementSlot { declaration: crate::identity::declaration(&base.declaration, &site)?, arguments: Vec::new() },
                 all_members,
@@ -95,9 +97,17 @@ pub(crate) fn read_trait<'a>(
             requirements: Vec::new(),
         });
     }
+    let mut parent = None;
     let mut dependent_requirements = Vec::new();
     for &child in &file.nodes[node].children {
         if file.nodes[child].kind == NodeKind::GenericParams && file.generic_parameters(node).count() == parameters.len() {
+            continue;
+        }
+        if file.nodes[child].kind == NodeKind::PathType {
+            let applied = prepared.typed().trait_parents.get(declaration)
+                .filter(|base| parent.is_none() && matches!(resolved.symbol(child), Some(omega_resolved::Symbol::Declaration(id)) if id == &base.declaration))
+                .ok_or_else(|| LoweringError::new(&site_at(tree, child), "trait inheritance lacks its checked parent application"))?;
+            parent = Some(super::members::slot(&applied.declaration, &applied.trait_arguments, &site_at(tree, child))?);
             continue;
         }
         if file.nodes[child].kind != NodeKind::Machine {
@@ -193,6 +203,7 @@ pub(crate) fn read_trait<'a>(
         site,
         public: resolved.is_exported(node),
         boundary: file.nodes[node].has_boundary_modifier(),
+        parent,
         restriction: None,
         parameters,
         dependent_requirements,
@@ -304,6 +315,7 @@ impl<'a> TraitSchema<'a> {
             declaration: crate::identity::declaration(self.declaration, &self.site)?,
             public: self.public,
             boundary: self.boundary,
+            parent: self.parent,
             restriction: self.restriction,
             parameters: self.parameters,
             dependent_requirements: self.dependent_requirements,

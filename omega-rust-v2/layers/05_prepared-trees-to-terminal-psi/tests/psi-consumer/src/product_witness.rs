@@ -157,7 +157,7 @@ fn disposes_beneath(
     root: PlaceId,
 ) -> bool {
     actions.iter().any(|action| match action {
-        CleanupAction::DiscardRoot(place) => *place == root,
+        CleanupAction::DiscardRoot(place) | CleanupAction::RetireHome(place) => *place == root,
         CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => place.root == root,
     })
 }
@@ -314,6 +314,66 @@ fn discards(
         };
         cleanup.contains(&CleanupAction::DiscardRoot(place))
     })
+}
+
+/// Return the captured move and actual store selector for each element returned
+/// to the view in extraction order. Every store must install its corresponding
+/// removed value; only the stated unconsumed formals may die on return.
+pub fn returned_element_repairs(
+    machine: &omega_psi::LoweredMachine,
+    view: usize,
+    discarded_formals: &[usize],
+    entry_equalities: &[(usize, usize)],
+) -> Result<Vec<(omega_psi::ValueId, omega_psi::ValueId)>, String> {
+    use omega_psi::{PlaceOrigin, PredicateOperator, PredicateStep};
+    if machine.contract.requires.len() != entry_equalities.len()
+        || !machine
+            .contract
+            .requires
+            .iter()
+            .zip(entry_equalities)
+            .all(|(clause, &(left, right))| {
+                clause.predicate
+                    == [
+                        PredicateStep::Formal(left),
+                        PredicateStep::Formal(right),
+                        PredicateStep::Apply(PredicateOperator::Equal),
+                    ]
+            })
+    {
+        return Err("the machine's entry clauses differ from the authored selector equalities".into());
+    }
+    let body = &machine.body;
+    let (moves, stores) = element_window(body, structural_formal(body, view)?)?;
+    let [block] = body.blocks.as_slice() else {
+        return Err("expected a straight-line returning body".into());
+    };
+    let BlockTerminator::Return { cleanup, .. } = &block.terminator else {
+        return Err("expected a normal return".into());
+    };
+    let expected = discarded_formals
+        .iter()
+        .map(|&formal| structural_formal(body, formal).map(CleanupAction::DiscardRoot))
+        .collect::<Result<Vec<_>, _>>()?;
+    if cleanup != &expected || moves.len() != stores.len() || moves.is_empty() {
+        return Err(format!("unexpected displacement or cleanup: {moves:?}, {stores:?}, {cleanup:?}"));
+    }
+    moves
+        .into_iter()
+        .zip(stores)
+        .map(|((captured, old), (written, value, disposition))| {
+            let forwarded = value == old
+                || matches!(body.places.get(value.index()).map(|p| &p.origin),
+                Some(PlaceOrigin::Operation(transfer)) if matches!(
+                    body.operations.get(transfer.index()).map(|op| &op.kind),
+                    Some(OperationKind::MoveStructural { source }) if source.root == old && source.path.is_empty()
+                ));
+            if !forwarded || disposition != &StructuralStoreDisposition::FillVacancy {
+                return Err("the store fails to forward its extracted value into a vacancy".into());
+            }
+            Ok((captured, written))
+        })
+        .collect()
 }
 
 /// Under an authored `vacated == stored` entry clause, the program's one extraction vacates

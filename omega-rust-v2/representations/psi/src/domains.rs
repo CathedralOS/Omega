@@ -8,6 +8,8 @@ pub struct LoweredDomain<C = TypeId> {
     pub declaration: DeclarationId,
     /// Subject of `requires`: a concrete type or an open carrier recipe scoped by this declaration.
     pub carrier: C,
+    /// Selected cleanup of an owned occurrence carrying this domain.
+    pub cleanup_target: Option<crate::MachineId>,
     pub public: bool,
     pub requires: Vec<ContractClause>,
     pub site: Site,

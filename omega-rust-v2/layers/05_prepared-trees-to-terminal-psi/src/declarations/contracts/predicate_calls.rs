@@ -50,24 +50,24 @@ pub(super) fn application<'a>(
         return Err(refuse("predicate application disagrees with its result or clause owner"));
     }
     let unsupported = || LoweringError::new(&site, HelperUse::Predicate.unsupported(&call.machine));
-    let (sig, progress, count) = checked_helper(prepared, call, precondition, &site, HelperUse::Predicate)?;
-    let [callee, args] = *file.nodes[node].children.as_slice() else {
-        return Err(unsupported());
+    let callback = tree.callback_invocation(node);
+    let usage = if callback.is_some() { HelperUse::CallbackPredicate } else { HelperUse::Predicate };
+    let (sig, progress, count) = checked_helper(prepared, call, precondition, &site, usage)?;
+    let arguments = match (file.nodes[node].kind, file.nodes[node].children.as_slice()) {
+        (NodeKind::Call, [callee, args]) if file.nodes[*callee].kind == NodeKind::PathExpression
+            && file.nodes[*callee].children.is_empty()
+            && tree.semantics_at(*callee).next().is_none()
+            && file.nodes[*args].kind == NodeKind::Args
+            && tree.semantics_at(*args).next().is_none() => file.nodes[*args].children.as_slice(),
+        (NodeKind::Binary | NodeKind::Unary, arguments) if callback.is_none()
+            && file.operator(node).zip(sig.operator.as_ref()).is_some_and(|(syntax, selected)| syntax.token == selected.token) => arguments,
+        _ => return Err(unsupported()),
     };
-    if file.nodes[callee].kind != NodeKind::PathExpression
-        || !file.nodes[callee].children.is_empty()
-        || tree.semantics_at(callee).next().is_some()
-        || file.nodes[args].kind != NodeKind::Args
-        || tree.semantics_at(args).next().is_some()
-    {
-        return Err(unsupported());
-    }
-    let arguments = &file.nodes[args].children;
     if sig.result != call.result || arguments.len() != call.operands.len() || call.operands.len() != sig.parameters.len() {
         return Err(refuse("predicate application disagrees with its selected signature"));
     }
     let result = scalar_carrier(ty).map_err(|_| unsupported())?;
-    let mut operands = Vec::with_capacity(arguments.len());
+
     let mut terms = Vec::with_capacity(arguments.len());
     for ((&node, actual), (span, formal)) in arguments.iter().zip(&call.operands).zip(&sig.parameters) {
         if actual.node != file.node_id(node)
@@ -82,16 +82,23 @@ pub(super) fn application<'a>(
         if matches!(actual.subject, ValueType::Subject { version: Some(_), .. }) {
             return Err(unsupported());
         }
-        operands.push(scalar_carrier(formal).map_err(|_| unsupported())?);
         terms.push((node, formal));
     }
-    let step = PredicateStep::MachineApplication {
-        callee: crate::identity::declaration(&call.machine, &site)?,
-        operands,
-        result,
-        requirements: 0..count,
-        progress,
-        site,
+    let callee = crate::identity::declaration(&call.machine, &site)?;
+    let step = match callback {
+        Some((binder, clauses)) => PredicateStep::CallbackApplication {
+            binder, callee,
+            operands: terms.iter().map(|(_, formal)| scalar_carrier(formal).map_err(|_| unsupported())).collect::<Result<_, _>>()?,
+            result, bound_requirements: 0..clauses, progress, site,
+        },
+        None => PredicateStep::MachineApplication {
+            callee,
+            operands: terms.iter().map(|(_, formal)| match formal {
+                ValueType::Nominal(data) if data.kind == NodeKind::Data => super::super::type_expression::type_expression(formal, &site),
+                _ => scalar_carrier(formal).map(Into::into).map_err(|_| unsupported()),
+            }).collect::<Result<_, _>>()?,
+            result, requirements: 0..count, progress, site
+        },
     };
     Ok((step, terms))
 }
@@ -101,6 +108,8 @@ pub(super) fn application<'a>(
 pub(crate) enum HelperUse {
     /// A machine application inside a contract predicate.
     Predicate,
+    /// A checked static binder selected a local machine at this predicate use.
+    CallbackPredicate,
     /// A machine cited as a step of a theorem proof.
     Proof,
 }
@@ -111,14 +120,14 @@ impl HelperUse {
         machine: &DeclarationId,
     ) -> String {
         match self {
-            Self::Predicate => format!("unsupported machine call `{}` in a Psi contract predicate", machine.path),
+            Self::Predicate | Self::CallbackPredicate => format!("unsupported machine call `{}` in a Psi contract predicate", machine.path),
             Self::Proof => format!("unsupported machine `{}` cited in a theorem proof", machine.path),
         }
     }
 
     fn name(self) -> &'static str {
         match self {
-            Self::Predicate => "predicate application",
+            Self::Predicate | Self::CallbackPredicate => "predicate application",
             Self::Proof => "proof citation",
         }
     }
@@ -193,7 +202,11 @@ pub(crate) fn checked_helper<'a>(
         .iter()
         .filter(|&&n| source.nodes[n].kind == NodeKind::Requires)
         .count();
-    if precondition != sig.requires.then_some(&sig.machine) || sig.requires != (count != 0) {
+    // An indirect call has no direct-target precondition occurrence in the
+    // template. Its selected binder supplies the caller debts, and refinement
+    // must establish the selected target's requirements.
+    let expected = (usage != HelperUse::CallbackPredicate && sig.requires).then_some(&sig.machine);
+    if precondition != expected || sig.requires != (count != 0) {
         return Err(refuse(format!("{} lacks its selected call precondition", usage.name())));
     }
     Ok((sig, progress, count))

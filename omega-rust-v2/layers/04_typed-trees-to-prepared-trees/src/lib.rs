@@ -38,7 +38,7 @@ pub use reasons::{PreparationReason, PreparationRefusal, RefusalCause};
 pub use omega_prepared::{
     AddressSpaceIdentity, CertifiedResources, ConstantMaterialization, ConstantMaterializationError, Endianness, EntryProfileIdentity, EntryStackGuarantee,
     LayoutExtent, LayoutGeometry, MaterializationComponent, MaterializationError, PreparationDependencies, PreparationGrant, PreparationResourceReceipt,
-    PreparedFloat, PreparedTrees, PreparedValue, PreparedValueOrigin, SelectedLayout, SelectedTargetProperty, TargetIdentity, TargetObservation,
+    PolicySchemaInput, PreparedFloat, PreparedTrees, PreparedValue, PreparedValueOrigin, SelectedLayout, SelectedTargetProperty, TargetIdentity, TargetObservation,
     TargetProperty, TargetPropertyQuery, TargetSemantics, TargetSemanticsError, ValueInputs,
 };
 pub use omega_target_contract::{FloatFormat, FloatOperation, FloatRealization, FloatSemantics};

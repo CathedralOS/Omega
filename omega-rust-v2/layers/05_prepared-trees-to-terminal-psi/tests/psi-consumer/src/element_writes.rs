@@ -40,7 +40,7 @@ pub fn element_writes(
             return Err("this reader checks whole scalar elements only");
         }
         let place = body.places.get(destination.index()).ok_or("missing destination")?;
-        let Some(TypeShape::MutableScalarElementView { element }) = package.types.get(place.ty) else {
+        let Some(TypeShape::MutableElementView { element: omega_psi::ViewElement::Scalar(element) }) = package.types.get(place.ty) else {
             return Err("an element write needs an exclusive scalar element view");
         };
         let formal = match place.origin {

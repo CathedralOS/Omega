@@ -298,3 +298,39 @@ fn a_guarded_crash_is_published_as_its_route_not_an_unconditional_ceiling() {
     };
     assert_eq!((route.cause, route.guard.as_ref()), (omega_lowering::CrashCause::Trap, None));
 }
+
+#[test]
+fn a_trait_publishes_its_direct_applied_parent() {
+    let case = include_str!("fixtures/package_cases/declared-trait-parent/case/case.omg");
+    let control = include_str!("fixtures/package_cases/declared-trait-parent/control/case.omg");
+    let resolved = sources::resolve(&[("case.omg", case)]);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let parents = &prepared.typed().trait_parents;
+    let (child, base) = parents.iter().find(|(child, _)| child.path == "C").unwrap();
+    assert_eq!((child.path.as_str(), base.declaration.path.as_str(), base.trait_arguments.len()), ("C", "P", 0));
+    let pkg = sources::lower_prepared(&prepared, &[("case.omg", case)]).unwrap();
+    drop(prepared);
+    let plain = sources::lower(&[("case.omg", control)]).unwrap();
+    let get = psi_handoff_consumer::declared_trait_parent;
+    let parent = get(&pkg, "C").unwrap().unwrap();
+    spec_corpus::observe_handoff!(psi "psi-output/declared-trait-parent", assert_eq!(
+        ((parent.0.declaration.path.as_str(), parent.1.len()), get(&plain, "C"), get(&pkg, "P")),
+        (("P", 0), Some(None), Some(None))
+    ));
+
+    let source = "trait P<T>{machine id(x:T)->T;} trait Q<T>{machine id(x:T)->T;} trait C:Q<u8>{}
+                  machine same(x:u8)->u8{x} Selected satisfies C {Q::id = same;}";
+    let pkg = sources::lower(&[("case.omg", source)]).unwrap();
+    let (parent, arguments) = get(&pkg, "C").unwrap().unwrap();
+    let [requirement] = &parent.dependent_requirements[..] else { panic!("expected parent's id") };
+    let [row] = &pkg.conformances[0].members[..] else { panic!("expected inherited row") };
+    assert_eq!(requirement.declaration.path, "Q::id");
+    assert_eq!(row.requirement.declaration, requirement.declaration);
+    assert_eq!(row.implementation.path, "same");
+    let byte = omega_psi::TypeExpression(vec![omega_psi::TypeExpressionStep::Scalar(ScalarType::Integer { signed: false, width: 8 })]);
+    spec_corpus::observe_handoff!("ordinary-trait-parent/consumer", {
+        assert_eq!(parent.declaration.path, "Q");
+        assert_eq!(arguments, std::slice::from_ref(&byte));
+        assert_eq!(row.requirement.arguments.as_slice(), arguments);
+    });
+}

@@ -129,8 +129,17 @@ class PackageCaseTests(unittest.TestCase):
 
     def test_the_real_registry_names_existing_fixtures_contract_sections_and_byte_ranges(self):
         rows = package_cases.validate(package_cases.registrations())
-        self.assertTrue(rows)
         self.assertEqual(len({r["case"] for r in rows}), len(rows))
+
+    def test_after_the_last_case_moves_to_native_tests_the_empty_queue_needs_no_cli(self):
+        registry = self.fixtures / "empty.tsv"
+        registry.write_text("\t".join(package_cases.FIELDS) + "\n", encoding="utf-8")
+        observed = report()
+        package_cases.apply(observed, package_cases.registrations(registry), fixtures=self.fixtures)
+        self.assertEqual(observed["measurement_errors"], [])
+        self.assertEqual(observed["package_cases"], {
+            "registered": 0, "reproduced": [], "unreconciled": {}, "inputs": {},
+        })
 
 
 class CompletionTests(unittest.TestCase):
@@ -145,7 +154,7 @@ class CompletionTests(unittest.TestCase):
         self.assertIn("**Not complete through L5.**", text)
         self.assertIn("| Executable cases measured by native tests | program | 1 | yes |", text)
         self.assertIn("| Executable cases measured only by the package command (no Psi product or consumer check) | program | 1 | yes |", text)
-        self.assertIn("| Typed obligation kinds without a credited Psi property | unverified obligation | 1 | yes |", text)
+        self.assertIn("| Applicable or unmeasured typed obligation kinds without a credited Psi property | unverified obligation | 1 | yes |", text)
         self.assertIn("| Cases whose Psi is compared and await the L6 judgement | program | 1 | no (L6 owns the verdict) |", text)
         self.assertIn("Unverified obligations: EvaluateAccessPlan.", text)
 

@@ -201,7 +201,7 @@ fn a_theorem_body_cites_a_checked_machine_at_erased_subjects() {
         .iter()
         .map(|step| match step {
             ProofStep::CiteMachine { subjects, .. } => subjects.clone(),
-            ProofStep::Bind { .. } => panic!("no binding expected"),
+            _ => panic!("expected a machine citation"),
         })
         .collect();
     assert_eq!(
@@ -331,38 +331,62 @@ fn citing_a_theorem_from_executable_code_applies_it_without_a_runtime_call() {
 }
 
 #[test]
-fn a_subject_computed_from_a_variable_has_no_erased_term() {
-    // Psi has no erased arithmetic term, and computing x+1 at runtime would
-    // make an erased citation demand x and possibly trap. Each form stops at
-    // its operand, in an executable citation and in a theorem proof alike.
+fn computed_subjects_retain_erased_arithmetic_and_its_formation_obligation() {
     let theorem = THEOREM.replace("requires trusted(x) ", "");
     let executable = format!("{theorem} {LEMMA} machine run(x:u8) requires x != 0 {{theorem::<lemma>(x,x+1);}}");
     let cited = format!("{} {LEMMA}", theorem.replace("{}", "{ lemma(x+1); }"));
     let bound = format!("{} {LEMMA}", theorem.replace("{}", "{ let w = x + 1; }"));
-    for (text, occurrence) in [(&executable, "x+1"), (&cited, "x+1"), (&bound, "x + 1")] {
-        sources::refuse(
-            &[("proof.omg", text)],
-            "proof.omg",
-            sources::unique_span(text, occurrence),
-            "a theorem subject other than a variable or a closed literal needs an erased subject term",
-        );
-    }
+    let wrapping = executable.replace("x+1", "x+%1");
+    let observe = |text: &str, source: &str| {
+        let pkg = sources::lower(&[("proof.omg", text)]).unwrap();
+        use omega_psi::{OperationKind, Parameter, ProofInput, ProofStep, ProofSubject};
+        let decide = |subject: &ProofSubject<ProofInput>, expected| [1,255].map(|v| psi_handoff_consumer::byte_subject_addition(subject, expected, v));
+        if let Some(run) = pkg.machines.iter().find(|m| m.declaration.path == "run") {
+            let [op] = &run.body.operations[..] else { panic!("erased operand emitted an executable operation") };
+            let OperationKind::ApplyTheorem(app) = &op.kind else { panic!("expected citation") };
+            let Parameter::Scalar(input) = run.body.parameters[0] else { panic!("expected scalar") };
+            let [_, subject] = &app.subjects[..] else { panic!("expected both subjects") };
+            let ProofSubject::IntegerTerm(steps) = subject else { panic!("missing erased term") };
+            assert!(matches!(steps.last(), Some(omega_psi::ProofIntegerStep::Operation {site, ..}) if site.span.slice(text.as_bytes()) == Some(source.as_bytes())));
+            [1,255].map(|v| psi_handoff_consumer::byte_subject_addition(subject, input, v))
+        } else {
+            let [step] = &pkg.theorems[0].proof[..] else { panic!("expected single proof step") };
+            let subject = match step {
+                ProofStep::Bind { subject, .. } => subject,
+                ProofStep::CiteMachine { subjects, .. } => &subjects[0],
+                _ => panic!("expected bind or machine citation"),
+            };
+            decide(subject, ProofInput::Formal(0))
+        }
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/erased-arithmetic-subject", assert_eq!(
+        [observe(&executable,"x+1"), observe(&cited,"x+1"), observe(&bound,"x + 1"), observe(&wrapping,"x+%1")],
+        [[Some(2),None], [Some(2),None], [Some(2),None], [Some(2),Some(0)]]
+    ));
 }
 
 #[test]
-fn a_theorem_body_citing_another_theorem_stops_at_the_citation() {
-    // The outer proof instantiates inner with lemma as evidence. A proof step
-    // for that application needs its binder evidence and subjects; only
-    // machine citations and bindings are proof steps today.
+fn a_theorem_body_cites_a_theorem_with_its_evidence_and_erased_subjects() {
     let inner = "machine inner<machine H>(a:u8) requires machine H(y:u8) requires y != 0 ensures y > 0; requires a != 0 ensures H::ensures(a) {}";
     let outer = THEOREM.replace("requires trusted(x) ", "").replace("{}", "{ inner::<lemma>(x); }");
-    let text = format!("{inner} {outer} {LEMMA}");
-    sources::refuse(
-        &[("proof.omg", &text)],
-        "proof.omg",
-        sources::unique_span(&text, "inner::<lemma>(x)"),
-        "a theorem body citing another logical theorem needs theorem-application proof steps",
-    );
+    let original = format!("{inner} {outer} {LEMMA}");
+    let twin = format!("{} {}", original.replace("inner::<lemma>(x)", "inner::<other>(z)"), LEMMA.replace("lemma", "other"));
+    let observe = |text: &str| {
+        let package = sources::lower(&[("proof.omg", text)]).unwrap();
+        let outer = package.theorems.iter().find(|t| t.declaration.path == "theorem").unwrap();
+        let [citation] = &psi_handoff_consumer::nested_theorem_citations(&package, outer).unwrap()[..] else { panic!("expected one nested theorem application") };
+        let [(0, evidence)] = &citation.evidence[..] else { panic!("missing binder evidence") };
+        let [ProofSubject::Input(subject)] = &citation.subjects[..] else { panic!("missing formal substitution") };
+        assert_eq!(citation.owed[0].predicate, [Formal(0), Integer(0.into()), Apply(NotEqual)]);
+        assert_eq!(citation.imported[0].predicate, [Formal(0), HypothesisGuarantee { hypothesis: 0, operand_count: 1 }]);
+        assert_eq!(citation.theorem.hypotheses[0].conclusions[0].predicate,
+            [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(GreaterThan)]);
+        assert!(!package.machines.iter().any(|m| m.declaration == outer.declaration || m.declaration == citation.theorem.declaration));
+        (citation.theorem.declaration.path.clone(), evidence.declaration.path.clone(), *subject)
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/nested-theorem-application", assert_eq!(
+        [observe(&original), observe(&twin)], [("inner".into(), "lemma".into(), 0), ("inner".into(), "other".into(), 1)]
+    ));
 }
 
 #[test]

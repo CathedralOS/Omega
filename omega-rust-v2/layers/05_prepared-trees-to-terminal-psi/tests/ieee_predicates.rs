@@ -8,7 +8,7 @@ use omega_lowering::{
     CallTarget, ContractClause, FloatOperation, FloatSemantics, IeeeComparisonKind, IeeeFloatBits, IeeeFloatFormat, LoweredPackage, OperationKind,
     PredicateOperator, PredicateStep, ScalarLiteral,
 };
-use psi_handoff_consumer::{PredicateValue, evaluate_ieee_clause};
+use psi_handoff_consumer::{PredicateValue, evaluate_ieee_clause, float_formal};
 
 const ONE: u32 = 0x3F80_0000;
 const HALF: u32 = 0x3F00_0000;
@@ -323,12 +323,17 @@ fn domain_predicates_formals_fields_and_user_operators_keep_their_subjects() {
     assert_eq!(evaluate_ieee_clause(clause, &[record(ONE)], None, None), Some(false));
 
     let user = "data T { v: f32; } machine < before(a: T, b: T) -> bool crashes none { true } machine l(a: T, b: T)->T requires a < b { a }";
-    sources::refuse(
-        &[("case.omg", user)],
-        "case.omg",
-        sources::span_within(user, "requires a < b", "a < b"),
-        "unsupported machine call `before` in a Psi contract predicate",
-    );
+    let twin = user.replace("machine < before", "machine before").replace("machine l(",
+        "machine < after(a:T,b:T)->bool requires a.v <= b.v crashes none { false } machine l(").replace("requires a < b", "requires b < a");
+    let observe = |source: &str| {
+        let package = sources::lower(&[("case.omg", source)]).unwrap();
+        let (callee, arguments, requirements, result) = psi_handoff_consumer::record_predicate_application(&package, "l").unwrap();
+        assert!(machine(&package, "l").body.operations.iter().all(|op| !matches!(op.kind, OperationKind::Call { .. } | OperationKind::Float { .. })));
+        (callee.path.clone(), arguments, requirements.len(), result)
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/selected-record-predicate-operator", assert_eq!(
+        [observe(user), observe(&twin)], [("before".into(), [0,1], 0, true), ("after".into(), [1,0], 1, false)]
+    ));
     let body = "data T { v: f32; } machine < before(a: T, b: T) -> bool crashes none { true } machine l(a: T, b: T)->bool { a < b }";
     let package = sources::lower(&[("case.omg", body)]).unwrap();
     let operations = &machine(&package, "l").body.operations;
@@ -393,30 +398,139 @@ fn corrupted_requirements_change_the_reader_verdict() {
     assert!(format.iter().all(Option::is_none));
 }
 
-/// The parts this repair does not supply still refuse. A qualified formal is
-/// owned by its domain carrier. IEEE arithmetic has no predicate term.
+/// An open IEEE comparison takes scalar terms. The portable scalar term table
+/// has no IEEE arithmetic or negation row. Scalar Application (tag 41)
+/// references a retained evaluation application and has no operand binding
+/// that substitutes this invocation's float formal. FloatMeaning applications
+/// are proof values usable only in FloatMeaningEqual. The ordered comparison
+/// requires IEEE scalar operands (proposition 17). An executable operation in
+/// the machine body would run after this entry requirement is already owed.
 #[test]
-fn qualified_float_formals_and_float_arithmetic_still_refuse() {
-    for (source, at, message) in [
-        (
-            "domain f32::Small; machine l(a:f32 in Small)->f32 requires (a as -Small) < 1.0 { a as -Small }",
-            "a as -Small) <",
-            "contract binding is not a supported formal of this machine",
-        ),
-        (
-            "machine l(a:f32)->f32 requires a + 1.0 < 2.0 { a }",
-            "a + 1.0",
-            "float arithmetic in a contract predicate has no Psi term",
-        ),
-        (
-            "machine l(a:f32)->f32 requires -a < 1.0 { a }",
-            "-a",
-            "float arithmetic in a contract predicate has no Psi term",
-        ),
+fn float_arithmetic_requires_a_portable_scalar_term() {
+    for (source, expression) in [
+        ("machine l(a:f32)->f32 requires a + 1.0 < 2.0 { a }", "a + 1.0"),
+        ("machine l(a:f32)->f32 requires -a < 1.0 { a }", "-a"),
     ] {
-        let start = source.find(at).unwrap();
-        let span = if at.starts_with("a as") { start..start + 1 } else { start..start + at.len() };
-        sources::refuse(&[("case.omg", source)], "case.omg", span, message);
+        sources::refuse(&[("case.omg", source)], "case.omg", sources::unique_span(source, expression), "float arithmetic in a contract predicate has no Psi term");
+    }
+}
+
+/// These bodies evaluate the exact subexpressions at the two refused contract
+/// sites. The predecessor of 1 plus 1 ties and rounds to 2 in binary32. An
+/// exact real sum would be strictly smaller. A negated NaN remains unordered.
+#[test]
+fn executable_twins_distinguish_rounded_addition_and_unordered_negation() {
+    use psi_handoff_consumer::{FloatScalar, evaluate_float_body};
+    for (expression, results) in [
+        ("a + 1.0 < 2.0", [true, false, false, true]),
+        ("-a < 1.0", [true, true, false, true]),
+    ] {
+        let source = format!("machine twin(a:f32)->bool {{ {expression} }}");
+        let package = sources::lower(&[("case.omg", &source)]).unwrap();
+        let twin = machine(&package, "twin");
+        assert!(twin.contract.requires.is_empty());
+        for (bits, expected) in [ONE - 2, ONE - 1, QUIET_NAN, NEGATIVE_ZERO].into_iter().zip(results) {
+            let value = FloatScalar::Bits(IeeeFloatBits::Binary32(bits));
+            assert_eq!(evaluate_float_body(&package, &twin.body, &[value]), Some(FloatScalar::Bool(expected)), "{expression}, 0x{bits:08x}");
+        }
+    }
+}
+
+#[test]
+fn a_qualified_float_formal_is_compared_on_its_unchanged_carrier() {
+    let original = "domain f32::Small; machine l(a:f32 in Small)->f32 requires (a as -Small) < 1.0 { a as -Small }";
+    let package = sources::lower(&[("case.omg", original)]).unwrap();
+    let l = machine(&package, "l");
+    let clause = sole(&l.contract.requires);
+    let bare = include_str!("fixtures/package_cases/float-comparison-in-contract/case/case.omg");
+    let control = sources::lower(&[("case.omg", bare)]).unwrap();
+    let misplaced = original.replace("l(a:", "l(b:f32, a:");
+    let twin = sources::lower(&[("case.omg", &misplaced)]).unwrap();
+    let twin_clause = sole(&machine(&twin, "l").contract.requires);
+    let [small] = package.domains.as_slice() else { panic!("expected Small") };
+    assert_eq!(small.declaration.path, "f32::Small");
+    let atom = omega_psi::DomainAtom { declaration: small.declaration.clone(), arguments: vec![] };
+    let format = IeeeFloatFormat::Binary32;
+    let expected = [PredicateStep::Formal(0), PredicateStep::IeeeFloat(IeeeFloatBits::Binary32(ONE)), less(format)];
+    let control_clause = sole(&machine(&control, "l").contract.requires);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/qualified-float-contract",
+        assert_eq!(
+            (float_formal(&package, "l", 0), float_formal(&control, "l", 0), clause.predicate.as_slice(), control_clause.predicate.as_slice()),
+            (Some((format, vec![atom])), Some((format, vec![])), expected.as_slice(), expected.as_slice())
+        )
+    );
+    spec_corpus::observe_handoff!(
+        psi "psi-output/qualified-float-contract-consumer",
+        assert_eq!(
+            ([HALF, ONE, QUIET_NAN, NEGATIVE_ZERO].map(|bits| evaluate_ieee_clause(clause, &[bits32(bits)], None, None)),
+             evaluate_ieee_clause(twin_clause, &[bits32(ONE), bits32(HALF)], None, None),
+             evaluate_ieee_clause(twin_clause, &[bits32(HALF), bits32(ONE)], None, None)),
+            ([Some(true), Some(false), Some(false), Some(true)], Some(true), Some(false))
+        )
+    );
+    // The separately authored cast in the body erases the domain on its jump.
+    use omega_psi::{BlockTerminator, Parameter, QualificationDirection, ReturnEdge, ScalarQualificationChange, ScalarType, TypeShape, ValueOrigin};
+    let [Parameter::Scalar(input)] = l.body.parameters[..] else { panic!("expected scalar input") };
+    let [entry, arrival] = &l.body.blocks[..] else { panic!("expected the cast jump and its arrival") };
+    let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("expected cast jump") };
+    let [dest] = arrival.scalar_parameters[..] else { panic!("expected erased result") };
+    assert!(l.body.operations.is_empty());
+    let cast_site = &l.body.diagnostics.edges[edge.id.get() - 1].span;
+    assert_eq!(cast_site.get_start_offset()..cast_site.get_end_offset(), sources::span_within(original, "{ a as -Small }", "a as -Small"));
+    assert_eq!((edge.target, &edge.arguments[..]), (arrival.id, &[input][..]));
+    assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Erase }]);
+    assert!(edge.domain_completions.is_empty());
+    assert_eq!(l.body.values[dest.index()].origin, ValueOrigin::BlockParameter(arrival.id));
+    assert_eq!(package.types.get(l.body.values[dest.index()].ty), Some(&TypeShape::PrimitiveScalar(ScalarType::IeeeFloat(format))));
+    assert_eq!(l.result_type, Some(l.body.values[dest.index()].ty));
+    assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(id), .. } if id == dest));
+}
+
+#[test]
+fn a_float_domain_formal_preserves_its_declared_tag() {
+    let case = include_str!("fixtures/package_cases/float-domain-predicate/case/case.omg");
+    let control = include_str!("fixtures/package_cases/float-domain-predicate/control/case.omg");
+    let qualified = sources::lower(&[("case.omg", case)]).unwrap();
+    let bare = sources::lower(&[("case.omg", control)]).unwrap();
+    let [unit] = &qualified.domains[..] else { panic!("expected Unit") };
+    let [control_unit] = &bare.domains[..] else { panic!("expected Unit in the control") };
+    assert_eq!(unit.declaration.path, "f32::Unit");
+    assert_eq!(unit.declaration, control_unit.declaration);
+    assert!(unit.requires.is_empty() && control_unit.requires.is_empty());
+    let format = IeeeFloatFormat::Binary32;
+    let carrier = omega_psi::TypeShape::PrimitiveScalar(omega_psi::ScalarType::IeeeFloat(format));
+    assert_eq!(qualified.types.get(unit.carrier), Some(&carrier));
+    assert_eq!(bare.types.get(control_unit.carrier), Some(&carrier));
+    let atom = omega_psi::DomainAtom { declaration: unit.declaration.clone(), arguments: vec![] };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/float-domain-formal",
+        assert_eq!(
+            (float_formal(&qualified, "f", 0), float_formal(&bare, "f", 0)),
+            (Some((format, vec![atom])), Some((format, vec![])))
+        )
+    );
+}
+
+/// A nonempty binary64 domain supplies its predicate on the qualified
+/// formal even when the program has no authored requires clause.
+#[test]
+fn a_qualified_float_carries_its_domain_predicate_to_entry() {
+    let source = "domain f64::Positive requires self > 0.0; machine l(b:f64, a:f64 in Positive)->f64 { a as -Positive }";
+    let package = sources::lower(&[("case.omg", source)]).unwrap();
+    let [domain] = &package.domains[..] else { panic!("expected Positive") };
+    let atom = omega_psi::DomainAtom { declaration: domain.declaration.clone(), arguments: vec![] };
+    let format = IeeeFloatFormat::Binary64;
+    assert_eq!(float_formal(&package, "l", 0), Some((format, vec![])));
+    assert_eq!(float_formal(&package, "l", 1), Some((format, vec![atom])));
+    let entry = sole(&machine(&package, "l").contract.requires);
+    let definition = sole(&domain.requires);
+    let zero = PredicateStep::IeeeFloat(IeeeFloatBits::Binary64(0));
+    assert_eq!(definition.predicate, [zero.clone(), PredicateStep::SelfValue, less(format)]);
+    assert_eq!(entry.predicate, [zero, PredicateStep::Formal(1), less(format)]);
+    let bits = |v: f64| PredicateValue::Bits(IeeeFloatBits::Binary64(v.to_bits()));
+    for (first, second, expected) in [(0.0, 1.0, true), (1.0, -0.0, false), (1.0, f64::NAN, false)] {
+        assert_eq!(evaluate_ieee_clause(entry, &[bits(first), bits(second)], None, None), Some(expected));
     }
 }
 

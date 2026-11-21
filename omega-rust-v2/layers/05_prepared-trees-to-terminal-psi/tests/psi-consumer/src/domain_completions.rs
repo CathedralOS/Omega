@@ -111,3 +111,34 @@ pub fn cast_completions<'a>(
     }
     Ok(rows.iter().map(|row| (&row.domain, row.origin)).collect())
 }
+
+/// Observe the domain declaration's selected cleanup and the cleanup that a
+/// straight-line unit machine actually invokes for its owned formal at return.
+pub fn returned_domain_cleanup<'a>(
+    package: &'a LoweredPackage,
+    owner: &str,
+    domain_name: &str,
+) -> Option<(Option<&'a str>, Vec<String>, Vec<&'a str>)> {
+    use omega_psi::{CleanupAction, Parameter, ReturnEdge};
+    let machine = super::machine(package, owner)?;
+    let [Parameter::Structural(formal)] = machine.body.parameters[..] else { return None };
+    let (record, atoms) = super::record_formal(package, owner, 0)?;
+    let domain = package.domains.iter().find(|d| d.declaration.path == domain_name)?;
+    if domain.carrier != record.carrier { return None; }
+    let selected = |id| package.machines.iter().find(|m| m.id == id && m.parameter_types == [record.carrier] && m.result_type.is_none())
+        .map(|m| m.declaration.path.as_str());
+    let target = match domain.cleanup_target { Some(id) => Some(selected(id)?), None => None };
+    let [block] = &machine.body.blocks[..] else { return None };
+    let BlockTerminator::Return { result: ReturnEdge::Unit, cleanup, .. } = &block.terminator else { return None };
+    let mut invoked = Vec::new();
+    for action in cleanup {
+        match action {
+            CleanupAction::Invoke { place, ty, target } if place.root == formal && place.path.is_empty() && machine.parameter_types == [*ty] => {
+                invoked.push(selected(*target)?);
+            }
+            CleanupAction::DiscardRoot(p) if *p == formal => {}
+            _ => return None,
+        }
+    }
+    Some((target, atoms.into_iter().map(|atom| atom.declaration.path.clone()).collect(), invoked))
+}

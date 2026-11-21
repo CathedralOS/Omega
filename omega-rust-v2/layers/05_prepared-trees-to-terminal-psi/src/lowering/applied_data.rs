@@ -83,6 +83,9 @@ impl<'a> Application<'a> {
         &self,
         carriers: &mut Vec<(&'a ValueType, Site)>,
     ) {
+        if !self.shape.cases.is_empty() {
+            carriers.push((&ValueType::Bool, self.template.site.clone()));
+        }
         carriers.extend(
             std::iter::once(self.carrier)
                 .chain(self.arguments.iter().filter(|a| !matches!(a, ValueType::StaticInteger { .. })))

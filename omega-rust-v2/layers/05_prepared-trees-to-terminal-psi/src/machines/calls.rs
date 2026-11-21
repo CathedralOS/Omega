@@ -13,6 +13,7 @@ pub(crate) struct Callees<'a> {
     /// The published `requires` count of each runtime callable contract, by
     /// `CallableContractId` index. A call through the contract owes each clause.
     pub runtime_requirements: Vec<usize>,
+    pub runtime_pause: Vec<PauseEffects>,
     pub members: std::collections::HashMap<crate::declarations::members::Key, (usize, &'a TypedSignature, usize, PauseEffects)>,
     /// Local logical theorems, which a body cites by erased application.
     pub theorems: std::collections::HashMap<&'a DeclarationId, super::theorem_citations::TheoremCallee<'a>>,
@@ -29,7 +30,11 @@ impl Callees<'_> {
         &self,
         target: crate::CallTarget,
     ) -> bool {
-        matches!(target, crate::CallTarget::Machine(id) if self.realized_pause(id).suspend)
+        match target {
+            crate::CallTarget::Machine(id) => self.realized_pause(id).suspend,
+            crate::CallTarget::Runtime { contract, .. } => self.runtime_pause[contract.index()].suspend,
+            crate::CallTarget::Member(_) => false,
+        }
     }
 }
 

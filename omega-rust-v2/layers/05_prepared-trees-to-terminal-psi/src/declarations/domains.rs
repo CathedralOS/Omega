@@ -45,6 +45,7 @@ impl DomainSchema<'_> {
             carrier: super::type_expression::type_expression(self.carrier, &self.site)?,
             parameters: self.parameters,
             index_binders: self.index_binders,
+            cleanup_target: None,
             public: self.public,
             requires,
             site: self.site,
@@ -120,6 +121,7 @@ impl DomainSchema<'_> {
             DomainDefinition::Named(requires) => DomainDeclaration::Named(LoweredDomain {
                 parameters: self.parameters,
                 index_binders: self.index_binders,
+                cleanup_target: types.domain_cleanup(self.declaration),
                 declaration,
                 carrier,
                 public,
@@ -160,6 +162,14 @@ pub(crate) fn read_domain<'a>(
         .domain_carriers
         .get(declaration)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed carrier"))?;
+    if let Some(demand) = prepared.pending_access_plan(declaration) {
+        let reason = match demand.schema {
+            omega_prepared::PolicySchemaInput::NeedsPackageOwner => "domain access policy needs the package owner for its semantic schema",
+            omega_prepared::PolicySchemaInput::UnsupportedSubject => "domain access policy needs a semantic schema for this carrier",
+            omega_prepared::PolicySchemaInput::Ready { .. } => "domain access policy needs its evaluated plan for the selected semantic schema",
+        };
+        return Err(LoweringError::new(&demand.selection.site, reason));
+    }
     let head = file
         .child(node, NodeKind::PathType)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed head"))?;
@@ -226,6 +236,18 @@ pub(crate) fn read_domain<'a>(
                 },
                 member,
             )?),
+            NodeKind::DroppedBy if parameters.is_empty() && matches!(carrier, ValueType::Nominal(_)) => {
+                let site = site_at(tree, member);
+                let selection = prepared.typed().cleanups.iter().find(|s| s.owner == *declaration && s.site == site)
+                    .ok_or_else(|| LoweringError::new(&site, "domain cleanup lacks its selected machine"))?;
+                let mut rows = tree.semantics_at(member);
+                if !matches!(rows.next(), Some(omega_typed::NodeSemantics::Obligation(o))
+                        if matches!(&o.kind, omega_typed::ObligationKind::CleanupContract(id) if id == &selection.machine))
+                    || rows.next().is_some()
+                {
+                    return Err(LoweringError::new(&site, "domain cleanup lacks its selected contract obligation"));
+                }
+            }
             NodeKind::PathType => return Err(LoweringError::new(&site_at(tree, member), "domain alias has no typed expansion")),
             kind => return Err(LoweringError::new(&site_at(tree, member), format!("unsupported domain member: {kind:?}"))),
         }

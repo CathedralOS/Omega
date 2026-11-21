@@ -8,7 +8,7 @@
 //! `ApplyTheorem` operation. Forms it does not understand refuse here rather
 //! than fall through to executable call selection.
 
-use super::calls::Callees;
+use std::collections::HashMap;
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{LoweringError, ScalarLiteral, TheoremArgument, TheoremBinder, site_at};
 use omega_prepared::{PreparedTrees, PreparedValue};
@@ -23,20 +23,14 @@ pub(crate) struct TheoremCallee<'a> {
     pub theorem: &'a crate::LogicalTheorem,
 }
 
-pub(crate) struct TheoremCitation<'a> {
+pub(crate) type TheoremCallees<'a> = HashMap<&'a omega_resolved::DeclarationId, TheoremCallee<'a>>;
+
+pub(crate) struct TheoremCitation<I> {
     pub theorem: crate::DeclarationId,
     pub arguments: Vec<TheoremArgument>,
     /// One subject per formal, in formal order.
-    pub subjects: Vec<CitedSubject<'a>>,
+    pub subjects: Vec<crate::ProofSubject<I>>,
     pub requirement_count: usize,
-}
-
-/// How the body supplies one theorem subject.
-pub(crate) enum CitedSubject<'a> {
-    /// A named binding, read as the caller's existing value at this formal carrier.
-    Binding(usize, &'a ValueType),
-    /// A closed scalar published in the citation itself; no operation computes it.
-    Literal(ScalarLiteral),
 }
 
 /// The closed value of a theorem subject that names no variable, or `None`
@@ -103,23 +97,84 @@ pub(crate) fn closed_subject(
     Ok(Some(ScalarLiteral::Integer(value)))
 }
 
-/// A subject that is neither a variable nor closed. Psi has no erased
-/// arithmetic or projection term, and computing the value at runtime would
-/// make an erased citation demand it (and possibly trap).
-pub(crate) const COMPUTED_SUBJECT: &str = "a theorem subject other than a variable or a closed literal needs an erased subject term";
+/// Build the same erased subject for executable and proof citations. Scope
+/// resolves each binding to its existing SSA value or its proof input. The
+/// postfix table preserves rounding-free fixed-width operations and the
+/// formation obligations at each occurrence, including intermediate results.
+pub(crate) fn erased_subject<I>(
+    prepared: &PreparedTrees<'_>, tree: &LoweringTree<'_>, owner: &omega_resolved::DeclarationId, root: usize, formal: &ValueType,
+    binding: impl Fn(usize, &ValueType) -> Option<I>,
+) -> Result<crate::ProofSubject<I>, LoweringError> {
+    use crate::{ProofIntegerStep as Term, ProofSubject};
+    enum Visit<'a> { Node(usize, &'a ValueType), Emit(crate::IntegerOperation, crate::ScalarType, crate::Site) }
+    let file = tree.resolved().file;
+    let mut work = vec![Visit::Node(root, formal)];
+    let mut steps = Vec::new();
+    while let Some(visit) = work.pop() {
+        let (outer, ty) = match visit {
+            Visit::Emit(operation, carrier, site) => { steps.push(Term::Operation { operation, carrier, site }); continue; }
+            Visit::Node(node, ty) => (node, ty),
+        };
+        let node = file.ungroup(outer);
+        let site = site_at(tree, node);
+        let refuse = || LoweringError::new(&site, "unsupported erased theorem subject");
+        if let Some(literal) = closed_subject(prepared, tree, outer, ty)? {
+            steps.push(Term::Literal(literal));
+            continue;
+        }
+        if file.nodes[node].kind == NodeKind::PathExpression && matches!(tree.resolved().symbol(node), Some(Symbol::Binding { .. })) {
+            if !tree.semantics_at(node).any(|row| matches!(row, NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && &e.ty == ty)) {
+                return Err(refuse());
+            }
+            steps.push(Term::Input(binding(node, ty).ok_or_else(refuse)?));
+            continue;
+        }
+        if !matches!(file.nodes[node].kind, NodeKind::Binary | NodeKind::Unary) { return Err(refuse()); }
+        let mut checked = None;
+        let mut typed = false;
+        let mut obligations = Vec::new();
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Operation(op) if checked.is_none() && op.site == site && op.node == file.node_id(node) && &op.result == ty => checked = Some(op),
+                NodeSemantics::Expression(e) if !typed && &e.ty == ty && e.static_argument_slot.is_none() => typed = true,
+                NodeSemantics::Obligation(o) => obligations.push(o),
+                _ => return Err(refuse()),
+            }
+        }
+        let op = checked.ok_or_else(refuse)?;
+        let operands = &file.nodes[node].children;
+        if !typed || operands.len() != op.operands.len() || !matches!(ty, ValueType::Integer { width: Some(1..), .. }) { return Err(refuse()); }
+        let super::arithmetic::LoweredInteger::Ordinary(operation) = super::arithmetic::lower_integer(op, &obligations, owner)? else { return Err(refuse()); };
+        // Portable scalar term forms for checked / wrapping / saturating
+        // same-carrier binary arithmetic (encoding.md#scalar-terms).
+        if !matches!(operation.primitive, crate::IntegerPrimitive::Add | crate::IntegerPrimitive::Subtract | crate::IntegerPrimitive::Multiply |
+            crate::IntegerPrimitive::Divide | crate::IntegerPrimitive::Remainder) { return Err(refuse()); }
+        let carrier = crate::lowering::types::scalar_carrier(ty).map_err(|_| refuse())?;
+        work.push(Visit::Emit(operation, carrier, site));
+        work.extend(operands.iter().zip(&op.operands).rev().map(|(&n, t)| Visit::Node(n, t)));
+    }
+    if steps.len() == 1 {
+        match steps.pop().unwrap() {
+            Term::Input(input) => return Ok(ProofSubject::Input(input)),
+            Term::Literal(value) => return Ok(ProofSubject::Literal(value)),
+            _ => unreachable!("an integer operation follows its operands"),
+        }
+    }
+    Ok(ProofSubject::IntegerTerm(steps))
+}
 
 /// `None` when `node` does not cite a local logical theorem.
-pub(crate) fn select<'a>(
+pub(crate) fn select<I>(
     prepared: &PreparedTrees<'_>,
     tree: &LoweringTree<'_>,
     caller: &TypedSignature,
     node: usize,
     expected: &ValueType,
-    callees: &Callees<'a>,
-) -> Result<Option<TheoremCitation<'a>>, LoweringError> {
+    callees: &TheoremCallees<'_>,
+    binding: impl Fn(usize, &ValueType) -> Option<I>,
+) -> Result<Option<TheoremCitation<I>>, LoweringError> {
     let Some((call, callee)) = tree.semantics_at(node).find_map(|record| match record {
         NodeSemantics::Call(call) => callees
-            .theorems
             .get(&call.machine)
             .map(|callee| (call, *callee)),
         _ => None,
@@ -191,8 +246,7 @@ pub(crate) fn select<'a>(
         return Err(error("theorem citation supplies evidence for no binder"));
     }
 
-    // A subject is a named binding or a closed literal. Computing an operand
-    // would make the erased citation demand a runtime value.
+    // Every argument is an erased subject substituted at its exact formal.
     if call.operands.len() != signature.parameters.len() || signature.parameters.len() != theorem.parameters.len() {
         return Err(error("theorem citation and its formals disagree"));
     }
@@ -211,15 +265,8 @@ pub(crate) fn select<'a>(
         if crate::lowering::types::scalar_carrier(formal).is_err() {
             return Err(LoweringError::new(&applied.site, "a theorem citation subject needs a scalar carrier"));
         }
-        if applied.callable.is_some() {
-            return Err(LoweringError::new(&applied.site, COMPUTED_SUBJECT));
-        }
-        if file.nodes[argument].kind == NodeKind::PathExpression && matches!(tree.resolved().symbol(argument), Some(Symbol::Binding { .. })) {
-            subjects.push(CitedSubject::Binding(argument, formal));
-            continue;
-        }
-        let literal = closed_subject(prepared, tree, argument, formal)?.ok_or_else(|| LoweringError::new(&applied.site, COMPUTED_SUBJECT))?;
-        subjects.push(CitedSubject::Literal(literal));
+        if applied.callable.is_some() { return Err(error("unsupported callable theorem subject")); }
+        subjects.push(erased_subject(prepared, tree, &caller.machine, argument, formal, &binding)?);
     }
     Ok(Some(TheoremCitation {
         theorem: theorem.declaration.clone(),

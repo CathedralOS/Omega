@@ -153,7 +153,7 @@ fn embedded_loans(
         let access = match context.types.get(ty) {
             Some(TypeShape::ScalarReference { access, .. } | TypeShape::NominalReference { access, .. }) => *access,
             Some(TypeShape::SharedByteView | TypeShape::SharedElementView { .. }) => ReferenceAccess::Shared,
-            Some(TypeShape::MutableElementView { .. }) => ReferenceAccess::Mutable,
+            Some(TypeShape::MutableElementView { element: crate::ViewElement::Nominal(_) }) => ReferenceAccess::Mutable,
             Some(TypeShape::Nominal(id)) => {
                 let schema = &context.data[id.get() - 1];
                 // The descriptors of an intact sum depend on its active case.
@@ -643,7 +643,7 @@ fn cleans(
     home: PlaceId,
 ) -> bool {
     match action {
-        CleanupAction::DiscardRoot(place) => *place == home,
+        CleanupAction::DiscardRoot(place) | CleanupAction::RetireHome(place) => *place == home,
         CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => place.root == home,
     }
 }

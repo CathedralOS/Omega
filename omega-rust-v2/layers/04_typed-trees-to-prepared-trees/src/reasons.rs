@@ -38,7 +38,6 @@ macro_rules! preparation_reasons {
 }
 
 preparation_reasons! {
-    // Preparation rounds.
     /// The source package's instruction catalog and the supplied layout target differ. Rendered without the admission prefix at an empty site.
     AssemblyTargetMismatch => "assembly catalog and preparation selected different targets",
     /// Typing published the same demands after receiving answers for them.

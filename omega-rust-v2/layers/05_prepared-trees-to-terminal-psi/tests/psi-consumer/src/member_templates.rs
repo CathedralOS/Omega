@@ -138,7 +138,7 @@ impl<'a> Reader<'_, 'a> {
                 .get(*i)
                 .cloned()
                 .ok_or_else(|| format!("{path}: no argument {i}"))?,
-            TemplateOperand::Borrow { formal, .. } => TemplateValue::Borrowed(Box::new(
+            TemplateOperand::Borrow { formal, .. } | TemplateOperand::BorrowBefore { formal, .. } => TemplateValue::Borrowed(Box::new(
                 self.arguments
                     .get(*formal)
                     .cloned()
@@ -277,4 +277,17 @@ fn template<'a>(
         .filter(|template| &template.declaration == id);
     let found = matches.next()?;
     matches.next().is_none().then_some(found)
+}
+
+/// Read the interval during which a call's borrow is active. A plain call
+/// operand forms at the call; an ordered borrow starts before an earlier step.
+pub fn formal_borrow_interval(template: &MachineTemplate, call: usize, argument: usize) -> Option<(usize, std::ops::RangeInclusive<usize>)> {
+    let operand = template.body.get(call)?.call()?.operands.get(argument)?;
+    let (formal, start) = match operand {
+        TemplateOperand::BorrowBefore { formal, step, .. } if *step < call => (*formal, *step),
+        TemplateOperand::Borrow { formal, .. } => (*formal, call),
+        _ => return None,
+    };
+    template.signature.parameters.get(formal)?;
+    Some((formal, start..=call))
 }

@@ -7,6 +7,8 @@ pub struct LoweredTrait {
     pub declaration: DeclarationId,
     pub public: bool,
     pub boundary: bool,
+    /// Direct parent application of an inheriting trait. Inherited members keep their originating declaration.
+    pub parent: Option<crate::TemplateRequirementSlot>,
     /// A transparent bound inherits its base requirements; it declares no new slots.
     pub restriction: Option<TraitRestriction>,
     pub parameters: Vec<crate::TemplateBinder>,

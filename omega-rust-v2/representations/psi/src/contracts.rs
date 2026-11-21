@@ -87,12 +87,24 @@ pub enum PredicateStep {
     /// at this occurrence under that substitution (never assume the enclosing goal).
     MachineApplication {
         callee: DeclarationId,
-        operands: Vec<crate::ScalarType>,
+        operands: Vec<crate::TypeExpression>,
         result: crate::ScalarType,
         requirements: std::ops::Range<usize>,
         /// The non-specialized `callee` identifies one body and contract in this package.
         /// The checker owes total denotation (including no crash) under the actuals;
         /// neither an empty ceiling nor availability of the body establishes progress.
+        progress: PredicateProgress,
+        site: Site,
+    },
+    /// Fact application through a closed static binder. Establish its bound's
+    /// premises on the preceding ordered terms. The exact selected machine's
+    /// progress and denotation are still checker questions at this occurrence.
+    CallbackApplication {
+        binder: usize,
+        callee: DeclarationId,
+        operands: Vec<crate::ScalarType>,
+        result: crate::ScalarType,
+        bound_requirements: std::ops::Range<usize>,
         progress: PredicateProgress,
         site: Site,
     },

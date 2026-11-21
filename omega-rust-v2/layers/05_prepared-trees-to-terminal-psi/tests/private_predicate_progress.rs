@@ -21,7 +21,7 @@ fn check_application<'a>(psi: &'a LoweredPackage, source: &str, progress: Predic
         PredicateStep::SelfValue,
         PredicateStep::MachineApplication {
             callee: helper.declaration.clone(),
-            operands: vec![ScalarType::Integer { signed: false, width: 8 }],
+            operands: vec![ScalarType::Integer { signed: false, width: 8 }.into()],
             result: ScalarType::Boolean,
             requirements: 0..premises,
             progress,

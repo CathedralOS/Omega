@@ -47,9 +47,15 @@ ENTRY_STATES = ("claim asserted", "linked tests passed, claims unregistered", "l
 # The aggregate test that prints each spec example's obligation counts and its OMEGA_CASE row.
 SPEC_AGGREGATE = ("tests/spec_corpus.rs", "spec_fragments_have_reviewed_lowering_outcomes")
 # Strongest observation first. Only the first state involves a check of Psi content, and only of the registered property.
+LIBRARY_KIND = "VerifyLibraryImplementation"
+LIBRARY_AUDIT = ("L3", "unittests src/lib.rs",
+                 "toolchain_declarations::core_interface::tests::audit_closed_catalog_guarantees_against_their_implementation_obligations")
+LIBRARY_CONSUMER = ("L5", "tests/obligation_library.rs", "library_definition_rows_stay_in_the_library_forest_for_callers_and_non_callers")
+LIBRARY_COMPARISON = "library-definition-guarantees/consumer"
+CATALOG_INAPPLICABLE = "no qualifying declaration in the audited toolchain catalog"
 OBLIGATION_STATES = ("registered Psi property checked", "lowered in a passing test, no Psi property checked",
                      "lowered only in a failed or unreported test", "reached L5, outcome unattributed",
-                     "reached L5, every input refused", "no observed input")
+                     "reached L5, every input refused", "no observed input", CATALOG_INAPPLICABLE)
 # The emitting test passed, failed (it did not finish its checks), or reported no single result.
 # For a spec example: its own receipt passed, its receipt reports a gap or failure, or it has no valid receipt.
 STANDINGS = ("confirmed", "partial", "unreported")
@@ -565,6 +571,43 @@ def property_checks(inventory, inputs, states, errors):
     return credited, failed
 
 
+def record_library_audit(report, stage, target, current_test, line):
+    """Only the source-catalog audit that also exercised the modified toolchain can report these counts."""
+    key = "library_implementation_audit"
+    site = (stage, target.replace("\\", "/"), current_test[1] if current_test else None)
+    fields = line.split("\t")
+    if (key in report or site != LIBRARY_AUDIT or len(fields) != 5 or fields[0] != "OMEGA_LIBRARY_IMPLEMENTATION_AUDIT"
+            or any(not re.fullmatch(r"0|[1-9][0-9]{0,8}", field) for field in fields[1:])):
+        report["measurement_errors"].append(f"invalid, repeated or misplaced library implementation audit: {line}")
+        report[key] = None
+        return
+    machines, supplied, exempt, eligible = map(int, fields[1:])
+    if not (0 < supplied <= machines and exempt + eligible <= supplied):
+        report["measurement_errors"].append(f"inconsistent library implementation catalog counts: {line}")
+        report[key] = None
+        return
+    report[key] = {"machines": machines, "supplied": supplied, "collection_guarantees": exempt, "eligible": eligible}
+
+
+def audited_library_catalog(report):
+    audit = report.get("library_implementation_audit")
+    if audit is None:
+        return None
+    results = reviewed_comparisons.test_results(report)
+    if (results.get(LIBRARY_AUDIT) == results.get(LIBRARY_CONSUMER) == "ok"
+            and report.get("reviewed_comparisons", {}).get(LIBRARY_COMPARISON)
+            and LIBRARY_COMPARISON not in report.get("failed_comparisons", {})):
+        return audit
+    return None
+
+
+def obligation_blocks(kind, row):
+    if row["state"] == OBLIGATION_STATES[0]:
+        return False
+    return not (kind == LIBRARY_KIND and row["state"] == CATALOG_INAPPLICABLE and row.get("catalog", {}).get("eligible") == 0
+                and row["occurrences"] == 0 and not row["failed_property_checks"])
+
+
 def classify_obligations(report, inputs, states, lock, errors):
     """The one per-kind classifier. Its counts are inputs and occurrences, never meaning."""
     inventory = set(report.get("obligations", {}))
@@ -599,6 +642,13 @@ def classify_obligations(report, inputs, states, lock, errors):
             "lowered": lowered, "refused": refused, "unattributed": unattributed,
             "property_checks": credited.get(kind, []), "failed_property_checks": failed.get(kind, []),
         }
+        if kind == LIBRARY_KIND and (audit := audited_library_catalog(report)) is not None:
+            result[kind]["catalog"] = audit
+            if audit["eligible"] == 0:
+                if carrying:
+                    errors.append(f"{kind} occurs in a prepared input although the audited catalog has no qualifying declaration")
+                elif state == OBLIGATION_STATES[5] and kind in rows and not failed.get(kind):
+                    result[kind]["state"] = CATALOG_INAPPLICABLE
         if state == OBLIGATION_STATES[4]:
             result[kind]['refusal_sites'] = refusal_sites(kind, carrying)
     return result
@@ -753,6 +803,11 @@ def write_details(directory, data):
         checks += [f"{label} (failed)" for label in row["failed_property_checks"]]
         lines.append(f"| {kind} | {row['state']} | {row['lock_row'] or 'none'} | {row['inputs']['spec']} / {row['inputs']['fixture']} ({row['distinct_inputs']}) | "
                      f"{row['occurrences']} | {lowered} | {len(row['refused'])} | {len(row['unattributed'])} | {'; '.join(checks) or 'none'} |")
+    if audit := data["obligations"].get(LIBRARY_KIND, {}).get("catalog"):
+        lines += ["", f"The library implementation audit examined {audit['machines']} machine declarations. "
+                  f"The closed catalog supplies {audit['supplied']}. Its collection primitives publish {audit['collection_guarantees']} "
+                  f"guarantee-bearing declarations with fixed semantics. Qualifying implementation declarations: {audit['eligible']}. "
+                  "The changed-catalog control adds a guarantee to a supplied ranking machine and checks the resulting library debt and its importer."]
     lines += refusal_site_table(data['obligations'])
     lines += ["", "## Earlier-layer rules checked by an L5 consumer", ""]
     for row in data["earlier_consumers"]:

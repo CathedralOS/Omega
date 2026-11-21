@@ -147,6 +147,8 @@ pub struct TypedStage {
     /// Execution calls of an exact canonical terminal requirement, in call order.
     pub external_completions: Vec<crate::ExternalCompletion>,
     pub invocation_ceilings: Vec<(DeclarationId, Site, InvocationTarget)>,
+    /// Immediate applied parent from an ordinary trait's inheritance clause.
+    pub trait_parents: std::collections::BTreeMap<DeclarationId, crate::RequirementSlot>,
     /// Immediate applied base of each transparent restriction (not a nominal satisfaction target).
     pub refinement_bases: std::collections::BTreeMap<DeclarationId, crate::RequirementSlot>,
     pub refinements: Vec<TraitRefinement>,

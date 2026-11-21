@@ -260,8 +260,7 @@ fn receiver(
         NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
         _ => None,
     })?;
-    let scalar = matches!(crate::lowering::types::scalar_element_view(carrier), Some((Access::Mut, _)));
-    if crate::lowering::types::mutable_element_view(carrier).is_none() && !scalar {
+    if !crate::lowering::types::is_exclusive_element_view(carrier) {
         return None;
     }
     Some((*base, *selector, carrier.clone()))
@@ -318,6 +317,7 @@ pub(super) fn store_element(
     rhs: usize,
     body: &mut MachineBody,
     flow: &mut BlockFlow,
+    before_return: bool,
 ) -> Result<(), LoweringError> {
     let site = site_at(expressions.tree, place);
     let Some((_, _, view)) = receiver(expressions, place) else {
@@ -334,7 +334,7 @@ pub(super) fn store_element(
         return store_scalar_element(expressions, place, rhs, &element, scalar, body, flow);
     }
     let destination = element_place(expressions, place, &element, false, body, flow)?;
-    super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site)
+    super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site, before_return)
 }
 
 /// `view[i] = value` through `@mut [T]` with a scalar `T`: replace one
@@ -355,7 +355,7 @@ fn store_scalar_element(
     let site = site_at(tree, place);
     let refuse = |message: &str| LoweringError::new(&site, message);
     let (selector, root) = selected_view(expressions, place, element, false, body)?;
-    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableScalarElementView { element: scalar }) {
+    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableElementView { element: crate::ViewElement::Scalar(scalar) }) {
         return Err(refuse("element view descriptor disagrees with its element type"));
     }
     let index_ty = expressions
@@ -508,7 +508,7 @@ fn element_place(
     let Some(TypeShape::Nominal(data)) = expressions.types.get(element_ty) else {
         return Err(refuse("element window requires a nominal element"));
     };
-    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableElementView { element: *data }) {
+    if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableElementView { element: crate::ViewElement::Nominal(*data) }) {
         return Err(refuse("element view descriptor disagrees with its element type"));
     }
     if expressions.data[data.get() - 1].carry.is_some() {

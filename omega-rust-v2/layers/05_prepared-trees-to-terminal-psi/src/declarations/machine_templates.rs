@@ -79,6 +79,7 @@ pub(super) fn signature(
             .map(|(_, ty)| type_expression(ty, &sig.site))
             .collect::<Result<_, _>>()?,
         result: result_type(&sig.result, &sig.site)?,
+        result_lifetime_input: super::callables::result_lifetime_input(&sig.result, sig.parameters.iter().map(|(_, ty)| ty)),
         requires,
         ensures,
         reach: reach(sig.reach.as_deref(), &sig.site)?,
@@ -362,7 +363,8 @@ fn lower(
             NodeKind::ConstParam
                 if param.multiplicity.is_none()
                     && let Some(carrier) = param.carrier.as_deref()
-                    && lexical::static_value_carrier(carrier) =>
+                    && (lexical::static_value_carrier(carrier)
+                        || matches!(carrier, ValueType::Nominal(id) if typed.record_fields.contains_key(id.as_ref()) && !typed.case_owners.values().any(|owner| owner == id.as_ref()))) =>
             {
                 MachineTemplateBinder::Const(type_expression(carrier, &sig.site)?)
             }
@@ -398,6 +400,7 @@ fn lower(
                             .map(|v| type_expression(v, &bound.contract))
                             .collect::<Result<_, _>>()?,
                         result: result_type(&bound.result, &bound.contract)?,
+                        result_lifetime_input: super::callables::result_lifetime_input(&bound.result, bound.parameters.iter()),
                         requires: vec![],
                         ensures: vec![],
                         reach: reach(bound.reach.as_deref(), &bound.contract)?,
@@ -531,6 +534,7 @@ fn lower(
         public: tree.resolved().is_exported(sig.node.node),
         parameters,
         signature: signature(prepared, tree, sig)?,
+        discarded_fields: residuals(typed, sig, &body)?,
         declared_pause: sig.pause,
         fixed_pause: effects.fixed_pause,
         callback_pause: effects.callback_pause.iter().map(|(i, p)| (*i, *p)).collect(),
@@ -584,6 +588,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             NodeKind::Paren
                 | NodeKind::Call
                 | NodeKind::CallMarker
+                | NodeKind::Literal
                 | NodeKind::Binary
                 | NodeKind::Unary
                 | NodeKind::RecordLiteral
@@ -706,6 +711,22 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             NodeKind::Call if tree.declaration_selection(node).is_some() => self.describe(node, returned),
             NodeKind::CallMarker | NodeKind::Call => self.call(node, returned),
             NodeKind::Binary | NodeKind::Unary => self.integer(node),
+            NodeKind::Literal if file.nodes[node].children.is_empty() => {
+                let mut landing = None;
+                let mut expression = None;
+                for row in tree.semantics_at(node) {
+                    match row {
+                        NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && expression.is_none() => expression = Some(&e.ty),
+                        NodeSemantics::Landing(l) if landing.is_none() && l.value.is_integer() && l.ty.contains_integer(l.value.numer()) => landing = Some(l),
+                        _ => return Err(self.refuse()),
+                    }
+                }
+                let landing = landing.ok_or_else(|| self.refuse())?;
+                if !expression.is_some_and(|ty| *ty == landing.ty || matches!(ty, ValueType::Exact { value, .. } if value == &landing.value)) {
+                    return Err(self.refuse());
+                }
+                Ok((TemplateOperand::Constant(crate::ScalarLiteral::Integer(landing.value.numer().clone())), &landing.ty))
+            }
             NodeKind::RecordLiteral => self.construct(node, returned),
             NodeKind::ArrayLiteral => self.array(node, returned),
             NodeKind::Match => self.select(node, returned),
@@ -775,7 +796,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
 
     /// The classifier a closed body uses selects the primitive, policy and
     /// checker questions. A trapping operator would need a crash edge in the
-    /// template, and a folded constant a literal operand; both still refuse.
+    /// template. Literal operands retain their checked numeric landings.
     fn integer(
         &mut self,
         node: usize,
@@ -1249,7 +1270,7 @@ fn lower_call<'a>(
         return Err(bad());
     }
     let mut operands = Vec::with_capacity(actual.len());
-    // Formals borrowed by earlier operands of this call.
+    // Operand position, formal, next step at formation, and source node for earlier borrows.
     let mut borrowed = Vec::new();
     for (&node, (id, subject)) in file.nodes[args].children.iter().zip(actual) {
         if file.node_id(node) != id {
@@ -1267,7 +1288,7 @@ fn lower_call<'a>(
         if file.nodes[node].kind == NodeKind::Borrow && temporary {
             let operand = borrowed_formal(inputs.ok_or_else(bad)?.prepared, tree, sig, node).ok_or_else(bad)?;
             if let TemplateOperand::Borrow { formal, .. } = &operand {
-                borrowed.push(*formal);
+                if let Some(builder) = steps.as_deref() { borrowed.push((operands.len(), *formal, builder.body.len(), node)); }
             }
             operands.push(operand);
             continue;
@@ -1302,14 +1323,17 @@ fn lower_call<'a>(
         }
         let start = builder.body.len();
         let (operand, _) = builder.expression(node, false)?;
-        // The loan of an earlier borrow operand is live while this operand
-        // evaluates. Psi forms that loan at the call, so a step here that reads
-        // the borrowed formal would hide the overlap.
-        if builder.body[start..]
-            .iter()
-            .any(|step| reads_formal(step, &borrowed))
-        {
-            return Err(bad());
+        if builder.body.len() != start && operands.iter().any(|operand| matches!(operand, TemplateOperand::MoveField { .. })) {
+            return Err(LoweringError::new(&site, "template field transfer before a later operand step needs ordered custody"));
+        }
+        // Preserve the birth of earlier loans whose borrowers overlap these
+        // new steps. Other borrows remain ordinary call-scoped operands.
+        for &(position, formal, first_step, origin) in &borrowed {
+            if builder.body[start..].iter().any(|step| reads_formal(step, &[formal]))
+                && let TemplateOperand::Borrow { access, .. } = &operands[position]
+            {
+                operands[position] = TemplateOperand::BorrowBefore { formal, access: access.clone(), step: first_step, site: site_at(tree, origin) };
+            }
         }
         operands.push(operand);
     }
@@ -1389,7 +1413,7 @@ fn reads_formal(
     formals: &[usize],
 ) -> bool {
     use TemplateOperand as O;
-    let direct = |operand: &O| matches!(operand, O::Formal(f) | O::RecordField { formal: f, .. } | O::Borrow { formal: f, .. } if formals.contains(f));
+    let direct = |operand: &O| matches!(operand, O::Formal(f) | O::RecordField { formal: f, .. } | O::Borrow { formal: f, .. } | O::BorrowBefore { formal: f, .. } | O::MoveField { formal: f, .. } if formals.contains(f));
     match step {
         TemplateStep::Call(call) => call.operands.iter().any(direct),
         TemplateStep::Integer(integer) => integer.operands.iter().any(direct),
@@ -1407,9 +1431,9 @@ fn reads_formal(
 /// `[copy]` record of such values. The read then leaves the formal whole, so
 /// the formal, its record and its siblings owe the same cleanup or linear use
 /// as when the field is not read; the receiver's and siblings' obligations
-/// are not conditions of the read. Moving an affine field is a partial
-/// transfer with a residual, and a case payload step needs its case
-/// established; neither has a template operand form, so both refuse.
+/// are not conditions of the read. A direct affine field of a plain
+/// record transfers with its return residual. A case payload needs its
+/// active case established before the transfer.
 fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &TypedSignature, node: usize) -> Option<crate::TemplateOperand> {
     let file = tree.resolved().file;
     // The selections from the outermost field inward, then the formal below them.
@@ -1455,10 +1479,85 @@ fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &T
         crate::Parameter::Scalar(ty)
     } else if copied_whole(prepared.typed(), receiver, &mut Vec::new()) {
         crate::Parameter::Structural(ty)
+    } else if path.is_empty() && plain_affine_record(prepared.typed(), receiver) && plain_affine_record(prepared.typed(), &root.ty) {
+        return Some(TemplateOperand::MoveField { formal, field, ty });
     } else {
         return None;
     };
     Some(crate::TemplateOperand::RecordField { formal, carrier: path, field, argument })
+}
+
+/// An owner with independent nominal cleanup, a type-wide carry restriction,
+/// or a linear claim cannot use this plain residual disposal.
+fn plain_affine_record(typed: &omega_typed::TypedTrees<'_>, ty: &ValueType) -> bool {
+    let ValueType::Nominal(id) = ty else { return false };
+    typed.record_fields.contains_key(id.as_ref()) && !typed.case_owners.values().any(|owner| owner == id.as_ref()) && !typed.cleanups.iter().any(|row| &row.owner == id.as_ref())
+        && typed.data_properties.iter().find(|(data, _)| data == id.as_ref())
+            .is_none_or(|(_, p)| p.multiplicity == omega_typed::Multiplicity::Affine && p.carry.is_none())
+}
+
+/// The direct-field complement of all unconditional transfers, in reverse
+/// formal and reverse field order. More complex destruction needs its own
+/// ordered cleanup actions. A conditional transfer needs separate exits.
+fn residuals(typed: &omega_typed::TypedTrees<'_>, sig: &TypedSignature, body: &[TemplateStep]) -> Result<Vec<crate::TemplateResidual>, LoweringError> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let mut moved = BTreeMap::<usize, BTreeSet<&crate::DeclarationId>>::new();
+    let mut whole_actuals = BTreeSet::new();
+    for (index, step) in body.iter().enumerate() {
+        let Some(call) = step.call() else { continue };
+        for operand in &call.operands {
+            match operand {
+                TemplateOperand::MoveField { formal, field, .. } => {
+                    if body.iter().any(|step| matches!(step, TemplateStep::Select(s) if s.arms.iter().any(|arm| arm.steps.contains(&index))))
+                        || !moved.entry(*formal).or_default().insert(field)
+                    {
+                        return Err(LoweringError::new(&call.site, "template field transfer needs a distinct unconditional source"));
+                    }
+                }
+                TemplateOperand::Formal(formal) => { whole_actuals.insert(*formal); }
+                _ => {}
+            }
+        }
+    }
+    let mut residual = Vec::new();
+    for (formal, holes) in moved.into_iter().rev() {
+        if whole_actuals.contains(&formal) {
+            return Err(LoweringError::new(&sig.site, "template cannot transfer a whole formal beside its partial transfer"));
+        }
+        let ValueType::Nominal(owner) = &sig.parameters[formal].1 else { unreachable!("checked direct field of plain record") };
+        for field in typed.record_fields[owner.as_ref()].iter().rev() {
+            let id = crate::identity::declaration(&field.declaration, &field.site)?;
+            if !holes.contains(&id) {
+                if !discardable_residual(typed, &field.ty, &mut Vec::new()) {
+                    return Err(LoweringError::new(&sig.site, "template field transfer needs a disposition for its surviving subtree"));
+                }
+                residual.push(crate::TemplateResidual { formal, field: id, ty: type_expression(&field.ty, &field.site)? });
+            }
+        }
+    }
+    Ok(residual)
+}
+
+/// Discarding a subtree performs no cleanup calls and settles no linear
+/// claim. An unopened sum needs variant-specific disposal.
+fn discardable_residual<'a>(typed: &'a omega_typed::TypedTrees<'_>, ty: &'a ValueType, open: &mut Vec<&'a omega_resolved::DeclarationId>) -> bool {
+    match ty {
+        ValueType::Array(element, _) => discardable_residual(typed, element, open),
+        ValueType::Nominal(id) => {
+            let id = id.as_ref();
+            if open.contains(&id) || typed.case_owners.values().any(|owner| owner == id)
+                || typed.cleanups.iter().any(|row| &row.owner == id)
+                || typed.data_properties.iter().any(|(data, p)| data == id && (p.multiplicity == omega_typed::Multiplicity::Linear || p.carry.is_some())) {
+                return false;
+            }
+            let Some(fields) = typed.record_fields.get(id) else { return false };
+            open.push(id);
+            let disposable = fields.iter().all(|f| discardable_residual(typed, &f.ty, open));
+            open.pop();
+            disposable
+        }
+        _ => crate::lowering::types::scalar_carrier(ty).is_ok(),
+    }
 }
 
 /// A structural value that a field read copies rather than moves: a fixed array

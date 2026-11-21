@@ -82,9 +82,22 @@ A layer is done when all of these are true:
   crashing. Each example either passes or produces the refusal its layer
   contract predicts.
 - Its independent invariant holds (see the test system below).
-- Each disputed responsibility has a regression that checks the fact handed
-  forward and what the consumer does with it. The sign-off names those
-  tests and any behavior the review could not verify.
+- For each disputed handoff, sign-off cites the canonical spec clause,
+  names who owns the decision or obligation, and identifies the information
+  that owner needs. It names tests that check the producer's output and
+  the consumer's behavior across three cases.
+  1. A real use receives the exact fact it selected, including the definition
+     and arguments where applicable. The consumer produces the specified result.
+  2. An unrelated use receives none of the first use's specific facts or
+     obligations. For an obligation, the test also checks that its owner
+     still carries it.
+  3. A plausible substitution distinguishes the intended fact from a wrong
+     one. For example, keep a call's signature and arguments fixed and change
+     the definition. The test checks that an invalid substitution is refused
+     or a valid alternative produces its own specified result.
+  A missing case, a spec question that leaves ownership unsettled, or an
+  observation that contradicts the claimed boundary keeps the layer open.
+  Sign-off records any downstream behavior that remains unverified.
 - The suite's wall-clock time is measured and written in the layer table.
 - Spec gaps it uncovered are logged, each with a decision.
 - Jarod has signed it off.
@@ -151,7 +164,7 @@ Psi to native code) are not planned yet.
 | L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | revised handoff signed off 2026-11-19. Changes to overload identity, nested operator visibility and the scope of predicate `self` await review. | 0.17 s (2026-11-18 warm median, five runs) |
 | L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19. Nested machine selections and static callback refinements are under review. | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | signed off 2026-11-19. Reopened for domain access plans: L3 selects the policy machine, L4 evaluates it on the domain’s semantic type schema, and L5 carries the resulting policy into the Psi domain declaration. The checker independently validates its use. [Access policy contract](../wiki/spec/resources/access.md#plans-and-admitted-supply). Generic initializer scope, pattern bindings, nested helper applications and forwarded callback evidence await review. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | signed off 2026-11-19. Reopened for domain access plans. L3 selects the policy machine. L4 builds the scalar TypeSchema argument when the requesting package has a Build-supplied owner. Source inspection has only a local package label. L4 still owes other subject shapes and checked policy execution before L5 can carry the result into the Psi domain declaration. The checker independently validates its use. [Access policy contract](../wiki/spec/resources/access.md#plans-and-admitted-supply). Generic initializer scope, pattern bindings, nested helper applications and forwarded callback evidence await review. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
 | L5 Lowering | prepared tree → Terminal Psi | open. Tests cover structural moves and cleanup, loans and element views, selected calls, suspension with scalar values and incoming loans, trapping arithmetic and catalog-selected assembly. Branch joins preserve incoming loans. Completed local calls preserve shared-view backing. Suspending calls identify caller-owned storage, ownership transferred to each callee argument, and loans of live fields. Incoming records and immutable constructors retain the origin of stored shared references. Straight-line whole-record replacement retains the home and updates its shared descriptor origin. A parked shared-view result can retain its producing boundary call and single input lifetime anchor. Projected replacements, general boundary lifetime frontiers and case-dependent whole-sum cleanup remain open. [Lowering contract](layers/05_prepared-trees-to-terminal-psi/CONTRACT.md#handoffs-and-remaining-work) | 11.06 s for 298 L5 tests, including the pinned baseline (warm `mbx test --locked -p omega-lowering --no-fail-fast -- --include-ignored`, indexed-record handoff on `e75d3cefa46`) |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |

@@ -80,8 +80,7 @@ pub fn exclusive_join(
     let descriptor = *package.types.get(ty).ok_or("missing descriptor type")?;
     if !matches!(
         descriptor,
-        TypeShape::MutableScalarElementView { .. }
-            | TypeShape::MutableElementView { .. }
+        TypeShape::MutableElementView { .. }
             | TypeShape::NominalReference {
                 access: ReferenceAccess::Mutable,
                 ..

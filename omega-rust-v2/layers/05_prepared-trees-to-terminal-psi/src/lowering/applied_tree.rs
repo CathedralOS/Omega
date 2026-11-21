@@ -113,11 +113,8 @@ impl<'a> LoweringTree<'a> {
                     && owner == application.machine.as_ref()
                     && let Some(binding) = callbacks.iter().find(|b| b.slot == *index)
                 {
-                    // A fact application names only its callee's own clauses
-                    // (`PredicateStep::MachineApplication`). It has no position for
-                    // the binder's premises, so stop rather than drop them.
-                    if call.use_site != omega_typed::CallUse::Execution && !binding.requires.is_empty() {
-                        return Err(LoweringError::new(&call.site, "callback premise in a contract predicate has no Psi clause form"));
+                    if call.use_site == omega_typed::CallUse::StaticArgument && !binding.requires.is_empty() {
+                        return Err(LoweringError::new(&call.site, "static argument callback needs its bound premises"));
                     }
                     let selected = binding
                         .lower_call(call, application)

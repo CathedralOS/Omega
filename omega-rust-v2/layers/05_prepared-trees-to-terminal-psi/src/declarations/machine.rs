@@ -114,6 +114,9 @@ pub(super) fn append_domain_predicates(
     subject: crate::PredicateStep,
     domains: &[super::domains::DomainSchema<'_>],
 ) -> Result<(), LoweringError> {
+    // Structural membership is declared on the argument or result place. Its
+    // domain declaration supplies the theory; it occupies no scalar proof slot.
+    if ty.carrier().nominal_parts().is_some() { return Ok(()); }
     for member in ty.domains() {
         // Type interning reports unsupported memberships at the declared type.
         if let Ok(index) = domains.binary_search_by(|d| d.declaration.cmp(&member.declaration)) {

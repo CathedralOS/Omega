@@ -158,7 +158,7 @@ fn same_shape_fact_calls_keep_the_selected_helper_projected_actuals_and_each_pre
         );
         PredicateStep::MachineApplication {
             callee: helper.declaration.clone(),
-            operands: vec![u8_ty; 2],
+            operands: vec![u8_ty.into(); 2],
             result: ScalarType::Boolean,
             requirements: 0..2,
             progress: omega_psi::PredicateProgress::CheckPromise,
@@ -263,7 +263,7 @@ fn named_domain_substitutes_its_subject_inside_the_helper_application() {
         panic!("expected call on domain subject")
     };
     assert_eq!(callee, &allowed.declaration);
-    assert_eq!(*operands, [ScalarType::Integer { signed: false, width: 8 }]);
+    assert_eq!(*operands, [omega_psi::TypeExpression::from(ScalarType::Integer { signed: false, width: 8 })]);
     assert_eq!(*result, ScalarType::Boolean);
     assert_eq!(*requirements, 0..1);
     assert_eq!(site.span.slice(source.as_bytes()), Some(b"allowed(self)".as_slice()));
@@ -318,7 +318,7 @@ fn selected_read_supplies_the_helper_actual_not_an_outer_call_premise() {
         psi "psi-output/predicate-call-array-read",
         assert_eq!(clause.predicate, [PredicateStep::Formal(0), PredicateStep::Formal(1),
             expected::read("paths.omg", source, "a[i]"), PredicateStep::MachineApplication {
-                callee: check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }],
+                callee: check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }.into()],
                 result: ScalarType::Boolean, requirements: 0..0, progress: omega_psi::PredicateProgress::CheckPromise,
                 site: expected::site("paths.omg", source, "check(a[i])"),
             }]),
@@ -331,7 +331,7 @@ fn selected_read_supplies_the_helper_actual_not_an_outer_call_premise() {
     assert_eq!(fixed_guarded.declaration, guarded.declaration);
     assert_eq!(fixed_guarded.contract.requires[0].predicate, [PredicateStep::Formal(0), PredicateStep::FixedIndex(1),
         PredicateStep::MachineApplication {
-            callee: fixed_check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }],
+            callee: fixed_check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }.into()],
             result: ScalarType::Boolean, requirements: 0..0, progress: omega_psi::PredicateProgress::CheckPromise,
             site: expected::site("paths.omg", &fixed, "check(a[1])"),
         }]);
@@ -389,7 +389,7 @@ fn a_callable_alias_premise_keeps_its_helper_application_on_the_binder_interface
     };
     let application = |span: &std::ops::Range<usize>| PredicateStep::MachineApplication {
         callee: helper.declaration.clone(),
-        operands: vec![ScalarType::Boolean],
+        operands: vec![ScalarType::Boolean.into()],
         result: ScalarType::Boolean,
         requirements: 0..0,
         progress: omega_psi::PredicateProgress::CheckPromise,
@@ -474,7 +474,7 @@ fn a_private_helper_without_a_crash_clause_supplies_a_fact_from_its_effect_row()
             PredicateStep::Formal(0),
             PredicateStep::MachineApplication {
                 callee: premise.declaration.clone(),
-                operands: vec![ScalarType::Boolean],
+                operands: vec![ScalarType::Boolean.into()],
                 result: ScalarType::Boolean,
                 requirements: 0..0,
                 progress: omega_psi::PredicateProgress::CheckPrivateBody,

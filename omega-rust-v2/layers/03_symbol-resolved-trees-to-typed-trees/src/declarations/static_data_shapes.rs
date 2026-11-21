@@ -29,11 +29,11 @@ impl DeclarationCatalog<'_> {
         let mut steps: Vec<_> = constant_carriers
             .chain(demand_carriers)
             .chain(evaluated_carriers)
-            // A runtime signature can demand an indexed schema without any static
+            // A runtime signature can demand a closed schema without any static
             // initializer or constructor (including an entirely unused formal).
             .chain(self.local_machines.iter().filter_map(|id| self.signatures.get(id)).flat_map(|signature| {
                 signature.parameters.iter().map(|(_, ty)| ty).chain(std::iter::once(&signature.result))
-                    .filter(|ty| matches!(ty, ValueType::Applied(_, args) if args.iter().all(|a| matches!(a, ValueType::StaticInteger { .. }))))
+                    .filter(|ty| matches!(ty, ValueType::Applied(..)) && !ty.contains_parameter())
             }))
             // Local machine arguments and temporaries may use a different
             // aggregate than the value returned to the demanding expression.

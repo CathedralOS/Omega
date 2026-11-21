@@ -195,7 +195,7 @@ pub fn discarded_loan_fields<'a>(
     for field in &package.data[id.get() - 1].fields {
         let access = match package.types.get(field.carrier) {
             Some(TypeShape::ScalarReference { access, .. } | TypeShape::NominalReference { access, .. }) => *access,
-            Some(TypeShape::MutableElementView { .. } | TypeShape::MutableScalarElementView { .. }) => ReferenceAccess::Mutable,
+            Some(TypeShape::MutableElementView { .. }) => ReferenceAccess::Mutable,
             Some(TypeShape::SharedElementView { .. } | TypeShape::SharedByteView) => ReferenceAccess::Shared,
             _ => continue,
         };

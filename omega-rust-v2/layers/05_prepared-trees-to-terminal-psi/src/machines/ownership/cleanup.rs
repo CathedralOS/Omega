@@ -199,6 +199,10 @@ impl Frontier {
         let site = context.site;
         for action in actions {
             match action {
+                CleanupAction::RetireHome(place) => {
+                    let home = self.live(&ProjectedPlace { root: *place, path: vec![] }, site)?;
+                    self.0.remove(home);
+                }
                 CleanupAction::DiscardRoot(root) => self.take(&ProjectedPlace { root: *root, path: vec![] }, site)?,
                 CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => self.take(place, site)?,
             }
@@ -290,7 +294,9 @@ pub(in crate::machines) fn owned(
     loop {
         match types.get(ty) {
             Some(TypeShape::FixedArray { element, .. }) => ty = *element,
-            Some(TypeShape::Nominal(id)) => return data[id.get() - 1].multiplicity != Multiplicity::Copy,
+            Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
+                return data[id.get() - 1].multiplicity != Multiplicity::Copy || types.cleanup_target(ty, data).is_some();
+            }
             _ => return false,
         }
     }
@@ -318,6 +324,9 @@ pub(in crate::machines) fn dispose_temporary(
     flow.open(body, target, None);
     Ok(())
 }
+
+#[path = "sum_cleanup.rs"]
+mod sum_cleanup;
 
 #[path = "parked.rs"]
 mod parked;
@@ -357,6 +366,7 @@ pub(in crate::machines) fn schedule(
     let mut arrivals = vec![None; body.blocks.len()];
     arrivals[0] = Some(initial);
     let mut pending = VecDeque::from([0]);
+    let mut sum_returns = Vec::new();
     while let Some(index) = pending.pop_front() {
         let mut state = arrivals[index].as_ref().expect("queued predecessor").clone();
         let block = &mut body.blocks[index];
@@ -476,7 +486,13 @@ pub(in crate::machines) fn schedule(
                 {
                     state.take(&ProjectedPlace { root: *source, path: vec![] }, site)?;
                 }
-                *cleanup = dispositions(&state, &body.places, types, data, site)?;
+                let context = CleanupContext { places: &body.places, types, data, site };
+                let plan = sum_cleanup::return_plan(&state, &context)?;
+                if let Some(phases) = plan {
+                    sum_returns.push((index, phases));
+                } else {
+                    *cleanup = dispositions(&state, &body.places, types, data, site)?;
+                }
             }
             BlockTerminator::TerminalCall {
                 id,
@@ -496,6 +512,9 @@ pub(in crate::machines) fn schedule(
             // Exit abandons the bound domain: no cleanup, receipt or merged frontier.
             BlockTerminator::ExternalExit(_) => {}
         }
+    }
+    for (block, phases) in sum_returns {
+        sum_cleanup::emit(body, block, phases, types, data)?;
     }
     crossings.sort_by_call();
     let context = CleanupContext {
@@ -590,8 +609,7 @@ impl CleanupContext<'_> {
                     pending.push(Work::Region(child,field.carrier));
                 }
             } else {
-                if let Some(TypeShape::Nominal(id)) = types.get(ty)
-                    && let Some(target) = data[id.get() - 1].cleanup_target
+                if let Some(target) = types.cleanup_target(ty, data)
                 {
                     actions.push(CleanupAction::Invoke {
                         place: ProjectedPlace { root: root.place, path },
@@ -667,18 +685,18 @@ fn ensure_disposable(
             // operations; no cleanup action restores it.
             Some(
                 TypeShape::ScalarReference { .. }
+                | TypeShape::SharedQualifiedScalarReference { .. }
                 | TypeShape::NominalReference { .. }
                 | TypeShape::IndexedSharedReference(_)
                 | TypeShape::MutableElementView { .. }
-                | TypeShape::MutableScalarElementView { .. }
                 | TypeShape::SharedElementView { .. }
                 | TypeShape::SharedByteView,
             ) => {}
             Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
-            Some(TypeShape::Nominal(id)) => {
+            Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
                 let schema = &data[id.get() - 1];
                 let linear_refused = schema.multiplicity == Multiplicity::Linear && linear == LinearDebt::Refuse;
-                if linear_refused || schema.carry.is_some() || schema.cleanup_target.is_some() {
+                if linear_refused || schema.carry.is_some() || types.cleanup_target(ty, data).is_some() {
                     return Err(LoweringError::new(site, "normal exit needs an authorized disposition for owned storage"));
                 }
                 pending.extend(

@@ -45,7 +45,8 @@ pub fn evaluate(
     let read = |operand: &TemplateOperand, results: &[u64]| match operand {
         TemplateOperand::Formal(i) => application.formals.get(*i).copied(),
         TemplateOperand::Step(i) => results.get(*i).copied(),
-        // Field reads, borrows, zeros and constants are outside this reader.
+        TemplateOperand::Constant(omega_psi::ScalarLiteral::Integer(value)) => u64::try_from(value).ok(),
+        // Field reads, borrows and zeros are outside this reader.
         _ => None,
     };
     for (index, step) in template.body.iter().enumerate() {
@@ -94,7 +95,8 @@ pub fn evaluate(
     Some(Evaluation::Returned(match template.result.as_ref()? {
         TemplateResult::Operand(operand) => read(operand, &results)?,
         TemplateResult::StaticParameter { owner, index, .. } if owner == &template.declaration => {
-            matches!(template.parameters.get(*index), Some(MachineTemplateBinder::Const(_))).then_some(())?;
+            let MachineTemplateBinder::Const(ty) = template.parameters.get(*index)? else { return None };
+            if unsigned_width(ty).is_none() && ty.0 != [TypeExpressionStep::Scalar(ScalarType::Boolean)] { return None; }
             *application.statics.get(*index)?
         }
         TemplateResult::StaticParameter { .. } => return None,
@@ -141,4 +143,21 @@ pub fn restricted_member<'a>(
             .find(|r| &r.declaration == requirement)?,
         limits: &restriction.all_members,
     })
+}
+
+/// Resolve a nominal value binder to its own non-applied data declaration.
+pub fn binder_record<'a>(package: &'a LoweredPackage, template: &MachineTemplate, index: usize) -> Option<&'a omega_psi::LoweredData> {
+    let MachineTemplateBinder::Const(TypeExpression(steps)) = template.parameters.get(index)? else { return None };
+    let [TypeExpressionStep::Named { declaration, argument_count: 0 }] = steps.as_slice() else { return None };
+    package.data.iter().find(|data| data.declaration == *declaration && data.type_arguments.is_empty())
+}
+
+/// The schema named by a machine's structural parameter and its runtime place.
+pub fn formal_schema<'a>(package: &'a LoweredPackage, machine: &str, index: usize) -> Option<&'a omega_psi::LoweredData> {
+    let machine = package.machines.iter().find(|m| m.declaration.path == machine)?;
+    let carrier = *machine.parameter_types.get(index)?;
+    let omega_psi::Parameter::Structural(place) = *machine.body.parameters.get(index)? else { return None };
+    if machine.body.places.get(place.index())?.ty != carrier { return None; }
+    let omega_psi::TypeShape::Nominal(id) = package.types.get(carrier)? else { return None };
+    package.data.iter().find(|row| row.id == *id && row.carrier == carrier)
 }

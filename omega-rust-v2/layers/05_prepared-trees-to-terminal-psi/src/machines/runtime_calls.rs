@@ -7,7 +7,7 @@ use super::expressions::{EmitOperation, Expressions, OperationOutput};
 use crate::{CallTarget, LoweringError, MachineBody, OperationKind, OperationResult, TypeShape, ValueId};
 use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
-use omega_typed::{CallUse, InvocationTarget, NodeSemantics, ObligationKind, PauseEffects, TypedSignature, ValueType};
+use omega_typed::{CallUse, InvocationTarget, NodeSemantics, ObligationKind, TypedSignature, ValueType};
 
 /// The current scalar descriptor bound at `node`, which must name `binder_span`
 /// when the caller demands an exact formal identity.
@@ -177,6 +177,13 @@ pub(super) fn select_runtime_call<'a>(
         match record {
             NodeSemantics::IndirectCall(_) => {}
             NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && &e.ty == expected => typed = true,
+            // The structural return edge carries this call's fresh result
+            // descriptor. The selected contract owns its lifetime relation.
+            NodeSemantics::Obligation(o)
+                if o.node == file.node_id(node)
+                    && o.site == site
+                    && crate::lowering::types::is_reference_descriptor(expected)
+                    && matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &caller.machine) => {}
             NodeSemantics::Obligation(o) => {
                 return Err(LoweringError::new(&o.site, format!("unsupported runtime call obligation: {:?}", o.kind)));
             }
@@ -186,8 +193,8 @@ pub(super) fn select_runtime_call<'a>(
     if call.use_site != CallUse::Execution || call.node != file.node_id(node) || call.site != site || call.caller.as_ref() != Some(&caller.machine) {
         return Err(error("indirect call disagrees with its owning occurrence"));
     }
-    if call.contract.pause != PauseEffects::default() {
-        return Err(error("runtime call requires pause lowering"));
+    if call.contract.pause.block || call.contract.pause.suspend && !call.acknowledgements.suspend {
+        return Err(error("runtime call needs a supported acknowledged pause envelope"));
     }
     if !typed || call.contract.result != *expected {
         return Err(error("runtime call result disagrees with its normal continuation"));

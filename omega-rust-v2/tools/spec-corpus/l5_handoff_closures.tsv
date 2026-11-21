@@ -121,3 +121,26 @@ parked home descriptor without one reaching store	checker-input	psi-output/parke
 parked descriptor after an unreplaced writable loan	checker-input	psi-output/parked-descriptor-unreplaced-writable-loan-originals
 parked descriptor behind a writable loan that can outlive its operation	checker-input	psi-output/parked-descriptor-outliving-writable-loan-originals
 unselected access policy template constructor	product	psi-output/policy-template-toolchain-callee|psi-output/policy-template-constructor-operands
+shared nominal view as an element count	product	psi-output/nominal-view-count
+qualified float formal in a contract predicate	product	psi-output/qualified-float-contract|psi-output/qualified-float-contract-consumer
+float domain qualification on a formal	product	psi-output/float-domain-formal
+restoration requiring transitive selector equality	checker-input	psi-output/transitive-selector-final-fill
+runtime callable with a mutable loan formal	product	psi-output/runtime-mutable-loan-formal|psi-output/runtime-mutable-reborrows
+runtime callable with a shared record reference formal	product	psi-output/runtime-shared-record-formal|psi-output/runtime-record-reborrow
+runtime callable with a borrowed result	checker-input	psi-output/runtime-borrowed-result|psi-output/runtime-borrowed-call-lifetime
+applied record as a machine formal	product	psi-output/applied-record-formal
+declared parent in a trait interface	product	psi-output/declared-trait-parent
+constant operand in an open template body	product	psi-output/template-integer-literal|psi-output/template-integer-literal-consumer
+record carrier of an open template value binder	product	psi-output/open-record-value-binder
+borrow of a qualified scalar formal	checker-input	psi-output/qualified-scalar-home
+suspending runtime callable contract	product	psi-output/suspending-callable-contract|psi-output/suspending-callable-crossings
+guarantee-bearing closed static callback	checker-input	psi-output/closed-callback-guarantees
+callback premise in a contract predicate	checker-input	psi-output/callback-predicate-premises
+record domain qualification on a formal	product	psi-output/record-domain-formal
+intact sum with case-dependent cleanup	product	psi-output/intact-sum-selected-return-cleanup
+template step reading a formal under its own borrow	checker-input	psi-output/template-borrow-order
+domain-selected cleanup on a record domain	product	psi-output/record-domain-cleanup
+affine field operand of a formal record	checker-input	psi-output/template-affine-field-transfer
+theorem subject computed from a variable	checker-input	psi-output/erased-arithmetic-subject
+theorem application inside a theorem proof	checker-input	psi-output/nested-theorem-application
+user-declared operator in a contract predicate	checker-input	psi-output/selected-record-predicate-operator

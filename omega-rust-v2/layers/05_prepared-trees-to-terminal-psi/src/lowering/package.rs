@@ -58,7 +58,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                     .ok_or_else(|| LoweringError::new(&site_at(tree, child), "machine has no local typed signature"))?;
                 // A theorem with logical hypotheses publishes no executable machine.
                 if file.child(child, NodeKind::Hypothesis).is_some() {
-                    theorems.push((sig, crate::declarations::hypotheses::lower(prepared, tree, sig)?));
+                    theorems.push((sig, tree, crate::declarations::hypotheses::header(prepared, tree, sig)?));
                     continue;
                 }
                 signatures.push(sig);
@@ -133,8 +133,18 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             data_schemas.push(schema);
         }
     }
-    theorems.sort_unstable_by(|(_, a), (_, b)| a.declaration.cmp(&b.declaration));
-    let (theorem_signatures, theorems): (Vec<_>, Vec<_>) = theorems.into_iter().unzip();
+    theorems.sort_unstable_by(|(_, _, a), (_, _, b)| a.declaration.cmp(&b.declaration));
+    // All theorem headers are available before any body can cite a theorem.
+    let theorem_headers = theorems.iter().map(|(sig, _, theorem)| {
+        (&sig.machine, crate::machines::theorem_citations::TheoremCallee { signature: sig, theorem })
+    }).collect();
+    let proofs = theorems.iter().map(|(sig, tree, _)| {
+        crate::declarations::hypotheses::proof_steps(prepared, tree, sig, &theorem_headers)
+    }).collect::<Result<Vec<_>, _>>()?;
+    let (theorem_signatures, theorems): (Vec<_>, Vec<_>) = theorems.into_iter().zip(proofs).map(|((sig, _, mut theorem), proof)| {
+        theorem.proof = proof;
+        (sig, theorem)
+    }).unzip();
     signatures.sort_unstable_by(|a, b| a.machine.cmp(&b.machine));
     let instances = super::applications::plan(prepared, &signatures, &trees, typed)?;
     let members = crate::declarations::members::plan(typed, &trees, &instances, &signature_by_declaration)?;
@@ -167,7 +177,13 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     for domain in &domain_schemas {
         carriers.push((domain.carrier, domain.site.clone()));
     }
+    let case_owners: std::collections::HashSet<_> = typed.case_owners.values().collect();
     for data in &data_schemas {
+        // Normal cleanup can test an intact sum's discriminator even when
+        // the machine has no authored Boolean expression.
+        if case_owners.contains(data.declaration) {
+            carriers.push((&ValueType::Bool, data.site.clone()));
+        }
         carriers.push((&data.carrier, data.site.clone()));
         carriers.extend(data.value_indices.iter().map(|ty| (*ty, data.site.clone())));
         for field in data.fields() {
@@ -245,7 +261,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                 };
                 if types::place_reference(carrier).is_some()
                     || types::supports_value_copy(carrier)
-                    || types::local_scalar_members(carrier, &domain_schemas).is_some()
+                    || types::local_domain_members(carrier, &domain_schemas).is_some()
                     || matches!(carrier, ValueType::Callable(callable) if callable.closed_runtime)
                 {
                     carriers.push((carrier, site.clone()));
@@ -266,7 +282,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             carriers.push((slot_carrier(&sig.result, &sig.machine), site));
         }
     }
-    let types = LoweringTypes::from_declarations(
+    let mut types = LoweringTypes::from_declarations(
         carriers.iter().map(|(carrier, _)| *carrier),
         data_schemas
             .iter()
@@ -295,6 +311,11 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         .map(|t| t.lower(&types, &domain_schemas))
         .collect::<Result<Vec<_>, _>>()?;
     for alias in &traits {
+        if let Some(parent) = &alias.parent
+            && !traits.iter().any(|base| base.declaration == parent.declaration)
+        {
+            return Err(LoweringError::new(&alias.site, "inheriting trait needs its packaged parent requirements"));
+        }
         if let Some(restriction) = &alias.restriction
             && !traits.iter().any(|base| base.declaration == restriction.base.declaration)
         {
@@ -311,6 +332,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     let mut machines = Vec::with_capacity(instances.len());
     let mut crossing_owners = Vec::with_capacity(instances.len());
     let mut callees = calls::Callees {
+        runtime_pause: callable_contracts.iter().map(|contract| contract.pause).collect(),
         runtime_requirements: callable_contracts
             .iter()
             .map(|contract| contract.requires.len())
@@ -363,7 +385,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         );
     }
     let member_calls = members.lower(&types, &traits, &mut callees)?;
-    for selection in typed.cleanups.iter().filter(|s| s.owner.kind == NodeKind::Data) {
+    for selection in typed.cleanups.iter().filter(|s| s.owner.kind == NodeKind::Data || domain_schemas.iter().any(|d| d.declaration == &s.owner)) {
         let declaration = crate::identity::declaration(&selection.owner, &selection.site)?;
         let target = callees
             .local
@@ -382,6 +404,14 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         let ty = types
             .id_for(subject)
             .map_err(|e| LoweringError::new(&selection.site, e.to_string()))?;
+        if selection.owner.kind == NodeKind::Domain {
+            let domain = domain_schemas.iter().find(|d| d.declaration == &selection.owner).expect("selected domain in this package");
+            if domain.carrier != subject || !matches!(subject, ValueType::Nominal(_)) || target.signature.result != ValueType::NoResult {
+                return Err(LoweringError::new(&selection.site, "domain cleanup requires its closed nominal subject and unit result"));
+            }
+            types.register_domain_cleanup(&selection.owner, target.machine);
+            continue;
+        }
         let schema = data
             .iter_mut()
             .find(|s| s.declaration == declaration && s.carrier == ty)

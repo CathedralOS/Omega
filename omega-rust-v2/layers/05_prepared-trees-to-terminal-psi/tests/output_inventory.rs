@@ -48,20 +48,20 @@ families! {
     ],
     BlockTerminator => [Return, Conditional, Jump, TerminalCall, ExternalExit],
     ReturnEdge => [Unit, Scalar, Structural],
-    CleanupAction => [DiscardRoot, DiscardResidual, Invoke],
+    CleanupAction => [DiscardRoot, DiscardResidual, Invoke, RetireHome],
     StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose],
     ValueOperand => [Scalar, CopyWhole, MoveWhole, Borrow],
     PlaceProjection => [Referent, Case, Field, FixedIndex, ViewElement],
     CallTarget => [Machine, Member, Runtime],
     MemberRealization => [Boundary, Conformance],
     PredicateStep => [
-        Formal, MachineApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, FixedArrayRead,
+        Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, FixedArrayRead,
         IsCase, InDomain,
         FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeComparison, MathematicalTerm,
         HypothesisParameter, HypothesisGuarantee, Apply,
     ],
     TypeShape => [
-        PrimitiveScalar, QualifiedScalar, Nominal, SharedByteView, SharedElementView, MutableScalarElementView, MutableElementView,
+        PrimitiveScalar, QualifiedScalar, Nominal, QualifiedNominal, SharedQualifiedScalarReference, SharedByteView, SharedElementView, MutableElementView,
         ScalarReference, NominalReference, IndexedSharedReference, Callable, FixedArray,
     ],
 }

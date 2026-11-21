@@ -55,7 +55,7 @@ impl Keys {
     ) {
         for action in actions {
             match action {
-                CleanupAction::DiscardRoot(p) => read(self.place(*p)),
+                CleanupAction::DiscardRoot(p) | CleanupAction::RetireHome(p) => read(self.place(*p)),
                 CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => self.projected(place, &mut read),
             }
         }
@@ -87,7 +87,7 @@ impl Keys {
                 reads.extend(operands.iter().map(|v| v.index()))
             }
             TrappingInteger { left, right, .. } => reads.extend([left.index(), right.index()]),
-            ExactNumericCast { operand } | RefineCallableDescriptor { source: operand, .. } | EstablishPrimitiveLocal { value: operand } => {
+            ExactNumericCast { operand } | RefineCallableDescriptor { source: operand, .. } | EstablishPrimitiveLocal { value: operand, .. } => {
                 reads.push(operand.index())
             }
             Call { callee, arguments, .. } => self.call(*callee, arguments, &mut reads),
@@ -412,13 +412,15 @@ impl<'a> Liveness<'a> {
     fn activation<'members>(
         &self,
         site: &Site,
+        target: CallTarget,
         args: &[CallArgument],
         after: &[bool],
         owners: &[crate::RetainedOwner],
         types: &LoweringTypes,
         returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
-    ) -> Result<(Vec<ActivationValue>, Vec<crate::RetainedLoan>, Vec<crate::RetainedHome>), LoweringError> {
+    ) -> Result<(Vec<ActivationValue>, Vec<crate::RetainedCallable>, Vec<crate::RetainedLoan>, Vec<crate::RetainedHome>), LoweringError> {
         let mut held = vec![false; after.len()];
+        if let CallTarget::Runtime { descriptor, .. } = target { held[descriptor.index()] = true; }
         let mut borrowed_root = vec![false; self.body.places.len()];
         for arg in args {
             if let CallArgument::Borrow { place, .. } = arg {
@@ -496,11 +498,17 @@ impl<'a> Liveness<'a> {
             });
         }
         let mut activation = Vec::new();
+        let mut retained_callables = Vec::new();
         for (index, (&callee, &continuation)) in held[..self.keys.0].iter().zip(after).enumerate() {
             if !callee && !continuation {
                 continue;
             }
             let ty = self.body.values[index].ty;
+            if let Some(TypeShape::Callable(contract)) = types.get(ty) {
+                retained_callables.push(crate::RetainedCallable { descriptor: ValueId(super::body::next_id(index)), contract: *contract,
+                    needed_by_callee: callee, needed_after_completion: continuation });
+                continue;
+            }
             if !matches!(types.get(ty), Some(TypeShape::PrimitiveScalar(_))) {
                 return Err(LoweringError::new(
                     site,
@@ -530,7 +538,7 @@ impl<'a> Liveness<'a> {
                 }
             })
             .collect();
-        Ok((activation, retained_loans, retained_homes))
+        Ok((activation, retained_callables, retained_loans, retained_homes))
     }
 }
 
@@ -650,12 +658,13 @@ fn plan<'members>(
             graph.keys.cleanup(cleanup, |key| after[key] = true);
             let site = &body.diagnostics.edges[id.get() - 1];
             let retained_owners = owners.take(CallSite::Edge(*id));
-            let (activation, retained_loans, retained_homes) = graph.activation(site, arguments, &after, &retained_owners, types, returns)?;
+            let (activation, retained_callables, retained_loans, retained_homes) = graph.activation(site, *callee, arguments, &after, &retained_owners, types, returns)?;
             crossings.push(SuspensionSite {
                 call: CallSite::Edge(*id),
                 callee: *callee,
                 continuation: CompletionContinuation::Return,
                 activation,
+                retained_callables,
                 retained_loans,
                 retained_owners,
                 retained_homes,
@@ -679,12 +688,13 @@ fn plan<'members>(
                     CompletionContinuation::Terminator(block.id)
                 };
                 let retained_owners = owners.take(CallSite::Operation(op.id));
-                let (activation, retained_loans, retained_homes) = graph.activation(site, arguments, &live, &retained_owners, types, returns)?;
+                let (activation, retained_callables, retained_loans, retained_homes) = graph.activation(site, *callee, arguments, &live, &retained_owners, types, returns)?;
                 crossings.push(SuspensionSite {
                     call: CallSite::Operation(op.id),
                     callee: *callee,
                     continuation,
                     activation,
+                    retained_callables,
                     retained_loans,
                     retained_owners,
                     retained_homes,

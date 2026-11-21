@@ -82,14 +82,6 @@ enum PendingOperation {
         borrowed: Vec<Option<CallArgument>>,
         pause: crate::PauseEffects,
     },
-    ApplyTheorem {
-        theorem: crate::DeclarationId,
-        arguments: Vec<crate::TheoremArgument>,
-        /// One entry per formal: a closed literal, or `None` for the next
-        /// visited binding operand.
-        literals: Vec<Option<ScalarLiteral>>,
-        requirement_count: usize,
-    },
     FixedArrayRead(Vec<usize>),
     ProjectedScalarRead(Vec<crate::PlaceProjection>),
     CollectionLength(crate::machines::access::CollectionLength),
@@ -677,34 +669,6 @@ impl Expressions<'_> {
                                 requirements,
                             }
                         }
-                        PendingOperation::ApplyTheorem {
-                            theorem,
-                            arguments,
-                            literals,
-                            requirement_count,
-                        } => {
-                            let subjects = literals
-                                .into_iter()
-                                .map(|literal| match literal {
-                                    Some(literal) => Ok(crate::ProofSubject::Literal(literal)),
-                                    None => match operands.next() {
-                                        Some(OperationResult::Scalar(value)) => Ok(crate::ProofSubject::Input(value)),
-                                        _ => Err(unsupported_node(file, node, "a theorem citation subject needs a scalar value")),
-                                    },
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
-                            if operands.next().is_some() {
-                                return Err(unsupported_node(file, node, "a theorem citation has an unused subject value"));
-                            }
-                            drop(operands);
-                            let operation = OperationId(next_id(block.operations.len()));
-                            OperationKind::ApplyTheorem(Box::new(crate::TheoremApplication {
-                                theorem,
-                                arguments,
-                                subjects,
-                                requirements: crate::declarations::contracts::call_requirements(crate::CallSite::Operation(operation), requirement_count),
-                            }))
-                        }
                         PendingOperation::CollectionLength(length) => {
                             let [OperationResult::Structural(source)] = *operands.as_slice() else {
                                 return Err(unsupported_node(file, node, "collection length requires a structural receiver"));
@@ -876,32 +840,16 @@ impl Expressions<'_> {
                     .semantics_at(expression)
                     .any(|s| matches!(s, NodeSemantics::Call(_)))
             {
-                if let Some(citation) = super::theorem_citations::select(self.prepared, self.tree, self.signature, expression, carrier, self.callees)? {
-                    // Only named bindings are read; a closed literal is
-                    // published in the citation and computed by no operation.
-                    let mut visits = Vec::with_capacity(citation.subjects.len());
-                    let mut literals = Vec::with_capacity(citation.subjects.len());
-                    for subject in citation.subjects {
-                        match subject {
-                            super::theorem_citations::CitedSubject::Binding(node, carrier) => {
-                                visits.push(ExpressionStep::Visit { node, carrier, landing: None });
-                                literals.push(None);
-                            }
-                            super::theorem_citations::CitedSubject::Literal(literal) => literals.push(Some(literal)),
-                        }
-                    }
-                    work.push(ExpressionStep::Emit {
-                        node: expression,
-                        output: OperationOutput::Unit,
-                        operation: PendingOperation::ApplyTheorem {
-                            theorem: citation.theorem,
-                            arguments: citation.arguments,
-                            literals,
-                            requirement_count: citation.requirement_count,
-                        },
-                        arity: visits.len(),
-                    });
-                    work.extend(visits.into_iter().rev());
+                if let Some(citation) = super::theorem_citations::select(self.prepared, self.tree, self.signature, expression, carrier, &self.callees.theorems, |node, formal| {
+                    let Symbol::Binding { binder_node, .. } = resolved.symbol(node)? else { return None };
+                    let (_, OperationResult::Scalar(value)) = self.bindings.iter().rev().find(|(n, _)| n == binder_node)? else { return None };
+                    (block.values[value.index()].ty == self.types.id_for(formal).ok()?).then_some(*value)
+                })? {
+                    let operation = OperationId(next_id(block.operations.len()));
+                    let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Operation(operation), citation.requirement_count);
+                    values.push(block.push_operation(OperationOutput::Unit, OperationKind::ApplyTheorem(Box::new(crate::TheoremApplication {
+                        theorem: citation.theorem, arguments: citation.arguments, subjects: citation.subjects, requirements,
+                    })), site_at(file, expression)));
                     continue;
                 }
                 let call = super::calls::select_call(self, expression, carrier, block)?;

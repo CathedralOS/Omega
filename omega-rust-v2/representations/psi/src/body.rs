@@ -307,6 +307,8 @@ pub enum OperationKind {
     /// `ProjectedScalarStore` into it at an empty path.
     EstablishPrimitiveLocal {
         value: ValueId,
+        /// Prove the receiving storage's scalar-domain predicates at this initializer.
+        receiving_domains: Option<crate::DomainSetId>,
     },
     /// Each place supplies one complete element, in source order. An owned
     /// element transfers once and continues beneath `FixedIndex(ordinal)`.

@@ -40,10 +40,12 @@ pub fn theorem_citations<'a>(
             return None;
         }
         for (subject, formal) in application.subjects.iter().zip(&theorem.parameters) {
-            let fits = match subject {
-                ProofSubject::Input(value) => body.values.get(value.index()).is_some(),
-                ProofSubject::Literal(literal) => scalar(formal).is_some_and(|carrier| fits(literal, carrier)),
-            };
+            let fits = scalar(formal).is_some_and(|carrier| subject_fits(subject, carrier, |value| {
+                match package.types.get(body.values.get(value.index())?.ty)? {
+                    TypeShape::PrimitiveScalar(ty) => Some(*ty),
+                    _ => None,
+                }
+            }));
             if !fits {
                 return None;
             }
@@ -104,17 +106,55 @@ pub struct ProofCitation<'a> {
 /// declaration with no lowered machine, a subject count or literal that
 /// disagrees with the machine's scalar formals, or requirements other than
 /// all of the machine's `requires` clauses in order.
-pub fn theorem_proof<'a>(
+pub fn theorem_proof<'a>(package: &'a LoweredPackage, theorem: &'a LogicalTheorem) -> Option<Vec<ProofCitation<'a>>> {
+    proof_citations(package, theorem).map(|(machines, _)| machines)
+}
+
+pub struct NestedCitation<'a> {
+    pub theorem: &'a LogicalTheorem,
+    pub subjects: Vec<ProofSubject<usize>>,
+    pub evidence: Vec<(usize, &'a LoweredMachine)>,
+    pub owed: &'a [ContractClause],
+    pub imported: &'a [ContractClause],
+}
+
+pub fn nested_theorem_citations<'a>(package: &'a LoweredPackage, theorem: &'a LogicalTheorem) -> Option<Vec<NestedCitation<'a>>> {
+    proof_citations(package, theorem).map(|(_, theorems)| theorems)
+}
+
+fn proof_citations<'a>(
     package: &'a LoweredPackage,
     theorem: &'a LogicalTheorem,
-) -> Option<Vec<ProofCitation<'a>>> {
+) -> Option<(Vec<ProofCitation<'a>>, Vec<NestedCitation<'a>>)> {
     let mut bound: Vec<Option<ProofSubject<usize>>> = Vec::with_capacity(theorem.proof.len());
     let mut citations = Vec::new();
+    let mut nested = Vec::new();
     let resolve = |subject: &ProofSubject<ProofInput>, bound: &[Option<ProofSubject<usize>>]| -> Option<ProofSubject<usize>> {
+        let lookup = |input: ProofInput| match input {
+            ProofInput::Formal(index) => (index < theorem.parameters.len()).then_some(ProofSubject::Input(index)),
+            ProofInput::Local(step) => bound.get(step)?.clone(),
+        };
+        use omega_psi::ProofIntegerStep as Step;
         match subject {
-            ProofSubject::Input(ProofInput::Formal(index)) => (*index < theorem.parameters.len()).then_some(ProofSubject::Input(*index)),
-            ProofSubject::Input(ProofInput::Local(step)) => bound.get(*step)?.clone(),
+            ProofSubject::Input(input) => lookup(*input),
             ProofSubject::Literal(literal) => Some(ProofSubject::Literal(literal.clone())),
+            ProofSubject::IntegerTerm(steps) => {
+                let mut result = Vec::new();
+                for step in steps {
+                    match step {
+                        Step::Input(input) => match lookup(*input)? {
+                            ProofSubject::Input(formal) => result.push(Step::Input(formal)),
+                            ProofSubject::Literal(value) => result.push(Step::Literal(value)),
+                            ProofSubject::IntegerTerm(inner) => result.extend(inner),
+                        },
+                        Step::Literal(value) => result.push(Step::Literal(value.clone())),
+                        Step::Operation { operation, carrier, site } => result.push(Step::Operation {
+                            operation: operation.clone(), carrier: *carrier, site: site.clone()
+                        }),
+                    }
+                }
+                Some(ProofSubject::IntegerTerm(result))
+            }
         }
     };
     for (step, row) in theorem.proof.iter().enumerate() {
@@ -122,6 +162,26 @@ pub fn theorem_proof<'a>(
             ProofStep::Bind { subject, .. } => {
                 let resolved = resolve(subject, &bound)?;
                 bound.push(Some(resolved));
+            }
+            ProofStep::ApplyTheorem { theorem: callee, arguments, subjects, requirements, .. } => {
+                let callee = package.theorems.iter().find(|row| &row.declaration == callee)?;
+                if *requirements != (0..callee.requires.len()) || subjects.len() != callee.parameters.len() || arguments.len() != callee.binders.len() {
+                    return None;
+                }
+                let mut resolved = Vec::new();
+                for (subject, ty) in subjects.iter().zip(&callee.parameters) {
+                    let subject = resolve(subject, &bound)?;
+                    if !subject_fits(&subject, scalar(ty)?, |index| scalar(theorem.parameters.get(index)?)) { return None; }
+                    resolved.push(subject);
+                }
+                let mut evidence = Vec::new();
+                for (binder, argument) in callee.binders.iter().zip(arguments) {
+                    let (TheoremBinder::Hypothesis(index), TheoremArgument::Citation(machine)) = (binder, argument) else { return None };
+                    callee.hypotheses.get(*index)?;
+                    evidence.push((*index, package.machines.iter().find(|m| &m.declaration == machine)?));
+                }
+                nested.push(NestedCitation { theorem: callee, subjects: resolved, evidence, owed: &callee.requires, imported: &callee.ensures });
+                bound.push(None);
             }
             ProofStep::CiteMachine {
                 machine,
@@ -142,10 +202,7 @@ pub fn theorem_proof<'a>(
                         _ => return None,
                     };
                     let subject = resolve(subject, &bound)?;
-                    let fits = match &subject {
-                        ProofSubject::Input(formal) => scalar(&theorem.parameters[*formal]) == Some(carrier),
-                        ProofSubject::Literal(literal) => fits(literal, carrier),
-                    };
+                    let fits = subject_fits(&subject, carrier, |formal| scalar(theorem.parameters.get(formal)?));
                     if !fits {
                         return None;
                     }
@@ -162,7 +219,43 @@ pub fn theorem_proof<'a>(
             }
         }
     }
-    Some(citations)
+    Some((citations, nested))
+}
+
+fn subject_fits<I: Copy>(subject: &ProofSubject<I>, carrier: ScalarType, input: impl Fn(I) -> Option<ScalarType>) -> bool {
+    use omega_psi::ProofIntegerStep as Step;
+    match subject {
+        ProofSubject::Input(value) => input(*value) == Some(carrier),
+        ProofSubject::Literal(value) => fits(value, carrier),
+        ProofSubject::IntegerTerm(steps) => {
+            let mut depth = 0;
+            for step in steps {
+                match step {
+                    Step::Input(value) if input(*value) == Some(carrier) => depth += 1,
+                    Step::Literal(value) if fits(value, carrier) => depth += 1,
+                    Step::Operation { carrier: result, .. } if matches!(carrier, ScalarType::Integer { .. }) && *result == carrier && depth >= 2 => depth -= 1,
+                    _ => return false,
+                }
+            }
+            depth == 1 && matches!(steps.last(), Some(Step::Operation { .. }))
+        }
+    }
+}
+
+/// Discharge the exact-add shape of the unsigned byte example on one input.
+/// A retained representability obligation rejects 255 + 1. A wrapping add in
+/// the same carrier yields zero there.
+pub fn byte_subject_addition<I: Eq>(subject: &ProofSubject<I>, expected: I, value: u8) -> Option<u8> {
+    use omega_psi::{ArithmeticPolicy, IntegerObligation, IntegerPrimitive, ProofIntegerStep as Step};
+    let ProofSubject::IntegerTerm(steps) = subject else { return None };
+    let [Step::Input(input), Step::Literal(ScalarLiteral::Integer(addend)), Step::Operation { operation, carrier: ScalarType::Integer { signed: false, width: 8 }, .. }] = &steps[..] else { return None };
+    if input != &expected || operation.primitive != IntegerPrimitive::Add { return None; }
+    let addend = u8::try_from(addend).ok()?;
+    match (operation.policy, operation.obligations.as_slice()) {
+        (ArithmeticPolicy::Exact, [IntegerObligation::ResultFitsCarrier]) => value.checked_add(addend),
+        (ArithmeticPolicy::Wrapping, []) => Some(value.wrapping_add(addend)),
+        _ => None,
+    }
 }
 
 fn scalar(ty: &TypeExpression) -> Option<ScalarType> {

@@ -96,3 +96,34 @@ fn describes(
     }
     step(package, &expression.0, ty).is_some_and(<[_]>::is_empty)
 }
+
+/// Verify all direct moves of this formal and its published normal-return
+/// complement against the schema. A copy, dropped residual, or wrong order
+/// cannot supply the same ownership listing.
+pub fn moved_formal_fields<'a>(package: &'a LoweredPackage, template: &'a MachineTemplate, formal: usize) -> Option<(Vec<&'a str>, Vec<&'a str>)> {
+    let [TypeExpressionStep::Named { declaration, argument_count: 0 }] = template.signature.parameters.get(formal)?.0.as_slice() else { return None };
+    let record = package.data.iter().find(|r| r.declaration == *declaration)?;
+    if record.multiplicity != omega_psi::Multiplicity::Affine || record.cleanup_target.is_some() || record.carry.is_some() { return None; }
+    let mut moved = Vec::new();
+    for call in template.body.iter().filter_map(|step| step.call()) {
+        for operand in &call.operands {
+            if let TemplateOperand::MoveField { formal: root, field, ty } = operand && *root == formal {
+                let entry = record.fields.iter().find(|f| f.declaration == *field)?;
+                let TypeShape::Nominal(id) = package.types.get(entry.carrier)? else { return None };
+                let selected = package.data.iter().find(|d| d.id == *id)?;
+                if selected.multiplicity != omega_psi::Multiplicity::Affine { return None; }
+                if !describes(package, ty, entry.carrier) || moved.contains(&entry.declaration.path.as_str()) { return None; }
+                moved.push(entry.declaration.path.as_str());
+            }
+        }
+    }
+    if moved.is_empty() { return None; }
+    let mut actual = template.discarded_fields.iter().filter(|row| row.formal == formal);
+    let mut residual = Vec::new();
+    for field in record.fields.iter().rev().filter(|f| !moved.contains(&f.declaration.path.as_str())) {
+        let row = actual.next()?;
+        if row.field != field.declaration || !describes(package, &row.ty, field.carrier) { return None; }
+        residual.push(field.declaration.path.as_str());
+    }
+    actual.next().is_none().then_some((moved,residual))
+}

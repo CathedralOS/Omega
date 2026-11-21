@@ -349,3 +349,26 @@ fn cast_adds_the_parent_and_the_selected_child() {
         ));
     }
 }
+
+#[test]
+fn a_record_formal_retains_its_whole_value_domain_and_nominal_schema() {
+    let case = include_str!("fixtures/package_cases/record-domain-qualified-formal/case/case.omg");
+    let control = include_str!("fixtures/package_cases/record-domain-qualified-formal/control/case.omg");
+    let package = sources::lower(&[("case.omg", case)]).unwrap();
+    let plain = sources::lower(&[("case.omg", control)]).unwrap();
+    let selected = psi_handoff_consumer::record_formal;
+    let [live] = &package.domains[..] else { panic!("expected Live") };
+    assert_eq!(live.declaration.path, "R::Live");
+    let (record, domains) = selected(&package, "hold", 0).unwrap();
+    let (control_record, control_domains) = selected(&plain, "hold", 0).unwrap();
+    spec_corpus::observe_handoff!(psi "psi-output/record-domain-formal", assert_eq!(
+        (record.declaration.path.as_str(), domains, control_record.declaration.path.as_str(), control_domains),
+        ("R", vec![omega_psi::DomainAtom { declaration: live.declaration.clone(), arguments: vec![] }], "R", vec![])
+    ));
+    let alternative = "data R {v:u8;} data S {v:u8;} domain R::Live; domain S::Live; machine hold(r:S in Live){}";
+    let twin = sources::lower(&[("case.omg", alternative)]).unwrap();
+    let (record, domains) = selected(&twin, "hold", 0).unwrap();
+    assert_eq!(record.declaration.path, "S");
+    assert_eq!(domains.len(), 1);
+    assert_eq!(domains[0].declaration.path, "S::Live");
+}

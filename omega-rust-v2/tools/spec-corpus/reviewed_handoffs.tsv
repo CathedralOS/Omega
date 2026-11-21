@@ -243,4 +243,9 @@ L3	When L3 checks the bundled library, each core machine	direct	L3	tests/standar
 L3	When L3 checks the bundled library, each core machine	refusals	L3	tests/standard.rs	a_same_path_copy_in_another_package_cannot_acquire_library_supply	library-definition-guarantees/refusal
 L3	When L3 checks the bundled library, each core machine	consumer	L5	tests/obligation_library.rs	library_definition_rows_stay_in_the_library_forest_for_callers_and_non_callers	library-definition-guarantees/consumer
 L3	Access plans and progress	direct	L3	tests/standard.rs	the_plan_constructor_is_a_checked_core_body_that_zeroes_no_reference	access-plan-constructor-supply/producer
-L3	Access plans and progress	consumer	L5	tests/formation_handoff.rs	issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection	access-plan-constructor-supply/consumer
+L3	Access plans and progress	consumer	L4	tests/frozen_handoff.rs	issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection	access-plan-constructor-supply/consumer
+L3	An unused runtime formal	direct	L3	tests/calls.rs	an_unused_formal_demands_exactly_its_applied_record_schema	unused-formal-schema/producer
+L3	An unused runtime formal	consumer	L5	tests/published_audible.rs	an_unused_applied_record_formal_publishes_its_own_closed_schema	unused-formal-schema/consumer
+L3	L3 publishes an ordinary trait’s direct parent	direct	L3	tests/calls.rs	ordinary_trait_parents_retain_the_selected_application	ordinary-trait-parent/producer
+L3	L3 publishes an ordinary trait’s direct parent	consumer	L5	tests/requirement_interfaces.rs	a_trait_publishes_its_direct_applied_parent	ordinary-trait-parent/consumer
+L3	Access plans and progress	consumer	L4	tests/frozen_handoff.rs	a_computed_policy_argument_is_evaluated_before_selecting_the_access_plan	computed-policy-argument/consumer

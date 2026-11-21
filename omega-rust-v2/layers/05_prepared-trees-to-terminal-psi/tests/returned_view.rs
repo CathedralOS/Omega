@@ -35,7 +35,7 @@ fn a_returned_view_keeps_the_actual_at_the_selected_formal_position() {
             omega_lowering::TypeShape::SharedByteView
         } else {
             omega_lowering::TypeShape::SharedElementView {
-                element: omega_lowering::ScalarType::Integer { signed: false, width: 16 },
+                element: omega_lowering::ViewElement::Scalar(omega_lowering::ScalarType::Integer { signed: false, width: 16 }),
             }
         };
         assert_eq!(package.types.get(select_ty), Some(&expected));

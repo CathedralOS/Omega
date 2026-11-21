@@ -12,9 +12,27 @@ pub const TOOLCHAIN_PACKAGE: &str = "@omega/toolchain";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourcePackage<'text> {
     resolved: SymbolResolvedTrees<'text>,
+    package_keys: std::collections::BTreeMap<String, [u8; 32]>,
     assembly: Option<std::sync::Arc<omega_typed::AssemblyTypes>>,
 }
 impl SourcePackage<'_> {
+    /// Bind the owner already established by Build for this resolved source package.
+    /// The source inspection command has only a local package label.
+    pub fn bind_package_key(&mut self, package: &str, key: [u8; 32]) -> Result<(), &'static str> {
+        if !self.resolved.trees().any(|tree| tree.file.package == package) {
+            return Err("package key has no matching source package");
+        }
+        if self.package_keys.get(package).is_some_and(|previous| previous != &key) {
+            return Err("source package already has a different key");
+        }
+        self.package_keys.insert(package.to_owned(), key);
+        Ok(())
+    }
+
+    pub fn package_key(&self, package: &str) -> Option<&[u8; 32]> {
+        self.package_keys.get(package)
+    }
+
     pub fn assembly(&self) -> Option<&omega_typed::AssemblyTypes> {
         self.assembly.as_deref()
     }
@@ -98,5 +116,5 @@ fn resolve_package<'text>(
         registers: &registers,
     };
     let resolved = omega_resolver::resolve_stage_with_exports(sources, &dependencies, &names, core_interface().exports())?;
-    Ok(SourcePackage { resolved, assembly })
+    Ok(SourcePackage { resolved, assembly, package_keys: Default::default() })
 }

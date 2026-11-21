@@ -241,6 +241,8 @@ def collect(output, stage, report, *, require_lowering_origins=False):
             results.append({"target": target, "test": match[1], "status": match[2]})
         if match := RESULT.match(line):
             counts.update(dict(zip(("passed", "failed", "ignored"), map(int, match.groups()))))
+        if line.startswith("OMEGA_LIBRARY_IMPLEMENTATION_AUDIT"):
+            lowering_evidence.record_library_audit(report, stage, target, current_test, line)
         if line.startswith(("OMEGA_RESOLVER_KIND", "OMEGA_RESOLVER_INVENTORY")):
             resolver_kind_evidence.record(report, stage, target, current_test, line)
         if line.startswith(preparation_reason_evidence.PREFIX):
@@ -514,7 +516,7 @@ def completion(report):
     package = sum(case.get("measured_by") == "package command" for case in blocking)
     low = report.get("lowering_evidence", {})
     pending = sorted(kind for kind, row in low.get("obligations", {}).items()
-                     if row["state"] != lowering_evidence.OBLIGATION_STATES[0])
+                     if lowering_evidence.obligation_blocks(kind, row))
     paragraphs = [row["line"] for row in lowering_evidence.paragraphs_without_output_check(low)]
     unreconciled = sorted(report.get("package_cases", {}).get("unreconciled", {}))
     judged = sum(case["status"] == "checker input compared; judgement pending" for case in cases)
@@ -522,7 +524,7 @@ def completion(report):
         ("Executable cases measured by native tests", "program", len(blocking) - package, "yes"),
         ("Executable cases measured only by the package command (no Psi product or consumer check)", "program", package, "yes"),
         ("Confirmed limits whose package measurement is unreconciled", "program", len(unreconciled), "yes"),
-        ("Typed obligation kinds without a credited Psi property", "unverified obligation", len(pending), "yes"),
+        ("Applicable or unmeasured typed obligation kinds without a credited Psi property", "unverified obligation", len(pending), "yes"),
         ("L5 contract paragraphs without a producer output check", "unverified obligation", len(paragraphs), "yes"),
         ("L0–L4 contract entries awaiting evidence", "unverified obligation", len(report.get("unverified_contracts", ())), "yes"),
         ("Incomplete measurements", "measurement", len(report["measurement_errors"]), "yes"),
@@ -535,6 +537,11 @@ def completion(report):
              "cases and are never added to the case count.", "",
              "| Evidence | Kind | Count | Blocks completion |", "| --- | --- | ---: | --- |"]
     lines += [f"| {name} | {kind} | {count} | {blocks} |" for name, kind, count, blocks in rows]
+    if (library := low.get("obligations", {}).get(lowering_evidence.LIBRARY_KIND, {})).get("state") == lowering_evidence.CATALOG_INAPPLICABLE:
+        audit = library["catalog"]
+        lines += ["", f"The catalog audit found zero qualifying declarations for {lowering_evidence.LIBRARY_KIND} "
+                  f"among {audit['machines']} toolchain machines, including {audit['supplied']} supplied machines. "
+                  "This kind has no credited Psi property."]
     if pending or paragraphs:
         lines += ["", "Unverified obligations: " + ", ".join(pending + [f"CONTRACT.md paragraph at line {n}" for n in paragraphs]) + "."]
     return lines + [""]
@@ -705,8 +712,8 @@ def case_blocks_readiness(case):
 def readiness_exit(report):
     blocked = any(case_blocks_readiness(c) for c in report["cases"].values())
     lowering = report.get("lowering_evidence", {})
-    pending_obligations = any(row["state"] != lowering_evidence.OBLIGATION_STATES[0]
-                              for row in lowering.get("obligations", {}).values())
+    pending_obligations = any(lowering_evidence.obligation_blocks(kind, row)
+                              for kind, row in lowering.get("obligations", {}).items())
     missing_outputs = lowering_evidence.paragraphs_without_output_check(lowering)
     return int(bool(report["measurement_errors"] or any(s["exit"] for s in report["suites"].values())
                     or blocked or report.get("unverified_contracts") or pending_obligations or missing_outputs

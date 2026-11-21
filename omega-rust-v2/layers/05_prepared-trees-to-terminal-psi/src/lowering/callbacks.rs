@@ -13,6 +13,7 @@ pub(crate) struct Callback<'a> {
     /// invocation of this binder owes them; the selected machine keeps its own
     /// premises on its published contract for the checker's refinement.
     pub requires: Vec<crate::ContractClause>,
+    pub ensures: Vec<crate::ContractClause>,
 }
 
 impl<'a> Callback<'a> {
@@ -33,10 +34,8 @@ impl<'a> Callback<'a> {
         if !selection.arguments.is_empty()
             || !selection.enclosing_arguments.is_empty()
             || bound.requirement.is_some()
-            || bound.has_guarantee
             || bound.reach.as_ref().is_some_and(|r| !r.is_empty())
             || bound.crash_ceiling.as_ref().is_some_and(|r| !r.is_empty())
-            || sig.has_guarantee
             || sig.satisfies.is_some()
             || sig.parameters.iter().map(|(_, v)| v).ne(&bound.parameters)
             || sig.result != bound.result
@@ -47,13 +46,14 @@ impl<'a> Callback<'a> {
         }
         // The alias signature owns the clauses. Lower them through the same
         // interface path an open template binder uses, so the two agree.
-        let requires = if bound.requires {
+        let (requires, ensures) = if bound.requires || bound.has_guarantee {
             let (origin, node) = prepared.typed().callable_origin(&bound.contract).ok_or_else(bad)?;
-            crate::declarations::type_expression::callable_interface(prepared, &origin, node, bound)?.requires
+            let interface = crate::declarations::type_expression::callable_interface(prepared, &origin, node, bound)?;
+            (interface.requires, interface.ensures)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
-        Ok(Self { slot, selection: sig, bound, requires })
+        Ok(Self { slot, selection: sig, bound, requires, ensures })
     }
     pub fn lower_call(
         &self,
@@ -113,6 +113,7 @@ impl<'a> Callback<'a> {
                 .then(|| id(&self.bound.result))
                 .transpose()?,
             requires: self.requires.clone(),
+            ensures: self.ensures.clone(),
             pause: self.bound.pause,
             terminates: self.bound.terminates,
             empty_reach: self.bound.reach.is_some(),
@@ -122,16 +123,16 @@ impl<'a> Callback<'a> {
     }
 }
 
-/// A runtime callable's declared ceiling: no pause, and empty service and crash rows.
+/// A runtime callable can suspend synchronously within empty service and crash rows.
 fn runtime_ceiling_supported(callable: &CallableType) -> bool {
     callable.closed_runtime
-        && callable.pause == PauseEffects::default()
+        && !callable.pause.block
         && callable.reach.as_ref().is_some_and(Vec::is_empty)
         && callable.crash_ceiling.as_ref().is_some_and(Vec::is_empty)
 }
 
 /// The finite envelope of a stored descriptor follows its typed occurrence. All
-/// contracts attached to that occurrence must admit the same nonpausing lowering.
+/// contracts attached to that occurrence must admit the same supported effect lowering.
 pub(crate) fn stored_ceilings<'a>(typed: &'a omega_typed::TypedTrees<'_>) -> HashMap<&'a omega_typed::Site, bool> {
     let mut rows: HashMap<_, bool> = HashMap::new();
     for (site, contract) in typed
@@ -155,8 +156,8 @@ pub(crate) fn stored_ceilings<'a>(typed: &'a omega_typed::TypedTrees<'_>) -> Has
 /// per callback binder, the selected closed callback's own demand intersected
 /// with that binder's term. A call can carry reach while retaining this envelope.
 /// `None` keeps unsupported callback routes closed: an unbound or unknown target,
-/// a blocking callback, or a runtime or stored descriptor that may pause. Only synchronous
-/// suspension of known, locally selected targets is admitted.
+/// a blocking callback, or a runtime descriptor outside the supported ceilings.
+/// A runtime selection contributes its declared pause to the checked fixed term.
 pub(crate) fn realized_pause(
     effects: &MachineEffects,
     callbacks: &[Callback<'_>],

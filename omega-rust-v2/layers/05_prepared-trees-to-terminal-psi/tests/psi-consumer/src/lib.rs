@@ -8,10 +8,10 @@ mod assembly;
 mod domain_completions;
 mod floats;
 mod ieee_predicates;
-pub use ieee_predicates::{PredicateValue, evaluate_ieee_clause};
+pub use ieee_predicates::{PredicateValue, evaluate_ieee_clause, float_formal, record_predicate_application};
 mod trapping;
 pub use assembly::{LocationSupply, assembly_branch, assembly_changed_registers, assembly_location, assembly_location_supply, assembly_state_writes};
-pub use domain_completions::cast_completions;
+pub use domain_completions::{cast_completions, returned_domain_cleanup};
 pub use floats::{FloatScalar, evaluate_float_body};
 pub use trapping::{DivisionOutcome, observe_byte_division};
 
@@ -51,6 +51,47 @@ pub fn replay_layout<'a>(
     };
     let receiver = ReceivingTarget::new(identity, [layout], []).expect("valid independently selected layout");
     closure.replay(&receiver)
+}
+
+/// Follow the immediate nominal parent to its package declaration, retaining the
+/// parent's applied arguments. A trait without a parent has no inherited slots.
+pub fn declared_trait_parent<'a>(
+    package: &'a LoweredPackage,
+    child: &str,
+) -> Option<Option<(&'a omega_psi::LoweredTrait, &'a [omega_psi::TypeExpression])>> {
+    let child = package.traits.iter().find(|t| t.declaration.path == child)?;
+    let Some(parent) = &child.parent else { return Some(None) };
+    let declaration = package.traits.iter().find(|t| t.declaration == parent.declaration)?;
+    Some(Some((declaration, &parent.arguments)))
+}
+
+/// Read the nominal declaration and complete whole-value memberships of a
+/// structural entry formal. The signature, body place and domain catalog must agree.
+pub fn record_formal<'a>(
+    package: &'a LoweredPackage, owner: &str, position: usize,
+) -> Option<(&'a omega_psi::LoweredData, Vec<omega_psi::DomainAtom>)> {
+    let m = machine(package, owner)?;
+    let omega_psi::Parameter::Structural(input) = m.body.parameters.get(position)? else { return None };
+    let place = m.body.places.get(input.index())?;
+    if place.origin != omega_psi::PlaceOrigin::Parameter || m.parameter_types.get(position) != Some(&place.ty) { return None; }
+    let (id, set) = match package.types.get(place.ty)? {
+        TypeShape::Nominal(id) => (*id, None),
+        TypeShape::QualifiedNominal { data, domains } => (*data, Some(*domains)),
+        _ => return None,
+    };
+    let record = package.data.iter().find(|d| d.id == id)?;
+    let mut atoms = Vec::new();
+    if let Some(set) = set {
+        for (declaration, arguments) in package.types.domain_atoms(set)? {
+            let domain = package.domains.iter().find(|d| &d.declaration == declaration)?;
+            match package.types.get(domain.carrier)? {
+                TypeShape::Nominal(owner) | TypeShape::QualifiedNominal { data: owner, .. } if *owner == id => {}
+                _ => return None,
+            }
+            atoms.push(omega_psi::DomainAtom { declaration: declaration.clone(), arguments: arguments.to_vec() });
+        }
+    }
+    Some((record, atoms))
 }
 
 pub fn array_parameter_length(
@@ -248,6 +289,7 @@ mod dependency_call;
 pub use dependency_call::{ReturnedCall, returned_call};
 
 mod theorem_citations;
+pub use theorem_citations::{NestedCitation, byte_subject_addition, nested_theorem_citations};
 pub use theorem_citations::{CitationObligations, ProofCitation, theorem_citations, theorem_proof};
 
 mod hooked_transfers;
@@ -257,6 +299,7 @@ mod ranking;
 pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
 
 mod primitive_homes;
+pub use primitive_homes::borrowed_scalar_formal;
 mod copyable_homes;
 pub use copyable_homes::{CopyableHome, parked_copyable_homes, plain_carry};
 pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
@@ -265,18 +308,21 @@ mod scalar_terms;
 pub use scalar_terms::{Operand, Term, call_arguments, integer_comparisons};
 
 mod callback_premises;
-pub use callback_premises::{CallbackPremises, callback_premises};
+pub use callback_premises::{CallbackPremises, callback_premises, predicate_callback};
 
 /// Open templates evaluated or resolved from Psi alone.
 pub mod machine_templates;
 
 mod template_operands;
-pub use template_operands::template_field_argument;
+pub use template_operands::{moved_formal_fields, template_field_argument};
 
 mod view_bounds;
-pub use view_bounds::{ViewElementBound, returned_element_count_formal, view_element_bounds};
+pub use view_bounds::{ViewElementBound, returned_element_count_formal, returned_nominal_view_count, view_element_bounds};
 
 mod member_templates;
 pub use member_templates::{
-    ReturnedTemplateCall, TemplateCallee, TemplateValue, member_template, member_template_call, returned_template_call, template_result,
+    ReturnedTemplateCall, TemplateCallee, TemplateValue, formal_borrow_interval, member_template, member_template_call, returned_template_call, template_result,
 };
+
+pub mod callable_loans;
+pub mod sum_cleanup;

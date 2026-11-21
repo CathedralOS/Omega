@@ -159,7 +159,7 @@ fn walk(
                 crossings.push((index, *access));
                 Reached::Type(schema(package, *referent).ok_or(MALFORMED)?.carrier)
             }
-            (PlaceProjection::Referent, _, Some(TypeShape::MutableElementView { element })) => {
+            (PlaceProjection::Referent, _, Some(TypeShape::MutableElementView { element: omega_psi::ViewElement::Nominal(element) })) => {
                 crossings.push((index, ReferenceAccess::Mutable));
                 Reached::Elements(*element)
             }

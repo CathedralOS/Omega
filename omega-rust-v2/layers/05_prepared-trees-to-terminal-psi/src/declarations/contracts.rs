@@ -110,12 +110,14 @@ pub(crate) fn lower_predicate(
             predicate.push(PredicateStep::IeeeFloat(bits));
             continue;
         }
+        let selected_operator = matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
+            && tree.semantics_at(node).any(|row| matches!(row, NodeSemantics::Call(call) if call.use_site == omega_typed::CallUse::Fact));
         // Psi predicate terms have no IEEE arithmetic application yet; a typed
         // float operation is refused rather than read as exact arithmetic.
-        if matches!(current.kind, NodeKind::Binary | NodeKind::Unary) && matches!(ty, ValueType::Float32 | ValueType::Float64) {
+        if !selected_operator && matches!(current.kind, NodeKind::Binary | NodeKind::Unary) && matches!(ty, ValueType::Float32 | ValueType::Float64) {
             return Err(unsupported("float arithmetic in a contract predicate has no Psi term"));
         }
-        if matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
+        if !selected_operator && matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
             && let Some(value) = crate::machines::arithmetic::folded_exact_operator(tree, node, ty, inherited)?
         {
             predicate.push(PredicateStep::Integer(value.clone()));
@@ -160,9 +162,10 @@ pub(crate) fn lower_predicate(
             predicate.push(PredicateStep::MathematicalTerm(term));
             continue;
         }
-        if current.kind == NodeKind::Call {
+        if selected_operator || current.kind == NodeKind::Call {
             let proved = guarantee.filter(|_| node == root).map(|sig| &sig.machine);
-            let application = match super::hypotheses::guarantee(tree, owner, node, ty, proved)? {
+            let projection = if selected_operator { None } else { super::hypotheses::guarantee(tree, owner, node, ty, proved)? };
+            let application = match projection {
                 None if tree.semantics_at(node).any(|row| matches!(row, NodeSemantics::Call(c) if c.use_site == omega_typed::CallUse::Fact)) => {
                     Some(predicate_calls::application(prepared, tree, owner, node, ty, proved, role == PredicateRole::CrashGuard && node == root)?)
                 }
@@ -415,8 +418,7 @@ pub(crate) fn lower_predicate(
                         .filter(|_| {
                             is_contract_operand(ty)
                                 || crate::lowering::types::byte_view_access(ty).is_some()
-                                || crate::lowering::types::scalar_element_view(ty).is_some()
-                                || crate::lowering::types::mutable_element_view(ty).is_some()
+                                || crate::lowering::types::element_view_access(ty).is_some()
                         })
                         .ok_or_else(|| unsupported("contract binding is not a supported formal of this machine"))?;
                         PredicateStep::Formal(formal)
@@ -855,10 +857,7 @@ fn records<'a>(
 /// result domain predicates already do. Typing admits it only where a
 /// qualified operand is accepted, such as a cast that removes its domains.
 fn is_contract_operand(ty: &ValueType) -> bool {
-    crate::lowering::types::uses_structural_place(ty)
-        || is_scalar(ty)
-        || matches!(ty, ValueType::Float32 | ValueType::Float64)
-        || matches!(ty, ValueType::Qualified(base, _) if is_scalar(base))
+    crate::lowering::types::uses_structural_place(ty) || crate::lowering::types::stored_scalar(ty.carrier()).is_ok()
 }
 
 /// The builtin IEEE comparison typing selected for two unqualified operands of

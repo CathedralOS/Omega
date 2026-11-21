@@ -1224,7 +1224,7 @@ fn check_float_view_recast(package: &LoweredPackage) -> Result<(), String> {
         _ => Err(format!("expected a place, found {result:?}")),
     };
     let shape = |result: OperationResult| place(result).map(|p| package.types.get(body.places[p.index()].ty));
-    if home.kind != (OperationKind::EstablishPrimitiveLocal { value: initializer }) || shape(home.result)? != Some(&TypeShape::PrimitiveScalar(bits)) {
+    if home.kind != (OperationKind::EstablishPrimitiveLocal { value: initializer, receiving_domains: None }) || shape(home.result)? != Some(&TypeShape::PrimitiveScalar(bits)) {
         return Err(format!("expected the u32 local's home, found {:?}", home.kind));
     }
     let home = place(home.result)?;

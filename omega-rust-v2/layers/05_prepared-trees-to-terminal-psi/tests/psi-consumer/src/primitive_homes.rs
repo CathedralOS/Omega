@@ -30,7 +30,7 @@ fn home_of(
         return None;
     };
     match body.operations.get(id.index())?.kind {
-        OperationKind::EstablishPrimitiveLocal { value } => Some(value),
+        OperationKind::EstablishPrimitiveLocal { value, .. } => Some(value),
         _ => None,
     }
 }
@@ -45,7 +45,7 @@ pub fn primitive_homes(body: &MachineBody) -> Result<Vec<PrimitiveHome>, &'stati
     let mut homes: Vec<PrimitiveHome> = Vec::new();
     for op in &body.operations {
         let (place, event) = match &op.kind {
-            OperationKind::EstablishPrimitiveLocal { value } => {
+            OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 let OperationResult::Structural(place) = op.result else {
                     return Err("a home is not a place");
                 };
@@ -291,4 +291,42 @@ pub fn parked_homes(
         return Err("a home row names storage that is not a needed home");
     }
     Ok(parked)
+}
+
+/// Inspect one shared borrow of a homed entry scalar. The home owes its
+/// qualification predicates at the initializer. The loan's referent must
+/// preserve that same payload and domain set.
+pub fn borrowed_scalar_formal(
+    package: &omega_psi::LoweredPackage,
+    machine: &omega_psi::LoweredMachine,
+) -> Option<(usize, Option<omega_psi::DomainSetId>)> {
+    use omega_psi::{Parameter, TypeShape};
+    let body = &machine.body;
+    let mut borrows = body.operations.iter().filter_map(|op| match (&op.kind, op.result) {
+        (OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared }, OperationResult::Structural(loan)) => Some((whole(source)?, loan)),
+        _ => None,
+    });
+    let (home, loan) = borrows.next()?;
+    if borrows.next().is_some() { return None; }
+    let place = body.places.get(home.index())?;
+    let PlaceOrigin::Operation(id) = place.origin else { return None };
+    let operation = body.operations.get(id.index())?;
+    let OperationKind::EstablishPrimitiveLocal { value, receiving_domains } = operation.kind else { return None };
+    let input = body.values.get(value.index())?;
+    let slot = body.parameters.iter().position(|p| *p == Parameter::Scalar(value))?;
+    if operation.result != OperationResult::Structural(home) || input.origin != ValueOrigin::Parameter
+        || machine.parameter_types.get(slot) != Some(&place.ty) || input.ty != place.ty {
+        return None;
+    }
+    let (carrier, domains) = match package.types.get(place.ty)? {
+        TypeShape::PrimitiveScalar(carrier) => (carrier, None),
+        TypeShape::QualifiedScalar { carrier, domains } => (carrier, Some(*domains)),
+        _ => return None,
+    };
+    let reference = package.types.get(body.places.get(loan.index())?.ty)?;
+    let expected = match domains {
+        Some(domains) => TypeShape::SharedQualifiedScalarReference { referent: *carrier, domains },
+        None => TypeShape::ScalarReference { referent: *carrier, access: ReferenceAccess::Shared },
+    };
+    (receiving_domains == domains && reference == &expected).then_some((slot, domains))
 }

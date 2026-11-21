@@ -54,6 +54,12 @@ pub enum ReferenceAccess {
 
 /// One-based index into `LoweredPackage::callable_contracts`. Each entry is an
 /// independently declared structural callable contract, never a machine target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ViewElement {
+    Scalar(ScalarType),
+    Nominal(DataId),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallableContractId(pub std::num::NonZeroUsize);
 
@@ -82,28 +88,19 @@ pub enum TypeShape {
         domains: DomainSetId,
     },
     Nominal(DataId),
+    /// An owned record or sum with its whole-value domain memberships.
+    QualifiedNominal { data: DataId, domains: DomainSetId },
     /// Shared descriptor for a borrowed byte sequence of runtime length.
     SharedByteView,
-    /// Shared descriptor for borrowed scalar elements of runtime element count.
-    /// Its index space is elements, never octets; it is not a byte view.
-    SharedElementView {
-        element: ScalarType,
-    },
-    /// Exclusive descriptor for borrowed scalar elements. Reading one scalar
-    /// does not copy the descriptor or transfer the loan.
-    MutableScalarElementView {
-        element: ScalarType,
-    },
-    /// Exclusive descriptor for borrowed nominal elements of runtime element
-    /// count (`@mut [T]`). It owns none of its elements and has no static
-    /// extent; an element place is reached only through its loan.
-    MutableElementView {
-        element: DataId,
-    },
+    /// Borrowed element descriptors retain the element identity and count.
+    SharedElementView { element: ViewElement },
+    MutableElementView { element: ViewElement },
     ScalarReference {
         referent: ScalarType,
         access: ReferenceAccess,
     },
+    /// A shared reference to a scalar bearing this complete set of domain applications.
+    SharedQualifiedScalarReference { referent: ScalarType, domains: DomainSetId },
     NominalReference {
         referent: DataId,
         access: ReferenceAccess,

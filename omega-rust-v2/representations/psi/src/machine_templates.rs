@@ -19,6 +19,16 @@ pub struct MachineTemplate {
     pub body: Vec<TemplateStep>,
     /// What the machine returns; absent for a void return.
     pub result: Option<TemplateResult>,
+    /// On normal return, discard these surviving direct fields of partially
+    /// transferred formals in the listed order.
+    pub discarded_fields: Vec<TemplateResidual>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateResidual {
+    pub formal: usize,
+    pub field: DeclarationId,
+    pub ty: TypeExpression,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -189,6 +199,9 @@ pub enum TemplateOperand {
         /// unrestricted structural value such as `[u8; 2]`.
         argument: crate::Parameter<TypeExpression, TypeExpression>,
     },
+    /// Transfer this direct field and its subtree to the callee at this
+    /// argument. On return the template disposes its remaining live fields.
+    MoveField { formal: usize, field: DeclarationId, ty: TypeExpression },
     /// The result of the step at this index of `MachineTemplate::body`, which
     /// precedes every step or result that reads it.
     Step(usize),
@@ -198,6 +211,15 @@ pub enum TemplateOperand {
     Borrow {
         formal: usize,
         access: crate::TemplateAccess,
+    },
+    /// Form this call operand's loan before evaluating the indicated body
+    /// step, and keep it through this call. If several operands start at
+    /// the same step they form in argument order.
+    BorrowBefore {
+        formal: usize,
+        access: crate::TemplateAccess,
+        step: usize,
+        site: Site,
     },
     /// The zero value of this type, requested by `..` for an omitted field.
     /// Only a Boolean, a fixed-width integer and an owned `[T]`, whose zero is

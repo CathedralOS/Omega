@@ -4,6 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import frontend_diagnostics
+import lowering_evidence
 import handoff_evidence
 import reviewed_comparisons
 
@@ -57,6 +58,50 @@ class LayerReportTests(unittest.TestCase):
                     self.assertFalse(case_blocks_readiness(case))
                     self.assertNotIn("toolchain_exports", case)
                 self.assertEqual(readiness_exit(report), 1)
+
+    def test_library_catalog_applicability_needs_the_real_audit_and_the_passing_importer_control(self):
+        kind = lowering_evidence.LIBRARY_KIND
+        producer_stage, producer, name = lowering_evidence.LIBRARY_AUDIT
+        consumer_stage, consumer, reader = lowering_evidence.LIBRARY_CONSUMER
+        comparison = lowering_evidence.LIBRARY_COMPARISON
+        receipt = "OMEGA_LIBRARY_IMPLEMENTATION_AUDIT\t12\t9\t2\t0"
+        for scenario in ("absent by audit", "qualifying declaration", "local occurrence", "no receipt", "duplicate receipt",
+                         "invalid counts", "wrong stage", "wrong test", "failed audit", "duplicate audit result",
+                         "missing consumer receipt", "failed consumer comparison", "failed consumer test"):
+            with self.subTest(scenario=scenario):
+                observed = {"cases": {}, "suites": {}, "obligations": {kind: {}}, "package_fixtures": [], "measurement_errors": []}
+                lines = [receipt]
+                if scenario == "qualifying declaration":
+                    lines = [receipt[:-1] + "1"]
+                elif scenario == "no receipt":
+                    lines = []
+                elif scenario == "duplicate receipt":
+                    lines *= 2
+                elif scenario == "invalid counts":
+                    lines = [receipt.replace("12", "1")]
+                audit_log = libtest(producer.replace("/", "\\"), (name if scenario != "wrong test" else "wrong",
+                                   "FAILED" if scenario == "failed audit" else "ok", lines))
+                tests, counts = collect(audit_log, producer_stage if scenario != "wrong stage" else "L4", observed)
+                observed["suites"][producer_stage] = {"tests": tests * (2 if scenario == "duplicate audit result" else 1), "exit": 0}
+                observed["suites"][consumer_stage] = {"tests": [{"target": consumer, "test": reader, "status":
+                                                    "FAILED" if scenario == "failed consumer test" else "ok"}], "exit": 0}
+                if scenario != "missing consumer receipt":
+                    observed["reviewed_comparisons"] = {comparison: "assert_eq!(actual, expected)"}
+                if scenario == "failed consumer comparison":
+                    observed["failed_comparisons"] = {comparison: "failed"}
+                inputs = [] if scenario != "local occurrence" else [{"source": "fixture", "site": "fixture", "obligations": {kind: 1},
+                                                                       "lowering": "lowered", "standing": "confirmed"}]
+                rows = lowering_evidence.classify_obligations(observed, inputs, {}, [{"line": 1, "kinds": [kind]}], observed["measurement_errors"])
+                observed["lowering_evidence"] = {"obligations": rows}
+                self.assertEqual(rows[kind]["property_checks"], [])
+                if scenario == "absent by audit":
+                    self.assertEqual(rows[kind]["state"], lowering_evidence.CATALOG_INAPPLICABLE)
+                    self.assertEqual(rows[kind]["catalog"], {"machines": 12, "supplied": 9, "collection_guarantees": 2, "eligible": 0})
+                    self.assertEqual(observed["measurement_errors"], [])
+                    self.assertEqual(readiness_exit(observed), 0)
+                else:
+                    self.assertNotEqual(rows[kind]["state"], lowering_evidence.CATALOG_INAPPLICABLE)
+                    self.assertEqual(readiness_exit(observed), 1)
 
     def test_a_refusal_cannot_verify_a_promised_psi_output(self):
         section = {"capabilities": ["The output retains its operand."], "asserted": ["bad-input"]}

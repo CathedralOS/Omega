@@ -1,3 +1,4 @@
+pub(crate) mod policy_schema;
 pub(crate) mod constant_evaluation;
 pub(crate) mod exact_comparisons;
 pub(crate) mod floating_point;

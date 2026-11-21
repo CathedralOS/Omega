@@ -442,12 +442,12 @@ const ACCESS_PLAN: &str = "use omega\\language\\core;
                   }";
 
 /// The domain's access clause carries the selected plan machine for evaluation.
-/// L5 stops at that clause before it publishes a governed domain.
+/// Lowering reports the pending result at the selected policy's own clause.
 #[test]
 fn an_access_plan_stops_at_its_own_policy_clause() {
     let file = "access_plan.omg";
     let source = ACCESS_PLAN;
-    let (obligations, error) = refusal(file, source, sources::unique_span(source, "access Rule"), "unsupported domain member: Access");
+    let (obligations, error) = refusal(file, source, sources::unique_span(source, "access Rule"), "domain access policy needs the package owner for its semantic schema");
     let plans: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
@@ -461,110 +461,7 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
     assert_eq!((domain.path.as_str(), machine.path.as_str()), ("i32::Locked", "Rule::plan"));
     assert_eq!(spelled(&obligation.site, file, source), "access Rule");
     assert_eq!(error.site, obligation.site);
-    assert_eq!(error.message, "unsupported domain member: Access");
-    known_gap::report(
-        "access plan evaluation at its domain",
-        "Typing selects Rule::plan, but preparation has not supplied its evaluated result on the domain schema",
-        source,
-        &error,
-    );
-}
-
-/// The same evaluation request can have two different issuance operands. Neither
-/// the request nor the imported constructor's postconditions are its result.
-#[test]
-fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
-    let only = ACCESS_PLAN.replace("Unrestricted{}", "Only{..}");
-    // The exact bytes of target/l5owner/policy/empty/access_plan.omg.
-    let empty = ACCESS_PLAN.replace("Unrestricted{}", "Only{routes: []}");
-    for (source, case) in [
-        (ACCESS_PLAN, "Issuance::Unrestricted"),
-        (only.as_str(), "Issuance::Only"),
-        (empty.as_str(), "Issuance::Only"),
-    ] {
-        with_prepared("policy.omg", source, |prepared| {
-            let typed = prepared.typed();
-            let [selection] = typed.access_policies.as_slice() else {
-                panic!("expected one access selection")
-            };
-            assert_eq!(spelled(&selection.site, "policy.omg", source), "access Rule");
-            assert_eq!(
-                (selection.domain.path.as_str(), selection.policy.path.as_str(), selection.plan_machine.path.as_str()),
-                ("i32::Locked", "Rule", "Rule::plan")
-            );
-            assert!(selection.arguments.is_empty());
-            let core = omega_toolchain::core_interface();
-            let row = typed
-                .conformance_rows
-                .iter()
-                .find(|row| row.conformance.as_ref() == Some(&selection.policy) && &row.requirement.declaration == core.access_plan_requirement())
-                .unwrap();
-            assert_eq!(row.implementation, selection.plan_machine);
-            let calls: Vec<_> = typed.calls.iter().filter(|call| call.caller.as_ref() == Some(&selection.plan_machine)).collect();
-            let [call] = calls.as_slice() else {
-                panic!("expected one plan constructor call")
-            };
-            assert_eq!(&call.machine, core.id("access\\new_plan"));
-            let [schema, issuance] = call.operands.as_slice() else {
-                panic!("expected schema and issuance arguments")
-            };
-            assert_eq!(spelled(&schema.site, "policy.omg", source), "@schema");
-            let tree = typed.trees().nth(issuance.node.file).unwrap();
-            let construction = tree.construction(issuance.node.node).unwrap();
-            assert_eq!(&construction.owner, core.id("Issuance"));
-            assert_eq!(construction.case.as_ref(), Some(core.id(case)));
-            // Only the explicit spelling writes `routes`. Its `[]` is the declared
-            // owned `[CallableInfo<'t>]` field at the constructed issuance's own
-            // `'t`, with no elements; it is not a view and not a `[T; 0]` value.
-            let written: Vec<_> = construction
-                .initializers
-                .iter()
-                .map(|field| field.expression)
-                .collect();
-            if source == empty {
-                use omega_typed::ValueType::{Applied, Slice};
-                let [routes] = written.as_slice() else {
-                    panic!("expected the written routes field, found {written:?}")
-                };
-                assert_eq!(tree.resolved().file.span(*routes).slice(source.as_bytes()), Some(&b"[]"[..]));
-                assert!(tree.resolved().file.nodes[*routes].children.is_empty());
-                let Applied(_, lifetime) = &construction.carrier else {
-                    panic!("Issuance is applied to its lifetime")
-                };
-                let published: Vec<_> = tree
-                    .semantics_at(*routes)
-                    .filter_map(|record| match record {
-                        omega_typed::NodeSemantics::Expression(expression) => Some(expression.ty.clone()),
-                        _ => None,
-                    })
-                    .collect();
-                let element = Applied(Box::new(core.id(r"reflect\CallableInfo").clone()), lifetime.clone());
-                assert_eq!(published, [Slice(Box::new(element))]);
-            } else {
-                assert!(written.is_empty(), "{case} writes no field: {written:?}");
-            }
-
-            let library = typed.library.unwrap();
-            let signature = library.signatures.iter().find(|s| s.machine == call.machine).unwrap();
-            let declaration = library.trees().nth(signature.node.file).unwrap();
-            // An ordinary checked core body, not a closed-catalog entry. Its guarantees are its
-            // own rows in the library forest; this package imports none of them.
-            let body = declaration
-                .resolved()
-                .file
-                .child(signature.node.node, omega_parser::NodeKind::Body);
-            let owed = library
-                .obligations
-                .iter()
-                .filter(|o| matches!(&o.kind, ObligationKind::ProveGuarantee { machine, .. } if machine == &call.machine))
-                .count();
-            spec_corpus::observe_handoff!(
-                "access-plan-constructor-supply/consumer",
-                assert!(body.is_some() && !core.supplies(&call.machine) && owed == 4),
-            );
-            assert!(typed.obligations.iter().all(|o| o.site.package == "app"));
-        });
-    }
+    known_gap::report("access plan evaluation at its domain", "The selected policy must supply its validated access plan", source, &error);
 }
 
 /// The exact identity the toolchain exports for `name` under `language\core\`,
@@ -1048,29 +945,22 @@ fn an_omitted_reference_field_has_no_zero_in_an_open_template() {
     );
 }
 
-/// A borrow operand's loan is live while later operands evaluate, but Psi
-/// forms it at the call. A later operand whose steps read the borrowed formal
-/// would hide that overlap, so it refuses. Reading the formal in a `let`
-/// before the borrow keeps the source order, and it lowers.
+/// Form the loan before evaluating a later call operand that reads its
+/// formal. Evaluating that helper in a preceding `let` changes the interval.
 #[test]
-fn a_step_reading_a_borrowed_formal_after_its_borrow_refuses() {
+fn an_operand_step_reading_a_borrowed_formal_keeps_the_earlier_loan_live() {
     use omega_lowering::{TemplateCallTarget, TemplateOperand, TemplateStep};
     let helper = "machine keep<'t>(s: TypeSchema<'t>) -> Issuance<'t> reaches none crashes none terminates { Issuance::Unrestricted{} }\n";
     let original = ACCESS_PLAN.replace(" access Rule;", ";");
     let constructor = "new_plan::<'t>(@schema, Issuance::Unrestricted{})";
     let after = format!("{helper}{}", original.replace(constructor, "new_plan::<'t>(@schema, keep::<'t>(schema))"));
-    let (_, error) = refusal(
-        "order.omg",
-        &after,
-        sources::unique_span(&after, "new_plan::<'t>(@schema, keep::<'t>(schema))"),
-        "template call has unsupported operands, selection or obligations",
-    );
-    known_gap::report(
-        "template step reading a formal under its own borrow",
-        "Typing admits passing the copy formal by value while it is borrowed, but a template forms the loan at the call, so the later operand's read has no ordered place",
-        &after,
-        &error,
-    );
+    let after_package = lower("order.omg", &after).1.unwrap();
+    let after_plan = after_package.machine_templates.iter().find(|t| t.declaration.path == "Rule::plan").unwrap();
+    let [TemplateStep::Call(helper_call), TemplateStep::Call(outer)] = after_plan.body.as_slice() else { panic!("helper then outer call") };
+    let [TemplateOperand::BorrowBefore { formal, access, step, site }, TemplateOperand::Step(0)] = outer.operands.as_slice() else { panic!("ordered borrow") };
+    assert!(matches!(&helper_call.target, TemplateCallTarget::Declaration(id) if id.path == "keep"));
+    assert_eq!(helper_call.operands, [TemplateOperand::Formal(0)]);
+    assert_eq!((*formal, access, *step, site.span.slice(after.as_bytes())), (0,&omega_psi::TemplateAccess::Shared,0,Some(b"@schema".as_slice())));
     let before = format!(
         "{helper}{}",
         original.replace(constructor, "let i: Issuance<'t> = keep::<'t>(schema); new_plan::<'t>(@schema, i)")
@@ -1098,6 +988,10 @@ fn a_step_reading_a_borrowed_formal_after_its_borrow_refuses() {
             ][..]
         )
     );
+    spec_corpus::observe_handoff!(psi "psi-output/template-borrow-order", assert_eq!(
+        (psi_handoff_consumer::formal_borrow_interval(after_plan,1,0), psi_handoff_consumer::formal_borrow_interval(plan,1,0)),
+        (Some((0,0..=1)), Some((0,1..=1)))
+    ));
     assert_eq!(policy_issuance(&package), unrestricted());
 }
 

@@ -1,4 +1,33 @@
-use omega_psi::{ContractClause, DeclarationId, IeeeComparisonKind, IeeeFloatBits, IeeeFloatFormat, PredicateOperator, PredicateStep};
+use omega_psi::{
+    ContractClause, DeclarationId, DomainAtom, IeeeComparisonKind, IeeeFloatBits, IeeeFloatFormat, LoweredPackage, Parameter, PredicateOperator, PredicateStep,
+    ScalarType, TypeShape, ValueOrigin,
+};
+
+/// Read a float formal's format and complete domain applications, checking
+/// that its body input has the type declared at that position.
+pub fn float_formal(
+    package: &LoweredPackage,
+    machine_name: &str,
+    position: usize,
+) -> Option<(IeeeFloatFormat, Vec<DomainAtom>)> {
+    let machine = super::machine(package, machine_name)?;
+    let declared = *machine.parameter_types.get(position)?;
+    let Parameter::Scalar(input) = machine.body.parameters.get(position)? else { return None };
+    let value = machine.body.values.get(input.index())?;
+    if value.ty != declared || value.origin != ValueOrigin::Parameter {
+        return None;
+    }
+    match package.types.get(declared)? {
+        TypeShape::PrimitiveScalar(ScalarType::IeeeFloat(format)) => Some((*format, vec![])),
+        TypeShape::QualifiedScalar { carrier: ScalarType::IeeeFloat(format), domains } => {
+            let atoms = package.types.domain_atoms(*domains)?
+                .map(|(declaration, arguments)| DomainAtom { declaration: declaration.clone(), arguments: arguments.to_vec() })
+                .collect();
+            Some((*format, atoms))
+        }
+        _ => None,
+    }
+}
 
 /// A value this reader can substitute for a clause subject.
 #[derive(Clone, Debug, PartialEq)]
@@ -82,4 +111,31 @@ fn compare(
         LessThan => left < right,
         LessOrEqual => left <= right,
     })
+}
+
+/// Resolve a binary predicate on record formals to its selected private
+/// machine and its full requirement range. This reader inspects the returned
+/// Boolean literal of the two test helpers independently of their spelling.
+pub fn record_predicate_application<'a>(
+    package: &'a LoweredPackage, owner: &str,
+) -> Option<(&'a DeclarationId, [usize; 2], &'a [ContractClause], bool)> {
+    use omega_psi::{BlockTerminator, OperationKind, OperationResult, PredicateProgress, ReturnEdge, ScalarLiteral, TypeExpressionStep};
+    let enclosing = super::machine(package, owner)?;
+    let [clause] = &enclosing.contract.requires[..] else { return None };
+    let [PredicateStep::Formal(a), PredicateStep::Formal(b), PredicateStep::MachineApplication {
+        callee, operands, result: ScalarType::Boolean, requirements, progress: PredicateProgress::CheckPrivateBody, ..
+    }] = &clause.predicate[..] else { return None };
+    let helper = package.machines.iter().find(|m| &m.declaration == callee)?;
+    if operands.len() != 2 || helper.parameter_types.len() != 2 || !helper.contract.has_empty_crash_ceiling
+        || helper.contract.public || *requirements != (0..helper.contract.requires.len()) { return None; }
+    for (formal, (&index, operand)) in [a, b].into_iter().zip(operands).enumerate() {
+        let [TypeExpressionStep::Named { declaration, argument_count: 0 }] = &operand.0[..] else { return None };
+        let (source, domains) = super::record_formal(package, owner, index)?;
+        if !domains.is_empty() || source.declaration != *declaration || source.carrier != helper.parameter_types[formal] { return None; }
+    }
+    let [op] = &helper.body.operations[..] else { return None };
+    let (OperationResult::Scalar(result), OperationKind::Constant(ScalarLiteral::Boolean(value))) = (op.result, &op.kind) else { return None };
+    let [block] = &helper.body.blocks[..] else { return None };
+    if !matches!(block.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(id), .. } if id == result) { return None; }
+    Some((callee, [*a, *b], &helper.contract.requires, *value))
 }

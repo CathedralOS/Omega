@@ -185,7 +185,7 @@ fn a_requirement_call_names_its_trait() {
 /// The open template publishes that binder with its declared carrier and
 /// returns the formal it reads, so a specializer can substitute any `u8` for
 /// `N` without changing the result. Reading the binder itself returns that
-/// value. A record carrier has no template binder form yet and still refuses.
+/// value. An unused record-valued binder names the exact data declaration.
 #[test]
 fn a_value_only_template_publishes_its_binder_and_its_formal_result() {
     use omega_psi::{TemplateResult, TypeExpression};
@@ -240,14 +240,17 @@ fn a_value_only_template_publishes_its_binder_and_its_formal_result() {
     );
 
     let record = format!("data P{{x:u8;}} {}", value.replace("const N: u8", "const N: P"));
-    let message = "open generic machine requires a closed application before lowering";
-    let error = sources::refuse(
-        &[("value.omg", &record)],
-        "value.omg",
-        sources::unique_span(&record, "machine keep<const N: P>(volume: u8) -> u8 { volume }"),
-        message,
-    );
-    assert_eq!(error.message, message);
+    let binder_schema = |text: &str| {
+        let package = sources::lower(&[("value.omg", text)]).unwrap();
+        let [keep] = package.machine_templates.as_slice() else { panic!("one keep") };
+        assert_eq!(keep.result, Some(TemplateResult::Operand(TemplateOperand::Formal(0))));
+        psi_handoff_consumer::machine_templates::binder_record(&package, keep, 0).expect("nominal value binder").declaration.path.clone()
+    };
+    // The other record has the same layout. Only the binder's declaration changes.
+    let twin = format!("data Q{{x:u8;}} {}", record.replace("const N: P", "const N: Q"));
+    spec_corpus::observe_handoff!(psi "psi-output/open-record-value-binder", assert_eq!(
+        (binder_schema(&record), binder_schema(&twin)), ("P".into(), "Q".into())
+    ));
 }
 
 /// `requires volume in u8::Audible` states a fact about the formal. Psi names
@@ -328,7 +331,6 @@ fn field_id(package: &LoweredPackage, path: &str) -> omega_psi::DeclarationId {
     package.data.iter().flat_map(|d| &d.fields).find(|f| f.declaration.path == path).unwrap_or_else(|| panic!("missing {path}")).declaration.clone()
 }
 
-const MESSAGE: &str = "template call has unsupported operands, selection or obligations";
 
 /// Without its record domain, the published fence still passes `track.volume`,
 /// a scalar field of a formal record, and the template call publishes a copy of
@@ -432,11 +434,9 @@ machine preview<const Audio: Player>(track: Audio)
 /// The template publishes a copy of that field in the structural lane with its
 /// exact array type, the lane and type a consumer finds both on the published
 /// field and on `Player::play`. A `[copy]` record field is copied the same way.
-/// Without `[copy]` the record is affine: passing it would move it out of the
-/// formal and leave a residual, which a template operand cannot state, so that
-/// twin still refuses at the call.
+/// With an affine field, the call transfers that field and the return disposes the remaining fields.
 #[test]
-fn a_structural_field_operand_is_a_copy_and_an_affine_field_refuses_at_the_call() {
+fn structural_fields_copy_or_transfer_with_the_exact_residual_at_return() {
     let array = "data Audio { volume: u8; name: [u8; 2]; }
 trait Player { machine play(name: [u8; 2]); }
 
@@ -481,8 +481,21 @@ machine preview<const Audio: Player>(track: Audio)
             assert_eq!(psi_handoff_consumer::template_field_argument(&package, template, &operand), Err(error));
         }
     }
-    let error = sources::refuse(&[("transfer.omg", affine)], "transfer.omg", sources::unique_span(affine, "Audio::play(track.tag)"), MESSAGE);
-    assert_eq!(error.message, MESSAGE);
+    let mut package = sources::lower(&[("transfer.omg", affine)]).unwrap();
+    let [template] = package.machine_templates.as_slice() else { panic!("one preview") };
+    let [omega_psi::TemplateStep::Call(call)] = template.body.as_slice() else { panic!("one play") };
+    assert!(matches!(&call.target,TemplateCallTarget::Member {binder:0,requirement} if requirement.path=="Player::play"));
+    spec_corpus::observe_handoff!(psi "psi-output/template-affine-field-transfer", assert_eq!(
+        psi_handoff_consumer::moved_formal_fields(&package,template,0), Some((vec!["Audio::tag"],vec!["Audio::volume"]))
+    ));
+    package.machine_templates[0].discarded_fields.clear();
+    assert_eq!(psi_handoff_consumer::moved_formal_fields(&package,&package.machine_templates[0],0),None);
+
+    let multiple = affine.replace("volume: u8;", "first:u8; second:bool;");
+    let package = sources::lower(&[("transfer.omg",&multiple)]).unwrap();
+    assert_eq!(psi_handoff_consumer::moved_formal_fields(&package,&package.machine_templates[0],0),
+               Some((vec!["Audio::tag"],vec!["Audio::second","Audio::first"])));
+
 }
 
 fn instance(package: &LoweredPackage) -> &omega_psi::LoweredMachine {
@@ -670,4 +683,33 @@ trait Player { machine get(v: u8) -> u8; }
         [TemplateOperand::RecordField { formal: 0, carrier: vec![field_id(&package, "Audio::tag")], field: field_id(&package, "Tag::id"), argument: Parameter::Scalar(byte()) }]
     );
     assert!(package.machines.iter().any(|m| m.declaration.path == "preview"), "the local instance still lowers");
+}
+
+#[test]
+fn an_unused_applied_record_formal_publishes_its_own_closed_schema() {
+    use omega_psi::{DataArgument, ScalarType, TypeShape};
+    const CASE: &str = include_str!("fixtures/package_cases/applied-record-formal/case/case.omg");
+    const CONTROL: &str = include_str!("fixtures/package_cases/applied-record-formal/control/case.omg");
+    let shape = |source: &str| {
+        let package = sources::lower(&[("case.omg",source)]).unwrap();
+        let row = psi_handoff_consumer::machine_templates::formal_schema(&package, "f", 0)?;
+        let [DataArgument::Type(arg)] = row.type_arguments.as_slice() else { panic!("one type argument") };
+        let [unused, used] = row.fields.as_slice() else { panic!("Buffer's two fields") };
+        assert_eq!((&*row.declaration.path, &*unused.declaration.path, &*used.declaration.path), ("Buffer", "Buffer::unused", "Buffer::used"));
+        assert_eq!(package.types.get(unused.carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Boolean)));
+        Some((*package.types.get(*arg)?, *package.types.get(used.carrier)?))
+    };
+    let ty = |width| TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width });
+    let plain = sources::lower(&[("case.omg", CONTROL)]).unwrap();
+    let [f] = plain.machines.as_slice() else { panic!("only f") };
+    let [omega_psi::Parameter::Scalar(value)] = f.body.parameters[..] else { panic!("plain u32 parameter") };
+    assert_eq!(plain.types.get(f.body.values[value.index()].ty), Some(&ty(32)));
+    let substituted = shape(&CASE.replace("Buffer<u32>", "Buffer<u16>"));
+    spec_corpus::observe_handoff!("unused-formal-schema/consumer", assert_eq!(
+        substituted, Some((ty(16), ty(16)))
+    ));
+    spec_corpus::observe_handoff!(psi "psi-output/applied-record-formal", assert_eq!(
+        (shape(CASE), substituted, shape(CONTROL)),
+        (Some((ty(32),ty(32))),Some((ty(16),ty(16))),None)
+    ));
 }

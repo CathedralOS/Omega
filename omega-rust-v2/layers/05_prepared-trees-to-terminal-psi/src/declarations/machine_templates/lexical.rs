@@ -52,9 +52,7 @@ pub(super) fn static_result(typed: &TypedStage, tree: &TypedTree<'_>, sig: &Type
     Some(TemplateResult::StaticParameter { owner: crate::identity::portable(owner)?, index, site: e.site.clone() })
 }
 
-/// A static value binder publishes its carrier as a closed scalar type: `bool`
-/// or a fixed-width integer. A domain-qualified, indexed-width or structural
-/// carrier needs its own template binder form and still refuses.
+/// The closed scalar carriers for which a template can return the selected static value.
 pub(super) fn static_value_carrier(carrier: &ValueType) -> bool {
     match carrier {
         ValueType::Bool => true,

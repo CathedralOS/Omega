@@ -117,6 +117,10 @@ pub struct StaticCallableSelection {
     /// order. Each invocation of the binder owes them under its arguments.
     /// The checker judges that they imply the selected machine's `requires`.
     pub requires: Vec<ContractClause>,
+    /// The bound's guarantees on this invocation's ordered actuals and
+    /// normal result. The selected machine must refine them; exporting any
+    /// result relation from a wrapper requires its own authored guarantee.
+    pub ensures: Vec<ContractClause>,
     pub pause: crate::PauseEffects,
     pub terminates: bool,
     pub empty_reach: bool,

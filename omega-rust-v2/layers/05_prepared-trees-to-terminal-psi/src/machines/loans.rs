@@ -154,6 +154,7 @@ pub(super) fn store_borrowed(
     body: &mut MachineBody,
     flow: &mut BlockFlow,
     site: Site,
+    before_return: bool,
 ) -> Result<(), LoweringError> {
     let id = expressions
         .types
@@ -169,7 +170,7 @@ pub(super) fn store_borrowed(
         return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
     }
     let premises = &expressions.selector_premises;
-    let disposition = if vacancy_at(body, premises, flow, &destination, &site)? {
+    let disposition = if vacancy_at(body, premises, flow, &destination, &site, before_return)? {
         crate::StructuralStoreDisposition::FillVacancy
     } else if matches!(expressions.types.get(id),Some(TypeShape::Nominal(data)) if expressions.data[data.get()-1].multiplicity == crate::Multiplicity::Copy) {
         crate::StructuralStoreDisposition::ReplaceUnrestricted
@@ -207,18 +208,24 @@ fn vacancy_at(
     flow: &BlockFlow,
     destination: &ProjectedPlace,
     site: &Site,
+    before_return: bool,
 ) -> Result<bool, LoweringError> {
     use super::view_loans::{Relation, relate};
     let target = captured_place(body, destination);
+    let known_vacancy = exact_vacancy(body, premises, flow, &target, site)?;
+    let mut owed_final_fill = false;
     let mut checked = Vec::new();
     for operation in &body.operations {
         let OperationKind::BorrowedMove { source } = &operation.kind else { continue };
         let source = captured_place(body, source);
-        let reason = match relate(body, premises, &source, &target) {
-            Relation::Unproved => "cannot prove the store selector equal to or distinct from the selector of an open vacancy",
-            Relation::Overlap => "nested restoration needs the overlapping structural window",
+        let relation = relate(body, premises, &source, &target);
+        match relation {
             Relation::Same | Relation::Disjoint => continue,
-        };
+            // Valid simultaneous extractions must already be disjoint. If this
+            // store fills a known vacancy, another move cannot make it occupied.
+            Relation::Unproved if known_vacancy => continue,
+            Relation::Unproved | Relation::Overlap => {}
+        }
         if checked
             .iter()
             .any(|prior| matches!(relate(body, premises, prior, &source), Relation::Same))
@@ -228,11 +235,19 @@ fn vacancy_at(
         // An old extraction matters only until its matching store. Later
         // assignments through another selector may reuse the intact backing.
         if exact_vacancy(body, premises, flow, &source, site)? {
-            return Err(LoweringError::new(site, reason));
+            match relation {
+                Relation::Overlap => return Err(LoweringError::new(site, "nested restoration needs the overlapping structural window")),
+                // An occupied displacement here leaves an open window at the
+                // implicit return. Emit the only possible normal repair at
+                // the actual store selector. L6 still owes its identity with
+                // the captured move, its bound and its receiving validity.
+                Relation::Unproved if before_return && !owed_final_fill => owed_final_fill = true,
+                _ => return Err(LoweringError::new(site, "cannot prove the store selector equal to or distinct from the selector of an open vacancy")),
+            }
         }
         checked.push(source);
     }
-    exact_vacancy(body, premises, flow, &target, site)
+    Ok(known_vacancy || owed_final_fill)
 }
 
 fn exact_vacancy(

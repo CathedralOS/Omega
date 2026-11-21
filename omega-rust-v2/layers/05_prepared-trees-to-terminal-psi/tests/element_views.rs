@@ -38,7 +38,7 @@ fn a_read_of_one_same_typed_element_view_measures_only_that_view() {
         assert_eq!(machine.parameter_types[0], machine.parameter_types[1]);
         assert_eq!(
             package.types.get(body.places[left.index()].ty),
-            Some(&TypeShape::SharedElementView { element: u32_element })
+            Some(&TypeShape::SharedElementView { element: omega_lowering::ViewElement::Scalar(u32_element) })
         );
         let selected = [left, right][slot];
         let [measure, read] = body.operations.as_slice() else {
@@ -97,7 +97,7 @@ fn an_explicit_element_length_is_an_element_count_of_the_exact_view() {
     assert_eq!(
         package.types.get(body.places[items.index()].ty),
         Some(&TypeShape::SharedElementView {
-            element: ScalarType::Integer { signed: false, width: 16 }
+            element: omega_lowering::ViewElement::Scalar(ScalarType::Integer { signed: false, width: 16 })
         })
     );
 }
@@ -115,12 +115,12 @@ fn byte_and_element_views_keep_distinct_descriptors_and_operations() {
     assert_eq!(
         package.types.get(signed.parameter_types[0]),
         Some(&TypeShape::SharedElementView {
-            element: ScalarType::Integer { signed: true, width: 8 }
+            element: omega_lowering::ViewElement::Scalar(ScalarType::Integer { signed: true, width: 8 })
         })
     );
     assert_eq!(
         package.types.get(flags.parameter_types[0]),
-        Some(&TypeShape::SharedElementView { element: ScalarType::Boolean })
+        Some(&TypeShape::SharedElementView { element: omega_lowering::ViewElement::Scalar(ScalarType::Boolean) })
     );
     let [byte_length, byte_read] = bytes.body.operations.as_slice() else {
         panic!("expected a byte length and read")
@@ -263,10 +263,10 @@ fn mutable_length_contract_selects_a_formal_not_a_body_bound() {
 #[test]
 fn a_read_keeps_the_mutable_element_descriptor_and_its_own_bound() {
     let scalar = ScalarType::Integer { signed: false, width: 32 };
-    let mutable = TypeShape::MutableScalarElementView { element: scalar };
+    let mutable = TypeShape::MutableElementView { element: omega_lowering::ViewElement::Scalar(scalar) };
     for (text, shape, view_slot, index_slot, index_name) in [
         ("machine get(items:@mut [u32],i:u64)->u32 { items[i] }", mutable, 0, 1, "[i]"),
-        ("machine get(items:@[u32],i:u64)->u32 { items[i] }", TypeShape::SharedElementView { element: scalar }, 0, 1, "[i]"),
+        ("machine get(items:@[u32],i:u64)->u32 { items[i] }", TypeShape::SharedElementView { element: omega_lowering::ViewElement::Scalar(scalar) }, 0, 1, "[i]"),
         ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { other[i] }", mutable, 2, 1, "[i]"),
         ("machine get(items:@mut [u32],i:u64,other:@mut [u32],j:u64)->u32 { items[j] }", mutable, 0, 3, "[j]"),
     ] {
@@ -300,4 +300,21 @@ fn a_read_keeps_the_mutable_element_descriptor_and_its_own_bound() {
         assert_eq!(package.types.get(body.values[value.index()].ty), Some(&TypeShape::PrimitiveScalar(scalar)));
         assert!(matches!(body.blocks[0].terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == value));
     }
+}
+
+#[test]
+fn nominal_view_length_returns_its_formals_element_count_and_preserves_access() {
+    use omega_lowering::ReferenceAccess;
+    let observed = [
+        include_str!("fixtures/package_cases/shared-nominal-view-count/case/case.omg"),
+        include_str!("fixtures/package_cases/shared-nominal-view-count/control/case.omg"),
+        "data A { x:u8; } data R { x:u8; } machine count(a:@mut [A], r:@[R])->u64 {r.len}",
+    ].map(|text| {
+        let package = sources::lower(&[("case.omg", text)]).unwrap();
+        let (formal, access, owner) = psi_handoff_consumer::returned_nominal_view_count(&package, machine(&package, "count")).unwrap();
+        (formal, access, owner.package.clone(), owner.path.clone())
+    });
+    let expected = [(0, ReferenceAccess::Shared), (0, ReferenceAccess::Mutable), (1, ReferenceAccess::Shared)]
+        .map(|(formal, access)| (formal, access, "app".to_owned(), "R".to_owned()));
+    spec_corpus::observe_handoff!(psi "psi-output/nominal-view-count", assert_eq!(observed, expected));
 }

@@ -40,7 +40,7 @@ fn reversing_actuals_selects_the_backed_overload_and_its_premise_range() {
             panic!("expected two formal actuals and their application: {clause:?}")
         };
         assert_eq!([*a, *b], slots);
-        assert_eq!(operands, &types);
+        assert_eq!(operands, &types.map(omega_psi::TypeExpression::from));
         assert_eq!(*result, BIT);
         assert_eq!(at, &site);
         assert_eq!(*requirements, 0..premises);

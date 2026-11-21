@@ -54,6 +54,25 @@ fn explicit_evidence_binds_the_exact_trait_member() {
 }
 
 #[test]
+fn ordinary_trait_parents_retain_the_selected_application() {
+    spec_corpus::observe_handoff!("ordinary-trait-parent/producer", {
+        for (parent, expected_width) in [(":P<u8>", Some(8)), (":P<u16>", Some(16)), ("", None)] {
+            let source = format!("trait P<T>{{}} trait C{parent}{{}}");
+            let stage = check(&[("parent.omg", &source)]).unwrap();
+            let selected = stage.trait_parents.iter().find(|(child, _)| child.path == "C");
+            if let Some(width) = expected_width {
+                let (_, application) = selected.expect("inheriting trait C");
+                assert_eq!(application.declaration.path, "P");
+                assert_eq!(application.trait_arguments, [ValueType::Integer { signed: false, width: Some(width) }]);
+            } else {
+                assert!(selected.is_none());
+            }
+            assert!(stage.refinement_bases.keys().all(|child| child.path != "C"));
+        }
+    });
+}
+
+#[test]
 fn inherited_rows_use_the_declaring_traits_applied_parameters() {
     let traits = "trait Parent<T>{machine get(x:T)->T;} trait Child<U>:Parent<U>{machine flag()->bool;}";
     let impls = "Impl satisfies Child<u8>{machine get(x:u8)->u8{x} machine flag()->bool{true}}";

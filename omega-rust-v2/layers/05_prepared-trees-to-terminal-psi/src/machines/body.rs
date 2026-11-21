@@ -217,7 +217,8 @@ fn emit_body(
                     continue;
                 }
                 if super::view_loans::selects_view_element(&expressions, place) {
-                    super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow)?;
+                    let before_return = index + 1 == statements.len() && result_type.is_none();
+                    super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow, before_return)?;
                     continue;
                 }
                 let Some(Symbol::Binding {
@@ -388,8 +389,8 @@ fn directly_borrowed_binders(
 /// A borrowed scalar needs addressable storage, so a primitive local or formal
 /// that `@name` borrows gets one home for its original value. Every view of it
 /// borrows that home, and later reads observe the home. A mutable local's
-/// assignments store into the same home. A qualified local is not homed, so
-/// its borrow still refuses.
+/// assignments store into the same home. A qualified formal's home owes its
+/// declared predicate on that exact initializer.
 fn home_borrowed_scalar(
     file: &IndexedSource<'_>,
     types: &LoweringTypes,
@@ -402,13 +403,18 @@ fn home_borrowed_scalar(
         return value;
     };
     let ty = body.values[initializer.index()].ty;
-    if borrowed.binary_search(&binder).is_err() || !matches!(types.get(ty), Some(crate::TypeShape::PrimitiveScalar(_))) {
+    if borrowed.binary_search(&binder).is_err() {
         return value;
     }
+    let receiving_domains = match types.get(ty) {
+        Some(crate::TypeShape::PrimitiveScalar(_)) => None,
+        Some(crate::TypeShape::QualifiedScalar { domains, .. }) if file.nodes[binder].kind == NodeKind::Param => Some(*domains),
+        _ => return value,
+    };
     use super::expressions::{EmitOperation, OperationOutput};
     body.push_operation(
         OperationOutput::Structural(ty),
-        crate::OperationKind::EstablishPrimitiveLocal { value: initializer },
+        crate::OperationKind::EstablishPrimitiveLocal { value: initializer, receiving_domains },
         site_at(file, binder),
     )
 }

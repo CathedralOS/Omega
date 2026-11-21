@@ -5,6 +5,12 @@ use num_bigint::BigUint;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypeExpression(pub Vec<TypeExpressionStep>);
 
+impl From<ScalarType> for TypeExpression {
+    fn from(ty: ScalarType) -> Self {
+        Self(vec![TypeExpressionStep::Scalar(ty)])
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeExpressionStep {
     Scalar(ScalarType),
@@ -71,6 +77,11 @@ pub enum TemplateAccess {
 pub struct TemplateCallable {
     pub parameters: Vec<TypeExpression>,
     pub result: Option<TypeExpression>,
+    /// An elided direct reference result is lifetime-related to this ordered
+    /// input when its single reference frontier is represented. The call's
+    /// result has its own descriptor. This relation grants no backing or
+    /// access. Absence supplies no lifetime relation.
+    pub result_lifetime_input: Option<usize>,
     pub requires: Vec<crate::ContractClause>,
     pub ensures: Vec<crate::ContractClause>,
     pub reach: Option<Vec<(DeclarationId, Vec<TypeExpression>)>>,

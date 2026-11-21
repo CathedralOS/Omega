@@ -15,6 +15,9 @@ pub struct BranchBlock {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CleanupAction {
     DiscardRoot(PlaceId),
+    /// Retire the home after its active regions have been disposed in order.
+    /// This action alone discharges no claims or loans.
+    RetireHome(PlaceId),
     DiscardResidual {
         place: crate::ProjectedPlace,
         ty: crate::TypeId,

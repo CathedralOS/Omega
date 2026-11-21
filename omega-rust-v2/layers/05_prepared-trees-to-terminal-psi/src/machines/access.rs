@@ -38,7 +38,7 @@ pub(crate) fn collection_length(operation: &omega_typed::TypedOperation) -> Opti
 /// A scalar or nominal-element descriptor stores its live element count.
 pub(crate) fn element_view_length(operation: &omega_typed::TypedOperation) -> Option<&ValueType> {
     let [receiver] = operation.operands.as_slice() else { return None };
-    let is_element_view = crate::lowering::types::scalar_element_view(receiver).is_some() || crate::lowering::types::mutable_element_view(receiver).is_some();
+    let is_element_view = crate::lowering::types::element_view_access(receiver).is_some();
     (operation.token == ".len" && operation.result == INDEX_TYPE && is_element_view).then_some(receiver)
 }
 

@@ -90,13 +90,13 @@ fn an_exclusive_view_chosen_by_match_transfers_each_arriving_formal() {
     };
     assert_eq!(body.places[joined.index()].origin, PlaceOrigin::BlockParameter(join.id));
     let ty = body.places[joined.index()].ty;
-    assert_eq!(package.types.get(ty), Some(&TypeShape::MutableScalarElementView { element: U32 }));
+    assert_eq!(package.types.get(ty), Some(&TypeShape::MutableElementView { element: omega_lowering::ViewElement::Scalar(U32) }));
     assert_eq!([body.places[left.index()].ty, body.places[right.index()].ty], [ty, ty]);
     assert_eq!(body.operations[join.operations.start].kind, OperationKind::ElementViewLength { source: joined });
 
     let expected = ExclusiveJoin {
         arrivals: [(true, 1), (false, 2)],
-        descriptor: TypeShape::MutableScalarElementView { element: U32 },
+        descriptor: TypeShape::MutableElementView { element: omega_lowering::ViewElement::Scalar(U32) },
         consumer: JoinedUse::Length,
         reused_after_transfer: vec![],
     };
@@ -138,7 +138,7 @@ fn the_shared_control_still_copies_each_arriving_view() {
     assert_eq!(arrivals(body).1, [CallArgument::CopyWhole(left), CallArgument::CopyWhole(right)]);
     assert_eq!(
         package.types.get(body.places[left.index()].ty),
-        Some(&TypeShape::SharedElementView { element: U32 })
+        Some(&TypeShape::SharedElementView { element: omega_lowering::ViewElement::Scalar(U32) })
     );
     assert_eq!(exclusive_join(&package, "pick"), Err("an exclusive descriptor arrives by copy"));
 }

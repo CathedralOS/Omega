@@ -27,6 +27,8 @@ impl PreparedFloat {
 /// A frozen semantic value. Aggregate fields are in declaration order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PreparedValue {
+    /// Immutable byte view backed by the frozen value, independent of compiler storage.
+    SharedBytes(Arc<[u8]>),
     Integer(BigInt),
     Bool(bool),
     Float {
@@ -82,7 +84,7 @@ impl PreparedValue {
                         origin: origin.clone(),
                     });
                 }
-                Self::Integer(_) | Self::Bool(_) | Self::Float { .. } => continue,
+                Self::Integer(_) | Self::Bool(_) | Self::Float { .. } | Self::SharedBytes(_) => continue,
                 Self::Array(fields) | Self::Tuple(fields) => (fields, None),
                 Self::Record { owner, fields } => (fields, Some(owner)),
                 Self::Sum { case, fields, .. } => (fields, Some(case)),

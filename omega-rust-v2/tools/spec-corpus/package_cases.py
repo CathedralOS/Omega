@@ -131,6 +131,8 @@ def apply(report, rows=None, execute=None, fixtures=FIXTURES):
     errors = report["measurement_errors"]
     rows = validate(registrations() if rows is None else list(rows), fixtures)
     ledger = report["package_cases"] = {"registered": len(rows), "reproduced": [], "unreconciled": {}, "inputs": {}}
+    if not rows:
+        return
     if execute is None:
         binary = report.get("lowering_cli", {}).get("build", {}).get("executable")
         if not binary:

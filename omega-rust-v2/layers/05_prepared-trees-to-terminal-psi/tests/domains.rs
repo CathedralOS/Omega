@@ -352,11 +352,7 @@ fn domain_access_refusal_identifies_the_authored_policy() {
                           new_plan::<'t>(@schema, Issuance::Unrestricted{})
                       }
                   }";
-    let message = "unsupported domain member: Access";
-    let error = sources::refuse(&[("policy.omg", source)], "policy.omg", sources::unique_span(source, "access Rule"), message);
-    assert_eq!(error.site.file, "policy.omg");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"access Rule".as_slice()));
-    assert_eq!(error.message, message);
+    sources::refuse(&[("policy.omg", source)], "policy.omg", sources::unique_span(source, "access Rule"), "domain access policy needs the package owner for its semantic schema");
 }
 
 #[test]
@@ -886,4 +882,47 @@ fn an_applied_domain_completion_keeps_its_closed_arguments_beside_the_other_orig
     let BlockTerminator::Jump(edge) = &pkg.machines[0].body.blocks[0].terminator else { panic!("missing cast") };
     assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }]);
     assert!(edge.domain_completions.is_empty());
+}
+
+#[test]
+fn a_schema_argument_without_a_policy_result_cannot_supply_issuance() {
+    let template = "use omega\\language\\core;
+                    use omega\\language\\core\\reflect;
+                    use omega\\language\\core\\access;
+                    domain i32::Locked access Rule;
+                    Rule satisfies AccessPolicy {
+                        machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                            new_plan::<'t>(@schema, ISSUANCE)
+                        }
+                    }";
+    for issuance in ["Issuance::Unrestricted{}", "Issuance::Only{routes: []}"] {
+        let source = template.replace("ISSUANCE", issuance);
+        let mut package = sources::resolve(&[("policy.omg", &source)]);
+        package.bind_package_key("app", [0x42; 32]).unwrap();
+        let prepared = omega_preparation::prepare_source_package(&package).unwrap();
+        let [selection] = &prepared.typed().access_policies[..] else {
+            panic!("one selected domain")
+        };
+        assert!(matches!(
+            prepared.pending_access_plan(&selection.domain).unwrap().schema,
+            omega_prepared::PolicySchemaInput::Ready { .. }
+        ));
+        let error = omega_lowering::lower_package(&prepared).unwrap_err();
+        assert_eq!(error.message, "domain access policy needs its evaluated plan for the selected semantic schema");
+        assert_eq!(error.site, selection.site);
+    }
+}
+
+#[test]
+fn domain_cleanup_follows_the_owned_occurrences_qualification() {
+    let case = include_str!("fixtures/package_cases/domain-selected-cleanup/case/case.omg");
+    let control = include_str!("fixtures/package_cases/domain-selected-cleanup/control/case.omg");
+    let qualified = case.replace("hold(r:R)", "hold(r:R in Live)");
+    let substitution = qualified.replace("domain R::Live dropped by end", "machine finish(r:R){let R{v as _}=r;} domain R::Live dropped by finish");
+    let packages = [case, control, qualified.as_str(), substitution.as_str()].map(|text| sources::lower(&[("case.omg", text)]).unwrap());
+    spec_corpus::observe_handoff!(psi "psi-output/record-domain-cleanup", assert_eq!(
+        packages.each_ref().map(|pkg| psi_handoff_consumer::returned_domain_cleanup(pkg, "hold", "R::Live").unwrap()),
+        [(Some("end"), vec![], vec![]), (None, vec![], vec![]),
+         (Some("end"), vec!["R::Live".into()], vec!["end"]), (Some("finish"), vec!["R::Live".into()], vec!["finish"])]
+    ));
 }

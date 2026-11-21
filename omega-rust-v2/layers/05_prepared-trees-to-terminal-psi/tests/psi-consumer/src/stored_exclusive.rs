@@ -156,7 +156,7 @@ pub fn returned_exclusive(
     let mut disposed = Vec::with_capacity(cleanup.len());
     for action in cleanup {
         let (place, path) = match action {
-            CleanupAction::DiscardRoot(p) => (*p, &[][..]),
+            CleanupAction::DiscardRoot(p) | CleanupAction::RetireHome(p) => (*p, &[][..]),
             CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => (place.root, place.path.as_slice()),
         };
         // A transferred loan left the record; disposing it there would end the

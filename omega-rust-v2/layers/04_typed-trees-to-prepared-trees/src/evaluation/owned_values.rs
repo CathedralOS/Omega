@@ -17,7 +17,7 @@ fn as_static(
     Some(match value {
         PreparedValue::Integer(value) => StaticValue::Integer(value.clone()),
         PreparedValue::Bool(value) => StaticValue::Bool(*value),
-        PreparedValue::Float { .. } | PreparedValue::Tuple(_) => return None,
+        PreparedValue::Float { .. } | PreparedValue::Tuple(_) | PreparedValue::SharedBytes(_) => return None,
         PreparedValue::Array(values) => StaticValue::Array(static_fields(values, requires_proof)?),
         PreparedValue::Record { owner, fields } if !requires_proof(owner) => StaticValue::Record {
             owner: owner.clone(),

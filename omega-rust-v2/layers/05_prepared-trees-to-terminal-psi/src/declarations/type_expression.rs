@@ -291,6 +291,7 @@ pub(crate) fn callable_interface(
     Ok(crate::TemplateCallable {
         parameters,
         result,
+        result_lifetime_input: super::callables::result_lifetime_input(&callable.result, callable.parameters.iter()),
         requires,
         ensures,
         reach,

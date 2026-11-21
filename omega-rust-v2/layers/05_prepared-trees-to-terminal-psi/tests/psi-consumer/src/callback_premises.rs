@@ -17,6 +17,10 @@ pub struct CallbackPremises<'a> {
     /// The refinement: the bound's premises must imply `provided` at the same formals.
     pub bound: &'a [ContractClause],
     pub provided: &'a [ContractClause],
+    /// What the selected target must establish at a normal return and its
+    /// own declared guarantees, both relative to this call's actuals/result.
+    pub promised: &'a [ContractClause],
+    pub target_guarantees: &'a [ContractClause],
 }
 
 /// Every listed callback invocation of `instance`, in listing order. Returns
@@ -60,6 +64,8 @@ pub fn callback_premises<'a>(
             owed: selection.requires.iter().collect(),
             bound: &selection.requires,
             provided: &selected.contract.requires,
+            promised: &selection.ensures,
+            target_guarantees: &selected.contract.ensures,
         });
     }
     Some(found)
@@ -101,4 +107,18 @@ fn call_at(
         // requirement list, never a binder, so a listing that names one is malformed.
         CallSite::Cleanup(_) => None,
     }
+}
+
+/// Resolve a predicate callback's debts and the selected target from the
+/// instance's static arguments. The predicate's preceding terms supply the
+/// actuals, independently of the instance's executable calls.
+pub fn predicate_callback<'a>(package: &'a LoweredPackage, instance: &'a LoweredMachine, clause: usize) -> Option<(&'a [omega_psi::PredicateStep], &'a [ContractClause], &'a LoweredMachine)> {
+    let (step, terms) = instance.contract.requires.get(clause)?.predicate.split_last()?;
+    let omega_psi::PredicateStep::CallbackApplication { binder, callee, operands, result, bound_requirements, .. } = step else { return None };
+    let StaticArgument::Callable(selection) = instance.arguments.get(*binder)? else { return None };
+    let selected = package.machines.iter().find(|m| m.id == selection.machine && m.declaration == *callee)?;
+    if *bound_requirements != (0..selection.requires.len()) || selection.parameters != selected.parameter_types || selection.result != selected.result_type
+        || selection.parameters.len() != operands.len() || !operands.iter().zip(&selection.parameters).all(|(t, id)| package.types.get(*id) == Some(&omega_psi::TypeShape::PrimitiveScalar(*t)))
+        || package.types.get(selection.result?) != Some(&omega_psi::TypeShape::PrimitiveScalar(*result)) { return None; }
+    Some((terms, &selection.requires, selected))
 }

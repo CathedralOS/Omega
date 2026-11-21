@@ -79,7 +79,7 @@ pub fn view_element_bounds(
         let view = formal_of_place(place.root)
             .filter(|_| body.places[place.root.index()].origin == PlaceOrigin::Parameter)
             .ok_or("an element bound is rooted outside the machine's view formals")?;
-        if !matches!(package.types.get(machine.parameter_types[view]), Some(TypeShape::MutableElementView { .. })) {
+        if !matches!(package.types.get(machine.parameter_types[view]), Some(TypeShape::MutableElementView { element: omega_psi::ViewElement::Nominal(_) })) {
             return Err("an element bound is rooted at a formal that is not an exclusive element view");
         }
         let ValueOrigin::Operation(observed) = body.values[length.index()].origin else {
@@ -202,6 +202,10 @@ fn states_bound(
 
 /// Read which formal provided the element count returned by a straight-line body.
 pub fn returned_element_count_formal(machine: &LoweredMachine) -> Option<usize> {
+    returned_element_count(machine).map(|(formal, _)| formal)
+}
+
+fn returned_element_count(machine: &LoweredMachine) -> Option<(usize, ValueId)> {
     let [block] = machine.body.blocks.as_slice() else { return None };
     let BlockTerminator::Return {
         result: omega_psi::ReturnEdge::Scalar(result),
@@ -210,7 +214,7 @@ pub fn returned_element_count_formal(machine: &LoweredMachine) -> Option<usize> 
     else {
         return None;
     };
-    let count = machine.body.operations[block.operations.clone()]
+    let count = machine.body.operations.get(block.operations.clone())?
         .iter()
         .find(|op| op.result == OperationResult::Scalar(result))?;
     let OperationKind::ElementViewLength { source } = count.kind else {
@@ -221,4 +225,29 @@ pub fn returned_element_count_formal(machine: &LoweredMachine) -> Option<usize> 
         .parameters
         .iter()
         .position(|p| *p == Parameter::Structural(source))
+        .map(|formal| (formal, result))
+}
+
+/// Read the access and exact data declaration of the formal whose live count is returned.
+pub fn returned_nominal_view_count<'a>(
+    package: &'a LoweredPackage,
+    machine: &LoweredMachine,
+) -> Option<(usize, omega_psi::ReferenceAccess, &'a omega_psi::DeclarationId)> {
+    use omega_psi::{ReferenceAccess, ScalarType, ViewElement};
+    let (formal, result) = returned_element_count(machine)?;
+    let Parameter::Structural(source) = *machine.body.parameters.get(formal)? else { return None };
+    let descriptor = machine.body.places.get(source.index())?;
+    if machine.parameter_types.get(formal) != Some(&descriptor.ty) { return None; }
+    let (access, element) = match package.types.get(descriptor.ty)? {
+        TypeShape::SharedElementView { element: ViewElement::Nominal(data) } => (ReferenceAccess::Shared, *data),
+        TypeShape::MutableElementView { element: ViewElement::Nominal(data) } => (ReferenceAccess::Mutable, *data),
+        _ => return None,
+    };
+    let result_type = machine.body.values.get(result.index())?.ty;
+    if Some(result_type) != machine.result_type
+        || package.types.get(result_type) != Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 64 })) {
+        return None;
+    }
+    let data = package.data.iter().find(|data| data.id == element)?;
+    Some((formal, access, &data.declaration))
 }

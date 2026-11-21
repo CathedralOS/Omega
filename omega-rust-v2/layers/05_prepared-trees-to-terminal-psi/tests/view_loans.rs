@@ -72,7 +72,7 @@ fn moving_an_element_out_of_an_exclusive_view_and_restoring_it_fills_the_same_el
     let [Parameter::Structural(view), Parameter::Scalar(i)] = body.parameters[..] else {
         panic!("expected a view descriptor and a scalar selector");
     };
-    let Some(&TypeShape::MutableElementView { element: cell }) = pkg.types.get(body.places[view.index()].ty) else {
+    let Some(&TypeShape::MutableElementView { element: omega_lowering::ViewElement::Nominal(cell) }) = pkg.types.get(body.places[view.index()].ty) else {
         panic!("the exclusive view needs its nominal element carrier");
     };
     assert_eq!(pkg.data[cell.get() - 1].declaration.path, "Cell");
@@ -135,26 +135,61 @@ fn equal_literal_selectors_repair_the_extracted_element() {
     assert_eq!(*disposition, StructuralStoreDisposition::FillVacancy);
 }
 
+/// Read the SSA origin of the selector forms used by these four programs.
+fn selector_input(
+    body: &MachineBody,
+    value: ValueId,
+) -> (Option<usize>, u64) {
+    if let Some(parameter) = body
+        .parameters
+        .iter()
+        .position(|p| *p == Parameter::Scalar(value))
+    {
+        return (Some(parameter), 0);
+    }
+    let omega_lowering::ValueOrigin::Operation(op) = body.values[value.index()].origin else {
+        panic!("expected a constructed selector");
+    };
+    match &body.operations[op.index()].kind {
+        OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(literal)) => (None, literal.try_into().unwrap()),
+        OperationKind::Integer { operation, operands } if operation.primitive == omega_lowering::IntegerPrimitive::Add => {
+            let [left, right] = operands[..] else { panic!("expected a binary selector") };
+            let (base, 0) = selector_input(body, left) else {
+                panic!("expected a formal base")
+            };
+            let (None, offset) = selector_input(body, right) else {
+                panic!("expected a literal offset")
+            };
+            (base, offset)
+        }
+        other => panic!("unexpected selector {other:?}"),
+    }
+}
+
 #[test]
-fn a_different_selector_never_repairs_the_extracted_element() {
-    // None of these pairs is known either equal or disjoint.
-    for (params, taken, written) in [
-        (",i:u64,j:u64", "i", "j"),
-        (",i:u64", "i", "0"),
-        (",i:u64", "0", "i"),
-        // The same operation over a different operand is not congruent.
-        (",i:u64,j:u64", "i+1", "j+1"),
+fn final_stores_keep_each_unproved_selector_as_evaluated() {
+    for (params, taken, written, expected) in [
+        (",i:u64,j:u64", "i", "j", [(Some(1), 0), (Some(2), 0)]),
+        (",i:u64", "i", "0", [(Some(1), 0), (None, 0)]),
+        (",i:u64", "0", "i", [(None, 0), (Some(1), 0)]),
+        (",i:u64,j:u64", "i+1", "j+1", [(Some(1), 1), (Some(2), 1)]),
     ] {
         let src = format!("{CELL} machine edit(p:@mut [Cell]{params}) {{let old=move p[{taken}]; p[{written}]=move old;}}");
-        let destination = format!("p[{written}]");
-        sources::refuse(
-            &[("view.omg", &src)],
-            "view.omg",
-            sources::span_within(&src, &format!("{destination}=move old"), &destination),
-            UNPROVED_SELECTOR,
-        );
+        let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
+        let m = &pkg.machines[0];
+        let pairs = psi_handoff_consumer::product_witness::returned_element_repairs(m, 0, &[], &[]).unwrap();
+        let [(taken, written)] = pairs[..] else {
+            panic!("expected one move and its final store")
+        };
+        let bounds = psi_handoff_consumer::view_element_bounds(&pkg, m).unwrap();
+        assert_eq!(bounds.len(), 2);
+        assert_ne!(bounds[0].obligation, bounds[1].obligation);
+        assert_ne!(bounds[0].length, bounds[1].length);
+        assert_eq!([bounds[0].selector, bounds[1].selector], [taken, written]);
+        spec_corpus::observe_handoff!(psi "psi-output/unproved-final-selector-fills", assert_eq!(
+            [selector_input(&m.body, taken), selector_input(&m.body, written)], expected
+        ));
     }
-    assert_unrelated_premises_leave_the_store_unresolved();
 }
 
 #[test]
@@ -498,33 +533,85 @@ fn a_selector_premise_chooses_by_the_exact_selectors_it_names() {
     assert_eq!(written, [j], "no store repairs the element vacated through i");
 }
 
-fn assert_unrelated_premises_leave_the_store_unresolved() {
-    // Each program can run with the two selectors equal or distinct, and no
-    // clause decides which, so neither encoding of the store is the program's.
-    for (signature, body, destination) in [
-        // The distinct-selector body without its premise.
-        (PREMISED.to_string(), "let old=move p[i]; p[j]=move c; p[i]=move old;", "p[j]=move c"),
-        // The premise names a third selector.
-        (
-            "machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64,k:u64) requires i == k".into(),
-            "let old=move p[i]; p[j]=move old;",
-            "p[j]=move old",
-        ),
-        // The store relates to the first vacancy but not to the second.
-        (
-            "machine edit(p:@mut [Cell],i:u64,j:u64,k:u64) requires i == j".into(),
-            "let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;",
-            "p[j]=move a",
-        ),
+/// The archived body has two possible disposal sites. The authored premise
+/// selects which occupied cell to take before installing its replacement.
+#[test]
+fn selector_identity_changes_which_store_disposes_the_displaced_cell() {
+    for (relation, predicate, occupied_store) in [
+        ("==", PredicateOperator::Equal, 1),
+        ("!=", PredicateOperator::NotEqual, 0),
     ] {
-        let src = format!("{CELL} {signature} {{{body}}}");
-        sources::refuse(
-            &[("view.omg", &src)],
-            "view.omg",
-            sources::span_within(&src, destination, "p[j]"),
-            UNPROVED_SELECTOR,
+        let src = format!("{CELL} {PREMISED} requires i {relation} j {{let old=move p[i]; p[j]=move c; p[i]=move old;}}");
+        let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
+        let machine = &pkg.machines[0];
+        let body = &machine.body;
+        let [Parameter::Structural(view), Parameter::Structural(c), Parameter::Scalar(i), Parameter::Scalar(j)] = body.parameters[..] else {
+            panic!("expected a view, a spare cell and both selectors");
+        };
+        assert_eq!(machine.contract.requires[0].predicate, selector_clause(predicate));
+        let [(taken, old), (occupied, OperationResult::Structural(displaced))] = moves(body)[..] else {
+            panic!("one authored take and one displacement for {relation}");
+        };
+        let writes = stores(body);
+        let [(first, spare, first_action), (second, restored, second_action)] = writes[..] else {
+            panic!("expected both authored stores");
+        };
+        assert_eq!(
+            [element(taken, view).0.selector, element(first, view).0.selector, element(second, view).0.selector],
+            [i, j, i]
+        );
+        // Each projected place includes its occurrence-specific index obligation and length.
+        assert!(moved_from(body, spare, OperationResult::Structural(c)));
+        assert!(moved_from(body, restored, old));
+        assert_eq!([first_action, second_action], [&StructuralStoreDisposition::FillVacancy; 2]);
+        let actions: Vec<_> = body.blocks.iter().flat_map(|block| match &block.terminator {
+            BlockTerminator::Jump(edge) => edge.cleanup.as_slice(),
+            BlockTerminator::Return { cleanup, .. } => cleanup.as_slice(),
+            _ => panic!("a straight-line edit"),
+        }).collect();
+        spec_corpus::observe_handoff!(
+            psi "psi-output/selector-disposal-site",
+            assert_eq!(
+                (occupied, actions.as_slice()),
+                (writes[occupied_store].0, [&CleanupAction::DiscardRoot(displaced)].as_slice())
+            ),
         );
     }
+}
+
+#[test]
+fn a_different_selector_never_repairs_the_extracted_element() {
+    // Equality makes the second store displace c. Inequality makes the first
+    // store displace p[j]. Nothing in the program selects that cleanup site.
+    let src = format!("{CELL} {PREMISED} {{let old=move p[i]; p[j]=move c; p[i]=move old;}}");
+    sources::refuse(
+        &[("view.omg", &src)],
+        "view.omg",
+        sources::span_within(&src, "p[j]=move c", "p[j]"),
+        UNPROVED_SELECTOR,
+    );
+}
+
+#[test]
+fn two_open_extractions_owe_disjointness_even_when_one_store_has_an_equal_selector() {
+    let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64,j:u64,k:u64) requires i == j {{let a=move p[i]; let b=move p[k]; p[j]=move a; p[k]=move b;}}");
+    let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
+    let machine = &pkg.machines[0];
+    let [
+        _,
+        Parameter::Scalar(i),
+        Parameter::Scalar(j),
+        Parameter::Scalar(k),
+    ] = machine.body.parameters[..]
+    else {
+        panic!("expected three selectors");
+    };
+    // Both moves survive in order. L6 must check disjointness on the second
+    // extraction even though both stores have a corresponding open vacancy.
+    spec_corpus::observe_handoff!(psi "psi-output/separate-view-extraction-obligations", assert_eq!(
+        psi_handoff_consumer::product_witness::returned_element_repairs(machine, 0, &[], &[(1, 2)]).unwrap(),
+        [(i, j), (k, k)]
+    ));
 }
 
 #[test]
@@ -572,14 +659,56 @@ fn assignment_captures_the_selected_element_before_evaluating_its_replacement() 
 }
 
 #[test]
-fn two_entry_equalities_still_stop_before_the_checker_can_relate_the_selectors() {
+fn a_final_selector_repair_keeps_both_entry_equalities_and_the_missing_premise_control() {
     let source = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64,k:u64) requires i == k requires k == j {let old=move p[i]; p[j]=move old;}";
-    sources::refuse(
-        &[("view.omg", source)],
-        "view.omg",
-        sources::span_within(source, "p[j]=move old", "p[j]"),
-        UNPROVED_SELECTOR,
-    );
+    let without_second = source.replace(" requires k == j", "");
+    for (src, equalities) in [
+        (source, &[(2, 4), (4, 3)][..]),
+        (without_second.as_str(), &[(2, 4)][..]),
+    ] {
+        let mut pkg = sources::lower(&[("view.omg", src)]).unwrap();
+        let machine = &mut pkg.machines[0];
+        let [
+            _,
+            Parameter::Structural(spare),
+            Parameter::Scalar(i),
+            Parameter::Scalar(j),
+            Parameter::Scalar(k),
+        ] = machine.body.parameters[..]
+        else {
+            panic!("expected a view, spare element and three selectors");
+        };
+        let read = |m: &omega_lowering::LoweredMachine| psi_handoff_consumer::product_witness::returned_element_repairs(m, 0, &[1], equalities);
+        spec_corpus::observe_handoff!(psi "psi-output/transitive-selector-final-fill", assert_eq!(read(machine).unwrap(), [(i, j)]));
+        // Redirect only the store to k. The mutated Psi still has exactly two
+        // u64 selectors and the same clauses, but it asks a different question.
+        let store = machine
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                OperationKind::StructuralStore { destination, value, .. } => Some((destination, value)),
+                _ => None,
+            })
+            .unwrap();
+        let [_, PlaceProjection::ViewElement { index, .. }] = store.0.path.as_mut_slice() else {
+            panic!("expected a view element")
+        };
+        index.selector = k;
+        assert_eq!(read(machine).unwrap(), [(i, k)]);
+        // A same-typed spare in place of the extracted element is visible.
+        let value = machine
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                OperationKind::StructuralStore { value, .. } => Some(value),
+                _ => None,
+            })
+            .unwrap();
+        *value = spare;
+        assert!(read(machine).is_err());
+    }
 }
 
 /// The bounded selector twins F1/F2 and their unbounded originals A1/A2
@@ -645,7 +774,7 @@ fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_t
                 ]
             ]
         );
-        assert!(matches!(bounded.types.get(with.parameter_types[0]), Some(TypeShape::MutableElementView { .. })));
+        assert!(matches!(bounded.types.get(with.parameter_types[0]), Some(TypeShape::MutableElementView { element: omega_lowering::ViewElement::Nominal(_) })));
         assert_eq!(bounded.types.get(with.parameter_types[0]), unbounded.types.get(without.parameter_types[0]));
         let (a, b) = (&with.body, &without.body);
         assert_eq!(

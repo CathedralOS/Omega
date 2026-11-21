@@ -45,6 +45,17 @@ pub enum ProofStep {
     /// refer to it as `ProofInput::Local` with this step's position in
     /// `LogicalTheorem::proof`. The binding proves nothing.
     Bind { subject: ProofSubject<ProofInput>, site: Site },
+    /// Apply another theorem under this proof's subject substitution. The
+    /// checker owes the cited theorem, its requirements and every argument's
+    /// complete refinement of its hypothesis before importing its guarantees.
+    /// Circular citations cannot establish each other.
+    ApplyTheorem {
+        theorem: DeclarationId,
+        arguments: Vec<TheoremArgument>,
+        subjects: Vec<ProofSubject<ProofInput>>,
+        requirements: std::ops::Range<usize>,
+        site: Site,
+    },
     /// A statement that cites a checked local machine as proof. Under the
     /// substitution of `subjects` for its formals, the checker must establish
     /// each indexed `requires` clause of `machine` and its total denotation by
@@ -80,13 +91,23 @@ pub enum ProofInput {
 pub enum ProofSubject<Input> {
     Input(Input),
     Literal(crate::ScalarLiteral),
+    /// Integer operands and operations in evaluation order. No runtime value is
+    /// materialized. Each operation's formation checks are owed at its own site.
+    IntegerTerm(Vec<ProofIntegerStep<Input>>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProofIntegerStep<Input> {
+    Input(Input),
+    Literal(crate::ScalarLiteral),
+    Operation { operation: crate::IntegerOperation, carrier: crate::ScalarType, site: Site },
 }
 
 impl<Input: Copy> ProofSubject<Input> {
     pub fn input(&self) -> Option<Input> {
         match self {
             Self::Input(input) => Some(*input),
-            Self::Literal(_) => None,
+            Self::Literal(_) | Self::IntegerTerm(_) => None,
         }
     }
 }

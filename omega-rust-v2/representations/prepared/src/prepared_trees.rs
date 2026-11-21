@@ -13,10 +13,31 @@ pub struct PreparedComparisons {
     pub library: HashMap<TreeNodeId, bool>,
 }
 
+/// A selected policy awaiting evaluation. Its typed carrier names the subject;
+/// a ready schema holds the actual core record to pass to the plan machine.
+#[derive(Debug)]
+pub struct PendingAccessPlan<'a> {
+    pub selection: &'a omega_typed::AccessPolicySelection,
+    pub carrier: &'a omega_typed::ValueType,
+    pub schema: &'a PolicySchemaInput,
+}
+
+/// Progress constructing the one ordinary argument of a selected policy machine.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PolicySchemaInput {
+    NeedsPackageOwner,
+    UnsupportedSubject,
+    Ready {
+        argument: PreparedValue,
+        subject_revision: Vec<u8>,
+    },
+}
+
 /// Typed trees whose demanded closed indices have been evaluated and materialized.
 #[derive(Debug, Eq, PartialEq)]
 pub struct PreparedTrees<'text> {
     typed: TypedTrees<'text>,
+    policy_schemas: HashMap<DeclarationId, PolicySchemaInput>,
     constants: HashMap<DeclarationId, PreparedValue>,
     open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
     specialized_indices: Vec<SpecializedIndexValue>,
@@ -33,6 +54,7 @@ impl<'text> PreparedTrees<'text> {
     /// package they describe.
     pub fn from_preparation(
         typed: TypedTrees<'text>,
+        policy_schemas: HashMap<DeclarationId, PolicySchemaInput>,
         constants: HashMap<DeclarationId, PreparedValue>,
         open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
         specialized_indices: Vec<SpecializedIndexValue>,
@@ -46,6 +68,7 @@ impl<'text> PreparedTrees<'text> {
         landed_floats.dedup();
         Self {
             typed,
+            policy_schemas,
             constants,
             open_target_constants,
             specialized_indices,
@@ -93,6 +116,15 @@ impl<'text> PreparedTrees<'text> {
             return None;
         };
         facts.get(&tree.resolved().file.node_id(node)).copied()
+    }
+
+    /// The policy this package still owes for the given domain. An authored
+    /// constructor or an issuance argument cannot discharge this demand.
+    pub fn pending_access_plan(&self, domain: &DeclarationId) -> Option<PendingAccessPlan<'_>> {
+        let selection = self.typed.access_policies.iter().find(|policy| &policy.domain == domain)?;
+        let carrier = self.typed.domain_carriers.get(domain)?;
+        let schema = self.policy_schemas.get(domain).unwrap_or(&PolicySchemaInput::UnsupportedSubject);
+        Some(PendingAccessPlan { selection, carrier, schema })
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {

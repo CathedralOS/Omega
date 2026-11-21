@@ -23,6 +23,17 @@ pub struct ActivationValue {
     pub needed_after_completion: bool,
 }
 
+/// The callable value whose selected code and contract must survive this
+/// crossing. The checker follows the descriptor's selection and its code
+/// retention dependencies. Its obligations need not be those of a primitive.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RetainedCallable {
+    pub descriptor: ValueId,
+    pub contract: crate::CallableContractId,
+    pub needed_by_callee: bool,
+    pub needed_after_completion: bool,
+}
+
 /// A loan descriptor held by an incomplete call or its caller’s continuation.
 /// The descriptor names the value live at the crossing. Follow a block
 /// parameter through the arriving edge, or a completed call through its
@@ -179,6 +190,7 @@ pub struct SuspensionSite {
     pub callee: CallTarget,
     pub continuation: CompletionContinuation,
     pub activation: Vec<ActivationValue>,
+    pub retained_callables: Vec<RetainedCallable>,
     pub retained_loans: Vec<RetainedLoan>,
     pub retained_owners: Vec<RetainedOwner>,
     pub retained_homes: Vec<RetainedHome>,

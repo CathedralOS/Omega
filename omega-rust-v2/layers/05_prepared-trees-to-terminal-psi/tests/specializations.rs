@@ -265,17 +265,20 @@ fn open_callback_calls_preserve_operands_and_publish_their_sum() {
         ),
     );
 
-    // A constant operand has no template operand form yet; only that operand differs.
     let constant = source.replace("F(b,a) + F(a,b)", "F(b,a) + 1");
-    let declaration = "machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + 1}";
-    let message = "open generic machine requires a closed application before lowering";
-    let err = sources::refuse(
-        &[("template.omg", &constant)],
-        "template.omg",
-        sources::unique_span(&constant, declaration),
-        message,
-    );
-    assert_eq!(err.message, message);
+    let pkg = sources::lower(&[("template.omg", &constant)]).unwrap();
+    let [flip] = pkg.machine_templates.as_slice() else { panic!("one open flip") };
+    let [TemplateStep::Call(_), TemplateStep::Integer(sum)] = flip.body.as_slice() else { panic!("callback and sum") };
+    spec_corpus::observe_handoff!(psi "psi-output/template-integer-literal", assert_eq!(
+        (&sum.operation, &sum.operands, &sum.result_type),
+        (&exact_add, &vec![TemplateOperand::Step(0), TemplateOperand::Constant(omega_psi::ScalarLiteral::Integer(1.into()))],
+         &omega_psi::TypeExpression(vec![omega_psi::TypeExpressionStep::Scalar(omega_psi::ScalarType::Integer { signed: false, width: 64 })]))
+    ));
+    let apply = |formals: &[u64]| evaluate(flip, &Application { formals, statics: &[], select: &pick });
+    spec_corpus::observe_handoff!(psi "psi-output/template-integer-literal-consumer", assert_eq!(
+        (apply(&[3,5]), apply(&[0,u64::MAX])),
+        (Some(Evaluation::Returned(6)), Some(Evaluation::QuestionFails { step: 1, question: IntegerObligation::ResultFitsCarrier }))
+    ));
 }
 
 /// Typing records both binder invocations and the sum of the open template above, and
@@ -441,7 +444,7 @@ fn a_closed_callback_under_a_premise_bearing_contract_owes_the_bound_and_publish
     assert_eq!(bound.site.span.get_start_offset(), sources::unique_span(PREMISE, "requires premise(kept);").start);
     assert_ne!(bound.site, provided.site);
     // Both clauses apply `premise` to the clause owner's first formal, each at its own occurrence.
-    assert_eq!(spelled(bound, PREMISE), ["Formal(0)", "premise[Boolean]->Boolean 0..0 CheckPrivateBody at premise(kept)"]);
+    assert_eq!(spelled(bound, PREMISE), ["Formal(0)", "premise[TypeExpression([Scalar(Boolean)])]->Boolean 0..0 CheckPrivateBody at premise(kept)"]);
     assert_eq!(spelled(bound, PREMISE), spelled(provided, PREMISE));
     let inside = |inner: &omega_lowering::Site, outer: &omega_lowering::Site| {
         outer.span.get_start_offset() <= inner.span.get_start_offset() && inner.span.get_end_offset() <= outer.span.get_end_offset()
@@ -478,7 +481,7 @@ fn a_closed_callback_under_a_premise_bearing_contract_owes_the_bound_and_publish
 /// the refinement's right side. Removing only the alias premise leaves the call
 /// owing nothing while `witness` keeps its premise, so the refinement is still
 /// the checker's to judge. Negating only the argument keeps the owed clause and
-/// changes the actual. A bound with a guarantee still refuses at the contract.
+/// changes the actual. A bound guarantee and a target guarantee remain independent.
 #[test]
 fn premise_bearing_callback_twins_change_only_their_own_input() {
     use omega_lowering::CallArgument;
@@ -514,37 +517,53 @@ fn premise_bearing_callback_twins_change_only_their_own_input() {
     assert!(matches!(twin_arguments[..], [CallArgument::Scalar(v)] if v != kept));
 
     let promised = PREMISE.replace("    requires premise(kept);", "    requires premise(kept)\n    ensures result == kept;");
-    let contract = "machine(kept:bool)->bool\n    requires premise(kept)\n    ensures result == kept";
-    sources::refuse(
-        &[("premise.omg", &promised)],
-        "premise.omg",
-        sources::unique_span(&promised, contract),
-        "static callback needs a local closed target and a supported structural contract",
-    );
+    let facts = |source: &str| {
+        let package = sources::lower(&[("premise.omg", source)]).unwrap();
+        let apply = named(&package, "apply");
+        let rows = psi_handoff_consumer::callback_premises(&package, apply).unwrap();
+        let [row] = rows.as_slice() else { panic!("one callback invocation") };
+        let clauses = |list: &[omega_psi::ContractClause]| list.iter().map(|c| c.predicate.clone()).collect::<Vec<_>>();
+        assert_eq!(row.selected.declaration.path, "witness");
+        let [omega_psi::Parameter::Scalar(kept)] = apply.body.parameters[..] else { panic!("one formal") };
+        assert_eq!(row.arguments, [CallArgument::Scalar(kept)]);
+        let omega_psi::CallSite::Operation(id) = row.call else { panic!("an ordinary invocation") };
+        let omega_psi::OperationResult::Scalar(value) = apply.body.operations[id.index()].result else { panic!("normal callback result") };
+        assert!(matches!(apply.body.blocks[0].terminator, omega_psi::BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(returned), .. } if returned == value));
+        assert!(apply.contract.ensures.is_empty());
+        (clauses(row.promised), clauses(row.target_guarantees))
+    };
+    use omega_psi::{PredicateOperator, PredicateStep};
+    let relation = vec![PredicateStep::Result, PredicateStep::Formal(0), PredicateStep::Apply(PredicateOperator::Equal)];
+    let with_target = promised.replace("requires premise(kept) {premise(kept)}", "requires premise(kept) ensures result == kept {premise(kept)}");
+    spec_corpus::observe_handoff!(psi "psi-output/closed-callback-guarantees", assert_eq!(
+        (facts(&promised), facts(&with_target)), ((vec![relation.clone()], vec![]), (vec![relation.clone()], vec![relation]))
+    ));
 }
 
-/// A callback invoked inside a contract clause becomes a fact application of the
-/// selected machine. That step owes only the callee's own clauses, so a binder
-/// premise would be lost there. The premise-free twin lowers as before.
+/// A callback fact in a closed instance owes its own bound's premises under
+/// this occurrence's ordered predicate terms and retains the selected target.
 #[test]
-fn a_callback_fact_under_a_premise_bearing_contract_refuses_at_the_application() {
+fn a_callback_fact_owes_the_bound_premise_at_its_own_application() {
     let open = "machine premise(kept:bool)->bool {true}
 data Observer=machine(kept:bool)->bool terminates reaches none crashes none;
 machine witness(kept:bool)->bool terminates reaches none crashes none {kept}
 machine apply<const Observe:Observer>(kept:bool)->bool requires premise(kept) requires Observe(kept) {kept}
 machine run(kept:bool)->bool requires premise(kept) requires witness(kept) {apply::<witness>(kept)}";
-    let package = sources::lower(&[("fact.omg", open)]).unwrap();
-    let apply = named(&package, "apply");
-    assert!(matches!(&apply.contract.requires[1].predicate[..],
-        [omega_lowering::PredicateStep::Formal(0), omega_lowering::PredicateStep::MachineApplication { callee, requirements, .. }]
-            if callee.path == "witness" && requirements.is_empty()));
     let premised = open.replace("machine(kept:bool)->bool terminates", "machine(kept:bool)->bool requires premise(kept) terminates");
-    sources::refuse(
-        &[("fact.omg", &premised)],
-        "fact.omg",
-        sources::unique_span(&premised, "Observe(kept)"),
-        "callback premise in a contract predicate has no Psi clause form",
-    );
+    let debts = |source: &str| {
+        let package = sources::lower(&[("fact.omg", source)]).unwrap();
+        let (terms, owed, witness) = psi_handoff_consumer::predicate_callback(&package, named(&package, "apply"), 1).unwrap();
+        assert_eq!(witness.declaration.path, "witness");
+        let clauses = |rows: &[omega_psi::ContractClause]| rows.iter().map(|c| c.site.span.slice(source.as_bytes()).unwrap().to_vec()).collect::<Vec<_>>();
+        (terms.to_vec(), clauses(owed), clauses(&witness.contract.requires))
+    };
+    use omega_psi::PredicateStep::Formal;
+    spec_corpus::observe_handoff!(psi "psi-output/callback-predicate-premises", assert_eq!(
+        (debts(open), debts(&premised)),
+        ((vec![Formal(0)], vec![], vec![]), (vec![Formal(0)], vec![b"requires premise(kept)".to_vec()], vec![]))
+    ));
+    let stronger = premised.replace("machine witness(kept:bool)->bool terminates", "machine witness(kept:bool)->bool requires kept terminates");
+    assert_eq!(debts(&stronger), (vec![Formal(0)], vec![b"requires premise(kept)".to_vec()], vec![b"requires kept".to_vec()]));
 }
 
 /// The consumer reads the listing, not a guess: dropping the owed clause,
