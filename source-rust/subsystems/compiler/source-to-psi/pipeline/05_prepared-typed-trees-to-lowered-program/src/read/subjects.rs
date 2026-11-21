@@ -420,7 +420,7 @@ impl Program<'_> {
                 // parameters are implementations is generic too.
                 if !self.is_generic_template(machine) {
                     if self
-                        .float_meaning_subject(entry, machine.symbol)
+                        .float_meaning_subject(entry, machine)
                         .map_err(|refusal| {
                             self.read_failure_at(refusal, machine.symbol, "the proof declaration")
                         })?

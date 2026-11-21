@@ -388,12 +388,18 @@ impl Program<'_> {
     pub(super) fn float_meaning_subject(
         &mut self,
         id: MachineId,
-        machine: SymbolHandle,
+        declaration: &crate::source_state::machine::Machine,
     ) -> Checked<bool> {
-        let (_, entry) = self.declaration(id, machine)?;
-        if !self.returns_float_meaning(entry.return_type) {
+        let is_proof = self
+            .typed
+            .machine_states
+            .span(declaration.states)
+            .and_then(|states| states.first())
+            .is_some_and(|entry| self.returns_float_meaning(entry.return_type));
+        if !is_proof {
             return Ok(false);
         }
+        let machine = declaration.symbol;
         if self.meaning_primitive(id, machine, machine)?.is_some() {
             return Ok(true);
         }
