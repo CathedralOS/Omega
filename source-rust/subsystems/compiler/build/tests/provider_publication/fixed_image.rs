@@ -128,3 +128,89 @@ public machine image_tail() -> addr reaches ProgramImage crashes none {
             .contains("differs from its checked Core member")
     );
 }
+
+#[test]
+fn scalar_firmware_observation_preserves_the_entrys_existing_storage_grants_on_replay() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "firmware-entry-grants",
+        false,
+    )
+    .unwrap();
+    let path = temporary.path().join("build.omg");
+    std::fs::write(
+        &path,
+        r#"use omega\language\core\ProgramImage;
+use omega\language\core\ProgramImageNativeProvider;
+machine build(builder: @mut Build) {
+    Build::application(builder, "firmware");
+    Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
+    Build::bind(builder, uefi_x86_64\ProgramEntry, entry);
+}"#,
+    )
+    .unwrap();
+    std::fs::write(temporary.path().join("main.omg"), r"use omega\language\core\Extent;
+use omega\language\core\Extent\Granted;
+use omega\language\core\ProgramImage;
+machine entry(image: Extent in Granted, storage: Extent in Granted) reaches ProgramImage crashes none {
+    let suffix: addr = ProgramImage::retained_suffix_start();
+    transition { _ -> retain(image, storage) }
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
+        transition { _ -> retain(image, storage) }
+    }
+}").unwrap();
+    let target = TargetProfile::UefiX64;
+    let project = super::open_project(&path, &[target]);
+    let stage = project.product_stage(&[target]).unwrap();
+    let published = source_compiler::compile_for_target(stage.source(), target.target_name(), None)
+        .unwrap()
+        .into_parts()
+        .0;
+    let reopened = CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
+    let module = reopened.semantic_module();
+    let declared = module.program_entry_contract(target.target_name()).unwrap();
+    let entry = module.machine(declared.entry).unwrap();
+    let [image, storage] = entry.structural_parameters.as_slice() else {
+        panic!("expected two installed parameters")
+    };
+    assert_eq!(image.qualifications.len(), 1);
+    assert_eq!(image.qualifications, storage.qualifications);
+    assert_ne!(image.place, storage.place);
+}
+
+#[test]
+fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
+    for (footprint, should_preserve) in [("none", true), ("ExternalState invokes ExternalState", false)] {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "firmware-observation-footprint", false,
+        ).unwrap();
+        let path = temporary.path().join("build.omg");
+        std::fs::write(&path, r#"machine build(b: @mut Build) {
+            Build::application(b, "firmware");
+            Build::bind(b, uefi_x86_64\ProgramEntry, entry);
+        }"#).unwrap();
+        let source = r"use omega\language\core\Extent;
+use omega\language\core\Extent\Granted;
+public boundary trait ExternalState { machine step() reaches none crashes none; }
+public boundary trait Probe { machine sense() -> addr reaches FOOTPRINT crashes none; }
+machine entry(image: Extent in Granted, storage: Extent in Granted)
+reaches Probe + ExternalState invokes Probe invokes ExternalState crashes none {
+    let observation: addr = Probe::sense();
+    transition { _ -> retain(image, storage) }
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
+        transition { _ -> retain(image, storage) }
+    }
+}";
+        std::fs::write(temporary.path().join("main.omg"), source.replace("FOOTPRINT", footprint)).unwrap();
+        let target = TargetProfile::UefiX64;
+        let project = super::open_project(&path, &[target]);
+        let stage = project.product_stage(&[target]).unwrap();
+        let issued = source_compiler::compile_for_target(stage.source(), target.target_name(), None).unwrap().into_parts().0;
+        let reopened = CanonicalTerminalArtifact::from_bytes(&issued.to_bytes());
+        if should_preserve {
+            reopened.unwrap();
+        } else {
+            let error = reopened.unwrap_err();
+            assert!(error.to_string().contains("unsupplied routed prerequisites"), "{error}");
+        }
+    }
+}

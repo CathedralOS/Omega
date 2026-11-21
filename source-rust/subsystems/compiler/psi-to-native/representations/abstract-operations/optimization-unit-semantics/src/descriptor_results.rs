@@ -1439,6 +1439,7 @@ fn adapt(
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
         payload_scalar_bindings: BTreeMap::new(),
+        private_observation_inputs: Default::default(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),

@@ -82,6 +82,7 @@ fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipCont
         payload_invalidations: BTreeMap::new(),
         case_constructors: BTreeMap::new(),
         case_successors: BTreeMap::new(),
+        private_observation_inputs: Default::default(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
