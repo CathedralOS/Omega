@@ -93,18 +93,19 @@ fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm(
 #[test]
 fn consistent_arms_and_arrivals_already_impossible_before_the_branch_stay_quiet() {
     for (contradictory, impossible_entry) in [(false, false), (true, true)] {
-        let (elaboration, result) = run(vec![guarded_program(32, contradictory, impossible_entry)]);
-        let warnings = result
-            .machines
-            .get(id(1))
-            .unwrap()
-            .branch_warnings
-            .materialize(
-                &elaboration.module.machines[0],
-                elaboration.tables.machines.get(id(1)).unwrap(),
-                &elaboration.sources.get(id(1)).unwrap().branches,
-                &mut crate::checking::ProofSearchActivity::default(),
-            );
+        let (elaboration, _) = run(vec![guarded_program(32, contradictory, impossible_entry)]);
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        let lowered = &elaboration.module.machines[0];
+        let branches = &elaboration.sources.get(id(1)).unwrap().branches;
+        let graph = Graph::new(id(1), lowered, tables).unwrap();
+        let context = PropositionContext::from_value_types(
+            tables.values.iter().map(|(value, row)| (value, row.scalar_type)),
+        ).unwrap();
+        let mut analysis = Analysis::new(&context, &graph, tables, lowered, id(1));
+        let warnings = analysis.run(branches, &mut crate::checking::ProofSearchActivity::default());
+        if !contradictory {
+            assert_eq!(analysis.searches, branches.len(), "reachable arms need only their own point");
+        }
         assert!(
             warnings.is_empty(),
             "contradictory={contradictory}, impossible_entry={impossible_entry}: {warnings:?}"

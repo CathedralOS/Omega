@@ -131,16 +131,22 @@ impl<'machine> Analysis<'machine> {
         }))
     }
 
+    fn query(&self, block: BlockId, at_end: bool) -> Option<usize> {
+        let point = self.point(block, at_end)?;
+        self.points
+            .binary_search_by_key(&point, |query| query.point)
+            .ok()
+    }
+
     fn refuted(
         &mut self,
-        point: ProgramPoint,
+        index: usize,
         activity: &mut ProofSearchActivity,
     ) -> Option<&[KnowledgeId]> {
-        let position = self
-            .points
-            .binary_search_by_key(&point, |query| query.point)
-            .ok()?;
-        let cached = &mut self.points[position].rows;
+        let PointRefutation {
+            point,
+            rows: cached,
+        } = &mut self.points[index];
         if cached.is_none() {
             #[cfg(test)]
             {
@@ -151,7 +157,7 @@ impl<'machine> Analysis<'machine> {
                 self.graph,
                 self.tables,
                 self.machine,
-                point,
+                *point,
                 activity,
             ));
         }
@@ -185,13 +191,15 @@ impl<'machine> Analysis<'machine> {
         let mut impossible = Vec::new();
         let tables = self.tables;
         for branch in branches {
-            let Some(before) = self.point(branch.decided_in, true) else {
+            let Some(before) = self.query(branch.decided_in, true) else {
                 continue;
             };
-            if self.refuted(before, activity).is_some() {
+            // Only an impossible arm can warrant a warning. A previously
+            // refuted decision already rules it out, otherwise start at the arm.
+            if matches!(self.points[before].rows, Some(Some(_))) {
                 continue;
             }
-            let Some(entry) = self.point(branch.block, false) else {
+            let Some(entry) = self.query(branch.block, false) else {
                 continue;
             };
             let Some(rows) = self.refuted(entry, activity) else {
@@ -209,10 +217,12 @@ impl<'machine> Analysis<'machine> {
                     _ => true,
                 })
                 .collect();
-            impossible.push(ImpossibleArm {
-                block: branch.block,
-                premises,
-            });
+            if self.refuted(before, activity).is_none() {
+                impossible.push(ImpossibleArm {
+                    block: branch.block,
+                    premises,
+                });
+            }
         }
         impossible
     }
