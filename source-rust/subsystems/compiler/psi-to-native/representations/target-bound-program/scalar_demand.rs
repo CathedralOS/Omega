@@ -86,6 +86,15 @@ mod storage {
             for resolved in layouts.resolved_records() {
                 declarations.insert(resolved.id, resolved);
             }
+            // An opaque borrowed formal transports a pointer. Dereferences and
+            // by-value storage still contribute their actual operands below.
+            let parameter_storage = |formal: &terminal_psi::StructuralParameterDeclaration| {
+                let opaque_borrow = declarations.get(&formal.structural_type).is_some_and(|ty| {
+                    calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, formal.access)
+                        .is_some()
+                });
+                (!opaque_borrow).then_some(formal.structural_type)
+            };
             let mut roots = BTreeSet::new();
             for machine in module
                 .machines
@@ -97,7 +106,7 @@ mod storage {
                         .structural_parameters
                         .iter()
                         .chain(machine.block_structural_parameters())
-                        .map(|parameter| parameter.structural_type),
+                        .filter_map(&parameter_storage),
                 );
                 roots.extend(
                     machine
@@ -154,7 +163,7 @@ mod storage {
                     boundary
                         .structural_parameters
                         .iter()
-                        .map(|parameter| parameter.structural_type),
+                        .filter_map(&parameter_storage),
                 );
                 if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
                     roots.insert(result.structural_type);
