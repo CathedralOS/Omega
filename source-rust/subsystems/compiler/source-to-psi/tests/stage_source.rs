@@ -85,6 +85,69 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     assert_eq!(reopened.to_bytes(), bytes);
 }
 
+#[test]
+fn invocation_ceiling_follows_callable_parameter_aliases() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let check = |ceiling: &str, body: &str| {
+        let source = format!(
+            "data Callback = machine() -> u64 reaches none crashes none;
+             machine forward(selected: Callback) -> u64 invokes selected {{ selected() }}
+             machine probe(other: Callback, selected: Callback) -> u64 {ceiling} {{ {body} }}"
+        );
+        let (files, root) = captured(package, &source);
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    let alias = "let alias: Callback = selected; alias()";
+    let forwarded = "let first: Callback = selected; let second: Callback = first; forward(second)";
+    check("invokes selected", alias).unwrap();
+    let rebound = "let mut slot: Callback = other; slot = selected; forward(slot)";
+    for body in ["selected()", alias, forwarded, rebound] {
+        let artifact = check("", body).unwrap();
+        let module = artifact.semantic_module();
+        let probe = module
+            .machines
+            .iter()
+            .find(|machine| machine.contract.parameter_order.len() == 2)
+            .unwrap();
+        let ceiling = module
+            .execution
+            .callables
+            .machine_envelope(probe.id)
+            .unwrap();
+        assert_eq!(
+            ceiling.invocations,
+            [terminal_psi::TerminalCallableInvocation::Parameter(1)]
+        );
+    }
+    check(
+        "invokes other",
+        "let mut slot: Callback = other; let saved: Callback = slot;
+         slot = selected; forward(saved)",
+    )
+    .unwrap();
+    check("invokes other", "let alias: Callback = selected; 7u64").unwrap();
+    for body in [alias, forwarded] {
+        let errors = check("invokes other", body).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("invokes")
+                    && error.message.contains("parameter 2")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn selected_members_keep_the_callable_type_they_share() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        include_str!("../../../../../samples/cli/facts/dynamic_trait_dispatch/local/main.omg"),
+    );
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+}
+
 const OMEGA_REQUEST: &str =
     include_str!("../../../../../source/subsystems/compiler/request/request.omg");
 const OMEGA_OUTCOME: &str =

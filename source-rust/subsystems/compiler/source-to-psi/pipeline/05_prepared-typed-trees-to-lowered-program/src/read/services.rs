@@ -18,7 +18,8 @@ use terminal_psi::{TerminalCallableTermination, TerminalModule};
 
 use super::Program;
 use crate::lowering::body::{
-    Body, CallTarget, Expression, ExpressionKind as E, Statement, Target, ValueType,
+    Body, CallTarget, Expression, ExpressionKind as E, RecordType, Signature, Statement,
+    StorageShape, Target, ValueType,
 };
 
 pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
@@ -233,11 +234,11 @@ impl Program<'_> {
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
         for (id, symbol) in self.symbols.iter() {
-            let operational = self
+            let signature = self
                 .signatures
                 .get(id)
-                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
-                .operational;
+                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?;
+            let operational = signature.operational;
             let policy = if let Some(policy) = self
                 .declared_envelope_policies
                 .get(id)
@@ -321,10 +322,7 @@ impl Program<'_> {
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-            let mut found = Vec::new();
-            for statement in &body.statements {
-                collect_statement(statement, &mut found);
-            }
+            let found = CallCollector::for_body(id, signature, body, &self.records)?;
             if !components.members(id)?.is_empty()
                 && found
                     .iter()
@@ -421,96 +419,61 @@ impl Program<'_> {
                                             "invocation permission lost its exact actual",
                                         )
                                     })?;
-                                match &actual.kind {
-                                    E::Slot(slot)
-                                        if *slot
-                                            < self
-                                                .signatures
-                                                .get(id)
-                                                .ok_or_else(|| {
-                                                    unavailable(id, "caller has no signature")
-                                                })?
-                                                .parameters
-                                                .len() =>
-                                    {
-                                        union(
-                                            &mut reached.invocations,
-                                            &[Invocation::Parameter(
-                                                u32::try_from(self.signatures.get(id)
-                                                    .and_then(|signature| signature.runtime_parameter_position(*slot))
-                                                    .ok_or_else(|| unavailable(id, "invocation actual names no runtime caller formal"))?).map_err(|_| {
-                                                    unavailable(id, "invocation parameter coordinate overflow")
-                                                })?,
-                                            )],
+                                if let Some((_, parameter)) = invocation
+                                    .parameter_arguments
+                                    .iter()
+                                    .find(|(argument, _)| *argument == source_position)
+                                {
+                                    union(
+                                        &mut reached.invocations,
+                                        &[Invocation::Parameter(*parameter)],
+                                    );
+                                    continue;
+                                }
+                                let Some(ValueType::Scalar(
+                                    semantic_vocabulary::ScalarType::Callable(contract),
+                                    _,
+                                )) = actual.result
+                                else {
+                                    return Err(unavailable(
+                                        id,
+                                        "invocation permission actual has no retained callable type",
+                                    ));
+                                };
+                                let actual =
+                                    self.callables.contracts.get(contract).ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invoked actual has no retained callable contract",
                                         )
-                                    }
-                                    _ => {
-                                        let Some(ValueType::Scalar(
-                                            semantic_vocabulary::ScalarType::Callable(contract),
-                                            _,
-                                        )) = actual.result
-                                        else {
+                                    })?;
+                                union_services(
+                                    &mut reached.service_reach,
+                                    &actual.envelope.service_reach,
+                                );
+                                reached.suspends |= actual.envelope.suspends;
+                                reached.blocks |= actual.envelope.blocks;
+                                for dependency in &actual.envelope.invocations {
+                                    match dependency {
+                                        Invocation::Service(service) => union(
+                                            &mut reached.invocations,
+                                            &[Invocation::Service(*service)],
+                                        ),
+                                        Invocation::Parameter(_) => {
                                             return Err(unavailable(
                                                 id,
-                                                "invocation permission actual has no retained callable type",
+                                                "nested invocation permission needs the invocation's exact actual mapping",
                                             ));
-                                        };
-                                        let actual = self.callables.contracts.get(contract).ok_or_else(|| unavailable(id, "invoked actual has no retained callable contract"))?;
-                                        union_services(
-                                            &mut reached.service_reach,
-                                            &actual.envelope.service_reach,
-                                        );
-                                        reached.suspends |= actual.envelope.suspends;
-                                        reached.blocks |= actual.envelope.blocks;
-                                        for dependency in &actual.envelope.invocations {
-                                            match dependency {
-                                                Invocation::Service(service) => union(
-                                                    &mut reached.invocations,
-                                                    &[Invocation::Service(*service)],
-                                                ),
-                                                Invocation::Parameter(_) => {
-                                                    return Err(unavailable(
-                                                        id,
-                                                        "nested invocation permission needs the invocation's exact actual mapping",
-                                                    ));
-                                                }
-                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    if let CallTarget::Selected { callable, .. } = invocation.target
-                        && let E::Slot(slot) = callable.kind
-                        && slot
-                            < self
-                                .signatures
-                                .get(id)
-                                .ok_or_else(|| unavailable(id, "caller has no signature"))?
-                                .parameters
-                                .len()
-                    {
+                    if let Some(parameter) = invocation.selected_parameter {
                         union(
                             &mut reached.invocations,
-                            &[Invocation::Parameter(
-                                u32::try_from(
-                                    self.signatures
-                                        .get(id)
-                                        .and_then(|signature| {
-                                            signature.runtime_parameter_position(slot)
-                                        })
-                                        .ok_or_else(|| {
-                                            unavailable(
-                                                id,
-                                                "selected callee names no runtime caller formal",
-                                            )
-                                        })?,
-                                )
-                                .map_err(|_| {
-                                    unavailable(id, "invocation parameter coordinate overflow")
-                                })?,
-                            )],
+                            &[Invocation::Parameter(parameter)],
                         );
                     }
                 }
@@ -1036,13 +999,96 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.dedup();
 }
 struct Use<'a> {
+    selected_parameter: Option<u32>,
+    parameter_arguments: Vec<(usize, u32)>,
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
     static_reach_arguments: &'a [terminal_psi::static_reach::StaticReachArgument],
 }
 
-fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
+struct CallCollector<'a> {
+    sites: Vec<Use<'a>>,
+    // Which caller parameter, if any, supplied the value now in each slot.
+    parameters: Vec<Option<u32>>,
+}
+
+impl<'a> CallCollector<'a> {
+    fn for_body(
+        id: MachineId,
+        signature: &Signature,
+        body: &'a Body,
+        records: &IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
+    ) -> Checked<Vec<Use<'a>>> {
+        let mut collector = Self {
+            sites: Vec::new(),
+            parameters: vec![None; body.slots.len()],
+        };
+        for (slot, ty) in signature.parameters.iter().enumerate() {
+            let scalar = match ty {
+                ValueType::Scalar(scalar, _) => Some(scalar),
+                ValueType::Record(record, _, _) => match records
+                    .get(*record)
+                    .map(|record| &record.shape)
+                {
+                    Some(StorageShape::PrimitiveScalar { scalar_type, .. }) => Some(scalar_type),
+                    _ => None,
+                },
+                ValueType::Rigid(_) => None,
+            };
+            if matches!(scalar, Some(semantic_vocabulary::ScalarType::Callable(_)))
+                && let Some(position) = signature.runtime_parameter_position(slot)
+                && let Some(binding) = collector.parameters.get_mut(slot)
+            {
+                *binding =
+                    Some(u32::try_from(position).map_err(|_| {
+                        unavailable(id, "invocation parameter coordinate overflow")
+                    })?);
+            }
+        }
+        for statement in &body.statements {
+            collect_statement(statement, &mut collector);
+            // Evaluate the right-hand side against the old binding before replacing it.
+            match statement {
+                Statement::Bind { slot, value }
+                | Statement::Store {
+                    destination:
+                        Expression {
+                            kind: E::Slot(slot),
+                            ..
+                        },
+                    value,
+                    ..
+                } => {
+                    let parameter = collector.parameter(value);
+                    *collector
+                        .parameters
+                        .get_mut(*slot)
+                        .ok_or_else(|| unavailable(id, "binding names no body slot"))? = parameter;
+                }
+                _ => {}
+            }
+        }
+        Ok(collector.sites)
+    }
+
+    fn parameter(&self, expression: &Expression) -> Option<u32> {
+        self.parameters
+            .get(Self::slot(expression)?)
+            .copied()
+            .flatten()
+    }
+
+    fn slot(expression: &Expression) -> Option<usize> {
+        match &expression.kind {
+            E::Slot(slot) => Some(*slot),
+            E::Requalify(value) => Self::slot(value),
+            _ => None,
+        }
+    }
+}
+
+fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>) {
     match statement {
         Statement::Bind { value, .. }
         | Statement::Evaluate {
@@ -1084,12 +1130,12 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         }
     }
 }
-fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
+fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
     if let Target::Value(value) = target {
         collect_expression(value, calls);
     }
 }
-fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
+fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
     match &expression.kind {
         E::Call {
             callee,
@@ -1098,13 +1144,23 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             static_reach_arguments,
             ..
         } => {
-            if let CallTarget::Selected { callable, .. } = callee {
+            let selected_parameter = if let CallTarget::Selected { callable, .. } = callee {
+                let parameter = calls.parameter(callable);
                 collect_expression(callable, calls);
-            }
-            for argument in arguments {
+                parameter
+            } else {
+                None
+            };
+            let mut parameter_arguments = Vec::new();
+            for (position, argument) in arguments.iter().enumerate() {
+                if let Some(parameter) = calls.parameter(argument) {
+                    parameter_arguments.push((position, parameter));
+                }
                 collect_expression(argument, calls);
             }
-            calls.push(Use {
+            calls.sites.push(Use {
+                selected_parameter,
+                parameter_arguments,
                 target: callee,
                 required_contract: *required_contract,
                 arguments,
@@ -1119,12 +1175,21 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         | E::Establish { operand: base, .. }
         | E::Payload { base, .. }
         | E::IsCase { subject: base, .. }
-        | E::Borrow { place: base, .. }
         | E::Not(base)
         | E::BitwiseNot(base)
         | E::Cast(base)
         | E::Requalify(base)
         | E::Referent(base) => collect_expression(base, calls),
+        E::Borrow { place, access, .. } => {
+            collect_expression(place, calls);
+            // An exclusive borrower can replace the callback before its next read.
+            if access.is_exclusive()
+                && let Some(slot) = CallCollector::slot(place)
+                && let Some(binding) = calls.parameters.get_mut(slot)
+            {
+                *binding = None;
+            }
+        }
         E::Record { fields } | E::Case { fields, .. } => {
             for (_, field) in fields {
                 collect_expression(field, calls);
