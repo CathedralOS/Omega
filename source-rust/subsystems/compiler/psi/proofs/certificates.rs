@@ -126,7 +126,8 @@ pub(crate) mod nodes {
         },
         ConjunctionIntroduction(Vec<ProofNode>),
         ConjunctionElimination {
-            conjunction: Box<ProofNode>,
+            /// Each projection is a separate logical use of this proof.
+            conjunction: std::sync::Arc<ProofNode>,
             conjunct: usize,
         },
         DisjunctionIntroduction {

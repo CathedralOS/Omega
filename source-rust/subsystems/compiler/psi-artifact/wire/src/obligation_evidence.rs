@@ -1136,8 +1136,11 @@ fn read_node(
         rule: rule(children),
     })
 }
-fn one(mut children: Vec<ProofNode>) -> Box<ProofNode> {
-    Box::new(children.pop().expect("the table reader checked one child"))
+fn one<P: From<ProofNode>>(mut children: Vec<ProofNode>) -> P {
+    children
+        .pop()
+        .expect("the table reader checked one child")
+        .into()
 }
 fn two(children: Vec<ProofNode>) -> (Box<ProofNode>, Box<ProofNode>) {
     let mut children = children.into_iter();
@@ -1597,6 +1600,33 @@ mod tests {
         .expect("certificate encoding uses an explicit stack");
     }
 
+    #[test]
+    fn shared_conjunctions_publish_every_citation_of_the_whole_premise() {
+        let children = [Proposition::Truth, Proposition::Falsehood];
+        let premise = std::sync::Arc::new(ProofNode {
+            conclusion: Proposition::Conjunction(children.to_vec()),
+            rule: ProofRule::Assumption { index: 0 },
+        });
+        let projections = children
+            .into_iter()
+            .enumerate()
+            .map(|(conjunct, conclusion)| ProofNode {
+                conclusion,
+                rule: ProofRule::ConjunctionElimination {
+                    conjunction: premise.clone(),
+                    conjunct,
+                },
+            })
+            .collect();
+        let proof = ProofNode {
+            conclusion: premise.conclusion.clone(),
+            rule: ProofRule::ConjunctionIntroduction(projections),
+        };
+        let bytes = canonical_certificate_bytes(&proof).unwrap();
+        // The root, both selections and both uses of the premise each get a row.
+        assert_eq!(&bytes[..4], &5_u32.to_le_bytes());
+    }
+
     fn envelope(proof: ProofNode) -> CertificateEnvelope {
         CertificateEnvelope {
             identity: EvidenceIdentity::new(7).unwrap(),
@@ -1658,7 +1688,7 @@ mod tests {
             ProofRule::Assumption { index: 11 },
             ProofRule::ConjunctionIntroduction(vec![truth(), truth()]),
             ProofRule::ConjunctionElimination {
-                conjunction: child(),
+                conjunction: truth().into(),
                 conjunct: 1,
             },
             ProofRule::DisjunctionIntroduction {

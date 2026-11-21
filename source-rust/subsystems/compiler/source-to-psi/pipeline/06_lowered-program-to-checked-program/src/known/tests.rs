@@ -9,7 +9,7 @@ fn eliminate(conclusion: Proposition, parent: ProofNode, conjunct: usize) -> Pro
     node(
         conclusion,
         ProofRule::ConjunctionElimination {
-            conjunction: Box::new(parent),
+            conjunction: parent.into(),
             conjunct,
         },
     )
@@ -116,6 +116,49 @@ fn nested_conjunctions_keep_postorder_and_exact_positional_evidence() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn conjuncts_share_only_their_own_whole_premise() {
+    let context = PropositionContext::default();
+    let root = Proposition::Conjunction(vec![Proposition::Truth, Proposition::Falsehood]);
+    let assumptions = [root.clone()];
+    let axioms = [root.clone()];
+    let known = Known::new(&context, &assumptions, &axioms, &IdTable::default());
+    let parent = |fact: &Fact| {
+        let ProofRule::ConjunctionElimination { conjunction, .. } = fact.proof(&known.facts).rule
+        else {
+            panic!("expected a citation of the compound premise");
+        };
+        conjunction
+    };
+    let first = parent(&known.facts[0]);
+    assert!(Arc::ptr_eq(&first, &parent(&known.facts[1])));
+    assert_eq!(first.rule, ProofRule::Assumption { index: 0 });
+    let axiom = parent(&known.facts[3]);
+    assert!(!Arc::ptr_eq(&first, &axiom));
+    assert_eq!(axiom.rule, ProofRule::SemanticAxiom { index: 0 });
+
+    // The selected part still matches on the second branch. Its other part changed.
+    let changed = Proposition::Conjunction(vec![Proposition::Truth, Proposition::Truth]);
+    let branch = |premise| {
+        node(
+            Proposition::Implication {
+                premise: Box::new(premise),
+                conclusion: Box::new(Proposition::Truth),
+            },
+            ProofRule::ImplicationIntroduction {
+                body: Box::new(known.facts[0].proof(&known.facts)),
+            },
+        )
+    };
+    let branches = vec![branch(root), branch(changed)];
+    let goal = Proposition::Conjunction(branches.iter().map(|p| p.conclusion.clone()).collect());
+    let proof = node(goal.clone(), ProofRule::ConjunctionIntroduction(branches));
+    assert!(matches!(
+        proof_admission::accept_certificate(&context, &goal, &[], &[], &proof),
+        Err(proof_admission::ProofError::AssumptionConclusionMismatch(0))
+    ));
 }
 
 #[test]
@@ -352,6 +395,7 @@ fn application_transport_keeps_the_available_equation_prefix_and_carrier() {
         ScalarTerm::Boolean(true),
     );
     let facts = [Fact {
+        conjunction_proof: OnceCell::new(),
         proposition: proposition.clone(),
         origin: Origin::Assumption(0),
         axiom: None,

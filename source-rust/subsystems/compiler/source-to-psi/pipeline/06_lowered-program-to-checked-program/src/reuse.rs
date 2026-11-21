@@ -547,7 +547,7 @@ impl Transport<'_> {
                 conjunction,
                 conjunct,
             } => ProofRule::ConjunctionElimination {
-                conjunction: child(conjunction)?,
+                conjunction: self.node(conjunction)?.into(),
                 conjunct: *conjunct,
             },
             ProofRule::DisjunctionIntroduction { disjunct, index } => {

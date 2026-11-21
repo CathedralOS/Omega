@@ -14777,7 +14777,7 @@ mod tests {
                     .map(|(conjunct, field)| ProofNode {
                         conclusion: field.clone(),
                         rule: ProofRule::ConjunctionElimination {
-                            conjunction: Box::new(assumption_proof(goal.clone(), 0)),
+                            conjunction: assumption_proof(goal.clone(), 0).into(),
                             conjunct,
                         },
                     })
@@ -14915,14 +14915,14 @@ mod tests {
                         ProofNode {
                             conclusion: q,
                             rule: ProofRule::ConjunctionElimination {
-                                conjunction: Box::new(hypothesis(conjunction.clone())),
+                                conjunction: hypothesis(conjunction.clone()).into(),
                                 conjunct: 1,
                             },
                         },
                         ProofNode {
                             conclusion: p,
                             rule: ProofRule::ConjunctionElimination {
-                                conjunction: Box::new(hypothesis(conjunction)),
+                                conjunction: hypothesis(conjunction).into(),
                                 conjunct: 0,
                             },
                         },

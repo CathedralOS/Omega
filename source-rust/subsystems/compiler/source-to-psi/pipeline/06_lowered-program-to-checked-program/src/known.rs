@@ -15,7 +15,9 @@
 mod normalization;
 pub(crate) use normalization::{BranchPreparation, NormalizedPremises};
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use arena::IdTable;
 use proof_admission::{
@@ -92,6 +94,8 @@ enum Origin {
 pub(crate) struct Fact {
     pub(crate) proposition: Proposition,
     origin: Origin,
+    /// Conjuncts in this scope may cite the same proof of their whole premise.
+    conjunction_proof: OnceCell<Arc<ProofNode>>,
     /// The index of a whole semantic axiom, cited by definition-bound rules.
     pub(crate) axiom: Option<usize>,
 }
@@ -165,9 +169,7 @@ impl Fact {
         None
     }
 
-    /// Expand only a selected derivation. The resulting owned tree is exactly
-    /// what the unchanged kernel/publication path has always received, so its
-    /// logical occurrence and depth budgets do not depend on physical sharing.
+    /// Expand a selected derivation. The checker visits the parent for every use of a conjunct.
     pub(crate) fn proof(&self, facts: &[Fact]) -> ProofNode {
         self.proof_with_work(facts, &mut FactProofWork::default())
     }
@@ -180,7 +182,10 @@ impl Fact {
                 unreachable!("conjunction construction is complete before proof selection")
             }
             Origin::Conjunction { parent, conjunct } => ProofRule::ConjunctionElimination {
-                conjunction: Box::new(facts[*parent].proof_with_work(facts, work)),
+                conjunction: facts[*parent]
+                    .conjunction_proof
+                    .get_or_init(|| Arc::new(facts[*parent].proof_with_work(facts, work)))
+                    .clone(),
                 conjunct: *conjunct,
             },
             Origin::IntegerEquality { premise } => {
@@ -295,6 +300,7 @@ fn flatten(
     }
     let parent = facts.len();
     facts.push(Fact {
+        conjunction_proof: OnceCell::new(),
         proposition: proposition.clone(),
         origin,
         axiom,
@@ -395,6 +401,7 @@ impl Known {
                 continue;
             }
             facts.push(Fact {
+                conjunction_proof: OnceCell::new(),
                 proposition: Proposition::Equal(right.clone(), left.clone()),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
@@ -500,6 +507,7 @@ impl Known {
             if defined.get(right_id) == Some(&None) {
                 let symmetric = result.facts.len();
                 result.facts.push(Fact {
+                    conjunction_proof: OnceCell::new(),
                     proposition: Proposition::Equal(right, left),
                     origin: Origin::EqualitySymmetry { premise: index },
                     axiom: None,
@@ -595,6 +603,7 @@ impl Known {
             }
             if let Some(proposition) = integer_equality(&fact.proposition) {
                 self.facts.push(Fact {
+                    conjunction_proof: OnceCell::new(),
                     proposition,
                     origin: Origin::IntegerEquality { premise: index },
                     axiom: None,
@@ -659,6 +668,7 @@ impl Known {
             let id = *right_id;
             let fact = self.facts.len();
             self.facts.push(Fact {
+                conjunction_proof: OnceCell::new(),
                 proposition: Proposition::Equal(right.clone(), left.clone()),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
