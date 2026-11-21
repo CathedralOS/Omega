@@ -292,6 +292,9 @@ fn service_authority(
             let service = source.service_reaches.definition(id).ok_or_else(|| {
                 unavailable("the exact service declaration named by a boundary method")
             })?;
+            if service.application.is_some() {
+                return Err(unavailable("an applied service identity in package review"));
+            }
             input.nominal(service.symbol)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -304,6 +307,9 @@ fn service_authority(
             InvocationTarget::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(position))
             }
+            InvocationTarget::AppliedService(_) => Err(unavailable(
+                "an applied synchronous service identity in package review",
+            )),
             InvocationTarget::Service(service) => input
                 .nominal(service)
                 .map(PackageReviewSynchronousInvocation::Service),

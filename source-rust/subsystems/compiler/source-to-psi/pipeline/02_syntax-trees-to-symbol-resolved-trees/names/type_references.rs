@@ -1087,6 +1087,111 @@ mod assignment {
         }
     }
 
+    /// Boundary applications use ordinary type and value lookup in the author's
+    /// declaration. A named integer actual takes the value role from its slot.
+    pub(crate) fn bind_service_application_arguments(
+        program: &mut SymbolResolvedTrees,
+        first_service: usize,
+        first_trait: usize,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        use crate::resolution::names::{runtime_callable_types, scopes};
+        let applications = program
+            .service_reaches
+            .definitions()
+            .iter()
+            .skip(first_service)
+            .filter_map(|row| {
+                row.application.as_ref().map(|application| {
+                    (
+                        application.lexical_owner,
+                        row.symbol,
+                        application.arguments.arguments,
+                    )
+                })
+            })
+            .chain(
+                program
+                    .traits
+                    .iter()
+                    .skip(first_trait)
+                    .filter(|child| child.is_boundary)
+                    .flat_map(|child| {
+                        program
+                            .trait_requirements(child.requires)
+                            .iter()
+                            .map(|parent| (child.symbol, parent.symbol, parent.arguments))
+                    }),
+            )
+            .filter(|(_, _, arguments)| !arguments.is_empty())
+            .collect::<Vec<_>>();
+        if applications.is_empty() {
+            return Ok(());
+        }
+        let captured = scopes::DeclarationTypeScopes::of(program)?;
+        let attached = scopes::attached_machines(program);
+        let roles = scopes::BinderRoles::of(program, &program.symbols);
+        for (owner, target, arguments) in applications {
+            let local = runtime_callable_types::lexical_parameters(program, &captured, owner)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let Some(target) = program.trait_definition(target) else {
+                continue;
+            };
+            let slots = target.type_parameters;
+            let tables = &mut program.tables;
+            let declarations = &mut tables.declarations;
+            let context = scopes::ContractScopeContext {
+                attached_machines: &attached,
+                binder_roles: &roles,
+                resolution_indexes: &program.resolution_indexes,
+                data_definitions: &program.roots.data_definitions,
+                type_aliases: &program.roots.type_aliases,
+                conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
+                operand_owners: &tables.types.operand_lifetime_owners,
+                data_members: &declarations.data_members,
+                data_type_parameters: &declarations.data_type_parameters,
+                data_payload_fields: &declarations.data_payload_fields,
+                type_constraints: &tables.types.constraints,
+            };
+            let scope = context.scope(
+                owner,
+                scopes::LexicalRequirements::none(),
+                &local,
+                SymbolHandle::invalid(),
+                None,
+                &[],
+            );
+            let actuals = &mut declarations.child_type_references;
+            assign_type_reference_argument_symbols_with_constraints(
+                &program.symbols,
+                actuals,
+                &tables.types.constraints,
+                &local,
+                arguments,
+            );
+            super::value_expressions::assign_type_argument_value_expression_symbols(
+                &program.symbols,
+                &scope,
+                &mut tables.bodies.expressions,
+                actuals,
+                arguments,
+            );
+            for (formal, actual) in declarations
+                .data_type_parameters
+                .span_or_empty(slots)
+                .iter()
+                .zip(arguments.handles())
+            {
+                if introduces_value(&formal.kind)
+                    && let TypeReference::Named { symbol, name, .. } = actuals.get_mut(actual)
+                {
+                    *symbol = resolve_value_in_type_symbol(&program.symbols, &local, name);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /*
         A name in type position reads only the type role
         (`wiki/spec/language/modules.md#builtin-type-names`): a generic binder
@@ -2262,4 +2367,6 @@ pub(super) use assignment::{
 };
 pub(super) use queries::call_target_for_type_reference;
 
-pub(crate) use assignment::assign_nominal_machine_requirement_arguments;
+pub(crate) use assignment::{
+    assign_nominal_machine_requirement_arguments, bind_service_application_arguments,
+};

@@ -884,8 +884,8 @@ fn parses_machine_parameter_with_mandatory_contract() {
     assert!(contract.return_type.is_valid());
     assert_eq!(
         parsed
-            .items
-            .identifier_path_members(contract.service_reaches)
+            .type_references
+            .type_reference_handles(contract.service_reaches)
             .len(),
         1
     );
@@ -1874,8 +1874,8 @@ fn explicit_empty_rows_spell_none() {
         .expect("quiet machine");
     assert!(
         parsed
-            .items
-            .identifier_path_members(quiet.service_reaches)
+            .type_references
+            .type_reference_handles(quiet.service_reaches)
             .is_empty()
     );
     assert_eq!(quiet.service_reach_keyword_source_spans.len(), 1);

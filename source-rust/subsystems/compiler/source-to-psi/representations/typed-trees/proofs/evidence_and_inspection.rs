@@ -3523,6 +3523,7 @@ pub mod inspection {
                                     "parameter {ordinal}: {}",
                                     program.symbols.display_path(symbol, "::")
                                 ),
+                                AuthoredInvocationTarget::AppliedService(id) => format!("service application: {}", id.0),
                                 AuthoredInvocationTarget::Service(symbol) => format!(
                                     "service: {}",
                                     program.symbols.display_path(symbol, "::")
@@ -3924,8 +3925,14 @@ pub mod inspection {
                     .service_reach_rows
                     .services(row)
                     .iter()
-                    .filter_map(|service| program.service_reaches.definition(*service))
-                    .map(|definition| definition.name.clone())
+                    .filter_map(|&service| {
+                        let definition = program.service_reaches.definition(service)?;
+                        if definition.application.is_some() {
+                            program.service_reach_application_identity(service)
+                        } else {
+                            Some(definition.name.clone())
+                        }
+                    })
                     .collect()
             }
 
@@ -5715,12 +5722,21 @@ pub mod inspection {
             pub id: u32,
             pub symbol: u32,
             pub name: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub application: Option<String>,
             pub parents: Vec<u32>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+        #[serde(tag = "kind", rename_all = "snake_case")]
+        pub enum ReachSubjectSnapshot {
+            Service { coordinate: u32 },
+            Static { declaration: u32 },
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
         pub struct AuthoredServiceReachTargetSnapshot {
-            pub service: u32,
+            pub service: ReachSubjectSnapshot,
             pub span: SourceSpanSnapshot,
         }
 
@@ -5869,7 +5885,7 @@ pub mod inspection {
                 wire_schema_count: program.wire_schemas.len(),
                 wire_member_count: program.wire_members.len(),
                 symbol_count: program.symbols.symbols().len(),
-                service_reach_definition_count: program.service_reaches.definitions().len(),
+                service_reach_definition_count: program.service_reaches.all_definitions().count(),
                 authored_service_reach_row_count: program.authored_service_reach_rows.len(),
                 external_binding_count: program.external_bindings.identities().len(),
                 plan_laid_layout_count: program.plan_laid_layouts.len(),
@@ -5974,13 +5990,12 @@ pub mod inspection {
                 .collect(),
             service_reaches: program
                 .service_reaches
-                .definitions()
-                .iter()
-                .enumerate()
-                .map(|(index, definition)| ServiceReachDefinitionSnapshot {
-                    id: u32::try_from(index + 1).expect("service reach table fits u32"),
+                .all_definitions()
+                .map(|(id, definition)| ServiceReachDefinitionSnapshot {
+                    id: id.0,
                     symbol: definition.symbol.arena_index(),
                     name: definition.name.clone(),
+                    application: definition.application.as_ref().and_then(|_| program.service_reach_application_identity(id)),
                     parents: definition.parents.iter().map(|parent| parent.0).collect(),
                 })
                 .collect(),
@@ -5998,7 +6013,10 @@ pub mod inspection {
                         .targets
                         .iter()
                         .map(|target| AuthoredServiceReachTargetSnapshot {
-                            service: target.service.arena_index(),
+                            service: match target.service {
+                                crate::source_state::signature::ReachSubject::Service(id) => ReachSubjectSnapshot::Service { coordinate: id.0 },
+                                crate::source_state::signature::ReachSubject::Static(symbol) => ReachSubjectSnapshot::Static { declaration: symbol.arena_index() },
+                            },
                             span: source_span_snapshot(&target.source_span),
                         })
                         .collect(),

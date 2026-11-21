@@ -197,22 +197,9 @@ impl<'program> Program<'program> {
         if declaration.is_boundary {
             schema_local_shape(typed, context, declaration)?;
             if !declaration.requires.is_empty() {
-                let scope = AppliedTraitScope::new(
-                    typed,
-                    declaration,
-                    crate::source_state::trait_definition::TraitApplicationArguments {
-                        lexical_owner: declaration.symbol,
-                        enclosing_data_applications: &[],
-                        arguments: &[],
-                        lifetimes: &[],
-                    },
-                )
-                .ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "boundary parent contracts need their complete declaration application",
-                    )
-                })?;
+                // A schema owns an open telescope. Closed calls independently
+                // project the same parent edges under their actual arguments.
+                let scope = AppliedTraitScope::abstract_scope(declaration);
                 self.require_boundary_parent_contract(context, &scope)?;
             }
         } else {
@@ -1031,11 +1018,6 @@ fn schema_local_shape(
     for parameter in parameters {
         if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
             || seen.contains(&parameter.symbol)
-            || !matches!(
-                parameter.kind,
-                crate::source_state::data::TypeParameterKind::Type
-                    | crate::source_state::data::TypeParameterKind::Implementation
-            )
             || parameter.bounds.carry.is_some()
             || parameter.bounds.multiplicity != language_core::Multiplicity::Affine
             || typed.symbols.get(parameter.symbol).parent != schema.symbol

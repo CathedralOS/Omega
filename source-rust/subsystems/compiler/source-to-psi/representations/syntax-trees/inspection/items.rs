@@ -21,8 +21,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ItemSnapshot {
-    Capability {
+pub enum ItemSnapshot {    Capability {
         name: IdentifierSnapshot,
         members: Vec<CapabilityMemberSnapshot>,
     },
@@ -142,8 +141,8 @@ pub enum ItemSnapshot {
         ranking_range: Option<Box<ExpressionSnapshot>>,
         #[serde(skip_serializing_if = "is_false")]
         service_reach_is_installation_bound: bool,
-        service_reaches: Vec<IdentifierSnapshot>,
-        invokes: Vec<IdentifierSnapshot>,
+        service_reaches: Vec<TypeReferenceSnapshot>,
+        invokes: Vec<TypeReferenceSnapshot>,
         suspends: bool,
         blocks: bool,
         #[serde(skip_serializing_if = "is_zero_u64")]
@@ -688,11 +687,8 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 ))
             }),
             service_reach_is_installation_bound: value.service_reach_is_installation_bound,
-            service_reaches: snapshot_item_identifier_path(syntax_trees, value.service_reaches),
-            invokes: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees.items.identifier_path_members(value.invokes),
-            ),
+            service_reaches: snapshot_type_references(syntax_trees, value.service_reaches),
+            invokes: snapshot_type_references(syntax_trees, value.invokes),
             suspends: value.suspends,
             blocks: value.blocks,
             admitted_same_stack_bytes: value.admitted_same_stack_bytes,

@@ -1073,6 +1073,7 @@ fn served_trait_parameters(
         }
         match parameter.kind {
             TypeParameterKind::Type => {}
+            TypeParameterKind::Const { type_reference } if crate::source_state::canonical_const_carrier_is_supported(typed, type_reference) => {}
             TypeParameterKind::Implementation => {
                 implementations += 1;
                 let mut bounds = declared
@@ -1113,8 +1114,8 @@ fn served_trait_parameters(
 ///   inherit a boundary parent);
 /// - each implementation argument names an implementation of the binder's
 ///   bound (`Calling<DarwinArm64ByteViewCalling>` names a `CallingPolicy`);
-/// - a parent with requirements takes no argument, since a substituted
-///   requirement contract would need its own reading here.
+/// - a boundary parent keeps its method contracts in its own applied schema.
+///   An ordinary policy parent with substituted methods needs its own reader.
 fn served_parent(
     typed: &crate::source_state::TypedTrees,
     child: &crate::source_state::trait_definition::TraitDefinition,
@@ -1127,8 +1128,11 @@ fn served_parent(
     }
     served_trait_parameters(typed, declaration)?;
     let parameters = typed.trait_type_parameters(declaration);
-    if !parameters.is_empty() && !typed.trait_machine_signatures(declaration).is_empty() {
-        return Err("parent application whose requirements are substituted");
+    if !declaration.is_boundary
+        && !parameters.is_empty()
+        && !typed.trait_machine_signatures(declaration).is_empty()
+    {
+        return Err("ordinary parent application whose requirements are substituted");
     }
     for parameter in parameters {
         if parameter.kind == TypeParameterKind::Implementation {

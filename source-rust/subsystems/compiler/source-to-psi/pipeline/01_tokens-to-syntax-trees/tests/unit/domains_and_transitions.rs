@@ -615,8 +615,8 @@ fn parses_trait_machine_contract_clauses() {
     let signature = parsed.items.state_signature(signature_handle);
     let contracts = parsed.items.capability_contracts(signature.contracts);
     let service_reaches = parsed
-        .items
-        .identifier_path_members(signature.service_reaches);
+        .type_references
+        .type_reference_handles(signature.service_reaches);
 
     assert_eq!(contracts.len(), 2);
     for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
@@ -628,7 +628,9 @@ fn parses_trait_machine_contract_clauses() {
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(&parsed), "Filesystem");
+    assert!(
+        matches!(parsed.type_references.type_reference(service_reaches[0]), syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Filesystem")
+    );
 }
 
 #[test]

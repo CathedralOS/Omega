@@ -1690,7 +1690,7 @@ fn copied_headers_retain_written_empty_and_nonempty_reach_rows() {
         (
             forward.machine,
             vec![crate::source_state::signature::AuthoredServiceReachTarget {
-                service,
+                service: crate::source_state::signature::ReachSubject::Static(service),
                 source_span: Default::default(),
             }],
         ),

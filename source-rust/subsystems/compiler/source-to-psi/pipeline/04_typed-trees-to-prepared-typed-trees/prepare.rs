@@ -27,6 +27,9 @@ pub fn prepare_typed_trees(
         )]);
     }
     passes::specialization::prepare(&mut program)?;
+    program
+        .settle_applied_service_lineage()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
     Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))

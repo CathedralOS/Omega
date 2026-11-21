@@ -119,7 +119,7 @@ mod service_reach {
 
     #[test]
     fn service_table_resolves_exact_canonical_names() {
-        let mut services = ServiceReachTable::default();
+        let mut services = ServiceReachTable::<()>::default();
         let machine_control =
             services.intern(symbols::SymbolHandle::from_parts(7, 1), "MachineControl");
         assert_eq!(

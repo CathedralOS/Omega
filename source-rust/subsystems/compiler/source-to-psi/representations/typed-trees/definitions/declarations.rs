@@ -2188,11 +2188,11 @@ pub mod invocations {
     };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum InvocationTarget {
-        /// Position among the callable's entry parameters after the receiver.
+    pub enum InvocationTarget {        /// Position among the callable's entry parameters after the receiver.
         Parameter(u32),
         /// A statically selected boundary service.
         Service(symbols::SymbolHandle),
+        AppliedService(semantic_vocabulary::ServiceReachId),
     }
 
     pub fn declared_signature_invocations(
@@ -2238,6 +2238,7 @@ pub mod invocations {
             targets.sort_by_key(|target| match target {
                 InvocationTarget::Parameter(index) => (0u8, *index),
                 InvocationTarget::Service(symbol) => (1u8, symbol.arena_index()),
+                InvocationTarget::AppliedService(id) => (2u8, id.0),
             });
         }
     }
@@ -2258,6 +2259,7 @@ pub mod invocations {
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)
                     .map(|_| InvocationTarget::Parameter(ordinal)),
+                AuthoredInvocationTarget::AppliedService(id) => program.service_reaches.definition(id).map(|_| InvocationTarget::AppliedService(id)),
                 AuthoredInvocationTarget::Service(symbol) => program
                     .trait_definition_by_symbol(symbol)
                     .map(|_| InvocationTarget::Service(symbol)),

@@ -204,7 +204,10 @@ impl SymbolResolvedTrees {
         self.declarations().state_parameters.span_or_empty(span)
     }
 
-    pub fn signature_invokes(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
+    pub fn signature_invokes(
+        &self,
+        span: HandleSpan<signature::InvocationReference>,
+    ) -> &[signature::InvocationReference] {
         self.declarations().signature_invokes.span_or_empty(span)
     }
 
@@ -237,7 +240,7 @@ impl SymbolResolvedTrees {
         self.machines.by_symbol(symbol)
     }
 
-    pub fn machine_invokes(&self, machine: &Machine) -> &[DiagnosticName] {
+    pub fn machine_invokes(&self, machine: &Machine) -> &[signature::InvocationReference] {
         self.signature_invokes(machine.invokes)
     }
 

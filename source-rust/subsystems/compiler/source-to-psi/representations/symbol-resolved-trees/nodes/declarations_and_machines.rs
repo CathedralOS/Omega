@@ -402,7 +402,7 @@ pub mod declarations {
             pub requirement: Option<DiagnosticName>,
             pub signature: StateSignature,
             pub service_reach_keyword_source_spans: Vec<source_text::SourceSpan>,
-            pub service_reaches: Vec<DiagnosticName>,
+            pub service_reaches: Vec<TraitRequirement>,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]

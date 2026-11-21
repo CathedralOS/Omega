@@ -324,13 +324,14 @@ fn parse_refinement_clause<'tokens, 'source>(
             let mut reaches = Vec::new();
             let mut installation_bound = false;
             input = crate::contracts::effects::take_operational_reaches_clause(
+                syntax_trees,
                 input,
                 &mut signature.service_reach_keyword_source_spans,
                 &mut reaches,
                 &mut installation_bound,
                 refinement_reaches_clause_boundary,
             )?;
-            signature.service_reaches = syntax_trees.items.insert_identifier_path_members(reaches);
+            signature.service_reaches = syntax_trees.type_references.insert_type_reference_handles(reaches);
             continue;
         }
         if input.at_contextual("suspends") {

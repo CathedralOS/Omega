@@ -11,9 +11,35 @@ pub mod calls {
         use std::ops::{Deref, DerefMut};
         use symbols::SymbolHandle;
 
+        /// A callable parameter stays in the owner's scope. A service entry
+        /// retains its complete application from name resolution onward.
+        #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+        pub enum InvocationReference {
+            Name(crate::source_resolved::trait_definition::TraitRequirement),
+            Service {
+                name: DiagnosticName,
+                service: semantic_vocabulary::ServiceReachId,
+            },
+        }
+
+        impl Default for InvocationReference {
+            fn default() -> Self {
+                Self::Name(Default::default())
+            }
+        }
+
+        impl InvocationReference {
+            pub fn name(&self) -> &DiagnosticName {
+                match self {
+                    Self::Name(written) => &written.name,
+                    Self::Service { name, .. } => name,
+                }
+            }
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
         pub struct AuthoredServiceReachTarget {
-            pub service: SymbolHandle,
+            pub service: semantic_vocabulary::ServiceReachId,
             pub source_span: source_text::SourceSpan,
         }
 
@@ -42,7 +68,7 @@ pub mod calls {
             pub parameters: HandleSpan<StateParameter>,
             pub native_callback_parameters: Vec<NativeCallbackParameter>,
             pub return_type: Option<TypeReference>,
-            pub invokes: HandleSpan<DiagnosticName>,
+            pub invokes: HandleSpan<crate::source_resolved::signature::InvocationReference>,
             pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub suspends_keyword_source_spans: Vec<source_text::SourceSpan>,
@@ -203,7 +229,7 @@ pub mod control_flow {
             pub selected_ranking_view: source_declarations::RankingViewSelection,
             pub ranking_view_arguments: HandleSpan<ExpressionHandle>,
             pub ranking_range: ExpressionHandle,
-            pub invokes: HandleSpan<DiagnosticName>,
+            pub invokes: HandleSpan<crate::source_resolved::signature::InvocationReference>,
             pub suspends: bool,
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,

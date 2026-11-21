@@ -2384,6 +2384,25 @@ fn visit_proof_facts(
     }
 }
 
+fn visit_service_reach(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    id: semantic_vocabulary::ServiceReachId,
+) {
+    let Some(row) = program.service_reaches.definition(id) else {
+        return;
+    };
+    visit_symbol(retained, row.symbol);
+    if let Some(application) = &row.application
+        && let Some(scope) = application.arguments.scope(program)
+    {
+        for (parameter, actual) in scope.substitutions {
+            visit_symbol(retained, parameter);
+            visit_type_reference(program, retained, actual);
+        }
+    }
+}
+
 fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
     retained.extend([symbol]);
 }
@@ -3264,8 +3283,10 @@ pub fn visit_signature(
         .signature_invokes
         .span_or_empty(signature.invokes)
     {
-        if let AuthoredInvocationTarget::Service(target) = invocation.target {
-            visit_symbol(retained, target);
+        match invocation.target {
+            AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
+            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            _ => {}
         }
     }
     for contract in program
@@ -4172,8 +4193,10 @@ fn visit_machine_with_sidecars(
     }
 
     for invocation in program.machine_invokes(machine) {
-        if let AuthoredInvocationTarget::Service(target) = invocation.target {
-            visit_symbol(retained, target);
+        match invocation.target {
+            AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
+            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            _ => {}
         }
     }
 
@@ -4181,13 +4204,19 @@ fn visit_machine_with_sidecars(
         if let Some(sidecars) = sidecars {
             for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
                 for target in &program.authored_service_reach_rows[index as usize].targets {
-                    visit_symbol(retained, target.service);
+                    match target.service {
+                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
+                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                    }
                 }
             }
         } else if !program.authored_service_reach_rows.is_empty() {
             for row in program.authored_service_reach_rows_for(from) {
                 for target in &row.targets {
-                    visit_symbol(retained, target.service);
+                    match target.service {
+                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
+                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                    }
                 }
             }
         }
