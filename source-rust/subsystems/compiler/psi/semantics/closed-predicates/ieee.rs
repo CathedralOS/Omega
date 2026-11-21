@@ -11,6 +11,13 @@ use semantic_vocabulary::{
 };
 
 pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
+    ieee_relation(proposition, &|_| None)
+}
+
+pub(crate) fn ieee_relation(
+    proposition: &Proposition,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
+) -> Option<bool> {
     let Proposition::ScalarIeeeFloatComparison {
         kind,
         format,
@@ -20,14 +27,15 @@ pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
     else {
         return None;
     };
-    let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) = (left, right)
-    else {
-        return None;
-    };
-    if left.format() != *format || right.format() != *format {
+    if left.scalar_type().as_ieee_float()? != *format
+        || right.scalar_type().as_ieee_float()? != *format
+    {
         return None;
     }
-    let (left, right) = (meaning(*left), meaning(*right));
+    let (left, right) = (
+        observed_meaning(left, observe)?,
+        observed_meaning(right, observe)?,
+    );
     Some(match kind {
         IeeeFloatComparisonKind::Equal => FloatSemantics::equal(&left, &right),
         IeeeFloatComparisonKind::NotEqual => FloatSemantics::not_equal(&left, &right),
@@ -36,6 +44,16 @@ pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
         IeeeFloatComparisonKind::NotLessThan => !FloatSemantics::less(&left, &right),
         IeeeFloatComparisonKind::NotLessOrEqual => !FloatSemantics::less_or_equal(&left, &right),
     })
+}
+
+fn observed_meaning(
+    source: &ScalarTerm,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
+) -> Option<FloatMeaning> {
+    match source {
+        ScalarTerm::IeeeFloatLiteral(bits) => Some(meaning(*bits)),
+        _ => observe(source),
+    }
 }
 
 fn meaning(value: IeeeFloatValue) -> FloatMeaning {
@@ -48,16 +66,17 @@ fn meaning(value: IeeeFloatValue) -> FloatMeaning {
 /// Evaluate the checked graph in dependency order after actual arguments and
 /// the returned scalar have been substituted. Structural equality of meanings
 /// retains zero signs and discards NaN payloads.
-pub(crate) fn closed_float_meaning_equality(clause: &FloatMeaningClause) -> Option<bool> {
+pub(crate) fn closed_float_meaning_equality(
+    clause: &FloatMeaningClause,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
+) -> Option<bool> {
     clause.validate().ok()?;
     let mut values: Vec<FloatMeaning> = Vec::with_capacity(clause.values.len());
     for row in &clause.values {
         let value = match row {
-            FloatMeaningClauseValue::Projection {
-                source: ScalarTerm::IeeeFloatLiteral(bits),
-                ..
-            } => meaning(*bits),
-            FloatMeaningClauseValue::Projection { .. } => return None,
+            FloatMeaningClauseValue::Projection { source, .. } => {
+                observed_meaning(source, observe)?
+            }
             FloatMeaningClauseValue::Application {
                 contract, operands, ..
             } => {
