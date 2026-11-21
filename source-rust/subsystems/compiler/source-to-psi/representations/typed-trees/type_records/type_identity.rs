@@ -2202,6 +2202,9 @@ pub(crate) mod identity_context {
                 .operand_lifetime_owner(reference);
             if self.invalid_application.is_some()
                 && operand_owner.is_valid()
+                // An operand authored in the current declaration already has
+                // its application frames, including applied enclosing traits.
+                && operand_owner != self.application_owner
                 && !program
                     .type_reference_table
                     .has_resolved_operand_lifetimes(reference)
