@@ -93,6 +93,15 @@ pub use semantic_vocabulary::CrashCause;
 
 impl Terminator {
     pub fn storage_uses(&self) -> Vec<crate::OperationProjection<'_>> {
+        self.storage_uses_with_arguments(|_| true)
+    }
+
+    /// Branch and tail-call arguments may transport a pointer without
+    /// materializing its referent. Cleanup and inspected values still count.
+    pub fn storage_uses_with_arguments(
+        &self,
+        include: impl Fn(&StructuralArgument) -> bool,
+    ) -> Vec<crate::OperationProjection<'_>> {
         let mut projections = Vec::new();
         fn argument(argument: &StructuralArgument) -> crate::OperationProjection<'_> {
             crate::OperationProjection {
@@ -114,7 +123,12 @@ impl Terminator {
                 structural_arguments,
                 ..
             } => {
-                projections.extend(structural_arguments.iter().map(argument));
+                projections.extend(
+                    structural_arguments
+                        .iter()
+                        .filter(|arg| include(arg))
+                        .map(argument),
+                );
             }
             Self::Conditional {
                 when_true,
@@ -122,7 +136,12 @@ impl Terminator {
                 ..
             } => {
                 for edge in [when_true, when_false] {
-                    projections.extend(edge.structural_arguments.iter().map(argument));
+                    projections.extend(
+                        edge.structural_arguments
+                            .iter()
+                            .filter(|arg| include(arg))
+                            .map(argument),
+                    );
                 }
             }
             Self::StructuralCase { source, path, .. }

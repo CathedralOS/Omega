@@ -90,8 +90,11 @@ mod storage {
             // by-value storage still contribute their actual operands below.
             let parameter_storage = |formal: &terminal_psi::StructuralParameterDeclaration| {
                 let opaque_borrow = declarations.get(&formal.structural_type).is_some_and(|ty| {
-                    calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, formal.access)
-                        .is_some()
+                    calling_conventions::terminal_layout::opaque_borrow_transport(
+                        &ty.shape,
+                        formal.access,
+                    )
+                    .is_some()
                 });
                 (!opaque_borrow).then_some(formal.structural_type)
             };
@@ -117,6 +120,13 @@ mod storage {
                 for place in &machine.structural_places {
                     roots.extend(place.kind.produced_structural_type());
                 }
+                let needs_argument_storage = |argument: &terminal_psi::StructuralArgument| {
+                    argument.access == terminal_psi::StructuralAccess::Owned
+                        || !argument.path.is_empty()
+                        || machine
+                            .structural_parameter(argument.place)
+                            .is_none_or(|formal| parameter_storage(formal).is_some())
+                };
                 for block in &machine.blocks {
                     for operation in &block.operations {
                         roots.extend(
@@ -125,7 +135,10 @@ mod storage {
                                 .structural()
                                 .map(|result| result.structural_type),
                         );
-                        for (storage, _) in operation.kind.storage_uses() {
+                        for (storage, _) in operation
+                            .kind
+                            .storage_uses_with_arguments(&needs_argument_storage)
+                        {
                             terminal_semantics::storage_operand_dependencies(
                                 machine,
                                 &declarations,
@@ -137,7 +150,10 @@ mod storage {
                             })?;
                         }
                     }
-                    for projection in block.terminator.storage_uses() {
+                    for projection in block
+                        .terminator
+                        .storage_uses_with_arguments(&needs_argument_storage)
+                    {
                         terminal_semantics::storage_operand_dependencies(
                             machine,
                             &declarations,

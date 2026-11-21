@@ -717,8 +717,10 @@ pub mod structural_reference_input {
             ) => {
                 let declaration = find_structural_type(declarations, parameter.structural_type)?;
                 calling_conventions::terminal_layout::opaque_borrow_transport(
-                    &declaration.shape, parameter.access,
-                ).or_else(|| internal_borrow_shape(parameter.structural_type, declarations))
+                    &declaration.shape,
+                    parameter.access,
+                )
+                .or_else(|| internal_borrow_shape(parameter.structural_type, declarations))
             }
             _ => None,
         }

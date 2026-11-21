@@ -513,8 +513,9 @@ pub fn opaque_borrow_transport(
     shape: &StructuralTypeShape,
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
-    (access != terminal_psi::StructuralAccess::Owned && matches!(shape, StructuralTypeShape::Opaque))
-        .then_some(ValueShape::integer(8, 8))
+    (access != terminal_psi::StructuralAccess::Owned
+        && matches!(shape, StructuralTypeShape::Opaque))
+    .then_some(ValueShape::integer(8, 8))
 }
 
 pub fn is_native_view_descriptor(shape: &StructuralTypeShape) -> bool {
