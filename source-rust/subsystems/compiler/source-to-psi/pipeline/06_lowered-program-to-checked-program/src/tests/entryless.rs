@@ -196,7 +196,7 @@ fn specialized_callback_reach_keeps_omission_empty_and_named_services_distinct()
              machine choose<T>(operation: Observe, value: T) -> u64 {{ operation(47u64) }}
              machine main() -> u64 {{ choose::<u64>(read, 1u64) }}"
         );
-        let program = crate::preparation::prepare_typed_trees(typed(&text), &[]).unwrap();
+        let program = crate::preparation::prepare_typed_trees(typed(&text), &[], &[]).unwrap();
         let trees = program.trees();
         let template = trees
             .machines()

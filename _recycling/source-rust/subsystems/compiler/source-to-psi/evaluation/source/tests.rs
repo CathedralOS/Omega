@@ -1627,6 +1627,7 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
     let (source, _) = crate::preparation::prepare_typed_trees(
         program,
         &crate::preparation::PreparationRequest::settled(),
+        &[],
     )
     .unwrap();
     let accepted = crate::production::AcceptedTerminalSource::judge(

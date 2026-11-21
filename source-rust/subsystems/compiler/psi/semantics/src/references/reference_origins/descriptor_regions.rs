@@ -318,6 +318,22 @@ fn reference_sources_for_leaves(
         }
         let mut sources = Vec::with_capacity(slot.origins.len());
         for origin in &slot.origins {
+            if let DescriptorStoredOrigin::Provider(provider) = origin {
+                // The producing call supplies this reference. Its input loans travel
+                // separately in the provider's replayed lifetime dependencies.
+                if provider.invocations.is_empty()
+                    || provider.projection != Projection::new(&[])
+                {
+                    return Err("returned provider reference has no exact admitted formation");
+                }
+                sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type: leaf.structural_type,
+                    path: vec![ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)],
+                    extent: ReferenceOriginExtent::Projected,
+                    access,
+                });
+                continue;
+            }
             // A result known only within a declared input region,
             // such as a selected or rigid requirement call's, keeps
             // that whole region (lifetimes.md, "Returned views").

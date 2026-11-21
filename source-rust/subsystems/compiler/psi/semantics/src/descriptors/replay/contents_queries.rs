@@ -205,6 +205,46 @@ impl Replay<'_> {
         .then_some(carrier)
     }
 
+    /// An indexed copy keeps its source array live even when the caller cannot
+    /// name the individual element as a fixed slot. Its contents identify
+    /// the copied value without granting access to any borrow inside it.
+    pub(crate) fn returned_packet_input(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        call: &DescriptorInvocation,
+        origin: &DescriptorStoredOrigin,
+        expected: StructuralTypeId,
+    ) -> Option<DescriptorLocation> {
+        let query = match origin {
+            DescriptorStoredOrigin::IncomingSlot { position, path } => {
+                DescriptorContentsQuery::from_location(&self.actual_slot(call, *position, path)?)
+            }
+            DescriptorStoredOrigin::IncomingContents { position, steps, projection }
+                if *projection == Projection::new(&[]) =>
+            {
+                let input = call.argument_contents.get(*position)?.as_ref()?.clone();
+                self.extend_actual_contents(machine, call.actual_inputs(), input, steps)?
+            }
+            _ => return None,
+        };
+        if let Some(location) = query.exact_location() {
+            let packet = self.canonical_contents_packet(machine, state, &location)?;
+            return (self.unknown_contents_type(machine, &packet)? == expected).then_some(packet);
+        }
+        let root = *machine.place_types.get(&query.root)?;
+        if query.steps.last()
+            != Some(&DescriptorContentsStep::Address(DescriptorPathSegment::UnknownContents))
+            || query.selected_type(self.types, root)? != Some(expected)
+        {
+            return None;
+        }
+        self.read_contents(machine, state, &query)?;
+        let source = query.observation();
+        let storage = self.resolve_storage(machine, state, &source, None);
+        self.flow_location(machine, state, &source, storage).ok()
+    }
+
     pub(crate) fn canonical_contents_packet(
         &self,
         machine: &DescriptorMachine,

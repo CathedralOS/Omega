@@ -86,7 +86,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         .find(|machine| machine.name.as_str() == "main")
         .expect("source main")
         .symbol;
-    let prepared = crate::test_support::preparation::prepare_typed_trees(typed, &[])?;
+    let prepared = crate::test_support::preparation::prepare_typed_trees(typed, &[], &[])?;
     Ok(Fixture {
         source: prepared,
         entry,

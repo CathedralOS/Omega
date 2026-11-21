@@ -471,7 +471,12 @@ impl<'t> Program<'t> {
                 Unserved::Type("proof-only FloatMeaning has no runtime ABI"),
             ));
         }
-        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
+        // The generic declaration is a proof subject. Source calls within its
+        // body still need to go through the advertised boundary.
+        let generic_subject =
+            self.rigid && self.symbols.is_empty() && self.is_generic_template(declared);
+        if !generic_subject
+            && let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
             && self
                 .typed
                 .trait_definition_by_symbol(owner)
@@ -858,6 +863,18 @@ impl<'t> Program<'t> {
         requirement: SymbolHandle,
     ) -> Checked<&'t StateSignature> {
         let typed = self.typed;
+        if let Some(closed) = typed.closed_requirement_application(requirement) {
+            if closed.declaring_trait != declaring_trait
+                || !typed.trait_machine_signature(closed.template).is_some_and(|(owner, _)| {
+                    owner.symbol == declaring_trait
+                })
+            {
+                return Err(super::services::unavailable(id, "the applied requirement belongs to another trait"));
+            }
+            typed.require_closed_requirement_call_application(requirement, closed.application)
+                .map_err(|reason| super::services::unavailable(id, reason))?;
+            return Ok(closed.signature);
+        }
         typed
             .trait_definition_by_symbol(declaring_trait)
             .and_then(|declaration| {
@@ -929,7 +946,7 @@ impl<'t> Program<'t> {
             ));
         }
         if expected.is_some_and(|signature| {
-            self.typed
+            signature.symbol != requirement && self.typed
                 .closed_requirement_application(signature.symbol)
                 .map_or(signature.symbol, |application| application.template)
                 != requirement
@@ -947,7 +964,19 @@ impl<'t> Program<'t> {
             .then_some(implementation)
             .or(self.signature_view_owner);
         let outer = std::mem::replace(&mut self.signature_view_owner, owner);
-        let witnessed = self.witnessed_signature(declared, arguments, expected);
+        let witnessed = if self.rigid {
+            let implementation = self
+                .typed
+                .machine_by_symbol(implementation)
+                .ok_or_else(|| {
+                    super::services::unavailable(id, "the refinement check lost its implementation")
+                })?;
+            self.with_method_type_parameters(id, implementation, declared, |program| {
+                program.witnessed_signature(declared, arguments, expected)
+            })
+        } else {
+            self.witnessed_signature(declared, arguments, expected)
+        };
         self.signature_view_owner = outer;
         witnessed
     }
@@ -959,10 +988,14 @@ impl<'t> Program<'t> {
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let (signature, names) = if self.rigid && arguments.is_empty() {
-            self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?
+        let ((signature, names), value_parameters) = if self.rigid && arguments.is_empty() {
+            // The witness receives each unspecialized const as a scalar input,
+            // just like the declaration whose contract it checks.
+            let parameters = self.requirement_binders(id, declared)?.len();
+            let header = self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?;
+            (header, parameters)
         } else {
-            self.requirement_signature(id, declared, arguments)?
+            (self.requirement_signature(id, declared, arguments)?, 0)
         };
         self.retain_requirement_policy(id, declared, declared.symbol)?;
         self.admitted_declarations.include(declared.symbol);
@@ -1005,7 +1038,7 @@ impl<'t> Program<'t> {
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
-        self.value_parameters.push(0);
+        self.value_parameters.push(value_parameters);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
         self.source_scopes.push(self.source_scope.clone());
@@ -1049,6 +1082,11 @@ impl<'t> Program<'t> {
     /// Read a template requirement as a bodyless machine with rigid inputs
     /// so the checker judges its contract for every admitted application.
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
+        let parameters = self.typed.state_signature_type_parameters(declared);
+        self.scope = super::type_parameters::rigid_type_scope(parameters);
+        std::sync::Arc::make_mut(&mut self.source_scope)
+            .rigid_parameters
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
         self.requirement_form(
             RequirementHeaderOrigin::Declared(declared.symbol),
             declared,
@@ -2209,8 +2247,17 @@ impl<'t> Program<'t> {
                     )
                     .map_err(unserved)?
                     .ok_or_else(|| unserved("conformer lost its exact owning application"))?;
-                let requirement = typed
-                    .applied_callable_signature(&scope, row.requirement)
+                let public_method =
+                    self.provider_method_requirement(id, machine.symbol, row.requirement)?;
+                if public_method.is_some_and(|method| {
+                    !typed.requirement_application_matches_contract_scope(method.symbol, &scope)
+                }) {
+                    return Err(unserved(
+                        "the selected method belongs to another trait application",
+                    ));
+                }
+                let requirement = public_method
+                    .or_else(|| typed.applied_callable_signature(&scope, row.requirement))
                     .or_else(|| {
                         (scope.substitutions.is_empty()
                             && scope.declaration.lifetime_parameters.is_empty())
@@ -2396,8 +2443,9 @@ impl<'t> Program<'t> {
                 .then_some(machine.symbol)
                 .or(self.signature_view_owner);
             let outer = std::mem::replace(&mut self.signature_view_owner, owner);
-            let read =
-                self.applied_requirement_signature(id, requirement, RequirementValues::Rigid);
+            let read = self.with_method_type_parameters(id, machine, requirement, |program| {
+                program.applied_requirement_signature(id, requirement, RequirementValues::Rigid)
+            });
             self.signature_view_owner = outer;
             read?
         } else {
@@ -2518,8 +2566,7 @@ impl<'t> Program<'t> {
     }
 
     /// The value parameters of a trait requirement, in declaration order,
-    /// each with its carrier. Any other kind of parameter is refused: a
-    /// requirement over a type parameter has no lowered form yet.
+    /// each with its carrier. The type scope holds the type parameters.
     pub(super) fn requirement_binders(
         &self,
         id: MachineId,
@@ -2535,6 +2582,16 @@ impl<'t> Program<'t> {
         }
         let mut binders = Vec::with_capacity(parameters.len());
         for parameter in parameters {
+            if parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                && self.rigid
+                && parameter.bounds.carry.is_none()
+                && self
+                    .scope
+                    .iter()
+                    .any(|(binder, _)| *binder == parameter.symbol)
+            {
+                continue;
+            }
             if parameter.bounds != crate::source_state::data::DataProperties::default() {
                 return unserved("requirement value parameter eligibility");
             }
@@ -3068,21 +3125,41 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        // Closing a signature substitutes its types; it does not prove the
-        // original binders' storage or copying requirements.
-        if self
+        if let Some(closed) = self
             .typed
             .closed_requirement_application(requirement.symbol)
-            .is_some_and(|closed| {
-                closed
-                    .invocation_contract_parameters
-                    .iter()
-                    .any(|parameter| {
-                        parameter.bounds != crate::source_state::data::DataProperties::default()
-                    })
-            })
         {
-            return unserved("closed requirement parameter eligibility");
+            use crate::source_state::static_operand_binding::{Stop, type_argument_meets_bounds};
+            if closed.invocation_contract_parameters.len() != closed.local_arguments.len() {
+                return unserved("closed requirement lost one or more arguments");
+            }
+            for (parameter, actual) in closed
+                .invocation_contract_parameters
+                .iter()
+                .zip(closed.local_arguments.iter())
+            {
+                if parameter.bounds == crate::source_state::data::DataProperties::default() {
+                    continue;
+                }
+                let Some(reference) = actual.static_operand().filter(|_| {
+                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                }) else {
+                    return unserved(
+                        "a bounded requirement parameter needs a static type argument",
+                    );
+                };
+                type_argument_meets_bounds(self.typed, parameter, reference).map_err(|reason| {
+                    match reason {
+                        Stop::Rejected(detail) => crate::lowering::reject(
+                            id,
+                            self.declared_at(requirement.symbol),
+                            detail,
+                        ),
+                        Stop::Unserved(reason) => super::services::unavailable(id, reason),
+                        Stop::Defect(reason) => super::services::unavailable(id, reason),
+                    }
+                })?;
+            }
         }
         if requirement.spelling.is_some() {
             return unserved("operator spelling");

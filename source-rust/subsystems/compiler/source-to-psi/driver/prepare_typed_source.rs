@@ -169,6 +169,13 @@ impl<'request> SourcePreparationRequest<'request> {
             Ok((program, values)) => Ok(SettledSource {
                 program,
                 accounting,
+                selected_providers: self
+                    .admission
+                    .layout_scopes
+                    .iter()
+                    .flat_map(|scope| scope.provider_declarations.iter())
+                    .map(|selection| selection.provider_type.symbol)
+                    .collect(),
                 values,
             }),
             Err(diagnostics) => Err(SourcePreparationFailure {

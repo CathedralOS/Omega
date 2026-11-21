@@ -1184,6 +1184,13 @@ impl<'a> Storage<'a> {
                     continue;
                 };
                 let concerns = Construct::Operation(operation.id);
+                // A read through a provider's shared reference yields a fresh scalar.
+                // Its public permission identifies no address for a later read to observe.
+                if let Some(at) = storage.descriptor_position((block.id, before))
+                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
+                {
+                    continue;
+                }
                 let leaf = storage.backing(references, &leaf, block.id, before, concerns)?;
                 let value = operation
                     .result

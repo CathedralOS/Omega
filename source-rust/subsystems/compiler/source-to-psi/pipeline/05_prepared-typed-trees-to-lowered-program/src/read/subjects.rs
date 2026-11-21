@@ -303,44 +303,70 @@ impl Program<'_> {
                     }
                 },
             };
+            let application = match typed.conformance_by_symbol(supply.provider) {
+                Some(provider) => AppliedTraitScope::from_conformance(typed, provider)
+                    .and_then(|scope| scope.declaring_scope(typed, owner.symbol))
+                    .ok_or_else(|| {
+                        refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Declaration(
+                                "supply lost its declaring trait application",
+                            ),
+                        )
+                    })?,
+                None => AppliedTraitScope::abstract_scope(owner),
+            };
             for requirement in supply.requirements(typed) {
                 let machine = match supply.realization(typed, requirement) {
                     Ok(machine) => machine,
                     Err(reason) => return unserved(reason),
                 };
-                let witness = crate::lowering::ConformanceWitness {
-                    declaring_trait: owner.symbol,
-                    requirement,
-                    implementation: machine.symbol,
-                    value_arguments: Vec::new(),
-                };
-                let root = self.provider(machine.symbol, owner.symbol, requirement)?;
-                if !self
-                    .fixed_contracts
-                    .contains(&super::FixedContract::Interface(root))
+                let (_, header) = typed.trait_machine_signature(requirement).ok_or_else(|| {
+                    refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Declaration("supply lost its required header"),
+                    )
+                })?;
+                for (header, machine) in
+                    self.conformance_method_bodies(entry, &application, header, machine)?
                 {
-                    self.fixed_contracts
-                        .push(super::FixedContract::Interface(root));
-                }
-                // Ordinary policies have checked bodies and refinement witnesses,
-                // but supply no external service. Only a boundary requirement
-                // needs a declaration and a candidate for provider planning.
-                if owner.is_boundary {
-                    self.boundary_declaration(root, requirement)?;
-                    let supplied = crate::lowering::SuppliedRequirement {
-                        provider: supply.provider,
+                    let requirement = header.symbol;
+                    let witness = crate::lowering::ConformanceWitness {
+                        declaring_trait: owner.symbol,
                         requirement,
-                        machine: root,
+                        implementation: machine.symbol,
+                        value_arguments: Vec::new(),
                     };
-                    if !self.supplied.contains(&supplied) {
-                        self.supplied.push(supplied);
+                    let root = self.provider(machine.symbol, owner.symbol, requirement)?;
+                    if !self
+                        .fixed_contracts
+                        .contains(&super::FixedContract::Interface(root))
+                    {
+                        self.fixed_contracts
+                            .push(super::FixedContract::Interface(root));
                     }
-                }
-                // A machine that states `satisfies` already owes this row
-                // (`satisfied_requirements`), and two supplies may name one
-                // row; it is one obligation.
-                if !self.conformance_witnesses.contains(&witness) {
-                    self.conformance_witnesses.push(witness);
+                    // Ordinary policies have checked bodies and refinement witnesses,
+                    // but supply no external service. Only a boundary requirement
+                    // needs a declaration and a candidate for provider planning.
+                    if owner.is_boundary {
+                        self.boundary_declaration(root, requirement)?;
+                        let supplied = crate::lowering::SuppliedRequirement {
+                            provider: supply.provider,
+                            requirement,
+                            machine: root,
+                        };
+                        if !self.supplied.contains(&supplied) {
+                            self.supplied.push(supplied);
+                        }
+                    }
+                    // A machine that states `satisfies` already owes this row
+                    // (`satisfied_requirements`), and two supplies may name one
+                    // row; it is one obligation.
+                    if !self.conformance_witnesses.contains(&witness) {
+                        self.conformance_witnesses.push(witness);
+                    }
                 }
             }
         }
