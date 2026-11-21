@@ -700,8 +700,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    frozen
+    crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
 }
 
 fn read_applied_boundary(
@@ -2415,8 +2414,7 @@ machine entry() -> u32 crashes none {{ relay::<Inline>() }}
     );
     // Use the actual specialization pass, retaining the exact source
     // parameter dispatch and selected realization it produces.
-    let prepared = crate::preparation::prepare_typed_trees(read(&text), &[]).unwrap();
-    prepared
+    crate::preparation::prepare_typed_trees(read(&text), &[]).unwrap()
 }
 
 fn inline_parameter_read(

@@ -147,14 +147,6 @@ framework or a list of unimplemented features.
 - Cost: An indirect call in the provider needs the actual machine passed by its caller. The original report reached native stack planning. A later run on the #4790 CLI checked the modernized source, then stopped at a repeated stage-07 selection before either engine could exercise the remaining paths. Recheck both consumers with the same selected call.
 - Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
 
-### Case splits rebuild unchanged proof facts
-
-- Category: Verifying costs more than writing
-- Where: [case-split prover construction](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/prove.rs#L1752), [assumption indexing](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/prove.rs#L1084), [fact substitution](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/known.rs#L801).
-- Saw: The remaining fallback splitter clones the assumptions and constructs a new prover and fact index for each alternative. In the original multiplication-table run, 65 provers made 80,080 substitutions. The replay took 1.23 seconds and equation checking took 22 milliseconds. A 128-entry substitution cache made that run 12% slower.
-- Cost: Each branch rebuilds facts from its parent, even when its new assumption leaves those facts unchanged. Measure how much of that work branches can share while keeping their assumptions and search budget separate.
-- Reported: 2026-11-18, Codex, while investigating slow range checks in the portable filesystem and standard library.
-
 ### Individual proof citations copy their entire compound premise
 
 - Category: Verifying costs more than writing

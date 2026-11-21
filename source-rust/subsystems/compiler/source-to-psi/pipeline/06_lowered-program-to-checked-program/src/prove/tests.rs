@@ -636,6 +636,78 @@ mod bound_fact_index {
     }
 
     #[test]
+    fn case_branches_share_only_premises_with_the_same_substitutions() {
+        let values = inputs(21, 3);
+        let context = context(&values);
+        let subject = value(values.identity_at(0).unwrap());
+        let input = value(values.identity_at(1).unwrap());
+        let alias = value(values.identity_at(2).unwrap());
+        let axioms = [Proposition::Equal(alias.clone(), input.clone())];
+        let mut assumptions: Vec<_> = (1..=64)
+            .map(|n| Proposition::LessOrEqual(alias.clone(), literal(n)))
+            .collect();
+        let goal = Proposition::LessOrEqual(subject.clone(), literal(5));
+        assumptions.push(Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(subject, literal(3)),
+            goal.clone(),
+        ]));
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        let initial_checks = prover.activity.normalization_checks;
+        let proof = prover.split(&goal).unwrap();
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+            .unwrap();
+        assert!(activity.normalization_checks <= initial_checks + 2);
+
+        // Both choices satisfy the outer assumptions. Only input == 0
+        // justifies alias == 0, so the split must leave the goal unproved.
+        let equality = |n| Proposition::Equal(input.clone(), literal(n));
+        *assumptions.last_mut().unwrap() = Proposition::Disjunction(vec![equality(0), equality(1)]);
+        let goal = Proposition::Equal(alias, literal(0));
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        assert!(prover.split(&goal).is_none());
+    }
+
+    #[test]
+    fn a_branch_that_defines_an_alias_input_matches_fresh_preparation() {
+        use crate::checking::known::{BranchPreparation, Known};
+
+        let values = inputs(21, 2);
+        let context = context(&values);
+        let input = value(values.identity_at(0).unwrap());
+        let alias = value(values.identity_at(1).unwrap());
+        let axioms = [Proposition::Equal(alias.clone(), input.clone())];
+        let mut assumptions = vec![Proposition::LessOrEqual(alias, literal(5))];
+        let mut root = BranchPreparation::new(None);
+        let parent = Known::prepare(
+            &context,
+            assumptions.iter(),
+            &axioms,
+            &values,
+            Some(&mut root),
+        );
+        // Flattening the new conjunction also moves the axiom's fact position.
+        assumptions.push(Proposition::Conjunction(vec![
+            Proposition::Equal(input, literal(1)),
+            Proposition::Truth,
+        ]));
+        let mut branch = BranchPreparation::new(Some((&parent.facts, &root.prepared)));
+        let child = Known::prepare(
+            &context,
+            assumptions.iter(),
+            &axioms,
+            &values,
+            Some(&mut branch),
+        );
+        let fresh = Known::new(&context, &assumptions, &axioms, &values);
+        assert_eq!(child.facts.len(), fresh.facts.len());
+        for (actual, expected) in child.facts.iter().zip(&fresh.facts) {
+            assert_eq!(actual.proof(&child.facts), expected.proof(&fresh.facts));
+        }
+    }
+
+    #[test]
     fn each_split_uses_its_own_complete_context() {
         let values = inputs(21, 2);
         let subject = values.identity_at(0).unwrap();
