@@ -241,6 +241,44 @@ pub(crate) fn declared_place_type(
     })
 }
 
+/// A value parameter has the carrier declared by its enclosing
+/// telescope. A sibling declaration's parameter cannot type this operand.
+fn generic_value_type(
+    program: &TypedTrees,
+    mut scope: SymbolHandle,
+    binder: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    use crate::source_state::data::TypeParameterKind;
+
+    let nodes = program.symbols.symbols().nodes();
+    if !nodes.is_valid(binder) || program.symbols.get(binder).kind != SymbolKind::TypeParameter {
+        return None;
+    }
+    for _ in 0..nodes.len() {
+        if !nodes.is_valid(scope) {
+            break;
+        }
+        let parameters = program.declaration_type_parameters(scope);
+        let mut matches = parameters
+            .iter()
+            .filter(|parameter| parameter.symbol == binder);
+        if let Some(parameter) = matches.next() {
+            let (TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                return None;
+            };
+            return (matches.next().is_none()
+                && program
+                    .type_reference_table
+                    .contains_type_reference(type_reference))
+            .then_some(type_reference);
+        }
+        scope = program.symbols.get(scope).parent;
+    }
+    None
+}
+
 /// Read the declared type of a value in its exact callable context. A
 /// contract's reserved result is a value of its declared return type, never
 /// writable storage or a name resolved again by spelling.
@@ -343,6 +381,12 @@ pub(crate) fn declared_callable_value_type(
             if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
                 return Err(crate::typing::unavailable_judgment("data clause value"));
             }
+            if let Some(reference) = path
+                .resolved_symbol()
+                .and_then(|binder| generic_value_type(program, owner, binder))
+            {
+                return Ok(reference);
+            }
             let field = path
                 .resolved_symbol()
                 .and_then(|binder| program.data_field(definition, binder))
@@ -412,6 +456,7 @@ pub(crate) fn declared_callable_value_type(
                 .flatten()
                 .chain(state)
                 .filter_map(|state| program.declared_binding_type_by_symbol(state, binder))
+                .chain(generic_value_type(program, owner, binder))
                 .chain(signature.into_iter().flat_map(|signature| {
                     program
                         .state_signature_parameters(signature)
