@@ -88,11 +88,3 @@ framework or a list of unimplemented features.
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
 
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
-
-### Changing storage analysis rebuilds the native compiler
-
-- Category: Verifying costs more than writing
-- Where: [optimization unit identity](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs#L2062), [native structural type catalog](source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/src/structural_type_catalog.rs#L64), [abstract operations' storage queries](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/src/control_flow.rs#L12).
-- Saw: The native structural catalog also contains queries that call the Psi storage checker. Abstract operations and optimizer records depend on this catalog, so a private edit to the checker rebuilds them.
-- Cost: Move those queries out of the catalog. Preserve the canonical domain, access and quotient bytes used for optimizer identity. Repeat the warm compiler rebuild with the same private descriptor edit and run the original Console package on native and Psi.
-- Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
