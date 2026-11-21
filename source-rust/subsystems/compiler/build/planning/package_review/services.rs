@@ -27,12 +27,6 @@ pub(super) fn identities(
     if module.interfaces.services.is_empty() {
         return Ok(Vec::new());
     }
-    let mut surfaces = BTreeMap::new();
-    for schema in &module.interfaces.service_schemas {
-        if surfaces.insert(schema.application, schema).is_some() {
-            return Err(unavailable("one checked schema per service application"));
-        }
-    }
     let mut declarations = BTreeMap::<String, Vec<&TraitDefinition>>::new();
     for slot in source.traits().iter().filter(|slot| {
         slot.is_boundary
@@ -42,6 +36,17 @@ pub(super) fn identities(
     }) {
         if let Ok(id) = exact_identity(source, slot.symbol, exact_sources) {
             declarations.entry(id).or_default().push(slot);
+        }
+    }
+    // Terminal schemas use the pair (physical declaration, receiver
+    // application). A Build nomination can retain the same receiver through
+    // its own declaration. Join the Product source before selecting its schema.
+    let mut surfaces = BTreeMap::new();
+    for schema in &module.interfaces.service_schemas {
+        let key = module.identities.text(schema.declaration)
+            .ok_or_else(|| unavailable("the checked schema's physical declaration"))?;
+        if declarations.contains_key(key) && surfaces.insert(schema.application, schema).is_some() {
+            return Err(unavailable("one Product declaration per service application"));
         }
     }
     module
