@@ -1,10 +1,7 @@
 use omega\language\core\ProcessExit;
-// The raw time-host seams are boundary traits selected under `TimeHost`.
-// `instant_now` reads the monotonic clock and `sleep_for` waits 50ms.
-// The interpreter's virtual clock advances by exactly that wait; a host
-// clock measures at least 50ms. Exit 70 when both observations hold.
-//
-// Expected exit: 70.
+// Both native code and the CLI's Psi interpreter read the host clock.
+// Exit 70 when sleep_for reports 50 ms and at least that much time has
+// elapsed since instant_now.
 use omega_language_std\Console;
 use omega_language_std\Duration;
 use omega_language_std\Instant;
