@@ -3129,7 +3129,7 @@ impl<'t> Program<'t> {
                     && self.is_borrowed_view(formal)
                 {
                     let borrow = if *access == ReferenceAccess::Mutable {
-                        "@mut array[..]"
+                        "@mutable array[..]"
                     } else {
                         "@array[..]"
                     };
@@ -3312,12 +3312,12 @@ impl<'t> Program<'t> {
         ))
     }
 
-    /// The argument for a borrowed formal: `&place` or `&mut place`, or a
+    /// The argument for a borrowed formal: `&place` or `@mutable place`, or a
     /// borrowed formal of this machine named whole, which lends its
     /// referent on (a reborrow). The place is a slot or a field path
     /// beneath one. ownership.md, "Owned local mutability": "modifying an
-    /// established ordinary local's owned storage requires a `mut` binding.
-    /// This covers ... formation of `&mut` or `&write` loans to those
+    /// established ordinary local's owned storage requires a `mutable` binding.
+    /// This covers ... formation of `@mutable` or `@write` loans to those
     /// places. A callee cannot grant writable access that the caller's place
     /// lacks."
     pub(super) fn lent(
@@ -3477,7 +3477,7 @@ impl<'t> Program<'t> {
         }
         // loans.md, "Reborrow lineage and access": a Mutable parent may
         // form a Shared child, "Freeze mutation until the complete shared
-        // cohort ends; restore once." So `&mut place` given to a `&T`
+        // cohort ends; restore once." So `@mutable place` given to a `@T`
         // parameter is the exclusive loan the program wrote, lent on for
         // observation: the place must admit that exclusive loan (every
         // check below is made at the written access), and the callee
@@ -4449,9 +4449,9 @@ mod tests {
         };
         let mutable = || borrow(ReferenceAccess::Mutable, field(1, record));
         let shared = || borrow(ReferenceAccess::Shared, field(1, record));
-        // `f(fs.fd, &mut fs.buffer)`: distinct fields.
+        // `f(fs.fd, @mutable fs.buffer)`: distinct fields.
         assert!(check(&[field(0, scalar), mutable()], false).is_ok());
-        // `f(fs.buffer.length, &mut fs.buffer)`: inside the mutable loan.
+        // `f(fs.buffer.length, @mutable fs.buffer)`: inside the mutable loan.
         let inner = Expression {
             call_context: None,
             kind: ExpressionKind::Field {
@@ -4467,7 +4467,7 @@ mod tests {
                 .detail
                 .contains("argument that names storage another argument lends")
         );
-        // `f(fs, &mut fs.buffer)`: the whole root contains the loan.
+        // `f(fs, @mutable fs.buffer)`: the whole root contains the loan.
         assert!(check(&[root(), mutable()], true).is_err());
         // `f(fs.buffer.length, &fs.buffer)`: reading beside a shared loan.
         assert!(check(&[inner, shared()], false).is_ok());

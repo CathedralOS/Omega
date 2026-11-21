@@ -43,7 +43,7 @@ fn verdict(build: &str) -> String {
 
 const CARRIER: &str = r#"
 data Cell { before: u64; value: u64; after: u64; }
-data Carrier<'storage> { cell: @'storage mut Cell; }
+data Carrier<'storage> { cell: @'storage mutable Cell; }
 data View<'storage> { cell: @'storage Cell; }
 "#;
 
@@ -57,10 +57,10 @@ fn a_member_of_the_referent_is_read_and_stored_through_a_stored_reference() {
     assert_eq!(
         verdict(&format!(
             r#"{CARRIER}
-machine update(carrier: @mut Carrier, incoming: u64) {{ carrier.cell.value = incoming; }}
-machine build_entry(cell: @mut Cell) {{
-    let mut carrier: Carrier = Carrier {{ cell: cell }};
-    update(@mut carrier, 41);
+machine update(carrier: @mutable Carrier, incoming: u64) {{ carrier.cell.value = incoming; }}
+machine build_entry(cell: @mutable Cell) {{
+    let mutable carrier: Carrier = Carrier {{ cell: cell }};
+    update(@mutable carrier, 41);
     let observed: bool = carrier.cell.value == 41;
     carrier.cell.value = 73;
 }}
@@ -78,7 +78,7 @@ fn nothing_is_stored_through_a_stored_shared_reference() {
     let refused = verdict(&format!(
         r#"{CARRIER}
 machine build_entry(cell: @Cell) {{
-    let mut view: View = View {{ cell: cell }};
+    let mutable view: View = View {{ cell: cell }};
     view.cell.value = 73;
 }}
 "#
@@ -118,7 +118,7 @@ fn a_reference_assigned_to_its_field_replaces_the_descriptor() {
         verdict(&format!(
             r#"{CARRIER}
 machine build_entry<'storage>(left: @'storage Cell, right: @'storage Cell) {{
-    let mut view: View = View {{ cell: left }};
+    let mutable view: View = View {{ cell: left }};
     view.cell = right;
     let observed: bool = view.cell.value == 9;
 }}
@@ -173,11 +173,11 @@ fn a_store_through_a_stored_reference_changes_the_original_cell() {
     let program = |expected: u64| {
         format!(
             r#"{CARRIER}
-machine update(carrier: @mut Carrier, incoming: u64) {{ carrier.cell.value = incoming; }}
+machine update(carrier: @mutable Carrier, incoming: u64) {{ carrier.cell.value = incoming; }}
 machine entry() crashes Trap {{
-    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
-    let mut carrier: Carrier = Carrier {{ cell: @mut cell }};
-    update(@mut carrier, 41);
+    let mutable cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let mutable carrier: Carrier = Carrier {{ cell: @mutable cell }};
+    update(@mutable carrier, 41);
     let observed: bool = carrier.cell.value == 41;
     carrier.cell.value = 73;
     transition observed && cell.value == {expected} && cell.before == 11 && cell.after == 17 {{
@@ -210,7 +210,7 @@ fn a_rebound_stored_reference_reads_its_new_referent() {
         r#"{CARRIER}
 data Two {{ left: Cell; right: Cell; }}
 machine observe(two: @Two) -> bool {{
-    let mut view: View = View {{ cell: @two.left }};
+    let mutable view: View = View {{ cell: @two.left }};
     let first: bool = view.cell.value == 5;
     view.cell = @two.right;
     first && view.cell.value == 9
@@ -249,9 +249,9 @@ fn an_exclusive_reference_reached_through_a_shared_record_grants_no_write() {
     for body in ["carrier.cell.value = 1;", "set(carrier.cell);"] {
         let verdict = verdict(&format!(
             r#"{CARRIER}
-machine set(cell: @mut Cell) {{ cell.value = 1; }}
+machine set(cell: @mutable Cell) {{ cell.value = 1; }}
 machine poke(carrier: @Carrier) {{ {body} }}
-machine build_entry(cell: @mut Cell) {{
+machine build_entry(cell: @mutable Cell) {{
     let carrier: Carrier = Carrier {{ cell: cell }};
     poke(@carrier);
 }}
@@ -271,8 +271,8 @@ fn a_stored_exclusive_reference_excludes_its_parent_while_it_is_used() {
     let program = |first: &str, second: &str| {
         format!(
             r#"{CARRIER}
-machine build_entry(cell: @mut Cell) {{
-    let mut carrier: Carrier = Carrier {{ cell: cell }};
+machine build_entry(cell: @mutable Cell) {{
+    let mutable carrier: Carrier = Carrier {{ cell: cell }};
     {first}
     {second}
 }}
@@ -299,8 +299,8 @@ fn a_store_through_a_stored_reference_ends_facts_about_the_original_cell() {
             r#"{CARRIER}
 machine need(value: u64) requires value == 5 {{ }}
 machine entry() {{
-    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
-    let mut carrier: Carrier = Carrier {{ cell: @mut cell }};
+    let mutable cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let mutable carrier: Carrier = Carrier {{ cell: @mutable cell }};
     {store}
     need(cell.value);
 }}
@@ -331,15 +331,15 @@ fn a_callee_store_through_a_lent_record_ends_facts_about_the_original_cell() {
 machine need(value: u64) requires value == 5 {{ }}
 machine update(carrier: {formal}, incoming: u64) {{ {store} }}
 machine entry() {{
-    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
-    let mut carrier: Carrier = Carrier {{ cell: @mut cell }};
+    let mutable cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let mutable carrier: Carrier = Carrier {{ cell: @mutable cell }};
     update({actual}, 73);
     need(cell.value);
 }}
 "#
         )
     };
-    for (formal, actual) in [("@mut Carrier", "@mut carrier"), ("Carrier", "carrier")] {
+    for (formal, actual) in [("@mutable Carrier", "@mutable carrier"), ("Carrier", "carrier")] {
         assert_eq!(
             run(&program(formal, actual, "")),
             Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
@@ -362,17 +362,17 @@ fn a_rebound_exclusive_reference_writes_only_its_new_referent() {
     let status = run(&format!(
         r#"{CARRIER}
 data Two {{ left: Cell; right: Cell; }}
-machine swap<'storage>(left: @'storage mut Cell, right: @'storage mut Cell) {{
-    let mut carrier: Carrier = Carrier {{ cell: left }};
+machine swap<'storage>(left: @'storage mutable Cell, right: @'storage mutable Cell) {{
+    let mutable carrier: Carrier = Carrier {{ cell: left }};
     carrier.cell = right;
     carrier.cell.value = 9;
 }}
 machine entry() crashes Trap {{
-    let mut two: Two = Two {{
+    let mutable two: Two = Two {{
         left: Cell {{ before: 11, value: 5, after: 17 }},
         right: Cell {{ before: 23, value: 7, after: 29 }}
     }};
-    swap(@mut two.left, @mut two.right);
+    swap(@mutable two.left, @mutable two.right);
     transition two.left.value == 5 && two.right.value == 9
         && two.left.before == 11 && two.left.after == 17
         && two.right.before == 23 && two.right.after == 29 {{
@@ -401,8 +401,8 @@ fn an_exclusive_reference_is_weakened_into_a_shared_field() {
     let status = run(&format!(
         r#"{CARRIER}
 machine entry() crashes Trap {{
-    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
-    let exclusive: @mut Cell = @mut cell;
+    let mutable cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let exclusive: @mutable Cell = @mutable cell;
     let view: View = View {{ cell: exclusive }};
     transition view.cell.value == 5 && view.cell.before == 11 && view.cell.after == 17 {{
         true -> done(),
@@ -455,14 +455,14 @@ fn a_data_value_is_stored_through_a_stored_reference() {
 fn a_plain_local_reference_ends_before_its_noncopyable_owner_is_moved() {
     let source = STORED_MODE
         .replace(
-            "machine start(holder: @mut Holder) { holder.engine.mode",
-            "machine start(engine: @mut Engine) { engine.mode",
+            "machine start(holder: @mutable Holder) { holder.engine.mode",
+            "machine start(engine: @mutable Engine) { engine.mode",
         )
         .replace(
-            "let mut holder: Holder = Holder { engine: @mut engine };",
-            "let lent: @mut Engine = @mut engine;",
+            "let mutable holder: Holder = Holder { engine: @mutable engine };",
+            "let lent: @mutable Engine = @mutable engine;",
         )
-        .replace("start(@mut holder);", "start(lent);");
+        .replace("start(@mutable holder);", "start(lent);");
     assert_eq!(
         run(&source),
         Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
@@ -475,12 +475,12 @@ fn a_plain_local_reference_ends_before_its_noncopyable_owner_is_moved() {
 fn releasing_a_dead_reference_keeps_its_scalar_sibling() {
     let source = STORED_MODE
         .replace(
-            "engine: @'storage mut Engine;",
-            "engine: @'storage mut Engine; mark: u64;",
+            "engine: @'storage mutable Engine;",
+            "engine: @'storage mutable Engine; mark: u64;",
         )
         .replace(
-            "Holder { engine: @mut engine }",
-            "Holder { engine: @mut engine, mark: 11 }",
+            "Holder { engine: @mutable engine }",
+            "Holder { engine: @mutable engine, mark: 11 }",
         )
         .replace(
             "check(level, engine.count)",
@@ -500,8 +500,8 @@ fn releasing_a_dead_reference_keeps_its_scalar_sibling() {
 fn an_owned_move_before_the_stored_references_last_use_is_rejected() {
     let source = STORED_MODE
         .replace(
-            "start(@mut holder);",
-            "let moved: Mode = engine.mode; start(@mut holder);",
+            "start(@mutable holder);",
+            "let moved: Mode = engine.mode; start(@mutable holder);",
         )
         .replace("transition engine.mode", "transition moved");
     let result = run(&source).unwrap_err();
@@ -561,8 +561,8 @@ fn a_missing_stored_reference_disposition_is_refused() {
 /// `holder.named.name` holding what it held on entry.
 const NAMED: &str = r#"
 data Named<'name> { name: @'name [u8]; value: u64; }
-data Holder<'storage, 'name> { named: @'storage mut Named<'name>; }
-machine update(holder: @mut Holder, incoming: u64) { holder.named.value = incoming; }
+data Holder<'storage, 'name> { named: @'storage mutable Named<'name>; }
+machine update(holder: @mutable Holder, incoming: u64) { holder.named.value = incoming; }
 "#;
 
 /// A helper that was lent the record and kept every view behind its
@@ -577,16 +577,16 @@ fn a_helper_that_keeps_the_views_it_was_lent_does_not_extend_the_loan() {
     let program = |expected: u64| {
         format!(
             r#"{NAMED}
-machine journey(named: @mut Named) -> bool {{
-    let mut holder: Holder = Holder {{ named: named }};
-    update(@mut holder, 41);
+machine journey(named: @mutable Named) -> bool {{
+    let mutable holder: Holder = Holder {{ named: named }};
+    update(@mutable holder, 41);
     let observed: bool = holder.named.value == 41;
     named.value = 7;
     observed
 }}
 machine entry() crashes Trap {{
-    let mut named: Named = Named {{ name: "abc", value: 5 }};
-    transition journey(@mut named) && named.value == {expected} {{
+    let mutable named: Named = Named {{ name: "abc", value: 5 }};
+    transition journey(@mutable named) && named.value == {expected} {{
         true -> done(),
         false -> bad()
     }}
@@ -612,11 +612,11 @@ machine entry() crashes Trap {{
 fn a_write_between_two_uses_of_the_lent_record_is_still_a_conflict() {
     let verdict = verdict(&format!(
         r#"{NAMED}
-machine build_entry(named: @mut Named) {{
-    let mut holder: Holder = Holder {{ named: named }};
-    update(@mut holder, 41);
+machine build_entry(named: @mutable Named) {{
+    let mutable holder: Holder = Holder {{ named: named }};
+    update(@mutable holder, 41);
     named.value = 7;
-    update(@mut holder, 73);
+    update(@mutable holder, 73);
 }}
 "#
     ));
@@ -628,12 +628,12 @@ machine build_entry(named: @mut Named) {{
 
 /// The same record made by a helper and taken by value by another.
 const HANDED_ON: &str = r#"
-machine wrap<'storage, 'name>(named: @'storage mut Named<'name>) -> Holder<'storage, 'name> {
+machine wrap<'storage, 'name>(named: @'storage mutable Named<'name>) -> Holder<'storage, 'name> {
     Holder { named: named }
 }
 machine consume(holder: Holder) {
-    let mut owned: Holder = holder;
-    update(@mut owned, 41);
+    let mutable owned: Holder = holder;
+    update(@mutable owned, 41);
 }
 "#;
 
@@ -650,10 +650,10 @@ fn a_record_holding_a_reference_is_passed_on_as_an_owned_argument() {
     let program = |expected: u64| {
         format!(
             r#"{NAMED}{HANDED_ON}
-machine journey(named: @mut Named) {{ consume(wrap(named)); }}
+machine journey(named: @mutable Named) {{ consume(wrap(named)); }}
 machine entry() crashes Trap {{
-    let mut named: Named = Named {{ name: "abc", value: 5 }};
-    journey(@mut named);
+    let mutable named: Named = Named {{ name: "abc", value: 5 }};
+    journey(@mutable named);
     transition named.value == {expected} {{
         true -> done(),
         false -> bad()
@@ -683,7 +683,7 @@ fn a_record_passed_on_as_an_owned_argument_excludes_its_parent_until_then() {
     let program = |before: &str, after: &str| {
         format!(
             r#"{NAMED}{HANDED_ON}
-machine build_entry(named: @mut Named) {{
+machine build_entry(named: @mutable Named) {{
     let holder: Holder = wrap(named);
     {before}
     consume(holder);
@@ -706,10 +706,10 @@ machine build_entry(named: @mut Named) {{
 /// suspends its parent branch), and a `match` reads the same storage.
 const LENT_MODE: &str = "data Mode { case Idle; case Busy(level: u64); }
 data Engine { mode: Mode; count: u64; }
-machine start(engine: @mut Engine) { engine.mode = Mode::Busy { level: 7 }; }
+machine start(engine: @mutable Engine) { engine.mode = Mode::Busy { level: 7 }; }
 machine entry() crashes Trap {
-    let mut engine: Engine = Engine { mode: Mode::Idle, count: 3 };
-    let lent: @mut Engine = @mut engine;
+    let mutable engine: Engine = Engine { mode: Mode::Idle, count: 3 };
+    let lent: @mutable Engine = @mutable engine;
     BEFORE
     start(lent);
     AFTER

@@ -84,7 +84,7 @@ machine has_observation(wake: @TimerRootWakeState, expected: u64) -> bool {
 }
 
 machine build_entry() crashes Trap {
-    let mut storage: WakeStorage;
+    let mutable storage: WakeStorage;
     storage.before = 101;
     storage.after = 103;
     let initially_idle: bool = is_idle(@storage.wake);
@@ -146,7 +146,7 @@ fn projected_atomic_events_return_prior_bits_and_keep_neighbor_storage() {
         prior
     }
     machine build_entry() crashes Trap {
-        let mut cell: Cell;
+        let mutable cell: Cell;
         cell.before = 101;
         cell.after = 103;
         let idle: u32 = take(@cell);
@@ -213,7 +213,7 @@ fn atomic_load_is_not_a_plain_value_equation_or_permission_upgrade() {
         "cannot prove ensures contract",
     );
     refused(
-        "data Cell { value: AtomicU32; } machine write(cell: @write Cell) { cell.value.store(1, Publish); } machine build_entry() { let mut cell: Cell; write(@write cell); }",
+        "data Cell { value: AtomicU32; } machine write(cell: @write Cell) { cell.value.store(1, Publish); } machine build_entry() { let mutable cell: Cell; write(@write cell); }",
         "write-only reference parameter",
     );
     refused(
@@ -233,10 +233,10 @@ fn atomic_access_still_conflicts_with_an_outstanding_exclusive_loan() {
     refused(
         r#"
         data Cell { value: AtomicU32; }
-        machine read(cell: @mut Cell) -> u32 { cell.value.load(NoOrdering) }
+        machine read(cell: @mutable Cell) -> u32 { cell.value.load(NoOrdering) }
         machine build_entry() -> u32 {
-            let mut cell: Cell;
-            let loan: @mut Cell = @mut cell;
+            let mutable cell: Cell;
+            let loan: @mutable Cell = @mutable cell;
             cell.value.store(1, Publish);
             read(loan)
         }
@@ -252,16 +252,16 @@ fn computed_subject_is_evaluated_once_and_transfers_its_owned_payload() {
         data Counter { value: u32; }
         data Owner { value: u64; }
         data Reply { case Ready(owner: Owner); }
-        machine make(counter: @mut Counter) -> Reply requires counter.value < 2 {
+        machine make(counter: @mutable Counter) -> Reply requires counter.value < 2 {
             counter.value = counter.value + 1;
             Reply::Ready { owner: Owner { value: 97 } }
         }
-        machine take(counter: @mut Counter) -> Owner requires counter.value < 2 {
+        machine take(counter: @mutable Counter) -> Owner requires counter.value < 2 {
             match make(counter) { Reply::Ready { owner } -> owner }
         }
         machine build_entry() crashes Trap {
-            let mut counter: Counter;
-            let result: Owner = take(@mut counter);
+            let mutable counter: Counter;
+            let result: Owner = take(@mutable counter);
             transition counter.value == 1 && result.value == 97 {
                 true -> done(),
                 _ -> wrong()

@@ -5,8 +5,8 @@ use super::*;
 #[test]
 fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     let program = "data Cell { word: u64; }
-        machine main(cell: @mut Cell) -> bool {
-            let first: addr = address_of(@mut cell.word);
+        machine main(cell: @mutable Cell) -> bool {
+            let first: addr = address_of(@mutable cell.word);
             cell.word = 11u64;
             let alias: @u64 = @cell.word;
             address_of(alias) == first

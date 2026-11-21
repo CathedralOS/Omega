@@ -69,15 +69,15 @@ fn mutable_sequence_fields_preserve_each_backing_loan() {
     let source = r#"
         data Cell [copy] { value: u32; }
         data Pair<'left, 'right> {
-            first: @'left mut [Cell];
-            second: @'right mut [Cell];
+            first: @'left mutable [Cell];
+            second: @'right mutable [Cell];
         }
-        machine update(pair: @mut Pair) {
+        machine update(pair: @mutable Pair) {
             transition pair.first.length > 0u64 && pair.second.length > 0u64 {
                 true -> fill(pair),
                 _ -> done()
             }
-            machine fill(pair: @mut Pair)
+            machine fill(pair: @mutable Pair)
             requires pair.first.length > 0u64 && pair.second.length > 0u64
             {
                 pair.first[0u64].value = 7u32;
@@ -86,12 +86,12 @@ fn mutable_sequence_fields_preserve_each_backing_loan() {
             machine done() {}
         }
         machine build_entry() -> u32 {
-            let mut left: [Cell; 1] = [Cell { value: 1u32 }];
-            let mut right: [Cell; 1] = [Cell { value: 2u32 }];
-            let mut pair: Pair = Pair {
-                first: @mut left[..], second: @mut right[..]
+            let mutable left: [Cell; 1] = [Cell { value: 1u32 }];
+            let mutable right: [Cell; 1] = [Cell { value: 2u32 }];
+            let mutable pair: Pair = Pair {
+                first: @mutable left[..], second: @mutable right[..]
             };
-            update(@mut pair);
+            update(@mutable pair);
             match left[0u64].value == 7u32 && right[0u64].value == 9u32 {
                 true -> 16u32,
                 false -> 0u32
@@ -161,7 +161,7 @@ fn mutable_sequence_fields_preserve_each_backing_loan() {
         matches!(negative, RouteVerdict::Rejected { ref unproved, .. } if unproved.iter().any(|failure| failure.statement.contains("storage index bounds"))),
         "{negative:?}"
     );
-    let overlapping = source.replace("second: @mut right[..]", "second: @mut left[..]");
+    let overlapping = source.replace("second: @mutable right[..]", "second: @mutable left[..]");
     let negative = judge_build(&overlapping).unwrap();
     assert!(
         matches!(negative, RouteVerdict::Rejected { ref conflicts, .. } if !conflicts.is_empty()),
@@ -174,24 +174,24 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
     let source = r#"
         data Cell [copy] { value: u32; }
         data Context<'bytes, 'fields> {
-            bytes: @'bytes mut [u8];
-            fields: @'fields mut [Cell];
+            bytes: @'bytes mutable [u8];
+            fields: @'fields mutable [Cell];
         }
-        machine byte(output: @mut [u8]) requires output.length > 0u64 {
+        machine byte(output: @mutable [u8]) requires output.length > 0u64 {
             output[0u64] = 11u8;
         }
-        machine cells(fields: @mut [Cell]) requires fields.length > 0u64 {
+        machine cells(fields: @mutable [Cell]) requires fields.length > 0u64 {
             fields[0u64].value = 22u32;
         }
-        machine touch_bytes(bytes: @mut [u8]) {}
-        machine touch_fields(fields: @mut [Cell]) {}
-        machine populate(bytes: @mut [u8], fields: @mut [Cell]) {
-            let mut context: Context = Context { bytes: bytes, fields: fields };
+        machine touch_bytes(bytes: @mutable [u8]) {}
+        machine touch_fields(fields: @mutable [Cell]) {}
+        machine populate(bytes: @mutable [u8], fields: @mutable [Cell]) {
+            let mutable context: Context = Context { bytes: bytes, fields: fields };
             transition context.bytes.length > 0u64 && context.fields.length > 0u64 {
-                true -> fill(@mut context),
+                true -> fill(@mutable context),
                 false -> done()
             }
-            machine fill(context: @mut Context)
+            machine fill(context: @mutable Context)
             requires context.bytes.length > 0u64 && context.fields.length > 0u64 {
                 byte(context.bytes);
                 context.fields[0u64].value = 22u32;
@@ -199,19 +199,19 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
             machine done() {}
         }
         machine build_entry() -> u32 {
-            let mut bytes: [u8; 1] = [0u8];
-            let mut fields: [Cell; 1] = [Cell { value: 0u32 }];
-            populate(@mut bytes[..], @mut fields[..]);
+            let mutable bytes: [u8; 1] = [0u8];
+            let mutable fields: [Cell; 1] = [Cell { value: 0u32 }];
+            populate(@mutable bytes[..], @mutable fields[..]);
             match bytes[0u64] == 11u8 && fields[0u64].value == 22u32 {
                 true -> 1u32,
                 false -> 0u32
             }
         }
     "#;
-    let ranged = source.replace("byte(context.bytes)", "byte(@mut context.bytes[..])");
+    let ranged = source.replace("byte(context.bytes)", "byte(@mutable context.bytes[..])");
     let typed_ranged = ranged.replace(
         "context.fields[0u64].value = 22u32;",
-        "cells(@mut context.fields[..]);",
+        "cells(@mutable context.fields[..]);",
     );
     assert_ne!(source, ranged);
     assert_ne!(ranged, typed_ranged);
@@ -240,7 +240,7 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
         assert_integer_result(*accepted, 1);
     }
     for competing in ["touch_bytes(bytes);", "touch_fields(fields);"] {
-        let constructor = "let mut context: Context = Context { bytes: bytes, fields: fields };";
+        let constructor = "let mutable context: Context = Context { bytes: bytes, fields: fields };";
         let conflicting = source.replace(constructor, &format!("{constructor} {competing}"));
         let negative = judge_build(&conflicting).unwrap();
         assert!(
@@ -275,15 +275,15 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
     let mutable = source
         .replace(
             "machine get(value: @u32) -> u32 { $value }",
-            "machine get(value: @mut u32) -> u32 { $value = 17u32; value }",
+            "machine get(value: @mutable u32) -> u32 { $value = 17u32; value }",
         )
-        .replace("items: @[Cell]", "items: @mut [Cell]")
-        .replace("get(@items[", "get(@mut items[")
+        .replace("items: @[Cell]", "items: @mutable [Cell]")
+        .replace("get(@items[", "get(@mutable items[")
         .replace(
             "let items: [Cell; 1] = [Cell { value: 17u32 }]",
-            "let mut items: [Cell; 1] = [Cell { value: 3u32 }]",
+            "let mutable items: [Cell; 1] = [Cell { value: 3u32 }]",
         )
-        .replace("fetch(@items[..])", "fetch(@mut items[..])");
+        .replace("fetch(@items[..])", "fetch(@mutable items[..])");
     let positive = judge_build(&mutable).unwrap();
     let RouteVerdict::Accepted(accepted) = positive else {
         panic!("{positive:?}")
@@ -326,13 +326,13 @@ fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
     let source = r#"
         data Cell { value: u32; }
         data Row { cells: [Cell; 1]; }
-        machine first(row: @mut Row) -> @mut Cell {
-            let cells: @mut [Cell] = @mut row.cells[..];
-            @mut cells[0]
+        machine first(row: @mutable Row) -> @mutable Cell {
+            let cells: @mutable [Cell] = @mutable row.cells[..];
+            @mutable cells[0]
         }
         machine build_entry() -> u32 {
-            let mut row: Row = Row { cells: [Cell { value: 3u32 }] };
-            let child: @mut Cell = first(@mut row);
+            let mutable row: Row = Row { cells: [Cell { value: 3u32 }] };
+            let child: @mutable Cell = first(@mutable row);
             child.value = 17u32;
             row.cells[0].value
         }
@@ -343,7 +343,7 @@ fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
     };
     assert_integer_result(*accepted, 17);
 
-    let out_of_range = source.replace("@mut cells[0]", "@mut cells[1]");
+    let out_of_range = source.replace("@mutable cells[0]", "@mutable cells[1]");
     let refusal = match judge_build(&out_of_range) {
         Err(crate::checking::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal,
@@ -355,8 +355,8 @@ fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
     );
 
     let local = source.replace(
-        "let cells: @mut [Cell] = @mut row.cells[..]",
-        "let mut local: [Cell; 1] = [Cell { value: 3u32 }]; let cells: @mut [Cell] = @mut local[..]",
+        "let cells: @mutable [Cell] = @mutable row.cells[..]",
+        "let mutable local: [Cell; 1] = [Cell { value: 3u32 }]; let cells: @mutable [Cell] = @mutable local[..]",
     );
     let negative = judge_build(&local).unwrap();
     assert!(
@@ -405,19 +405,19 @@ fn a_later_argument_cannot_retarget_a_borrowed_slice_element() {
         data Cell { value: u64; }
         data Row { cells: [Cell; 2]; }
         data Cursor { index: u64; }
-        machine advance(cursor: @mut Cursor) -> u64 {
+        machine advance(cursor: @mutable Cursor) -> u64 {
             cursor.index = 1u64;
             19u64
         }
-        machine write(cell: @mut Cell, value: u64) { cell.value = value; }
-        machine fill(row: @mut Row, cursor: @mut Cursor) {
-            let cells: @mut [Cell] = @mut row.cells[..];
-            write(@mut cells[cursor.index], advance(@mut cursor));
+        machine write(cell: @mutable Cell, value: u64) { cell.value = value; }
+        machine fill(row: @mutable Row, cursor: @mutable Cursor) {
+            let cells: @mutable [Cell] = @mutable row.cells[..];
+            write(@mutable cells[cursor.index], advance(@mutable cursor));
         }
         machine build_entry() -> u32 {
-            let mut row: Row = Row { cells: [Cell { value: 3u64 }, Cell { value: 7u64 }] };
-            let mut cursor: Cursor = Cursor { index: 0u64 };
-            fill(@mut row, @mut cursor);
+            let mutable row: Row = Row { cells: [Cell { value: 3u64 }, Cell { value: 7u64 }] };
+            let mutable cursor: Cursor = Cursor { index: 0u64 };
+            fill(@mutable row, @mutable cursor);
             transition row.cells[0].value == 19u64 && row.cells[1].value == 7u64
                 && cursor.index == 1u64 { true -> 47u32, false -> 0u32 }
         }
@@ -454,10 +454,10 @@ fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
     };
     assert_integer_result(*accepted, 7);
 
-    // An expected `&mut [T]` never inserts the mutable borrow.
+    // An expected `@mutable [T]` never inserts the mutable borrow.
     let mutable = source
-        .replace("items: @[Cell]", "items: @mut [Cell]")
-        .replace("let items: [Cell; 3]", "let mut items: [Cell; 3]");
+        .replace("items: @[Cell]", "items: @mutable [Cell]")
+        .replace("let items: [Cell; 3]", "let mutable items: [Cell; 3]");
     let negative = judge_build(&mutable);
     assert!(
         !matches!(negative, Ok(RouteVerdict::Accepted(_))),

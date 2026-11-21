@@ -3078,7 +3078,7 @@ impl<'a> Lowering<'a> {
             };
         }
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
-        // out of a place reached through `&mut` may temporarily leave that
+        // out of a place reached through `@mutable` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
         // whether it holds a value again where the borrow returns to its
         // owner is the checker's judgment of the lowered machine, not a

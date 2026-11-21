@@ -347,7 +347,7 @@ struct Root {
     /// or independent content custody attached to its storage.
     unqualified_owned: bool,
     parameter: bool,
-    /// A machine or block header lent with `&mut`. A block's incoming edges
+    /// A machine or block header lent with `@mutable`. A block's incoming edges
     /// authenticate the requested access; renaming storage grants none.
     exclusive: bool,
 }
@@ -4317,7 +4317,7 @@ impl<'a> Analysis<'a> {
                 ));
             }
             // ownership.md, "Borrowed-storage invariant windows": "An owned
-            // move out of a place reached through `&mut` may temporarily
+            // move out of a place reached through `@mutable` may temporarily
             // leave that place unestablished ... The move transfers the
             // removed value's exact custody to its destination and records a
             // restoration obligation on the original place and loan." The

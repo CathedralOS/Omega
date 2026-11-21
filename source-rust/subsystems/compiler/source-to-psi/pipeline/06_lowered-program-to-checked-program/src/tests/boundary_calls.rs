@@ -482,9 +482,9 @@ fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
     let program = typed(
         r#"
 boundary trait Write<'storage, Value> {
-    machine write(value: @'storage mut Value) -> @'storage mut Value reaches none crashes none;
+    machine write(value: @'storage mutable Value) -> @'storage mutable Value reaches none crashes none;
 }
-machine carrier<'left, 'right>(first: @'left mut i32, second: @'right mut i64) -> i64 { 0 }
+machine carrier<'left, 'right>(first: @'left mutable i32, second: @'right mutable i64) -> i64 { 0 }
 "#,
     );
     let owner = program
@@ -586,7 +586,7 @@ fn source_boundary_top_level_schema_keeps_independent_input_lifetimes() {
     let program = typed(
         r#"
 data Host {}
-boundary machine + Operations::write(left: @mut Host, right: @mut Host) reaches none crashes none;
+boundary machine + Operations::write(left: @mutable Host, right: @mutable Host) reaches none crashes none;
 machine entry() {}
 "#,
     );
@@ -618,13 +618,13 @@ machine entry() {}
 fn source_boundary_schema_and_header_share_elided_input_lifetimes() {
     let source = r#"
 boundary trait Write {
-    machine write(left: @mut i64, right: @mut i64)
+    machine write(left: @mutable i64, right: @mutable i64)
     reaches none crashes none;
 }
 machine entry() {
-    let mut left: i64 = 17;
-    let mut right: i64 = 23;
-    Write::write(@mut left, @mut right);
+    let mutable left: i64 = 17;
+    let mutable right: i64 = 23;
+    Write::write(@mutable left, @mutable right);
 }
 "#;
     let typed = typed(source);
@@ -637,13 +637,13 @@ machine entry() {
 fn source_boundary_calls_retain_independent_input_lifetime_binders() {
     let source = r#"
 boundary trait Write {
-    machine write<'left, 'right>(left: @'left mut i64, right: @'right mut i64)
+    machine write<'left, 'right>(left: @'left mutable i64, right: @'right mutable i64)
     reaches none crashes none;
 }
 machine entry() {
-    let mut left: i64 = 17;
-    let mut right: i64 = 23;
-    Write::write(@mut left, @mut right);
+    let mutable left: i64 = 17;
+    let mutable right: i64 = 23;
+    Write::write(@mutable left, @mutable right);
 }
 "#;
     let typed = typed(source);
@@ -1235,7 +1235,7 @@ invokes ObjectiveC
     let overwritten = source
         .replace(
             "entry<const Count: u64>(title: @[u8;",
-            "entry<const Count: u64>(title: @mut [u8;",
+            "entry<const Count: u64>(title: @mutable [u8;",
         )
         .replace(
             "    ObjectiveC::send_byte_string::<Count>",
@@ -1929,11 +1929,11 @@ fn borrowed_requirement(second: &str, caller_bound: &str) -> crate::lowering::El
     let typed = typed(&format!(
         r#"
 trait Touch {{
-    machine write(left: @mut u32, right: @mut u32)
+    machine write(left: @mutable u32, right: @mutable u32)
     requires left < 10
     crashes none;
 }}
-machine entry<Selected satisfies Touch>(left: @mut u32, right: @mut u32)
+machine entry<Selected satisfies Touch>(left: @mutable u32, right: @mutable u32)
 requires left {caller_bound}
 crashes none
 {{

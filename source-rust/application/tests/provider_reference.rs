@@ -119,7 +119,7 @@ machine main() reaches Source invokes Source crashes Trap {
             r#"
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
-machine build(builder: @mut Build) {{
+machine build(builder: @mutable Build) {{
     Build::application(builder, "provider_reference");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind(builder, linux_arm64\ProgramEntry, main);

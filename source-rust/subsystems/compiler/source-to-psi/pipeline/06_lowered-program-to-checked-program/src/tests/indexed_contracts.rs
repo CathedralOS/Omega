@@ -43,7 +43,7 @@ fn reparse_subtracted_interval_bounds_its_real_field() {
     rest: [u16; 8184];
 }
 
-machine entry(data: @WindowsNativeReparseData, output: @mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> u16
+machine entry(data: @WindowsNativeReparseData, output: @mutable [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> u16
 requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
     let character: u16 = data.rest[start + position];
     character
@@ -265,12 +265,12 @@ fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {
 #[test]
 fn an_exclusive_call_does_not_restore_the_caller_record_around_its_argument() {
     let text = NATIVE.replace(
-        "repair(@mut buffer);",
-        "repair(@mut buffer); spoil(@mut buffer.units);",
+        "repair(@mutable buffer);",
+        "repair(@mutable buffer); spoil(@mutable buffer.units);",
     );
     let text = text
         + r#"
-machine spoil(units: @mut [u16; 4096]) { units[4095] = 1; }
+machine spoil(units: @mutable [u16; 4096]) { units[4095] = 1; }
 "#;
     let refused = judge(invocation(&text, "main")).unwrap();
     assert!(
@@ -283,8 +283,8 @@ machine spoil(units: @mut [u16; 4096]) { units[4095] = 1; }
 #[test]
 fn repeated_exclusive_calls_create_distinct_versions_of_the_same_leaf() {
     let text = NATIVE.replace(
-        "repair(@mut buffer);",
-        "repair(@mut buffer); repair(@mut buffer);",
+        "repair(@mutable buffer);",
+        "repair(@mutable buffer); repair(@mutable buffer);",
     );
     let elaboration = invocation(&text, "main").unwrap();
     let semantic_vocabulary::TargetMachineCallable::Machine(main) =

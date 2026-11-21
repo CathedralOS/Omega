@@ -416,7 +416,7 @@ struct Slot {
     erased: bool,
     /// A reference formal or its captured binding, and its access. Its
     /// `value_type` is the referent's: the slot names the caller's storage, read and (for
-    /// `&mut`) written in place, never an SSA value or a root of its own.
+    /// `@mutable`) written in place, never an SSA value or a root of its own.
     borrowed: Option<language_core::ReferenceAccess>,
     borrowed_regions: crate::lowering::body::Regions,
 }
@@ -2466,7 +2466,7 @@ mod tests {
         );
         assert_eq!(assigned(whole), "typing assigned value type");
         assert_eq!(assigned(value), "statement assignment to a projected place");
-        // A binding that is not `mut` is neither replaced nor stored into.
+        // A binding that is not `mutable` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
             value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
@@ -2493,7 +2493,7 @@ mod tests {
         assert_eq!(refused.source_span, Some(whole_span));
         assert_eq!(
             refused.detail,
-            "writing to an immutable owned binding requires `mut`"
+            "writing to an immutable owned binding requires `mutable`"
         );
         let mut declared = |role, initial_value| {
             program

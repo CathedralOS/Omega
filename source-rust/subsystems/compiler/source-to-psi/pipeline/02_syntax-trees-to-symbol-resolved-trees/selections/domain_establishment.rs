@@ -720,7 +720,7 @@ fn ensured_mutable_parameter_domain_symbols(
 
 /*
     Caller-visible mutability: the parameter must borrow caller storage it
-    can write (`&mut T`, possibly under constraints). An owned `mut` binding
+    can write (`@mutable T`, possibly under constraints). An owned `mutable` binding
     dies with the callee — nothing it mints reaches the caller.
 */
 fn mutable_reference_parameter(

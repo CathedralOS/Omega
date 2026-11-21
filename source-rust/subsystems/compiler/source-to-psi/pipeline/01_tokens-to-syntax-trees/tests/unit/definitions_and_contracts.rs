@@ -441,7 +441,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
         data Main {
         }
 
-        machine Main::main(main: @mut Main) {}
+        machine Main::main(main: @mutable Main) {}
         "#;
 
     let parsed = crate::tests::parse_source(source, "parse should succeed");
@@ -478,7 +478,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
             $destination = value;
         }
 
-        machine caller(destination: @mut bool) {
+        machine caller(destination: @mutable bool) {
             fill(@write destination, true);
         }
     "#;
@@ -577,7 +577,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         data Main {
         }
 
-        machine Main::main(main: @mut Main) {
+        machine Main::main(main: @mutable Main) {
             main;
         }
         "#;
@@ -622,7 +622,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
             xp_table: Player;
         }
 
-        machine Main::main(main: @mut Main, player: @mut Player) {
+        machine Main::main(main: @mutable Main, player: @mutable Player) {
             player.xp = max(0, player.xp - xp_required(player.level));
 
             machine xp_required(level: i32) -> i32 {
@@ -977,9 +977,9 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
 fn retains_nominal_machine_parameter_trait_application() {
     let source = r#"
         trait Visitor<Context> {
-            machine visit(context: @mut Context);
+            machine visit(context: @mutable Context);
         }
-        machine walk<Context, const Step: Visitor<Context>::visit>(context: @mut Context)
+        machine walk<Context, const Step: Visitor<Context>::visit>(context: @mutable Context)
         {
             Step(context);
         }
@@ -1038,8 +1038,8 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
     let source = r#"
         data Device {}
 
-        machine poll_once<T>(device: @mut T)
-        requires machine T::poll(value: @mut T)
+        machine poll_once<T>(device: @mutable T)
+        requires machine T::poll(value: @mutable T)
         {
         }
         "#;
@@ -1333,7 +1333,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
 #[test]
 fn local_annotations_are_optional_only_with_an_initializer() {
     let parsed = crate::tests::parse_source(
-        "machine main() { let value = produce(); let mut flag = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
+        "machine main() { let value = produce(); let mutable flag = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
         "initialized locals may infer their types",
     );
     let machine = crate::tests::root_machine(&parsed, "main is the first machine");

@@ -1,8 +1,8 @@
-//! A call that writes a field through a `&mut` loan changes the record that
+//! A call that writes a field through a `@mutable` loan changes the record that
 //! holds the field, so it opens an invariant window on that record as a
 //! field store does (dependent_values.md, "Invariant windows"). `bump` knows
 //! only a `u32`; nothing in it keeps `Span`'s `low <= high`. The checker
-//! used to owe nothing for such a call, so `width(s)` after `bump(&mut
+//! used to owe nothing for such a call, so `width(s)` after `bump(@mutable
 //! s.low)` was accepted and `s.high - s.low` underflowed at run time.
 
 use super::stored_references::run;
@@ -14,11 +14,11 @@ fn span(lent: &str, restore: &str) -> String {
     format!(
         r#"
 data Span requires self.low <= self.high {{ low: u32; high: u32; spare: u32; }}
-machine bump(value: @mut u32) {{ value = 99; }}
+machine bump(value: @mutable u32) {{ value = 99; }}
 machine width(s: Span) -> u32 {{ s.high - s.low }}
 machine entry() crashes Trap {{
-    let mut s: Span = Span {{ low: 1, high: 5, spare: 0 }};
-    bump(@mut s.{lent});
+    let mutable s: Span = Span {{ low: 1, high: 5, spare: 0 }};
+    bump(@mutable s.{lent});
     {restore}
     transition width(s) == 4 {{ true -> ok(), false -> bad() }}
     machine ok() {{ }}

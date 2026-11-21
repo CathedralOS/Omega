@@ -27,7 +27,7 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::application(builder, "client");
         let build_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
         let build_registration: DependencyRegistration = Build::build_dependency(builder, build_dep);
@@ -41,7 +41,7 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     );
     write_package(
         &client.join("library"),
-        r#"machine build(builder: @mut Build) { Build::package(builder, "shared"); }"#,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "shared"); }"#,
     );
     let host = TargetProfile::host_if_supported().unwrap();
     let deployment = if host == TargetProfile::LinuxArm64 {
@@ -76,10 +76,10 @@ fn provider_lookup_refuses_an_ambiguous_build_dependency() {
     write_package(
         &client,
         r#"use omega\language\core\ProgramImage;
-    machine build(builder: @mut Build) suspends {
+    machine build(builder: @mutable Build) suspends {
         Build::application(builder, "client");
-        let mut first: DependencyDescription = dependency\from_source(Source::Path { location: "one" });
-        dependency\with_alias(@mut first, "backing");
+        let mutable first: DependencyDescription = dependency\from_source(Source::Path { location: "one" });
+        dependency\with_alias(@mutable first, "backing");
         let first_registration: DependencyRegistration = Build::build_dependency(builder, first);
         let second: DependencyDescription = dependency\from_source(Source::Path { location: "two" });
         let second_registration: DependencyRegistration = Build::build_dependency(builder, second);
@@ -90,7 +90,7 @@ fn provider_lookup_refuses_an_ambiguous_build_dependency() {
         write_package(
             &client.join(directory),
             &format!(
-                "machine build(builder: @mut Build) {{ Build::package(builder, \"{name}\"); }}"
+                "machine build(builder: @mutable Build) {{ Build::package(builder, \"{name}\"); }}"
             ),
         );
     }

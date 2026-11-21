@@ -907,7 +907,7 @@ mod tests {
 
     #[test]
     fn borrowed_enum_comparison_observes_the_exact_referent() {
-        let source = "data Kind [copy] { case First; case Last; } machine shared(kind: @Kind) -> bool { kind == Kind::First } machine exclusive(kind: @mut Kind) -> bool { kind != Kind::Last }";
+        let source = "data Kind [copy] { case First; case Last; } machine shared(kind: @Kind) -> bool { kind == Kind::First } machine exclusive(kind: @mutable Kind) -> bool { kind != Kind::Last }";
         let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )]);

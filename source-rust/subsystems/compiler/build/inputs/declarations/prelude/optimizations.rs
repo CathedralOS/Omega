@@ -38,7 +38,7 @@ fn enable_machine() -> String {
         ));
     }
     text.push_str(
-        "    }\n}\npublic machine enable(optimizations: @mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
+        "    }\n}\npublic machine enable(optimizations: @mutable Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
     );
     text
 }

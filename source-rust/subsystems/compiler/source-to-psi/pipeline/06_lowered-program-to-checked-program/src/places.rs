@@ -8383,7 +8383,7 @@ mod observation_tests {
     #[test]
     fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
         let input = storage_fixture(
-            "machine entry(cells: @mut [u64; 4], spare: @mut [u64; 4], index: u64) -> u64 requires index < 4 {
+            "machine entry(cells: @mutable [u64; 4], spare: @mutable [u64; 4], index: u64) -> u64 requires index < 4 {
                 cells[1] = 5;
                 cells[index] = 7;
                 cells[2]
@@ -8535,7 +8535,7 @@ mod observation_tests {
         let source = r#"
 data Placement requires count <= 16 { count: u64; }
 data Plan { placements: [Placement; 2]; }
-machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
+machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
     let selected: u64 = index + 0;
     plan.placements[selected].count = 1;
     plan.placements[selected].count

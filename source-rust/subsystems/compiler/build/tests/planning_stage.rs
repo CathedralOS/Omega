@@ -325,16 +325,16 @@ fn a_return_from_a_checked_arm_reports_the_unavailable_declarations() {
     let entry = root.join("build.omg");
     std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
     std::fs::write(&entry, r#"use kit;
-machine build(builder: @mut Build) suspends {
+machine build(builder: @mutable Build) suspends {
     Build::package(builder, "conditional");
     builder.tests.disabled = false;
     transition builder.tests.disabled {
         true -> suspend later(builder),
         _ -> done()
     }
-    machine later(builder: @mut Build) suspends {
-        let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-        dependency\with_alias(@mut request, "kit");
+    machine later(builder: @mutable Build) suspends {
+        let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+        dependency\with_alias(@mutable request, "kit");
         let registered: DependencyRegistration = Build::build_dependency(builder, request);
         suspend Build::prepare_dependency(builder, registered);
         let value: i32 = kit\v();
@@ -406,7 +406,7 @@ fn later_build_admissions_keep_the_original_artifact_only_consent() {
     std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
     std::fs::write(
         &entry,
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::application(builder, "artifacts");
         Build::artifact_only(builder);
         _ = BuildSource::resolve(@builder.source, "main.omg");

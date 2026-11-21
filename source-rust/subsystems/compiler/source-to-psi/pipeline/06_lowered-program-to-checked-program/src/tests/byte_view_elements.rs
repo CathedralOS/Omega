@@ -145,7 +145,7 @@ machine build_entry(words: @[u32]) requires words.length <= 2 {
     let bytes: @[u8] = words as @[u8];
     mutate(bytes);
 }
-machine mutate(bytes: @mut [u8]) {}
+machine mutate(bytes: @mutable [u8]) {}
 "#,
     );
     match mutable {
@@ -276,7 +276,7 @@ fn a_typed_slice_window_needs_bounds_on_its_own_descriptor() {
     assert!(verdict(&source("peer", "1..")).starts_with("rejected"));
     assert_ne!(
         verdict(
-            "machine build_entry(numbers: @mut [u32]) requires numbers.length > 1 {
+            "machine build_entry(numbers: @mutable [u32]) requires numbers.length > 1 {
                  let rest: @[u32] = numbers[1..];
              }"
         ),
@@ -498,19 +498,19 @@ fn a_subslice_keeps_the_selected_bytes_and_exact_extent() {
 #[test]
 fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
     let source = r#"
-        machine write(bytes: @mut [u8]) requires bytes.length > 0 { bytes[0] = 7; }
-        machine window(bytes: @mut [u8], end: u64)
+        machine write(bytes: @mutable [u8]) requires bytes.length > 0 { bytes[0] = 7; }
+        machine window(bytes: @mutable [u8], end: u64)
             requires end > 0 && end <= bytes.length
-        { write(@mut bytes[0..end]); }
+        { write(@mutable bytes[0..end]); }
         machine build_entry() {
-            let mut bytes: [u8; 3] = [17, 42, 99];
-            window(@mut bytes[..], 2);
+            let mutable bytes: [u8; 3] = [17, 42, 99];
+            window(@mutable bytes[..], 2);
             use_byte(bytes[0]);
         }
         machine use_byte(byte: u8) {}
     "#;
     assert_eq!(verdict(source), "accepted");
-    let shared = source.replace("window(bytes: @mut [u8]", "window(bytes: @[u8]");
+    let shared = source.replace("window(bytes: @mutable [u8]", "window(bytes: @[u8]");
     let refusal = verdict(&shared);
     assert!(
         refusal.contains("a subslice without authenticated backing and access"),
@@ -519,7 +519,7 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
     let unbounded = source.replace("end > 0 && end <= bytes.length", "end > 0");
     assert!(verdict(&unbounded).starts_with("rejected"));
 
-    let direct = source.replace("window(@mut bytes[..], 2);", "write(@mut bytes[1..2]);");
+    let direct = source.replace("window(@mutable bytes[..], 2);", "write(@mutable bytes[1..2]);");
     assert_eq!(verdict(&direct), "accepted");
 
     let shared = r#"
@@ -533,7 +533,7 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
     assert_eq!(verdict(shared), "accepted");
 
     let cohort = r#"
-        machine build_entry(bytes: @mut [u8]) requires bytes.length > 0 {
+        machine build_entry(bytes: @mutable [u8]) requires bytes.length > 0 {
             let selected: @[u8] = @bytes[0..1];
             use_byte(selected[0]);
             bytes[0] = 9;
@@ -878,7 +878,7 @@ fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
 
 #[test]
 fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
-    for access in ["@", "@mut"] {
+    for access in ["@", "@mutable"] {
         let program = format!(
             r#"
             machine count(bytes: {access} [u8]) -> u64 {{ bytes.length }}
@@ -886,7 +886,7 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
                 transition bytes.length > 1 {{ true -> bytes[1], false -> 0 }}
             }}
             machine build_entry() {{
-                let mut bytes: [u8; 3] = [17, 42, 99];
+                let mutable bytes: [u8; 3] = [17, 42, 99];
                 use(count({access} bytes[..]), middle({access} bytes[..]));
                 use_byte(bytes[0]);
             }}
@@ -906,7 +906,7 @@ fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
             machine demand(bytes: @[u8]) requires bytes.length == 3 {{}}
             machine use_byte(byte: u8) {{}}
             machine build_entry() {{
-                let mut bytes: [u8; 3] = [17, 42, 99];
+                let mutable bytes: [u8; 3] = [17, 42, 99];
                 let view: @[u8] = @bytes[..];
                 {uses}
                 use_byte(bytes[0]);
@@ -915,20 +915,20 @@ fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
         )
     };
     for uses in [
-        "demand(view); demand(@mut bytes[..]);",
+        "demand(view); demand(@mutable bytes[..]);",
         "demand(@bytes[..]); demand(view);",
-        "demand(view); let writable: @mut [u8] = @mut bytes[..]; demand(writable);",
+        "demand(view); let writable: @mutable [u8] = @mutable bytes[..]; demand(writable);",
     ] {
         assert_eq!(verdict(&source(uses)), "accepted", "{uses}");
     }
-    let rejected = judge_build(&source("demand(@mut bytes[..]); demand(view);")).unwrap();
+    let rejected = judge_build(&source("demand(@mutable bytes[..]); demand(view);")).unwrap();
     assert!(
         matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
             if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
         "the written exclusive array formation overlaps the live shared view: {rejected:?}"
     );
     let immutable =
-        source("demand(view); demand(@mut bytes[..]);").replace("let mut bytes", "let bytes");
+        source("demand(view); demand(@mutable bytes[..]);").replace("let mutable bytes", "let bytes");
     assert_eq!(
         verdict(&immutable),
         "expression mutable array view without exclusive backing access while reading the body of \
@@ -936,9 +936,9 @@ fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
     );
     let shared_source = judge_build(
         r#"
-        machine demand(bytes: @mut [u8]) requires bytes.length == 3 {}
+        machine demand(bytes: @mutable [u8]) requires bytes.length == 3 {}
         machine build_entry() {
-            let mut bytes: [u8; 3] = [17, 42, 99];
+            let mutable bytes: [u8; 3] = [17, 42, 99];
             demand(@bytes[..]);
         }
     "#,
@@ -954,12 +954,12 @@ fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
 
 #[test]
 fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
-    for access in ["@", "@mut"] {
+    for access in ["@", "@mutable"] {
         let program = format!(
             r#"
             machine demand(bytes: {access} [u8]) requires bytes.length == 3 {{}}
             machine build_entry() {{
-                let mut bytes: [u8; 3] = [17, 42, 99];
+                let mutable bytes: [u8; 3] = [17, 42, 99];
                 let view: {access} [u8] = {access} bytes[..];
                 demand(view);
                 use_byte(bytes[0]);
@@ -1023,9 +1023,9 @@ fn typed_whole_array_views_keep_exact_length_and_their_backing() {
 fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
         verdict(
-            r#"machine count(bytes: @mut @mut [u8]) -> u64 { bytes.length }
+            r#"machine count(bytes: @mutable @mutable [u8]) -> u64 { bytes.length }
             machine build_entry() {
-                let mut bytes: [u8; 3] = [17, 42, 99]; use(count(@mut bytes));
+                let mutable bytes: [u8; 3] = [17, 42, 99]; use(count(@mutable bytes));
             }
             machine use(extent: u64) {}"#
         ),
@@ -1034,10 +1034,10 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
         verdict(
             r#"
-        machine count(bytes: @mut [u8]) -> u64 { bytes.length }
+        machine count(bytes: @mutable [u8]) -> u64 { bytes.length }
         machine build_entry() {
-            let mut bytes: [u8; 0] = [];
-            use(count(@mut bytes));
+            let mutable bytes: [u8; 0] = [];
+            use(count(@mutable bytes));
         }
         machine use(extent: u64) {}
     "#
@@ -1061,9 +1061,9 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
         verdict(
             r#"
-        machine count(bytes: @mut [u8]) -> u64 { bytes.length }
+        machine count(bytes: @mutable [u8]) -> u64 { bytes.length }
         machine build_entry() {
-            let mut bytes: [u8; 3] = [17, 42, 99];
+            let mutable bytes: [u8; 3] = [17, 42, 99];
             use(count(@bytes));
         }
         machine use(extent: u64) {}
@@ -1074,10 +1074,10 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
         verdict(
             r#"
-        machine count(bytes: @mut [u8]) -> u64 { bytes.length }
+        machine count(bytes: @mutable [u8]) -> u64 { bytes.length }
         machine build_entry() {
-            let mut words: [u16; 3] = [17, 42, 99];
-            use(count(@mut words));
+            let mutable words: [u16; 3] = [17, 42, 99];
+            use(count(@mutable words));
         }
         machine use(extent: u64) {}
     "#
@@ -1127,8 +1127,8 @@ fn an_empty_byte_window_requires_existing_array_backing() {
 #[test]
 fn mutable_byte_stores_preserve_the_descriptor_and_its_bound() {
     for program in [
-        "machine build_entry(bytes: @mut [u8]) requires bytes.length > 0 { bytes[0] = 42; use(bytes[0], bytes.length); } machine use(value: u8, length: u64) {}",
-        "machine prefix(bytes: @mut [u8]) -> u8 requires bytes.length > 1 { bytes[0] = 7; 42 } machine build_entry(bytes: @mut [u8]) requires bytes.length > 1 { bytes[1] = prefix(bytes); use(bytes[1]); } machine use(value: u8) {}",
+        "machine build_entry(bytes: @mutable [u8]) requires bytes.length > 0 { bytes[0] = 42; use(bytes[0], bytes.length); } machine use(value: u8, length: u64) {}",
+        "machine prefix(bytes: @mutable [u8]) -> u8 requires bytes.length > 1 { bytes[0] = 7; 42 } machine build_entry(bytes: @mutable [u8]) requires bytes.length > 1 { bytes[1] = prefix(bytes); use(bytes[1]); } machine use(value: u8) {}",
     ] {
         match judge_build(program) {
             Ok(RouteVerdict::Accepted(_)) => {}
@@ -1158,9 +1158,9 @@ fn mutable_byte_stores_preserve_the_descriptor_and_its_bound() {
 #[test]
 fn a_byte_store_needs_mutable_access_and_its_own_index_bound() {
     for program in [
-        "machine build_entry(bytes: @mut [u8]) { bytes[0] = 42; }",
-        "machine build_entry(bytes: @mut [u8]) requires bytes.length > 0 { bytes[1] = 42; }",
-        "machine build_entry(other: @[u8], bytes: @mut [u8]) requires other.length > 0 { bytes[0] = 42; }",
+        "machine build_entry(bytes: @mutable [u8]) { bytes[0] = 42; }",
+        "machine build_entry(bytes: @mutable [u8]) requires bytes.length > 0 { bytes[1] = 42; }",
+        "machine build_entry(other: @[u8], bytes: @mutable [u8]) requires other.length > 0 { bytes[0] = 42; }",
     ] {
         assert_eq!(verdict(program), "rejected", "{program}");
     }
@@ -1171,7 +1171,7 @@ fn a_byte_store_needs_mutable_access_and_its_own_index_bound() {
     );
     assert_eq!(
         verdict(
-            "machine build_entry(bytes: @ @mut [u8]) requires bytes.length > 0 { bytes[0] = 42; }"
+            "machine build_entry(bytes: @ @mutable [u8]) requires bytes.length > 0 { bytes[0] = 42; }"
         ),
         "statement store through shared descriptor storage while reading the body of `build_entry`"
     );
@@ -1182,7 +1182,7 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
     use super::build_purpose::{frontier_of, package, roster, symbol};
     let typed = frontier_of(
         "machine product_entry() {}",
-        "machine build_entry(bytes: @mut [u8], other: @[u8]) requires bytes.length > 0 && other.length > 0 { let spare: [u8; 1] = [5]; bytes[0] = 42; }",
+        "machine build_entry(bytes: @mutable [u8], other: @[u8]) requires bytes.length > 0 && other.length > 0 { let spare: [u8; 1] = [5]; bytes[0] = 42; }",
     );
     let entry = symbol(&typed, "build_entry");
     let elaborate = || {
@@ -1294,9 +1294,9 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
 
 #[test]
 fn a_shared_reference_kept_across_a_byte_store_prevents_the_write() {
-    let before = "machine build_entry(bytes: @mut [u8]) requires bytes.length > 0 { let observed: @ @mut [u8] = @bytes; observe(observed); bytes[0] = 42; } machine observe(value: @ @mut [u8]) {}";
+    let before = "machine build_entry(bytes: @mutable [u8]) requires bytes.length > 0 { let observed: @ @mutable [u8] = @bytes; observe(observed); bytes[0] = 42; } machine observe(value: @ @mutable [u8]) {}";
     assert_eq!(verdict(before), "accepted");
-    let across = "machine build_entry(bytes: @mut [u8]) requires bytes.length > 0 { let observed: @ @mut [u8] = @bytes; bytes[0] = 42; observe(observed); } machine observe(value: @ @mut [u8]) {}";
+    let across = "machine build_entry(bytes: @mutable [u8]) requires bytes.length > 0 { let observed: @ @mutable [u8] = @bytes; bytes[0] = 42; observe(observed); } machine observe(value: @ @mutable [u8]) {}";
     let actual = verdict(across);
     assert!(actual.starts_with("rejected"), "{actual}");
 }
@@ -1309,7 +1309,7 @@ fn byte_store_array_backing_program_is_checked_without_changing_its_operations()
     ))
     .replace("machine main()", "machine build_entry()");
     assert_eq!(verdict(&program), "accepted");
-    let out_of_bounds = program.replace("put(@mut bytes[..], 1, 73)", "put(@mut bytes[..], 3, 73)");
+    let out_of_bounds = program.replace("put(@mutable bytes[..], 1, 73)", "put(@mutable bytes[..], 3, 73)");
     assert_ne!(out_of_bounds, program);
     assert_eq!(verdict(&out_of_bounds), "rejected");
 }
@@ -1318,8 +1318,8 @@ fn byte_store_array_backing_program_is_checked_without_changing_its_operations()
 fn replacing_a_stored_view_does_not_preserve_its_previous_extent() {
     let program = r#"
         data Holder<'a> { bytes: @'a [u8]; }
-        machine replace<'a>(holder: @mut Holder<'a>) { holder.bytes = ""; }
-        machine build_entry<'a>(holder: @mut Holder<'a>) requires holder.bytes.length > 0 {
+        machine replace<'a>(holder: @mutable Holder<'a>) { holder.bytes = ""; }
+        machine build_entry<'a>(holder: @mutable Holder<'a>) requires holder.bytes.length > 0 {
             replace(holder);
             let selected: @[u8] = holder.bytes[0..1];
         }
@@ -1330,17 +1330,17 @@ fn replacing_a_stored_view_does_not_preserve_its_previous_extent() {
 #[test]
 fn writes_through_array_views_retire_old_backing_facts_not_saved_values() {
     for write in [
-        "mutate(@mut bytes[..]);",
-        "let view: @mut [u8] = @mut bytes[..]; view[0] = 0; count(view.length);",
+        "mutate(@mutable bytes[..]);",
+        "let view: @mutable [u8] = @mutable bytes[..]; view[0] = 0; count(view.length);",
     ] {
         let source = |observed| {
             format!(
                 r#"
-            machine mutate(bytes: @mut [u8]) requires bytes.length > 0 {{ bytes[0] = 0; }}
+            machine mutate(bytes: @mutable [u8]) requires bytes.length > 0 {{ bytes[0] = 0; }}
             machine demand(value: u8) requires value == 17 {{}}
             machine count(extent: u64) requires extent == 3 {{}}
             machine build_entry() {{
-                let mut bytes: [u8; 3] = [17, 42, 99];
+                let mutable bytes: [u8; 3] = [17, 42, 99];
                 let saved: u8 = bytes[0];
                 {write}
                 demand({observed});
@@ -1368,12 +1368,12 @@ fn writes_through_array_views_retire_old_backing_facts_not_saved_values() {
 fn a_view_write_keeps_facts_about_sibling_fields() {
     let source = r#"
         data Packet { before: u8; bytes: [u8; 3]; after: u8; }
-        machine mutate(bytes: @mut [u8]) requires bytes.length > 0 { bytes[0] = 0; }
+        machine mutate(bytes: @mutable [u8]) requires bytes.length > 0 { bytes[0] = 0; }
         machine before(value: u8) requires value == 17 {}
         machine after(value: u8) requires value == 99 {}
         machine build_entry() {
-            let mut packet: Packet = Packet { before: 17, bytes: [17, 42, 99], after: 99 };
-            mutate(@mut packet.bytes[..]);
+            let mutable packet: Packet = Packet { before: 17, bytes: [17, 42, 99], after: 99 };
+            mutate(@mutable packet.bytes[..]);
             before(packet.before);
             after(packet.after);
         }
@@ -1392,7 +1392,7 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
     use super::build_purpose::{frontier_of, package, roster, symbol};
     let typed = frontier_of(
         "machine product_entry() {}",
-        "machine build_entry(bytes: @mut [u8; 3]) { let view: @[u8] = @bytes[..]; }",
+        "machine build_entry(bytes: @mutable [u8; 3]) { let view: @[u8] = @bytes[..]; }",
     );
     let entry = symbol(&typed, "build_entry");
     let elaborate = || {
@@ -1946,18 +1946,18 @@ data UnitResult { case Ok; case Error(kind: i32); }
 
 // The diagnostic keeps the caller's borrowed inputs and result shape. This
 // pure leaf makes no filesystem or foreign-completion claim.
-machine posix_filesystem_create_dir_existing(filesystem: @mut Context, path: @[u8] in Path) -> UnitResult {
+machine posix_filesystem_create_dir_existing(filesystem: @mutable Context, path: @[u8] in Path) -> UnitResult {
     UnitResult::Ok
 }
 
-machine posix_filesystem_mkall_walk(filesystem: @mut Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
+machine posix_filesystem_mkall_walk(filesystem: @mutable Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
 terminates by remaining
 {
     transition i < path.length && remaining > 0 {
         true -> inspect(filesystem, path, i, remaining),
         false -> posix_filesystem_create_dir_existing(filesystem, path)
     }
-    machine inspect(filesystem: @mut Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    machine inspect(filesystem: @mutable Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
     requires i < path.length && remaining > 0
     terminates by remaining
     {
@@ -1966,7 +1966,7 @@ terminates by remaining
             false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
     }
-    machine create(filesystem: @mut Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    machine create(filesystem: @mutable Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
     requires i < path.length && remaining > 0
     terminates by remaining
     {
@@ -1978,7 +1978,7 @@ terminates by remaining
     }
 }
 
-machine build_entry(filesystem: @mut Context, path: @[u8] in Path) {
+machine build_entry(filesystem: @mutable Context, path: @[u8] in Path) {
     let result: UnitResult = posix_filesystem_mkall_walk(filesystem, path, 1, path.length);
 }
 "#;
@@ -2014,10 +2014,10 @@ machine entry() -> u32 {
         "{verdict:?}"
     );
     let writing = source
-        .replace("cells: @[Cell]", "cells: @mut [Cell]")
-        .replace("let cells: [Cell; 2]", "let mut cells: [Cell; 2]")
-        .replace("pick(@cells[..]", "pick(@mut cells[..]")
-        .replace("let cell: Cell = cells[index];", "let view: @mut [Cell] = @mut cells[..];\n    view[index].value = 9u32;\n    let cell: Cell = view[index];");
+        .replace("cells: @[Cell]", "cells: @mutable [Cell]")
+        .replace("let cells: [Cell; 2]", "let mutable cells: [Cell; 2]")
+        .replace("pick(@cells[..]", "pick(@mutable cells[..]")
+        .replace("let cell: Cell = cells[index];", "let view: @mutable [Cell] = @mutable cells[..];\n    view[index].value = 9u32;\n    let cell: Cell = view[index];");
     let verdict = check(&writing);
     assert!(
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
@@ -2025,7 +2025,7 @@ machine entry() -> u32 {
     );
     let repeated = r#"
 data Cell [copy] { before: u32; value: u32; after: u32; }
-machine write(cells: @mut [Cell], index: u64, steps: u64) -> u32
+machine write(cells: @mutable [Cell], index: u64, steps: u64) -> u32
 terminates by steps
 requires index < cells.length && steps > 0u64
 {
@@ -2037,8 +2037,8 @@ requires index < cells.length && steps > 0u64
     }
 }
 machine entry() -> u32 {
-    let mut cells: [Cell; 2] = [Cell { before: 11, value: 12, after: 13 }, Cell { before: 21, value: 22, after: 23 }];
-    write(@mut cells[..], 1u64, 2u64)
+    let mutable cells: [Cell; 2] = [Cell { before: 11, value: 12, after: 13 }, Cell { before: 21, value: 22, after: 23 }];
+    write(@mutable cells[..], 1u64, 2u64)
 }
 "#;
     let verdict = check(repeated);

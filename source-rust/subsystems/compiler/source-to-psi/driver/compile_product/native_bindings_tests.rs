@@ -16,7 +16,7 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build { builder }
+public machine build_selection_receiver<'activation>(builder: @'activation mutable Build) -> @'activation mutable Build { builder }
 public data BuildTarget [copy] { case LinuxX86_64; }
 public const linux_x86_64: BuildTarget = BuildTarget::LinuxX86_64;
 public machine build_selection_target(target: BuildTarget) -> u64 {
@@ -54,7 +54,7 @@ fn typed_requirement_at(
     dependency: bool,
 ) -> TypedTrees {
     let build = format!(
-        "machine build(builder: @mut Build) {{\n\
+        "machine build(builder: @mutable Build) {{\n\
          let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall {{ number: 9u64 }};\n\
          Build::bind::<{path}>(builder, linux_x86_64, locator);\n}}"
     );
@@ -574,7 +574,7 @@ fn closed_native_array_storage_uses_the_checked_constant_extents() {
     use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
 
     let mut typed = typed_requirement_at(
-        "public boundary trait Raw { machine read<const Units: u64, const Bytes: u64>(source: @[u16; Units], output: @mut [u8; Bytes]) -> u64 reaches none crashes none; }",
+        "public boundary trait Raw { machine read<const Units: u64, const Bytes: u64>(source: @[u16; Units], output: @mutable [u8; Bytes]) -> u64 reaches none crashes none; }",
         "Raw::read<4,8>",
         SourceOrigin::User,
         Some(package(7)),

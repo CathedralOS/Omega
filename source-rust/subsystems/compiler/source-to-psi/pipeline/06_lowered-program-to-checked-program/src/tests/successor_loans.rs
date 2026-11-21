@@ -150,19 +150,19 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
 #[test]
 fn loop_element_reborrows_keep_distinct_incoming_backing() {
     let program = r#"
-        machine update(left: @mut u32, right: @mut u32) {
+        machine update(left: @mutable u32, right: @mutable u32) {
             $left = 1u32;
             $right = 2u32;
         }
-        machine walk(items: @mut [u32], other: @mut [u32], index: u64) {
+        machine walk(items: @mutable [u32], other: @mutable [u32], index: u64) {
             transition index < 4u64 && index < items.length && index < other.length {
                 true -> step(items, other, index),
                 false -> done()
             }
-            machine step(items: @mut [u32], other: @mut [u32], index: u64)
+            machine step(items: @mutable [u32], other: @mutable [u32], index: u64)
             requires index < 4u64 && index < items.length && index < other.length
             {
-                update(@mut items[index], @mut other[index]);
+                update(@mutable items[index], @mutable other[index]);
                 transition { _ -> walk(items, other, index + 1u64) }
             }
             machine done() { }
@@ -171,7 +171,7 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
     for (program, accepts) in [
         (program.to_owned(), true),
         (
-            program.replace("@mut other[index]", "@mut items[index]"),
+            program.replace("@mutable other[index]", "@mutable items[index]"),
             false,
         ),
     ] {
@@ -616,7 +616,7 @@ fn an_empty_shared_payload_keeps_its_owned_permission_at_a_call() {
 data Holder<'held> { bytes: @'held [u8]; }
 machine inspect<'a>(value: @'a [u8]) -> u64 { value.length }
 machine entry() -> u64 {
-    let mut holder: Holder;
+    let mutable holder: Holder;
     inspect(holder.bytes)
 }
 "#,

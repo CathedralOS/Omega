@@ -1,4 +1,4 @@
-//! `reflect::inspect_record_fields<Record, callback>(&mut context)` runs the
+//! `reflect::inspect_record_fields<Record, callback>(@mutable context)` runs the
 //! callback once per field of `Record`, in declared order, in both engines.
 //! Typed preparation writes those calls after checking the callback against
 //! the binder the library publishes; a callback that adds a precondition on

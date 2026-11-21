@@ -3,7 +3,7 @@ use crate::parse_syntax_trees;
 
 #[test]
 fn retired_receiver_parameters_reject_in_every_signature_owner() {
-    for parameter in ["self", "mut self", "@self", "@mut self", "@write self"] {
+    for parameter in ["self", "mutable self", "@self", "@mutable self", "@write self"] {
         for source in [
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
@@ -42,11 +42,51 @@ fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
         machine consume(counter: Counter) {}
         machine read(counter: @Counter) -> u32 { counter.value }
         machine write(counter: @write Counter) { counter.value = 1; }
-        machine Counter::clear(counter: @mut Counter) {
+        machine Counter::clear(counter: @mutable Counter) {
             transition { _ -> finish(counter) }
-            machine finish(counter: @mut Counter) { counter.value = 0; }
+            machine finish(counter: @mutable Counter) { counter.value = 0; }
         }
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();
     parse_syntax_trees(&tokens).expect("ordinary explicit parameters remain valid");
+}
+
+#[test]
+fn mutable_modifiers_report_the_obsolete_token_in_every_position() {
+    for source in [
+        "machine f(mut value: u8) {}",
+        "machine f() { let mut local: u8 = 1; }",
+        "machine f(cell: @mut u8) {}",
+        "machine f<'cell>(cell: @'cell mut u8) {}",
+        "machine f(value: u8) { let loan = @mut value; }",
+        "machine f(value: @mutable u8) { let loan = value as @mut u8; }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let error = parse_syntax_trees(&tokens).expect_err("short modifier must reject");
+        let span = error.source_span.span;
+        assert_eq!(&source[span.start..span.end], "mut", "{source}");
+        assert!(error.message.contains("`mutable`"), "{source}: {}", error.message);
+    }
+}
+
+#[test]
+fn reference_introduction_uses_at_and_leaves_ampersand_as_an_operator() {
+    for source in [
+        "machine f(value: &u8) {}",
+        "machine f(value: &mutable u8) {}",
+        "machine f(value: &mut u8) {}",
+        "machine f(value: &write u8) {}",
+        "machine f(value: u8) { let loan = &value; }",
+        "machine f(value: u8) { let loan = @state value; }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        assert!(parse_syntax_trees(&tokens).is_err(), "{source}");
+    }
+    let source = "machine f(mutable state: u8, mask: u8) -> u8 {
+        let read: @u8 = @state;
+        let mutable owned: u8 = state & mask;
+        owned
+    }";
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    parse_syntax_trees(&tokens).expect("named state and bitwise AND remain ordinary source");
 }

@@ -328,7 +328,7 @@ fn a_parameter_array_view_keeps_the_actual_extent_and_its_guard() {
 #[test]
 fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     let mut form = rigid_array_form(
-        "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.length }",
+        "machine entry<const N: u64>() -> u64 ensures result == N { let mutable scratch: [u8; N]; let view: @mutable [u8] = @mutable scratch[..]; view.length }",
     );
     let discharged = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
@@ -340,7 +340,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.length }} machine entry() -> u64 {{ scratch::<{length}u64>() }}"
+            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mutable scratch: [u8; N]; let view: @mutable [u8] = @mutable scratch[..]; view.length }} machine entry() -> u64 {{ scratch::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -368,7 +368,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.length }} machine entry() -> u64 {{ typed::<{length}u64>() }}"
+            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mutable scratch: [u32; N]; let view: @mutable [u32] = @mutable scratch[..]; view.length }} machine entry() -> u64 {{ typed::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(

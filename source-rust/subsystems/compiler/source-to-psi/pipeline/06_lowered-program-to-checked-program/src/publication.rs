@@ -330,8 +330,8 @@ mod tests {
     fn parking_an_owner_preserves_the_exclusive_borrow_of_its_field() {
         let source = r"
 machine entry() suspends {
-    let mut gauge: Gauge = Gauge { amount: 3, neighbor: 19 };
-    let held: @mut i32 = @mut gauge.amount;
+    let mutable gauge: Gauge = Gauge { amount: 3, neighbor: 19 };
+    let held: @mutable i32 = @mutable gauge.amount;
     OBSERVE
     suspend pause();
 }

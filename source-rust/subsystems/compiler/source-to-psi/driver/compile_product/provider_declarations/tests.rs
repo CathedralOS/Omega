@@ -27,7 +27,7 @@ public boundary trait BuildBindingOperations {
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
     machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
+public machine build_selection_receiver<'activation>(builder: @'activation mutable Build) -> @'activation mutable Build {
     builder
 }
 public data BuildTarget [copy] { case LinuxX86_64; case MacosArm64; }
@@ -57,14 +57,14 @@ data RuntimeDescriptor {}
 "#;
 
 const TWO_CHOICES: &str = r#"
-machine build(builder: @mut Build) { first(builder); second(builder); }
-machine first(builder: @mut Build) {
+machine build(builder: @mutable Build) { first(builder); second(builder); }
+machine first(builder: @mutable Build) {
     Build::select_provider::<Service, First>(builder, linux_x86_64);
 }
-machine second(builder: @mut Build) {
+machine second(builder: @mutable Build) {
     Build::select_provider::<Service, Second>(builder, macos_arm64, CompositionMode::Independent);
 }
-machine unrelated(builder: @mut Build) {}
+machine unrelated(builder: @mutable Build) {}
 "#;
 
 fn package(byte: u8) -> PackageKeyIdentity {
@@ -264,7 +264,7 @@ fn a_runnable_product_batch_requires_a_named_implementation() {
         // The harness supplies completed Build events. The kept Build files
         // bind the same declarations for all four hosted targets in CLI runs.
         let build = format!(
-            "machine build(builder: @mut Build) {{ Build::select_provider::<LookupService, {provider}>(builder, linux_x86_64); }}"
+            "machine build(builder: @mutable Build) {{ Build::select_provider::<LookupService, {provider}>(builder, linux_x86_64); }}"
         );
         let fixture = Fixture::new(&build, program, None);
         let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
@@ -288,7 +288,7 @@ fn a_provider_batch_keeps_the_source_of_applied_type_arguments() {
         public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
     for actual in ["Tag", "Other"] {
         let build = format!(
-            "machine build(builder: @mut Build) {{ Build::select_provider::<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
+            "machine build(builder: @mutable Build) {{ Build::select_provider::<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
         );
         let mut fixture = Fixture::new(&build, product, None);
         let source = fixture.typed.clone();
@@ -363,7 +363,7 @@ fn unexecuted_provider_formations_still_validate_both_operands() {
         ("Service", "MissingProvider", "MissingProvider"),
     ] {
         let build = format!(
-            "machine build(builder: @mut Build) {{ Build::select_provider::<{slot}, {provider}>(builder, linux_x86_64); }}"
+            "machine build(builder: @mutable Build) {{ Build::select_provider::<{slot}, {provider}>(builder, linux_x86_64); }}"
         );
         let fixture = Fixture::new(&build, PRODUCT, None);
         assert_eq!(fixture.declared.len(), 1);
@@ -380,7 +380,7 @@ fn unexecuted_provider_formations_still_validate_both_operands() {
 #[test]
 fn a_runtime_data_declaration_is_not_a_static_provider_record() {
     let fixture = Fixture::new(
-        "machine build(builder: @mut Build) { Build::select_provider::<Service, RuntimeDescriptor>(builder, linux_x86_64); }",
+        "machine build(builder: @mutable Build) { Build::select_provider::<Service, RuntimeDescriptor>(builder, linux_x86_64); }",
         PRODUCT,
         None,
     );
@@ -395,7 +395,7 @@ fn a_runtime_data_declaration_is_not_a_static_provider_record() {
 #[test]
 fn a_product_dependency_does_not_expose_its_private_provider() {
     let fixture = Fixture::new(
-        "machine build(builder: @mut Build) { Build::select_provider::<dep\\ForeignService, dep\\Hidden>(builder, linux_x86_64); }",
+        "machine build(builder: @mutable Build) { Build::select_provider::<dep\\ForeignService, dep\\Hidden>(builder, linux_x86_64); }",
         PRODUCT,
         Some(
             "public boundary trait ForeignService { machine tick() reaches none crashes none; }\nHidden satisfies ForeignService { machine tick() reaches none crashes none {} }",
@@ -516,7 +516,7 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
 fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
     use retained_product_selections::{RetainedOperatorFamily, RetainedProviderSubject};
 
-    let build = "machine build(builder: @mut Build) {
+    let build = "machine build(builder: @mutable Build) {
         Build::select_provider::<Buffer::index, First>(builder, linux_x86_64);
     }";
     let first = "public boundary operator [] Buffer::index(items: @Buffer, index: u32) -> u8;";
@@ -584,7 +584,7 @@ fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
 
 #[test]
 fn a_provider_for_an_operator_must_include_the_exact_overload_in_its_record() {
-    let build = "machine build(builder: @mut Build) {
+    let build = "machine build(builder: @mutable Build) {
         Build::select_provider::<Buffer::index, Narrow>(builder, linux_x86_64);
         Build::select_provider::<Buffer::index, Both>(builder, macos_arm64);
     }";

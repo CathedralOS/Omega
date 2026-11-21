@@ -155,16 +155,16 @@ fn an_argument_that_lends_only_observation_is_rejected_for_a_parameter_that_writ
         )
     };
     accepted(&view(""));
-    rejected(&view("mut "), rule);
+    rejected(&view("mutable "), rule);
     // An explicit shared loan of a local.
     let loan = |access: &str| {
         format!(
             "machine take(count: @{access}u32) {{ }}\n\
-             machine pass() {{ let mut count: u32 = 1; take(@count); }}\n"
+             machine pass() {{ let mutable count: u32 = 1; take(@count); }}\n"
         )
     };
     accepted(&loan(""));
-    rejected(&loan("mut "), rule);
+    rejected(&loan("mutable "), rule);
 }
 
 /// Policy suffixes need an unqualified integer carrier. These restrictions
@@ -251,7 +251,7 @@ fn a_member_that_is_no_field_of_its_record_is_rejected() {
     let program = |statement: &str| {
         format!(
             "data Settings {{ quiet: bool; level: u32; }}\n\
-             machine configure(settings: @mut Settings) -> u32 {{\n    {statement}\n}}\n"
+             machine configure(settings: @mutable Settings) -> u32 {{\n    {statement}\n}}\n"
         )
     };
     accepted(&program("settings.level"));
@@ -275,7 +275,7 @@ fn a_quoted_literal_supplied_to_a_scalar_place_is_rejected() {
         format!(
             "data Settings {{ quiet: bool; level: u32; }}\n\
              machine take(level: u32) {{ }}\n\
-             machine configure(settings: @mut Settings) {{\n    \
+             machine configure(settings: @mutable Settings) {{\n    \
              settings.quiet = {stored};\n    take({passed});\n}}\n"
         )
     };

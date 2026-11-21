@@ -117,7 +117,7 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
     let root = TemporaryDirectory::create("entryless-layout-demand", false).unwrap();
     std::fs::write(
         root.path().join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::package(builder, "layout_reach");
         Build::select_provider::<Reading, ConstantReading>(builder, alpha_bootstrap);
     }"#,
@@ -234,7 +234,7 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
     let root = TemporaryDirectory::create("entryless-layout-constant", false).unwrap();
     std::fs::write(
         root.path().join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::package(builder, "observed_packet");
     }"#,
     )

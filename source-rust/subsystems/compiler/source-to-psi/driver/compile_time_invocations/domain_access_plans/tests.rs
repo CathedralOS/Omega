@@ -555,12 +555,12 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
 #[test]
 fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
     let original = include_str!("selected_access_plan_family.omg");
-    let plan = r#"let mut plan: AccessPlan = access\new_plan(@schema,
+    let plan = r#"let mutable plan: AccessPlan = access\new_plan(@schema,
             Issuance::Only { routes: [reflect\callable(stamp)] });
-        access\allow_readers(@mut plan,
+        access\allow_readers(@mutable plan,
             omega\language\core\AccessRegion::Subject { schema: schema },
             [reflect\callable(number)]);
-        access\allow_writers(@mut plan,
+        access\allow_writers(@mutable plan,
             omega\language\core\AccessRegion::Subject { schema: schema },
             [reflect\callable(change)]);
         plan"#;
@@ -570,11 +570,11 @@ fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
         1,
     ).replace(
         "let observed: i32 = number(stamped(Ticket { number: 4 }));",
-        "let mut ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(@mut ticket);\n    let observed: i32 = number(ticket);",
+        "let mutable ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(@mutable ticket);\n    let observed: i32 = number(ticket);",
     ).replace("observed == 4", "observed == 41") + r#"
 
-machine change(ticket: @mut Ticket in Stamped) { write_number(ticket); }
-machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
+machine change(ticket: @mutable Ticket in Stamped) { write_number(ticket); }
+machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
 "#;
     for (source, denied) in [
         (source.clone(), None),
@@ -590,8 +590,8 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
         // later direct helper call cannot reuse that grant on the same value.
         (
             source.replace(
-                "change(@mut ticket);",
-                "change(@mut ticket);\n    write_number(@mut ticket);",
+                "change(@mutable ticket);",
+                "change(@mutable ticket);\n    write_number(@mutable ticket);",
             ),
             Some("write"),
         ),

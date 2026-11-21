@@ -501,7 +501,7 @@ pub(crate) mod contracts {
                             domain [u8; 4]::Ascii;
                             domain [u8; 16]::Ascii;
                             machine short(value: @[u8; 4]) ensures value in Ascii {}
-                            machine long(value: @mut [u8; 16]) ensures value in Ascii {}
+                            machine long(value: @mutable [u8; 16]) ensures value in Ascii {}
                         "#,
                     )])
                     .expect("reference membership retains its actual carrier family");

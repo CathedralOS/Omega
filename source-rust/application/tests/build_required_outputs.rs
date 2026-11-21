@@ -31,18 +31,18 @@ fn check(name: &str, body: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: @mut Build) {{
+            "machine build(builder: @mutable Build) {{
     Build::application(builder, \"promised\");
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 {body}}}
-machine settle(builder: @mut Build, settled: OutputCompletion) {{
+machine settle(builder: @mutable Build, settled: OutputCompletion) {{
     transition settled {{
         OutputCompletion::Sealed {{ receipt }} -> done(),
         OutputCompletion::Retry {{ obligation, file }} -> failed(builder, obligation)
     }}
     machine done() {{}}
-    machine failed(builder: @mut Build, obligation: RequiredOutput) {{
-        BuildOutput::fail(@mut builder.output, obligation, \"output was not sealed\");
+    machine failed(builder: @mutable Build, obligation: RequiredOutput) {{
+        BuildOutput::fail(@mutable builder.output, obligation, \"output was not sealed\");
     }}
 }}
 "
@@ -66,12 +66,12 @@ machine settle(builder: @mut Build, settled: OutputCompletion) {{
 fn a_build_lends_the_host_the_required_output_it_was_issued() {
     let (compiled, stderr) = check(
         "issued",
-        "    let obligation: RequiredOutput = BuildOutput::require(@mut builder.output, \"answer.dat\");
+        "    let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, \"answer.dat\");
     let file: BuildPath = BuildOutput::resolve(@builder.output, RequiredOutput::path(@obligation));
-    let writer: i32 = BuildOutput::create(@mut builder.output, file, 0);
-    _ = BuildOutput::write(@mut builder.output, writer, \"forty-two\");
-    _ = BuildOutput::close(@mut builder.output, writer);
-    let settled: OutputCompletion = BuildOutput::complete(@mut builder.output, obligation, file);
+    let writer: i32 = BuildOutput::create(@mutable builder.output, file, 0);
+    _ = BuildOutput::write(@mutable builder.output, writer, \"forty-two\");
+    _ = BuildOutput::close(@mutable builder.output, writer);
+    let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, file);
     settle(builder, settled);
 ",
     );

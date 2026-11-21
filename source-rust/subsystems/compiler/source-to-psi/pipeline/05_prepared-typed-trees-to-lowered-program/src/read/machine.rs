@@ -3900,14 +3900,14 @@ impl<'t> Program<'t> {
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
     /// slice serves.
     ///
-    /// A formal of type `&T` or `&mut T` is read as its referent type `T`
+    /// A formal of type `@T` or `@mutable T` is read as its referent type `T`
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
-    /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
-    /// reference's exclusivity; that is the reference's access, not a `mut`
+    /// plain record `T`. Stage 01 marks `x: @mutable T` mutable for the
+    /// reference's exclusivity; that is the reference's access, not a `mutable`
     /// binding. The outer reference lifetime is retained separately from
     /// the referent's regions. A `&write T` formal remains unsupported.
     ///
-    /// A `mut` formal that holds its own value is read like any other: the
+    /// A `mutable` formal that holds its own value is read like any other: the
     /// binding mode says only that the body may assign and store into its
     /// own copy (`mutable_formal`), so it changes nothing a caller sees.
     /// Two kinds stay refused by name: an `[erased]` one, which names a
@@ -3997,7 +3997,7 @@ impl<'t> Program<'t> {
             )?)
         };
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
-        // one marked mutable would be a `mut` binding of the carrier.
+        // one marked mutable would be a `mutable` binding of the carrier.
         match access {
             language_core::ReferenceAccess::Shared if !formal.is_mutable => {}
             language_core::ReferenceAccess::Mutable => {}
@@ -4156,12 +4156,12 @@ impl<'t> Program<'t> {
             .map(|(position, ((symbol, is_mutable), value_type))| {
                 // A borrowed formal names the caller's storage: a scalar
                 // referent is read and stored in place like a home, a record
-                // referent like a record formal's root; `&mut` lets the body
+                // referent like a record formal's root; `@mutable` lets the body
                 // store into it, `&` does not.
                 //
-                // A `mut` formal that holds its own value is the callee's
+                // A `mutable` formal that holds its own value is the callee's
                 // own storage, initialised from the argument, and is
-                // assigned and stored into as a `mut` local is: a scalar is
+                // assigned and stored into as a `mutable` local is: a scalar is
                 // rebound to the assigned value, so the formal's entry
                 // value keeps its identity and every entry fact stays a
                 // fact about that value only (fact_validity.md: "Current
@@ -4590,8 +4590,8 @@ mod input_symbol_uses {
     }
 }
 
-/// Whether a formal is a `mut` binding of its own value. Stage 01 also marks
-/// `x: &mut T` mutable, for the reference's exclusivity; that formal names
+/// Whether a formal is a `mutable` binding of its own value. Stage 01 also marks
+/// `x: @mutable T` mutable, for the reference's exclusivity; that formal names
 /// the caller's storage and is not a binding the body may replace.
 fn mutable_formal(
     formal: &StateParameter,

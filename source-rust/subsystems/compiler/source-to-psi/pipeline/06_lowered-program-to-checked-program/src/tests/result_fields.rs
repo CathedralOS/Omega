@@ -11,7 +11,7 @@ ensures result.first == input, result.second == 7
 { Pair { first: input, second: 7 } }
 machine seven(value: u32) requires value == 7 { }
 machine build_entry() {
-    let mut value: Pair = pair(3);
+    let mutable value: Pair = pair(3);
     value.first = 9;
     seven(value.second);
 }
@@ -115,9 +115,9 @@ ensures result.first == 0
     }
 
     for (input, extent, owned_pair) in [
-        ("mut p: Pair", false, true),
-        ("p: @mut Pair", false, false),
-        ("p: @mut Pair", true, false),
+        ("mutable p: Pair", false, true),
+        ("p: @mutable Pair", false, false),
+        ("p: @mutable Pair", true, false),
     ] {
         let typed = frontier_of(
             "machine product_entry() { }",
@@ -216,16 +216,16 @@ fn borrowed_field_guarantees_connect_entry_and_completion_at_each_call() {
     // the preceding call's actual completion, rather than reusing entry zero.
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
-machine step(p: @mut Pair)
+machine step(p: @mutable Pair)
 requires p.first < 32
 ensures embed(p.first) == embed(old(p.first)) + 1
 { p.first = p.first + 1; }
 machine build_entry() -> u32
 ensures result == 2
 {
-    let mut value: Pair = Pair { first: 0, second: 9 };
-    step(@mut value);
-    step(@mut value);
+    let mutable value: Pair = Pair { first: 0, second: 9 };
+    step(@mutable value);
+    step(@mutable value);
     value.first
 }
 "#;
@@ -314,7 +314,7 @@ ensures result == 2
 fn owned_field_guarantees_keep_the_input_separate_from_working_storage() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
-machine build_entry(mut p: Pair) -> Pair
+machine build_entry(mutable p: Pair) -> Pair
 requires p.first == 0
 ensures p.first == old(p.first), result.first == 9
 { p.first = 9; p }

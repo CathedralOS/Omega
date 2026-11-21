@@ -153,7 +153,7 @@ fn parses_machine_termination_argumented_view() {
 fn parses_trait_requirement_termination_guarantee() {
     let source = r#"
         trait Worker<Work> {
-            machine run(value: @mut Work, n: u64) -> u64 terminates;
+            machine run(value: @mutable Work, n: u64) -> u64 terminates;
             machine peek(value: @Work) -> u64;
         }
         "#;
@@ -179,7 +179,7 @@ fn parses_trait_requirement_termination_guarantee() {
 fn rejects_ranking_witness_on_trait_requirement() {
     let source = r#"
         trait Worker<Work> {
-            machine run(value: @mut Work, n: u64) -> u64 terminates by n;
+            machine run(value: @mutable Work, n: u64) -> u64 terminates by n;
         }
         "#;
 
@@ -443,7 +443,7 @@ fn parses_slice_range_indexing_into_range_expression() {
     let source = r#"
         data Main {}
 
-        machine Main::main(main: @mut Main) -> usize {
+        machine Main::main(main: @mutable Main) -> usize {
             let values: [usize; 4] = [1, 2, 3, 4];
             let view: @[usize] = values.as_slice();
             let tail: @[usize] = view[1..];
@@ -489,9 +489,9 @@ fn parses_slice_range_indexing_into_range_expression() {
 #[test]
 fn borrows_bind_before_casts_and_after_field_and_index_access() {
     let parsed = crate::tests::parse_source(
-        r#"machine view(packet: @mut Packet) {
+        r#"machine view(packet: @mutable Packet) {
             let shared: @u8 = @packet.parts[0] as -Marked;
-            let mutable: @mut u8 = @mut packet.parts[1] as -Marked;
+            let mutable: @mutable u8 = @mutable packet.parts[1] as -Marked;
         }"#,
         "borrowed projections with domain casts should parse",
     );
@@ -644,7 +644,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
             player: Player;
         }
 
-        machine Main::main(main: @mut Main) {
+        machine Main::main(main: @mutable Main) {
             transition main.player {
                 Player::Alive -> done(),
                 Player { health, .. } if health > 5 -> done(),

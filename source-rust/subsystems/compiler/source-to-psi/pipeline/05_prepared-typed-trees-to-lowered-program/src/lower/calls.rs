@@ -230,8 +230,8 @@ pub(crate) fn publish_write_frames(
     Ok(())
 }
 
-/// A callee lent or given a value can store through the `&mut` references
-/// it carries: `update(&mut carrier)` may write `carrier.cell`'s referent,
+/// A callee lent or given a value can store through the `@mutable` references
+/// it carries: `update(@mutable carrier)` may write `carrier.cell`'s referent,
 /// which is the caller's `cell`. With no narrower frame, the call writes
 /// each such referent, after the rows for the arguments themselves, so the
 /// caller's facts about that storage end at the call (dependent_values.md,

@@ -715,8 +715,8 @@ pub fn reference_loan_parent<'a>(
 /// The storage one call input keeps borrowed after the call returns, and
 /// for how long. `path` is the caller's storage path under the input's
 /// place: the argument's own path, or the longer exact source a returned
-/// reference's published origin binds (`grid.cells` for `pick(&mut grid,
-/// i)` returning `&mut grid.cells[i].x`). The argument's own loan still
+/// reference's published origin binds (`grid.cells` for `pick(@mutable grid,
+/// i)` returning `@mutable grid.cells[i].x`). The argument's own loan still
 /// covers its whole place for the call; this narrower region is what
 /// lifetimes.md, "Returned views", requires to "remain live for the
 /// result's use".

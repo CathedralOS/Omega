@@ -102,15 +102,7 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TableLocalData> {
-    let (is_mutable, input) = if input.at_contextual("mut")
-        && input
-            .take_contextual("mut")
-            .is_ok_and(|rest| rest.at_name_like())
-    {
-        (true, input.take_contextual("mut")?)
-    } else {
-        (false, input)
-    };
+    let (is_mutable, input) = input.take_binding_mutability()?;
     let (name, input) = input.take_identifier()?;
     let (relevance, input) =
         crate::parameters::relevance::parse_binding_relevance_brackets(input, "local")?;

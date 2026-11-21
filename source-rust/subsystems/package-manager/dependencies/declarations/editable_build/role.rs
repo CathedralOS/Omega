@@ -1,7 +1,7 @@
 /*
 Syntax-tree projection for `build.omg`.
 
-We locate the canonical root `machine build(builder: @mut Build)` entry, read
+We locate the canonical root `machine build(builder: @mutable Build)` entry, read
 its direct `Build::{package,application,member,artifact_only}` statements, and
 reject every call shape that would require evaluation or hide a role statement
 inside a helper state, nested machine, or subexpression.

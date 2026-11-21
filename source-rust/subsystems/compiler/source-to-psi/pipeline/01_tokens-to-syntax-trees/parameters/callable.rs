@@ -58,11 +58,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     } else {
         (false, input)
     };
-    let (is_leading_mutable, input) = if input.at_contextual("mut") {
-        (true, input.take_contextual("mut")?)
-    } else {
-        (false, input)
-    };
+    let (is_leading_mutable, input) = input.take_binding_mutability()?;
 
     let (receiver_access, input) = if input.at_punctuation(PunctuationKind::At) {
         let input = input.take_punctuation(PunctuationKind::At, "@")?;

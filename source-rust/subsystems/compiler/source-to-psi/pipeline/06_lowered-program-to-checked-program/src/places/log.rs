@@ -597,7 +597,7 @@ impl<'a> Storage<'a> {
                         StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
                     }
                 }
-                // The callee can also store through the `&mut` references
+                // The callee can also store through the `@mutable` references
                 // an argument carries. Each such referent is a write of the
                 // call, after every argument's own row, in the order
                 // lowering writes them (`publish_write_frames`).

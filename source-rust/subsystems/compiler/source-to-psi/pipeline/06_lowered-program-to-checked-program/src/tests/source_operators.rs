@@ -58,13 +58,13 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 #[test]
 fn mutable_byte_formals_keep_their_source_operator_access() {
     let source = r#"
-machine store(bytes: @mut [u8], peer: @[u8]) requires bytes.length > 0u64 {
+machine store(bytes: @mutable [u8], peer: @[u8]) requires bytes.length > 0u64 {
     bytes[0u64] = 7u8;
 }
 machine entry() -> bool {
-    let mut bytes: [u8; 2] = [19u8, 23u8];
+    let mutable bytes: [u8; 2] = [19u8, 23u8];
     let peer: [u8; 1] = [42u8];
-    store(@mut bytes[..], @peer[..]);
+    store(@mutable bytes[..], @peer[..]);
     bytes[0u64] == 7u8 && bytes[1u64] == 23u8
 }
 "#;
@@ -267,7 +267,7 @@ fn declared_value_comparisons_under_disjunctive_guards_keep_their_selected_meani
 #[test]
 fn mutable_boolean_locals_do_not_reuse_their_initial_static_truth() {
     assert_enum_operator_value(
-        "machine entry() -> bool { let mut flag: bool = u32 == u32; flag = false; flag || u32 == u64 }",
+        "machine entry() -> bool { let mutable flag: bool = u32 == u32; flag = false; flag || u32 == u64 }",
         false,
     );
     assert_enum_operator_value(
@@ -285,20 +285,20 @@ data Schema [copy] { fields: [Cell; 4]; }
 data Capture { schema: Schema; }
 data Info { position: u64; }
 machine replacement() -> u32 { 7u32 }
-machine describe<Kind>(capture: @mut Capture, info: @Info)
+machine describe<Kind>(capture: @mutable Capture, info: @Info)
 requires info.position < 4u64
 {
     put(capture, info)
-    machine put(capture: @mut Capture, info: @Info)
+    machine put(capture: @mutable Capture, info: @Info)
     requires info.position < 4u64
     {
         capture.schema.fields[info.position] = Cell { value: replacement() };
     }
 }
 machine entry() -> bool {
-    let mut capture: Capture;
+    let mutable capture: Capture;
     let info: Info = Info { position: 1u64 };
-    describe::<bool>(@mut capture, @info);
+    describe::<bool>(@mutable capture, @info);
     capture.schema.fields[1u64].value == 7u32
 }
 "#,
@@ -314,7 +314,7 @@ fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes
         machine [] at(buffer: @[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
     for body in [
         "let buffer: [Cell; 4]; buffer[0u64].value == 99u32",
-        "let mut buffer: [Cell; 4]; buffer[0u64] = Cell { value: 7u32 }; true",
+        "let mutable buffer: [Cell; 4]; buffer[0u64] = Cell { value: 7u32 }; true",
     ] {
         let typed = super::boundary_calls::typed(&format!(
             "{declarations}\nmachine entry() -> bool {{ {body} }}"
@@ -342,15 +342,15 @@ fn indexed_writer_source(requirement: &str) -> String {
     format!(
         r#"
 trait Writer {{
-    machine put(items: @mut [u32; 4], index: u64)
+    machine put(items: @mutable [u32; 4], index: u64)
     requires index < 4u64 reaches none crashes none;
 }}
-machine supplied(items: @mut [u32; 4], index: u64)
+machine supplied(items: @mutable [u32; 4], index: u64)
 {requirement} reaches none crashes none
 {{ items[index] = 7u32; }}
 machine entry() -> bool {{
-    let mut items: [u32; 4];
-    supplied(@mut items, 1u64);
+    let mutable items: [u32; 4];
+    supplied(@mutable items, 1u64);
     items[1u64] == 7u32
 }}
 "#

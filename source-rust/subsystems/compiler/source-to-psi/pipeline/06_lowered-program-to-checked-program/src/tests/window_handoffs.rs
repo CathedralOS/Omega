@@ -18,23 +18,23 @@ fn walk(restore: &str) -> String {
         r#"
 data State requires self.a == self.b {{ row: [u8; 4]; y: u8; a: u8; b: u8; }}
 machine look(bytes: @[u8]) -> u64 {{ bytes.length }}
-machine walk(s: @mut State) {{
+machine walk(s: @mutable State) {{
     transition {{ _ -> block head(s) }}
-    machine head(s: @mut State) {{
+    machine head(s: @mutable State) {{
         let length: u64 = look(@s.row[..]);
         transition s.y < 3 {{ true -> block step(s), _ -> done(s) }}
     }}
-    machine step(s: @mut State) {{
+    machine step(s: @mutable State) {{
         s.y = s.y + 1;
         s.a = s.y;
         {restore}
         transition {{ _ -> block head(s) }}
     }}
-    machine done(s: @mut State) {{ }}
+    machine done(s: @mutable State) {{ }}
 }}
 machine entry() crashes Trap {{
-    let mut s: State = State {{ row: [1, 2, 3, 4], y: 0, a: 0, b: 0 }};
-    walk(@mut s);
+    let mutable s: State = State {{ row: [1, 2, 3, 4], y: 0, a: 0, b: 0 }};
+    walk(@mutable s);
     transition s.y == 3 && s.a == 3 && s.b == 3 {{ true -> ok(), false -> bad() }}
     machine ok() {{ }}
     machine bad() {{ crash Trap; }}

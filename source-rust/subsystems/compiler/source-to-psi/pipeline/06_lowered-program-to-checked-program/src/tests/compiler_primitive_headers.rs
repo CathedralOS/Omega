@@ -468,8 +468,8 @@ fn a_utf8_array_element_write_must_preserve_the_whole_sequence() {
 domain [u8; 2]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 machine main() crashes Trap {
     let plain: [u8; 2] = [65u8, 66u8];
-    let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
-    (@mut bytes as -Utf8)[0] = 65u8;
+    let mutable bytes: [u8; 2] in Utf8 = plain as +Utf8;
+    (@mutable bytes as -Utf8)[0] = 65u8;
     let valid: bool = byte_observation\valid_utf8((@bytes as -Utf8)[..]);
     transition valid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
@@ -519,9 +519,9 @@ machine main() crashes Trap {
                 "the write opens an actual invariant window"
             );
             let write_start = negative_source
-                .find("(@mut bytes as -Utf8)[0] = 65u8;")
+                .find("(@mutable bytes as -Utf8)[0] = 65u8;")
                 .unwrap();
-            let write_end = write_start + "(@mut bytes as -Utf8)[0] = 65u8;".len();
+            let write_end = write_start + "(@mutable bytes as -Utf8)[0] = 65u8;".len();
             assert!(
                 matches!(
                     failure.site,
@@ -678,12 +678,12 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
 fn an_indexed_store_proves_both_prior_and_replacement_byte_contents() {
     let positive = r#"
 domain [u8; 2]::Ascii requires byte_observation\ascii_only(@self[..]);
-machine put(bytes: @mut [u8; 2] in Ascii, index: u64, value: u8)
+machine put(bytes: @mutable [u8; 2] in Ascii, index: u64, value: u8)
 requires index < 2, value <= 127u8
 { (bytes as -Ascii)[index] = value; }
 machine main() crashes Trap {
-    let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
-    put(@mut bytes, 1, 66u8);
+    let mutable bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
+    put(@mutable bytes, 1, 66u8);
     transition (@bytes as -Ascii)[0] == 65u8 && (@bytes as -Ascii)[1] == 66u8 {
         true -> {}, false -> bad()
     }

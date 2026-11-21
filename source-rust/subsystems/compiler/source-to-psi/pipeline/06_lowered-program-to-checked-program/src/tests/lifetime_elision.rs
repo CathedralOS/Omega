@@ -1,6 +1,6 @@
 //! Data that declares lifetime parameters, named in a machine's signature
 //! without them. Read from source, as a Build program: every project's
-//! `build.omg` takes `builder: @mut Build`, and the toolchain declares
+//! `build.omg` takes `builder: @mutable Build`, and the toolchain declares
 //! `data Build<'storage>`.
 
 use super::build_purpose::judge_build;
@@ -31,7 +31,7 @@ fn a_formal_names_lifetime_parameterised_data_without_its_lifetimes() {
     let verdict = judge_build(
         r#"
 data Session<'storage> { ready: bool; count: u32; }
-machine build_entry(session: @mut Session) { session.ready = true; }
+machine build_entry(session: @mutable Session) { session.ready = true; }
 "#,
     )
     .unwrap();
@@ -47,7 +47,7 @@ fn a_formal_that_names_a_lifetime_nothing_declares_is_rejected() {
         violation(
             r#"
 data Session<'storage> { ready: bool; count: u32; }
-machine build_entry(session: @mut Session<'missing>) { session.ready = true; }
+machine build_entry(session: @mutable Session<'missing>) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'missing`, which its declaration does not declare: \
@@ -62,7 +62,7 @@ fn a_field_stores_a_view_for_a_lifetime_its_declaration_binds() {
     let verdict = judge_build(
         r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session) { session.ready = true; }
+machine build_entry(session: @mutable Session) { session.ready = true; }
 "#,
     )
     .unwrap();
@@ -74,7 +74,7 @@ machine build_entry(session: @mut Session) { session.ready = true; }
         violation(
             r#"
 data Session<'storage> { ready: bool; name: @'other [u8]; }
-machine build_entry(session: @mut Session) { session.ready = true; }
+machine build_entry(session: @mutable Session) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'other`, which its declaration does not declare: \
@@ -87,7 +87,7 @@ machine build_entry(session: @mut Session) { session.ready = true; }
 /// A field states the lifetime arguments of the data it names, behind a
 /// reference too. lifetimes.md: a named data application must "match the
 /// declaration's lifetime arity" and "use binders declared in the lexical
-/// owner". `&'activation mut Session` leaves out which of its owner's
+/// owner". `@'activation mutable Session` leaves out which of its owner's
 /// lifetimes the session's own views live for; it is refused by name rather
 /// than read at `Session`'s own binder, which is not the field owner's. The
 /// same record stating `Session<'storage>` is accepted, holding the borrow
@@ -99,14 +99,14 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
             "data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}\n\
              data Holder<{binders}> {{ session: {field}; }}\n\
              machine hold<{binders}>(session: {field}) -> Holder<{binders}> {{ Holder {{ session: session }} }}\n\
-             machine mark(session: @mut Session) {{ session.ready = true; }}\n\
-             machine build_entry(session: @mut Session) {{\n    \
+             machine mark(session: @mutable Session) {{ session.ready = true; }}\n\
+             machine build_entry(session: @mutable Session) {{\n    \
              let held: Holder = hold(session);\n    \
              mark(held.session);\n}}\n"
         )
     };
     for (field, binders) in [
-        ("@'activation mut Session", "'activation"),
+        ("@'activation mutable Session", "'activation"),
         ("Session", "'activation"),
     ] {
         assert_eq!(
@@ -118,7 +118,7 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
         );
     }
     let verdict = judge_build(&holder(
-        "@'activation mut Session<'storage>",
+        "@'activation mutable Session<'storage>",
         "'activation, 'storage",
     ))
     .unwrap();
@@ -140,7 +140,7 @@ fn a_field_that_elides_its_views_lifetime_is_refused_by_name() {
             "data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}\n\
              data Label{binders} {{ name: {view}; }}\n\
              machine label<'storage>(session: @Session<'storage>) -> {result} {{ Label {{ name: session.name }} }}\n\
-             machine build_entry(session: @mut Session) {{\n    \
+             machine build_entry(session: @mutable Session) {{\n    \
              let made: Label = label(session);\n    \
              session.ready = true;\n}}\n"
         )
@@ -170,7 +170,7 @@ fn an_elided_lifetime_does_not_relate_a_view_to_another_region() {
         refusal(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session, name: @[u8]) { session.name = name; }
+machine build_entry(session: @mutable Session, name: @[u8]) { session.name = name; }
 "#
         ),
         "typing assigned value type while reading the body of `build_entry`"
@@ -179,7 +179,7 @@ machine build_entry(session: @mut Session, name: @[u8]) { session.name = name; }
         refusal(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session) { let kept: @[u8] = helper(session); }
+machine build_entry(session: @mutable Session) { let kept: @[u8] = helper(session); }
 machine helper(session: @Session) -> @[u8] { session.name }
 "#
         ),
@@ -269,7 +269,7 @@ fn data_named_only_at_a_lifetime_keeps_that_occurrence() {
             r#"
 data Inner<'held> { count: u32; name: @'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
-machine build_entry(session: @mut Session) { session.ready = true; }
+machine build_entry(session: @mutable Session) { session.ready = true; }
 "#
         ),
         [("Inner".to_owned(), true), ("Session".to_owned(), true)]
@@ -279,7 +279,7 @@ machine build_entry(session: @mut Session) { session.ready = true; }
             r#"
 data Inner<'held> { count: u32; }
 data Session<'storage> { ready: bool; inner: Inner<'missing>; }
-machine build_entry(session: @mut Session) { session.ready = true; }
+machine build_entry(session: @mutable Session) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'missing`, which its declaration does not declare: \
@@ -334,7 +334,7 @@ fn every_spelling_of_lifetime_parameterised_data_is_one_record() {
 data Inner<'held> { count: u32; name: @'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
 data Other<'kept> { inner: Inner<'kept>; }
-machine build_entry(session: @mut Session, other: @Other, bare: @Inner) {
+machine build_entry(session: @mutable Session, other: @Other, bare: @Inner) {
     session.ready = count(@session.inner) == count(@other.inner) && count(bare) == 0;
 }
 machine count(inner: @Inner) -> u32 { inner.count }

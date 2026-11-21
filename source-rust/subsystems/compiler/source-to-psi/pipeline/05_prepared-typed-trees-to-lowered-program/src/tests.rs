@@ -3247,7 +3247,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
 fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     // f() -> u32 {
     //     let p = Point { x: 1, y: 2 };
-    //     let mut l = Line { from: p, to: p };
+    //     let mutable l = Line { from: p, to: p };
     //     l.from.x = 5;
     //     l.to = p;
     //     l.from.x
@@ -3361,7 +3361,7 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
 
 #[test]
 fn a_whole_assignment_constructs_its_value_then_replaces_the_same_root() {
-    // f(a: u32) -> u32 { let mut p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
+    // f(a: u32) -> u32 { let mutable p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
     // A live loan of `p` must see the replacement, so the assignment stores
     // into the root `p` already names (structural_access.md: "Root, field,
     // and indexed destinations do not change construction semantics").
@@ -3420,7 +3420,7 @@ fn a_whole_assignment_constructs_its_value_then_replaces_the_same_root() {
 #[test]
 fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     // f() -> u32 {
-    //     let mut x: u32;  let mut p: Point;
+    //     let mutable x: u32;  let mutable p: Point;
     //     x = 3;  p.x = x;
     //     x
     // }
@@ -4140,7 +4140,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
 #[test]
 fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     // f() -> u32 {
-    //     let mut l: Line;                       // zero: Line 2, from 1, to 1
+    //     let mutable l: Line;                       // zero: Line 2, from 1, to 1
     //     let p: Point = Point { x: 1, y: 2 };   // Point 1
     //     l.to = p;                              // Line 2
     //     l.from.x = 1;                          // Point 1, then Line 2

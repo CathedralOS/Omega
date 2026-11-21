@@ -1,9 +1,9 @@
-// A `mut` formal that holds its own value: the callee's own storage,
+// A `mutable` formal that holds its own value: the callee's own storage,
 // initialised from the argument, which the body assigns and stores into as
-// it does a `mut` local.
+// it does a `mutable` local.
 //
-//     machine step(mut x: u32) -> u32 requires x <= 10 { x = x + 1; x + 1 }
-//     machine set(mut p: Pair) requires p.a <= 10 { p.a = 5; }
+//     machine step(mutable x: u32) -> u32 requires x <= 10 { x = x + 1; x + 1 }
+//     machine set(mutable p: Pair) requires p.a <= 10 { p.a = 5; }
 //
 // A scalar is rebound to the assigned value, so the entry value keeps its
 // identity and an entry `requires` stays a fact about that value only. A
@@ -58,7 +58,7 @@ pub(super) fn unsafe_operations(verdict: RouteVerdict) -> usize {
 
 #[test]
 fn an_assigned_scalar_formal_is_judged_by_the_value_it_was_assigned() {
-    // `step(mut x: u32) requires x <= 10 { x = x + 1; x + (MAX - 11) }`:
+    // `step(mutable x: u32) requires x <= 10 { x = x + 1; x + (MAX - 11) }`:
     // the second add reads the assigned value, which is at most 11.
     let step = |addend: Expression| Machine {
         requires: vec![at_most(1, 10)],
@@ -89,7 +89,7 @@ fn an_assigned_scalar_formal_is_judged_by_the_value_it_was_assigned() {
 
 #[test]
 fn an_entry_fact_does_not_follow_a_scalar_formal_through_an_assignment() {
-    // `f(mut x: u32, y: u32) requires x <= 10 { x = y; x + (MAX - 10) }`:
+    // `f(mutable x: u32, y: u32) requires x <= 10 { x = y; x + (MAX - 10) }`:
     // `x <= 10` was true of the argument, and `x` now holds `y`. Without
     // the assignment the same add is safe.
     let body = |assigned: bool| {
@@ -119,7 +119,7 @@ fn an_entry_fact_does_not_follow_a_scalar_formal_through_an_assignment() {
 
 #[test]
 fn an_assigned_local_fixed_by_a_closed_term_meets_a_callee_bound() {
-    // `main() { let mut total = 20; total = total + 11;
+    // `main() { let mutable total = 20; total = total + 11;
     //            let product = scaled(total); check(product) }`
     // with `scaled(value: u32) requires value <= 1000 { value * 3 }` and
     // `check(value: u32) requires value <= <limit>`. The caller knows the
@@ -209,7 +209,7 @@ fn field_at_most_ten(field: u64) -> Proposition {
     )
 }
 
-/// `f(mut p: Pair) requires p.<bounded> <= 10 { [p.a = <stored>;] p.<read> + (MAX - 10); }`
+/// `f(mutable p: Pair) requires p.<bounded> <= 10 { [p.a = <stored>;] p.<read> + (MAX - 10); }`
 fn stored_then_read(bounded: u64, stored: Option<u128>, read: usize) -> Lending {
     let mut statements = Vec::new();
     if let Some(stored) = stored {
@@ -246,7 +246,7 @@ fn a_store_into_a_record_formal_replaces_what_its_field_held_at_entry() {
 #[test]
 fn a_store_into_a_record_formal_leaves_the_callers_argument_alone() {
     // `main() { let q = Pair { a: 1, b: 2 }; set(q); q.a + (MAX - 1); }`
-    // with `set(mut p: Pair) { p.a = MAX; }`: the call passes a copy, so
+    // with `set(mutable p: Pair) { p.a = MAX; }`: the call passes a copy, so
     // the caller's field still holds 1.
     let main = Lending {
         locals: vec![pair()],
@@ -271,7 +271,7 @@ fn a_store_into_a_record_formal_leaves_the_callers_argument_alone() {
 
 #[test]
 fn a_formal_lent_exclusively_holds_what_the_callee_left() {
-    // `f(mut p: Pair) requires p.<bounded> <= 10 { clear(&mut p.a); p.<read> + (MAX - 10); }`:
+    // `f(mutable p: Pair) requires p.<bounded> <= 10 { clear(@mutable p.a); p.<read> + (MAX - 10); }`:
     // the formal's storage is the machine's own to lend, the lent field
     // holds whatever `clear` stored, and its sibling is untouched.
     let lending = |bounded: u64, read: usize| Lending {
@@ -351,8 +351,8 @@ fn a_whole_borrowed_record_replacement_changes_the_callers_root() {
 #[test]
 fn a_whole_borrowed_record_replacement_requires_mutable_access() {
     let source = borrowed_replacement_source()
-        .replace("owner: @mut Item", "owner: @Item")
-        .replace("replace(@mut item)", "replace(@item)");
+        .replace("owner: @mutable Item", "owner: @Item")
+        .replace("replace(@mutable item)", "replace(@item)");
     let verdict = super::build_purpose::judge_build(&source);
     let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("shared access cannot replace the caller's root: {verdict:?}");
@@ -380,7 +380,7 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
 fn a_whole_borrowed_replacement_cannot_discard_a_linear_resident() {
     let source = r#"
 data Item [linear] { value: u32; }
-machine build_entry(owner: @mut Item, replacement: Item) {
+machine build_entry(owner: @mutable Item, replacement: Item) {
     $owner = replacement;
 }
 "#;
@@ -442,7 +442,7 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
 #[test]
 fn a_slice_formal_does_not_gain_whole_view_replacement() {
     let source = r#"
-machine build_entry<'storage>(view: @'storage mut [u8]) {
+machine build_entry<'storage>(view: @'storage mutable [u8]) {
     $view = view;
 }
 "#;

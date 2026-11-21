@@ -49,7 +49,7 @@ fn counting(last: u64, entry: &str) -> String {
 machine slot_of(kind: Kind) -> u64 ensures result <= {last}u64 {{
     match kind {{ Kind::First -> 1u64, Kind::Second -> {last}u64 }}
 }}
-machine count(table: @mut Table, kind: Kind) {{
+machine count(table: @mutable Table, kind: Kind) {{
     let slot: u64 = slot_of(kind);
     table.selected[slot] = table.selected[slot] + 1;
 }}
@@ -69,7 +69,7 @@ fn an_element_chosen_at_run_time_is_read_and_written_through_a_lent_record() {
     assert_eq!(
         verdict(&counting(
             3,
-            "machine build_entry(kind: Kind) { let mut table: Table; count(@mut table, kind); }"
+            "machine build_entry(kind: Kind) { let mutable table: Table; count(@mutable table, kind); }"
         )),
         "accepted"
     );
@@ -91,7 +91,7 @@ fn an_element_chosen_at_run_time_is_read_and_written_through_a_lent_record() {
 fn a_slot_that_may_lie_outside_the_array_is_rejected() {
     let verdict = verdict(&counting(
         4,
-        "machine build_entry(kind: Kind) { let mut table: Table; count(@mut table, kind); }",
+        "machine build_entry(kind: Kind) { let mutable table: Table; count(@mutable table, kind); }",
     ));
     assert!(verdict.starts_with("rejected"), "{verdict}");
 }

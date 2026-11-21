@@ -1,5 +1,5 @@
 /*
-Decode plain `Build` configuration settings from the root `&mut Build` parameter
+Decode plain `Build` configuration settings from the root `@mutable Build` parameter
 after normal Terminal interpreter return.
 
 `extract` reads the six plain configuration fields (`subsystem`, `identifier`,

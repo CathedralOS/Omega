@@ -778,11 +778,11 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
             Some(write) => (
                 "relay",
                 format!(
-                    "machine relay(input: @mut Input) -> u32 {{
+                    "machine relay(input: @mutable Input) -> u32 {{
                     {write}
                     transition {{ _ -> block handoff(input) }}
                  }}
-                 machine handoff(input: @mut Input) -> u32 {{
+                 machine handoff(input: @mutable Input) -> u32 {{
                     transition {{ _ -> block fetch(input) }}
                  }}"
                 ),
@@ -790,13 +790,13 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
         };
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
-            public machine entry(input: @mut Input) -> u32 requires true {{
+            public machine entry(input: @mutable Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
-                machine test(input: @mut Input) -> u32 {{
+                machine test(input: @mutable Input) -> u32 {{
                     transition input.index < 3u32 {{ true -> block {successor}(input), _ -> {alternative} }}
                 }}
                 {intermediate}
-                machine fetch(input: @mut Input) -> u32 {contract} {{
+                machine fetch(input: @mutable Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
                     input.index = {next_index};
@@ -845,17 +845,17 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
 fn a_caller_proves_the_inferred_disjunct_it_can_state() {
     let source = r#"
 data Board { cells: [u32; 2]; }
-machine entry(board: @mut Board) -> u32 {
+machine entry(board: @mutable Board) -> u32 {
     fill(board, 1);
     transition board.cells[0] == 1 { true -> second_step(board), false -> report(board) }
-    machine second_step(board: @mut Board) -> u32 {
+    machine second_step(board: @mutable Board) -> u32 {
         transition board.cells[1] == 1 { true -> 0u32, false -> report(board) }
     }
-    machine report(board: @mut Board) -> u32 {
+    machine report(board: @mutable Board) -> u32 {
         7u32
     }
 }
-machine fill(board: @mut Board, value: u32) {
+machine fill(board: @mutable Board, value: u32) {
     board.cells[0] = value;
     board.cells[1] = value;
 }
@@ -903,11 +903,11 @@ machine fill(board: @mut Board, value: u32) {
 fn recursive_arrivals_prove_their_observed_input_alternative() {
     let source = r"
 public data Board { cells: [u32; 2]; }
-public machine entry(board: @mut Board) -> u32 {
+public machine entry(board: @mutable Board) -> u32 {
     fill(board, 1u32);
     transition board.cells[0] == 1u32 { true -> report(board, 3u32), false -> 6u32 }
 }
-machine report(board: @mut Board, remaining: u32) -> u32
+machine report(board: @mutable Board, remaining: u32) -> u32
 WRITTEN
 terminates by remaining
 {
@@ -917,7 +917,7 @@ terminates by remaining
         false -> 7u32
     }
 }
-machine fill(board: @mut Board, value: u32) {
+machine fill(board: @mutable Board, value: u32) {
     board.cells[0] = value;
     board.cells[1] = value;
 }
@@ -949,10 +949,10 @@ machine fill(board: @mut Board, value: u32) {
 fn an_unstated_disjunct_is_proved_false_not_assumed() {
     let source = r#"
 data Pair { first: u32; second: u32; }
-machine entry(pair: @mut Pair) -> u32 {
+machine entry(pair: @mutable Pair) -> u32 {
     transition pair.first < BOUND { true -> check(pair), false -> 0u32 }
 }
-machine check(pair: @mut Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
+machine check(pair: @mutable Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
     7u32
 }
 "#;
@@ -1002,10 +1002,10 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
     ] {
         let source = format!(
             "data Main {{ stack: [i32; 8]; sp: i32; k: i32; }}
-            machine entry(main: @mut Main) {{
+            machine entry(main: @mutable Main) {{
                 {writes}
                 transition {guarded} >= 0 && {guarded} < 8 {{ true -> push(main), false -> done() }}
-                machine push(main: @mut Main) {{
+                machine push(main: @mutable Main) {{
                     main.stack[main.sp] = 3;
                 }}
                 machine done() {{}}

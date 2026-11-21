@@ -3,7 +3,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
-const BUILD: &str = r#"machine build(builder: @mut Build) {
+const BUILD: &str = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "named_entry");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }
@@ -106,7 +106,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
 
     std::fs::write(
         root.join("release.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
     Build::application(builder, "first");
     Build::application(builder, "second");
 }

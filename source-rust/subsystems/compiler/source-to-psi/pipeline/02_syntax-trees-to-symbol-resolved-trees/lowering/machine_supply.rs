@@ -711,7 +711,7 @@ mod compiler_machine_tests {
         check(HEADER).expect("the exact pure header");
         for changed in [
             HEADER.replace("public machine", "machine"),
-            HEADER.replace("@'input [u8]", "@'input mut [u8]"),
+            HEADER.replace("@'input [u8]", "@'input mutable [u8]"),
             HEADER.replace("@'input [u8]", "@[u8]"),
             HEADER.replace("[u8]", "[u16]"),
             HEADER.replace("-> bool", "-> u64"),

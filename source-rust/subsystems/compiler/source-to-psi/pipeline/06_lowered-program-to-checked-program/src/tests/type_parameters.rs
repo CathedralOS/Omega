@@ -96,7 +96,7 @@ fn parameter_storage_cannot_drop_or_change_its_source_bound() {
 fn generic_borrowed_callbacks_keep_their_carrier_and_access() {
     for (reference, result, body) in [
         ("@T", " -> u32", "let first: u32 = Next(value); Next(value)"),
-        ("@mut T", "", "Next(value); Next(value);"),
+        ("@mutable T", "", "Next(value); Next(value);"),
     ] {
         let form = parameter_form(&format!(
             r#"
@@ -120,8 +120,8 @@ fn an_unknown_payload_write_preserves_unexposed_local_storage() {
     let form = parameter_form(
         r#"
         data Local [copy] { value: u32; }
-        machine entry<T, machine Next>(value: @mut T) -> u32
-        requires machine Next(value: @mut T) reaches none crashes none;
+        machine entry<T, machine Next>(value: @mutable T) -> u32
+        requires machine Next(value: @mutable T) reaches none crashes none;
         ensures result == 9u32
         reaches none
         crashes none
@@ -204,7 +204,7 @@ fn an_unknown_carrier_cannot_upgrade_a_shared_argument() {
     let source = super::boundary_calls::typed(
         r#"
         machine entry<T, machine Next>(value: @T)
-        requires machine Next(value: @mut T) reaches none crashes none;
+        requires machine Next(value: @mutable T) reaches none crashes none;
         reaches none
         crashes none
         { Next(@value); }
@@ -969,8 +969,8 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
     for promised in [1, 0] {
         let source = super::boundary_calls::typed(&format!(
             r#"
-            machine update<T>(value: @mut u32) ensures value == 1u32 {{ value = 1u32; }}
-            machine entry<T>(value: @mut u32) requires value == 0u32
+            machine update<T>(value: @mutable u32) ensures value == 1u32 {{ value = 1u32; }}
+            machine entry<T>(value: @mutable u32) requires value == 0u32
                 ensures value == {promised}u32 {{ update::<T>(value); }}
         "#
         ));
@@ -1076,11 +1076,11 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
     // The extra operand writes count after the guard observes it.
     let invalid = source.replace(
         "transition context.valid && context.count <= context.storage.length {",
-        "transition context.valid && context.count <= context.storage.length && overwrite(@mut context) {",
+        "transition context.valid && context.count <= context.storage.length && overwrite(@mutable context) {",
     );
     assert_ne!(source, invalid);
     let rejected = judge(&format!(
-        "{invalid}\nmachine overwrite<'input>(context: @mut Context<'input>) -> bool {{ context.count = 4u64; true }}"
+        "{invalid}\nmachine overwrite<'input>(context: @mutable Context<'input>) -> bool {{ context.count = 4u64; true }}"
     ));
     assert!(rejected.iter().any(|verdict| matches!(
         verdict,
@@ -1143,7 +1143,7 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
 
 #[test]
 fn generic_callback_applications_keep_the_selected_contract() {
-    for reference in ["@T", "@mut T"] {
+    for reference in ["@T", "@mutable T"] {
         let text = format!(
             r#"
             machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}

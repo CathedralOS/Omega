@@ -280,7 +280,7 @@ fn a_call_gives_a_lifetime_the_region_of_the_view_it_passes() {
         verdict(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>) { session.name = same(other.name); }
+machine build_entry<'s>(session: @mutable Session<'s>, other: @Session<'s>) { session.name = same(other.name); }
 machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
@@ -290,7 +290,7 @@ machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
         verdict(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session, other: @Session) { session.name = same(other.name); }
+machine build_entry(session: @mutable Session, other: @Session) { session.name = same(other.name); }
 machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
@@ -300,7 +300,7 @@ machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
         verdict(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session, name: @[u8]) { session.name = same(name); }
+machine build_entry(session: @mutable Session, name: @[u8]) { session.name = same(name); }
 machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
@@ -318,7 +318,7 @@ fn one_lifetime_is_not_given_two_regions() {
         verdict(&format!(
             r#"
 data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}
-machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>) {{ session.name = both(other.name, "literal"); }}
+machine build_entry<'s>(session: @mutable Session<'s>, other: @Session<'s>) {{ session.name = both(other.name, "literal"); }}
 {both}
 "#
         )),
@@ -328,7 +328,7 @@ machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>) {{ sessi
         verdict(&format!(
             r#"
 data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}
-machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>, name: @[u8]) {{ session.name = both(other.name, name); }}
+machine build_entry<'s>(session: @mutable Session<'s>, other: @Session<'s>, name: @[u8]) {{ session.name = both(other.name, name); }}
 {both}
 "#
         )),
@@ -625,8 +625,8 @@ machine take<'a>(count: @'a u32) { }
 
 const DATA_QUALIFIED_MACHINE: &str = r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session, name: @[u8]) { Session::keep(session, name); }
-machine Session::keep(session: @mut Session, view: @'storage [u8]) { session.name = view; }
+machine build_entry(session: @mutable Session, name: @[u8]) { Session::keep(session, name); }
+machine Session::keep(session: @mutable Session, view: @'storage [u8]) { session.name = view; }
 "#;
 
 #[test]
@@ -658,7 +658,7 @@ fn a_static_machine_must_declare_the_lifetime_its_signature_uses() {
     let bound = ordinary
         .replace("machine build_entry(", "machine build_entry<'storage>(")
         .replace("machine keep(", "machine keep<'storage>(")
-        .replace("@mut Session,", "@mut Session<'storage>,")
+        .replace("@mutable Session,", "@mutable Session<'storage>,")
         .replace("name: @[u8]", "name: @'storage [u8]");
     assert_eq!(verdict(&bound), "accepted");
 }
@@ -722,7 +722,7 @@ fn a_view_of_a_machine_lifetime_is_stored_in_data_applied_at_it() {
             r#"
 data Description<'storage> { explicit_alias: bool; alias: @'storage [u8]; }
 machine build_entry() { }
-machine with_alias<'storage>(description: @mut Description<'storage>, alias: @'storage [u8]) {
+machine with_alias<'storage>(description: @mutable Description<'storage>, alias: @'storage [u8]) {
     description.explicit_alias = true;
     description.alias = alias;
 }
@@ -735,7 +735,7 @@ machine with_alias<'storage>(description: @mut Description<'storage>, alias: @'s
             r#"
 data Description<'storage> { explicit_alias: bool; alias: @'storage [u8]; }
 machine build_entry() { }
-machine with_alias<'storage, 'other>(description: @mut Description<'storage>, alias: @'other [u8]) {
+machine with_alias<'storage, 'other>(description: @mutable Description<'storage>, alias: @'other [u8]) {
     description.alias = alias;
 }
 "#

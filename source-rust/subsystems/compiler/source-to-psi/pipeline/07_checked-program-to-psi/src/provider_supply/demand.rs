@@ -16,7 +16,7 @@ use super::{SourceNativeBinding, SourceProviderDemand};
 ///
 /// ```compile_fail,E0616
 /// use checked_program_to_psi::provider_supply::{SourceProviderDemand, SourceProviderFacts};
-/// fn replace_roots(mut demand: SourceProviderFacts<SourceProviderDemand>) {
+/// fn replace_roots(mutable demand: SourceProviderFacts<SourceProviderDemand>) {
 ///     demand.facts = SourceProviderDemand::Unscoped { roots: Vec::new() };
 /// }
 /// ```

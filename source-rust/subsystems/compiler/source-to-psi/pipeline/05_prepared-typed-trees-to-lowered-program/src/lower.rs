@@ -853,7 +853,7 @@ struct Lowering<'a> {
     /// A loan of a place beneath one reborrows the incoming loan
     /// (`Lender::Incoming`) rather than lending owned storage.
     borrowed_roots: Vec<PlaceId>,
-    /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
+    /// Those of `borrowed_roots` lent with `@mutable`: the only borrowed storage
     /// an owned value may be moved out of (`places::record`).
     exclusive_roots: Vec<PlaceId>,
     /// Only the machine that declares a body publishes its source advisories.

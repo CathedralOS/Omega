@@ -611,8 +611,8 @@ data Rejection<'reason> { reason: @'reason [u8] in Text; }
     );
     assert_eq!(verdict(&formal), "accepted");
     let copied = format!(
-        "{declarations}machine copy(from: @Rejection, into: @mut Rejection) {{ into.reason = from.reason; }}\n\
-         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(@a, @mut b); }}"
+        "{declarations}machine copy(from: @Rejection, into: @mutable Rejection) {{ into.reason = from.reason; }}\n\
+         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mutable b: Rejection; copy(@a, @mutable b); }}"
     );
     // Independent input regions cannot promise the stored view survives in
     // the other record. State their common referent lifetime for the copy.
@@ -621,8 +621,8 @@ data Rejection<'reason> { reason: @'reason [u8] in Text; }
         "typing assigned value type while reading the body of `copy`"
     );
     let copied = copied.replacen(
-        "copy(from: @Rejection, into: @mut Rejection)",
-        "copy<'reason>(from: @Rejection<'reason>, into: @mut Rejection<'reason>)",
+        "copy(from: @Rejection, into: @mutable Rejection)",
+        "copy<'reason>(from: @Rejection<'reason>, into: @mutable Rejection<'reason>)",
         1,
     );
     assert_eq!(verdict(&copied), "accepted");
@@ -656,8 +656,8 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
     // The default owner must distinguish an empty descriptor from the one
     // zero octet in this actual parsed and lowered fixed-array field.
     let default_source = format!("data FixedDefault {{ bytes: [u8; 1]; }}\n{copied}").replacen(
-        "let mut b: Rejection;",
-        "let mut b: Rejection; let zeros: FixedDefault;",
+        "let mutable b: Rejection;",
+        "let mutable b: Rejection; let zeros: FixedDefault;",
         1,
     );
     let accepted = match judge_build(&default_source) {

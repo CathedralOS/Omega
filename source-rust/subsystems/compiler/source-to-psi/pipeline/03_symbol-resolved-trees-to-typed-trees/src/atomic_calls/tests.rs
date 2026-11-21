@@ -36,7 +36,7 @@ fn callable_field_named_store_keeps_its_value_arguments() {
 #[test]
 fn indexed_atomic_store_retains_its_destination() {
     let typed = type_source(
-        "machine set(cells: @mut [AtomicU32; 2]) {
+        "machine set(cells: @mutable [AtomicU32; 2]) {
             cells[0].store(17, NoOrdering);
         }",
     )
@@ -125,7 +125,7 @@ fn source_calls_publish_the_selected_atomic_member() {
     };
     use language_core::atomic::AtomicCellMember;
     let source = "machine main() {
-        let mut cell: AtomicU32;
+        let mutable cell: AtomicU32;
         cell.store(10u32, Publish);
         let prior: u32 = cell.fetch_add(5u32, NoOrdering);
         let current: u32 = cell.load(Receive);
