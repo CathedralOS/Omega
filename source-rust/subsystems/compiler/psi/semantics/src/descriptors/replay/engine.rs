@@ -435,10 +435,14 @@ impl<'a> Replay<'a> {
             {
                 continue;
             }
-            let DescriptorInvocationTarget::Machine(callee) = &call.target else {
-                return Ok(None);
-            };
-            self.prepare_write_frame(*callee)?;
+            match &call.target {
+                DescriptorInvocationTarget::Machine(callee) => self.prepare_write_frame(*callee)?,
+                // A public call that accepts no storage cannot write a caller's
+                // owned value. The operation's own definitions are still writes.
+                DescriptorInvocationTarget::Public { invalidates_contents: false, .. }
+                    if call.arguments.is_empty() && call.argument_contents.is_empty() => {}
+                _ => return Ok(None),
+            }
         }
         let states = self
             .snapshots
@@ -528,7 +532,8 @@ impl<'a> Replay<'a> {
                 continue;
             };
             let DescriptorInvocationTarget::Machine(callee) = &call.target else {
-                return Ok(None);
+                // The public call's empty write frame was checked above.
+                continue;
             };
             let Some(frame) = self
                 .summaries
