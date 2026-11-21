@@ -723,7 +723,7 @@ fn native_binding_prelude() -> String {
     );
     for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!(
-            "BuildTarget::{} -> {}u64\n",
+            "BuildTarget::{} -> {}u64,\n",
             target.source_case(),
             target.code()
         ));
