@@ -276,7 +276,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Build-level behavior exclusions
 
-- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions). The [CLI test](source-rust/application/tests/build_prelude_operation_calls.rs) still expects an intermediate refusal. Require a clean selected body to run and a selected transitive `Trap` to reject for the exclusion.
+- **BUILD-SEMANTIC-EXCLUSIONS.** Complete [behavior exclusion verification](wiki/spec/build/behavior_exclusions.md#implementation-acceptance) from authored Build to installed product. Use the existing [native verifier](source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions).
   - Distinguish dormant bodies from selected callbacks, semantic service calls from physical effects and a stale replacement from the accepted installation. Check a saved publication independently before accepting its exclusions.
 
 ## Requirement-based tests
