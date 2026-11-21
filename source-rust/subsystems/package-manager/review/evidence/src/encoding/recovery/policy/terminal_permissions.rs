@@ -1,6 +1,5 @@
 // Bounded receipt-free permission recovery preserving complete service schemas.
 
-use crate::encoding::recovery::policy::identity::service;
 use super::{
     Error, PackagePolicyRecoveryLimits,
     identity::{nominal, package},
@@ -8,6 +7,7 @@ use super::{
     reader::Reader,
     selected_providers::service_method,
 };
+use crate::encoding::recovery::policy::identity::service;
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, TERMINAL_PERMISSION_POLICY_MAGIC,
 };

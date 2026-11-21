@@ -2,7 +2,7 @@
 use std::fmt::Write;
 
 use super::{
-    Names, Output, PackagePolicyCallable, PackagePolicyServiceMethod, PackageReviewNominalIdentity,
+    Names, Output, PackagePolicyCallable, PackagePolicyServiceMethod, PackageReviewServiceIdentity,
     PackageReviewSynchronousInvocation, contracts, fmt,
 };
 impl Names<'_> {
@@ -124,7 +124,7 @@ impl Names<'_> {
         &self,
         output: &mut Output,
         label: &str,
-        identities: Option<&[PackageReviewNominalIdentity]>,
+        identities: Option<&[PackageReviewServiceIdentity]>,
         absent: &str,
     ) -> fmt::Result {
         write!(output, "    {label} ")?;
@@ -136,7 +136,7 @@ impl Names<'_> {
                     if index != 0 {
                         write!(output, ", ")?;
                     }
-                    write!(output, "{}", self.name(identity))?;
+                    write!(output, "{}", self.service(identity))?;
                 }
             }
         }
@@ -164,7 +164,7 @@ impl Names<'_> {
                             write!(output, "parameter {ordinal}")?
                         }
                         PackageReviewSynchronousInvocation::Service(service) => {
-                            write!(output, "{}", self.name(service))?
+                            write!(output, "{}", self.service(service))?
                         }
                     }
                 }

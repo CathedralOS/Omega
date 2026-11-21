@@ -41,7 +41,21 @@ impl<'identity> Encoder<'identity> {
         self.check()
     }
 
-    pub(crate) fn observe_service_application(&mut self, identity: &str) -> Result<(), PackageReviewEncodingError> {
+    pub(crate) fn static_argument(
+        &mut self,
+        argument: &crate::record::PackageReviewTypeIdentity,
+    ) -> Result<(), PackageReviewEncodingError> {
+        if let Some(observer) = &mut self.membership {
+            let result = observer.static_argument(&argument.canonical);
+            self.record_membership_result(result);
+        }
+        self.string_field("canonical", &argument.canonical)
+    }
+
+    pub(crate) fn observe_service_application(
+        &mut self,
+        identity: &str,
+    ) -> Result<(), PackageReviewEncodingError> {
         if let Some(observer) = &mut self.membership {
             let result = observer.service_application(identity);
             self.record_membership_result(result);

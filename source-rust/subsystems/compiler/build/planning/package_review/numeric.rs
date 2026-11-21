@@ -327,6 +327,7 @@ impl NumericMethod {
             plan_name: leaf.plan.name.clone(),
             realizing_package: None,
             schema_declaration: nominal.clone(),
+            schema_application: None,
             provider_type: leaf.plan.provider_type.clone(),
             provider_type_declaration: None,
             target: target.target_name().to_owned(),

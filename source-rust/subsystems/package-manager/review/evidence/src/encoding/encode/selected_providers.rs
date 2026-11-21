@@ -30,7 +30,13 @@ impl PackagePolicySelectedProviders {
         } else {
             crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
         };
-        Encoder::versioned_policy_bytes(SELECTED_PROVIDER_POLICY_MAGIC, version, PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, self, policy)
+        Encoder::versioned_policy_bytes(
+            SELECTED_PROVIDER_POLICY_MAGIC,
+            version,
+            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
+            self,
+            policy,
+        )
     }
 }
 
@@ -50,11 +56,13 @@ fn plan(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("plan_name", |encoder| encoder.string(&plan.plan_name))?;
     encoder.optional_package_identity_field("realizing_package", plan.realizing_package)?;
-    encoder.field_by(
-        "schema_declaration",
-        &plan.schema_declaration,
-        encode_nominal,
-    )?;
+    encoder.field("schema_declaration", |encoder| {
+        super::values::identity::encode_service_receiver(
+            encoder,
+            &plan.schema_declaration,
+            plan.schema_application.as_ref(),
+        )
+    })?;
     encoder.string_field("provider_type", &plan.provider_type)?;
     encoder.option_field(
         "provider_type_declaration",

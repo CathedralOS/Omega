@@ -11,9 +11,9 @@ use crate::record::PackageReviewCheckedServiceReach;
 use crate::record::PackageReviewCrashInterface;
 use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::package::callable_policy::validation::service_set;
 use crate::record::package::callable_policy::validation::ordered;
 use crate::record::package::callable_policy::validation::ordered_by;
+use crate::record::package::callable_policy::validation::service_set;
 use crate::record::package::callable_policy::validation::signature;
 use crate::record::package::callable_policy::validation::structural;
 

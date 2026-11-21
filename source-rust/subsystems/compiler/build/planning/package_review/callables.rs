@@ -3,10 +3,10 @@
 //! requirements borrow Product's accepted module. Neither may infer a body for
 //! a declaration supplied elsewhere.
 
-use review_evidence::record::PackageReviewServiceIdentity;
 use super::declarations::{nominal_identity, unavailable};
 use super::input::PolicySource;
 use diagnostics::Diagnostic;
+use review_evidence::record::PackageReviewServiceIdentity;
 use review_evidence::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash, PackagePolicyCrashGuard,
     PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
@@ -55,7 +55,8 @@ impl PolicySource<'_> {
             .machine(entry)
             .and_then(|machine| machine.contract.declaration.as_ref())
             .ok_or_else(|| unavailable("the selected Build's public callable contract"))?;
-        if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str()) {
+        if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str())
+        {
             return Err(unavailable("the exact selected Build/source association"));
         }
         let identity = self.nominal(symbol)?;
@@ -65,8 +66,18 @@ impl PolicySource<'_> {
             ));
         }
         validate_body_effect_inventory(module)?;
-        let origins = scoped_service_origins(self.typed(), module, source_provenance::DependencyScope::Build)?;
-        let names = service_identities(self.typed(), module, self.sources().exact_toolchain_sources(), &origins)?;
+        let origins = service_origins(
+            self.typed(),
+            module,
+            self.sources().exact_toolchain_sources(),
+            source_provenance::DependencyScope::Build,
+        )?;
+        let names = service_identities(
+            self.typed(),
+            module,
+            self.sources().exact_toolchain_sources(),
+            &origins,
+        )?;
         self.callable(
             &CallableInventory {
                 source: self.typed(),
@@ -534,102 +545,65 @@ impl PolicySource<'_> {
 /// Join the portable identities in the accepted module to the exact source
 /// declarations. Memberless service labels may appear in reach even though
 /// there is no boundary method whose correspondence could name their owner.
+/// Every published service carries its receiver application and the exact owning
+/// declaration in the Terminal module. Join the latter to the checked source.
 pub(super) fn service_origins(
-    accepted: &source_compiler::publication::AcceptedTerminalSource,
-    purpose: source_provenance::DependencyScope,
-) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
-    let source = accepted.source();
-    let module = accepted.module();
-    let mut boundaries = Vec::new();
-    for boundary in &module.interfaces.boundary_machines {
-        let Some(service) = boundary.owning_service else {
-            continue;
-        };
-        let original = *accepted
-            .closure()
-            .elaboration()
-            .boundaries
-            .get(boundary.id)
-            .ok_or_else(|| unavailable("a service's original boundary declaration"))?;
-        if !source.symbols.symbols().nodes().is_valid(original) {
-            return Err(unavailable(
-                "a stale boundary declaration in the accepted module's service inventory",
-            ));
-        }
-        // A specialized protocol call retains its typed requirement even
-        // when its generated symbol has no lexical trait parent.
-        let owner = source.trait_machine_signature(original).map_or_else(
-            || source.symbols.get(original).parent,
-            |(declaration, _)| declaration.symbol,
-        );
-        boundaries.push((service, owner));
-    }
-    boundaries.sort_unstable_by_key(|(service, _)| *service);
-    boundaries.dedup();
-    if boundaries.windows(2).any(|rows| rows[0].0 == rows[1].0) {
-        return Err(unavailable(
-            "a service associated with two source declarations",
-        ));
-    }
-    if boundaries.iter().any(|(id, _)| {
-        module
-            .interfaces
-            .services
-            .binary_search_by_key(id, |service| service.id)
-            .is_err()
-    }) {
-        return Err(unavailable(
-            "a service absent from the accepted declaration inventory",
-        ));
-    }
-    let origins = scoped_service_origins(source, module, purpose)?;
-    for (id, owner) in &origins {
-        if let Ok(position) = boundaries.binary_search_by_key(id, |(id, _)| *id)
-            && boundaries[position].1 != *owner
-        {
-            return Err(unavailable("a service/source application identity mismatch"));
-        }
-    }
-    Ok(origins)
-}
-
-// A closed service can contribute authority without visiting an executable boundary.
-fn scoped_service_origins(
     source: &source_compiler::representations::source_state::TypedTrees,
     module: &TerminalModule,
+    exact_sources: &[(source_text::SourceId, [u8; 32])],
     purpose: source_provenance::DependencyScope,
 ) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
-    let mut declared = Vec::new();
-    if !module.interfaces.services.is_empty() {
-        for root in source.applied_trait_roots() {
-            root.try_visit(source, &mut |scope| {
-                if scope.declaration.is_boundary && source.symbols.symbol_is_in_dependency_scope(scope.declaration.symbol, purpose)
-                    && let Some(identity) = scope.portable_application_identity(source).and_then(|id| source.type_identity_text(id))
-                {
-                    declared.push((identity, scope.declaration.symbol));
-                }
-                Ok(())
-            }).map_err(unavailable)?;
+    use source_compiler::representations::source_state::service_declarations::exact_identity;
+    use std::collections::BTreeMap;
+    if module.interfaces.services.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut surfaces = BTreeMap::new();
+    for schema in &module.interfaces.service_schemas {
+        if surfaces.insert(schema.application, schema).is_some() {
+            return Err(unavailable("one checked schema per service application"));
         }
-        declared.sort_unstable_by(|(left, a), (right, b)| left.cmp(right).then_with(||
-            (a.arena_index(), a.generation()).cmp(&(b.arena_index(), b.generation()))));
-        declared.dedup();
     }
-    let mut origins = Vec::with_capacity(module.interfaces.services.len());
-    for service in &module.interfaces.services {
-        let actual = module
-            .identities
-            .text(service.identity)
-            .ok_or_else(|| unavailable("an accepted service's declaration identity"))?;
-        let first = declared.partition_point(|(identity, _)| identity.as_str() < actual);
-        let last = declared.partition_point(|(identity, _)| identity.as_str() <= actual);
-        let [(_, owner)] = &declared[first..last] else {
-            return Err(unavailable("a service without a unique original application"));
-        };
-        let owner = *owner;
-        origins.push((service.id, owner));
+    let mut declarations = BTreeMap::<String, Vec<symbols::SymbolHandle>>::new();
+    for slot in source.traits().iter().filter(|slot| {
+        slot.is_boundary
+            && source
+                .symbols
+                .symbol_is_in_dependency_scope(slot.symbol, purpose)
+    }) {
+        if let Ok(id) = exact_identity(source, slot.symbol, exact_sources) {
+            declarations.entry(id).or_default().push(slot.symbol);
+        }
     }
-    Ok(origins)
+    module
+        .interfaces
+        .services
+        .iter()
+        .map(|service| {
+            let schema = surfaces
+                .get(&service.identity)
+                .ok_or_else(|| unavailable("the published service's complete receiver schema"))?;
+            let application = module
+                .identities
+                .text(service.identity)
+                .ok_or_else(|| unavailable("a service's published application"))?;
+            if schema.surface.root_application_identity() != Some(application) {
+                return Err(unavailable(
+                    "the same receiver on the service and its checked schema",
+                ));
+            }
+            let key = module
+                .identities
+                .text(schema.declaration)
+                .ok_or_else(|| unavailable("the published service's physical declaration"))?;
+            let Some([owner]) = declarations.get(key).map(Vec::as_slice) else {
+                return Err(unavailable(
+                    "a unique original declaration of the published service",
+                ));
+            };
+            Ok((service.id, *owner))
+        })
+        .collect()
 }
 
 pub(super) fn service_identities(
@@ -638,19 +612,40 @@ pub(super) fn service_identities(
     exact_sources: &[(source_text::SourceId, [u8; 32])],
     origins: &[(ServiceId, symbols::SymbolHandle)],
 ) -> Result<Vec<(ServiceId, PackageReviewServiceIdentity)>, Vec<Diagnostic>> {
-    origins.iter().map(|&(id, owner)| {
-        let declaration = source.trait_definition_by_symbol(owner).ok_or_else(|| unavailable("a service lost its declaration"))?;
-        let application = if declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty() {
-            None
-        } else {
-            let i = module.interfaces.services.binary_search_by_key(&id, |service| service.id)
-                .map_err(|_| unavailable("a service lost its checked terminal application"))?;
-            let service = &module.interfaces.services[i];
-            let canonical = module.identities.text(service.identity).ok_or_else(|| unavailable("a service lost its normalized static inputs"))?;
-            Some(PackageReviewTypeIdentity { canonical: canonical.to_owned() })
-        };
-        Ok((id, PackageReviewServiceIdentity { declaration: nominal_identity(source, exact_sources, owner)?, application }))
-    }).collect()
+    origins
+        .iter()
+        .map(|&(id, owner)| {
+            let declaration = source
+                .trait_definition_by_symbol(owner)
+                .ok_or_else(|| unavailable("a service lost its declaration"))?;
+            let application = if declaration.type_parameters.is_empty()
+                && declaration.lifetime_parameters.is_empty()
+            {
+                None
+            } else {
+                let i = module
+                    .interfaces
+                    .services
+                    .binary_search_by_key(&id, |service| service.id)
+                    .map_err(|_| unavailable("a service lost its checked terminal application"))?;
+                let service = &module.interfaces.services[i];
+                let canonical = module
+                    .identities
+                    .text(service.identity)
+                    .ok_or_else(|| unavailable("a service lost its normalized static inputs"))?;
+                Some(PackageReviewTypeIdentity {
+                    canonical: canonical.to_owned(),
+                })
+            };
+            Ok((
+                id,
+                PackageReviewServiceIdentity {
+                    declaration: nominal_identity(source, exact_sources, owner)?,
+                    application,
+                },
+            ))
+        })
+        .collect()
 }
 
 pub(super) fn reviewed_services(
@@ -699,7 +694,7 @@ pub(super) fn reviewed_invocations(
 /// Exact service declarations named by the published contract or its checked body.
 pub(super) fn referenced_services(
     callable: &PackagePolicyCallable,
-) -> impl Iterator<Item = &PackageReviewNominalIdentity> {
+) -> impl Iterator<Item = &PackageReviewServiceIdentity> {
     let invocations = callable
         .declared_synchronous_invocations
         .iter()

@@ -1,5 +1,4 @@
 // Complete named callable row encoding sharing the enclosing policy budget.
-use crate::encoding::encode::values::identity::encode_service;
 use super::{encode_callable_conformance, encode_type_parameter};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::callable_policy::behavior;
@@ -13,6 +12,7 @@ use crate::encoding::encode::values::declarations::{
 use crate::encoding::encode::values::effects::encode_installation_reach;
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::encode::values::identity::encode_supply;
 use crate::encoding::encode::values::identity::encode_target_context;
 use crate::record::PackagePolicyCallable;

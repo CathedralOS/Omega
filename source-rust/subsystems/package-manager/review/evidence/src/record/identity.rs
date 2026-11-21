@@ -71,17 +71,30 @@ pub struct PackageReviewServiceIdentity {
 
 impl From<PackageReviewNominalIdentity> for PackageReviewServiceIdentity {
     fn from(declaration: PackageReviewNominalIdentity) -> Self {
-        Self { declaration, application: None }
+        Self {
+            declaration,
+            application: None,
+        }
     }
 }
 
 impl PackageReviewServiceIdentity {
-    pub fn owner(&self) -> PackageReviewNominalOwner { self.declaration.owner() }
-    pub fn path(&self) -> &str { self.declaration.path() }
+    pub fn owner(&self) -> PackageReviewNominalOwner {
+        self.declaration.owner()
+    }
+    pub fn path(&self) -> &str {
+        self.declaration.path()
+    }
     pub(crate) fn validate_resolved(&self) -> Result<(), &'static str> {
         self.declaration.validate_resolved()?;
-        if self.application.as_ref().is_some_and(|application| !self.declaration.matches_applied_trait_declaration(&application.canonical)) {
-            return Err("applied service identity does not name its declared receiver and complete arguments");
+        if self.application.as_ref().is_some_and(|application| {
+            !self
+                .declaration
+                .matches_applied_trait_declaration(&application.canonical)
+        }) {
+            return Err(
+                "applied service identity does not name its declared receiver and complete arguments",
+            );
         }
         Ok(())
     }

@@ -1,12 +1,12 @@
 // Row counting and whole-baseline row projection across public API, callables, providers, terminal permissions, representation, and authority obligations.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::super::{baseline, callable_policy, selected_providers, values};
 use super::Builder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::components;
 use crate::encoding::encode::policy_rows::declarations;
 use crate::encoding::encode::policy_rows::rejected;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;

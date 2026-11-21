@@ -1,12 +1,10 @@
 // Exact service-schema terminal permission encoding under one aggregate writer budget.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::{
-    encoder::{Encoder},
-    public_api::type_parameter as encode_type_parameter,
-    selected_providers::encode_service_method,
-    values::identity::encode_nominal,
+    encoder::Encoder, public_api::type_parameter as encode_type_parameter,
+    selected_providers::encode_service_method, values::identity::encode_nominal,
 };
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, PackageReviewEncodingError,
     TERMINAL_PERMISSION_POLICY_MAGIC,
@@ -17,8 +15,11 @@ use semantic_vocabulary::TerminalAuthorityClass;
 impl PackagePolicyTerminalPermissions {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         Encoder::versioned_policy_bytes(
-            TERMINAL_PERMISSION_POLICY_MAGIC, crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
-            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, self, policy
+            TERMINAL_PERMISSION_POLICY_MAGIC,
+            crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
+            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+            self,
+            policy,
         )
     }
 }

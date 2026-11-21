@@ -5,7 +5,7 @@
 use super::callables::reviewed_services;
 use super::declarations::unavailable;
 use super::input::PolicySource;
-use super::provider_rows::ProviderChoice;
+use super::provider_rows::{ChoiceKey, ProviderChoice};
 use diagnostics::Diagnostic;
 use provider_plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -17,9 +17,10 @@ use review_evidence::record::{
     PackagePolicyServiceMethod, PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
     PackagePolicyTargetContext, PackagePolicyTermination, PackagePolicyTraitShape,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashInterface,
-    PackageReviewInstallationReach, PackageReviewServiceIdentity, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
+    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSelectedInstallationReach, PackageReviewServiceIdentity,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation,
+    PackageReviewWriteFrameCompleteness,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
 use source_compiler::compile_product::provider_declarations::ProviderSelectionSubject;
@@ -84,11 +85,17 @@ impl ReviewedProviders {
         }
         let cited: BTreeSet<_> = applications.into_values().flatten().collect();
         for &(service, owner) in declarations.service_origins {
-            if self.services.binary_search(&service).is_err()
+            let index = declarations
+                .service_names
+                .binary_search_by_key(&service, |(id, _)| *id)
+                .map_err(|_| unavailable("the accepted service's checked identity"))?;
+            let declared_slot = declarations.service_names[index].1.application.is_none()
                 && self
                     .slots
                     .binary_search_by_key(&symbol_key(owner), |slot| symbol_key(*slot))
-                    .is_err()
+                    .is_ok();
+            if self.services.binary_search(&service).is_err()
+                && !declared_slot
                 && !cited.contains(&service)
             {
                 return Err(unavailable(format!(
@@ -111,30 +118,26 @@ pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 
 /// A pair from the complete publication roster; this includes default supplies
 /// that the checked target selected from a dependency's Build.
+#[derive(Clone)]
 struct AuthoredProvider {
     subject: SymbolHandle,
     provider: SymbolHandle,
     subject_owner: Option<PackageKeyIdentity>,
     provider_owner: Option<PackageKeyIdentity>,
     subject_path: String,
+    subject_application: Option<String>,
     provider_identity: String,
 }
 
 impl AuthoredProvider {
-    fn key(
-        &self,
-    ) -> (
-        Option<PackageKeyIdentity>,
-        &str,
-        Option<PackageKeyIdentity>,
-        &str,
-    ) {
-        (
-            self.provider_owner,
-            &self.provider_identity,
-            self.subject_owner,
-            &self.subject_path,
-        )
+    fn key(&self) -> ChoiceKey<'_> {
+        ChoiceKey {
+            provider_package: self.provider_owner,
+            provider_identity: &self.provider_identity,
+            service_package: self.subject_owner,
+            service_declaration: &self.subject_path,
+            service_application: self.subject_application.as_deref(),
+        }
     }
 }
 
@@ -216,14 +219,18 @@ impl<'module> AcceptedDeclarations<'module> {
     }
 
     fn surface_service_name(&self, service: ServiceId) -> Result<String, Vec<Diagnostic>> {
-        let position = self.service_names.binary_search_by_key(&service, |(id, _)| *id)
+        let position = self
+            .service_names
+            .binary_search_by_key(&service, |(id, _)| *id)
             .map_err(|_| unavailable("a published service's exact application"))?;
         match &self.service_names[position].1.application {
             Some(application) => Ok(application.canonical.clone()),
-            None => Ok(self.accepted.source().trait_declaration_path(self.source_service(service)?)),
+            None => Ok(self
+                .accepted
+                .source()
+                .trait_declaration_path(self.source_service(service)?)),
         }
     }
-
 }
 
 struct PreparedProviders {
@@ -235,7 +242,7 @@ struct PreparedProviders {
 }
 
 struct PreparedProvider {
-    schema: PackageReviewNominalIdentity,
+    schema: PackageReviewServiceIdentity,
     provider: PackageReviewNominalIdentity,
     methods: Vec<PackagePolicyServiceMethod>,
     rows: Vec<PreparedRow>,
@@ -285,7 +292,8 @@ impl PreparedProviders {
             review.plans.push(PackagePolicyProviderPlan {
                 plan_name: plan.name.clone(),
                 realizing_package: plan.origin_package_identity,
-                schema_declaration: captured.schema,
+                schema_declaration: captured.schema.declaration,
+                schema_application: captured.schema.application,
                 provider_type: captured.provider.path().to_owned(),
                 provider_type_declaration: Some(captured.provider),
                 target: plan.target.clone(),
@@ -346,7 +354,9 @@ impl PreparedRow {
         Ok(PackagePolicyProviderRow {
             method: row.method.clone(),
             requirement: self.requirement.clone(),
-            requirement_application: None,
+            requirement_application: (row.requirement_identity
+                != row.declared_requirement_identity)
+                .then(|| plan.identity_text(row.requirement_identity).to_owned()),
             realization: Some(self.realization.clone()),
             native_build: None,
             requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
@@ -604,7 +614,7 @@ impl PolicySource<'_> {
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         for declaration in typed.traits() {
-            if !closed_service(typed, declaration) || !self.owns(declaration.symbol, package)? {
+            if !declaration.is_boundary || !self.owns(declaration.symbol, package)? {
                 continue;
             }
             let signatures = typed.trait_machine_signatures(declaration);
@@ -711,6 +721,7 @@ impl PolicySource<'_> {
             .sort_by_key(|(slot, implementation)| (symbol_key(*slot), symbol_key(*implementation)));
         supplies.dedup();
         let mut explicit = Vec::new();
+        let mut selected_applications = Vec::new();
         for selection in self
             .declarations
             .explicit_providers()
@@ -725,8 +736,7 @@ impl PolicySource<'_> {
                 return Err(unavailable("the complete Build provider selection"));
             };
             let provider = &selection.provider_type;
-            if subject.applied
-                || provider.applied
+            if provider.applied
                 || supplies
                     .binary_search_by_key(
                         &(symbol_key(subject.symbol), symbol_key(provider.symbol)),
@@ -745,8 +755,21 @@ impl PolicySource<'_> {
                     return Err(unavailable("the exact Build provider selection custody"));
                 }
             }
+            if subject.applied {
+                let application = subject
+                    .application_identity
+                    .clone()
+                    .ok_or_else(|| unavailable("the Build-selected service application"))?;
+                selected_applications.push((
+                    symbol_key(subject.symbol),
+                    symbol_key(provider.symbol),
+                    application,
+                ));
+            }
             explicit.push(subject.symbol);
         }
+        selected_applications.sort();
+        selected_applications.dedup();
         let mut authored = Vec::new();
         for (subject, provider) in supplies {
             // Individual source requirements and numeric operators have different
@@ -757,16 +780,30 @@ impl PolicySource<'_> {
             {
                 continue;
             }
-            authored.push(AuthoredProvider {
+            let coordinates = (symbol_key(subject), symbol_key(provider));
+            let first = selected_applications.partition_point(|(s, p, _)| (*s, *p) < coordinates);
+            let last = selected_applications.partition_point(|(s, p, _)| (*s, *p) <= coordinates);
+            let declaration = AuthoredProvider {
                 subject,
                 provider,
                 subject_owner: source.symbols.symbol_package_identity(subject),
                 provider_owner: source.symbols.symbol_package_identity(provider),
                 subject_path: source.symbols.display_path(subject, "::"),
+                subject_application: None,
                 provider_identity: source
                     .normalized_hermetic_symbol_identity(provider)
                     .map_err(unavailable)?,
-            });
+            };
+            if first == last {
+                authored.push(declaration);
+            } else {
+                authored.extend(selected_applications[first..last].iter().map(
+                    |(_, _, application)| AuthoredProvider {
+                        subject_application: Some(application.clone()),
+                        ..declaration.clone()
+                    },
+                ));
+            }
         }
         authored.sort_unstable_by(|left, right| left.key().cmp(&right.key()));
         Ok((authored, explicit))
@@ -802,7 +839,24 @@ impl PolicySource<'_> {
             (None, PackageReviewNominalOwner::ToolchainSource(_)) => true,
             _ => false,
         };
-        if !closed_service(source, service)
+        if plan
+            .schema
+            .declaration
+            .receiver_applications
+            .first()
+            .is_some_and(|root| !root.lifetime_argument_identities.is_empty())
+        {
+            return Err(unavailable(
+                "the selected service's checked lifetime substitution",
+            ));
+        }
+        let receiver = self.schema_effect_scope(choice.subject, &plan.schema)?;
+        let receiver_identity = self.effect_identity(&receiver)?;
+        if receiver_identity
+            .application
+            .as_ref()
+            .map(|term| term.canonical.as_str())
+            != choice.subject_application.as_deref()
             || methods.len() != plan.schema.declaration.methods.len()
             || methods.len() != plan.method_count
             || !owned
@@ -854,8 +908,11 @@ impl PolicySource<'_> {
             let original = declaration_symbols
                 .get(boundary.id)
                 .ok_or_else(|| unavailable("the accepted requirement's source declaration"))?;
+            let template = source
+                .closed_requirement_application(*original)
+                .map_or(*original, |closed| closed.template);
             let index = signatures
-                .binary_search_by_key(&symbol_key(*original), |signature| {
+                .binary_search_by_key(&symbol_key(template), |signature| {
                     symbol_key(signature.symbol)
                 })
                 .map_err(|_| unavailable("one exact authored service requirement"))?;
@@ -891,7 +948,7 @@ impl PolicySource<'_> {
                 .extend(&boundary.published_synchronous_entries);
         }
         Ok(PreparedProvider {
-            schema: schema_declaration,
+            schema: receiver_identity,
             provider: provider_type_declaration,
             methods: projected_methods,
             rows,
@@ -990,7 +1047,12 @@ impl PolicySource<'_> {
             .service_names
             .binary_search_by_key(&owner, |(service, _)| *service)
             .map_err(|_| unavailable("the selected requirement's own service"))?;
-        if declarations.service_names[owner_index].1.declaration != requirement_owner {
+        let published_owner = &declarations.service_names[owner_index].1;
+        if published_owner.declaration != requirement_owner
+            || published_owner.application.as_ref().is_some_and(|term| {
+                schema.root_application_identity() != Some(term.canonical.as_str())
+            })
+        {
             return Err(unavailable(
                 "the selected requirement's exact owning service",
             ));
@@ -998,7 +1060,8 @@ impl PolicySource<'_> {
 
         let reach = &boundary.published_service_ceiling;
         let authority = reviewed_services(declarations.service_names, reach)?;
-        let mut surface_reach = reach.iter()
+        let mut surface_reach = reach
+            .iter()
             .map(|service| declarations.surface_service_name(*service))
             .collect::<Result<Vec<_>, _>>()?;
         surface_reach.sort_unstable();
@@ -1019,9 +1082,9 @@ impl PolicySource<'_> {
                 TerminalCallableInvocation::Parameter(position) => {
                     Ok(ServiceSynchronousInvocation::Parameter(*position))
                 }
-                TerminalCallableInvocation::Service(service) => {
-                    declarations.surface_service_name(*service).map(ServiceSynchronousInvocation::Service)
-                }
+                TerminalCallableInvocation::Service(service) => declarations
+                    .surface_service_name(*service)
+                    .map(ServiceSynchronousInvocation::Service),
             })
             .collect::<Result<Vec<_>, _>>()?;
         invocations.sort_unstable();
@@ -1077,7 +1140,18 @@ impl PolicySource<'_> {
             requirement,
             requirement_owner.clone(),
             PackagePolicyServiceSignature {
-                schema_arguments: Vec::new(),
+                schema_arguments: schema
+                    .declaration
+                    .receiver_applications
+                    .first()
+                    .into_iter()
+                    .flat_map(|receiver| &receiver.argument_identities)
+                    .map(
+                        |identity| review_evidence::record::PackageReviewTypeIdentity {
+                            canonical: schema.identity_text(*identity).to_owned(),
+                        },
+                    )
+                    .collect(),
                 schema_lifetime_parameter_count: 0,
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
@@ -1296,7 +1370,12 @@ impl PolicySource<'_> {
             unresolved_installation_reaches,
             declared_synchronous_invocations: Some(super::callables::reviewed_invocations(
                 declarations.service_names,
-                declarations.accepted.module().execution.callables.boundary_envelope(boundary.id)
+                declarations
+                    .accepted
+                    .module()
+                    .execution
+                    .callables
+                    .boundary_envelope(boundary.id)
                     .ok_or_else(|| unavailable("the boundary requirement's invocation contract"))?,
             )?),
             realized_synchronous_invocations: Vec::new(),
@@ -1320,18 +1399,6 @@ impl PolicySource<'_> {
             },
         })
     }
-}
-
-fn closed_service(
-    source: &source_compiler::representations::source_state::TypedTrees,
-    service: &TraitDefinition,
-) -> bool {
-    service.is_boundary
-        && service.lifetime_parameters.is_empty()
-        && service.conformance_bounds.is_empty()
-        && source.trait_type_parameters(service).is_empty()
-        && service.refines.is_none()
-        && service.refinement_clauses.is_empty()
 }
 
 /// Project the complete schema once the caller has joined its declaration and

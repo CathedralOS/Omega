@@ -46,7 +46,8 @@ pub(in crate::encoding) fn policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.applied_services = value.schema_version >= crate::encoding::BASELINE_WITH_APPLIED_SERVICES;
+    encoder.applied_services =
+        value.schema_version >= crate::encoding::BASELINE_WITH_APPLIED_SERVICES;
     encoder.package_identity_field("package", value.package)?;
     encoder.string_field("target", value.target.identity().as_str())?;
     encoder.field("public_api", |encoder| {

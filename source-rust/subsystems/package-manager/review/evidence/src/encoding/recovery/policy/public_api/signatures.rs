@@ -1,6 +1,5 @@
 // Bounded recovery for public type parameters, machine parameter contracts, and machine signatures.
 
-use crate::encoding::recovery::policy::identity::service;
 use super::super::{
     Error,
     behavior::synchronous_invocation,
@@ -10,6 +9,7 @@ use super::super::{
     reader::Reader,
     signatures::data_properties,
 };
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
     PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,

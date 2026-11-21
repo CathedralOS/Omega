@@ -116,7 +116,7 @@ fn host_services(
             .machine(entry.entry)
             .ok_or_else(|| unavailable("the checked physical entry machine"))?;
         let origins = super::callables::service_origins(
-            input.accepted(),
+            input.typed(), module, input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
         let ids = super::callables::service_identities(

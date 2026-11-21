@@ -1,6 +1,5 @@
 // Bounded recovery for public trait shapes, trait requirements, conformance shapes, and operator shapes.
 
-use crate::encoding::recovery::policy::identity::service;
 use super::super::{
     Error,
     behavior::synchronous_invocation,
@@ -12,6 +11,7 @@ use super::super::{
     signatures::conformance_bound,
 };
 use super::signatures::type_parameter;
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackageReviewBorrowOrigin, PackageReviewParameterQualification,

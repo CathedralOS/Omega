@@ -6,7 +6,6 @@
 // certificate. `assumed_bindings` retains build-host requests in issue order as
 // standalone decision rows without host paths or live grant state.
 
-use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
 use crate::record::PackagePolicyExternalExecutableSupply;
@@ -18,6 +17,7 @@ use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicyTerminalPermissions;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
+use crate::record::PackageReviewServiceIdentity;
 
 mod component_assumptions;
 pub use component_assumptions::PackagePolicyComponentAssumption;
@@ -27,7 +27,6 @@ mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
-use crate::record::PackageReviewNominalIdentity;
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;

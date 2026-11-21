@@ -1,7 +1,7 @@
 // Bounded recovery for synchronous invocation summaries.
 
+use super::{Error, reader::Reader};
 use crate::encoding::recovery::policy::identity::service;
-use super::{Error, identity::nominal, reader::Reader};
 use crate::record::PackageReviewSynchronousInvocation;
 
 pub(in crate::encoding::recovery) fn synchronous_invocation(

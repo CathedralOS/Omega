@@ -39,6 +39,7 @@ pub struct PackagePolicyProviderPlan {
     pub plan_name: String,
     pub realizing_package: Option<PackageKeyIdentity>,
     pub schema_declaration: PackageReviewNominalIdentity,
+    pub schema_application: Option<crate::record::PackageReviewTypeIdentity>,
     pub provider_type: String,
     pub provider_type_declaration: Option<PackageReviewNominalIdentity>,
     pub target: String,

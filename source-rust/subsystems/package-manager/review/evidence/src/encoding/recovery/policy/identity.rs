@@ -24,13 +24,24 @@ pub(in crate::encoding::recovery) fn nominal(
     })
 }
 
-pub(in crate::encoding::recovery) fn service(reader: &mut Reader<'_>) -> Result<crate::record::PackageReviewServiceIdentity, Error> {
+pub(in crate::encoding::recovery) fn service(
+    reader: &mut Reader<'_>,
+) -> Result<crate::record::PackageReviewServiceIdentity, Error> {
     let tag = reader.byte()?;
     if tag == 2 {
-        if !reader.applied_services { return Err(Error::InvalidIdentity); }
-        return Ok(crate::record::PackageReviewServiceIdentity { declaration: nominal(reader)?, application: Some(type_identity(reader)?) });
+        if !reader.applied_services {
+            return Err(Error::InvalidIdentity);
+        }
+        return Ok(crate::record::PackageReviewServiceIdentity {
+            declaration: nominal(reader)?,
+            application: Some(type_identity(reader)?),
+        });
     }
-    Ok(PackageReviewNominalIdentity { owner: nominal_owner(tag, reader)?, path: reader.string()? }.into())
+    Ok(PackageReviewNominalIdentity {
+        owner: nominal_owner(tag, reader)?,
+        path: reader.string()?,
+    }
+    .into())
 }
 
 pub(in crate::encoding::recovery) fn owner(

@@ -1,6 +1,5 @@
 // Shared callable-shape, behavior-tail, type-parameter, machine-contract, and formal-parameter encoders for public API declarations.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::super::{
     callable_policy::{crash_route, termination},
     declarations::{encode_data_properties, encode_type_identity},
@@ -11,6 +10,7 @@ use super::super::{
 };
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyMachineParameterContract;
 use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackagePolicyTypeParameterKind;

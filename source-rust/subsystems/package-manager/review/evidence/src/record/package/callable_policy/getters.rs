@@ -5,7 +5,6 @@
 // never attenuates that contract, and unknown bodies supply no inferred
 // fallback.
 
-use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableConformance;
 use crate::record::PackagePolicyCallableRole;
@@ -22,6 +21,7 @@ use crate::record::PackageReviewConformanceBound;
 use crate::record::PackageReviewInstallationReach;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewOperatorRealization;
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::PackageReviewTypeIdentity;
@@ -43,6 +43,37 @@ impl PackagePolicyCallable {
     field_projection_accessors!(sliced conformances: &[PackagePolicyCallableConformance]);
     field_projection_accessors!(sliced operator_realizations: &[PackageReviewOperatorRealization]);
     field_projection_accessors!(sliced contracts: &[PackageReviewCallableContract]);
+
+    /// The exact services this callable exposes through published or observed behavior.
+    pub fn exposed_services(&self) -> impl Iterator<Item = &PackageReviewServiceIdentity> {
+        self.published_service_reach()
+            .into_iter()
+            .flatten()
+            .chain(
+                self.checked_service_reach()
+                    .realized()
+                    .into_iter()
+                    .flatten(),
+            )
+            .chain(
+                self.checked_service_reach()
+                    .concrete()
+                    .into_iter()
+                    .flatten(),
+            )
+            .chain(
+                self.unresolved_installation_reaches()
+                    .iter()
+                    .flat_map(|row| row.upper_bound()),
+            )
+            .chain(
+                self.declared_synchronous_invocations()
+                    .into_iter()
+                    .flatten()
+                    .chain(self.realized_synchronous_invocations())
+                    .filter_map(|entry| entry.service()),
+            )
+    }
 
     pub fn declared_service_reach(&self) -> Option<&[PackageReviewServiceIdentity]> {
         self.declared_service_reach.as_deref()

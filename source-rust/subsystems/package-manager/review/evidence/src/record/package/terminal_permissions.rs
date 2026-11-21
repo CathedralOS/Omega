@@ -28,7 +28,8 @@ impl PackagePolicyTerminalPermissions {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
         for service in &self.services {
-            validate_service_methods(&service.methods, &service.service, self.target)?;
+            service.service.validate_resolved()?;
+            validate_service_methods(&service.methods, &service.service.declaration, self.target)?;
             generics::validate(service)?;
             if service.permissions.is_empty() {
                 return Err("terminal permission service has no permissions");

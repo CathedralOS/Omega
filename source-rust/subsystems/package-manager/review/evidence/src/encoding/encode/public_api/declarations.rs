@@ -1,5 +1,6 @@
 // Canonical encoding for public API declaration shapes (traits, conformances, domains, operators, and data).
 
+use crate::encoding::encode::values::identity::encode_service;
 use super::super::{
     callable_policy::{crash_route, termination},
     declarations::{

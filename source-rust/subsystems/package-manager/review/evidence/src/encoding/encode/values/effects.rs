@@ -1,8 +1,8 @@
 // Canonical encoding for synchronous callable invocations and installation reach bounds.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::{PackageReviewInstallationReach, PackageReviewSynchronousInvocation};
 
 use super::identity::encode_nominal;

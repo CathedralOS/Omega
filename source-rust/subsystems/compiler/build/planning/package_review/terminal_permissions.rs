@@ -9,12 +9,12 @@ use compiler::SelectedProviderResult;
 use diagnostics::Diagnostic;
 use provider_acceptance::AcceptedSemanticBinding;
 use provider_plans::{ServiceMethod, ServiceSchema};
+use review_evidence::record::PackageReviewTypeIdentity;
 use review_evidence::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
     PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
     PackageReviewSignatureParameter, PackageReviewSynchronousInvocation,
 };
-use review_evidence::record::PackageReviewTypeIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::signature::StateSignature;
 use std::collections::BTreeMap;
@@ -151,7 +151,9 @@ fn project_service<'a>(
     input: &PolicySource<'a>,
     selected: &SelectedProviderResult,
     target: TargetProfile,
-    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<'a>,
+    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<
+        'a,
+    >,
     schema: &ServiceSchema,
 ) -> Result<PackagePolicyTerminalService, Vec<Diagnostic>> {
     let source = input.typed();
@@ -270,7 +272,9 @@ fn project_service<'a>(
 /// Its accepted binding still names the complete checked service declaration.
 fn service_authority<'a>(
     input: &PolicySource<'a>,
-    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<'a>,
+    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<
+        'a,
+    >,
     signature: &StateSignature,
     method: &ServiceMethod,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {
@@ -285,14 +289,24 @@ fn service_authority<'a>(
         ));
     }
     let mut reach = Vec::new();
-    for &id in source.service_reach_rows.services(signature.service_reach_row) {
+    for &id in source
+        .service_reach_rows
+        .services(signature.service_reach_row)
+    {
         let mut members = Vec::new();
-        source.service_effect_scope(id, Some(receiver)).map_err(unavailable)?
+        source
+            .service_effect_scope(id, Some(receiver))
+            .map_err(unavailable)?
             .try_visit(source, &mut |scope| {
-                if scope.declaration.is_boundary { members.push(scope.clone()); }
+                if scope.declaration.is_boundary {
+                    members.push(scope.clone());
+                }
                 Ok(())
-            }).map_err(unavailable)?;
-        for member in members { reach.push(input.effect_identity(&member)?); }
+            })
+            .map_err(unavailable)?;
+        for member in members {
+            reach.push(input.effect_identity(&member)?);
+        }
     }
     reach.sort_unstable();
     reach.dedup();
@@ -303,13 +317,13 @@ fn service_authority<'a>(
             InvocationTarget::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(position))
             }
-            InvocationTarget::AppliedService(_) => Err(unavailable(
-                "an applied synchronous service identity in package review",
-            )),
             InvocationTarget::Service(service) => input
-                .unapplied_service(service).map(PackageReviewSynchronousInvocation::Service),
-            InvocationTarget::AppliedService(id) => source.service_effect_scope(id, Some(receiver))
-                .map_err(unavailable).and_then(|scope| input.effect_identity(&scope))
+                .unapplied_service(service)
+                .map(PackageReviewSynchronousInvocation::Service),
+            InvocationTarget::AppliedService(id) => source
+                .service_effect_scope(id, Some(receiver))
+                .map_err(unavailable)
+                .and_then(|scope| input.effect_identity(&scope))
                 .map(PackageReviewSynchronousInvocation::Service),
         })
         .collect::<Result<Vec<_>, _>>()?;

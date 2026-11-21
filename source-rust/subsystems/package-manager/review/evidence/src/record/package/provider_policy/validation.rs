@@ -17,6 +17,7 @@ impl PackagePolicyProviderPlan {
                     .cmp(&other.provider_type_declaration)
             })
             .then_with(|| self.schema_declaration.cmp(&other.schema_declaration))
+            .then_with(|| self.schema_application.cmp(&other.schema_application))
             .then_with(|| self.target.cmp(&other.target))
     }
 }
@@ -26,6 +27,10 @@ impl PackagePolicySelectedProviders {
         ordered_by(&self.plans, PackagePolicyProviderPlan::compare_canonical)?;
         for plan in &self.plans {
             plan.schema_declaration.validate_resolved()?;
+            if let Some(application) = &plan.schema_application
+                && !plan.schema_declaration.matches_applied_trait_declaration(&application.canonical) {
+                return Err("provider plan has another service's receiver application");
+            }
             if plan.plan_name.is_empty()
                 || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
                     && !(plan.provider_type_declaration.is_none()

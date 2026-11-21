@@ -1,7 +1,7 @@
 // Canonical encoding for semantic dependency tags, dangerous authority classes, and slack rows.
 
-use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::{
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,

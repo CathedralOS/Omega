@@ -1,8 +1,8 @@
 // Canonical encoding for service-method operational authority, invocations, and progress premises.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyServiceAuthority;
 use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 

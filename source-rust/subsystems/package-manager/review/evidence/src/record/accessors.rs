@@ -5,7 +5,6 @@
 // declare those projections once here so each record type names only the fields
 // it exposes without restating boilerplate getter bodies.
 
-use crate::record::PackageReviewServiceIdentity;
 macro_rules! opaque_representation_selection_accessors {
     () => {
         pub const fn opaque(&self) -> &crate::record::PackageReviewNominalIdentity {

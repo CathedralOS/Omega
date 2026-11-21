@@ -4,7 +4,6 @@ use super::{Result, Scope};
 use crate::record::PackagePolicyCrashGuard;
 use crate::record::PackagePolicyCrashRoute;
 use crate::record::PackagePolicyTermination;
-use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::package::callable_policy::validation::signature::owned_pair;

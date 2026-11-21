@@ -155,9 +155,21 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Observer for Visitor<Contains>
         let result = self.visit_type(identity, Some(lifetimes));
         self.explain(result, "declared type identity", identity)
     }
+    fn static_argument(&mut self, identity: &str) -> Result<(), Error> {
+        if identity.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+            return self.type_identity(identity);
+        }
+        let result = application_identity::type_identity::visit_static_argument_package_owners(
+            identity, self,
+        )
+        .map_err(|_| self.failure.unwrap_or(Error::MalformedIdentity));
+        self.explain(result, "static argument", identity)
+    }
     fn service_application(&mut self, identity: &str) -> Result<(), Error> {
-        let result = application_identity::type_identity::visit_trait_application_package_owners(identity, self)
-            .map_err(|_| self.failure.unwrap_or(Error::MalformedIdentity));
+        let result = application_identity::type_identity::visit_trait_application_package_owners(
+            identity, self,
+        )
+        .map_err(|_| self.failure.unwrap_or(Error::MalformedIdentity));
         self.explain(result, "service application", identity)
     }
     fn nominal_path(&mut self, path: &str) -> Result<(), Error> {

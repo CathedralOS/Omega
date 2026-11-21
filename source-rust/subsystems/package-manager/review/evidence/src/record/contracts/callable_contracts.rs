@@ -6,12 +6,12 @@
 // result-arm coordinate guarding an outcome-specific guarantee (`None` for
 // unconditional `requires`/`ensures` rows).
 
-use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewPropositionApplication;
 use crate::record::PackageReviewPropositionParameterApplication;
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -77,7 +77,7 @@ impl PackageReviewSynchronousInvocation {
         }
     }
 
-    pub const fn service(&self) -> Option<&PackageReviewNominalIdentity> {
+    pub const fn service(&self) -> Option<&PackageReviewServiceIdentity> {
         match self {
             Self::Parameter(_) => None,
             Self::Service(service) => Some(service),

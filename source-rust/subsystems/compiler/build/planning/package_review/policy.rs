@@ -9,9 +9,9 @@ use diagnostics::Diagnostic;
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
-    PackagePolicySelectedProviders, PackageReviewServiceIdentity,
-    PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
-    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
+    PackagePolicySelectedProviders, PackageReviewRepresentationArchitecture,
+    PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
+    PackageReviewRepresentationTargetProfile, PackageReviewServiceIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -34,8 +34,12 @@ pub(super) fn project(
     }
     let accepted = input.accepted();
     let choices = provider_rows::from_review(checked)?;
-    let origins =
-        super::callables::service_origins(accepted, source_provenance::DependencyScope::Product)?;
+    let origins = super::callables::service_origins(
+        input.typed(),
+        accepted.module(),
+        input.sources().exact_toolchain_sources(),
+        source_provenance::DependencyScope::Product,
+    )?;
     let services = super::callables::service_identities(
         input.typed(),
         accepted.module(),
@@ -126,7 +130,8 @@ pub(super) fn project(
         restricted_build_requests: source.restricted_build_requests,
         component_assumptions,
     };
-    policy.apply_service_classes(&super::authority::critical_services(input, checked)?);
+    let classes = super::authority::critical_services(input, checked, &policy)?;
+    policy.apply_service_classes(&classes);
     policy.apply_service_audit_policy(&source.audits);
     policy.validate_canonical_structure().map_err(unavailable)?;
     Ok(policy)

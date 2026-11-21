@@ -11,7 +11,7 @@ pub(super) fn signature(
     signature: &PackagePolicyServiceSignature,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("schema_arguments", |encoder| {
-        encoder.sequence(&signature.schema_arguments, encode_type_identity)
+        encoder.sequence(&signature.schema_arguments, Encoder::static_argument)
     })?;
     encoder.u32_field(
         "schema_lifetime_parameter_count",
@@ -28,7 +28,7 @@ pub(super) fn signature(
         signature.application_lifetime_parameter_count,
     )?;
     encoder.field("requirement_arguments", |encoder| {
-        encoder.sequence(&signature.requirement_arguments, encode_type_identity)
+        encoder.sequence(&signature.requirement_arguments, Encoder::static_argument)
     })?;
     encoder.field("requirement_lifetime_arguments", |encoder| {
         encoder.sequence(

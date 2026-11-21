@@ -11,4 +11,6 @@ pub use checked_program_to_psi::production::{
 pub use checked_program_to_psi::provider_supply::SourceProviderDemand;
 
 pub use checked_program_to_psi::DeclaredBoundaryRequirement;
-pub use prepared_typed_trees_to_lowered_program::lowering::{RequirementInvocation, RequirementService};
+pub use prepared_typed_trees_to_lowered_program::lowering::{
+    RequirementInvocation, RequirementService,
+};

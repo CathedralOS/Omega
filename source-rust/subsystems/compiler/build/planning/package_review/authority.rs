@@ -26,28 +26,27 @@ fn critical_class(vocabulary: CoreVocabulary) -> Option<Class> {
 pub(super) fn critical_services(
     input: &PolicySource<'_>,
     selected: &compiler::SelectedProviderResult,
+    policy: &review_evidence::record::PackagePolicyBaseline,
 ) -> Result<Vec<(PackageReviewServiceIdentity, Class)>, Vec<Diagnostic>> {
     let mut classes = Vec::new();
     let source = input.typed();
-    let mut applied = std::collections::BTreeMap::new();
+    let mut classified_declarations = std::collections::BTreeMap::new();
     for declaration in source.traits().iter().filter(|d| d.is_boundary) {
-        let Some(class) = source.core_vocabulary(declaration.symbol).and_then(critical_class) else { continue };
-        if declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty() {
-            classes.push((input.unapplied_service(declaration.symbol)?, class));
-        } else {
-            applied.insert(super::providers::symbol_key(declaration.symbol), class);
+        if let Some(class) = source
+            .core_vocabulary(declaration.symbol)
+            .and_then(critical_class)
+        {
+            classified_declarations.insert(input.nominal(declaration.symbol)?, class);
         }
     }
-    if !applied.is_empty() {
-        for root in source.applied_trait_roots() {
-            let mut members = Vec::new();
-            root.try_visit(source, &mut |scope| {
-                if let Some(&class) = applied.get(&super::providers::symbol_key(scope.declaration.symbol)) {
-                    members.push((scope.clone(), class));
-                }
-                Ok(())
-            }).map_err(super::declarations::unavailable)?;
-            for (scope, class) in members { classes.push((input.effect_identity(&scope)?, class)); }
+    for service in policy
+        .callables
+        .callables
+        .iter()
+        .flat_map(|row| row.exposed_services())
+    {
+        if let Some(&class) = classified_declarations.get(&service.declaration) {
+            classes.push((service.clone(), class));
         }
     }
     for binding in input.sources().accepted_semantic_bindings() {

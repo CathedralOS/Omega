@@ -73,10 +73,13 @@ pub(in crate::encoding::recovery) fn target(
 pub(in crate::encoding::recovery) fn plan(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyProviderPlan, Error> {
+    let plan_name = reader.string()?;
+    let realizing_package = reader.option(package)?;
+    let receiver = super::identity::service(reader)?;
     Ok(PackagePolicyProviderPlan {
-        plan_name: reader.string()?,
-        realizing_package: reader.option(package)?,
-        schema_declaration: nominal(reader)?,
+        plan_name, realizing_package,
+        schema_declaration: receiver.declaration,
+        schema_application: receiver.application,
         provider_type: reader.string()?,
         provider_type_declaration: reader.option(nominal)?,
         target: reader.string()?,

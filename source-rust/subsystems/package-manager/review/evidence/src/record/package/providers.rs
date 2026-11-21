@@ -11,9 +11,8 @@
 // intrinsics as disjoint variants so absent fields are never mistaken for
 // evidence supplied by another role.
 
-use crate::record::PackageReviewServiceIdentity;
-use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,8 +1,8 @@
 // Bounded recovery for selected-provider service authority and progress premises.
 
-use crate::encoding::recovery::policy::identity::service;
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::behavior::synchronous_invocation;
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
     PackagePolicyServiceProgressRoute,

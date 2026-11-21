@@ -1,6 +1,5 @@
 // Policy-row projections for terminal permissions and representation policy components.
 
-use crate::encoding::encode::values::identity::encode_service;
 use super::super::declarations::encode_type_identity;
 use super::super::{
     calling, declarations::encode_representation_target, public_api, representation,
@@ -8,6 +7,7 @@ use super::super::{
 };
 use super::Builder;
 use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyRepresentation;
 use crate::record::PackagePolicyRepresentationAvailability;
 use crate::record::PackagePolicyRepresentationDemand;

@@ -35,16 +35,31 @@ pub(crate) fn encode_nominal(
 
 /// Plain services retain the nominal encoding used by earlier policies. Tag 2
 /// introduces an applied service and frames its original declaration separately.
-pub(crate) fn encode_service(encoder: &mut Encoder, service: &crate::record::PackageReviewServiceIdentity) -> Result<(), PackageReviewEncodingError> {
-    if let Some(application) = &service.application {
-        if !encoder.applied_services { return Err(PackageReviewEncodingError::new("schema does not retain applied boundary services")); }
+pub(crate) fn encode_service(
+    encoder: &mut Encoder,
+    service: &crate::record::PackageReviewServiceIdentity,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_service_receiver(encoder, &service.declaration, service.application.as_ref())
+}
+
+pub(crate) fn encode_service_receiver(
+    encoder: &mut Encoder,
+    declaration: &PackageReviewNominalIdentity,
+    application: Option<&crate::record::PackageReviewTypeIdentity>,
+) -> Result<(), PackageReviewEncodingError> {
+    if let Some(application) = application {
+        if !encoder.applied_services {
+            return Err(PackageReviewEncodingError::new(
+                "schema does not retain applied boundary services",
+            ));
+        }
         encoder.observe_service_application(&application.canonical)?;
         encoder.encoded_applied_service = true;
         encoder.tag("applied_service", 2);
-        encoder.field_by("declaration", &service.declaration, encode_nominal)?;
+        encoder.field_by("declaration", declaration, encode_nominal)?;
         encoder.string_field("application", &application.canonical)
     } else {
-        encode_nominal(encoder, &service.declaration)
+        encode_nominal(encoder, declaration)
     }
 }
 
