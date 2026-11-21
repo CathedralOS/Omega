@@ -11,7 +11,7 @@
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 
-pub(crate) fn write_framed_identity<'a>(
+pub fn write_framed_identity<'a>(
     writer: &mut impl std::fmt::Write,
     label: &str,
     children: impl IntoIterator<Item = &'a str>,
@@ -25,7 +25,7 @@ pub(crate) fn write_framed_identity<'a>(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageReviewToolchainSourceIdentity {
-    pub(crate) digest: [u8; 32],
+    pub digest: [u8; 32],
 }
 
 impl PackageReviewToolchainSourceIdentity {
@@ -41,8 +41,8 @@ pub enum PackageReviewNominalOwner {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewNominalIdentity {
-    pub(crate) owner: PackageReviewNominalOwner,
-    pub(crate) path: String,
+    pub owner: PackageReviewNominalOwner,
+    pub path: String,
 }
 
 impl PackageReviewNominalIdentity {

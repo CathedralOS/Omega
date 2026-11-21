@@ -1,5 +1,5 @@
 // Boundary execution bindings, compiler builtin roles, and the append-only IEEE-754 float arithmetic operation catalog.
-// `IeeeFloatArithmeticOperation` orders and encodes all 70 nearest-even and directed floating-point operations by stable append-only ordinals so machine-effect catalogs, selected-form wire tags, and admission checks never drift when narrow integer carriers or directed square-root modes are added.
+// `IeeeFloatArithmeticOperation` orders and encodes the nearest-even and directed floating-point operations by stable append-only ordinals so machine-effect catalogs, selected-form wire tags, and admission checks never drift when narrow integer carriers or directed square-root modes are added.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderPlanReportIdentity(u64);
@@ -119,6 +119,9 @@ pub enum IeeeFloatArithmeticOperation {
     DirectedSquareRoot {
         rounding: IeeeFloatRoundingDirection,
     },
+    DirectedFusedMultiplyAdd {
+        rounding: IeeeFloatRoundingDirection,
+    },
     Add,
     Subtract,
     Multiply,
@@ -225,8 +228,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 70] = {
-        let mut all = [Self::Add; 70];
+    pub const ALL: [Self; 73] = {
+        let mut all = [Self::Add; 73];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -284,13 +287,14 @@ impl IeeeFloatArithmeticOperation {
             }
             operation += 1;
         }
-        let mut square_root_rounding = 0;
-        while square_root_rounding < IeeeFloatRoundingDirection::ALL.len() {
-            let directed = Self::DirectedSquareRoot {
-                rounding: IeeeFloatRoundingDirection::ALL[square_root_rounding],
-            };
-            all[directed.ordinal() as usize] = directed;
-            square_root_rounding += 1;
+        let mut index = 0;
+        while index < IeeeFloatRoundingDirection::ALL.len() {
+            let rounding = IeeeFloatRoundingDirection::ALL[index];
+            let root = Self::DirectedSquareRoot { rounding };
+            let fused = Self::DirectedFusedMultiplyAdd { rounding };
+            all[root.ordinal() as usize] = root;
+            all[fused.ordinal() as usize] = fused;
+            index += 1;
         }
         all
     };
@@ -317,6 +321,7 @@ impl IeeeFloatArithmeticOperation {
                 rounding,
             } => 45 + operation.ordinal() * 3 + rounding.ordinal(),
             Self::DirectedSquareRoot { rounding } => 67 + rounding.ordinal(),
+            Self::DirectedFusedMultiplyAdd { rounding } => 70 + rounding.ordinal(),
             Self::IsNan => 31,
             Self::IsInfinite => 32,
             Self::IsFinite => 57,
@@ -354,16 +359,18 @@ impl IeeeFloatArithmeticOperation {
 
     pub const fn rounding_direction(self) -> Option<IeeeFloatRoundingDirection> {
         match self {
-            Self::DirectedBinary { rounding, .. } | Self::DirectedSquareRoot { rounding } => {
-                Some(rounding)
-            }
+            Self::DirectedBinary { rounding, .. }
+            | Self::DirectedSquareRoot { rounding }
+            | Self::DirectedFusedMultiplyAdd { rounding } => Some(rounding),
             _ => None,
         }
     }
 
     pub const fn operand_count(self) -> usize {
         match self {
-            Self::MultiplyThenAdd | Self::FusedMultiplyAdd => 3,
+            Self::MultiplyThenAdd
+            | Self::FusedMultiplyAdd
+            | Self::DirectedFusedMultiplyAdd { .. } => 3,
             Self::Add
             | Self::Subtract
             | Self::Multiply

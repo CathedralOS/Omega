@@ -147,7 +147,7 @@ impl ProductStage<'_> {
                 subject: self.product.package_inputs().map(|inputs| inputs.root()),
                 root_binding_requests: &self.entries,
                 policy: ProductPolicyInputs {
-                    activation: build.selected_build_declaration.as_ref(),
+                    activation: build.selected_build_declaration(),
                     declared: &build.declared_product_selections,
                     executed: &build.product_selection_requests,
                     native_bindings: &build.native_binding_requests,

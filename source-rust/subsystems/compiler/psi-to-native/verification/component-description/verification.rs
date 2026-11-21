@@ -285,6 +285,100 @@ impl VerifiedComponent {
         &self.description.assumptions
     }
 
+    /// A native realization adds its image locator and measured stack provision to the reviewed closure.
+    pub fn verify_native_realization(
+        &self,
+        bytes: &[u8],
+        locator: [u8; 32],
+        stack: &InstallationObligation,
+    ) -> Result<(), String> {
+        let request = ComponentVerificationRequest {
+            expected_subject: self.subject(),
+            accepted_schemas: BTreeSet::from([self.description.schema]),
+            accepted_assumptions: AcceptedComponentAssumptions::Exact(
+                self.assumptions().iter().copied().collect(),
+            ),
+        };
+        let mut physical = verify_component(bytes, &request)
+            .map_err(|reason| reason.to_string())?
+            .description;
+        if stack.kind != ObligationKind::StackProvision
+            || physical.realization_identity.take() != Some(locator)
+        {
+            return Err("native component description differs from its emitted image locator or stack provision".into());
+        }
+        let position = physical
+            .obligations
+            .iter()
+            .position(|row| row == stack)
+            .ok_or("native component description omits its measured stack provision")?;
+        physical.obligations.remove(position);
+        if physical != self.description {
+            return Err(
+                "native component description changes the reviewed portable closure".into(),
+            );
+        }
+        Ok(())
+    }
+
+    /// Complete coordinates of the rows that rely on each environmental premise.
+    /// The closure commits to the exact subject, description and verification profile.
+    pub fn assumption_rows(&self) -> Result<BTreeMap<[u8; 32], Vec<String>>, &'static str> {
+        let mut rows: BTreeMap<_, BTreeSet<_>> = self
+            .assumptions()
+            .iter()
+            .map(|&digest| (digest, BTreeSet::new()))
+            .collect();
+        if rows.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let closure = hex(self.closure());
+        let mut bind = |digest, family, kind, identity: &str| {
+            let set = rows
+                .get_mut(&digest)
+                .ok_or("component evidence uses an undeclared assumption")?;
+            set.insert(format!(
+                "{family} {kind} {identity} in verified closure {closure}"
+            ));
+            Ok::<_, &'static str>(())
+        };
+        for entry in self.entries() {
+            if let EntryEvidence::AssumptionBound(digest) = entry.evidence {
+                bind(digest, "entry", entry.kind.tag(), &entry.identity)?;
+            }
+        }
+        for outgoing in self.outgoing() {
+            match outgoing.evidence {
+                OutgoingEvidence::PhysicalMechanism(digest) => bind(
+                    digest,
+                    "physical mechanism",
+                    outgoing.class.tag(),
+                    &outgoing.identity,
+                )?,
+                OutgoingEvidence::AssumptionBound(digest) => bind(
+                    digest,
+                    "outgoing authority",
+                    outgoing.class.tag(),
+                    &outgoing.identity,
+                )?,
+                OutgoingEvidence::ModuleDerived | OutgoingEvidence::ProviderSealed(_) => {}
+            }
+        }
+        for custody in self.custody() {
+            if let CustodyEvidence::AssumptionBound(digest) = custody.evidence {
+                bind(digest, "custody", custody.kind.tag(), &custody.identity)?;
+            }
+        }
+        rows.into_iter()
+            .map(|(digest, coordinates)| {
+                if coordinates.is_empty() {
+                    return Err("a component assumption has no bound review row");
+                }
+                Ok((digest, coordinates.into_iter().collect()))
+            })
+            .collect()
+    }
+
     pub const fn realization_identity(&self) -> Option<&[u8; 32]> {
         self.description.realization_identity.as_ref()
     }
@@ -475,38 +569,49 @@ fn check_outgoing(
         })
         .collect();
 
-    let mut derived_keys = BTreeSet::new();
+    // Physical premises bind one exact operation derived from the module.
+    let mut derived_keys = BTreeMap::new();
     for requirement in &inventory.called_requirement_identities {
-        derived_keys.insert((
-            OutgoingAuthorityClass::BoundaryRequirement,
-            requirement.clone(),
-        ));
-    }
-    for (service, port, value) in &inventory.port_writes {
-        let identity = format!("port-write:{}:{port}:{value}", service.get());
-        derived_keys.insert((OutgoingAuthorityClass::PortSpaceWrite, identity));
-    }
-    for (service, operation) in &inventory.register_accesses {
-        derived_keys.insert((
-            OutgoingAuthorityClass::RegisterAccess,
-            format!(
-                "register-access:{}:{}",
-                service.get(),
-                operation.catalog_tag()
+        derived_keys.insert(
+            (
+                OutgoingAuthorityClass::BoundaryRequirement,
+                requirement.clone(),
             ),
-        ));
+            None,
+        );
+    }
+    for &(service, port, value) in &inventory.port_writes {
+        let identity = format!("port-write:{}:{port}:{value}", service.get());
+        derived_keys.insert(
+            (OutgoingAuthorityClass::PortSpaceWrite, identity),
+            Some(crate::inventory::port_mechanism_assumption(
+                service, port, value,
+            )),
+        );
+    }
+    for &(service, operation) in &inventory.register_accesses {
+        let identity = format!(
+            "register-access:{}:{}",
+            service.get(),
+            operation.catalog_tag()
+        );
+        derived_keys.insert(
+            (OutgoingAuthorityClass::RegisterAccess, identity),
+            Some(crate::inventory::register_mechanism_assumption(
+                service, operation,
+            )),
+        );
     }
     for service in &inventory.concrete_service_reach {
-        derived_keys.insert((
-            OutgoingAuthorityClass::ServiceCeiling,
-            format!("service-ceiling:{}", service.get()),
-        ));
+        let identity = format!("service-ceiling:{}", service.get());
+        derived_keys.insert((OutgoingAuthorityClass::ServiceCeiling, identity), None);
     }
 
     let mut sealed: BTreeMap<String, [u8; 32]> = BTreeMap::new();
     for row in &description.outgoing {
         let key = (row.class, row.identity.clone());
-        let derived = derived_keys.contains(&key);
+        let expected = derived_keys.get(&key);
+        let derived = expected.is_some();
         match (row.class, row.evidence, derived) {
             (
                 OutgoingAuthorityClass::BoundaryRequirement,
@@ -528,40 +633,12 @@ fn check_outgoing(
                 }
                 sealed.insert(row.identity.clone(), plan_digest);
             }
-            (OutgoingAuthorityClass::PortSpaceWrite, OutgoingEvidence::ModuleDerived, true) => {}
-            (
-                OutgoingAuthorityClass::PortSpaceWrite,
-                OutgoingEvidence::PhysicalMechanism(assumption),
-                true,
-            ) => {
-                require_bound_assumption(&description.assumptions, assumption)?;
-            }
             (OutgoingAuthorityClass::ServiceCeiling, OutgoingEvidence::ModuleDerived, true) => {}
             (
-                OutgoingAuthorityClass::RegisterAccess,
+                OutgoingAuthorityClass::PortSpaceWrite | OutgoingAuthorityClass::RegisterAccess,
                 OutgoingEvidence::PhysicalMechanism(assumption),
                 true,
-            ) => {
-                if !inventory
-                    .register_accesses
-                    .iter()
-                    .any(|(service, operation)| {
-                        row.identity
-                            == format!(
-                                "register-access:{}:{}",
-                                service.get(),
-                                operation.catalog_tag(),
-                            )
-                            && assumption
-                                == crate::inventory::register_mechanism_assumption(
-                                    *service, *operation,
-                                )
-                    })
-                {
-                    return Err(ComponentVerificationRejection::InvalidAuthorityEvidence(
-                        row.identity.clone(),
-                    ));
-                }
+            ) if expected == Some(&Some(assumption)) => {
                 require_bound_assumption(&description.assumptions, assumption)?;
             }
             (_, OutgoingEvidence::AssumptionBound(assumption), false) => {
@@ -585,7 +662,7 @@ fn check_outgoing(
         .iter()
         .map(|row| (row.class, row.identity.clone()))
         .collect();
-    for (class, identity) in derived_keys {
+    for (class, identity) in derived_keys.into_keys() {
         if !described_keys.contains(&(class, identity.clone())) {
             return Err(ComponentVerificationRejection::MissingOutgoingAuthority(
                 identity,
@@ -860,4 +937,40 @@ fn require_bound_assumption(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod outgoing_premises {
+    use super::*;
+
+    #[test]
+    fn a_port_mechanism_binds_its_exact_checked_operation() {
+        let (mut description, artifact) = decode_component_description_with_artifact(
+            include_bytes!("tests/provider-free.component"),
+        )
+        .unwrap();
+        let mut inventory = derive_component_inventory(artifact.semantic_module()).unwrap();
+        let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+        inventory.port_writes.insert((service, 7, 1));
+        let exact = crate::inventory::port_mechanism_assumption(service, 7, 1);
+        let other = crate::inventory::port_mechanism_assumption(service, 7, 2);
+        description.assumptions.extend([exact, other]);
+        let identity = format!("port-write:{}:7:1", service.get());
+        description.outgoing.push(OutgoingAuthority {
+            class: OutgoingAuthorityClass::PortSpaceWrite,
+            identity: identity.clone(),
+            evidence: OutgoingEvidence::PhysicalMechanism(exact),
+        });
+        assert!(check_outgoing(&description, &inventory).is_ok());
+        // Knowing which operation occurs does not establish what the device does.
+        // Both a different premise and an omitted environmental premise must be refused.
+        for evidence in [
+            OutgoingEvidence::PhysicalMechanism(other),
+            OutgoingEvidence::ModuleDerived,
+        ] {
+            description.outgoing.last_mut().unwrap().evidence = evidence;
+            assert!(matches!(check_outgoing(&description, &inventory),
+                Err(ComponentVerificationRejection::InvalidAuthorityEvidence(rejected)) if rejected == identity));
+        }
+    }
 }

@@ -2655,41 +2655,82 @@ pub(crate) mod subtract_antitone {
 
     use super::ProofError;
 
+    /// The value of an unsigned subtraction on its admitted inputs. An exact
+    /// difference has the same value as a clamped difference wherever it
+    /// forms. A value's reflexive equation supplies the difference from zero.
+    pub struct UnsignedDifference<'a> {
+        pub result: &'a ScalarTerm,
+        pub minuend: &'a ScalarTerm,
+        pub subtrahend: ScalarTerm,
+        pub saturated: bool,
+    }
+
+    pub fn unsigned_difference(premise: &Proposition) -> Option<UnsignedDifference<'_>> {
+        let Proposition::Equal(result, definition) = premise else {
+            return None;
+        };
+        let ScalarType::Integer(integer) = result.scalar_type() else {
+            return None;
+        };
+        if integer.carrier() != IntegerCarrier::Fixed
+            || integer.is_address()
+            || integer.sign() != IntegerSign::Unsigned
+        {
+            return None;
+        }
+        let (minuend, subtrahend, saturated) = match definition {
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::SaturatingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer
+                && left.scalar_type() == result.scalar_type()
+                && right.scalar_type() == result.scalar_type() =>
+            {
+                (
+                    left.as_ref(),
+                    right.as_ref().clone(),
+                    matches!(definition, ScalarTerm::SaturatingIntegerSubtract { .. }),
+                )
+            }
+            other if other == result => (
+                result,
+                ScalarTerm::integer(integer, integer.zero()).ok()?,
+                false,
+            ),
+            _ => return None,
+        };
+        Some(UnsignedDifference {
+            result,
+            minuend,
+            subtrahend,
+            saturated,
+        })
+    }
+
     pub(crate) fn check(
         smaller: &Proposition,
         larger: &Proposition,
         order: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), ProofError> {
-        if let (
-            Proposition::Equal(
-                smaller,
-                ScalarTerm::SaturatingIntegerSubtract {
-                    scalar_type,
-                    left: smaller_minuend,
-                    right: smaller_subtrahend,
-                },
-            ),
-            Proposition::Equal(
-                larger,
-                ScalarTerm::SaturatingIntegerSubtract {
-                    scalar_type: larger_type,
-                    left: larger_minuend,
-                    right: larger_subtrahend,
-                },
-            ),
-        ) = (smaller, larger)
+        if let (Some(after), Some(before)) =
+            (unsigned_difference(smaller), unsigned_difference(larger))
+            && (after.saturated || before.saturated)
         {
             let invalid = ProofError::RulePremiseMismatch("unsigned saturating subtraction order");
-            if scalar_type != larger_type
-                || scalar_type.carrier() != IntegerCarrier::Fixed
-                || scalar_type.is_address()
-                || scalar_type.sign() != IntegerSign::Unsigned
-                || smaller.scalar_type() != ScalarType::Integer(*scalar_type)
-                || larger.scalar_type() != ScalarType::Integer(*scalar_type)
-            {
+            if after.result.scalar_type() != before.result.scalar_type() {
                 return Err(invalid);
             }
+            let (smaller, smaller_minuend, smaller_subtrahend) =
+                (after.result, after.minuend, &after.subtrahend);
+            let (larger, larger_minuend, larger_subtrahend) =
+                (before.result, before.minuend, &before.subtrahend);
             let Proposition::Conjunction(parts) = order else {
                 return Err(invalid);
             };

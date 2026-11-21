@@ -50,20 +50,27 @@ pub struct StageSource<'a> {
 /// Return the source judgment's advisories as soon as the Product is checked.
 pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let (product, resolved) = source.resolve()?;
-    let checked = product.judge(resolved, ProductEntry::BuildBindings)?;
-    Ok(checked
+    let checked = product.judge(
+        resolved,
+        ProductEntry::BuildBindings,
+        &mut Default::default(),
+    )?;
+    checked
         .terminal_publication
-        .accepted()?
-        .advisories()
-        .to_vec())
+        .check(product.declaration_scope.as_deref().map(|scope| scope as _))
 }
 
 pub fn compile(
     source: StageSource<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    driver::publish_stage(source, ProductEntry::BuildBindings, advisories)
-        .map(|(artifact, _)| artifact)
+    driver::publish_stage(
+        source,
+        ProductEntry::BuildBindings,
+        advisories,
+        &mut Default::default(),
+    )
+    .map(|(artifact, _)| artifact)
 }
 
 pub fn compile_for_target(
@@ -71,18 +78,129 @@ pub fn compile_for_target(
     target: &str,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
+    let (artifact, checked, subject) = publish_deployment(
+        source,
+        target,
+        ProductEntry::BuildBindings,
+        advisories,
+        &mut Default::default(),
+    )?;
+    driver::published_target(artifact, checked, target, subject)
+}
+
+pub fn review_package(
+    source: StageSource<'_>,
+    target: &str,
+    accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+) -> Result<(CheckedPackageDeclarations, PublishedTargetProgram), Vec<Diagnostic>> {
+    if source.product.subject.is_none() {
+        return Err(vec![Diagnostic::error(
+            "package review requires a named source subject",
+        )]);
+    }
+    let (artifact, mut checked, subject) = publish_deployment(
+        source,
+        target,
+        ProductEntry::PackageReview,
+        None,
+        accounting,
+    )?;
+    let declarations = CheckedPackageDeclarations {
+        published_program: artifact.view().identity(),
+        publication: Arc::clone(checked.terminal_publication()),
+        explicit_providers: checked.explicit_providers.clone(),
+        native_supplies: checked.native_supplies.clone(),
+        service_audits: std::mem::take(&mut checked.declarations.service_audits),
+        root_grants: checked.grants.clone(),
+        has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
+    };
+    let target = driver::published_target(artifact, checked, target, subject)?;
+    Ok((declarations, target))
+}
+
+fn publish_deployment(
+    source: StageSource<'_>,
+    target: &str,
+    entry: ProductEntry<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+) -> Result<
+    (
+        PublishedPsi,
+        compile_product::CompletedProductSource,
+        Option<semantic_vocabulary::PackageKeyIdentity>,
+    ),
+    Vec<Diagnostic>,
+> {
     if !source.product.calling_targets.contains(&target) {
         return Err(vec![Diagnostic::error(format!(
             "source program did not select deployment target `{target}`"
         ))]);
     }
     let subject = source.product.subject;
-    let (artifact, checked) =
-        driver::publish_stage(source, ProductEntry::BuildBindings, advisories)?;
-    driver::published_target(artifact, checked, target, subject)
+    let (artifact, checked) = driver::publish_stage(source, entry, advisories, accounting)?;
+    Ok((artifact, checked, subject))
+}
+
+/// A complete source judgment and its deployment share one frozen owner.
+pub struct CheckedPackageDeclarations {
+    published_program: terminal_psi::TerminalPsiIdentity,
+    explicit_providers: Vec<compile_product::provider_declarations::ProviderSelection>,
+    native_supplies: Vec<checked_program_to_psi::provider_choice_inputs::NativeBuildSupply>,
+    service_audits: Vec<symbols::SymbolHandle>,
+    root_grants: Vec<symbols::root_grants::AuthoredRootGrant>,
+    has_assumed_bindings: bool,
+    publication: Arc<driver::judge_lowered_source::SourcePublication>,
+}
+
+impl CheckedPackageDeclarations {
+    pub fn published_program(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.published_program
+    }
+    pub fn explicit_providers(
+        &self,
+    ) -> &[compile_product::provider_declarations::ProviderSelection] {
+        &self.explicit_providers
+    }
+    pub fn native_supplies(
+        &self,
+    ) -> &[checked_program_to_psi::provider_choice_inputs::NativeBuildSupply] {
+        &self.native_supplies
+    }
+    pub fn service_audits(&self) -> &[symbols::SymbolHandle] {
+        &self.service_audits
+    }
+    pub fn root_grants(&self) -> &[symbols::root_grants::AuthoredRootGrant] {
+        &self.root_grants
+    }
+    pub fn has_assumed_bindings(&self) -> bool {
+        self.has_assumed_bindings
+    }
+    pub fn accepted(&self) -> Result<&publication::AcceptedTerminalSource, Vec<Diagnostic>> {
+        self.publication.accepted()
+    }
+
+    pub fn supplied_declarations(
+        &self,
+    ) -> Result<
+        impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle)> + '_,
+        Vec<Diagnostic>,
+    > {
+        Ok(self
+            .publication
+            .roster()?
+            .supplies
+            .iter()
+            .map(|supply| (supply.slot, supply.provider)))
+    }
 }
 
 pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    driver::publish_stage(source, ProductEntry::Inspection(machine), None)
-        .map(|(artifact, _)| artifact)
+    driver::publish_stage(
+        source,
+        ProductEntry::Inspection(machine),
+        None,
+        &mut Default::default(),
+    )
+    .map(|(artifact, _)| artifact)
 }

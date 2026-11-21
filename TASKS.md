@@ -7,7 +7,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 ## Development-health outcomes
 
 - **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
-  - Bind `FilesystemHost`, `TimeHost` and direct foreign services to the exact operation and owner. Keep insufficient or installation-dependent evidence a refusal.
+  - Bind `FilesystemHost` and direct foreign services to the exact operation and owner. [Native review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/host_cohorts.rs) still classifies non-Windows filesystem and Console operations from their method names. Check the selected operation itself and refuse insufficient or installation-dependent evidence.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
@@ -229,7 +229,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Support the remaining forms of a decreasing measure: `Nat::IncreasingTo`, declared measures, bounded ranges, and multiple subjects. Allow measures to read fields and handle the remaining signed, address, and width-generic inputs with the required proofs.
   - Check loop result contracts (`ensures`), erased bindings, and the remaining storage cases. Check ranked non-tail recursion during proof or compile-time evaluation; runtime recursion remains tail-only.
   - Preserve termination promises when a program consumes a separately compiled package.
-  - Check [joint rankings across different parameter shapes](wiki/spec/language/termination.md#mutual-ranking-source-contract) when comparing the members’ selected views requires a proved conversion. Exercise a parser that hands an unread slice to a cursor-based payload machine and a twin that can return without consuming input.
 
 - **DEFAULT-SYNCHRONIZATION-CHECKING.** Implement [mandatory synchronization checking](wiki/spec/language/concurrency.md#default-admission-obligation). The current effects/carry, call-dependency and activation plans do not supply the retained protocol contracts or closed-composition deadlock judgment.
   - Prove the [automatic floor](wiki/spec/language/concurrency.md#first-required-automatic-floor) for an executable lock provider and guard. Track aliases, nonrecursive exclusive acquisition, helper and generic calls, callback reentry and preemption through independently published summaries. The default and `--floor-only` modes must cover the stated cases.

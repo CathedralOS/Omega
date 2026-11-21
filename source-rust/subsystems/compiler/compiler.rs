@@ -6,6 +6,7 @@ pub use compiler_identity::compiler_identity;
 
 mod request_outcome;
 mod runtime_consent;
+pub use provider_correspondence::trust::selected_provider_grants;
 pub use request_outcome::CompilerRequestOutcome;
 
 use diagnostics::Diagnostic;
@@ -13,12 +14,86 @@ use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
+pub use native_compiler::SelectedProviderResult;
 pub use native_compiler::{
     ComponentSourcePublication, NativeApplicationSettings, SavedProgramTarget as NativeTarget,
     SourceNativeTarget, TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
+
+/// Declaration and deployment findings from the same checked Product.
+pub struct ReviewedPackage {
+    pub declarations: source_compiler::CheckedPackageDeclarations,
+    pub providers: SelectedProviderResult,
+    pub component: Option<package_compilation::IndependentComponentDescription>,
+    pub component_assumptions: Vec<review_evidence::record::PackagePolicyComponentAssumption>,
+}
+
+pub fn review_package(
+    source: StageSource<'_>,
+    target: SourceNativeTarget<'_>,
+    inputs: &package_compilation::PackageCompilationInputs,
+    accounting: &mut source_compiler::compile_time_invocations::SourceCompletionAccounting,
+) -> Result<ReviewedPackage, Vec<Diagnostic>> {
+    let (declarations, publication) =
+        source_to_psi::review_package(source, target.profile.target_name(), accounting)?;
+    if publication.subject() != Some(inputs.root()) {
+        return Err(vec![Diagnostic::error(
+            "package review and its deployment have different source subjects",
+        )]);
+    }
+    let mut imported = std::collections::BTreeMap::new();
+    for package in publication
+        .independent_packages()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+    {
+        let description = inputs.independent_component_descriptions().get(&package)
+            .ok_or_else(|| vec![Diagnostic::error(format!("the completed Product for `{}` has no separately published provider description for this target", inputs.package_label(package)))])?;
+        let verified = component_description::verify_component(
+            description.description(),
+            &component_description::ComponentVerificationRequest {
+                expected_subject: description.expected_subject(),
+                accepted_schemas: [component_description::COMPONENT_DESCRIPTION_SCHEMA_V3]
+                    .into_iter()
+                    .collect(),
+                accepted_assumptions:
+                    component_description::AcceptedComponentAssumptions::PendingConsumerAcceptance,
+            },
+        )
+        .map_err(|why| vec![Diagnostic::error(why.to_string())])?;
+        imported.insert(package, std::sync::Arc::new(verified));
+    }
+    let component_assumptions = runtime_consent::component_assumptions(
+        imported.iter().map(|(&key, value)| (key, value.as_ref())),
+    )?;
+    let (artifact, providers, _) = publication.into_parts();
+    let subject = artifact.view().identity();
+    let authorized = authorize_current_compilation(artifact)?;
+    let (providers, description) = native_compiler::review_source_providers(
+        authorized,
+        providers,
+        target,
+        imported,
+        inputs.root(),
+    )?;
+    Ok(ReviewedPackage {
+        component_assumptions,
+        declarations,
+        providers,
+        component: description.map(|bytes| {
+            package_compilation::IndependentComponentDescription::new(inputs.root(), subject, bytes)
+        }),
+    })
+}
+
+fn authorize_current_compilation(
+    artifact: PublishedPsi,
+) -> Result<AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    let producer = HostProducerTrust::accept("current compiler invocation");
+    authorize_terminal_artifact(artifact, Some(&producer))
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+}
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
@@ -208,26 +283,33 @@ impl Program<'_> {
                     })
                     .transpose()?;
                 let (artifact, providers, exclusions) = publication.into_parts();
-                let producer = HostProducerTrust::accept("current compiler invocation");
-                let authorized = authorize_terminal_artifact(artifact, Some(&producer))
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-                let program = native_compiler::prepare_source_program(
+                let authorized = authorize_current_compilation(artifact)?;
+                native_compiler::prepare_source_program(
                     authorized,
                     providers,
                     &exclusions,
                     components,
                     target,
-                )?;
-                if let Some((accepted, declarations, bindings)) = consent {
-                    runtime_consent::compare(
-                        accepted,
-                        subject,
-                        &program,
-                        &bindings,
-                        &declarations,
-                    )?;
-                }
-                Ok(program)
+                    |policy| {
+                        let assumptions = runtime_consent::component_assumptions(
+                            policy.component_descriptions(),
+                        )?;
+                        if let Some((accepted, declarations, bindings)) = consent {
+                            runtime_consent::compare(
+                                accepted,
+                                subject,
+                                policy,
+                                &assumptions,
+                                &bindings,
+                                &declarations,
+                            )
+                        } else if assumptions.is_empty() {
+                            Ok(())
+                        } else {
+                            Err(assumptions.into_iter().map(|row| Diagnostic::error(format!("the consuming project has no accepted lock for the independent component assumption bound to {}", row.bound_rows.join(", ")))).collect())
+                        }
+                    },
+                )
             }
         }
     }

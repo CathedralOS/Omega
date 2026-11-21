@@ -18,6 +18,48 @@ pub struct DescriptorContentsTransfer {
     pub removes_source: bool,
 }
 
+impl DescriptorFlowStep {
+    /// A copy through an index carries the selected value's borrowed fields,
+    /// including the opaque contents of a type parameter.
+    pub fn record_selected_copy(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        kind: DescriptorSlotKind,
+        position: DescriptorPosition,
+        queries: &mut DescriptorReadQueries,
+        (source, source_type): (Option<DescriptorContentsQuery>, StructuralTypeId),
+        (destination, ty): (PlaceId, StructuralTypeId),
+    ) {
+        let known = source.and_then(|query| {
+            if query.selected_type(types, source_type)? != Some(ty) {
+                return None;
+            }
+            Some((query, kind.owned_inventory(types, destination, ty)?))
+        });
+        let Some((source, inventory)) = known else {
+            self.may_escape = true;
+            return;
+        };
+        let from = source.observation();
+        for slot in inventory.slots.into_iter().chain(
+            inventory
+                .unknown_contents
+                .into_iter()
+                .map(|item| item.location),
+        ) {
+            let mut query = source.clone();
+            query.steps.extend(
+                slot.path
+                    .iter()
+                    .copied()
+                    .map(DescriptorContentsStep::Address),
+            );
+            self.derivations.push((from.clone(), slot.clone()));
+            queries.insert((position, from.clone(), slot), query);
+        }
+    }
+}
+
 pub struct DescriptorContentsOperand<'a> {
     pub root: PlaceId,
     pub root_type: StructuralTypeId,
@@ -270,15 +312,23 @@ impl DescriptorContentsQuery {
         }
     }
 
+    pub(crate) fn selected_type(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+    ) -> Option<Option<StructuralTypeId>> {
+        self.selected_type_using(types, root_type, |carrier, path, _| {
+            descriptor_path(types, carrier, path)?;
+            Some(descriptor_location_type(types, carrier, path))
+        })
+    }
+
     pub fn validate(
         &self,
         types: &[StructuralTypeDeclaration],
         root_type: StructuralTypeId,
     ) -> Option<()> {
-        self.validate_using(types, root_type, |carrier, path, _| {
-            descriptor_path(types, carrier, path)?;
-            Some(descriptor_location_type(types, carrier, path))
-        })
+        self.selected_type(types, root_type).map(|_| ())
     }
 
     /// `location_type` answers `Some` for a path that resolves from
@@ -333,6 +383,15 @@ impl DescriptorContentsQuery {
                     path.clear();
                 }
             }
+        }
+        if path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+            path.pop();
+            let carrier = location_type(tip, &path, original)??;
+            return matches!(
+                terminal_psi::find_structural_type(types, carrier)?.shape,
+                StructuralTypeShape::TypeParameter
+            )
+            .then_some(Some(carrier));
         }
         location_type(tip, &path, original)
     }

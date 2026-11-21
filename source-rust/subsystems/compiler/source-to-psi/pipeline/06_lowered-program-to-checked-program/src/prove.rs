@@ -2487,7 +2487,10 @@ impl<'a> Prover<'a> {
         } else {
             Proposition::LessOrEqual(left.clone(), right.clone())
         };
-        if let Some(proof) = self.sum_order(&carrier_order) {
+        if let Some(proof) = self
+            .positive_difference(&carrier_order)
+            .or_else(|| self.sum_order(&carrier_order))
+        {
             return Ok(proof);
         }
         let left_side = self.comparison_side(left, Direction::Upper)?;
@@ -2549,11 +2552,26 @@ impl<'a> Prover<'a> {
             .iter()
             .map(|&index| self.equations[index])
             .collect();
+        // A previously computed addend is a usable order endpoint. Keep it
+        // intact before trying the full denotation (needed for aliases).
+        let immediate: Vec<_> = selected.iter().copied().filter(|&index| {
+            matches!(&self.facts[index].proposition, Proposition::Equal(result, operand)
+                if result == left || matches!(operand, ScalarTerm::Integer { .. } | ScalarTerm::Value { .. }))
+        }).collect();
+        if immediate.len() != selected.len()
+            && let Some(proof) = self.successor_via(&goal, &immediate)
+        {
+            return Some(proof);
+        }
+        self.successor_via(&goal, &selected)
+    }
+
+    fn successor_via(&mut self, goal: &Proposition, selected: &[usize]) -> Option<ProofNode> {
         // The goal with its values unfolded, such as `a +exact 1 <= b`, and
         // that order read over the mathematical integers.
         let unfolded = check_value_equality_denotation(
             self.context,
-            &goal,
+            goal,
             selected.iter().map(|&index| &self.facts[index].proposition),
         )
         .ok()?;
@@ -2614,7 +2632,7 @@ impl<'a> Prover<'a> {
             .map(|&index| self.facts[index].proof(&self.facts))
             .collect();
         Some(node(
-            goal,
+            goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(carrier),
                 equalities,
@@ -2630,12 +2648,68 @@ impl<'a> Prover<'a> {
         larger: &ScalarTerm,
         strict: bool,
     ) -> Option<ProofNode> {
-        let (smaller_equation, smaller_minuend, smaller_subtrahend) =
-            self.saturating_subtract_definition(smaller)?;
-        let (larger_equation, larger_minuend, larger_subtrahend) =
-            self.saturating_subtract_definition(larger)?;
-        let minuends = (smaller_minuend, larger_minuend.clone());
-        let subtrahends = (larger_subtrahend.clone(), smaller_subtrahend);
+        let definition = |subject: &ScalarTerm| {
+            let ScalarTerm::Value { id, .. } = subject else {
+                return None;
+            };
+            let index = self.definitions.get(*id)?.as_ref()?;
+            self.facts.get(self.equations[*index])
+        };
+        let smaller_fact = definition(smaller);
+        let larger_fact = definition(larger);
+        let saturated = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+            matches!(subject, ScalarTerm::SaturatingIntegerSubtract { .. })
+                || fact.is_some_and(|fact| {
+                    matches!(
+                        &fact.proposition,
+                        Proposition::Equal(_, ScalarTerm::SaturatingIntegerSubtract { .. })
+                    )
+                })
+        };
+        if !saturated(smaller_fact, smaller) && !saturated(larger_fact, larger) {
+            return None;
+        }
+        // Even when a value is itself a formed difference, its reflexive
+        // equation can name it as a whole: (end - cursor) -| 0 is compared
+        // with that exact value without needing cursor itself to be zero.
+        let equations = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+            let definition = fact
+                .filter(|fact| proof_admission::unsigned_difference(&fact.proposition).is_some())
+                .map(|fact| fact.proof(&self.facts));
+            [
+                definition,
+                self.reflexive(Proposition::Equal(subject.clone(), subject.clone())),
+            ]
+        };
+        let smaller = equations(smaller_fact, smaller);
+        let larger = equations(larger_fact, larger);
+        for after in smaller.iter().flatten() {
+            for before in larger.iter().flatten() {
+                if let Some(proof) = self.unsigned_difference_order(after, before, strict) {
+                    return Some(proof);
+                }
+            }
+        }
+        None
+    }
+
+    fn unsigned_difference_order(
+        &mut self,
+        smaller_equation: &ProofNode,
+        larger_equation: &ProofNode,
+        strict: bool,
+    ) -> Option<ProofNode> {
+        let after = proof_admission::unsigned_difference(&smaller_equation.conclusion)?;
+        let before = proof_admission::unsigned_difference(&larger_equation.conclusion)?;
+        if !after.saturated && !before.saturated {
+            return None;
+        }
+        let smaller = after.result;
+        let larger = before.result;
+        let larger_minuend = before.minuend.clone();
+        let larger_subtrahend = before.subtrahend;
+        let minuends = (after.minuend.clone(), larger_minuend.clone());
+        let subtrahends = (larger_subtrahend.clone(), after.subtrahend);
         let mut proofs;
         let conclusion = if strict {
             let positive = self
@@ -2683,40 +2757,10 @@ impl<'a> Prover<'a> {
         Some(node(
             conclusion,
             ProofRule::IntegerSubtractAntitone {
-                smaller: Box::new(smaller_equation),
-                larger: Box::new(larger_equation),
+                smaller: Box::new(smaller_equation.clone()),
+                larger: Box::new(larger_equation.clone()),
                 order: Box::new(order),
             },
-        ))
-    }
-
-    fn saturating_subtract_definition(
-        &self,
-        subject: &ScalarTerm,
-    ) -> Option<(ProofNode, ScalarTerm, ScalarTerm)> {
-        let ScalarTerm::Value { id, .. } = subject else {
-            return None;
-        };
-        let index = self.definitions.get(*id)?.as_ref()?;
-        let fact = self.facts.get(self.equations[*index])?;
-        let Proposition::Equal(
-            _,
-            ScalarTerm::SaturatingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            },
-        ) = &fact.proposition
-        else {
-            return None;
-        };
-        if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned {
-            return None;
-        }
-        Some((
-            fact.proof(&self.facts),
-            left.as_ref().clone(),
-            right.as_ref().clone(),
         ))
     }
 
@@ -2728,7 +2772,7 @@ impl<'a> Prover<'a> {
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
         let mut visited = self.bounds.map(|_, _| [false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
-            self.steps(from, to).into_iter().collect();
+            self.steps(from, to, strict).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
             if let ScalarTerm::Value { id, .. } = &at {
                 let seen = visited.get_mut(*id)?;
@@ -2757,7 +2801,7 @@ impl<'a> Prover<'a> {
                 }
                 continue;
             }
-            for (next, step, step_strict) in self.steps(&at, to) {
+            for (next, step, step_strict) in self.steps(&at, to, strict && !at_strict) {
                 if let Ok(chained) = chain(proof.clone(), step) {
                     queue.push_back((next, chained, at_strict || step_strict));
                 }
@@ -2767,7 +2811,12 @@ impl<'a> Prover<'a> {
     }
 
     /// The order steps leaving `at`: `(next, proof of at R next, strict)`.
-    fn steps(&mut self, at: &ScalarTerm, to: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode, bool)> {
+    fn steps(
+        &mut self,
+        at: &ScalarTerm,
+        to: &ScalarTerm,
+        strict: bool,
+    ) -> Vec<(ScalarTerm, ProofNode, bool)> {
         let mut steps = Vec::new();
         let ScalarTerm::Value { id, .. } = at else {
             return steps;
@@ -2872,15 +2921,24 @@ impl<'a> Prover<'a> {
                         steps.push((left.as_ref().clone(), chained, false));
                     }
                 }
+                Proposition::Equal(output, sum @ ScalarTerm::ExactIntegerAdd { .. })
+                    if output == at =>
+                {
+                    steps.extend(self.interior_sum_edges(output, sum));
+                }
                 // `a / d <= a` when `0 <= a` and `0 < d`.
                 Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerDivide { .. })
                     if output == at =>
                 {
-                    if let Some(axiom) = axiom
-                        && let Some((dividend, at_most)) =
-                            self.quotient_at_most_dividend(axiom, output, expression)
-                    {
-                        steps.push((dividend, at_most, false));
+                    if let Some(axiom) = axiom {
+                        let relation = strict
+                            .then(|| self.quotient_order(axiom, output, expression, true))
+                            .flatten()
+                            .or_else(|| self.quotient_order(axiom, output, expression, false));
+                        if let Some((dividend, proof)) = relation {
+                            let strict = matches!(proof.conclusion, Proposition::LessThan(..));
+                            steps.push((dividend, proof, strict));
+                        }
                     }
                 }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
@@ -3749,7 +3807,7 @@ impl<'a> Prover<'a> {
                 // A quotient of a nonnegative dividend by a positive divisor
                 // is at most the dividend, and so at most its upper bound.
                 let quotient = (direction == Direction::Upper)
-                    .then(|| self.quotient_at_most_dividend(axiom, subject, expression))
+                    .then(|| self.quotient_order(axiom, subject, expression, false))
                     .flatten()
                     .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
                 // A remainder by a divisor its own bounds fix to a literal.
@@ -3758,7 +3816,22 @@ impl<'a> Prover<'a> {
                 let multiple = matches!(expression, ScalarTerm::ExactIntegerRemainder { .. })
                     .then(|| self.multiple_remainder_bound(subject, Some(axiom), direction))
                     .flatten();
-                [defined, below, within, quotient, fixed, multiple]
+                let interior = (direction == Direction::Upper
+                    && matches!(expression, ScalarTerm::ExactIntegerAdd { .. }))
+                .then(|| {
+                    self.interior_sum_edges(subject, expression)
+                        .into_iter()
+                        .filter_map(|(end, relation, _)| self.through(relation, &end, direction))
+                        .reduce(|best, next| {
+                            if direction.prefers(integer.compare(next.literal, best.literal)) {
+                                next
+                            } else {
+                                best
+                            }
+                        })
+                })
+                .flatten();
+                [defined, below, within, quotient, fixed, multiple, interior]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {
@@ -5063,6 +5136,13 @@ impl<'a> Prover<'a> {
         // no unmet requested limit that needs another search through the facts.
         if preferred.is_none() {
             return fallback;
+        }
+        if direction == Direction::Upper
+            && let Some(image) = self.remaining_capacity_image(target, term)
+            && preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(&image, limit, direction))
+        {
+            return Some(image);
         }
         let mathematical = self.mathematical_relation_image(term, direction, preferred);
         if mathematical.as_ref().is_some_and(|image| {

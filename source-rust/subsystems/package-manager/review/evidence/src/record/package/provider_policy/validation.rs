@@ -8,7 +8,7 @@ use application_identity::type_identity::normalize_requirement_lifetime_partitio
 use std::cmp::Ordering;
 
 impl PackagePolicyProviderPlan {
-    pub(crate) fn compare_canonical(&self, other: &Self) -> Ordering {
+    pub fn compare_canonical(&self, other: &Self) -> Ordering {
         self.plan_name
             .cmp(&other.plan_name)
             .then_with(|| self.realizing_package.cmp(&other.realizing_package))
@@ -42,6 +42,13 @@ impl PackagePolicySelectedProviders {
                 provider.validate_resolved()?;
             }
             ordered(&plan.grants)?;
+            for grant in &plan.grants {
+                if let crate::record::PackageReviewProviderGrantSelectorKind::ProviderApplication(application) = grant
+                    && (plan.provider_type_declaration.is_none() || application.as_ref().is_some_and(String::is_empty))
+                {
+                    return Err("a provider application grant needs its provider declaration and complete arguments");
+                }
+            }
             super::validate_service_methods(&plan.methods, &plan.schema_declaration, self.target)?;
             for method in &plan.methods {
                 let mut rows = plan

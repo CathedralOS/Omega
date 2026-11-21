@@ -41,6 +41,7 @@ pub fn ieee_float_arithmetic_size(form: IeeeFloatArithmeticForm) -> MachineSizeK
         Compare(NotEqual | LessOrEqual | GreaterOrEqual) => (28, 28),
         DirectedBinary { .. } => (40, 40),
         DirectedSquareRoot { .. } => (36, 36),
+        DirectedFusedMultiplyAdd { .. } => (44, 44),
     };
     MachineSizeKnowledge::ExactBytes(match form.format {
         IeeeFloatFormat::Binary32 => binary32,

@@ -1868,6 +1868,10 @@ pub(crate) fn close_typed_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
+    crate::typing::type_reference::alias_uses::check_applications(
+        &lowerer.typed_trees,
+        cohort.typed_type_references,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::typing::runtime_callables::bind_calls(
@@ -2121,10 +2125,11 @@ impl Lowerer<'_> {
         &mut self,
         alias: &crate::source_resolved::type_aliases::TypeAliasDefinition,
     ) -> Result<(), Diagnostic> {
-        let alias = self
-            .with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
+        let alias = self.with_source_owner(alias.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
                 lower_type_alias_definition(lowerer, alias)
-            })?;
+            })
+        })?;
         self.typed_trees.push_type_alias_definition(alias);
         Ok(())
     }

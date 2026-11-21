@@ -609,12 +609,15 @@ fn unplanned_boundary(
 
 /// This classification consumes an already checked declaration; it grants no
 /// native execution. Target realization independently rejoins its core link.
-fn is_direct_compiler_primitive(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
+pub(crate) fn is_direct_compiler_primitive(
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> bool {
     boundary.declaration.as_ref().is_some_and(|declaration| {
         matches!(
             declaration.execution,
             terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
                 | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+                | terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
         )
     })
 }

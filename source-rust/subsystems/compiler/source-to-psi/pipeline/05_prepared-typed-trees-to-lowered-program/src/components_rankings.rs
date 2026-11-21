@@ -3,7 +3,7 @@
 //! the completed component still proves every preserving or decreasing edge.
 
 use super::{CallGraph, Components, index};
-use crate::lowering::body::{Expression, ExpressionKind, Signature, Strict, ValueType};
+use crate::lowering::body::{Expression, ExpressionKind, Ranking, Signature, Strict, ValueType};
 use arena::IdTable;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
@@ -49,6 +49,7 @@ pub(super) fn carry(
                     forwarded_inputs(&source.parameters, &target.parameters, site.arguments);
                 let Some(ranks) = source.ranking.as_ref().and_then(|ranks| {
                     ranks
+                        .measures
                         .iter()
                         .map(|rank| {
                             substitute(rank, target, |slot| {
@@ -64,7 +65,7 @@ pub(super) fn carry(
                 signatures
                     .get_mut(site.callee)
                     .expect("the callee signature was checked")
-                    .ranking = Some(ranks);
+                    .ranking = Some(Ranking::without_range(ranks));
                 pending.push(site.callee);
             }
         }
@@ -96,6 +97,7 @@ pub(super) fn carry(
             }
             let Some(ranks) = target.ranking.as_ref().and_then(|ranks| {
                 ranks
+                    .measures
                     .iter()
                     .map(|rank| substitute(rank, source, |slot| site.arguments.get(slot).cloned()))
                     .collect::<Option<Vec<_>>>()
@@ -107,7 +109,7 @@ pub(super) fn carry(
             signatures
                 .get_mut(caller)
                 .expect("the caller signature was checked")
-                .ranking = Some(ranks);
+                .ranking = Some(Ranking::without_range(ranks));
             pending.push(caller);
         }
     }

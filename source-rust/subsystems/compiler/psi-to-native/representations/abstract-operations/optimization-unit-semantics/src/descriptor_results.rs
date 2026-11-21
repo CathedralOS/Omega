@@ -2018,7 +2018,7 @@ fn adapt(
                         _ => return None,
                     };
                     let destination = DescriptorLocation::whole(result.place);
-                    let source = match path {
+                    let location = match path {
                         StructuralCopyPath::Ordinary(path) => location(*source, path, None),
                         StructuralCopyPath::Case(path) => canonical_descriptor_location(
                             types,
@@ -2027,9 +2027,30 @@ fn adapt(
                             path,
                         ),
                     };
-                    if let Some(source) = source {
+                    if let Some(source) = location {
                         step.inputs = vec![(Some(source.clone()), None)];
                         step.derivations.push((source, destination.clone()));
+                    } else if let (
+                        O::StructuralLeafCopy { .. },
+                        StructuralCopyPath::Ordinary(path),
+                    ) = (&node.operation, path)
+                    {
+                        let query = kernel::descriptor_contents_query_with(
+                            types,
+                            *source,
+                            *graph.place_types.get(source)?,
+                            path,
+                            None,
+                            selector,
+                        );
+                        step.record_selected_copy(
+                            types,
+                            slot_kind,
+                            position,
+                            &mut graph.contents_queries,
+                            (query, *graph.place_types.get(source)?),
+                            (result.place, result.structural_type),
+                        );
                     } else {
                         step.may_escape = true;
                     }

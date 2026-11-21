@@ -297,6 +297,8 @@ impl ScalarConditions {
                 | IntegerBoundStep::Multiply
                 | IntegerBoundStep::Union
                 | IntegerBoundStep::Interval
+                | IntegerBoundStep::Equal
+                | IntegerBoundStep::LessThan
                 | IntegerBoundStep::Intersect => {
                     if depth < 2 {
                         return Err("scalar condition has missing bound operands");
@@ -322,22 +324,38 @@ impl ScalarConditions {
 impl ScalarApplications {
     /// A ground comparison can follow its observations into target
     /// closure. Runtime values still need the ordinary source proof.
-    pub(crate) fn layout_predicate(
+    pub fn layout_predicate<'a>(
         &self,
         subject: Option<ProofDeclarationId>,
         description: impl FnOnce() -> String,
         goal: &semantic_vocabulary::Proposition,
+        guards: impl FnOnce() -> &'a [semantic_vocabulary::Proposition],
     ) -> Result<Option<ScalarPredicateCondition>, &'static str> {
         let mut builder = LayoutPredicate {
             applications: self,
             nodes: Arena::new(),
             observes_target: false,
         };
-        let Some(root) = builder.proposition(goal, 0) else {
+        let Some(mut root) = builder.proposition(goal, 0) else {
             return Ok(None);
         };
         if !builder.observes_target {
             return Ok(None);
+        }
+        for guard in guards() {
+            let guard = builder
+                .proposition(guard, 0)
+                .ok_or("target path guard is not ground")?;
+            let absent = builder
+                .push(PredicateNode::Not(guard))
+                .ok_or("target path guard exceeds predicate capacity")?;
+            root = builder
+                .push(PredicateNode::Binary {
+                    operator: numerics::scalar_predicates::PredicateOperator::Or,
+                    left: absent,
+                    right: root,
+                })
+                .ok_or("guarded target requirement exceeds predicate capacity")?;
         }
         ScalarPredicateCondition::new(
             ScalarConditionSubject::Declaration(

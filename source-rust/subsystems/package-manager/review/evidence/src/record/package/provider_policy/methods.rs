@@ -12,28 +12,27 @@ use service_surface::{ServiceEntryClaim, ServiceProgressPremise, ServiceResultCl
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceMethod {
-    pub(crate) completion: semantic_vocabulary::BoundaryCompletion,
-    pub(crate) name: String,
-    pub(crate) requirement_owner: PackageReviewNominalIdentity,
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) signature: PackagePolicyServiceSignature,
-    pub(crate) authority: PackagePolicyServiceAuthority,
-    pub(crate) parameter_count: usize,
-    pub(crate) parameter_type_identities: Vec<String>,
-    pub(crate) entry_claims: Vec<ServiceEntryClaim>,
-    pub(crate) has_result: bool,
-    pub(crate) result_type_identity: Option<String>,
-    pub(crate) normal_result_memberships:
-        Vec<service_surface::ServiceNormalResultMembership>,
-    pub(crate) result_claims: Vec<ServiceResultClaim>,
-    pub(crate) service_reach: Vec<String>,
-    pub(crate) synchronous_invocations: Vec<ServiceSynchronousInvocation>,
-    pub(crate) may_suspend: bool,
-    pub(crate) may_block: bool,
-    pub(crate) terminates_guarantee: bool,
-    pub(crate) termination_premises: Vec<ServiceProgressPremise>,
-    pub(crate) identities: ProviderIdentityTable, // Interned identities referenced by embedded plan-side fields.
-    pub(crate) calling: Vec<PackagePolicyCallingPlan>,
+    pub completion: semantic_vocabulary::BoundaryCompletion,
+    pub name: String,
+    pub requirement_owner: PackageReviewNominalIdentity,
+    pub requirement: PackageReviewNominalIdentity,
+    pub signature: PackagePolicyServiceSignature,
+    pub authority: PackagePolicyServiceAuthority,
+    pub parameter_count: usize,
+    pub parameter_type_identities: Vec<String>,
+    pub entry_claims: Vec<ServiceEntryClaim>,
+    pub has_result: bool,
+    pub result_type_identity: Option<String>,
+    pub normal_result_memberships: Vec<service_surface::ServiceNormalResultMembership>,
+    pub result_claims: Vec<ServiceResultClaim>,
+    pub service_reach: Vec<String>,
+    pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
+    pub may_suspend: bool,
+    pub may_block: bool,
+    pub terminates_guarantee: bool,
+    pub termination_premises: Vec<ServiceProgressPremise>,
+    pub identities: ProviderIdentityTable, // Interned identities referenced by embedded plan-side fields.
+    pub calling: Vec<PackagePolicyCallingPlan>,
 }
 
 impl PackagePolicyServiceMethod {

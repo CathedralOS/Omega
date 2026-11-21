@@ -419,6 +419,14 @@ impl Program<'_> {
                 // (`Elaboration::generic_templates`). One whose only
                 // parameters are implementations is generic too.
                 if !self.is_generic_template(machine) {
+                    if self
+                        .float_meaning_subject(entry, machine)
+                        .map_err(|refusal| {
+                            self.read_failure_at(refusal, machine.symbol, "the proof declaration")
+                        })?
+                    {
+                        return Ok(());
+                    }
                     self.admitted_declarations.include(machine.symbol);
                     let id = self.subject_machine(machine.symbol)?;
                     self.subject_machines.push(id);
@@ -579,53 +587,19 @@ impl Program<'_> {
                 )))?;
             }
         }
-        // A transparent alias is checked at declaration. A callable contract
-        // may leave ceilings open here. Its expanded type is checked again in
-        // the position where a parameter, field or other value uses it.
         for alias in typed.type_aliases() {
             if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
-            self.served(entry, alias.symbol)?;
-            if !alias.lifetime_parameters.is_empty() || !alias.conformance_bounds.is_empty() {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("generic type alias"),
-                ));
+            if alias.type_parameters.is_empty()
+                && alias.lifetime_parameters.is_empty()
+                && alias.conformance_bounds.is_empty()
+            {
+                self.served(entry, alias.symbol)?;
+                self.alias_expansion(entry, alias)?;
+            } else {
+                self.generic_templates.push(alias.symbol);
             }
-            if !typed.contains_type_reference(alias.expansion) {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Type("stale alias expansion"),
-                ));
-            }
-            match typed.type_reference_table.type_reference(alias.expansion) {
-                crate::source_state::types::TypeReferenceNode::Callable { .. }
-                    if !alias.type_parameters.is_empty() =>
-                {
-                    self.generic_templates.push(alias.symbol);
-                    continue;
-                }
-                crate::source_state::types::TypeReferenceNode::Callable { contract } => {
-                    self.callable_alias_declaration(entry, *contract)
-                        .map_err(|failure| {
-                            self.read_failure_at(failure, alias.symbol, "the signature")
-                        })?;
-                }
-                _ if alias.type_parameters.is_empty() => {
-                    self.value_type(entry, alias.expansion)?;
-                }
-                _ => {
-                    return Err(refuse(
-                        entry,
-                        Construct::Machine,
-                        Unserved::Declaration("generic type alias"),
-                    ));
-                }
-            }
-            self.admitted_declarations.include(alias.symbol);
         }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
@@ -754,17 +728,18 @@ impl Program<'_> {
                 if field.relevance != language_core::BindingRelevance::Relevant {
                     return Err(unserved("generic data with an erased member"));
                 }
-                self.template_member_type(entry, parameters, field.type_reference, 0)?;
+                self.template_type(entry, data.symbol, parameters, field.type_reference, 0)?;
             }
         }
         Ok(())
     }
 
-    /// One member type of a generic data declaration, or an argument inside
-    /// one, as `subject_data_template` reads it.
-    fn template_member_type(
+    /// Form an open type in the declaration that owns its binders. A field
+    /// and an alias expansion can name the same type before it has storage.
+    fn template_type(
         &mut self,
         entry: MachineId,
+        declaration: SymbolHandle,
         parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
         reference: crate::source_state::types::TypeReferenceHandle,
         depth: usize,
@@ -776,7 +751,7 @@ impl Program<'_> {
             refuse(
                 entry,
                 Construct::Machine,
-                Unserved::Type("generic data with a member type that is not read as written"),
+                Unserved::Type("type that cannot be formed under its declared generic binders"),
             )
         };
         // A source type nests far less deeply than this; a graph that does
@@ -807,6 +782,10 @@ impl Program<'_> {
                     None => Err(unserved()),
                 }
             }
+            TypeReferenceNode::Reference { referee, .. } => {
+                super::places::reference_lifetime_declared(typed, entry, reference, declaration)?;
+                self.template_type(entry, declaration, parameters, *referee, depth + 1)
+            }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
@@ -816,7 +795,7 @@ impl Program<'_> {
                     FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
                     _ => return Err(unserved()),
                 }
-                self.template_member_type(entry, parameters, *element_type, depth + 1)
+                self.template_type(entry, declaration, parameters, *element_type, depth + 1)
             }
             TypeReferenceNode::Constrained { .. } => {
                 // Keep the qualification's formation checks. Reading only its
@@ -851,7 +830,7 @@ impl Program<'_> {
                 for (formal, argument) in formals.iter().zip(arguments) {
                     match formal.kind {
                         TypeParameterKind::Type => {
-                            self.template_member_type(entry, parameters, *argument, depth + 1)?;
+                            self.template_type(entry, declaration, parameters, *argument, depth + 1)?;
                         }
                         TypeParameterKind::Const { .. } => {
                             let named_constant = matches!(
@@ -873,7 +852,6 @@ impl Program<'_> {
                 Ok(())
             }
             TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
@@ -911,6 +889,85 @@ impl Program<'_> {
         self.source_scope = std::sync::Arc::new(source);
         self.admitted_declarations.include(declared.symbol);
         self.record_at(diagnostic, declared.predicate_subject_type)?;
+        Ok(())
+    }
+
+    /// Check the expanded type in the alias's own binder scope. Closed uses
+    /// read the same expansion with their actual arguments substituted.
+    pub(crate) fn generic_type_alias(
+        &mut self,
+        alias: &crate::source_state::type_aliases::TypeAliasDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::data::TypeParameterKind;
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        let typed = self.typed;
+        let parameters = typed
+            .data_type_parameters
+            .span(alias.type_parameters)
+            .ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("stale type alias parameters"),
+                )
+            })?;
+        if parameters.iter().any(|parameter| {
+            parameter.kind != TypeParameterKind::Type
+                || parameter.bounds.carry.is_some()
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).parent != alias.symbol
+        }) || !alias.conformance_bounds.is_empty()
+        {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("type alias with unsupported binders"),
+            ));
+        }
+        super::places::lifetime_binders(
+            diagnostic,
+            &alias.lifetime_parameters,
+            self.declared_at(alias.symbol),
+        )?;
+        self.lifetime_owner = alias.symbol;
+        self.scope = super::type_parameters::rigid_type_scope(parameters);
+        self.generic_binders
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        std::sync::Arc::make_mut(&mut self.source_scope)
+            .rigid_parameters
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.reading_schema = true;
+        self.served(diagnostic, alias.symbol)?;
+        self.alias_expansion(diagnostic, alias)
+    }
+
+    fn alias_expansion(
+        &mut self,
+        site: MachineId,
+        alias: &crate::source_state::type_aliases::TypeAliasDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::types::TypeReferenceNode;
+        if !self.typed.contains_type_reference(alias.expansion) {
+            return Err(refuse(
+                site,
+                Construct::Machine,
+                Unserved::Type("stale alias expansion"),
+            ));
+        }
+        match self.typed.type_reference_table.type_reference(alias.expansion) {
+            TypeReferenceNode::Callable { contract } => {
+                // A declaration may describe an open callable. Reading that
+                // contract as a stored value would require an extra ceiling.
+                self.callable_alias_declaration(site, *contract)
+            }
+            _ if !alias.type_parameters.is_empty() => {
+                let parameters = self.typed.data_type_parameters.span_or_empty(alias.type_parameters);
+                self.template_type(site, alias.symbol, parameters, alias.expansion, 0)
+            }
+            _ => self.value_type(site, alias.expansion).map(|_| ()),
+        }
+        .map_err(|failure| self.read_failure_at(failure, alias.symbol, "the alias expansion"))?;
+        self.admitted_declarations.include(alias.symbol);
         Ok(())
     }
 

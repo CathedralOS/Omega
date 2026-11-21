@@ -510,7 +510,8 @@ impl DescriptorSlotKind {
             types,
             root,
             structural_type,
-        )
+        )?
+        .fully_enumerated()
     }
 
     pub fn inventory(
@@ -525,7 +526,35 @@ impl DescriptorSlotKind {
             types,
             root,
             structural_type,
-        )
+        )?
+        .fully_enumerated()
+    }
+
+    pub(crate) fn entry_inventory(
+        self,
+        types: &[StructuralTypeDeclaration],
+        machine: &DescriptorMachine,
+        root: PlaceId,
+    ) -> Option<DescriptorSlotInventory> {
+        let structural_type = *machine.place_types.get(&root)?;
+        let shared_input = matches!(
+            machine.place_definition(root)?,
+            DescriptorDefinition::Parameter {
+                access: StructuralAccess::SharedBorrow,
+                ..
+            }
+        );
+        let scope = if self.tracks_references() {
+            DescriptorStorageScope::Owned
+        } else {
+            DescriptorStorageScope::Reachable
+        };
+        let inventory = slot_inventory(self, scope, types, root, structural_type)?;
+        if shared_input {
+            Some(inventory)
+        } else {
+            inventory.fully_enumerated()
+        }
     }
 
     pub fn may_write_indirect_contents(
@@ -713,12 +742,24 @@ pub struct DescriptorSlotInventory {
     pub unknown_contents: Vec<UnknownDescriptorContents>,
 }
 
+impl DescriptorSlotInventory {
+    fn fully_enumerated(self) -> Option<Self> {
+        self.unknown_contents
+            .iter()
+            .all(|item| item.kind != UnknownContentsKind::SymbolicArray)
+            .then_some(self)
+    }
+}
+
 /// An owned value's unknown contents travel with the value. A pointer's
 /// unknown referent remains separate storage and is never an owned payload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnknownContentsKind {
     Value,
     Referent,
+    /// The shared input supplies an array whose length is a parameter. Its
+    /// elements cannot be enumerated when the machine starts.
+    SymbolicArray,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -832,7 +873,19 @@ fn slot_inventory(
                     active.remove(&ty);
                     return Some(());
                 }
-                let length = length.literal()?;
+                let Some(length) = length.literal() else {
+                    if scope == DescriptorStorageScope::Referent {
+                        return None;
+                    }
+                    let mut contents = location;
+                    contents.path.push(DescriptorPathSegment::UnknownContents);
+                    result.unknown_contents.push(UnknownDescriptorContents {
+                        location: contents,
+                        kind: UnknownContentsKind::SymbolicArray,
+                    });
+                    active.remove(&ty);
+                    return Some(());
+                };
                 if length > 4096 {
                     return None;
                 }

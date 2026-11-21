@@ -609,6 +609,12 @@ keeps its shared result continuation instead.
 [Rankings](#rankings) describes their lowering. A bare `terminates` can rely
 on such loops only when every reachable cycle is ranked.
 
+When a member declares a rank range, its entry checks the normalized rank
+against the two typed endpoints. The resulting block invariant carries
+these inequalities through an ordinary checked arrival. This includes the
+first invocation and recursive re-entry. The member’s public preconditions
+retain their authored meaning.
+
 The rest of the loops lane
 (`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
 name until the slice that serves it:
@@ -617,7 +623,7 @@ name until the slice that serves it:
 | --- | --- |
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
 | a view with no admitted resolved selection, including an authored lookalike | `contract ranking view has no admitted resolved selection`, `contract selected ranking view is not an admitted compiler ranking declaration` |
-| view arguments or a rank range, `in lower..=upper` | `contract ranking view arguments and bounded ranges` |
+| view arguments | `contract ranking view arguments` |
 | several subjects under a single-subject view | `contract selected ranking view requires exactly one subject` |
 | a signed subject under `Nat::Descending` | `contract natural ranking needs an unsigned integer subject` |
 | an address or width-generic rank carrier | `contract ranking needs a closed finite integer carrier` |

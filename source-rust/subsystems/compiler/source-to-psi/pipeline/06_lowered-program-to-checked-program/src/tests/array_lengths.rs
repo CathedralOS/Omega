@@ -82,6 +82,16 @@ fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
 }
 
 #[test]
+fn a_shared_array_element_keeps_its_generic_contents_when_returned() {
+    let form = rigid_array_form(
+        "machine entry<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
+         requires Count > 0 { items[Count - 1] }",
+    );
+    let result = judge(Ok(form)).unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
+
+#[test]
 fn a_rigid_array_extent_names_its_const_input_without_requiring_positivity() {
     for carrier in ["u64", "u32"] {
         let mut form = rigid_array_form(&format!(
@@ -169,6 +179,25 @@ fn a_whole_subject_checks_the_original_nested_const_array_body() {
         );
         assert_array_invocation_value(verdicts, length);
     }
+}
+
+#[test]
+fn a_specialized_call_checks_its_inferred_array_equation() {
+    let source = r#"
+        machine capacity<Array [copy], const Count: u64>(items: Array) -> u64
+            requires Array == [u16; Count] { Count }
+        machine entry() -> u64 {
+            let items: [u16; 3] = [7, 11, 19];
+            capacity(items)
+        }
+    "#;
+    assert_array_invocation_value(array_subject(source), 3);
+}
+
+#[test]
+fn a_closed_array_equation_cannot_prove_unequal_extents() {
+    let failure = verdict("machine build_entry() ensures [u16; 2] == [u16; 3] {}");
+    assert!(failure.starts_with("rejected"), "{failure}");
 }
 
 fn assert_array_invocation_value(
@@ -463,14 +492,10 @@ requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
         _ -> measure::<u16, 4>(value)
     }
 }";
-    let verdicts = array_subject(source);
-    assert!(
-        !verdicts.is_empty()
-            && verdicts
-                .iter()
-                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
-        "{verdicts:?}"
-    );
+    // Both branches belong to the generic declaration. Check it as a source
+    // subject so the harness exercises each admitted type for Kind.
+    let verdict = super::entryless::judged(source, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
 #[test]
@@ -642,6 +667,45 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
 
 fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>) -> bool {
     matches!(verdict, Ok(RouteVerdict::Accepted(_)))
+}
+
+#[test]
+fn forwarding_an_extent_to_a_boundary_checks_the_declared_contract() {
+    let source = r#"
+boundary trait Other {}
+boundary trait Text {
+    machine send<const Count: u64>(bytes: @[u8; Count]) -> u64
+    requires Count > 0u64
+    requires bytes[Count - 1u64] == 0u8
+    reaches none
+    crashes none;
+}
+machine forward<const Size: u64>(bytes: @[u8; Size]) -> u64
+requires Size > 0u64
+requires bytes[Size - 1u64] == 0u8
+reaches none
+crashes none
+{ Text::send::<Size>(bytes) }
+machine entry() -> u64 {
+    let bytes: [u8; 4] = [1, 2, 3, 0];
+    forward::<4u64>(@bytes)
+}
+"#;
+    let valid = array_subject(source);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    // The caller must account for a synchronous entry published by the
+    // method. Two bodyless services distinguish an exact grant from a near miss.
+    let grants = source.replace("reaches none", "reaches none\ninvokes Text");
+    let valid = array_subject(&grants);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    let missing = array_subject(&grants.replace("invokes Text\ncrashes none\n{", "invokes Other\ncrashes none\n{"));
+    assert!(missing.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { exceeded, .. })
+        if exceeded.iter().any(|row| row.message().contains("synchronous invocation")))), "{missing:?}");
+    let different = source.replace("Size - 1u64] == 0u8", "Size - 1u64] == 7u8")
+        .replace("[1, 2, 3, 0]", "[1, 2, 3, 7]");
+    let wrong_byte = array_subject(&different);
+    assert!(wrong_byte.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+        if !unproved.is_empty())), "{wrong_byte:?}");
 }
 
 #[test]

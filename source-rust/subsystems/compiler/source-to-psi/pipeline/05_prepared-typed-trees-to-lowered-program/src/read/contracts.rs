@@ -96,10 +96,22 @@ pub(super) enum ResultTerm {
     Absent(&'static str),
 }
 
+/// A supplied value or checked literal already forms. More complex terms
+/// need their formation obligations retained with the owning proposition.
+pub(super) fn needs_call_argument_formation(term: &ScalarTerm) -> bool {
+    !matches!(
+        term,
+        ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_)
+    )
+}
+
 impl Program<'_> {
     /// An applied body keeps its declaration's clause trees. Both a whole
     /// scalar result and a projected result must name that exact owner.
-    fn require_result_owner(
+    pub(super) fn require_result_owner(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
@@ -376,15 +388,7 @@ impl Program<'_> {
         let mut pending = bound
             .into_iter()
             .map(|(_, term)| term)
-            .filter(|term| {
-                !matches!(
-                    term,
-                    ScalarTerm::Value { .. }
-                        | ScalarTerm::Boolean(_)
-                        | ScalarTerm::Integer { .. }
-                        | ScalarTerm::IeeeFloatLiteral(_)
-                )
-            })
+            .filter(needs_call_argument_formation)
             .peekable();
         if pending.peek().is_none() {
             return Ok(());
@@ -456,7 +460,7 @@ impl Program<'_> {
                     .fixed_core_declaration_for_symbol(call.target_symbol)
                     == Some(symbols::FixedCoreDeclaration::Identity) =>
             {
-                return self.scalar_identity_clause(id, scope, expression, call);
+                return self.identity_clause(id, scope, expression, call);
             }
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
@@ -501,7 +505,7 @@ impl Program<'_> {
                 typed.expression_table.expression(binary.left),
                 typed.expression_table.expression(binary.right),
             )
-            && let Some(equation) = self.nominal_type_equation(id, scope, *left, *right)?
+            && let Some(equation) = self.structural_type_equation(id, scope, *left, *right)?
         {
             let owner = self.contract_operator_owner(id, scope)?;
             self.complete_type_equation(id, owner, expression)?;
@@ -723,20 +727,18 @@ impl Program<'_> {
         }
     }
 
-    /// A plain integer Identity forms the kernel's existing scalar identity.
-    /// The fixed declaration, written type, and both subjects belong to this
-    /// exact clause before the prover considers whether its identity holds.
-    fn scalar_identity_clause(
+    /// Bind the fixed declaration, written type, and both subjects before
+    /// selecting the corresponding identity in the proof vocabulary.
+    pub(super) fn identity_inputs(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         call: &TableCallExpression,
-    ) -> Checked<Proposition> {
+    ) -> Checked<(SymbolHandle, [ExpressionHandle; 2], SourceOrigin)> {
         use crate::declaration_selection::AuthoredDeclarationSelectionKind::{
             Call, StaticArgument,
         };
-        use symbols::BuiltinTypeAtom;
 
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         if !scope.formal_fields || scope.logical.is_some() || scope.subject.is_some() {
@@ -767,11 +769,9 @@ impl Program<'_> {
         let [argument] = call.machine_arguments.as_ref() else {
             return Err(unavailable("Identity requires one explicit type argument"));
         };
-        let [_] = argument.path.as_ref() else {
-            return Err(unavailable(
-                "Identity needs one plain fixed integer type name",
-            ));
-        };
+        if argument.path.is_empty() {
+            return Err(unavailable("Identity is missing its selected type name"));
+        }
         if !typed.contains_type_reference(argument.type_reference)
             || !matches!(
                 typed.type_reference_table.type_reference(argument.type_reference),
@@ -786,21 +786,16 @@ impl Program<'_> {
         {
             return Err(unavailable("Identity lost its exact written type"));
         }
-        let Some(atom @ BuiltinTypeAtom::Integer(_)) =
-            typed.symbols.builtin_type_atom(argument.symbol)
-        else {
-            return Err(unavailable(
-                "Identity of a type other than a plain fixed integer",
-            ));
-        };
         let application_handle = call.authored_machine_application;
         if !expressions.static_machine_application_is_valid(application_handle) {
             return Err(unavailable("Identity lost its authored type application"));
         }
         let application = expressions.static_machine_application(application_handle);
-        // The written application belongs to the declaration. The clause's
-        // result belongs to that machine's one state.
-        if self.entered_machine(scope.owner) != Some(application.lexical_owner) {
+        // A concrete body's result belongs to its entry state, while its
+        // static applications belong to the machine. A bodyless requirement
+        // owns its own result and its written applications directly.
+        let owner = self.entered_machine(scope.owner).unwrap_or(scope.owner);
+        if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",
             ));
@@ -895,14 +890,44 @@ impl Program<'_> {
                 "Identity requires two subjects",
             ));
         };
+        Ok((
+            argument.symbol,
+            [*left, *right],
+            SourceOrigin::Authored(call_source),
+        ))
+    }
+
+    fn identity_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        call: &TableCallExpression,
+    ) -> Checked<Proposition> {
+        let (subject_type, [left, right], source) =
+            self.identity_inputs(id, scope, expression, call)?;
+        if self.typed.core_vocabulary(subject_type)
+            == Some(language_core::core_vocabulary::CoreVocabulary::FloatMeaning)
+        {
+            return self.float_meaning_identity(id, scope, left, right);
+        }
+        let Some(atom @ symbols::BuiltinTypeAtom::Integer(_)) =
+            self.typed.symbols.builtin_type_atom(subject_type)
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("Identity of an unserved type"),
+            ));
+        };
         let scalar = super::types::atom_type(atom, id)?;
-        let (left, left_type) = self.term(id, scope, *left, Some(scalar))?;
-        let (right, right_type) = self.term(id, scope, *right, Some(scalar))?;
+        let (left, left_type) = self.term(id, scope, left, Some(scalar))?;
+        let (right, right_type) = self.term(id, scope, right, Some(scalar))?;
         let expected = ValueType::plain(scalar);
         if left_type != expected || right_type != expected {
             return Err(reject(
                 id,
-                SourceOrigin::Authored(call_source),
+                source,
                 "Identity subjects must have the exact written plain integer type",
             ));
         }

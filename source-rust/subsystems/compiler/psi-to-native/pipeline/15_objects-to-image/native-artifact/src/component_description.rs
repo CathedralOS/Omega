@@ -43,6 +43,22 @@ pub(super) struct StackDemandFacts {
     pub stack_alignment: u32,
 }
 
+impl StackDemandFacts {
+    pub(super) fn obligation(self) -> InstallationObligation {
+        InstallationObligation {
+            kind: ObligationKind::StackProvision,
+            identity: format!(
+                "stack-provision:{}:{}:{}",
+                self.entry.get(),
+                self.ceiling_bytes,
+                self.stack_alignment,
+            ),
+            detail: "provision the exact selected-entry stack closure under a fresh profile"
+                .to_string(),
+        }
+    }
+}
+
 fn component_references_plan(
     module: &TerminalModule,
     inventory: &DerivedInventory,
@@ -185,17 +201,7 @@ fn describe_decoded_component_facts(
     }
 
     if let Some(stack) = facts.stack_demand {
-        obligations.push(InstallationObligation {
-            kind: ObligationKind::StackProvision,
-            identity: format!(
-                "stack-provision:{}:{}:{}",
-                stack.entry.get(),
-                stack.ceiling_bytes,
-                stack.stack_alignment,
-            ),
-            detail: "provision the exact selected-entry stack closure under a fresh profile"
-                .to_string(),
-        });
+        obligations.push(stack.obligation());
     }
     for import in &imports {
         obligations.push(InstallationObligation {

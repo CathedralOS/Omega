@@ -9,6 +9,7 @@ use crate::lowering::selection_questions::{
     RawSelectionRole, RawSelectionTarget,
 };
 use crate::source_state::TypedTrees;
+use application_identity::type_identity::encoding::callable_declaration_path;
 use crate::source_state::callable_values::RuntimeCallableContractHandle;
 use crate::source_state::references::StaticArgumentRole;
 use record_storage::Record;
@@ -1431,7 +1432,7 @@ struct Declarations<'source> {
     identities: SymbolRows<DeclarationIdentity>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
     callable_occurrences:
-        HashMap<(source_text::SourceSpan, SelectionPurpose), SelectionDeclarationId>,
+        HashMap<(source_text::SourceSpan, SelectionPurpose, String), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
@@ -1707,8 +1708,12 @@ impl<'source> Declarations<'source> {
         if let Some(id) = self.ids.get(&symbol) {
             return Ok(*id);
         }
-        let identity = self.identity(symbol)?;
+        let occurrence = self.identity(symbol)?;
         let callable_identity = self.callable_identity(symbol)?;
+        let identity = match &callable_identity {
+            Some(meaning) => callable_declaration_path(&occurrence, meaning),
+            None => occurrence,
+        };
         let custody = crate::lowering::selection_questions::declaration_custody(self.typed, symbol)
             .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
@@ -1724,10 +1729,14 @@ impl<'source> Declarations<'source> {
             purpose,
             callable_identity,
         };
-        // Each use of a named callable type has its own symbols for checking
-        // the parameters. Those uses all refer to one source declaration.
-        let id = if declaration.callable_identity.is_some() {
-            match self.callable_occurrences.entry((span, purpose)) {
+        // Re-reading the same written callable at the same structural meaning
+        // reuses its declaration. Another generic application at that source
+        // occurrence can select a different callable contract.
+        let id = if let Some(meaning) = &declaration.callable_identity {
+            match self
+                .callable_occurrences
+                .entry((span, purpose, meaning.clone()))
+            {
                 std::collections::hash_map::Entry::Occupied(entry) => {
                     let id = *entry.get();
                     if output.declarations.get(id) != Some(&declaration) {
@@ -1819,7 +1828,26 @@ impl<'source> Declarations<'source> {
                 {
                     return Ok(true);
                 }
-                scope = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                scope = if self.typed.symbols.get(scope).kind == SymbolKind::CallableContract {
+                    // The anonymous signature symbol belongs to the symbol-table root.
+                    // Its exact contract occurrence records the source scope it captures.
+                    let mut parents = self
+                        .contracts
+                        .get(&scope)
+                        .into_iter()
+                        .flatten()
+                        .map(|&handle| self.typed.runtime_callable_contract(handle).lexical_owner);
+                    let parent = parents
+                        .next()
+                        .ok_or_else(|| refused("callable scope has no retained contract"))?;
+                    self.valid(parent, "callable's enclosing source declaration")?;
+                    if parents.any(|other| other != parent) {
+                        return Err(refused(
+                            "callable scope has ambiguous retained lexical parents",
+                        ));
+                    }
+                    parent
+                } else if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
                     owner.symbol
                 } else if !follow_copied_parents
                     && let Some(template) = self
@@ -2767,7 +2795,8 @@ machine entry() -> u64 reaches none crashes none {
             &prepared.questions,
         )
         .unwrap();
-        let rows = identities.each_ref().map(|identity| {
+        let rows = [0, 1].map(|index| {
+            let identity = callable_declaration_path(&identities[index], &meanings[index]);
             let rows = prepared
                 .questions
                 .declarations
@@ -2781,7 +2810,7 @@ machine entry() -> u64 reaches none crashes none {
         assert_eq!(rows[0].1.callable_identity.as_ref(), Some(&meanings[0]));
         assert_eq!(rows[1].1.callable_identity.as_ref(), Some(&meanings[1]));
         let mut duplicate = prepared.questions.clone();
-        duplicate.declarations.get_mut(rows[1].0).unwrap().identity = identities[0].clone();
+        duplicate.declarations.get_mut(rows[1].0).unwrap().identity = rows[0].1.identity.clone();
         assert!(
             psi_authorization::selection_questions::validate_selection_questions(
                 module, &duplicate,
@@ -3018,6 +3047,87 @@ machine entry() reaches Input {}
                 formal,
                 StaticArgumentRole::ValueDependency,
             )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn callable_alias_capture_keeps_distinct_concrete_applications() {
+        let source = accepted_source(
+            "public data KeyHash<K> = machine(key: @K) -> u64 reaches none crashes none;
+             machine read_small(value: @u32) -> u64 reaches none crashes none { 5u64 }
+             machine read_large(value: @u64) -> u64 reaches none crashes none { $value }
+             machine small(f: KeyHash<u32>, value: @u32) -> u64 reaches none crashes none { f(value) }
+             machine large(f: KeyHash<u64>, value: @u64) -> u64 reaches none crashes none { f(value) }
+             machine entry() -> u64 reaches none crashes none {
+                 let a: u32 = 11u32;
+                 let b: u64 = 47u64;
+                 small(read_small, @a) | large(read_large, @b)
+             }",
+            &[],
+        );
+        let prepared = prepare(&source, source.module(), None).unwrap();
+        psi_authorization::selection_questions::validate_selection_questions(
+            source.module(),
+            &prepared.questions,
+        )
+        .unwrap();
+        let meanings = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter_map(|(_, declaration)| {
+                (declaration.name == "KeyHash")
+                    .then_some(declaration.callable_identity.as_deref())
+                    .flatten()
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(
+            meanings.len() >= 2,
+            "the two selected callable applications must survive publication: {meanings:?}"
+        );
+    }
+
+    #[test]
+    fn callable_alias_capture_can_select_only_its_enclosing_type_binder() {
+        let source = accepted_source(
+            "public data KeyHash<K> = machine(key: @K) -> u64;
+             public data Sibling<K> = machine(value: @K) -> bool;
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let alias = |name| {
+            typed
+                .type_aliases()
+                .iter()
+                .find(|row| row.name.as_str() == name)
+                .unwrap()
+        };
+        let owner = alias("KeyHash");
+        let sibling = alias("Sibling");
+        let binder = |row: &crate::source_state::type_aliases::TypeAliasDefinition| {
+            typed
+                .data_type_parameters
+                .span_or_empty(row.type_parameters)[0]
+                .symbol
+        };
+        let crate::source_state::types::TypeReferenceNode::Callable { contract } =
+            typed.type_reference_table.type_reference(owner.expansion)
+        else {
+            panic!("KeyHash must retain its source callable");
+        };
+        let scope = typed.runtime_callable_contract(*contract).signature.symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        declarations
+            .local_binding(&mut questions, scope, binder(owner), owner.symbol)
+            .unwrap();
+        let error = declarations
+            .local_binding(&mut questions, scope, binder(sibling), sibling.symbol)
             .unwrap_err();
         assert!(
             error.message.contains("outside its actual lexical context"),

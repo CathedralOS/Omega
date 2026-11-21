@@ -529,15 +529,13 @@ pub(crate) mod alias_uses {
                     ));
                 }
             };
-        // A source-free symbol table retains borrowed names. Its selected alias
-        // declaration still owns the exact span used by transparent expansion.
         let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
             if source.symbols.source_map().is_some() {
                 return None;
             }
             source
                 .type_aliases
-                .iter()
+                .retained_records()
                 .find(|alias| alias.symbol == declaration)
                 .map(|alias| alias.name.source_span())
         });
@@ -566,6 +564,110 @@ pub(crate) mod alias_uses {
             },
         );
         Ok(instance)
+    }
+
+    /// Substitution may erase an argument from the result entirely. Judge the
+    /// retained application once the cohort has complete type declarations.
+    pub(crate) fn check_applications(
+        program: &typed::TypedTrees,
+        completed_references: usize,
+    ) -> Result<(), Diagnostic> {
+        use typed_trees::static_operand_binding::{Stop, type_argument_meets_bounds};
+        let aliases = program.type_aliases();
+        for application in program
+            .type_reference_table
+            .type_alias_applications_after(completed_references)
+        {
+            let site = application.reference;
+            let alias = aliases
+                .iter()
+                .find(|alias| alias.symbol == application.declaration)
+                .ok_or_else(|| {
+                    crate::typing::unavailable_judgment("selected type alias declaration")
+                        .with_source_span(site)
+                })?;
+            let formals = program
+                .data_type_parameters
+                .span(alias.type_parameters)
+                .ok_or_else(|| {
+                    crate::typing::unavailable_judgment("declared type alias parameters").with_source_span(site)
+                })?;
+            let actuals = program
+                .type_reference_table
+                .type_reference_handles(application.arguments);
+            if actuals.len() != formals.len()
+                || application.lifetime_arguments.len() != alias.lifetime_parameters.len()
+            {
+                return Err(Diagnostic::error(
+                    "type alias application does not supply its declared arguments",
+                )
+                .with_source_span(site));
+            }
+            // An argument copied across a substitution retains its supplier.
+            // Other authored occurrences acquire their owning header when typing finishes it.
+            let supplying_owner = if application.supplied_operand_owner.is_valid() {
+                application.supplied_operand_owner
+            } else {
+                program.type_reference_table.operand_lifetime_owner(application.application)
+            };
+            let regions = program
+                .type_reference_table
+                .operand_lifetimes(application.application);
+            for (ordinal, argument) in application.lifetime_arguments.iter().enumerate() {
+                let region = regions
+                    .get(ordinal)
+                    .copied()
+                    .filter(|region| region.declaration.is_valid())
+                    .or_else(|| {
+                        typed::type_identity::lifetime_parameter_identity(
+                            program,
+                            supplying_owner,
+                            argument.as_str(),
+                        )
+                    });
+                if region
+                    .and_then(|region| typed::type_identity::lifetime_parameter_name(program, region))
+                    .is_none()
+                {
+                    return Err(Diagnostic::error(format!(
+                        "type alias lifetime argument `'{}` must name a lifetime in its supplying declaration",
+                        argument.as_str().trim_start_matches('\'')
+                    )).with_source_span(site));
+                }
+            }
+            for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
+                if formal.kind != typed::data::TypeParameterKind::Type {
+                    continue;
+                }
+                if program.type_argument_names_value(*actual) {
+                    return Err(Diagnostic::error(format!(
+                        "type alias argument {} requires a type but was supplied a value",
+                        position + 1
+                    ))
+                    .with_source_span(site));
+                }
+                if let typed::types::TypeReferenceNode::Named { symbol, name } =
+                    program.type_reference_table.type_reference(*actual)
+                    && !program.symbols.symbols().nodes().is_valid(*symbol)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "type alias argument {} requires a type declaration for `{}`",
+                        position + 1,
+                        name.as_str(),
+                    ))
+                    .with_source_span(site));
+                }
+                type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
+                    match stop {
+                        Stop::Rejected(reason) => Diagnostic::error(reason),
+                        Stop::Unserved(reason) => crate::typing::unavailable_judgment(&reason),
+                        Stop::Defect(reason) => crate::typing::unavailable_judgment(reason),
+                    }
+                    .with_source_span(site)
+                })?;
+            }
+        }
+        Ok(())
     }
 }
 pub(crate) mod arithmetic_results {

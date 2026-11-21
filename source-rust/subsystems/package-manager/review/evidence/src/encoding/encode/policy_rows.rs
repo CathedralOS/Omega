@@ -51,10 +51,11 @@ impl PackagePolicyTerminalPermissions {
     }
 }
 
-pub(crate) fn runtime_service_permission_rows(
+pub(crate) fn runtime_permission_rows(
     package: PackageKeyIdentity,
     target: target::TargetProfile,
     permissions: &[crate::permission_acceptance::RuntimeServicePermission],
+    assumptions: &[crate::record::PackagePolicyComponentAssumption],
 ) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
     use crate::record::{
         PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
@@ -62,7 +63,7 @@ pub(crate) fn runtime_service_permission_rows(
     let mut builder = Builder::new(
         package,
         target,
-        permissions.len(),
+        permissions.len().saturating_add(assumptions.len()),
         PackagePolicyRowLimits::default(),
         true,
     )?;
@@ -80,6 +81,7 @@ pub(crate) fn runtime_service_permission_rows(
             },
         )?;
     }
+    assembly::component_assumptions_rows(&mut builder, assumptions)?;
     builder.finish().map(|(rows, _)| rows)
 }
 

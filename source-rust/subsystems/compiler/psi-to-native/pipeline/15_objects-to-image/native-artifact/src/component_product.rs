@@ -58,17 +58,21 @@ impl NativeComponentProduct {
             image.image().contents(),
             *image.slot_commitment(),
         )?;
+        let stack = StackDemandFacts {
+            entry: selection.candidate(),
+            ceiling_bytes: runtime_record.stack_bytes(),
+            stack_alignment: runtime_record.stack_alignment(),
+        };
+        let locator = *runtime_record.locator().identity_digest();
         let (_, description) = publish_component_description(ComponentDescriptionFacts {
             artifact: call.component().artifact(),
             selected_provider_plans,
-            stack_demand: Some(StackDemandFacts {
-                entry: selection.candidate(),
-                ceiling_bytes: runtime_record.stack_bytes(),
-                stack_alignment: runtime_record.stack_alignment(),
-            }),
-            realization_identity: Some(*runtime_record.locator().identity_digest()),
+            stack_demand: Some(stack),
+            realization_identity: Some(locator),
         })
         .map_err(|error| format!("native component description publication: {error}"))?;
+        call.component()
+            .verify_native_realization(&description, locator, &stack.obligation())?;
         Ok(Self {
             image,
             description,

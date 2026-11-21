@@ -18,15 +18,32 @@ pub(crate) fn actual_library_source(
     query_text: &str,
     package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<TypedTrees, String> {
-    let resolved = resolved_library_source(library, query_text, package)?;
+    source_with_core(
+        library,
+        query_text,
+        package,
+        &["main.omg", "bump/bump.omg", "vec/vec.omg"],
+    )
+}
+
+/// Give the subject exactly its authored query and any requested allocator
+/// units. The real core stays a distinct toolchain dependency in both forms.
+pub(crate) fn source_with_core(
+    library: &Path,
+    query_text: &str,
+    package: semantic_vocabulary::PackageKeyIdentity,
+    allocator_units: &[&str],
+) -> Result<TypedTrees, String> {
+    let resolved = resolved_library_source(library, query_text, package, allocator_units)?;
     crate::test_support::typing::lower_symbol_resolved_trees(&resolved)
-        .map_err(|errors| format!("type actual alloc/core: {errors:?}"))
+        .map_err(|errors| format!("type actual library source: {errors:?}"))
 }
 
 fn resolved_library_source(
     library: &Path,
     query_text: &str,
     package: semantic_vocabulary::PackageKeyIdentity,
+    allocator_units: &[&str],
 ) -> Result<symbol_resolved_trees::source_resolved::SymbolResolvedTrees, String> {
     let core_root = library
         .join("core")
@@ -56,7 +73,7 @@ fn resolved_library_source(
         .first()
         .ok_or("real core source selection is empty")?
         .0;
-    for name in ["main.omg", "bump/bump.omg", "vec/vec.omg"] {
+    for name in allocator_units {
         let path = alloc_root.join(name);
         let text = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let file = sources.add_with_metadata(

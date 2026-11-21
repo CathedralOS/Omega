@@ -5,6 +5,7 @@ A producer publishes one portable program. A consumer can reopen its saved `.psi
 | Responsibility | Owner |
 | --- | --- |
 | Encode structural domains, access plans and quotient declarations used in the artifact and in native program identities | [Declaration encoding](declaration-encoding/src/lib.rs) |
+| Encode callable signatures, machine contracts and their proof records for native identities and saved programs | [Callable encoding](callable-encoding/src/lib.rs) |
 | Encode and decode the semantic program and its named sections, including the optional debug map | [Canonical wire format](wire/README.md) |
 | Seal the exact program and build or reopen its artifact envelope and manifest | [Artifact codec](codec/README.md) |
 | Retain source declaration custody, machine provenance and a checked entry receipt for source-issued programs | [Publication records](publication/publication.rs) |

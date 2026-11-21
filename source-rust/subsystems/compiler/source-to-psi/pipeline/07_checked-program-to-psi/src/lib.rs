@@ -15,7 +15,6 @@ mod invocation_site;
 pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;
 pub use crate::lowering::Compilation as TerminalSourceCompilation;
-pub use crate::lowering::RequirementReviewMetadata;
 pub use crate::lowering::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use crate::lowering::Supply as TerminalSourceSupply;
 pub use crate::lowering::provider_selections::{
@@ -38,7 +37,7 @@ pub use build_receiver::CheckedBuildReceiver;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod published_entry;
-mod source_selection_publication;
+pub(crate) mod source_selection_publication;
 mod source_selections;
 pub use source_selections::TerminalSourceSelections;
 pub(crate) mod production_selection {

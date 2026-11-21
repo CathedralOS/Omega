@@ -50,10 +50,10 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
-Omega has one specification in [wiki/spec/](wiki/spec/). The experimental
-workspace keeps a byte-for-byte copy at `omega-rust-v2/wiki/spec/`. Edit the
-root and update the copy in the same change. Describe compiler-specific
-implementation status in the compiler's plan or layer contracts.
+Omega has one specification in [wiki/spec/](wiki/spec/). Both Rust compiler
+workspaces read that shared directory; do not create a copy or symlink under
+`omega-rust-v2/wiki/spec/`. Describe compiler-specific implementation status in
+the compiler's plan or layer contracts.
 
 ## Bootstrap mandate
 

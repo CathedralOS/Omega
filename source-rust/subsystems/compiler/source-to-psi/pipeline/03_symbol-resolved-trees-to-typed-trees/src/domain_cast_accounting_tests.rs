@@ -629,3 +629,71 @@ machine update(packet: @mut Packet) {
     }
     assert_eq!(captures, 1);
 }
+
+#[test]
+fn a_static_value_types_the_captured_selector_only_in_its_own_scope() {
+    let (_, typed) = source(
+        "machine take<const Count: u64>(bytes: @[u8; Count]) -> u8
+             requires Count > 0u64 { bytes[Count - 1u64] }
+         machine other<Count: u32>() -> u32 { Count }",
+    );
+    let take = typed.machine_by_symbol(machine(&typed, "take")).unwrap();
+    let parameters = typed.machine_type_parameters(take);
+    assert_eq!(parameters.len(), 1);
+    let parameter = &parameters[0];
+    let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+    else {
+        panic!("Count must keep its declared integer carrier");
+    };
+    let (use_of_count, _) = typed
+        .expression_table
+        .iter_backing_expressions()
+        .find(|(_, node)| {
+            matches!(node, ExpressionNode::Name(path)
+            if path.resolved_symbol() == Some(parameter.symbol))
+        })
+        .expect("the body uses its own Count");
+    let state = &typed.machine_states(take)[0];
+    for owner in [take.symbol, state.symbol] {
+        assert_eq!(
+            declared_callable_value_type(&typed, owner, use_of_count).unwrap(),
+            type_reference
+        );
+    }
+    assert!(declared_callable_value_type(&typed, machine(&typed, "other"), use_of_count).is_err());
+    let other = machine(&typed, "other");
+    let other_binders = typed.declaration_type_parameters(other);
+    let runtime_count = &other_binders[0];
+    let crate::source_state::data::TypeParameterKind::Value {
+        type_reference: runtime_type,
+    } = runtime_count.kind
+    else {
+        panic!("the second Count is a runtime-capable value binder");
+    };
+    let (value, _) = typed
+        .expression_table
+        .iter_backing_expressions()
+        .find(|(_, node)| {
+            matches!(node, ExpressionNode::Name(path)
+            if path.resolved_symbol() == Some(runtime_count.symbol))
+        })
+        .expect("other uses its own Count");
+    assert_eq!(
+        declared_callable_value_type(&typed, other, value).unwrap(),
+        runtime_type
+    );
+    let captures: Vec<_> = typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| statement.as_local_data())
+        .filter(|local| local.is_operand_capture)
+        .collect();
+    let [capture] = captures.as_slice() else {
+        panic!("the selector must be evaluated once");
+    };
+    assert_eq!(
+        typed.normalized_type_identity(capture.type_reference),
+        typed.normalized_type_identity(type_reference),
+    );
+}

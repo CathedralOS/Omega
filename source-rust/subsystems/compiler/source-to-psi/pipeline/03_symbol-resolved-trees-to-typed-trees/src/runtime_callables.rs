@@ -58,17 +58,84 @@ pub(crate) fn lower_contracts(
             .runtime_callable_lowering
             .retain(source.arena_index(), handle)
             .map_err(Diagnostic::error)?;
-        pending.push((handle, &row.signature));
+        pending.push((handle, &row.signature, row.lexical_owner));
     }
-    for (handle, signature) in pending {
-        let signature = crate::typing::signatures::callable_signature::lower_state_signature(
-            lowerer, signature,
-        )?;
+    for (handle, signature, lexical_owner) in pending {
+        let first = lowerer
+            .typed_trees
+            .type_reference_table
+            .type_reference_count();
+        let signature = lowerer.with_source_owner(lexical_owner, |lowerer| {
+            crate::typing::signatures::callable_signature::lower_state_signature(lowerer, signature)
+        })?;
+        bind_invocation_lifetimes(&mut lowerer.typed_trees, &signature, first)?;
         lowerer
             .typed_trees
             .runtime_callable_contracts
             .get_mut(handle)
             .signature = signature;
+    }
+    Ok(())
+}
+
+/// A structural callable has its own invocation binders and a separately
+/// recorded enclosing declaration. Capture names resolve in that declaration;
+/// an invocation binder shadows it only in the slots where it was written.
+fn bind_invocation_lifetimes(
+    program: &mut typed::TypedTrees,
+    signature: &typed::signature::StateSignature,
+    first_reference: usize,
+) -> Result<(), Diagnostic> {
+    use typed::type_identity::LifetimeParameterIdentity;
+    use typed::types::TypeReferenceNode;
+
+    if signature.lifetime_parameters.is_empty() {
+        return Ok(());
+    }
+    let table = &mut program.type_reference_table;
+    let bound = table
+        .type_reference_rows_from(first_reference)
+        .filter_map(|(reference, node)| {
+            let tags = match node {
+                TypeReferenceNode::Reference {
+                    lifetime: Some(tag),
+                    ..
+                } => std::slice::from_ref(tag),
+                TypeReferenceNode::Generic {
+                    lifetime_arguments, ..
+                } => lifetime_arguments.as_slice(),
+                _ => return None,
+            };
+            let retained = table.operand_lifetimes(reference);
+            let mut changed = false;
+            let regions = tags
+                .iter()
+                .enumerate()
+                .map(|(slot, tag)| {
+                    let original = retained.get(slot).copied().unwrap_or_default();
+                    if !original.declaration.is_valid()
+                        && let Some(ordinal) = signature
+                            .lifetime_parameters
+                            .iter()
+                            .position(|own| own == tag)
+                    {
+                        changed = true;
+                        LifetimeParameterIdentity {
+                            declaration: signature.symbol,
+                            ordinal,
+                        }
+                    } else {
+                        original
+                    }
+                })
+                .collect::<Vec<_>>();
+            changed.then_some((reference, regions))
+        })
+        .collect::<Vec<_>>();
+    for (reference, regions) in bound {
+        table
+            .retain_operand_lifetimes(reference, regions)
+            .map_err(Diagnostic::error)?;
     }
     Ok(())
 }

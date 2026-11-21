@@ -16848,7 +16848,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
       "item": "impl:SelectedTrustEvidence < '_ >::implementation#1",
       "kind": "definition",
-      "meaning": "Methods for SelectedTrustEvidence at its owning boundary.",
+      "meaning": "Verify root grants against the provider plans and native leaves selected for this target.",
       "producer": "provider correspondence verifier",
       "signature": "855624f12f92a158da5d3dbdd8c1be60e5a83169a3a45998cd98c95189b9bf66"
     },
@@ -16875,6 +16875,18 @@
       "meaning": "Match a boundary grant to one selected declaration and callable on the exact published program.",
       "producer": "provider correspondence verifier",
       "signature": "aaef3d7519a3c49ce95e5bb2b5b4ac4548eb81acca3322e8f9e4d96835c7ce04"
+    },
+    {
+      "consumers": [
+        "package review of Build provider grants",
+        "locked root provider admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
+      "item": "use:super :: provider_grants :: selected_provider_grants#1",
+      "kind": "checker",
+      "meaning": "Resolve each Build provider grant to its unique declaration, package and application in the selected plans.",
+      "producer": "provider correspondence verifier",
+      "signature": "a2a3013bed3c11eb2315cd4799d88de53a8bcde619bd863c0cc8126898156bae"
     },
     {
       "consumers": [
@@ -18943,9 +18955,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "function:is_direct_compiler_primitive#1",
       "kind": "checker",
-      "meaning": "Identify a reached compiler primitive by its checked declaration and ABI.",
+      "meaning": "Recognize a checked hosted, numeric, or target-layout primitive during source closure and provider discovery.",
       "producer": "01 source compilation",
-      "signature": "ff16ab3f223330e8d2e3b3f157f87b5b464278f3a563dccf217d25e35399a287"
+      "signature": "f16211ce0d4acbfaa319a7db32e3a1897d6b56e0efec3113cf0685b05075364b"
     },
     {
       "consumers": [
@@ -19615,7 +19627,18 @@
       "kind": "definition",
       "meaning": "Retain the accepted source and roster and publish one shared canonical Psi artifact for the fixed optimization selection.",
       "producer": "stage 07 checked source publication",
-      "signature": "af0f49c34a747b116f5cc4a8350d4c8462cc90d5bf56f24473b040cc6155fdd5"
+      "signature": "f34939e2e46c3152e881e3f26896a965193b622790ed64558a9e94d2a592c576"
+    },
+    {
+      "consumers": [
+        "source driver Product check"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:check#1",
+      "kind": "checker",
+      "meaning": "Admit declaration selections against the captured Product package scope and return the accepted source advisories.",
+      "producer": "stage 07 checked source publication",
+      "signature": "d921a864d9d2c156058f9d31b59d4773125dbb62433e6dae142f76d102acc30c"
     },
     {
       "consumers": [

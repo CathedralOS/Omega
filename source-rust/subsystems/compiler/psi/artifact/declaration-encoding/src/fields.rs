@@ -1,6 +1,12 @@
 //! A record lists its field markers in storage order.
 //! Each marker supplies both the writer and the reader for that field.
 
+pub use crate::access::mode::Access;
+pub use crate::invocations::InvocationSite;
+pub use crate::results::{
+    CallResult, Multiplicity, PathQualification, QualificationPath, QualificationSet,
+};
+pub use crate::terms::scalar_types::Scalar;
 use crate::{
     CodecError,
     wire::{
@@ -11,6 +17,7 @@ use crate::{
 use arena::NumericId;
 use semantic_vocabulary::{ContentProjectionIdentity, StructuralFieldId};
 use terminal_psi::StructuralContentProjection;
+
 pub trait Field<T> {
     fn write(writer: &mut Writer, value: &T) -> Result<(), CodecError>;
     fn read(reader: &mut Reader<'_>) -> Result<T, CodecError>;
@@ -367,19 +374,21 @@ impl Field<semantic_vocabulary::ContentProjectionExpression> for ContentExpressi
     }
 }
 
+#[macro_export]
 macro_rules! delegated_fields {
     ($($marker:ident: $ty:ty => $encode:path, $decode:path;)*) => {$(
         pub struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
+        impl $crate::fields::Field<$ty> for $marker {
+            fn write(writer: &mut $crate::wire::Writer, value: &$ty) -> Result<(), $crate::CodecError> {
                 $encode(writer, value)
             }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
+            fn read(reader: &mut $crate::wire::Reader<'_>) -> Result<$ty, $crate::CodecError> {
                 $decode(reader)
             }
         }
     )*};
 }
+pub use crate::delegated_fields;
 
 delegated_fields! {
     ContentAlgebra: semantic_vocabulary::ContentAlgebra

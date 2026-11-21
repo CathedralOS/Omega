@@ -404,41 +404,27 @@ impl AcceptedTerminalSource {
         }
         let mut declared = Vec::with_capacity(elaboration.boundaries.len());
         for (boundary, symbol) in elaboration.boundaries.iter() {
-            if elaboration.module.boundary_machine(boundary).is_none() {
-                return Err(lost("omit a requirement the module was lowered from"));
-            }
             let declaration = elaboration
                 .module
                 .boundary_machine(boundary)
-                .ok_or_else(|| lost("omit a retained boundary"))?;
-            if terminal_semantics::closed_conformances::hosted_primitive_requirement(
-                &elaboration.module,
-                declaration,
-            )
-            .map_err(lost)?
-            .is_some()
-            {
-                continue;
-            }
-            if declaration.declaration.as_ref().is_some_and(|checked| {
-                checked.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
-            }) {
-                terminal_semantics::numeric_primitives::validate_boundary(
+                .ok_or_else(|| lost("omit a requirement the module was lowered from"))?;
+            if crate::provider_supply::is_direct_compiler_primitive(declaration) {
+                terminal_semantics::closed_conformances::validate_boundary_callable(
                     &elaboration.module,
                     declaration,
                 )
                 .map_err(|reason| {
-                    lost(&format!(
-                        "{reason}: {}",
-                        declaration
-                            .declaration
-                            .as_ref()
-                            .and_then(|checked| elaboration
+                    let identity = declaration
+                        .declaration
+                        .as_ref()
+                        .and_then(|checked| {
+                            elaboration
                                 .module
                                 .identities
-                                .text(checked.source.semantic_declaration))
-                            .unwrap_or("missing declaration identity")
-                    ))
+                                .text(checked.source.semantic_declaration)
+                        })
+                        .unwrap_or("missing declaration identity");
+                    lost(&format!("{reason}: {identity}"))
                 })?;
                 continue;
             }
@@ -637,7 +623,7 @@ impl AcceptedTerminalSource {
     pub fn requirement_review(
         &self,
         declaration: symbols::SymbolHandle,
-    ) -> Result<&crate::production::RequirementReviewMetadata, String> {
+    ) -> Result<&crate::lowering::RequirementReviewMetadata, String> {
         if self.source.trait_machine_signature(declaration).is_none() {
             return Err("requirement review names a foreign declaration".to_owned());
         }

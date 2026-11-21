@@ -18,11 +18,32 @@ pub struct PublishedTargetProgram {
 #[derive(Clone)]
 pub struct RuntimePermissionDeclarations {
     pub(crate) source: Arc<source_state::FrozenTypedTrees>,
-    pub(crate) has_root_grants: bool,
+    pub(crate) root_grants: Arc<[symbols::root_grants::AuthoredRootGrant]>,
     pub(crate) has_assumed_bindings: bool,
 }
 
 impl RuntimePermissionDeclarations {
+    /// Only the root's own checked Build may authorize a provider for the locked product.
+    pub fn root_provider_grants(
+        &self,
+        root: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Result<&[symbols::root_grants::AuthoredRootGrant], Vec<Diagnostic>> {
+        for grant in self.root_grants.iter() {
+            if self
+                .source
+                .symbols
+                .symbol_package_identity(grant.selecting_machine)
+                != Some(root)
+                || grant.subject_package != Some(root)
+            {
+                return Err(vec![Diagnostic::error(
+                    "a locked root Build cannot grant a dependency's claims through its own source",
+                ).with_source_span(grant.source_span)]);
+            }
+        }
+        Ok(&self.root_grants)
+    }
+
     pub fn requirement_path(
         &self,
         package: semantic_vocabulary::PackageKeyIdentity,
@@ -69,11 +90,6 @@ impl PublishedTargetProgram {
     pub fn runtime_permission_declarations(
         &self,
     ) -> Result<RuntimePermissionDeclarations, Vec<Diagnostic>> {
-        if self.runtime_declarations.has_root_grants {
-            return Err(vec![Diagnostic::error(
-                "the accepted policy schema cannot compare this Build's authored root grants",
-            )]);
-        }
         if self.runtime_declarations.has_assumed_bindings {
             return Err(vec![Diagnostic::error(
                 "the checked Build's assumed binding lacks its canonical review request",

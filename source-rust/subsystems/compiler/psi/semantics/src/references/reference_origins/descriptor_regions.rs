@@ -9,7 +9,7 @@ use crate::descriptors::descriptor_lifetimes::{
     descriptor_location, descriptor_location_type, descriptor_path,
 };
 use crate::descriptors::descriptor_results::{
-    DescriptorContentsStep, DescriptorResultSlot, DescriptorStoredOrigin,
+    DescriptorContentsQuery, DescriptorContentsStep, DescriptorResultSlot, DescriptorStoredOrigin,
 };
 use crate::storage::borrowed_storage::Projection;
 
@@ -219,46 +219,62 @@ pub fn reference_result_contents(
                 }
                 continue;
             }
-            let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
-                return Err("unknown result contents need their exact admitted producer");
+            let (position, mut steps) = match origin {
+                DescriptorStoredOrigin::IncomingSlot { position, path } => (
+                    *position,
+                    path.iter()
+                        .copied()
+                        .map(DescriptorContentsStep::Address)
+                        .collect(),
+                ),
+                DescriptorStoredOrigin::IncomingContents {
+                    position,
+                    steps,
+                    projection,
+                } if *projection == Projection::new(&[]) => (*position, steps.clone()),
+                _ => return Err("unknown result contents need their exact admitted producer"),
             };
-            let (last, prefix) = path
-                .split_last()
-                .ok_or("unknown input contents lost their packet identity")?;
-            if *last != crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents
+            if steps.pop()
+                != Some(DescriptorContentsStep::Address(
+                    crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents,
+                ))
             {
                 return Err("a reference address cannot stand for unknown value contents");
             }
             let parameter = parameters
-                .get(*position)
+                .get(position)
                 .ok_or("unknown contents name an absent input")?;
-            let carrier = crate::descriptor_lifetimes::descriptor_location_type(
-                types,
-                parameter.structural_type,
-                prefix,
-            )
-            .ok_or("unknown contents input has no exact carrier")?;
+            let query = DescriptorContentsQuery {
+                root: parameter.place,
+                steps,
+            };
+            let carrier = query
+                .selected_type(types, parameter.structural_type)
+                .flatten()
+                .ok_or("unknown contents input has no exact carrier")?;
             if carrier != expected.structural_type {
                 return Err("unknown contents changed their declared type parameter");
             }
             let declaration = terminal_psi::find_structural_type(types, carrier)
                 .ok_or("unknown contents carrier is absent")?;
-            let path = descriptor_path(types, parameter.structural_type, prefix)
-                .ok_or("unknown contents input has no typed storage path")?;
+            // An indexed packet can be copied from inline storage. A view or
+            // reference crossing needs the access of its separate backing.
+            if query.exact_location().is_none()
+                && (!declaration.is_copyable()
+                    || !query
+                        .inline_steps(types, parameter.structural_type)
+                        .is_some_and(|steps| steps.iter().all(|step| *step)))
+            {
+                return Err("indexed generic contents require a copyable inline element");
+            }
+            let path = contents_path(types, parameter.structural_type, &query.steps)?;
             let requested = if declaration.is_copyable() {
                 StructuralAccess::SharedBorrow
             } else {
                 StructuralAccess::MutableBorrow
             };
             if !matches!(declaration.shape, StructuralTypeShape::TypeParameter)
-                || !crate::reference_source_projection_accessible(
-                    types.iter(),
-                    parameter.structural_type,
-                    parameter.multiplicity,
-                    parameter.access,
-                    &path,
-                    requested,
-                )
+                || !input_path_accessible(types, parameter, &path, requested)
             {
                 return Err("unknown contents were transferred without owned access");
             }
@@ -397,23 +413,7 @@ fn reference_sources_for_leaves(
             // element of one array has the same access, so the first
             // element stands for an unknown one; an empty array has
             // no element and fails closed.
-            let exact = path
-                .iter()
-                .map(|step| match step {
-                    ReferenceOriginProjection::Exact(segment) => segment.clone(),
-                    ReferenceOriginProjection::Element => {
-                        StructuralPathSegment::FixedIndex(0)
-                    }
-                })
-                .collect::<Vec<_>>();
-            if !crate::reference_source_projection_accessible(
-                types.iter(),
-                parameter.structural_type,
-                parameter.multiplicity,
-                parameter.access,
-                &exact,
-                access,
-            ) {
+            if !input_path_accessible(types, parameter, &path, access) {
                 return Err("reference result exceeds an input path's access");
             }
             let source = ReferenceOriginSource {
@@ -519,6 +519,30 @@ fn append_projection(
         }
     }
     Ok(())
+}
+
+fn input_path_accessible(
+    types: &[StructuralTypeDeclaration],
+    parameter: &StructuralParameterDeclaration,
+    path: &[ReferenceOriginProjection],
+    requested: StructuralAccess,
+) -> bool {
+    // Element permissions depend on the array or view, independently of the ordinal.
+    let access_path = path
+        .iter()
+        .map(|step| match step {
+            ReferenceOriginProjection::Exact(segment) => segment.clone(),
+            ReferenceOriginProjection::Element => StructuralPathSegment::FixedIndex(0),
+        })
+        .collect::<Vec<_>>();
+    crate::reference_source_projection_accessible(
+        types.iter(),
+        parameter.structural_type,
+        parameter.multiplicity,
+        parameter.access,
+        &access_path,
+        requested,
+    )
 }
 
 fn contents_path(

@@ -2242,7 +2242,9 @@ pub(crate) mod trait_definition {
             .source_trees
             .trait_machine_signatures(trait_definition.machines)
         {
-            let signature = lower_state_signature(lowerer, signature)?;
+            let signature = lowerer.with_source_owner(signature.symbol, |lowerer| {
+                lower_state_signature(lowerer, signature)
+            })?;
             lowerer
                 .typed_trees
                 .push_trait_machine_signature(&mut typed_trait, signature);
@@ -2286,7 +2288,9 @@ pub(crate) mod trait_definition {
                 .to_vec();
             let mut seen_named = std::collections::HashSet::new();
             for clause in &trait_definition.refinement_clauses {
-                let signature = lower_state_signature(lowerer, &clause.signature)?;
+                let signature = lowerer.with_source_owner(clause.signature.symbol, |lowerer| {
+                    lower_state_signature(lowerer, &clause.signature)
+                })?;
                 let covered: Vec<&StateSignature> = match &clause.requirement {
                     Some(requirement) => {
                         let matching = base_machines

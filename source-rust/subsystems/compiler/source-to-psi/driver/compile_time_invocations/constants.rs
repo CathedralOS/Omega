@@ -470,6 +470,23 @@ fn decode_snapshot(
         (PrimitiveType::Bool, BuildTimeValue::Bool(value)) => {
             Ok(DecodedCanonicalConstValue::Boolean(*value))
         }
+        (
+            PrimitiveType::F32,
+            BuildTimeValue::Float(semantic_vocabulary::IeeeFloatValue::Binary32(bits)),
+        ) => Ok(DecodedCanonicalConstValue::Float {
+            format: numeric_literals::FloatFormat::F32,
+            bits: u64::from(*bits),
+        }),
+        (
+            PrimitiveType::F64,
+            BuildTimeValue::Float(semantic_vocabulary::IeeeFloatValue::Binary64(bits)),
+        ) => Ok(DecodedCanonicalConstValue::Float {
+            format: numeric_literals::FloatFormat::F64,
+            bits: *bits,
+        }),
+        (_, BuildTimeValue::UndeterminedNaN(_)) => {
+            Err("a floating constant with undetermined NaN bits cannot be materialized".into())
+        }
         (primitive, BuildTimeValue::Int(value)) if primitive.accepts_integer_literal() => {
             Ok(DecodedCanonicalConstValue::Integer {
                 integer_type: primitive

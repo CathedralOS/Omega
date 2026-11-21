@@ -266,7 +266,7 @@ impl Program<'_> {
         }
         envelope.service_reach.sort_by_key(|service| service.0);
         envelope.service_reach.dedup();
-        let (mut signature, _) = self.native_provider_signature(context, &declared)?;
+        let (mut signature, _) = self.boundary_signature(context, &declared)?;
         signature.termination = match &envelope.termination {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => {
                 crate::lowering::body::Termination::Silent

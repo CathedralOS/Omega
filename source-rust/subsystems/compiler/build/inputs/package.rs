@@ -520,8 +520,8 @@ impl PackageCompilationInputs {
 
     pub fn independent_component_descriptions(
         &self,
-    ) -> impl Iterator<Item = &IndependentComponentDescription> {
-        self.target.independent_component_descriptions.values()
+    ) -> &BTreeMap<PackageKeyIdentity, IndependentComponentDescription> {
+        &self.target.independent_component_descriptions
     }
 
     #[doc(hidden)]

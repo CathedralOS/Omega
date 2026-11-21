@@ -1998,26 +1998,55 @@ impl<'t> Program<'t> {
         call: &StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        let Some(target) = self.entered_machine(call.target) else {
-            return Ok(None);
+        use crate::source_state::data::TypeParameterKind;
+
+        let boundary = self
+            .typed
+            .trait_machine_signature(call.target)
+            .filter(|(owner, method)| owner.is_boundary && !method.type_parameters.is_empty());
+        let (target, has_extra_features) = if let Some((owner, method)) = boundary {
+            // An applied owner needs its complete service identity, in addition
+            // to the method's own static arguments.
+            if !owner.type_parameters.is_empty()
+                || !owner.lifetime_parameters.is_empty()
+                || self
+                    .typed
+                    .state_signature_type_parameters(method)
+                    .iter()
+                    .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Const { .. }))
+            {
+                return Ok(None);
+            }
+            (
+                method.symbol,
+                call.runtime_receiver && call.receiver != Some(owner.symbol),
+            )
+        } else {
+            let Some(target) = self.entered_machine(call.target) else {
+                return Ok(None);
+            };
+            let Some(machine) = self.typed.machine_by_symbol(target) else {
+                return Ok(None);
+            };
+            let parameters = self.typed.machine_type_parameters(machine);
+            if parameters.is_empty()
+                || parameters.iter().any(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        TypeParameterKind::Type
+                            | TypeParameterKind::Const { .. }
+                            | TypeParameterKind::Machine { .. }
+                    )
+                })
+            {
+                return Ok(None);
+            }
+            (
+                target,
+                call.runtime_receiver || !machine.conformance_bounds.is_empty(),
+            )
         };
-        let Some(machine) = self.typed.machine_by_symbol(target) else {
-            return Ok(None);
-        };
-        let parameters = self.typed.machine_type_parameters(machine);
-        if parameters.is_empty()
-            || parameters.iter().any(|parameter| {
-                !matches!(
-                    parameter.kind,
-                    crate::source_state::data::TypeParameterKind::Type
-                        | crate::source_state::data::TypeParameterKind::Const { .. }
-                        | crate::source_state::data::TypeParameterKind::Machine { .. }
-                )
-            })
-        {
-            return Ok(None);
-        }
-        if call.unsupported || call.runtime_receiver || !machine.conformance_bounds.is_empty() {
+        if call.unsupported || has_extra_features {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -2027,7 +2056,26 @@ impl<'t> Program<'t> {
         self.direct_selection(id, call.target, call.selection, call.binding)?;
         let arguments =
             self.application_arguments(id, target, call.application, call.authored_arguments)?;
-        let callee = self.application(id, target, arguments.types, arguments.references)?;
+        let callee = if let Some((owner, requirement)) = boundary {
+            self.visible_to(id, target)?;
+            self.declared_service(id, owner)?;
+            self.require_closed_callable(id, requirement, "boundary requirement")?;
+            if crate::source_state::boundary_completions::boundary_requirement_completion(
+                self.typed, target,
+            ) != semantic_vocabulary::BoundaryCompletion::NormalReturn
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("generic boundary call with a terminal completion"),
+                ));
+            }
+            // Only the generic source check calls this rigid header. Closed
+            // applications still dispatch through their selected boundary.
+            self.generic_requirement(requirement)?
+        } else {
+            self.application(id, target, arguments.types, arguments.references)?
+        };
         let callbacks = self.callable_application_arguments(id, callee, &arguments.callables)?;
         let operands = self.const_operands(id, slots, &arguments.values, source)?;
         let mut read = self.call_of_values(
@@ -3810,7 +3858,13 @@ impl<'t> Program<'t> {
                 {
                     return unserved("exclusive loan of an immutable binding");
                 }
-            } else if explicit && self.typed.expression_const_declaration(operand).is_some() {
+            } else if explicit
+                && self
+                    .typed
+                    .expression_const_declaration(operand)
+                    .map_err(|detail| refuse(id, Construct::Machine, Unserved::Call(detail)))?
+                    .is_some()
+            {
                 if access != ReferenceAccess::Shared {
                     return Err(crate::lowering::reject(
                         id,

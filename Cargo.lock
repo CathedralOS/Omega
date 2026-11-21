@@ -422,8 +422,8 @@ name = "build-time-values"
 version = "0.1.0"
 dependencies = [
  "layout-plans",
- "numerics",
  "record-storage",
+ "semantic-vocabulary",
 ]
 
 [[package]]
@@ -521,6 +521,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "checked-program-to-psi"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "arena",
  "artifacts",
  "bundled-declarations",
@@ -586,10 +587,13 @@ name = "compiler"
 version = "0.1.0"
 dependencies = [
  "compiler-identity",
+ "component-description",
  "diagnostics",
  "native-compiler",
+ "package-compilation",
  "product-publication",
  "provider-acceptance",
+ "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
  "review-evidence",
@@ -2205,29 +2209,46 @@ name = "project-build"
 version = "0.1.0"
 dependencies = [
  "admitted-native-inputs-to-target-bound-program",
+ "arena",
  "artifacts",
  "build-declarations",
+ "build-evaluation-result",
  "build-execution",
+ "calling-conventions",
  "compiler",
  "declaration-scope",
  "diagnostics",
+ "direct-boundary-bindings",
+ "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
+ "language-core",
+ "native-intrinsics",
+ "numeric-literals",
+ "numerics",
  "optimization-requests",
  "package-compilation",
  "package-manager",
  "platform-custody",
  "product-publication",
+ "provider-acceptance",
  "provider-admission",
+ "provider-plans",
  "psi-authorization",
  "psi-provider-selections",
  "retained-image-runtime",
  "retained-product-selections",
  "review-evidence",
+ "selected-provider-plans",
  "semantic-vocabulary",
+ "service-surface",
+ "source-admission",
  "source-compiler",
  "source-declarations",
+ "source-provenance",
+ "source-text",
+ "symbols",
  "target",
  "target-bound-program-to-abstract-operations",
  "target-provider-admission",
@@ -2235,6 +2256,7 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2391,11 +2413,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-callable-encoding"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "psi-declaration-encoding",
+ "psi-effect-contracts",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
 name = "psi-declaration-encoding"
 version = "0.1.0"
 dependencies = [
  "access-admission",
  "access-vocabulary",
+ "application-identity",
  "arena",
  "layout-plans",
  "numerics",
@@ -3570,12 +3604,13 @@ dependencies = [
  "operation-operands",
  "optimization-core",
  "provider-stack-contribution",
+ "psi-callable-encoding",
+ "psi-declaration-encoding",
  "runtime-abi",
  "semantic-vocabulary",
  "structural-storage",
  "target",
  "terminal-psi",
- "terminal-wire",
  "wire",
 ]
 
@@ -3771,6 +3806,7 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-applications",
+ "psi-callable-encoding",
  "psi-declaration-encoding",
  "psi-effect-contracts",
  "semantic-vocabulary",

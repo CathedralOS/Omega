@@ -1,8 +1,6 @@
-//! A loop that writes `terminates by` is accepted only when its measure is
-//! shown to go down on every recursive call. Each accepted program has a
-//! twin that differs only in the measure or in the recursive argument and
-//! is rejected for that comparison; the forms of the clause the route does
-//! not rank yet are refused by name, never accepted unjudged.
+//! A `terminates by` measure can stay equal on a transfer. Every complete
+//! cycle must include a proved strict decrease. The programs below check
+//! the published comparisons, stalled cycles and unsupported ranking views.
 //!
 //! The source programs are subjects without entries, so every machine of
 //! one is judged.
@@ -126,10 +124,9 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
             }
         }
     }
-    assert!(matches!(
-        judge(Ok(lower_ranked(less_one(), witnessed(0)))).unwrap(),
-        RouteVerdict::Accepted(_)
-    ));
+    let promised = count_down("remaining", "remaining - 1")
+        .replace("terminates by", "terminates\nterminates by");
+    assert!(matches!(judged(&promised), RouteVerdict::Accepted(_)));
 }
 
 fn witnessed(subject: u32) -> Option<Vec<Expression>> {
@@ -186,7 +183,7 @@ fn lower_ranked(
         } else {
             Termination::Silent
         },
-        ranking,
+        ranking: ranking.map(crate::lowering::Ranking::without_range),
     });
     crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
 }
@@ -294,6 +291,28 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
 }
 
 #[test]
+fn a_private_rank_range_must_hold_on_arrival() {
+    let bounded = "machine spend(remaining: u64, cap: u64) -> u64
+        requires remaining <= cap
+        terminates by remaining in 0..=cap {
+            transition remaining > 0 { true -> spend(remaining - 1, cap), false -> 0 }
+        }";
+    accepted(bounded);
+    // Both endpoint claims are private. An admitted caller may start at
+    // zero or at the cap; it owes only the stated `requires` clause.
+    for range in ["1..=cap", "0..cap"] {
+        let invalid = bounded.replace("0..=cap", range);
+        assert!(
+            unproved(&invalid).iter().any(|row| matches!(
+                row.kind,
+                ObligationKind::ArrivalInvariant { .. }
+            ) && row.statement.contains("declared rank range")),
+            "{range}"
+        );
+    }
+}
+
+#[test]
 fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
     let looping = |header: &str, measure: &str| {
         format!(
@@ -307,11 +326,6 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         )
     };
     let scalars = "remaining: u64, limit: u64";
-    // A rank range: its lower bound would be the floor.
-    assert_eq!(
-        refused(&looping(scalars, "remaining -> Nat::Descending in 0..=16")),
-        "contract ranking view arguments and bounded ranges while reading the body of `spend`",
-    );
     // A pair without a view is refused: a tuple is not a carrier, so it
     // declares no canonical default (termination.md, "Ranking"), and
     // bounded distance and a lexicographic product would both fit it.
@@ -420,6 +434,102 @@ fn differently_shaped_members_compare_their_own_measures_at_each_call() {
     assert!(!failures.is_empty());
     for failure in &failures {
         assert_no_descent(std::slice::from_ref(failure));
+    }
+}
+
+#[test]
+fn a_bounded_distance_from_zero_retains_an_already_computed_extent() {
+    accepted(
+        r#"
+        machine same(before: u64, after: u64) -> u8 requires before == after { 0 }
+        machine reader(cursor: u64, end: u64) -> u8 requires cursor <= end {
+            let unread: u64 = end - cursor;
+            same(unread, unread -| 0u64)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
+    let parser = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/termination/pass/ranked_packet_parser/parser.omg"
+    ));
+    let checked = accepted(parser);
+    assert!(
+        checked
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .filter(|machine| machine.ranked_scc.is_some())
+            .all(|machine| machine.contract.termination
+                == semantic_vocabulary::Termination::Terminates)
+    );
+    let mut replay_input = checked.elaboration.clone();
+    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut replay = crate::checking::prepare_replay(&mut replay_input, &mut activity).unwrap();
+    let searches_before_replay = activity.started();
+    let mut strict = 0;
+    let mut preserving = 0;
+    for (machine, tables) in checked.elaboration.tables.machines.iter() {
+        let discharged = checked.discharge.machines.get(machine).unwrap();
+        for (obligation, row) in tables.obligations.iter() {
+            let ObligationKind::RankComparison { component, edge } = row.kind else {
+                continue;
+            };
+            let evidence = certificate(discharged.verdicts.get(obligation).unwrap());
+            assert_kernel_checked(&checked.elaboration, machine.get(), obligation, evidence);
+            crate::checking::reverify(
+                &mut replay,
+                machine,
+                obligation,
+                &evidence.certificate,
+                &mut activity,
+            )
+            .unwrap();
+            let relation = discharged
+                .verdicts
+                .values()
+                .find_map(|verdict| match verdict {
+                    Ok(Discharged::FiniteIntegerRanking(relation))
+                        if relation.component == component =>
+                    {
+                        Some(relation)
+                    }
+                    _ => None,
+                })
+                .expect("edge belongs to the checked joint ranking");
+            let binding = relation
+                .bindings
+                .edges
+                .iter()
+                .find(|binding| binding.edge == edge)
+                .unwrap();
+            match (&evidence.goal, binding.comparison) {
+                (Proposition::LessThan(_, _), TerminalNaturalRankComparison::Strict) => strict += 1,
+                (Proposition::LessOrEqual(_, _), TerminalNaturalRankComparison::Preserving) => {
+                    preserving += 1
+                }
+                mismatch => panic!("published edge disagrees with its proof: {mismatch:?}"),
+            }
+        }
+    }
+    assert_eq!(activity.started(), searches_before_replay, "replay searched for new evidence");
+    assert!(
+        strict > 0 && preserving > 0,
+        "the parser must both hand off and consume"
+    );
+    let stalled = parser.replace("bytes[cursor + 1..]", "bytes[cursor..]");
+    let failures = unproved(&stalled);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+        assert!(
+            failure.detail.contains("complete cycle of such transfers"),
+            "{failure:?}"
+        );
     }
 }
 

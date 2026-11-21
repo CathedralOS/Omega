@@ -1569,7 +1569,7 @@ impl<'a> Storage<'a> {
         actuals: &[Actual],
         (formals, result): (
             &'s [terminal_psi::StructuralParameterDeclaration],
-            Option<&TerminalMachineResult>,
+            crate::checking::call_contracts::ResultFormal,
         ),
         site: OperationId,
         concerns: Construct,
@@ -1583,32 +1583,27 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         let operation = self.operation(site, concerns)?;
-        let structural = match (result, operation.result.as_structural()) {
-            (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
-                if declared.structural_type != actual.structural_type {
-                    return Err(self.foreign(
-                        concerns,
-                        "call result has another structural type than its contract",
-                    ));
-                }
+        use crate::checking::call_contracts::ResultFormal;
+        let (structural, scalar) = match (result, &operation.result) {
+            (ResultFormal::Unit, terminal_psi::OperationResult::Unit) => (None, None),
+            (ResultFormal::Scalar(formal), terminal_psi::OperationResult::Scalar(actual)) => {
+                (None, Some((formal, actual.id)))
+            }
+            (
+                ResultFormal::Structural(formal, ty),
+                terminal_psi::OperationResult::Structural(actual),
+            ) if ty == actual.structural_type => (
                 Some((
-                    declared.place,
+                    formal,
                     Lineage {
                         root: actual.place,
                         segments: Vec::new(),
                     },
-                ))
-            }
-            _ => None,
+                )),
+                None,
+            ),
+            _ => return Err(self.foreign(concerns, "call result differs from its public contract")),
         };
-        let scalar = operation.result.as_scalar().map(|actual| {
-            let formal = match result {
-                Some(TerminalMachineResult::Scalar(declared)) => declared.id,
-                _ => ValueId::new(inputs.scalars.len() as u64 + 1)
-                    .expect("a scalar result follows its formals"),
-            };
-            (formal, actual.id)
-        });
         Ok(Returned {
             inputs,
             input_formals: formals,
@@ -1754,8 +1749,11 @@ impl<'a> Storage<'a> {
             up_to,
             concerns,
         };
-        crate::checking::sufficient_goal(&self.clause(owner, concerns)?, &mut bindings)
-            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+        terminal_semantics::substitution::clauses::substitute_sufficient_clause(
+            &self.clause(owner, concerns)?,
+            &mut bindings,
+        )
+        .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
     /// The goal of one `DataDomain` obligation: the clause with `self`
@@ -6553,6 +6551,12 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+
+    /// Entry propositions can name only projections whose scalar sources
+    /// belong to this machine. Rejoin them at the same owner as call imports.
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -7324,6 +7328,32 @@ pub(crate) struct AtJoin<'s, 'a> {
 }
 
 impl<'a> AtJoin<'_, 'a> {
+    /// A direct arrival from machine entry may carry its original storage
+    /// snapshots unchanged. Check the operations and cleanup on this actual
+    /// edge before using an entry requirement as a current storage fact.
+    pub(crate) fn preserves_entry_storage(&self, edge: EdgeId) -> Checked<bool> {
+        let storage = self.inputs.storage;
+        let block = self.inputs.block;
+        if block != storage.lowered.entry
+            || !storage.graph.predecessors(block)?.is_empty()
+            || storage
+                .cleanup_writes
+                .iter()
+                .any(|write| write.edge == edge)
+        {
+            return Ok(false);
+        }
+        let entry = storage.lowered.block(&block).ok_or_else(|| {
+            storage.foreign(self.inputs.concerns, "the arrival has no entry block")
+        })?;
+        for operation in &entry.operations {
+            if !storage.operation_changes(operation)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
         self.inputs.observations()
     }

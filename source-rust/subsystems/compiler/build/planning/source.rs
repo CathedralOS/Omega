@@ -424,8 +424,7 @@ impl PlanningSource {
             });
             let declaration = evaluated
                 .configuration
-                .selected_build_declaration
-                .as_ref()
+                .selected_build_declaration()
                 .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
             let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
                 &self.preparation,

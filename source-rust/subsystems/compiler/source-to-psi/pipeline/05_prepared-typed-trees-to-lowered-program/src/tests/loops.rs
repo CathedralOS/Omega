@@ -415,7 +415,10 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
 fn ranked_countdown() -> (Body, Signature) {
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
     witnessed.termination = Termination::Promised;
-    witnessed.ranking = Some(vec![slot(0, u32_type())]);
+    witnessed.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+        0,
+        u32_type(),
+    )]));
     countdown(witnessed)
 }
 
@@ -562,7 +565,10 @@ fn a_promise_over_a_ranked_loop_is_served_and_over_an_unranked_one_refused() {
     };
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
     witnessed.termination = Termination::Promised;
-    witnessed.ranking = Some(vec![slot(0, u32_type())]);
+    witnessed.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+        0,
+        u32_type(),
+    )]));
     assert!(elaborate(vec![outer(), looping(witnessed)]).is_ok());
     let Err(refusal) = elaborate(vec![
         outer(),
@@ -590,7 +596,10 @@ fn a_promise_on_a_machine_that_reaches_no_cycle_is_served() {
 #[test]
 fn a_private_countdown_measure_survives_loop_lowering() {
     let mut declared = signature(vec![u32_type()], Some(u32_type()));
-    declared.ranking = Some(vec![slot(0, u32_type())]);
+    declared.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+        0,
+        u32_type(),
+    )]));
     let lowered = elaborate(vec![countdown(declared)]).expect("countdown lowers with its measure");
     let machine = &lowered.module.machines[0];
     assert!(machine.ranked_scc.is_some());
@@ -609,7 +618,9 @@ fn ranking_observations_keep_the_selected_arithmetic_policy() {
     *policy = Some(crate::lowering::body::Policy::Wrapping);
     **right = integer(0);
     let mut declared = signature(vec![u32_type()], Some(u32_type()));
-    declared.ranking = Some(vec![observation]);
+    declared.ranking = Some(crate::lowering::body::Ranking::without_range(vec![
+        observation,
+    ]));
     let lowered = elaborate(vec![countdown(declared)]).expect("the canonical measure lowers");
     let machine = &lowered.module.machines[0];
     let Some(terminal_psi::TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {

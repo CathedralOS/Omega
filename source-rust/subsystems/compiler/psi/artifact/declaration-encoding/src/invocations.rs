@@ -5,10 +5,8 @@
 //! an independent source validator still compares it with the admitted program.
 
 use crate::CodecError;
+use crate::fields::{Access, Field, Id, List, Optional, Scalar, U32, U64, wire_enum, wire_record};
 use crate::wire::{Reader, Writer, decode_canonical};
-use crate::wire_fields::{
-    Access, Field, Id, InvocationSite, List, Optional, Scalar, U32, U64, wire_enum, wire_record,
-};
 use semantic_vocabulary::CallableInvocationSite;
 use terminal_psi::ResolvedStructuralPathSegment;
 use terminal_psi::execution::callable_reach::{
@@ -17,6 +15,50 @@ use terminal_psi::execution::callable_reach::{
     ReachedCallableTarget,
 };
 use terminal_psi::types::descriptor_locations::DescriptorLocation;
+
+pub struct InvocationSite;
+impl Field<semantic_vocabulary::InvocationSite> for InvocationSite {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::InvocationSite,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::InvocationSite as Site;
+
+        let (tag, identity, action_ordinal) = match *value {
+            Site::Operation(operation) => (0, operation.get(), None),
+            Site::ExternalCompletion(edge) => (1, edge.get(), None),
+            Site::InvokeNoNormal(edge) => (2, edge.get(), None),
+            Site::Cleanup {
+                edge,
+                action_ordinal,
+            } => (3, edge.get(), Some(action_ordinal)),
+        };
+        writer.u8(tag);
+        writer.u64(identity);
+        if let Some(action_ordinal) = action_ordinal {
+            writer.u32(action_ordinal);
+        }
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::InvocationSite, CodecError> {
+        use semantic_vocabulary::InvocationSite as Site;
+
+        let tag = reader.u8()?;
+        let identity = reader.u64()?;
+        if tag == 3 {
+            let edge = semantic_vocabulary::EdgeId::new(identity).ok_or(
+                CodecError::MalformedStructuralFoundation("invalid cleanup invocation edge"),
+            )?;
+            return Ok(Site::Cleanup {
+                edge,
+                action_ordinal: reader.u32()?,
+            });
+        }
+        Site::from_tagged_identity(tag, identity).ok_or(CodecError::MalformedStructuralFoundation(
+            "invalid invocation identity",
+        ))
+    }
+}
 
 // Positions are counts in the portable program, not host-sized wire values.
 struct Position;

@@ -10,7 +10,7 @@
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyComponentAssumption {
+pub struct PackagePolicyComponentAssumption {
     pub component: PackageKeyIdentity,
     pub assumption: [u8; 32],
     pub bound_rows: Vec<String>,

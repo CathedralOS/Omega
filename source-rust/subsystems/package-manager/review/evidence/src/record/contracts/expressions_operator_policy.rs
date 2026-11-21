@@ -26,7 +26,7 @@ impl PackageReviewOperatorCoordinate {
         }
     }
 
-    pub(crate) fn matches_policy_requirement(&self, expected: &str) -> bool {
+    pub fn matches_policy_requirement(&self, expected: &str) -> bool {
         let mut writer = MatchingWriter {
             remaining: expected,
         };

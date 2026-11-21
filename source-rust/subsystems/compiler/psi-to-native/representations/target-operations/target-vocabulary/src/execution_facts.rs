@@ -25,9 +25,8 @@ pub struct NativeExecutionRoots {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeExecutionFactsError {
-    Invalid(&'static str),
-    Wire(terminal_wire::CodecError),
+pub enum NativeExecutionFactsError {    Invalid(&'static str),
+    Wire(psi_declaration_encoding::CodecError),
 }
 
 impl std::fmt::Display for NativeExecutionFactsError {
@@ -83,7 +82,7 @@ impl NativeExecutionFacts {
                 "callable entry summaries differ from the activated roots",
             ));
         }
-        let main_bytes = terminal_wire::encode_callable_invocations(&main)
+        let main_bytes = psi_declaration_encoding::invocations::encode_callable_invocations(&main)
             .map_err(NativeExecutionFactsError::Wire)?;
         let mut entry_bytes = Vec::with_capacity(entries.len());
         for (entry, summary) in &entries {
@@ -94,7 +93,7 @@ impl NativeExecutionFacts {
                 ));
             }
             entry_bytes.push(
-                terminal_wire::encode_callable_invocations(summary)
+                psi_declaration_encoding::invocations::encode_callable_invocations(summary)
                     .map_err(NativeExecutionFactsError::Wire)?,
             );
         }

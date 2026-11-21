@@ -104,6 +104,179 @@ fn declaration_only_library_checks_requirements_without_an_executable_machine() 
 }
 
 #[test]
+fn transparent_data_aliases_form_in_their_own_binder_scope() {
+    let typed = typed(
+        "public data Word = u32;
+         public data Pair<T> = [T; 2];
+         public data Identity<T> = T;
+         public data Nested<T> = Pair<Identity<T>>;
+         public data KeyHash<K> = machine(key: @K) -> u64;",
+    );
+    let parts = judged_parts(&typed, false);
+    assert_eq!(parts.len(), 5, "expected the closure and its four generic forms");
+    for part in parts {
+        let Ok(RouteVerdict::Accepted(accepted)) = &part else {
+            panic!("declaration-only alias form failed: {part:?}");
+        };
+        assert_eq!(accepted.elaboration.module.entry, None);
+        assert!(accepted.elaboration.module.machines.is_empty());
+    }
+}
+
+#[test]
+fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
+    for (uses, expected) in [
+        (
+            "public data Invalid = Erased<17u64>;",
+            "requires a type but was supplied a value",
+        ),
+        (
+            "public data Invalid = Erased<Absent>;",
+            "requires a type declaration for `Absent`",
+        ),
+        // Type lookup can leave Count unresolved: this lexical binder names a value.
+        (
+            "machine keep<const Count: u64>(value: Erased<Count>) -> u32 { value }",
+            "type alias argument 1 requires a type",
+        ),
+    ] {
+        let source = format!("public data Erased<T> = u32; {uses}");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("an unused parameter still requires a type argument: {uses}");
+        };
+        assert!(error.message.contains(expected), "{error:?}");
+    }
+}
+
+#[test]
+fn transparent_data_aliases_cannot_erase_a_parameter_property() {
+    let declarations = "data Ticket [linear] { value: u32; }
+                        public data CopyOnly<T [copy]> = u32;
+                        public data LinearOnly<T [linear]> = u32;";
+    let accepted = format!(
+        "{declarations}
+                           public data A = CopyOnly<u32>;
+                           public data B = LinearOnly<Ticket>;
+                           public data C = CopyOnly<@u32>;"
+    );
+    let result = judged(&accepted, false);
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+    for (application, required) in [
+        ("CopyOnly<Ticket>", "[copy]"),
+        ("CopyOnly<@mut u32>", "[copy]"),
+        ("CopyOnly<@write u32>", "[copy]"),
+        ("LinearOnly<u32>", "[linear]"),
+    ] {
+        let source = format!("{declarations} public data Invalid = {application};");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("the property required by {application} was erased");
+        };
+        assert!(
+            error
+                .message
+                .ends_with(&format!("the binder requires `{required}`")),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn declared_callback_lifetimes_bind_in_the_named_owners_parameter_identity() {
+    fn named_key(left: &str, right: &str, captured: &str) -> String {
+        let source = format!(
+            "public data Visit<'item,T> = machine(item: @'item T) -> u64 reaches none crashes none;
+                              machine visit<{left},{right}>(callback: Visit<{captured},u64>) {{}}"
+        );
+        let program = typed(&source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "visit")
+            .expect("visit declaration");
+        program
+            .machine_callable_identity_text(machine)
+            .expect("named callable identity")
+    }
+    assert_eq!(
+        named_key("'a", "'b", "'a"),
+        named_key("'left", "'right", "'left")
+    );
+    assert_ne!(named_key("'a", "'b", "'a"), named_key("'a", "'b", "'b"));
+}
+
+#[test]
+fn declared_callback_lifetimes_bind_in_the_requirement_parameter_identity() {
+    fn requirement_key(first: &str, second: &str, captured: &str) -> String {
+        let source = format!(
+            "public data Visit<'item,T> = machine(item: @'item T) -> u64 reaches none crashes none;
+             public trait Hooks {{
+                 machine attach<{first},{second}>(callback: Visit<{captured},u64>)
+                 reaches none crashes none;
+             }}"
+        );
+        let program = typed(&source);
+        let owner = program
+            .traits()
+            .iter()
+            .find(|row| row.name.as_str() == "Hooks")
+            .unwrap();
+        let requirements = program.trait_machine_signatures(owner);
+        let [requirement] = requirements.as_array().expect("one callback requirement");
+        program.trait_requirement_callable_identity_text(owner, requirement)
+    }
+    assert_eq!(
+        requirement_key("'a", "'b", "'a"),
+        requirement_key("'left", "'right", "'left")
+    );
+    assert_ne!(
+        requirement_key("'a", "'b", "'a"),
+        requirement_key("'a", "'b", "'b")
+    );
+}
+
+#[test]
+fn declared_callback_lifetime_aliases_publish_without_an_entry() {
+    let result = judged(
+        "public data Visit<'item,T> = machine(item: @'item T) -> u64;
+         public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;
+         public data Forward<'enclosing,T> = Visit<'enclosing,T>;
+         public data Both<'outer,T> = machine<'call>(stored: @'outer T, passed: @'call T) -> u64;
+         public data Borrowed<'item,T> = @'item T;",
+        false,
+    );
+    let RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}");
+    };
+    assert!(accepted.elaboration.module.entry.is_none());
+    assert!(accepted.elaboration.module.machines.is_empty());
+}
+
+#[test]
+fn declared_callback_lifetimes_cannot_hide_an_undeclared_argument() {
+    let source = "public data Erased<'item,T> = T;
+                  machine consume<'owned>(value: Erased<'unknown,u64>) -> u64 { value }";
+    let Err(error) = super::boundary_calls::try_typed(source) else {
+        panic!("an alias may erase the region from the result, not its formation obligation");
+    };
+    assert!(
+        error.message.contains("lifetime argument `'unknown`"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn declared_callback_lifetime_alias_checks_an_open_referents_region() {
+    let result = judged("public data Borrowed<'region,T> = @'absent T;", false);
+    let RouteVerdict::Rejected { violations, .. } = result else {
+        panic!("expected the undeclared region to reject: {result:?}");
+    };
+    assert!(
+        violations.iter().any(|violation| violation.statement.contains("undeclared lifetime")),
+        "{violations:?}"
+    );
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);

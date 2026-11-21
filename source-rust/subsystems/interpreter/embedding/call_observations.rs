@@ -37,10 +37,6 @@ pub(crate) struct CallObservations {
     _selector_storage: EvaluationStorageLease,
 }
 
-pub(crate) struct ObservationAdmission {
-    pub(crate) target: Option<String>,
-}
-
 #[derive(Clone, Copy)]
 struct SelectedArgument {
     call: TerminalCallObservation,
