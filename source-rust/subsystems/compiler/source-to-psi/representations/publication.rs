@@ -1,7 +1,8 @@
 //! The accepted program and the Build operations reported by Psi publication.
 pub use checked_program_to_psi::production::{
-    AcceptedTerminalSource, BuildCallSite, CheckedBuildReceiver, ConstantRead, ProducedBuildProvider,
-    ProducedTerminalProgram, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    AcceptedTerminalSource, BuildCallSite, CheckedBuildReceiver, ConstantRead,
+    ProducedBuildProvider, ProducedTerminalProgram, ProviderSelectionOption,
+    TerminalBuildBindingCall, TerminalBuildBindingOperand, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
     TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,

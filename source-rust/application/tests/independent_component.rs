@@ -36,9 +36,10 @@ public ConstantReading satisfies Reading {
 machine build(builder: @mut Build) {
     Build::application(builder, "number_application");
     let dependency: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../supplier" }));
-    Build::select_provider::<numbers\Reading, numbers\ConstantReading>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::select_provider::<numbers\Reading, numbers\ConstantReading>(builder, independent_mode());
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }
+machine independent_mode() -> CompositionMode { CompositionMode::Independent }
 "#).unwrap();
     fs::write(
         consumer.join("main.omg"),

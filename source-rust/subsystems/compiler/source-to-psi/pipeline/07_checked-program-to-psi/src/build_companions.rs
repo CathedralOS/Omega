@@ -12,11 +12,11 @@ use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::lowering::Elaboration;
 use crate::production::{
-    AcceptedTerminalSource, BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
-    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
-    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
-    TerminalBuildRequestOperation, TerminalBuildValueCase, TerminalBuildValueField,
-    TerminalBuildValueShape,
+    AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
+    TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
 };
 use crate::source_state::TypedTrees;
 use crate::source_symbols::is_build_protocol;
@@ -447,15 +447,19 @@ fn binding(
     } else {
         None
     };
-    let native_locator = if action == TerminalBuildBindingOperation::BindNative {
-        Some(native_locator(
-            accepted,
-            call.site.boundary,
-            module,
-            shapes,
-        )?)
-    } else {
-        None
+    let operand = match action {
+        TerminalBuildBindingOperation::BindNative => {
+            Some(TerminalBuildBindingOperand::NativeLocator(native_locator(
+                accepted,
+                call.site.boundary,
+                module,
+                shapes,
+            )?))
+        }
+        TerminalBuildBindingOperation::SelectProviderOption => {
+            Some(provider_option(accepted, call.site.boundary, module)?)
+        }
+        _ => None,
     };
     Ok(TerminalBuildBindingCall {
         site: call.site,
@@ -463,7 +467,7 @@ fn binding(
         request,
         selecting_machine,
         static_environment,
-        native_locator,
+        operand,
     })
 }
 
@@ -496,6 +500,7 @@ fn protocol_action(
         Protocol::BindNative => Action::BindNative,
         Protocol::Select => Action::Select,
         Protocol::SelectProvider => Action::SelectProvider,
+        Protocol::SelectProviderOption => Action::SelectProviderOption,
         Protocol::Exclude => Action::Exclude,
     })
 }
@@ -615,40 +620,106 @@ fn capture_declared_inputs(
     Ok(())
 }
 
+/// The two-argument source call accepts exactly these two nominal prelude enums.
+/// Read the concrete signature after ordinary expression typing and retain its checked case IDs.
+fn provider_option(
+    accepted: &AcceptedTerminalSource,
+    boundary: BoundaryMachineId,
+    module: &TerminalModule,
+) -> Result<TerminalBuildBindingOperand, Diagnostic> {
+    use semantic_vocabulary::source_selections::{CompositionMode, ProductTarget};
+
+    const EXPECTED: &str =
+        "a provider selection option must be the toolchain BuildTarget or CompositionMode";
+    let record = owned_binding_operand(accepted, boundary, module, EXPECTED)?;
+    let structural_type = record.record;
+    let symbols = &accepted.source().symbols;
+    let name = symbols.name(record.declaration);
+    if !symbols.is_build_prelude_symbol(record.declaration)
+        || !matches!(name, "BuildTarget" | "CompositionMode")
+    {
+        return Err(Diagnostic::error(EXPECTED));
+    }
+    let Some(StructuralTypeShape::Sum { cases }) = module
+        .structural_type(structural_type)
+        .map(|row| &row.shape)
+    else {
+        return Err(refused(
+            "a provider selection option must be a BuildTarget or CompositionMode",
+        ));
+    };
+    let cases = cases
+        .iter()
+        .map(|case| {
+            let case_name = label(module, case.identity)?;
+            let choice = match (name, case_name) {
+                ("CompositionMode", "Fused") => {
+                    Some(ProviderSelectionOption::Mode(CompositionMode::Fused))
+                }
+                ("CompositionMode", "Independent") => {
+                    Some(ProviderSelectionOption::Mode(CompositionMode::Independent))
+                }
+                ("BuildTarget", target) => ProductTarget::ALL
+                    .into_iter()
+                    .find(|profile| profile.source_case() == target)
+                    .map(ProviderSelectionOption::Target),
+                _ => None,
+            };
+            let choice = choice.filter(|_| case.fields.is_empty()).ok_or_else(|| {
+                refused("a provider selection option must be a BuildTarget or CompositionMode case")
+            })?;
+            Ok((case.id, choice))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    Ok(TerminalBuildBindingOperand::ProviderOption {
+        structural_type,
+        cases,
+    })
+}
+
+/// A Build protocol consumes one owned value under the declaration of its
+/// specialized boundary parameter. Read that declaration from the producing IR.
+fn owned_binding_operand<'a>(
+    accepted: &'a AcceptedTerminalSource,
+    boundary: BoundaryMachineId,
+    module: &TerminalModule,
+    expected: &'static str,
+) -> Result<&'a crate::source_state::SourceRecordCorrespondence, Diagnostic> {
+    let signature = module
+        .boundary_machine(boundary)
+        .ok_or_else(|| refused("Build selection lost its checked boundary signature"))?;
+    let [parameter] = signature.structural_parameters.as_slice() else {
+        return Err(Diagnostic::error(expected));
+    };
+    if parameter.access != terminal_psi::StructuralAccess::Owned {
+        return Err(Diagnostic::error(expected));
+    }
+    let mut sources = accepted
+        .correspondence()
+        .records
+        .iter()
+        .filter(|row| row.record == parameter.structural_type);
+    match (sources.next(), sources.next()) {
+        (Some(record), None) => Ok(record),
+        (None, _) => Err(Diagnostic::error(expected)),
+        _ => Err(refused(
+            "Build structural operand has no unique source declaration",
+        )),
+    }
+}
+
 fn native_locator(
     source: &AcceptedTerminalSource,
     boundary: BoundaryMachineId,
     module: &TerminalModule,
     shapes: &mut NativeLocatorShapes,
 ) -> Result<TerminalBuildNativeLocator, Diagnostic> {
-    let publication = source.correspondence();
-    let declaration = module
-        .interfaces.boundary_machines
-        .iter()
-        .find(|row| row.id == boundary)
-        .ok_or_else(|| refused("native binding lost its published boundary signature"))?;
-    let [parameter] = declaration.structural_parameters.as_slice() else {
-        return Err(refused(
-            "native binding must retain one owned structural locator",
-        ));
-    };
-    if parameter.access != terminal_psi::StructuralAccess::Owned {
-        return Err(refused(
-            "native binding cannot retain borrowed locator storage",
-        ));
-    }
-    let mut records = publication
-        .records
-        .iter()
-        .filter(|record| record.record == parameter.structural_type);
-    let record = records
-        .next()
-        .ok_or_else(|| refused("native locator has no exact source type application"))?;
-    if records.next().is_some() {
-        return Err(refused(
-            "native locator source type correspondence is ambiguous",
-        ));
-    }
+    let record = owned_binding_operand(
+        source,
+        boundary,
+        module,
+        "native binding requires one owned structural locator",
+    )?;
     let application = record.application.as_ref().ok_or_else(|| {
         refused(
             "native locator needs its concrete source type application to establish byte widths",
@@ -659,9 +730,9 @@ fn native_locator(
         application.reference,
     )
     .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
-    let shape = collect_shape(module, parameter.structural_type, shapes)?;
+    let shape = collect_shape(module, record.record, shapes)?;
     Ok(TerminalBuildNativeLocator {
-        structural_type: parameter.structural_type,
+        structural_type: record.record,
         widths,
         shape,
     })

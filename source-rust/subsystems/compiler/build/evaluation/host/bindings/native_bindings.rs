@@ -57,32 +57,14 @@ impl TerminalBuildBindingAdapter {
                 "native Build call disagrees with its designated operation",
             ));
         }
-        let schema = call
-            .native_locator
-            .as_ref()
-            .ok_or_else(|| refuse("native Build call lost its checked locator carrier"))?;
-        let [presentation] = structural_arguments.as_slice() else {
-            return Err(refuse("native Build call requires one owned locator value"));
+        let Some(source_compiler::publication::TerminalBuildBindingOperand::NativeLocator(schema)) =
+            &call.operand
+        else {
+            return Err(refuse("native Build call lost its checked locator carrier"));
         };
-        let [TerminalBoundaryStorageBuffer::Structural(buffer)] = buffers else {
-            return Err(refuse(
-                "native Build call needs its complete owned snapshot",
-            ));
-        };
-        if buffer.argument_index() != 0
-            || buffer.access() != terminal_psi::StructuralAccess::Owned
-            || buffer.structural_type() != schema.structural_type
-            || presentation.structural_type != schema.structural_type
-        {
-            return Err(refuse(
-                "native Build snapshot does not match its checked owned carrier",
-            ));
-        }
-        if !buffer
-            .values()
-            .windows(2)
-            .all(|pair| pair[0].path < pair[1].path)
-        {
+        let snapshot =
+            super::owned_binding_value(structural_arguments, buffers, schema.structural_type)?;
+        if !snapshot.windows(2).all(|pair| pair[0].path < pair[1].path) {
             return Err(refuse(
                 "native locator snapshot paths are duplicated or unordered",
             ));
@@ -122,7 +104,7 @@ impl TerminalBuildBindingAdapter {
         let locator = decode_native_locator(
             ValueRef {
                 shape: &schema.shape,
-                values: buffer.values(),
+                values: snapshot,
                 path: Vec::new(),
             },
             schema.widths,

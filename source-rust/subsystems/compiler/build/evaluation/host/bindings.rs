@@ -19,18 +19,14 @@ inert until the product owner resolves and admits them.
 use crate::host::requests::build_facet;
 use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::representations::declaration_selection::ProductEntryBinding;
-use source_compiler::representations::declaration_selection::BuildOperation;
-use source_compiler::representations::declaration_selection::BuildSelectionRequest;
-use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
-use source_compiler::representations::declaration_selection::ExecutedProductSelection;
-use source_compiler::representations::declaration_selection::NativeBindingFormation;
-use source_compiler::representations::declaration_selection::ProductDeclarationRequest;
-use source_compiler::representations::declaration_selection::ProviderReadinessRequest;
-use source_compiler::representations::declaration_selection::RootBindingOperand;
-use source_compiler::representations::declaration_selection::RootBindingSelection;
 use source_compiler::publication::{
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    ProviderSelectionOption, TerminalBuildBindingCall, TerminalBuildBindingOperand,
+    TerminalBuildBindingOperation, TerminalBuildBindings,
+};
+use source_compiler::representations::declaration_selection::{
+    BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedProductSelection,
+    NativeBindingFormation, ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest,
+    RootBindingOperand, RootBindingSelection,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
 use terminal_interpreter::{
@@ -312,10 +308,12 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
-            arguments: if self.host.calls.iter().any(|call| {
-                call.site.boundary == boundary
-                    && call.action == TerminalBuildBindingOperation::BindNative
-            }) {
+            arguments: if self
+                .host
+                .calls
+                .iter()
+                .any(|call| call.site.boundary == boundary && call.operand.is_some())
+            {
                 &[0]
             } else {
                 &[]
@@ -330,17 +328,54 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
-        let native = self.host.calls.iter().any(|call| {
-            crate::host::is_call_at(effect, call.site)
-                && call.action == TerminalBuildBindingOperation::BindNative
-        });
-        if native {
+        let operand = self
+            .host
+            .calls
+            .iter()
+            .find(|call| crate::host::is_call_at(effect, call.site))
+            .and_then(|call| call.operand.as_ref());
+        if let Some(operand) = operand {
             if !byte_buffers.is_empty() {
                 return Err(TerminalEffectRejection::new(
-                    "native Build call has unexpected mutable byte buffers",
+                    "Build selection has unexpected mutable byte buffers",
                 ));
             }
-            return self.commit_native(effect, storage_buffers);
+            match operand {
+                TerminalBuildBindingOperand::NativeLocator(_) => {
+                    return self.commit_native(effect, storage_buffers);
+                }
+                TerminalBuildBindingOperand::ProviderOption {
+                    structural_type,
+                    cases,
+                } => {
+                    use terminal_interpreter::TerminalStorageContents;
+                    let refuse = TerminalEffectRejection::new;
+                    let TerminalEffect::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    } = effect
+                    else {
+                        return Err(refuse("provider selection requires a boundary call"));
+                    };
+                    let [value] = owned_binding_value(
+                        structural_arguments,
+                        storage_buffers,
+                        *structural_type,
+                    )?
+                    else {
+                        return Err(refuse("provider selection needs a nullary option case"));
+                    };
+                    let TerminalStorageContents::Case(id) = value.contents else {
+                        return Err(refuse("provider selection has no active option case"));
+                    };
+                    let choice = cases
+                        .iter()
+                        .find(|(case, _)| *case == id && value.path.is_empty())
+                        .map(|(_, choice)| *choice)
+                        .ok_or_else(|| refuse("provider selection has an unknown option case"))?;
+                    return self.commit_binding(effect, Some(choice));
+                }
+            }
         }
         if !storage_buffers.is_empty() || !byte_buffers.is_empty() {
             return Err(TerminalEffectRejection::new(
@@ -438,6 +473,16 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        self.commit_binding(effect, None)
+    }
+}
+
+impl TerminalBuildBindingAdapter {
+    fn commit_binding(
+        &self,
+        effect: &TerminalEffect,
+        provider_option: Option<ProviderSelectionOption>,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
         let refuse = TerminalEffectRejection::new;
@@ -512,7 +557,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             }
             _ => None,
         };
-        let structural_operands = if description.is_some() {
+        let structural_operands = if description.is_some() || provider_option.is_some() {
             &[][..]
         } else {
             structural_arguments.as_slice()
@@ -555,16 +600,30 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 })
             }
             (BuildSelectionRequest::Declaration(request), action, values) => {
-                let (target, independent) = match (action, values) {
-                    (TerminalBuildBindingOperation::Select, []) => (None, None),
+                use TerminalBuildBindingOperation as Action;
+                let (target, composition) = match (request.operation, action, values) {
+                    (BuildOperation::ProviderSelection, Action::Select, []) => {
+                        (None, Some(CompositionMode::Fused))
+                    }
+                    (BuildOperation::ProviderSelection, Action::SelectProviderOption, []) => {
+                        match provider_option
+                            .ok_or_else(|| refuse("provider selection has no evaluated option"))?
+                        {
+                            ProviderSelectionOption::Target(target) => {
+                                (Some(target), Some(CompositionMode::Fused))
+                            }
+                            ProviderSelectionOption::Mode(mode) => (None, Some(mode)),
+                        }
+                    }
                     (
-                        TerminalBuildBindingOperation::SelectProvider,
+                        BuildOperation::ProviderSelection,
+                        Action::SelectProvider,
                         [
                             TerminalScalarValue::Integer {
                                 value: IntegerValue::Unsigned(code),
                                 ..
                             },
-                            TerminalScalarValue::Boolean(value),
+                            TerminalScalarValue::Boolean(independent),
                         ],
                     ) => {
                         let target = u64::try_from(*code)
@@ -573,30 +632,19 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                             .ok_or_else(|| {
                                 refuse("Product selection names an unknown catalog target")
                             })?;
-                        (Some(target), Some(*value))
+                        let mode = if *independent {
+                            CompositionMode::Independent
+                        } else {
+                            CompositionMode::Fused
+                        };
+                        (Some(target), Some(mode))
+                    }
+                    (operation, Action::Select, []) if operation.selects_product_declarations() => {
+                        (None, None)
                     }
                     _ => {
                         return Err(refuse(
-                            "Product selection disagrees with its evaluated operands",
-                        ));
-                    }
-                };
-                let composition = match request.operation {
-                    BuildOperation::ProviderSelection => Some(if independent.unwrap_or(false) {
-                        CompositionMode::Independent
-                    } else {
-                        CompositionMode::Fused
-                    }),
-                    operation
-                        if operation.selects_product_declarations()
-                            && operation != BuildOperation::ProviderSelection
-                            && independent.is_none() =>
-                    {
-                        None
-                    }
-                    _ => {
-                        return Err(refuse(
-                            "Product selection operation disagrees with its runtime operands",
+                            "Product selection disagrees with its operation or evaluated operands",
                         ));
                     }
                 };
@@ -652,6 +700,32 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         state.executed.push(selection);
         Ok(TerminalEffectResult::Unit)
     }
+}
+
+/// Read the owned snapshot from the one checked structural parameter of a Build operation.
+fn owned_binding_value<'values>(
+    arguments: &[TerminalStructuralValue],
+    buffers: &'values [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> Result<&'values [terminal_interpreter::TerminalBoundaryStorageValue], TerminalEffectRejection>
+{
+    use terminal_interpreter::TerminalBoundaryStorageBuffer;
+    let refuse = TerminalEffectRejection::new;
+    let ([presentation], [TerminalBoundaryStorageBuffer::Structural(buffer)]) =
+        (arguments, buffers)
+    else {
+        return Err(refuse("Build selection needs one complete owned operand"));
+    };
+    if buffer.argument_index() != 0
+        || buffer.access() != terminal_psi::StructuralAccess::Owned
+        || buffer.structural_type() != expected
+        || presentation.structural_type != expected
+    {
+        return Err(refuse(
+            "Build selection operand differs from its checked carrier",
+        ));
+    }
+    Ok(buffer.values())
 }
 
 fn activation_ticket<'values>(

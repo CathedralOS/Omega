@@ -13,25 +13,27 @@ use std::sync::Arc;
 use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 
-// Operation numbers are local to their machine. Refuse persisted records that
-// predate the complete call-site keys before decoding their shifted fields.
-const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD02");
+// Check the format before decoding a call's operation and typed Build operand.
+const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD03");
 
 #[cfg(test)]
 mod schema_tests {
     #[test]
     fn old_companion_rows_refuse_before_artifact_decoding() {
-        let old_first_field = b"PSITERM\0".to_vec();
-        let bytes = record_storage::encode(&old_first_field, Default::default()).unwrap();
-        let error =
-            record_storage::decode::<super::ProducedTerminalProgram>(&bytes, Default::default())
-                .unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("unsupported produced program record schema"),
-            "{error}"
-        );
+        for bytes in [
+            record_storage::encode(&b"PSITERM\0".to_vec(), Default::default()).unwrap(),
+            record_storage::encode(&u64::from_le_bytes(*b"OMGBLD02"), Default::default()).unwrap(),
+        ] {
+            let error =
+                record_storage::decode::<super::ProducedTerminalProgram>(&bytes, Default::default())
+                    .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("unsupported produced program record schema"),
+                "{error}"
+            );
+        }
     }
 }
 

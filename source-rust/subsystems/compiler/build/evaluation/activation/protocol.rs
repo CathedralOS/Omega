@@ -210,12 +210,31 @@ pub(super) fn check(
                             environment.remap_source_spans(&mut rejoin);
                             environment
                         });
-                let locator = match (&a.native_locator, &b.native_locator) {
+                use source_compiler::publication::TerminalBuildBindingOperand as Operand;
+                let operand = match (&a.operand, &b.operand) {
                     (None, None) => true,
-                    (Some(l), Some(r)) => {
+                    (Some(Operand::NativeLocator(l)), Some(Operand::NativeLocator(r))) => {
                         prefix.structural_type(l.structural_type) == Some(r.structural_type)
                             && l.widths == r.widths
                             && l.shape == r.shape
+                    }
+                    (
+                        Some(Operand::ProviderOption {
+                            structural_type: old_type,
+                            cases: old,
+                        }),
+                        Some(Operand::ProviderOption {
+                            structural_type: new_type,
+                            cases: new,
+                        }),
+                    ) => {
+                        prefix.structural_type(*old_type) == Some(*new_type)
+                            && old.len() == new.len()
+                            && old.iter().all(|&(case, choice)| {
+                                prefix
+                                    .case_id(*old_type, case)
+                                    .is_some_and(|id| new.contains(&(id, choice)))
+                            })
                     }
                     _ => false,
                 };
@@ -223,7 +242,7 @@ pub(super) fn check(
                     && request == b.request
                     && machine == b.selecting_machine
                     && environment.as_ref() == b.static_environment.as_deref()
-                    && locator
+                    && operand
             }
             (Some(Action::Query(a)), Some(Action::Query(b))) => {
                 let request = a.request.as_deref().cloned().map(|mut request| {

@@ -68,6 +68,10 @@ fn a_mixed_build_keeps_a_firmware_provider_selection_scoped_to_uefi() {
         r"use omega\language\core\Extent;
 boundary trait Sensor { machine read() -> u32 reaches none crashes none; }
 FirmwareSensor satisfies Sensor { machine read() -> u32 { 17u32 } }
+boundary trait Counter { machine value() -> u64 reaches none crashes none; }
+LocalCounter satisfies Counter { machine value() -> u64 { 42u64 } }
+boundary trait Clock { machine tick() -> u64 reaches none crashes none; }
+FixedClock satisfies Clock { machine tick() -> u64 { 0u64 } }
 machine hosted() {}
 machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
     crashes Abort { crash Abort; }",
@@ -77,20 +81,37 @@ machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
         temporary.path().join("build.omg"),
         r#"machine build(builder: @mut Build) {
     Build::application(builder, "mixed");
+    Build::select_provider::<Counter, LocalCounter>(builder);
+    let mode: CompositionMode = fused_mode();
+    Build::select_provider::<Clock, FixedClock>(builder, mode);
     Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
     Build::bind(builder, uefi_x86_64\ProgramEntry, firmware);
     Build::bind(builder, linux_x86_64\ProgramEntry, hosted);
-}"#,
+}
+machine fused_mode() -> CompositionMode { CompositionMode::Fused }"#,
     )
     .unwrap();
     let targets = [TargetProfile::UefiX64, TargetProfile::LinuxX64];
     let project = open_project(&root, &targets);
     let returned = &project.evaluated().configuration;
     assert_eq!(returned.root_binding_requests.len(), 2);
-    let [choice] = returned.product_selection_requests.as_slice() else {
-        panic!("the Build selected exactly one provider");
-    };
-    assert_eq!(choice.target.unwrap().canonical_name(), "uefi_x86_64");
+    use semantic_vocabulary::source_selections::{CompositionMode, ProductTarget};
+    let policies: Vec<_> = returned
+        .product_selection_requests
+        .iter()
+        .map(|selection| (selection.target, selection.composition))
+        .collect();
+    assert_eq!(
+        policies,
+        [
+            (None, Some(CompositionMode::Fused)),
+            (None, Some(CompositionMode::Fused)),
+            (
+                Some(ProductTarget::UefiX86_64),
+                Some(CompositionMode::Fused)
+            ),
+        ]
+    );
 }
 
 #[test]

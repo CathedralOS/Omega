@@ -25,6 +25,7 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
+    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;
 }
 public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
     builder

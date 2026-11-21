@@ -162,14 +162,20 @@ pub(crate) mod build_selections {
             {
                 Protocol::BindDescription
             }
+            (BuildSelectionRequest::Declaration(binding), 1)
+                if binding.operation == BuildOperation::ProviderSelection =>
+            {
+                Protocol::Select
+            }
+            (BuildSelectionRequest::Declaration(binding), 2)
+                if binding.operation == BuildOperation::ProviderSelection =>
+            {
+                Protocol::SelectProviderOption
+            }
             (BuildSelectionRequest::Declaration(binding), count) => binding
                 .operation
                 .product_recording_operation()
-                .filter(|(_, arity)| {
-                    count == *arity
-                        || (binding.operation == BuildOperation::ProviderSelection
-                            && count.checked_add(1) == Some(*arity))
-                })
+                .filter(|(_, arity)| count == *arity)
                 .map(|(operation, _)| operation)
                 .ok_or_else(|| {
                     Diagnostic::error("Build selection has unexpected ordinary operands")
@@ -235,11 +241,10 @@ pub(crate) mod build_selections {
             }
             (_, Protocol::BindNative) => vec![(1, "build_selection_target")],
             (_, Protocol::SelectProvider) => {
-                let mut helpers = vec![(1, "build_selection_target")];
-                if arguments.len() == 3 {
-                    helpers.push((2, "build_selection_independent"));
-                }
-                helpers
+                vec![
+                    (1, "build_selection_target"),
+                    (2, "build_selection_independent"),
+                ]
             }
             _ => Vec::new(),
         };
@@ -271,9 +276,6 @@ pub(crate) mod build_selections {
         });
         let committed_selection =
             table.insert_build_selection_call(BuildSelectionCall { request, operation });
-        if operation == Protocol::SelectProvider && arguments.len() == 2 {
-            arguments.push(table.insert(ExpressionNode::Boolean(false)));
-        }
         let mut emit = |symbol,
                         name: crate::source_state::name::Identifier,
                         receiver,
@@ -3814,7 +3816,7 @@ pub(crate) mod product_selections {
             || if operation == BuildOperation::NativeBinding {
                 ordinary_count != 3
             } else if operation == BuildOperation::ProviderSelection {
-                !(2..=3).contains(&ordinary_count)
+                !(1..=3).contains(&ordinary_count)
             } else {
                 ordinary_count != 1
             }
@@ -3837,7 +3839,7 @@ pub(crate) mod product_selections {
             if operation == BuildOperation::NativeBinding {
                 "its explicit mutable Build, catalog target and owned native locator arguments"
             } else if operation == BuildOperation::ProviderSelection {
-                "its explicit mutable Build and catalog target arguments (plus an optional composition mode)"
+                "its mutable Build and optional catalog target and composition mode"
             } else {
                 "its explicit mutable Build argument"
             },

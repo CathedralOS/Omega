@@ -363,7 +363,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
         // the selecting machine's own scope.
         assert_eq!(call.selecting_machine, None);
         assert!(call.static_environment.is_none());
-        assert!(call.native_locator.is_none());
+        assert!(call.operand.is_none());
     }
     // The two calls of one selection are different operations.
     assert_ne!(calls[0].site, calls[1].site);
@@ -665,7 +665,7 @@ use checked_program_to_psi::production::{TerminalBuildQueryCall, TerminalBuildRe
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            u64::from_le_bytes(*b"OMGBLD02").write(output)?;
+            u64::from_le_bytes(*b"OMGBLD03").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[checked_program_to_psi::production::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
@@ -821,16 +821,20 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
 fn published_native_locator(
     program: &ProducedTerminalProgram,
 ) -> &checked_program_to_psi::production::TerminalBuildNativeLocator {
-    program
+    let call = program
         .build_bindings()
         .calls_for(program.view())
         .unwrap()
         .iter()
         .find(|call| call.action == TerminalBuildBindingOperation::BindNative)
-        .expect("the published native call keeps its source-issued row")
-        .native_locator
-        .as_ref()
-        .expect("the host needs the exact locator shape")
+        .expect("the published native call keeps its source-issued row");
+    let Some(checked_program_to_psi::production::TerminalBuildBindingOperand::NativeLocator(
+        locator,
+    )) = &call.operand
+    else {
+        panic!("the host needs the exact locator shape");
+    };
+    locator
 }
 
 #[test]
@@ -1305,12 +1309,16 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     );
 }
 
+fn provider_selection_prelude() -> String {
+    native_binding_prelude().replace(
+        "machine bind(activation: u64) reaches none crashes none;",
+        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;\n    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;",
+    )
+}
+
 #[test]
 fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
-    let prelude = native_binding_prelude().replace(
-        "machine bind(activation: u64) reaches none crashes none;",
-        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
-    );
+    let prelude = provider_selection_prelude();
     let typed = typed_with_prelude(
         "machine build(builder: @mut Build) { Build::select_provider::<Probe, Candidate>(builder, linux_x86_64); }",
         &prelude,
@@ -1361,7 +1369,7 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
             .calls_for(program.view())
             .unwrap()
             .iter()
-            .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+            .any(|call| call.action == TerminalBuildBindingOperation::SelectProviderOption)
     );
     use semantic_vocabulary::source_selections::{
         SelectionNode, SelectionPurpose, SelectionReference, SelectionRole,
@@ -1565,4 +1573,32 @@ machine build() {}
         .expect("read its checked requirement");
     assert_eq!(review.structural_parameter_positions, [1, 3]);
     assert_eq!(review.returned_parameters, [1]);
+}
+
+#[test]
+fn a_plain_integer_and_a_lookalike_enum_cannot_select_a_provider() {
+    let prelude = provider_selection_prelude();
+    for operand in ["7u64", "CustomMode::Independent"] {
+        let source = format!(
+            "data CustomMode [copy] {{ case Independent; }}
+             machine build(builder: @mut Build) {{
+                 Build::select_provider::<Probe, Candidate>(builder, {operand});
+             }}"
+        );
+        let typed = typed_with_prelude(&source, &prelude);
+        let refused = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+            .and_then(|checked| {
+                checked.produce(
+                    TerminalProductionCustody::default(),
+                    &mut CompileTimings::default(),
+                )
+            })
+            .expect_err("only the exact Build vocabulary can choose a target or composition mode");
+        assert!(
+            refused.iter().any(|diagnostic| diagnostic
+                .to_string()
+                .contains("BuildTarget or CompositionMode")),
+            "{operand}: {refused:?}"
+        );
+    }
 }
