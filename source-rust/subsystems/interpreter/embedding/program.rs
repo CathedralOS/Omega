@@ -1695,7 +1695,13 @@ pub(crate) mod instance {
             &self.program
         }
 
-        pub(super) fn install_compiler_evaluation(
+        pub fn float_evaluation(&self) -> Option<crate::float_result_policy::FloatEvaluation> {
+            self.execution
+                .as_ref()
+                .map(|execution| execution.float_evaluation)
+        }
+
+        pub(super) fn install_compiler_observations(
             &mut self,
             issued: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
             calls: &[crate::TerminalCallObservation],
@@ -1711,7 +1717,6 @@ pub(crate) mod instance {
                 ),
             )?;
             execution.select_call_observations(calls)?;
-            execution.compiler_evaluation = true;
             execution.issued_layout_target = issued;
             Ok(())
         }
@@ -3525,7 +3530,7 @@ pub(crate) mod program {
         /// Start the exact compiler invocation admitted for this artifact and target.
         pub fn instantiate_compiler_evaluation<'host>(
             &self,
-            request: TerminalInstantiation<'_>,
+            mut request: TerminalInstantiation<'_>,
             admitted: &evaluation_admission::AdmittedCompilerEvaluation,
             issued_layout: Option<(&layout_plans::LayoutTargetFacts, &[usize])>,
             calls: &[crate::TerminalCallObservation],
@@ -3597,9 +3602,10 @@ pub(crate) mod program {
             } else {
                 None
             };
+            request.float_evaluation = crate::float_result_policy::FloatEvaluation::CompileTime;
             let mut instance = self.instantiate(request)?;
             instance
-                .install_compiler_evaluation(issued, calls)
+                .install_compiler_observations(issued, calls)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
             Ok(instance)
         }
@@ -3620,6 +3626,7 @@ pub(crate) mod program {
             TerminalArtifactInterpretError,
         > {
             self.prepare_execution(TerminalInstantiation {
+                float_evaluation: Default::default(),
                 scalar_arguments,
                 structural_inputs,
                 installation,
@@ -3659,6 +3666,7 @@ pub(crate) mod program {
             TerminalArtifactInterpretError,
         > {
             let TerminalInstantiation {
+                float_evaluation,
                 scalar_arguments,
                 structural_inputs,
                 installation,
@@ -3796,6 +3804,7 @@ pub(crate) mod program {
                 }
                 other => other,
             })?;
+            execution.float_evaluation = float_evaluation;
             if let Some(request) = scalar_application {
                 execution
                     .request_scalar_entry_checks(request.admission.checks(), entry_results)
@@ -3821,6 +3830,7 @@ pub(crate) mod program {
 
     #[derive(Default)]
     pub struct TerminalInstantiation<'input> {
+        pub float_evaluation: crate::float_result_policy::FloatEvaluation,
         pub scalar_arguments: &'input [TerminalScalarValue],
         pub structural_inputs: TerminalStructuralInputs<'input>,
         pub installation: Option<&'input crate::boundary::effects::TerminalRuntimeSupplies>,

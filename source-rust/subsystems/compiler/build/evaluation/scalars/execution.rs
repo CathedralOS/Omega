@@ -155,6 +155,7 @@ fn execute_entry(
     let program = TerminalProgram::borrow(observations.artifact());
     let mut instance = program
         .instantiate(TerminalInstantiation {
+            float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
             account: account.as_ref(),
             installation: Some(installation),
             entry_results: Some(TerminalEntryResultRequest {

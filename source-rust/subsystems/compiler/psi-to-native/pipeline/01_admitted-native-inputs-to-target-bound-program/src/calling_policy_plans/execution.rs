@@ -141,6 +141,7 @@ pub(super) fn evaluate_terminal_calling_policy(
     )];
     let mut instance = program
         .instantiate(TerminalInstantiation {
+            float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
             structural_inputs: TerminalStructuralInputs {
                 arguments: &arguments,
                 contents: &contents,
