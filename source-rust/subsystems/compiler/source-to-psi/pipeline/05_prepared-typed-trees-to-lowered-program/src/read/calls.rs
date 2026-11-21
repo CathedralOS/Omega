@@ -3238,6 +3238,7 @@ impl<'t> Program<'t> {
             callee: MachineId,
             actual: semantic_vocabulary::StructuralTypeId,
             expected: semantic_vocabulary::StructuralTypeId,
+            const_formals: &[Option<semantic_vocabulary::ValueId>],
             values: &[Expression],
             slots: &[Slot],
             depth: usize,
@@ -3283,27 +3284,9 @@ impl<'t> Program<'t> {
                 if *owner != callee {
                     return false;
                 }
-                let Some(inputs) = program.const_scopes.get(callee) else {
-                    return false;
-                };
-                let Some(position) = inputs.iter().position(|input| input.value == *value) else {
-                    return false;
-                };
-                // The const inputs are symbol-sorted. Recover operand order from
-                // the selected declaration, including a bodyless requirement.
-                let Some(&symbol) = program.symbols.get(callee) else {
-                    return false;
-                };
-                let parameters = program.typed.declaration_type_parameters(symbol);
-                let Some(position) = parameters
+                let Some(position) = const_formals
                     .iter()
-                    .filter(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            crate::source_state::data::TypeParameterKind::Const { .. }
-                        ) && program.record_parameter(parameter.symbol).is_none()
-                    })
-                    .position(|parameter| parameter.symbol == inputs[position].symbol)
+                    .position(|formal| *formal == Some(*value))
                 else {
                     return false;
                 };
@@ -3329,9 +3312,39 @@ impl<'t> Program<'t> {
             } else {
                 false
             };
-            length && matches(program, caller, callee, *ae, *ee, values, slots, depth + 1)
+            length
+                && matches(
+                    program,
+                    caller,
+                    callee,
+                    *ae,
+                    *ee,
+                    const_formals,
+                    values,
+                    slots,
+                    depth + 1,
+                )
         }
-        matches(self, caller, callee, actual, expected, values, slots, 0)
+        // Call arguments append scalar consts in signature order. Match an
+        // extent to its actual input using the same numbering as the contract.
+        let Some(signature) = self.signatures.get(callee) else {
+            return false;
+        };
+        let formals = signature.formal_values();
+        let Some(first_const) = formals.len().checked_sub(values.len()) else {
+            return false;
+        };
+        matches(
+            self,
+            caller,
+            callee,
+            actual,
+            expected,
+            &formals[first_const..],
+            values,
+            slots,
+            0,
+        )
     }
 
     /// Whether a value of this type lends observation only: a shared
