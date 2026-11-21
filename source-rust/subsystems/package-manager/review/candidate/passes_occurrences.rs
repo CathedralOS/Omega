@@ -346,6 +346,7 @@ impl<'pass> PackageReviewRound<'pass> {
             .map_err(refused)?;
         let required_instances = inputs.required_dependency_source_instances();
         let mut dependency_bundles = Vec::with_capacity(required_instances.len());
+        let mut component_descriptions = Vec::new();
         for dependency in scope
             .packages()
             .iter()
@@ -355,13 +356,15 @@ impl<'pass> PackageReviewRound<'pass> {
                 if !required_instances.contains(&(dependency.identity(), dependency_purpose)) {
                     continue;
                 }
-                let dependency_review = closure
-                    .graph()
-                    .package_position(dependency)
-                    .and_then(|position| {
-                        self.review_positions[position][purpose_slot(dependency_purpose)]
-                    })
-                    .and_then(|position| self.reviews.get(position));
+                let dependency_position =
+                    closure
+                        .graph()
+                        .package_position(dependency)
+                        .and_then(|position| {
+                            self.review_positions[position][purpose_slot(dependency_purpose)]
+                        });
+                let dependency_review =
+                    dependency_position.and_then(|position| self.reviews.get(position));
                 let review =
                     dependency_review.ok_or(PackageCompilationInputError::MissingBuildHandoff {
                         package: dependency.identity(),
@@ -404,11 +407,29 @@ impl<'pass> PackageReviewRound<'pass> {
                         },
                     ));
                 }
+                if dependency_purpose.is_product()
+                    && bundle.target() == occurrence.checked_target
+                    && let Some(description) = dependency_position
+                        .and_then(|index| self.occurrences.get(index))
+                        .and_then(|entry| entry.compilation.component_description.as_ref())
+                {
+                    if description.package() != dependency.identity() {
+                        return Err(refused(vec![
+                            PackageCompilationInputError::BuildHandoffCustodyMismatch {
+                                package: dependency.identity(),
+                            },
+                        ]));
+                    }
+                    component_descriptions.push(description.clone());
+                }
                 dependency_bundles.push(bundle.clone());
             }
         }
         let inputs = inputs
             .with_complete_dependency_build_handoffs(dependency_bundles)
+            .and_then(|inputs| {
+                inputs.with_independent_component_descriptions(component_descriptions)
+            })
             .map_err(|errors| {
                 CompileResolvedPackageReviewsError::new(
                     crate::review::CompileResolvedPackageReviewCause::CompilationInputs {

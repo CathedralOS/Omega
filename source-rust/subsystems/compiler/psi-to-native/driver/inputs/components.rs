@@ -58,8 +58,8 @@ pub(super) fn verify(
         let description =
             native_artifact::describe_portable_component(&artifact, selection.plans())
                 .map_err(|why| refuse(why.to_string()))?;
-        // A fresh source compilation authenticates the subject. Unreviewed environmental
-        // assumptions cannot be accepted merely because its publisher names them.
+        // Verify the supplier under its own authenticated subject. The receiving program must
+        // compare every environmental premise with its own acceptance before release.
         let checked = component_description::verify_component(
             &description,
             &ComponentVerificationRequest {
@@ -67,7 +67,7 @@ pub(super) fn verify(
                 accepted_schemas: [component_description::COMPONENT_DESCRIPTION_SCHEMA_V3]
                     .into_iter()
                     .collect(),
-                accepted_assumptions: AcceptedComponentAssumptions::Exact(Default::default()),
+                accepted_assumptions: AcceptedComponentAssumptions::PendingConsumerAcceptance,
             },
         )
         .map_err(|why| refuse(why.to_string()))?;

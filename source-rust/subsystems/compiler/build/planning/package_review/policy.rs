@@ -21,6 +21,7 @@ pub(super) fn project(
     checked: &compiler::SelectedProviderResult,
     target: TargetProfile,
     package: PackageKeyIdentity,
+    component_assumptions: Vec<review_evidence::record::PackagePolicyComponentAssumption>,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     if input.sources().package_identity() != Some(package)
         || input.declarations.published_program() != checked.original_program()
@@ -122,7 +123,7 @@ pub(super) fn project(
         assumed_bindings: Vec::new(),
         service_audits: Vec::new(),
         restricted_build_requests: source.restricted_build_requests,
-        component_assumptions: Vec::new(),
+        component_assumptions,
     };
     policy.apply_service_classes(&super::authority::critical_services(input, checked)?);
     policy.apply_service_audit_policy(&source.audits);

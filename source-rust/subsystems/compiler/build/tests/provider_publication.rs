@@ -1160,3 +1160,51 @@ data LocalAlias = i64;
     assert_ne!(pair.expansion, word.expansion);
     assert!(policy.public_data().is_empty());
 }
+
+#[test]
+fn review_and_deployment_publish_the_same_entryless_provider() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-entryless-provider",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    let path = root.join("build.omg");
+    std::fs::write(
+        &path,
+        r#"machine build(builder: @mut Build) { Build::package(builder, "numbers"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+public boundary trait Reading {
+    machine value(input: u64) -> u64 reaches none crashes none;
+}
+public ConstantReading satisfies Reading {
+    machine value(input: u64) -> u64 { input }
+}
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&path, &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let stage = product.product_stage(&[target]).unwrap();
+    let deployed = source_compiler::compile_for_target(stage.source(), target.target_name(), None)
+        .unwrap()
+        .into_parts()
+        .0;
+    let (declarations, reviewed) = source_compiler::review_package(
+        stage.source(),
+        target.target_name(),
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert_eq!(declarations.published_program(), deployed.view().identity());
+    let reviewed = reviewed.into_parts().0;
+    assert_eq!(reviewed.view().identity(), deployed.view().identity());
+    let candidates = &reviewed.semantic_module().interfaces.provider_candidates;
+    assert_eq!(candidates.len(), 1);
+}

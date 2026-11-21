@@ -12,7 +12,7 @@ grants package admission.
 mod accessors;
 mod authority;
 mod baseline;
-pub(crate) use baseline::PackagePolicyComponentAssumption;
+pub use baseline::PackagePolicyComponentAssumption;
 pub use baseline::{PackagePolicyBaseline, PackagePolicyNativeBinding};
 mod authority_expressions;
 mod behavior_policy;
