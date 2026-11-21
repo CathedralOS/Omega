@@ -59,17 +59,17 @@ unchecked declaration.
 
 ## Build::validate
 
-`Build::validate(builder: @mut Build, dependency: @DependencyRegistration)`
+`Build::validate(builder: @mutable Build, dependency: @DependencyRegistration)`
 borrows an exact dependency registration and records a full-package validation
 request. It performs no alias-string lookup and adds no dependency identifier
 syntax. Both Product and Build dependencies registered directly by the supplied
 root Build are eligible, in their corresponding checking contexts.
 
 ```omega
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "app");
-    let mut description = dependency\from_source(Source::Path { location: "producer" });
-    dependency\with_alias(@mut description, "producer");
+    let mutable description = dependency\from_source(Source::Path { location: "producer" });
+    dependency\with_alias(@mutable description, "producer");
     let registered = Build::dependency(builder, description);
     Build::validate(builder, @registered);
     Build::bind(builder, linux_x86_64\ProgramEntry, main);

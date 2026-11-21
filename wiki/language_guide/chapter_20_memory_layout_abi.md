@@ -108,7 +108,7 @@ requirements, including `read`.
 
 ```omega
 boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling> {
-    machine read(fd: i32, buffer: @mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
+    machine read(fd: i32, buffer: @mutable [u8]) -> i64 reaches FilesystemContentRead crashes none;
 }
 ```
 
@@ -154,8 +154,8 @@ side effects. Such memory is used through a view that allows only the
 operations the hardware supports:
 
 ```omega
-machine send(uart: @mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
-    write(@mut uart.transmit, byte);
+machine send(uart: @mutable (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
+    write(@mutable uart.transmit, byte);
     read(@uart.status)
 }
 ```
@@ -181,8 +181,8 @@ A recast borrows the same storage as another type:
 
 ```omega
 let read: @u32 = @storage.word as @u32;
-let header: @mut Header = @mut storage.bytes[offset] as @mut Header;
-let words: @mut [u16] = @mut storage.bytes as @mut [u16];
+let header: @mutable Header = @mutable storage.bytes[offset] as @mutable Header;
+let words: @mutable [u16] = @mutable storage.bytes as @mutable [u16];
 ```
 
 The compiler checks size, alignment and that every value you could read is
@@ -213,7 +213,7 @@ data CounterDisk {
 
 machine counter_v1_to_v2(
     old: CounterDiskV1,
-    out: @mut CounterDiskV2
+    out: @mutable CounterDiskV2
 ) satisfies FormatMigration<
     CounterDisk,
     CounterDiskV1,

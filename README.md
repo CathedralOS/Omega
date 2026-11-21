@@ -163,7 +163,7 @@ domain Player::Alive
 requires
     self.health > 0;
 
-machine respawn(player: @mut Player)
+machine respawn(player: @mutable Player)
 requires
     player in Player::Respawnable
 ensures
@@ -172,7 +172,7 @@ ensures
     player.health = 100;
 }
 
-machine update(player: @mut Player) {
+machine update(player: @mutable Player) {
     transition player in Player::Respawnable {
         true -> respawn(player)
         false -> {}
@@ -229,7 +229,7 @@ let rejected: Command<bool> = Command<bool> {
 }; // Rejected: GetUser requires T == User.
 
 machine execute<T>(
-    connection: @mut Database,
+    connection: @mutable Database,
     command: @Command<T>
 ) -> Result<T, DatabaseError>
 {
@@ -305,12 +305,12 @@ data FileTime {
 boundary trait WindowsWallClock:
     Calling<MicrosoftX64Policy>
 {
-    machine read(output: @mut CLayout<FileTime>)
+    machine read(output: @mutable CLayout<FileTime>)
         reaches ClockObservation
         crashes none;
 }
 
-machine read_wall_clock(output: @mut CLayout<FileTime>)
+machine read_wall_clock(output: @mutable CLayout<FileTime>)
 reaches ClockObservation
 crashes none
 {
@@ -318,7 +318,7 @@ crashes none
 }
 
 // In build.omg
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::package(builder, "windows_wall_clock");
     Build::bind<WindowsWallClock::read>(
         builder,
@@ -351,12 +351,12 @@ proofs, even when the instructions are handwritten:
 ```omega
 asm machine copy_header(
     packet: @[u8],
-    destination: @mut [u8; 16]
+    destination: @mutable [u8; 16]
 )
 requires packet.length >= 16
 registers
     r10 = address_of(@packet[0]),
-    r11 = address_of(@mut destination[0]),
+    r11 = address_of(@mutable destination[0]),
     r9b = align_of(packet) >= 16 && align_of(destination) >= 16
 {
     test r9b, r9b;
@@ -405,18 +405,18 @@ data UartRegisters {
 }
 
 machine broken_reset(
-    uart: @mut (UartRegisters in DeviceRegisters)
+    uart: @mutable (UartRegisters in DeviceRegisters)
 )
 reaches DeviceIo
 {
-    let mut ram_word: u32 = 42;
+    let mutable ram_word: u32 = 42;
 
-    clear(@mut ram_word); // Valid: Ordinary RAM.
-    write(@mut uart.transmit, 0);
+    clear(@mutable ram_word); // Valid: Ordinary RAM.
+    write(@mutable uart.transmit, 0);
 
-    clear(@mut uart.transmit); // Rejected: cannot borrow MMIO as RAM.
+    clear(@mutable uart.transmit); // Rejected: cannot borrow MMIO as RAM.
 
-    machine clear(word: @mut u32) {
+    machine clear(word: @mutable u32) {
         word = 0;
     }
 }

@@ -60,8 +60,8 @@ The caller names the implementation. The call is compiled as a direct call to
 
 ```omega
 trait Codec<T> {
-    machine encode(value: @T, out: @mut [u8]) -> u64 reaches none crashes none;
-    machine decode(input: @[u8], out: @mut T) -> bool reaches none crashes none;
+    machine encode(value: @T, out: @mutable [u8]) -> u64 reaches none crashes none;
+    machine decode(input: @[u8], out: @mutable T) -> bool reaches none crashes none;
 }
 
 WireCodec satisfies Codec<Message> {
@@ -100,9 +100,9 @@ out gets the trait's version:
 
 ```omega
 trait ResettableCounter<T> {
-    machine set(counter: @mut T, value: i32);
+    machine set(counter: @mutable T, value: i32);
 
-    machine reset(counter: @mut T) {
+    machine reset(counter: @mutable T) {
         ResettableCounter::set(counter, 0);
     }
 }
@@ -112,12 +112,12 @@ trait ResettableCounter<T> {
 
 ```omega
 trait Resettable<T> {
-    machine reset(counter: @mut T);
+    machine reset(counter: @mutable T);
 }
 
 trait ManagedCounter<T> {
     requires Resettable<T>;
-    machine increment(counter: @mut T);
+    machine increment(counter: @mutable T);
 }
 
 boundary trait TimerInterrupt: InterruptService + Calling<X86InterruptPolicy> { }
@@ -137,12 +137,12 @@ trait parameter:
 
 ```omega
 trait WireEncodable<Value, Message> {
-    machine to_wire(value: @Value, out: @mut Message);
+    machine to_wire(value: @Value, out: @mutable Message);
 }
 
 PlayerWireEncoding satisfies WireEncodable<Player, PlayerMessage>
 {
-    machine to_wire(player: @Player, out: @mut PlayerMessage) {
+    machine to_wire(player: @Player, out: @mutable PlayerMessage) {
         out.name = player.name;
         out.health = player.health;
     }
@@ -192,17 +192,17 @@ When the parameter's type is a trait requirement, the argument must be a
 machine bound to that requirement, and binding is always written out:
 
 ```omega
-trait Tidy<T> { machine clear(item: @mut T); }
+trait Tidy<T> { machine clear(item: @mutable T); }
 
-machine tidy<T, const F: Tidy<T>::clear>(item: @mut T) { F(item); }
+machine tidy<T, const F: Tidy<T>::clear>(item: @mutable T) { F(item); }
 
-machine zero(item: @mut u32) { item = 0; }                        // plain
-machine wipe(item: @mut u32) satisfies Tidy<u32>::clear { ... }   // bound where declared
+machine zero(item: @mutable u32) { item = 0; }                        // plain
+machine wipe(item: @mutable u32) satisfies Tidy<u32>::clear { ... }   // bound where declared
 const zero_tidy = (zero satisfies Tidy<u32>::clear);              // bound by expression
 
-tidy::<u32, wipe>(@mut x);          // accepted
-tidy::<u32, zero_tidy>(@mut x);     // accepted
-tidy::<u32, zero>(@mut x);          // Rejected: zero is not bound.
+tidy::<u32, wipe>(@mutable x);          // accepted
+tidy::<u32, zero_tidy>(@mutable x);     // accepted
+tidy::<u32, zero>(@mutable x);          // Rejected: zero is not bound.
 ```
 
 Having the right signature is not enough. The three ways to bind are the
@@ -218,7 +218,7 @@ machines in a record:
 ```omega
 data Counter { value: u64; }
 
-data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data ClearCounter = machine(counter: @mutable Counter) reaches none crashes none terminates;
 data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 
 data CounterOps {
@@ -226,7 +226,7 @@ data CounterOps {
     value: CounterValue;
 }
 
-machine clear(counter: @mut Counter) terminates { counter.value = 0; }
+machine clear(counter: @mutable Counter) terminates { counter.value = 0; }
 machine value(counter: @Counter) -> u64 terminates { counter.value }
 
 machine inspect(operations: @CounterOps, counter: @Counter) -> u64 terminates {
@@ -248,11 +248,11 @@ so `save_dynamic` could not take its record at run time. See
 [open callable contracts](../spec/language/effects.md#open-callable-contracts).
 
 ```omega
-machine save_static<T, const Format: Codec<T>>(value: @T, out: @mut [u8]) -> u64 {
+machine save_static<T, const Format: Codec<T>>(value: @T, out: @mutable [u8]) -> u64 {
     Format::encode(value, out)             // direct call
 }
 
-machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mut [u8]) -> u64 {
+machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mutable [u8]) -> u64 {
     (format.encode)(value, out)            // call through a field
 }
 ```
@@ -263,30 +263,30 @@ machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mut [u8]) -> u64 {
 hold readers over different things:
 
 ```omega
-data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64
+data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
     requires output.length > 0
     reaches none
     crashes none;
 
 data Reader<'a, some S> {
-    state: @'a mut S;
+    state: @'a mutable S;
     read: ReadInto<S>;
 }
 
-machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
+machine read_one(reader: @mutable Reader, output: @mutable [u8]) -> u64
 requires output.length > 0
 {
     (reader.read)(reader.state, output)
 }
 
-let mut readers: [Reader; 2] = [
-    Reader { state: @mut constant, read: read_constant },
-    Reader { state: @mut toggle, read: read_toggle },
+let mutable readers: [Reader; 2] = [
+    Reader { state: @mutable constant, read: read_constant },
+    Reader { state: @mutable toggle, read: read_toggle },
 ];
 ```
 
 Each reader pairs a state with a machine for that state. Pairing
-`&mut constant` with `read_toggle` is rejected. This is Omega's replacement
+`&mutable constant` with `read_toggle` is rejected. This is Omega's replacement
 for trait objects and closures; see
 [some packages](../spec/language/some_packages.md), which also shows how a
 package can own its state.

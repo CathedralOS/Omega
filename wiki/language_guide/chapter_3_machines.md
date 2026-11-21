@@ -24,14 +24,14 @@ data Player {
     health: i32;
 }
 
-machine take_damage(player: @mut Player, amount: i32)
+machine take_damage(player: @mutable Player, amount: i32)
 requires amount >= 0
 requires player.health >= amount
 {
     player.health = player.health - amount;
 }
 
-take_damage(@mut player, 4);
+take_damage(@mutable player, 4);
 ```
 
 There are no methods and no implicit receiver. `player.take_damage(4)` is not
@@ -94,18 +94,18 @@ data Application {
     total: i32;
 }
 
-machine run(application: @mut Application) {
+machine run(application: @mutable Application) {
     let increment: i32 = add_i32(3, 4);
     application.total = increment;
 }
 
 machine start() {
-    let mut application: Application;
-    run(@mut application);
+    let mutable application: Application;
+    run(@mutable application);
 }
 ```
 
-`let mut application: Application;` starts from zero. A type whose invariant
+`let mutable application: Application;` starts from zero. A type whose invariant
 does not hold at zero needs a constructor machine instead. There is no global
 program state: anything long-lived is created here and handed down. See
 [program entries](../spec/build/entry_roots.md).
@@ -114,8 +114,8 @@ program state: anything long-lived is created here and handed down. See
 
 ```omega
 let command: Command = resolve_command(@parser, @line);
-let guard: Guard = block Mutex::lock(@mut mutex);
-let event: Event = suspend Inbox::take(@mut inbox);
+let guard: Guard = block Mutex::lock(@mutable mutex);
+let event: Event = suspend Inbox::take(@mutable inbox);
 ```
 
 A call that may wait is marked at the call site: `block` when it may block the
@@ -138,7 +138,7 @@ together can also use routine facts from the body. Independently checked clients
 published promise, so write the result guarantees they need.
 
 A by-value parameter's name in a contract means the original input, even when
-the body changes a `mut` parameter. A promise `result == position + step`
+the body changes a `mutable` parameter. A promise `result == position + step`
 still uses the supplied position and step. For a mutable reference, ordinary
 postcondition reads describe the final contents; `old(...)` describes entry
 contents. These are proof observations, not extra copies or ownership. See

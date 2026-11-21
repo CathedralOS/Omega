@@ -130,7 +130,7 @@ not appear.
 - The `Command<T>` fixture: `self.op in ...` in `requires` rejects a
   mismatched construction, and matching `command.op` yields the type equality
   in the arm.
-- A helper mutating through `&mut command.op` leaves the caller to prove the
+- A helper mutating through `&mutable command.op` leaves the caller to prove the
   record's predicates again, and replacing the held sum through that
   reference leaves sibling fields and their loans intact.
 - Tuple dispatch over a field and the held sum, with a payload binding in an

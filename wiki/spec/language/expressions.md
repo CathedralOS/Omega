@@ -60,7 +60,7 @@ A call invokes a machine, nested or top-level. Transition dispatch may select a
 final call whose result completes the current invocation, not an arbitrary
 lexical ancestor. A named machine call selects a static path and supplies
 every ordinary parameter explicitly. A qualified declaration such as
-`Buffer::clear(buffer: @mut Buffer)` is called as `Buffer::clear(@mut buffer)`,
+`Buffer::clear(buffer: @mutable Buffer)` is called as `Buffer::clear(@mutable buffer)`,
 not `buffer.clear()`. The qualification establishes a namespace and semantic
 home, not an implicit receiver. Dot access remains data-field projection; it
 does not select or invoke a machine.
@@ -118,10 +118,10 @@ ordinary call, suspension and completion obligations.
 A by-value argument requires [explicit dereference](#explicit-dereference) to read a referent.
 Temporary storage must outlive every derived borrow and receive cleanup on every cleanup-bearing exit.
 Shared lending may be implicit at a shared-reference parameter under ordinary argument-admission rules.
-Named calls require explicit `@mut` and `@write` expressions for mutable and write-only lending.
+Named calls require explicit `@mutable` and `@write` expressions for mutable and write-only lending.
 Such a loan requires existing writable authority at the selected place;
 [owned-local mutability](ownership.md#owned-local-mutability) requires a
-`mut` binding when that place is the local's owned storage. Passing it to a
+`mutable` binding when that place is the local's owned storage. Passing it to a
 callee does not bypass this requirement. Using an existing reference's
 authorized referent is distinct from modifying the reference carrier.
 The token-specific collection adaptation for [indexing](#indexing-and-ranges)
@@ -466,12 +466,12 @@ For a static index machine such as
 `machine [] at(buffer: @Buffer, index: u64)`, `buffer[index]`
 supplies the collection at operand zero and forms the shared loan required by
 that parameter. An admitted index machine whose collection parameter is
-`@mut Buffer` similarly requires and forms an exclusive collection loan.
+`@mutable Buffer` similarly requires and forms an exclusive collection loan.
 This is the existing token-specific collection adaptation for `[]` and `[..]`,
 independent of receiver identity; it is not method-call sugar. Authors do not
 need `(@buffer)[index]` or a distinct `@[]` operator. Named calls remain ordinary
 static calls: `at(buffer, index)` follows shared argument admission,
-and a mutable collection parameter requires an explicit `@mut buffer` argument.
+and a mutable collection parameter requires an explicit `@mutable buffer` argument.
 This rule introduces neither write-only collection adaptation nor automatic
 borrowing for other operator operands.
 
@@ -496,16 +496,16 @@ remain valid.
 
 For core collections, a bare range `items[start..end]` forms a shared view
 when received as a reference. Creating a mutable subrange requires explicit
-`@mut items[start..end]`. The source must already permit exclusive access;
+`@mutable items[start..end]`. The source must already permit exclusive access;
 the spelling cannot grant mutation through a shared ancestor. This rule,
 `bare-range-reference-access`, applies uniformly to local initializers, call
 arguments, state transfers, returned values and constructed fields. An expected
-`@mut [T]` type never inserts the mutable borrow, including on a local declaration.
+`@mutable [T]` type never inserts the mutable borrow, including on a local declaration.
 
 ```omega
 let shared: @[u8] = view[2..4];
-let writable: @mut [u8] = @mut view[2..4];
-// Rejected: let writable: @mut [u8] = view[2..4];
+let writable: @mutable [u8] = @mutable view[2..4];
+// Rejected: let writable: @mutable [u8] = view[2..4];
 ```
 
 The examples are alternative borrows; simultaneous overlapping loans still
@@ -516,29 +516,29 @@ machine. Collection-parameter adaptation above is distinct from creating a
 mutable result view.
 
 An existing mutable reference may still be forwarded under ordinary argument,
-move and reborrow rules: `process(writable)` need not spell `@mut` again merely
-because the parameter expects `@mut [u8]`. The explicit-new-loan rule does not
+move and reborrow rules: `process(writable)` need not spell `@mutable` again merely
+because the parameter expects `@mutable [u8]`. The explicit-new-loan rule does not
 copy an exclusive reference or extend its lifetime. Bounds and loan obligations
 are unchanged, including for empty ranges.
 
 #### Views of a fixed array
 
 Named decision: `array-borrow-as-view`, ratified 2026-11-14. A reference to a
-fixed array never adapts to a view of its elements. `@bytes` and `@mut bytes`
-of a `[T; N]` have types `@[T; N]` and `@mut [T; N]` at every position, whatever
+fixed array never adapts to a view of its elements. `@bytes` and `@mutable bytes`
+of a `[T; N]` have types `@[T; N]` and `@mutable [T; N]` at every position, whatever
 type the position expects. An element view is formed explicitly, by range
 access or by a named adapter such as `ArrayAccess::as_slice` or `as_mut_slice`.
 
 ```omega
-machine set_first(buffer: @mut [u8], value: u8)
+machine set_first(buffer: @mutable [u8], value: u8)
 requires buffer.length > 0
 {
     buffer[0] = value;
 }
 
-let mut bytes: [u8; 38];
-set_first(@mut bytes[..], 7); // A view of all 38 elements.
-set_first(@mut bytes, 7);     // Rejected: a reference to the array, not a view.
+let mutable bytes: [u8; 38];
+set_first(@mutable bytes[..], 7); // A view of all 38 elements.
+set_first(@mutable bytes, 7);     // Rejected: a reference to the array, not a view.
 ```
 
 A full-array view covers elements `0..N` of the same array, with no copy or

@@ -147,7 +147,7 @@ value version. Facts about a captured earlier value remain true of that
 snapshot, not automatically of the place's current contents. Proved-disjoint
 sibling places retain their facts.
 
-Declaring a binding without `mut` is not proof that every place reachable
+Declaring a binding without `mutable` is not proof that every place reachable
 through it is stable: a reference carrier can be immutable while its referent
 permits writes. Check the exact place, loan authority and value version.
 [Writable-loan admission](../language/ownership.md#owned-local-mutability)

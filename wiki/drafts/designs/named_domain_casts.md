@@ -135,7 +135,7 @@ One pass and fail pair per behavior, within the six-file limit per change:
   child while removing the parent rejects.
 - Operators: a builtin comparison on a qualified operand rejects; the same
   comparison declared by the domain against a plain operand passes.
-- Mutable views: removing a tag and a predicate through `&mut` passes when a
+- Mutable views: removing a tag and a predicate through `&mutable` passes when a
   callee guarantee or a later write re-proves the predicate; an unrepaired
   predicate rejects at the next use; removing a routed domain rejects outside
   its authorized routes.

@@ -85,7 +85,7 @@ warns that it is unreachable.
 ## Values you saved
 
 ```omega
-machine restore(items: @mut [u8]) -> u8
+machine restore(items: @mutable [u8]) -> u8
 requires items.length > 0
 ensures result == 42
 {
@@ -109,7 +109,7 @@ requires health in 0..=100
     health: i32;
 }
 
-machine take_damage(player: @mut Player, damage: i32)
+machine take_damage(player: @mutable Player, damage: i32)
 requires damage >= 0
 requires damage <= player.health
 {

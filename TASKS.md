@@ -144,7 +144,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **QUALIFIED-OPERATOR-HOME.** Finish the [operator authority checks](wiki/spec/language/expressions.md#operator-families) on the [cross-package customer](source-rust/subsystems/compiler/tests/fixtures/operators/run/qualified_operator_home). A qualified operator defined in another module of its owning package must keep that module's lexical scope and visibility. Under a restricted domain access policy, selecting the operator must confer no extra establishment, read or write authority. Exercise the private-operator refusal at the caller's `+`.
 
 - **ARRAY-ELEMENT-VIEWS.** Implement [views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) and migrate the programs that assumed a conversion.
-  - Diagnose an implicit fixed-array borrow used where a slice is required, and point to `&array[..]` or `&mut array[..]`.
+  - Diagnose an implicit fixed-array borrow used where a slice is required, and point to `&array[..]` or `&mutable array[..]`.
   - Full-range formation on a fixed array establishes `view.length == N` for the lowered-form checker.
   - Migrate remaining `Console::read_line` callers that pass a borrowed fixed array and exercise the explicit view through both engines.
 
@@ -307,7 +307,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Close all six [release gates](wiki/drafts/reference/rust_compiler_completion.md#release-matrix) on one revision across `linux_x86_64`, `linux_arm64`, `macos_arm64` and `windows_x86_64`. Keep lock, closure, target and acceptance isolated per root. Exercise the [public CLI](wiki/spec/build/command_line.md).
   - Establish repository, source semantics, Build and packages, native matrix, diagnostics and representative programs independently. Record expected outputs, intended rejection reasons and matching-host native runs. Include saved-Psi consumption after the producer exits. A gate with missing coverage stays open.
-  - Recheck the [two-borrow provider call](https://github.com/CathedralOS/Omega/pull/3733) under `TargetOperationCorrespondence`. The provider writes 41 and 43 to distinct `&mut i64` arguments. Require both results, validator acceptance, and rejection if the provider record is substituted. [Target checker](source-rust/subsystems/compiler/psi-to-native/verification/stage_validators.rs)
+  - Recheck the [two-borrow provider call](https://github.com/CathedralOS/Omega/pull/3733) under `TargetOperationCorrespondence`. The provider writes 41 and 43 to distinct `&mutable i64` arguments. Require both results, validator acceptance, and rejection if the provider record is substituted. [Target checker](source-rust/subsystems/compiler/psi-to-native/verification/stage_validators.rs)
 
 ## Omega-written compiler
 

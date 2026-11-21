@@ -27,7 +27,7 @@ A `Player in Alive` has the same fields and the same bytes as a plain
 ## Domains in contracts
 
 ```omega
-machine respawn(player: @mut Player)
+machine respawn(player: @mutable Player)
 requires player in Player::Dead
 ensures player in Player::Alive
 {
@@ -98,10 +98,10 @@ A cast followed by arithmetic needs parentheses: `(distance as -Km) + 1`.
 A helper that knows nothing about your domains can still work on your value:
 
 ```omega
-machine reset(n: @mut i32) ensures n == 1 { n = 1; }
+machine reset(n: @mutable i32) ensures n == 1 { n = 1; }
 
-let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
-reset(@mut trip as -Km -Positive);
+let mutable trip: i32 in Km & Positive = 5 as +Km +Positive;
+reset(@mutable trip as -Km -Positive);
 // trip is i32 in Km & Positive again
 ```
 
@@ -224,15 +224,15 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect\TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = access\new_plan(
+        let mutable plan: AccessPlan = access\new_plan(
             @schema,
             Issuance::Only { routes: [reflect\callable(create_cell)] }
         );
         access\allow_readers(
-            @mut plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
+            @mutable plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
         );
         access\allow_writers(
-            @mut plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
+            @mutable plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
         );
         plan
     }
@@ -252,7 +252,7 @@ public machine set_cell(cell: @write Cell in Controlled, value: u32) {
 ```
 
 ```omega
-let mut cell: Cell in Controlled = create_cell(0);
+let mutable cell: Cell in Controlled = create_cell(0);
 set_cell(@write cell, 7);
 let seen: u32 = read_cell(@cell);
 

@@ -92,11 +92,11 @@ it from the weaker one is a translation admission, not a derived step.
 
 ## Borrows and multiplicity
 
-Ownership is a type property, not a value shape: `&T`, `&mut T`, and
+Ownership is a type property, not a value shape: `&T`, `&mutable T`, and
 `&write T` are loan forms over the same carrier ([ownership and
 multiplicity](../../spec/language/ownership.md)). In the one-sorted encoding a
 loan is a distinct membership class `Loan_k(x)` indexed by kind `k ∈ {shared,
-mut, write}`, with multiplicity expressed as disjointness axioms: an element
+mutable, write}`, with multiplicity expressed as disjointness axioms: an element
 carrying `Loan_mut` cannot simultaneously carry another `Loan_shared` or
 `Loan_mut` over the same region; shared loans may duplicate, exclusive loans
 may not. Reborrows retain immediate parent lineage — encodeable as a

@@ -108,7 +108,7 @@ requires used <= total
 `old(place)` is the value a place held when the machine was entered:
 
 ```omega
-machine increment(value: @mut u32)
+machine increment(value: @mutable u32)
 requires value < 1000
 ensures value == old(value) + 1
 {

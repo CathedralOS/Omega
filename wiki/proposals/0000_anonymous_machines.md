@@ -82,7 +82,7 @@ omitted result is resultless. Captures are comma-separated binding initializers,
 not implicitly collected free variables. Generic parameters precede captures:
 
 ```omega
-let show = <Value>[output = @mut output](value: @Value)
+let show = <Value>[output = @mutable output](value: @Value)
 where Value == u32 || Value == f32;
 {
     transition {
@@ -124,16 +124,16 @@ They are not ambient runtime captures. A capture-free body gains no global
 runtime authority. Lexical access rights remain those of the authoring scope;
 passing a private getter does not give its caller private field-access rights.
 
-Explicit environment receivers use `&self`, `&mut self`, or owned `self`:
+Explicit environment receivers use `&self`, `&mutable self`, or owned `self`:
 
 ```omega
-let show = [output = @mut output](@mut self, value: @u32) {
+let show = [output = @mutable output](@mutable self, value: @u32) {
     self.output.show_u32(value);
 };
 ```
 
 Here self denotes the environment, not an enclosing machine's receiver.
-Access to an outer receiver requires a capture such as `owner = &mut self`;
+Access to an outer receiver requires a capture such as `owner = &mutable self`;
 its initializer resolves self in the outer scope. Bare capture bindings and
 explicit environment-field access denote the same captured fields. Neither
 route bypasses field access or borrowing checks.
@@ -194,7 +194,7 @@ declare the following fixed-ceiling visitor:
 ```omega
 trait Visitor<Item, Context> {
     machine visit<'context, 'item>(
-        context: @'context mut Context,
+        context: @'context mutable Context,
         item: @'item Item
     )
     terminates;
@@ -221,7 +221,7 @@ requirement. It records the exact satisfaction edge. Association chooses the
 body; it does not prove satisfaction by itself. No ambient conformance search,
 whole-trait evidence, or additional runtime-callable eligibility is created.
 
-An abbreviated call such as `visit_items(items, &mut show)` may recover the
+An abbreviated call such as `visit_items(items, &mutable show)` may recover the
 static Step selection from that checked association when argument and declared
 contract matching determine exactly one application. A named body plus explicit
 context follows the same checking. Conflicting or undetermined selections need

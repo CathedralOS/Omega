@@ -62,9 +62,9 @@ To compare, order or otherwise operate on a `T`, take an implementation of a
 [trait](chapter_14_traits.md) as a parameter:
 
 ```omega
-machine sort<Element, const Order: Ranked<Element>>(values: @mut [Element]) { ... }
+machine sort<Element, const Order: Ranked<Element>>(values: @mutable [Element]) { ... }
 
-sort::<Card, PowerOrder>(@mut cards);
+sort::<Card, PowerOrder>(@mutable cards);
 ```
 
 Inside `sort`, `Order::before(a, b)` calls whatever implementation the caller
@@ -106,16 +106,16 @@ inferred:
 
 ```omega
 public trait ElementStep<T> {
-    machine apply(item: @mut T) terminates;
+    machine apply(item: @mutable T) terminates;
 }
 
-public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mut T)
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mutable T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, const F: machine>(item: @mut T)
+public machine visit_one<T, const F: machine>(item: @mutable T)
 terminates
 {
     apply_one::<T, F>(item);

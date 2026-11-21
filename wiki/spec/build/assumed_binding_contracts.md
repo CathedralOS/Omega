@@ -66,7 +66,7 @@ reaches WritableMemory
     WritableMemory::claim(region)
 }
 
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "memory_editor");
     Build::select_provider::<RangeSupplier, EchoSupplier>(builder);
     Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);

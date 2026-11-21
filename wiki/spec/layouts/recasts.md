@@ -5,7 +5,7 @@ layout and semantic facts establish representation compatibility:
 
 ```omega
 let raw: @GdtRaw = @gdt as @GdtRaw;
-let writable: @mut u32 = @mut float_bits as @mut u32;
+let writable: @mutable u32 = @mutable float_bits as @mutable u32;
 ```
 
 It preserves backing-address identity, access authority, provenance, and lifetime.
@@ -139,7 +139,7 @@ operation enabled through the target view must be authorized by the source
 access and its established evidence. A recast cannot add read, write, or
 concurrent-mutation permission, bypass required atomic observations, or evade
 outstanding ownership, custody, domain, and synchronization obligations. Judge the enabled
-operations, not just whether the reference is spelled `@` or `@mut`.
+operations, not just whether the reference is spelled `@` or `@mutable`.
 
 [Domain-owned access restrictions](../language/domains.md#domain-owned-read-and-write-authority)
 are part of that source authority. Forgetting a domain with an access policy

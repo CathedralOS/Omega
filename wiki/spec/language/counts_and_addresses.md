@@ -143,7 +143,7 @@ let packet_alignment: u64 = align_of(packet);
 ```
 
 For an ordinary addressable place, the query observes that place's storage.
-For `@T` or `@mut T`, it observes the referent, not the reference descriptor.
+For `@T` or `@mutable T`, it observes the referent, not the reference descriptor.
 For a borrowed slice, it observes the first element's location, not the slice
 descriptor; this form requires a nonempty slice. It does not claim that every
 element shares that alignment: element offsets and stride still matter.
