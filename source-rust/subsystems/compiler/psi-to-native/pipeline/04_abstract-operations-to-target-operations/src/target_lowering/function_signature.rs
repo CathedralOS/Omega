@@ -605,8 +605,6 @@ mod native_region_geometry_tests {
         StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
         StructuralTypeShape, TerminalIdentityIndex,
     };
-    use verified_optimization_input::borrowed_storage::AdmittedBorrowedStorage;
-    use verified_optimization_input::borrowed_storage::AdmittedBorrowedStorage;
 
     #[test]
     fn an_opaque_formal_transports_only_its_borrowed_pointer() {
