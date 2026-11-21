@@ -3,7 +3,7 @@
 //! `wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased regions,
 //! separate from runtime generic arity, layout and monomorphization. Erasure
 //! does not remove semantic lifetime relations or loan obligations." So a
-//! region never selects a structural row: `&'a [u8]` and `&'b [u8]` lower to
+//! region never selects a structural row: `@'a [u8]` and `@'b [u8]` lower to
 //! one byte-view row, and `Message<'a>` and `Message<'b>` to one record row.
 //! The region is part of the type the reader compares instead
 //! (`body::Regions`), and this module owns what a region is and the two
@@ -432,7 +432,7 @@ pub(crate) enum Elision {
     /// declares the lifetimes of its views", and says of a named data
     /// application that it must "match the declaration's lifetime arity" and
     /// "use binders declared in the lexical owner". So a field states the
-    /// lifetime of every view it stores (`name: &'buffer [u8]`) and the
+    /// lifetime of every view it stores (`name: @'buffer [u8]`) and the
     /// lifetime arguments of every data it names, directly or behind a
     /// reference (`@'activation mutable Build<'storage>`). An elided one is
     /// refused (`elided_region`, `elided_regions`): it never takes the named

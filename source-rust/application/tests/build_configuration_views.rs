@@ -4,8 +4,8 @@ End-to-end CLI check that a Build may assign a quoted literal to a view field
 of its configuration (`omega --check`).
 
 `builder.identifier = "com.example.settled";` writes a byte view into a field
-declared `&'storage [u8]`. A quoted literal "has ordinary shared byte-view
-type `&[u8]`" (`wiki/spec/language/data_and_literals.md`, "Quoted bytes"), so
+declared `@'storage [u8]`. A quoted literal "has ordinary shared byte-view
+type `@[u8]`" (`wiki/spec/language/data_and_literals.md`, "Quoted bytes"), so
 the literal is built at the field's own declared type. Assigning to any other
 binding of reference type writes through the reference instead, and is not
 this case.

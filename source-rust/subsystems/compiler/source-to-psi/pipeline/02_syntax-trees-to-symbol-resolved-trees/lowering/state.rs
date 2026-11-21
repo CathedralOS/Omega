@@ -876,7 +876,7 @@ pub(crate) fn lower_state_parameter(
 
 /*
     The names of parameters declared as a SHARED reference to a NAMED type
-    (`table: &EfiSystemTable`) -- the shapes whose member reads must deref the
+    (`table: @EfiSystemTable`) -- the shapes whose member reads must deref the
     pointer slot rather than fold flat.
 */
 fn reference_struct_parameter_names(

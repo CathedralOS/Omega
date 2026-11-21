@@ -973,7 +973,7 @@ fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
     }
 }
 
-/// `&entries[..]` of noncopy records forms the same whole-collection
+/// `@entries[..]` of noncopy records forms the same whole-collection
 /// element view a byte array does, so its length is the array's extent:
 /// `require_four` holds for four entries and is refused for three.
 #[test]

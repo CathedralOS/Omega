@@ -136,7 +136,7 @@ fn a_case_pattern_that_misses_or_repeats_a_payload_field_is_rejected() {
     );
 }
 
-/// ownership.md, "Borrows and aliases": `&T` grants "Shared observation
+/// ownership.md, "Borrows and aliases": `@T` grants "Shared observation
 /// under its loan contract", and "Owned local mutability": "A callee cannot
 /// grant writable access that the caller's place lacks." Each failing twin
 /// changes only the access its callee's parameter asks for. (A shared
@@ -266,7 +266,7 @@ fn a_member_that_is_no_field_of_its_record_is_rejected() {
 }
 
 /// data_and_literals.md, "Quoted bytes": "A quoted literal contains bytes,
-/// has ordinary shared byte-view type `&[u8]`". Supplied to a place that
+/// has ordinary shared byte-view type `@[u8]`". Supplied to a place that
 /// holds a scalar it is another type, wherever it is supplied; its twin
 /// supplies a value of the scalar.
 #[test]
@@ -282,12 +282,12 @@ fn a_quoted_literal_supplied_to_a_scalar_place_is_rejected() {
     accepted(&program("true", "7"));
     rejected(
         &program("\"yes\"", "7"),
-        "this quoted literal is a shared view of bytes, `&[u8]`, and the place it is supplied \
+        "this quoted literal is a shared view of bytes, `@[u8]`, and the place it is supplied \
          to holds a `bool`",
     );
     rejected(
         &program("true", "\"seven\""),
-        "this quoted literal is a shared view of bytes, `&[u8]`, and the place it is supplied \
+        "this quoted literal is a shared view of bytes, `@[u8]`, and the place it is supplied \
          to holds a `u32`",
     );
 }

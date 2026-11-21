@@ -55,7 +55,7 @@ machine build_entry(session: @mutable Session<'missing>) { session.ready = true;
     );
 }
 
-/// `Build` itself stores views: `identifier: &'storage [u8]`. The view's
+/// `Build` itself stores views: `identifier: @'storage [u8]`. The view's
 /// lifetime is a binder of the data declaration the field belongs to.
 #[test]
 fn a_field_stores_a_view_for_a_lifetime_its_declaration_binds() {

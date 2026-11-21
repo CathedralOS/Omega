@@ -83,7 +83,7 @@ use syntax_trees::operator_spelling::OperatorSpelling;
     use site, so a boundary row repeating a machine binding rejects here too.
 
     The semantic-home rule stays machine-only: attached `operator` spells like
-    `Slice::index<T>(items: &[T], ...)` attach to a namespace that never joins
+    `Slice::index<T>(items: @[T], ...)` attach to a namespace that never joins
     the operand tuple, and trait-homed operators participate through
     conformance, not operand selection. Whether the operator form keeps that
     looser admission or retires behind the machine rule is an

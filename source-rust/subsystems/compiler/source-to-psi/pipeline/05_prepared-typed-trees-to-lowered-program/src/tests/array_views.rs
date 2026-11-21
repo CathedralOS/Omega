@@ -156,7 +156,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
     }
 }
 
-// `&items[1..3]` over a fixed `[u8; 3]` is the window of the whole-array
+// `@items[1..3]` over a fixed `[u8; 3]` is the window of the whole-array
 // loan: the subslice measures that exact loan and carries its own endpoint
 // obligation, rather than trusting the authored endpoints.
 #[test]

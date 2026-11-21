@@ -3354,7 +3354,7 @@ impl<'a> Analysis<'a> {
                     // claims, and referent cleanup cannot cross that
                     // segment"). What this root owes is its descriptor, live
                     // at the store. The backing is established for as long
-                    // as a reference to it exists (ownership.md: `&write T`
+                    // as a reference to it exists (ownership.md: `@write T`
                     // "requires an existing valid `T`, not vacant construction
                     // storage"), so the store displaces a discardable value
                     // and no region of this root changes.

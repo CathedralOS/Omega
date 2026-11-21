@@ -1,4 +1,4 @@
-//! A byte view in a domain, `reason: &[u8] in Utf8`, stored in a record.
+//! A byte view in a domain, `reason: @[u8] in Utf8`, stored in a record.
 //!
 //! A domain whose one `requires` is a primitive byte predicate of `self`
 //! (`valid_utf8`, `no_nul`, `ascii_only`) is decided by the bytes a view
@@ -554,7 +554,7 @@ machine build_entry() {
 }
 
 /// The field is the view's own byte field with the domain's predicate on
-/// it, and the view row is the one a plain `&[u8]` has.
+/// it, and the view row is the one a plain `@[u8]` has.
 #[test]
 fn the_field_carries_its_predicates_on_its_type() {
     let accepted = match judge_build(&rejection("valid_utf8", "no plan")) {
@@ -791,7 +791,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
     );
 }
 
-/// A formal in a byte domain, `name: &[u8] in Name`, owes the domain's
+/// A formal in a byte domain, `name: @[u8] in Name`, owes the domain's
 /// primitive byte predicate at entry: every caller proves it of the bytes it
 /// passes, and the body may rely on it (byte_views.md: "An ordinary or
 /// boundary shared-byte argument may satisfy its formal's primitive byte

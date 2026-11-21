@@ -196,7 +196,7 @@ impl Program<'_> {
 
     /// A native binding's claim of a requirement with value parameters, such
     /// as `utf8<const Units: u64, const Bytes: u64>`. Such a requirement has
-    /// no one contract to read: an array formal `&[u16; Units]` has a length
+    /// no one contract to read: an array formal `@[u16; Units]` has a length
     /// only once `Units` is a literal. Each closed application stage 04 made
     /// for a call (`utf8<4096, 12288>`) is a boundary with its own literal
     /// contract, and that is what the binding supplies. So the claim reads

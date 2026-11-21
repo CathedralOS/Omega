@@ -8942,8 +8942,8 @@ pub fn applied_type_identity_in_region_scope(
 
 /// `applied_type_identity_in_region_scope` of the carrier an occurrence
 /// stores: the same identity with the domains of each constrained type left
-/// out and everything else, lifetimes included, kept. `&'a [u8] in Utf8` and
-/// `&'a [u8]` store one carrier; a domain qualifies the value and is no part
+/// out and everything else, lifetimes included, kept. `@'a [u8] in Utf8` and
+/// `@'a [u8]` store one carrier; a domain qualifies the value and is no part
 /// of its storage type (domains.md, "Carrier-exact membership").
 pub fn applied_carrier_identity_in_region_scope(
     program: &TypedTrees,

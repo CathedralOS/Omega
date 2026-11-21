@@ -3271,7 +3271,7 @@ impl<'t> Program<'t> {
             return unserved("default or native-callback requirement");
         }
         // A rigid reading keeps each `const` binder as this machine's input,
-        // so a formal sized by one (`items: &[u8; Count]`) names that input.
+        // so a formal sized by one (`items: @[u8; Count]`) names that input.
         let inputs = if rigid.is_empty() {
             Vec::new()
         } else {
@@ -3856,7 +3856,7 @@ impl<'t> Program<'t> {
     /// A slice formal carries its borrowed descriptor. A loan of a stored
     /// value uses the referent's carrier. The executable signature and calling
     /// ABI use this same choice when they read the formal's type. A slice in
-    /// a domain (`&[u8] in Path`) is still a slice: the domain is displayed
+    /// a domain (`@[u8] in Path`) is still a slice: the domain is displayed
     /// on the referent, and a reference's domains are its referent's
     /// (`source_byte_view`).
     pub(super) fn borrowed_formal_carrier(
@@ -3905,7 +3905,7 @@ impl<'t> Program<'t> {
     /// plain record `T`. Stage 01 marks `x: @mutable T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mutable`
     /// binding. The outer reference lifetime is retained separately from
-    /// the referent's regions. A `&write T` formal remains unsupported.
+    /// the referent's regions. A `@write T` formal remains unsupported.
     ///
     /// A `mutable` formal that holds its own value is read like any other: the
     /// binding mode says only that the body may assign and store into its

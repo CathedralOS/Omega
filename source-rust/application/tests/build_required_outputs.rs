@@ -7,7 +7,7 @@ End-to-end CLI check that a Build may lend the host a value the host issued
 output file the Build has promised to write. The Build host knows that marker
 only by the identity it gave out. The Build keeps the marker in a local of
 its own and later passes it back, sometimes by value (`BuildOutput::fail`)
-and sometimes on loan: `RequiredOutput::path(&obligation)` asks where the
+and sometimes on loan: `RequiredOutput::path(@obligation)` asks where the
 promised file goes, and `BuildOutput::complete` lends the marker to the host's
 readiness check before it gives it up.
 

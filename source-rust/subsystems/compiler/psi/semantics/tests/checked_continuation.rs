@@ -966,7 +966,7 @@ mod case_projections {
             for (id, name, shape) in [
                 (
                     reference,
-                    "&First",
+                    "@First",
                     StructuralTypeShape::Reference {
                         referent: owner,
                         access,

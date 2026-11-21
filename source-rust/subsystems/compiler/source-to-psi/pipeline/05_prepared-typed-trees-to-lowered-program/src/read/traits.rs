@@ -22,7 +22,7 @@ impl<'program> Program<'program> {
     /// Whether `signature` is a template requirement: one with binders of its
     /// own that a trait's schema cannot state. These are its own lifetime
     /// parameters (`open<'scope>`), which each call instantiates, and a fixed
-    /// array sized by one of its own `const` binders (`&[u8; Count]`), which
+    /// array sized by one of its own `const` binders (`@[u8; Count]`), which
     /// has an extent only in a closed application. Its own check form reads
     /// both as a bodyless machine.
     pub(super) fn checked_as_template(&self, signature: &StateSignature) -> bool {

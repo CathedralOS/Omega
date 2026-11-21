@@ -125,7 +125,7 @@ pub(super) fn field(base: Expression, field: usize) -> Expression {
     )
 }
 
-/// `&place` or `@mutable place`; `home` when the place is an SSA scalar local.
+/// `@place` or `@mutable place`; `home` when the place is an SSA scalar local.
 pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Expression {
     let result = place.result.unwrap();
     of(
@@ -554,7 +554,7 @@ fn an_exclusive_loan_changes_only_the_lent_field() {
 
 #[test]
 fn a_borrowed_formal_passed_on_reborrows_its_incoming_loan() {
-    // `forward(v: @mutable u32) { set(v) }` and `peek(v: &u32) { set(v) }`.
+    // `forward(v: @mutable u32) { set(v) }` and `peek(v: @u32) { set(v) }`.
     let forward = |access: ReferenceAccess| Lending {
         borrowed: vec![(0, access)],
         ..unit(
@@ -1239,7 +1239,7 @@ fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
     );
 }
 
-/// `cell = Cell { .. }` replaces the record a live `&cell` observes, so the
+/// `cell = Cell { .. }` replaces the record a live `@cell` observes, so the
 /// checker must see that write. The positive twin uses the reference before
 /// the assignment and also reassigns a local, a declared local and an owned
 /// parameter after a whole move, a `[copy]` record, and a record whose
@@ -1484,7 +1484,7 @@ machine pair_left(left: u32) {{ }}"
     );
 }
 
-/// `@mutable item` written for a `&Item` formal is an exclusive formation that
+/// `@mutable item` written for a `@Item` formal is an exclusive formation that
 /// lends shared access (loans.md, "Reborrow lineage and access"). `cohort`
 /// places the shared reference `view`'s uses around that call.
 fn exclusive_formation_beside(cohort: &str) -> String {

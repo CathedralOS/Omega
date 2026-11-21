@@ -479,7 +479,7 @@ impl Program<'_> {
     /// itself only observed: the shared loan of its holder is the parent of
     /// what is asked through it, and a `Read` parent rejects a mutable and a
     /// write-only child (loans.md, "Reborrow lineage and access"). So an
-    /// exclusive reference inside a record held `&Carrier` grants no write.
+    /// exclusive reference inside a record held `@Carrier` grants no write.
     pub(super) fn reference_place_access(
         &self,
         machine: MachineId,

@@ -71,7 +71,7 @@ machine build_entry(cell: @mutable Cell) {{
 }
 
 /// The twin: the stored reference is shared, so nothing is stored through
-/// it. ownership.md, "Borrows and aliases": `&T` grants "Shared observation
+/// it. ownership.md, "Borrows and aliases": `@T` grants "Shared observation
 /// under its loan contract."
 #[test]
 fn nothing_is_stored_through_a_stored_shared_reference() {

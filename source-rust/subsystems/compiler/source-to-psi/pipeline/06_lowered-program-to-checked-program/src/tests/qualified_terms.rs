@@ -898,7 +898,7 @@ ensures result != 0
 }
 
 /// A field that is a shared reference carries the domain of what it lends:
-/// `buffer: &'s [u16; 4] in Terminated` owes `self.buffer[3] == 0`, a fact
+/// `buffer: @'s [u16; 4] in Terminated` owes `self.buffer[3] == 0`, a fact
 /// about the referent, read through one `Referent` step. A shared referent
 /// cannot change while it is lent, so the fact holds while the record does.
 #[test]
@@ -930,7 +930,7 @@ ensures result == 0
 }
 
 /// Building such a record establishes the domain on the lent array:
-/// `&text as +Terminated` lends `text` and owes `text[3] == 0` on the edge
+/// `@text as +Terminated` lends `text` and owes `text[3] == 0` on the edge
 /// into the block the cast continues in (domains.md, "Domain-only casts":
 /// "Has predicates | Prove them for this value."). The array's last element
 /// decides it: 0 proves it, 5 leaves the establishment unproved.

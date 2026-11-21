@@ -1,7 +1,7 @@
 //! One lifetime given the loans of two places. Read from source and run in
 //! the Psi interpreter: the products of `samples/cli/facts/
 //! build_activation_borrow` choose between two cells their caller lent
-//! separately, `selected<'storage>(left: @'storage mutable Cell, right: &'storage
+//! separately, `selected<'storage>(left: @'storage mutable Cell, right: @'storage
 //! mutable Cell, first)`.
 //!
 //! A loan is formed where the program forms it and lives within the storage

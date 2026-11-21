@@ -3312,7 +3312,7 @@ impl<'t> Program<'t> {
         ))
     }
 
-    /// The argument for a borrowed formal: `&place` or `@mutable place`, or a
+    /// The argument for a borrowed formal: `@place` or `@mutable place`, or a
     /// borrowed formal of this machine named whole, which lends its
     /// referent on (a reborrow). The place is a slot or a field path
     /// beneath one. ownership.md, "Owned local mutability": "modifying an
@@ -3332,7 +3332,7 @@ impl<'t> Program<'t> {
     }
 
     /// `lent`, where an explicit borrow `argument` lends `beneath` in place
-    /// of its own target: `&(text as +D)` lends `text`, and the caller
+    /// of its own target: `@(text as +D)` lends `text`, and the caller
     /// qualifies the reference it forms (`borrow_value`).
     pub(super) fn lent_from(
         &mut self,
@@ -3454,11 +3454,11 @@ impl<'t> Program<'t> {
                  readable access: a callee cannot read through a write-only loan",
             ));
         }
-        // ownership.md, "Borrows and aliases": `&T` grants "Shared
+        // ownership.md, "Borrows and aliases": `@T` grants "Shared
         // observation under its loan contract", and "A callee cannot grant
         // writable access that the caller's place lacks." So an argument
         // that lends observation only is wrong for a formal that writes, in
-        // every program: an explicit `&place`, or a value that is itself a
+        // every program: an explicit `@place`, or a value that is itself a
         // shared reference or a shared view.
         if formal.access != ReferenceAccess::Shared
             && if explicit {
@@ -4469,9 +4469,9 @@ mod tests {
         );
         // `f(fs, @mutable fs.buffer)`: the whole root contains the loan.
         assert!(check(&[root(), mutable()], true).is_err());
-        // `f(fs.buffer.length, &fs.buffer)`: reading beside a shared loan.
+        // `f(fs.buffer.length, @fs.buffer)`: reading beside a shared loan.
         assert!(check(&[inner, shared()], false).is_ok());
-        // `f(fs, &fs.buffer)`: a shared reference passed whole only reads;
+        // `f(fs, @fs.buffer)`: a shared reference passed whole only reads;
         // an owned record passed whole moves the lent storage.
         assert!(check(&[root(), shared()], true).is_ok());
         assert!(check(&[root(), shared()], false).is_err());

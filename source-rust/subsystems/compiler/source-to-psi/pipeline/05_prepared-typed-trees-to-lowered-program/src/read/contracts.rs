@@ -941,7 +941,7 @@ impl Program<'_> {
     /// argument names (byte_views.md: "An ordinary or boundary shared-byte
     /// argument may satisfy its formal's primitive byte domains from these
     /// reconstructed predicates"). A domain `[u8]::Path requires
-    /// no_nul(self)` on a formal `path: &[u8] in Path` is then an entry
+    /// no_nul(self)` on a formal `path: @[u8] in Path` is then an entry
     /// requirement over that formal's bytes, which every caller proves under
     /// the exact argument substitution. An argument that names no byte
     /// view's storage is refused.
@@ -2414,7 +2414,7 @@ impl Program<'_> {
     }
 
     /// A clause names storage beneath a stored shared reference, such as
-    /// `self.buffer[4095]` for `buffer: &'s [u16; 4096]`, as the referent the
+    /// `self.buffer[4095]` for `buffer: @'s [u16; 4096]`, as the referent the
     /// reference lends: one `Referent` step, then the referent's own fields
     /// or elements. A shared referent cannot change while it is lent, so a
     /// fact about it holds for as long as the reference does. Storage behind

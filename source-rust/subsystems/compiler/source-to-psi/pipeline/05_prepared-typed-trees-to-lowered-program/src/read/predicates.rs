@@ -33,7 +33,7 @@ owes them on normal handback.
 
 A cast that adds such a domain states the predicates of the value it casts.
 Of a scalar they are clauses over one value (`cast_predicates`). Of an
-array, a record or a shared reference (`&text as +Terminated`) they are
+array, a record or a shared reference (`@text as +Terminated`) they are
 clauses over one structural subject (`record_cast_predicates`), a reference's
 read through its `Referent` step. Lowering makes either the invariant of the
 block the cast continues in, so the edge into it owes them. A case payload,

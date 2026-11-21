@@ -3,7 +3,7 @@
 End-to-end CLI check that a Build can ask for a Product declaration by path
 (`omega --check`).
 
-`BuildProduct::entry(&builder.product, "support::setup::launch", slot)` asks
+`BuildProduct::entry(@builder.product, "support::setup::launch", slot)` asks
 which machine a path names and hands back a description a root binding can
 use (`wiki/spec/build/scoped_execution.md`, "Selecting product declarations
 without executing them"). The path is read in the package of the Build

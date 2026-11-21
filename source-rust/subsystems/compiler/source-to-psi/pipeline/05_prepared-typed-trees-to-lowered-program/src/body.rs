@@ -46,7 +46,7 @@ pub use terminal_check_tables::contracts::{Ceiling, CrashCeiling};
 /// monomorphization. Erasure does not remove semantic lifetime relations or
 /// loan obligations." So the regions are part of the type every typing rule
 /// compares, and nothing that stores or lowers a value reads them: a
-/// `&'a [u8]` and a `&'b [u8]` are one structural row on the lowered form
+/// `@'a [u8]` and a `@'b [u8]` are one structural row on the lowered form
 /// and two types here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -1277,7 +1277,7 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
         left: Box<Expression>,
         right: Box<Expression>,
     },
-    /// `&place` or `@mutable place` as the argument for a borrowed formal, the
+    /// `@place` or `@mutable place` as the argument for a borrowed formal, the
     /// one position the reader serves it in: the place a slot, or a member
     /// path beneath one, names, lent to the call for the call's duration.
     /// `result` is the referent's type. A borrowed formal named whole as the

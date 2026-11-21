@@ -6,7 +6,7 @@
 //! target elements exactly tile each source element, and the shared result
 //! has `source_length * source_stride / target_stride` elements. A separate
 //! obligation proves that count fits `u64`, and the region supplies no
-//! mutable access. So a program may read an `&[i32]` as its bytes, learns
+//! mutable access. So a program may read an `@[i32]` as its bytes, learns
 //! the byte view's exact length, and still owes the count bound; a target
 //! that does not tile the source, a padded element, and a mutable re-view
 //! are refused.

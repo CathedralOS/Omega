@@ -432,7 +432,7 @@ fn a_later_argument_cannot_retarget_a_borrowed_slice_element() {
 #[test]
 fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
     // expressions.md, "Borrowed range access": a bare range forms a shared
-    // view when a call receives it as a reference, exactly as `&items[..]`.
+    // view when a call receives it as a reference, exactly as `@items[..]`.
     let source = r#"
         data Cell { value: u32; }
         machine first(items: @[Cell]) -> u32 {

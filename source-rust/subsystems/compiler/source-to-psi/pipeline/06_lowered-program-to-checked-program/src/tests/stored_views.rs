@@ -3,7 +3,7 @@
 //! `StructuralByteViewFieldStore` replaces "the descriptor of one shared
 //! borrowed-view field", and "Zero-initialized storage holds the empty shared
 //! view, which borrows nothing". Read from source, as a Build program: the
-//! toolchain's `Build` stores `identifier: &'storage [u8]`.
+//! toolchain's `Build` stores `identifier: @'storage [u8]`.
 
 use super::build_purpose::judge_build;
 use super::*;
