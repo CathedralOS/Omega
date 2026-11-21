@@ -1,4 +1,4 @@
-use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
+use verified_optimization_input::TerminalNativeRealizationProposal;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::{
@@ -18,7 +18,6 @@ pub(crate) struct NativeCompileRequest<'request> {
     pub private_entry_ram: &'request [psi_entry_memory::PrivateEntryRamInitialization],
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
-    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
@@ -26,44 +25,31 @@ pub(crate) struct NativeCompileRequest<'request> {
     pub scalar_receipts: &'request mut Vec<native_scalar_inputs::EvaluationReceipt>,
 }
 
-impl NativeCompileRequest<'_> {
-    pub(crate) fn prepare_terminal<'input>(
-        &mut self,
-        retained: &'input RetainedTerminalArtifact,
-    ) -> Result<
-        (
-            &'input std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-            &'input TerminalNativeRealizationProposal,
-        ),
-        Vec<Diagnostic>,
-    > {
-        let proposal = retained.native_realization_proposal().ok_or_else(|| {
+pub(crate) fn image_request(
+    proposal: &TerminalNativeRealizationProposal,
+) -> Result<ExecutableImageEmissionRequest, Vec<Diagnostic>> {
+    let application = proposal.application();
+    let mut image = ExecutableImageEmissionRequest::direct(application.subsystem);
+    image
+        .settle_application_metadata(
+            proposal.native_target(),
+            application.intent,
+            application.subsystem,
+            application.identifier.as_ref(),
+        )
+        .map_err(|error| {
+            use target::ImageApplicationMetadataError;
             diagnostics::error_in_context(
-                "retained Terminal product",
-                "native compilation requires one native proposal",
+                "Terminal native proposal",
+                match error {
+                    ImageApplicationMetadataError::SubsystemMismatch =>
+                        "image request subsystem differs from the retained build subsystem",
+                    ImageApplicationMetadataError::IdentifierMismatch =>
+                        "image request code signature identifier differs from the retained build identifier",
+                    ImageApplicationMetadataError::MissingGuiIdentifier =>
+                        "signed macOS GUI image emission requires the retained build identifier",
+                },
             )
         })?;
-        self.image_request
-            .settle_application_metadata(
-                proposal.native_target(),
-                proposal.application().intent,
-                proposal.application().subsystem,
-                proposal.application().identifier.as_ref(),
-            )
-            .map_err(|error| {
-                use target::ImageApplicationMetadataError;
-                diagnostics::error_in_context(
-                    "Terminal native proposal",
-                    match error {
-                        ImageApplicationMetadataError::SubsystemMismatch =>
-                            "image request subsystem differs from the retained build subsystem",
-                        ImageApplicationMetadataError::IdentifierMismatch =>
-                            "image request code signature identifier differs from the retained build identifier",
-                        ImageApplicationMetadataError::MissingGuiIdentifier =>
-                            "signed macOS GUI image emission requires the retained build identifier",
-                    },
-                )
-            })?;
-        Ok((retained.shared_artifact(), proposal))
-    }
+    Ok(image)
 }

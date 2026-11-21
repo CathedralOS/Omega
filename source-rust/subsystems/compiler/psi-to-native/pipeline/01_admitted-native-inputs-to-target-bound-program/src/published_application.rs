@@ -1,6 +1,5 @@
 //! Prepare native execution from the host-admitted publication and its selected providers.
 use provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions;
-use verified_optimization_input::native_proposal::project_terminal_native_realization_proposal;
 use verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement;
 use verified_optimization_input::{
     NativeProgramEntrySettlement, RetainedTerminalArtifact, TerminalNativeProposalRequest,
@@ -160,6 +159,8 @@ fn prepare_published_application<Publisher>(
         native_bindings: &[],
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
         target_profile: profile,
+        target_provider: provider_proposal,
+        bind_physical_adapter: entry.physical_adapter().is_some(),
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: realization.plans(),
             selected_provider_provenance: provenance,
@@ -172,8 +173,7 @@ fn prepare_published_application<Publisher>(
                 &plans.physical_calling_application,
                 &plans.storage_entry,
             )),
-        )
-        .with_checked_entry(&receipt),
+        ),
         application: inputs.application,
         optimizations: inputs.optimizations.project_post_terminal(),
         external_bindings: realization.external_bindings(),
@@ -194,21 +194,7 @@ fn prepare_published_application<Publisher>(
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
-    let mut proposal = project_terminal_native_realization_proposal(
-        authorized.shared_artifact(),
-        receipt.clone(),
-        native,
-    )?;
-    if entry.physical_adapter().is_some() {
-        proposal
-            .bind_physical_adapter(authorized.artifact())
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-    }
-    let terminal = RetainedTerminalArtifact::new_with_native_realization_proposal(
-        authorized,
-        proposal.with_target_provider_proposals(vec![provider_proposal]),
-    )
-    .with_evidence(artifact.published_evidence().cloned())?;
+    let terminal = RetainedTerminalArtifact::project(authorized, &receipt, native)?;
     Ok((terminal, permissions))
 }
 

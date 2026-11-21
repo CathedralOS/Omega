@@ -1,7 +1,6 @@
 //! Compile a retained Terminal program to a native image, or return the
 //! provisions needed to run it in Psi. Both routes start with the completed
-//! scalar applications and admitted providers. A failure returns the image
-//! request with its original diagnostics.
+//! scalar applications and admitted providers.
 
 pub(crate) mod compile_body;
 pub(crate) mod image;
@@ -19,7 +18,6 @@ use artifact_lowering::{
 use diagnostics::Diagnostic;
 use native_artifact::FinishedNativeImage;
 use published_object_verification::NativeStageReplay;
-use target::ExecutableImageEmissionRequest;
 use verified_optimization_input::RetainedTerminalArtifact;
 use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{
@@ -30,10 +28,7 @@ use verified_optimization_input::{
 pub(crate) fn compile(
     retained: &RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
-) -> Result<
-    (FinishedNativeImage, NativeStageReplay),
-    (ExecutableImageEmissionRequest, Vec<Diagnostic>),
-> {
+) -> Result<(FinishedNativeImage, NativeStageReplay), Vec<Diagnostic>> {
     let prepared = inputs::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::Image)? {
         Produced::Image(image, replay) => Ok((image, replay)),
@@ -44,15 +39,11 @@ pub(crate) fn compile(
 pub(crate) fn admit_runtime(
     retained: RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
-) -> Result<
-    native_artifact::AdmittedRuntimeProgram,
-    (ExecutableImageEmissionRequest, Vec<Diagnostic>),
-> {
+) -> Result<native_artifact::AdmittedRuntimeProgram, Vec<Diagnostic>> {
     let prepared = inputs::prepare(&retained, request)?;
-    let recovery = prepared.recovery.clone();
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
         Produced::Runtime(plan) => native_artifact::AdmittedRuntimeProgram::finish(retained, plan)
-            .map_err(|reason| (recovery, vec![Diagnostic::error(reason)])),
+            .map_err(|reason| vec![Diagnostic::error(reason)]),
         Produced::Image(..) => unreachable!("runtime admission emitted an image"),
     }
 }
@@ -71,86 +62,76 @@ enum Produced {
 fn produce(
     prepared: PreparedNativeCompilation<'_>,
     stop: NativeProductionStop,
-) -> Result<Produced, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
+) -> Result<Produced, Vec<Diagnostic>> {
     let PreparedNativeCompilation {
         retained,
         request,
-        recovery: recoverable_image_request,
         execution,
         private_entry_ram,
         scalars,
     } = prepared;
-    let result = (|| {
-        let artifact = retained.shared_artifact();
-        let proposal = retained.native_realization_proposal().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "prepared native work lost its original proposal",
-            )]
-        })?;
-        let observation = NativePipelineObservation::new(
-            proposal.target_profile(),
-            NativePipelineUnit::Application,
-        );
-        let input = {
-            observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
-            artifact_lowering::lower_native_execution(
-                proposal,
-                &execution,
-                &private_entry_ram,
-                scalars.as_ref().map(|completed| artifact_lowering::NativeScalarApplications { completed }),
-            )
-        }?;
-        let prepared = {
-            artifact_lowering::prepare_native_providers(
-                proposal,
-                RetainedNativeProviderInputs {
-                    execution: &execution,
-                    optimization_selections: request.optimization_selections,
-                    accepted_package_permissions: &request
-                        .accepted_package_terminal_authority_permission_policy,
-                },
-            )
-        }?;
-        let native_settlements = prepared.program_settlements();
-        let admission = prepared.admission_request(
-            &native_settlements,
-            &request.terminal_authority_policy,
-            &request.terminal_authority_permission_policy,
-            request.installation_assumptions,
-        );
-        let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
-        if stop == NativeProductionStop::RuntimeAdmission {
-            let provisions = runtime::prepare_terminal_runtime(
-                realization,
-                admission.providers.target(),
-                request.optimization_selections,
-                &observation,
-            )?;
-            observation.complete();
-            return Ok(Produced::Runtime(provisions));
-        }
-        let planning = image::plan_callables::NativeProgramPlanningRequest {
-            proposal,
+    let artifact = retained.shared_artifact();
+    let proposal = retained.native_realization_proposal();
+    let optimizations = proposal.post_terminal_optimizations().selections();
+    let observation = NativePipelineObservation::new(
+        proposal.target_profile(),
+        NativePipelineUnit::Application,
+    );
+    observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
+    let input = artifact_lowering::lower_native_execution(
+        proposal,
+        &execution,
+        &private_entry_ram,
+        scalars
+            .as_ref()
+            .map(|completed| artifact_lowering::NativeScalarApplications { completed }),
+    )?;
+    let prepared = artifact_lowering::prepare_native_providers(
+        proposal,
+        RetainedNativeProviderInputs {
             execution: &execution,
-            scalar_applications: scalars.as_ref(),
-            admission: &admission,
-            optimization_selections: request.optimization_selections,
-            budget: request::native_optimization_budget(),
-            retain_native_stage_inputs: request.retain_native_stage_inputs,
-        };
-        let (image, stage_replay) = image::prepare_program_image(
-            std::sync::Arc::clone(artifact),
+            optimization_selections: optimizations,
+            accepted_package_permissions: &request.accepted_package_terminal_authority_permission_policy,
+        },
+    )?;
+    let native_settlements = prepared.program_settlements();
+    let admission = prepared.admission_request(
+        &native_settlements,
+        &request.terminal_authority_policy,
+        &request.terminal_authority_permission_policy,
+        request.installation_assumptions,
+    );
+    let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
+    if stop == NativeProductionStop::RuntimeAdmission {
+        let provisions = runtime::prepare_terminal_runtime(
             realization,
-            &planning,
-            request.image_request,
+            admission.providers.target(),
+            optimizations,
             &observation,
         )?;
-        observation.enter(NativePipelineStage::ImageEmission);
-        let image = image.emit()?;
         observation.complete();
-        Ok(Produced::Image(image, stage_replay))
-    })();
-    result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
+        return Ok(Produced::Runtime(provisions));
+    }
+    let planning = image::plan_callables::NativeProgramPlanningRequest {
+        proposal,
+        execution: &execution,
+        scalar_applications: scalars.as_ref(),
+        admission: &admission,
+        optimization_selections: optimizations,
+        budget: request::native_optimization_budget(),
+        retain_native_stage_inputs: request.retain_native_stage_inputs,
+    };
+    let (image, stage_replay) = image::prepare_program_image(
+        std::sync::Arc::clone(artifact),
+        realization,
+        &planning,
+        request.image_request,
+        &observation,
+    )?;
+    observation.enter(NativePipelineStage::ImageEmission);
+    let image = image.emit()?;
+    observation.complete();
+    Ok(Produced::Image(image, stage_replay))
 }
 
 pub(crate) struct AdmittedRealization<'request> {

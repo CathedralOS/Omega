@@ -397,7 +397,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         .unwrap();
     let reopened = CanonicalTerminalArtifact::from_bytes(&original.artifact().to_bytes()).unwrap();
     let view = reopened.view();
-    let proposal = original.native_realization_proposal().unwrap();
+    let proposal = original.native_realization_proposal();
     let execution = provider_realization::native_execution::prepare_program(
         proposal,
         original.authorization(),
@@ -481,7 +481,6 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         .unwrap();
     let other_plans = other
         .native_realization_proposal()
-        .unwrap()
         .providers()
         .selection
         .plans();

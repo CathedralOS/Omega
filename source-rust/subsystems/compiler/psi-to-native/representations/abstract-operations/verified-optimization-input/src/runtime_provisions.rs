@@ -583,9 +583,7 @@ impl<A> NativeRuntimePlan<A> {
 
     /// A physical adapter can have a different machine ID from the semantic entry.
     pub fn matches_retained_program(&self, program: &crate::RetainedTerminalArtifact) -> bool {
-        let Some(proposal) = program.native_realization_proposal() else {
-            return false;
-        };
+        let proposal = program.native_realization_proposal();
         let entry = proposal.program_entry();
         let checked = entry.checked_entry();
         let physical = entry
