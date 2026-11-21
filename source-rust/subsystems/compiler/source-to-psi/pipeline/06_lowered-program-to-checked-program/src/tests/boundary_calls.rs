@@ -1117,7 +1117,7 @@ invokes ObjectiveC
 }
 "#;
     let check = |text: &str| {
-        let prepared = crate::preparation::prepare_typed_trees(typed(text), &[]).unwrap();
+        let prepared = crate::preparation::prepare_typed_trees(typed(text), &[], &[]).unwrap();
         let typed = prepared.trees();
         judge(crate::lowering::elaborate_generic(typed, entry(typed))).unwrap()
     };
