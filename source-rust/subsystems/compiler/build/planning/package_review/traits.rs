@@ -313,7 +313,11 @@ impl PolicySource<'_> {
                     canonical: canonical.clone(),
                 }),
             contracts,
-            published_crash: (!metadata.crash_is_open).then(Vec::new),
+            published_crash: metadata
+                .published_crash_routes
+                .as_deref()
+                .map(super::callables::published_crash_routes)
+                .transpose()?,
             service_reach,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             synchronous_invocations: {
