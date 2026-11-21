@@ -248,55 +248,64 @@ impl GroundRange<'_, '_> {
                 value,
                 at,
                 positive,
-            } => {
-                // A joined Boolean must have come along one of its incoming
-                // edges. Keep each incoming value paired with the conditions
-                // on the path that supplied it. Losing an alternative would
-                // allow a reachable call to escape its prerequisite.
-                let (owner, _) = self.index.block_parameter(value)?;
-                let arrivals = self.index.incoming_values(value)?;
-                if arrivals.is_empty() || !self.tree()?.dominates(owner, at.0) {
-                    return None;
-                }
-                let mut alternatives = Vec::new();
-                for (source, argument) in arrivals {
-                    let cut = (source.id, source.operations.len());
-                    let mut terms =
-                        vec![self.predicate(argument, cut, positive, branches, depth + 1)?];
-                    if let Terminator::Conditional {
-                        condition,
-                        when_true,
-                        when_false,
-                    } = &source.terminator
-                        && when_true.target != when_false.target
-                        && let Some(selected) = self.predicate(
-                            *condition,
-                            cut,
-                            when_true.target == owner,
-                            branches,
-                            depth + 1,
-                        )
-                    {
-                        terms.push(selected);
-                    }
-                    for branch in branches {
-                        if self.tree()?.dominates(branch.entered, source.id)
-                            && let Some(selected) = self.predicate(
-                                branch.condition,
-                                branch.at,
-                                branch.when_true,
-                                branches,
-                                depth + 1,
-                            )
-                        {
-                            terms.push(selected);
-                        }
-                    }
-                    alternatives.push(Proposition::Conjunction(terms));
-                }
-                Some(Proposition::Disjunction(alternatives))
-            }
+            } => self.incoming_predicate(value, at, positive, branches, depth),
         }
+    }
+
+    fn incoming_predicate(
+        &mut self,
+        value: ValueId,
+        at: Point,
+        positive: bool,
+        branches: &[Branch],
+        depth: usize,
+    ) -> Option<Proposition> {
+        // A joined Boolean must have come along one of its incoming
+        // edges. Keep each incoming value paired with the conditions
+        // on the path that supplied it. Losing an alternative would
+        // allow a reachable call to escape its prerequisite.
+        let (owner, ordinal) = self.index.block_parameter(value)?;
+        let arrivals = self.index.incoming_values(value)?;
+        if arrivals.is_empty() || !self.tree()?.dominates(owner, at.0) {
+            return None;
+        }
+        let mut alternatives = Vec::new();
+        for (source, argument) in arrivals {
+            let cut = (source.id, source.operations.len());
+            let mut terms = vec![self.predicate(argument, cut, positive, branches, depth + 1)?];
+            if let Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } = &source.terminator
+            {
+                let carries = |edge: &terminal_psi::SuccessorEdge| {
+                    edge.target == owner && edge.arguments.get(ordinal) == Some(&argument)
+                };
+                let when = carries(when_true);
+                if when != carries(when_false)
+                    && let Some(selected) =
+                        self.predicate(*condition, cut, when, branches, depth + 1)
+                {
+                    terms.push(selected);
+                }
+            }
+            for branch in branches {
+                if self.tree()?.dominates(branch.entered, source.id)
+                    && let Some(selected) = self.predicate(
+                        branch.condition,
+                        branch.at,
+                        branch.when_true,
+                        branches,
+                        depth + 1,
+                    )
+                {
+                    terms.push(selected);
+                }
+            }
+            alternatives.push(Proposition::Conjunction(terms));
+        }
+        Some(Proposition::Disjunction(alternatives))
     }
 
     fn exact_operand(&mut self, id: ValueId, cut: Point) -> Option<ScalarTerm> {

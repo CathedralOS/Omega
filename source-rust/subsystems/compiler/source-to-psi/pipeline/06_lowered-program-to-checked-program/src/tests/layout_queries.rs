@@ -248,13 +248,13 @@ machine main() {
             .flat_map(|machine| terminal_semantics::layout_call_conditions(module, machine).unwrap())
             .map(|(_, condition)| condition)
             .collect::<Vec<_>>();
-        assert!(!conditions.is_empty(), "a target prerequisite must remain");
+        assert_eq!(conditions.len(), 1, "the called machine has one target prerequisite");
         for (size, permitted) in [4, 8, 16, 32].into_iter().zip(permitted) {
-            let checked = conditions.iter().all(|condition| condition.evaluate(&mut |value| {
+            let checked = conditions[0].evaluate(&mut |value| {
                 matches!(value, ScalarRangeObservation::Application(_))
                     .then(|| ScalarValue::Integer(bignum::BigInt::from_u64(size)))
-            }) == Some(ScalarValue::Boolean(true)));
-            assert_eq!(checked, permitted, "{guard} at size {size}");
+            });
+            assert_eq!(checked, Some(ScalarValue::Boolean(permitted)), "{guard} at size {size}");
         }
     }
 }
