@@ -583,14 +583,14 @@ pub(crate) mod alias_uses {
                 .iter()
                 .find(|alias| alias.symbol == application.declaration)
                 .ok_or_else(|| {
-                    crate::unavailable_judgment("selected type alias declaration")
+                    crate::typing::unavailable_judgment("selected type alias declaration")
                         .with_source_span(site)
                 })?;
             let formals = program
                 .data_type_parameters
                 .span(alias.type_parameters)
                 .ok_or_else(|| {
-                    crate::unavailable_judgment("declared type alias parameters").with_source_span(site)
+                    crate::typing::unavailable_judgment("declared type alias parameters").with_source_span(site)
                 })?;
             let actuals = program
                 .type_reference_table
@@ -628,8 +628,8 @@ pub(crate) mod alias_uses {
                 type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
                     match stop {
                         Stop::Rejected(reason) => Diagnostic::error(reason),
-                        Stop::Unserved(reason) => crate::unavailable_judgment(&reason),
-                        Stop::Defect(reason) => crate::unavailable_judgment(reason),
+                        Stop::Unserved(reason) => crate::typing::unavailable_judgment(&reason),
+                        Stop::Defect(reason) => crate::typing::unavailable_judgment(reason),
                     }
                     .with_source_span(site)
                 })?;

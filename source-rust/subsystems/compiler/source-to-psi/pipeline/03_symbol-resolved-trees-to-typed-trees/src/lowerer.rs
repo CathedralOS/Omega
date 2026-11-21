@@ -1868,7 +1868,7 @@ pub(crate) fn close_typed_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
-    crate::type_reference::alias_uses::check_applications(
+    crate::typing::type_reference::alias_uses::check_applications(
         &lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
