@@ -2322,7 +2322,7 @@ pub(crate) mod primitive_locals {
         read_geometry, read_storage_codec, read_storage_fragments,
     };
     use crate::instruction_selection::selection::scalar_call_abi::load_transfer;
-    use selected_instructions::LocalStorageSlotId;
+    use selected_instructions::{LocalStorageSlotId, SelectedInstructionKind};
 
     pub(crate) fn write(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
