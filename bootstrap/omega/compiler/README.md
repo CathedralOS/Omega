@@ -130,13 +130,14 @@ The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters. Up to 16,384 state labels can span a construction request.
 Each file still parses at most 4,096 states.
-The parser admits at most 16,384 parameters in a single file. When a package
-exceeds that many cumulative parameters, its free machines keep permanent
-argument slots. Nested parameters reuse the remaining slots while their file
-is loaded. The generated program gives different nested machines distinct
-argument storage. The package must fit the free-machine parameters
-together with the nested parameters of its largest file. Parameter ranges, source
-coordinates and declared effect bounds survive the release of that file.
+The parser admits at most 16,384 parameters in one file. A multi-file request
+can exceed that total. Machine roots keep permanent argument slots across
+files, and nested machines reuse the remaining slots while their file is
+loaded. The root parameters across the request plus the largest nested
+parameter count in any one file must fit in 16,384 slots. Emitted code gives
+different nested machines distinct argument storage so a call preserves the
+caller's values. Parameter ranges, source coordinates and declared effect
+bounds survive the release of the file.
 A state body, its lexical scope, and its checked terminal instructions belong
 to the current file. Calls across files resolve a machine root; nested states
 remain visible through their lexical owner.
