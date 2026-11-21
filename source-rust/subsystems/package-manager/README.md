@@ -261,7 +261,7 @@ Version 4 `omega.lock` text holds canonical source, compact acceptance,
 required accepted-compilation and historical-decision sections, each with an
 explicit byte length. Older versions, including version 3, are rejected rather
 than guessing compiler identity or bindings. The compact acceptance section
-uses policy row schema 3. No section is stored as an opaque escaped payload. Loading requires no checkout,
+uses the current policy row schema. Loading requires no checkout,
 source acquisition, compiler run, proof certificate, or native replay. Recovery
 checks outer framing and every child's canonical meaning and associations.
 `PackageLockRecoveryLimits` bounds the entire input, requested owned storage

@@ -95,21 +95,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn superseded_policy_row_schema_rejects_with_recovery_guidance() {
-        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
-        let text = "acceptance_schema 8\nrows 0\n";
-        let error = read(text, package, TargetProfile::LinuxX64, 16, 1 << 16)
-            .expect_err("a superseded policy row schema must not load");
-        assert!(matches!(error, Error::UnsupportedVersion));
-        assert!(error.to_string().contains("omega packages update"));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
     fn only_the_current_acceptance_rows_can_supply_a_review_baseline() {
         let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
         for version in [4, 5, 8, PACKAGE_POLICY_ROW_VERSION] {
@@ -118,7 +103,9 @@ mod tests {
             if version == PACKAGE_POLICY_ROW_VERSION {
                 assert_eq!(write(&result.unwrap().0).unwrap(), record);
             } else {
-                assert!(matches!(result, Err(Error::UnsupportedVersion)));
+                let error = result.expect_err("a superseded schema cannot supply consent");
+                assert!(matches!(error, Error::UnsupportedVersion));
+                assert!(error.to_string().contains("omega packages update"));
             }
         }
     }
