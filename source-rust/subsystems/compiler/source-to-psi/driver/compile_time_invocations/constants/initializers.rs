@@ -48,8 +48,11 @@ fn materialize_uses(
         .const_declaration_by_symbol(symbol)
         .ok_or("constant use lost its exact declaration")?;
     let carrier = declaration.declared_type;
-    let value = crate::source_state::canonical_const_declaration_value(program, symbol)
-        .and_then(|value| value.decode_encoding())
+    let value = declaration
+        .evaluated_value
+        .as_ref()
+        .and_then(numeric_literals::EvaluatedConstant::encoding)
+        .and_then(application_identity::const_value::decode_declaration_value)
         .ok_or("constant use has no evaluated canonical value")?;
     for expression in expressions {
         let node = program

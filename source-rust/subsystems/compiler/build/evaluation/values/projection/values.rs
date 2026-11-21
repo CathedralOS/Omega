@@ -3,8 +3,8 @@
 
 use build_time_values::BuildTimeValue;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Path, ClosedScalarType, IntegerValue, ScalarType,
-    StructuralTypeId,
+    CanonicalStructuralPathSegment as Path, ClosedScalarType, IeeeFloatValue, IntegerValue,
+    ScalarType, StructuralTypeId,
 };
 use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalInstance, TerminalProgram, TerminalScalarValue,
@@ -223,6 +223,11 @@ fn scalar_value(
             TerminalScalarValue::Boolean(*value)
         }
         (
+            ScalarType::IeeeFloat(_),
+            ClosedScalarType::IeeeFloat(format),
+            BuildTimeValue::Float(value),
+        ) if value.format() == format => TerminalScalarValue::IeeeFloat(*value),
+        (
             ScalarType::Integer(raw),
             ClosedScalarType::Integer(integer),
             BuildTimeValue::Int(value),
@@ -246,6 +251,19 @@ pub fn scalar_result(
     let owner = closed_types(program)?;
     match value {
         TerminalScalarValue::Boolean(value) => Ok(BuildTimeValue::Bool(value)),
+        TerminalScalarValue::IeeeFloat(value) => {
+            // The interpreter may choose a payload for an arithmetic NaN.
+            // A plain return has no evidence that fixes those representation bits.
+            let nan = match value {
+                IeeeFloatValue::Binary32(bits) => f32::from_bits(bits).is_nan(),
+                IeeeFloatValue::Binary64(bits) => f64::from_bits(bits).is_nan(),
+            };
+            Ok(if nan {
+                BuildTimeValue::UndeterminedNaN(value.format())
+            } else {
+                BuildTimeValue::Float(value)
+            })
+        }
         TerminalScalarValue::Integer { value, scalar_type } => {
             let integer = owner.integer(scalar_type).map_err(|error| {
                 format!("Terminal result scalar is not in its published type owner: {error:?}")

@@ -9,7 +9,7 @@ use crate::source_state::types::{
 };
 use application_identity::const_value::DecodedCanonicalConstValue;
 use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
-use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
+use numeric_literals::{FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix};
 
 /// The declared domains a carrier qualifies its value with, innermost
 /// first, and the carrier beneath them.
@@ -121,8 +121,13 @@ fn materialize_carrier(
     value: &DecodedCanonicalConstValue,
 ) -> Option<ExpressionNode> {
     match value {
-        DecodedCanonicalConstValue::Float { .. }
-        | DecodedCanonicalConstValue::StaticCallable { .. } => None,
+        DecodedCanonicalConstValue::StaticCallable { .. } => None,
+        DecodedCanonicalConstValue::Float { format, bits } => {
+            (float_format(program, declared_type)? == *format).then_some(())?;
+            Some(ExpressionNode::Float(FloatLiteral::from_bits(
+                *format, *bits,
+            )?))
+        }
         DecodedCanonicalConstValue::Integer {
             integer_type,
             value,
@@ -275,6 +280,14 @@ fn record(
     Some(ExpressionNode::StructLiteral(literal))
 }
 
+fn float_format(program: &TypedTrees, carrier: TypeReferenceHandle) -> Option<FloatFormat> {
+    match program.primitive_type_reference(carrier)? {
+        PrimitiveType::F32 => Some(FloatFormat::F32),
+        PrimitiveType::F64 => Some(FloatFormat::F64),
+        _ => None,
+    }
+}
+
 fn integer_value(
     program: &TypedTrees,
     declared_type: TypeReferenceHandle,
@@ -352,6 +365,15 @@ fn matches_materialized(
         }
         (ExpressionNode::Boolean(actual), DecodedCanonicalConstValue::Boolean(expected)) => {
             actual == expected
+        }
+        (ExpressionNode::Float(actual), DecodedCanonicalConstValue::Float { format, bits }) => {
+            float_format(program, carrier) == Some(*format)
+                && actual.landing() == Some(*format)
+                && *bits
+                    == match format {
+                        FloatFormat::F32 => u64::from(actual.f32_bits()),
+                        FloatFormat::F64 => actual.value_f64().to_bits(),
+                    }
         }
         (
             ExpressionNode::Integer(actual),
