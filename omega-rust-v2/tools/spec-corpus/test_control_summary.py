@@ -11,9 +11,10 @@ class ControlSummaryTests(unittest.TestCase):
         text = product_controls.summary(controls)
         self.assertIn(f"rejected {len(controls) - 1} of {len(controls)} registered changes", text)
         # The hand-written sentence named seven families and omitted both cycle families.
-        for family in ("branch-target", "cycle-claim", "cycle-cleanup", "join-arrival", "premised-selector", "residual", "restoration", "runtime-dispatch", "scalar-operand"):
+        for family in ("branch-target", "cycle-claim", "cycle-cleanup", "join-arrival", "premised-selector", "residual", "restoration", "runtime-contract", "runtime-dispatch",
+                       "runtime-joined", "scalar-operand"):
             self.assertIn(family, text)
-        self.assertIn("in 9 families", text)
+        self.assertIn("in 11 families", text)
 
     def test_an_unrecorded_control_is_not_counted(self):
         self.assertIn("rejected 0 of 1 registered changes in 1 families: residual",

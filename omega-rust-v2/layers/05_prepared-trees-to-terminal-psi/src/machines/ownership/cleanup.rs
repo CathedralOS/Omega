@@ -213,14 +213,19 @@ impl Frontier {
         Ok(())
     }
 
+    /// The frontier holds only owned storage. Transferring an exclusive loan
+    /// carrier, such as a `@mut [T]` view arriving at a join, moves no cleanup
+    /// custody, exactly as `MoveStructural` of such a place does not.
     fn consume_arguments(
         &mut self,
         arguments: &[CallArgument],
-        site: &Site,
+        context: &CleanupContext<'_>,
     ) -> Result<(), LoweringError> {
         for arg in arguments {
-            if let CallArgument::MoveWhole(place) = arg {
-                self.take(&ProjectedPlace { root: *place, path: vec![] }, site)?;
+            if let CallArgument::MoveWhole(place) = arg
+                && owned(context.places[place.index()].ty, context.types, context.data)
+            {
+                self.take(&ProjectedPlace { root: *place, path: vec![] }, context.site)?;
             }
         }
         Ok(())
@@ -375,7 +380,7 @@ pub(in crate::machines) fn schedule(
                         *disposition = state.replace(destination, ty, &context)?;
                     }
                 }
-                OperationKind::Call { arguments, .. } => state.consume_arguments(arguments, site)?,
+                OperationKind::Call { arguments, .. } => state.consume_arguments(arguments, &context)?,
                 _ => {}
             }
             if let OperationResult::Structural(place) = op.result
@@ -386,24 +391,16 @@ pub(in crate::machines) fn schedule(
         }
         let mut arrive = |edge: &crate::SuccessorEdge, mut incoming: Frontier| -> Result<(), LoweringError> {
             let site = &body.diagnostics.edges[edge.id.get() - 1];
-            incoming.consume_arguments(&edge.structural_arguments, site)?;
-            incoming.consume_cleanups(
-                &edge.cleanup,
-                &CleanupContext {
-                    places: &body.places,
-                    types,
-                    data,
-                    site,
-                },
-            )?;
+            let context = CleanupContext {
+                places: &body.places,
+                types,
+                data,
+                site,
+            };
+            incoming.consume_arguments(&edge.structural_arguments, &context)?;
+            incoming.consume_cleanups(&edge.cleanup, &context)?;
             let target = edge.target;
             if predecessors[target.get() - 1] > 1 {
-                let context = CleanupContext {
-                    places: &body.places,
-                    types,
-                    data,
-                    site,
-                };
                 // Writable homes keep exact vacant paths for field-by-field restoration.
                 incoming
                     .0
@@ -458,7 +455,7 @@ pub(in crate::machines) fn schedule(
                     };
                     crossings.record(crate::CallSite::Edge(*id), &state, arguments, &context, &lineage)?;
                 }
-                state.consume_arguments(arguments, site)?;
+                state.consume_arguments(arguments, &CleanupContext { places: &body.places, types, data, site })?;
                 *cleanup = dispositions(&state, &body.places, types, data, site)?;
             }
             // Exit abandons the bound domain: no cleanup, receipt or merged frontier.

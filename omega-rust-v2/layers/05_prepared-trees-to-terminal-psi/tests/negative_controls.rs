@@ -14,6 +14,9 @@
 //! | premise operator flipped, premised store redirected or displacement kept | `view_loans::an_authored_selector_premise_chooses_the_store_the_checker_must_justify` |
 //! | rank claim or back-edge actuals taken from the sibling predecessor | `ranking::each_back_edge_into_a_ranked_cycle_keeps_its_own_actuals_cleanup_and_claim` |
 //! | back-edge cleanup dropped, or copied onto its guard edge | `ranking::each_back_edge_into_a_ranked_cycle_keeps_its_own_actuals_cleanup_and_claim` |
+//! | descriptor carrier, contract identity, guarantee or call debt changed | `runtime_callable::a_runtime_contract_publishes_its_guarantee_and_each_call_owes_its_precondition` |
+//! | joined view or descriptor arrival redirected | `runtime_joins::exclusive_and_descriptor_joins_meet_at_one_runtime_call` |
+//! | terminal runtime call debt dropped or reordered | `runtime_joins::ordered_debts_follow_the_call_on_ordinary_and_terminal_edges` |
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, LoweredPackage, MachineBody, OperationKind, StructuralStoreDisposition};
@@ -409,4 +412,175 @@ fn a_back_edge_cleanup_dropped_or_copied_to_its_guard_fails_the_completion_witne
         let count = &*count;
         rejects(&format!("cycle-cleanup/{corruption}"), count, product_witness::completion_cleanup(count, lease, finish).map(drop));
     }
+}
+
+/// The probe bytes read by `runtime_callable::a_runtime_contract_publishes_its_guarantee_and_each_call_owes_its_precondition`.
+const GUARANTEED: &str = include_str!("fixtures/package_cases/runtime-callable-contract-guarantee/case/case.omg");
+
+#[test]
+fn a_changed_carrier_contract_guarantee_or_debt_fails_the_runtime_call_contract_witness() {
+    use omega_lowering::{CallTarget, OperationResult, Parameter, PredicateOperator, PredicateStep};
+    use product_witness::CallTerm;
+    let package = sources::lower(&[("runtime_callable.omg", GUARANTEED)]).unwrap();
+    let read = body(&package, "read");
+    let [Parameter::Scalar(descriptor), Parameter::Scalar(offset)] = read.parameters[..] else {
+        panic!("two scalar formals")
+    };
+    let call = read
+        .operations
+        .iter()
+        .position(|op| {
+            matches!(
+                op.kind,
+                OperationKind::Call {
+                    callee: CallTarget::Runtime { .. },
+                    ..
+                }
+            )
+        })
+        .expect("the runtime call");
+    let OperationResult::Scalar(result) = read.operations[call].result else {
+        panic!("scalar result")
+    };
+    let bound = |n: u32| {
+        [
+            CallTerm::Step(PredicateStep::Integer(n.into())),
+            CallTerm::Step(PredicateStep::Apply(PredicateOperator::LessThan)),
+        ]
+    };
+    let debts = [[vec![CallTerm::Argument(offset)], bound(256).to_vec()].concat()];
+    let guarantees = [[vec![CallTerm::Result(result)], bound(200).to_vec()].concat()];
+    let witness = |package: &LoweredPackage| product_witness::runtime_call_owes_and_supplies(package, body(package, "read"), &debts, &guarantees);
+    witness(&package).expect("actual product");
+    let corrupt = |label: &str, change: &dyn Fn(&mut LoweredPackage)| {
+        // Lowering is deterministic, so a fresh product from the same bytes is the accepted one.
+        let mut copy = sources::lower(&[("runtime_callable.omg", GUARANTEED)]).unwrap();
+        change(&mut copy);
+        rejects(label, body(&copy, "read"), witness(&copy));
+    };
+
+    // The descriptor's carrier becomes the offset's u32 type; the call is unchanged.
+    let offset_type = read.values[offset.index()].ty;
+    corrupt("runtime-contract/descriptor-carrier", &|p| {
+        body_mut(p, "read").values[descriptor.index()].ty = offset_type
+    });
+    // An identical copy of the contract under a new identity: only the call's contract ID differs.
+    corrupt("runtime-contract/callable-identity", &|p| {
+        let copy = p.callable_contracts[0].clone();
+        p.callable_contracts.push(copy);
+        let second = omega_lowering::CallableContractId::from_index(1).unwrap();
+        let OperationKind::Call {
+            callee: CallTarget::Runtime { contract, .. },
+            ..
+        } = &mut body_mut(p, "read").operations[call].kind
+        else {
+            unreachable!()
+        };
+        *contract = second;
+    });
+    // The guarantee is dropped, as in the twin without `ensures`, or its bound changes.
+    corrupt("runtime-contract/guarantee-dropped", &|p| p.callable_contracts[0].ensures.clear());
+    corrupt("runtime-contract/guarantee-bound", &|p| {
+        p.callable_contracts[0].ensures[0].predicate[1] = PredicateStep::Integer(201.into())
+    });
+    // The call stops owing the contract's precondition, as before this repair.
+    corrupt("runtime-contract/debt-dropped", &|p| {
+        let OperationKind::Call { requirements, .. } = &mut body_mut(p, "read").operations[call].kind else {
+            unreachable!()
+        };
+        requirements.clear();
+    });
+}
+
+/// The fixtures read by `runtime_joins::exclusive_and_descriptor_joins_meet_at_one_runtime_call`
+/// and `runtime_joins::ordered_debts_follow_the_call_on_ordinary_and_terminal_edges`.
+const JOINED_CALL: &str = include_str!("fixtures/runtime_joins/exclusive-and-descriptor-join.omg");
+const TERMINAL_DEBTS: &str = include_str!("fixtures/runtime_joins/ordered-debts-terminal.omg");
+
+#[test]
+fn a_redirected_view_swapped_descriptor_or_changed_terminal_debt_fails_the_joined_call_witnesses() {
+    use omega_lowering::{Parameter, PredicateOperator, PredicateStep};
+    use product_witness::CallTerm;
+    let fresh = |source: &str| sources::lower(&[("case.omg", source)]).unwrap();
+
+    // The joined call: the accepted product's own reading is the expectation.
+    let accepted = fresh(JOINED_CALL);
+    let expected = product_witness::joined_runtime_call(&accepted, body(&accepted, "pick")).expect("actual product");
+    let joined = |label: &str, change: &dyn Fn(&mut MachineBody)| {
+        let mut copy = fresh(JOINED_CALL);
+        change(body_mut(&mut copy, "pick"));
+        rejects(
+            label,
+            body(&copy, "pick"),
+            product_witness::joined_runtime_call_matches(&copy, body(&copy, "pick"), &expected),
+        );
+    };
+    // The length reads `left`, which the true edge transferred, instead of the join parameter.
+    joined("runtime-joined/view-source", &|b| {
+        let Parameter::Structural(left) = b.parameters[1] else {
+            panic!("left is a view formal")
+        };
+        let length = b
+            .operations
+            .iter_mut()
+            .find(|op| matches!(op.kind, OperationKind::ElementViewLength { .. }))
+            .unwrap();
+        length.kind = OperationKind::ElementViewLength { source: left };
+    });
+    // The descriptor arms hand over each other's formal; every value keeps its type.
+    joined("runtime-joined/descriptor-arrivals", &|b| {
+        let arms: Vec<usize> = (0..b.blocks.len())
+            .filter(|&i| matches!(&b.blocks[i].terminator, BlockTerminator::Jump(edge) if edge.arguments.len() == 1))
+            .collect();
+        let [first, second] = arms[..] else { panic!("two descriptor arms") };
+        let take = |block: &mut omega_lowering::BranchBlock| match &mut block.terminator {
+            BlockTerminator::Jump(edge) => std::mem::take(&mut edge.arguments),
+            _ => unreachable!(),
+        };
+        let (a, c) = (take(&mut b.blocks[first]), take(&mut b.blocks[second]));
+        let put = |block: &mut omega_lowering::BranchBlock, arguments| {
+            if let BlockTerminator::Jump(edge) = &mut block.terminator {
+                edge.arguments = arguments;
+            }
+        };
+        put(&mut b.blocks[first], c);
+        put(&mut b.blocks[second], a);
+    });
+
+    // The terminal call owes both preconditions at its own edge, in clause order.
+    let accepted = fresh(TERMINAL_DEBTS);
+    let apply = body(&accepted, "apply");
+    let [_, Parameter::Scalar(x), Parameter::Scalar(y)] = apply.parameters[..] else {
+        panic!("three scalar formals")
+    };
+    let less = |left: CallTerm, right: CallTerm| {
+        vec![
+            left,
+            right,
+            CallTerm::Step(PredicateStep::Apply(PredicateOperator::LessThan)),
+        ]
+    };
+    let bound = CallTerm::Step(PredicateStep::Integer(100.into()));
+    let debts = [
+        less(CallTerm::Argument(y), bound),
+        less(CallTerm::Argument(x), CallTerm::Argument(y)),
+    ];
+    let guarantees = [less(CallTerm::Returned, CallTerm::Argument(y))];
+    let witness = |package: &LoweredPackage| product_witness::runtime_call_owes_and_supplies(package, body(package, "apply"), &debts, &guarantees);
+    witness(&accepted).expect("actual product");
+    let terminal = |label: &str, change: &dyn Fn(&mut Vec<omega_lowering::CallRequirement>)| {
+        let mut copy = fresh(TERMINAL_DEBTS);
+        let block = body_mut(&mut copy, "apply")
+            .blocks
+            .iter_mut()
+            .find(|b| matches!(b.terminator, BlockTerminator::TerminalCall { .. }))
+            .unwrap();
+        let BlockTerminator::TerminalCall { requirements, .. } = &mut block.terminator else {
+            unreachable!()
+        };
+        change(requirements);
+        rejects(label, body(&copy, "apply"), witness(&copy));
+    };
+    terminal("runtime-joined/terminal-debt-dropped", &|r| r.clear());
+    terminal("runtime-joined/terminal-debt-order", &|r| r.reverse());
 }

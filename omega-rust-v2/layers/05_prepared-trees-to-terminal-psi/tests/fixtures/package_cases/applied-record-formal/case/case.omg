@@ -1,0 +1,1 @@
+data Buffer<T>{unused:bool; used:T;} machine f(b:Buffer<u32>){}

@@ -133,3 +133,50 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
             .contains("no matching instruction operands")
     );
 }
+
+#[test]
+fn a_local_block_operand_names_a_continuation_of_its_own_region() {
+    use omega_resolver::{AssemblyVocabulary, ParsedSource, StageSource, resolve_stage_for_target};
+    use omega_typer::{AssemblyTypes, InstructionExit, InstructionParameter, InstructionSemantics, InstructionVariant, TypedInstructionOperand, type_stage_for_target};
+    let variant = |parameters, exit| vec![InstructionVariant { parameters, semantics: std::sync::Arc::new(InstructionSemantics { writes: vec![], exit }) }];
+    let target = AssemblyTypes {
+        target: omega_target_contract::TargetIdentity { profile: "test8".into(), semantics_version: 1, realization: vec![1].into() },
+        registers: Default::default(),
+        instructions: [
+            ("jmp".into(), variant(vec![InstructionParameter::LocalBlock], InstructionExit::Jump { target: 0 })),
+            ("ret".into(), variant(vec![], InstructionExit::Return)),
+        ]
+        .into(),
+    };
+    let type_code = |code: &str| {
+        let tokens = omega_lexer::lex(code.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(code.as_bytes(), &tokens).unwrap();
+        let sources = [StageSource { package: "game", source: ParsedSource { logical_path: "asm.omg", text: code, tokens: &tokens, tree: &tree } }];
+        let vocabulary = AssemblyVocabulary { instructions: &["jmp", "ret"], registers: &[] };
+        let resolved = resolve_stage_for_target(&sources, &[], &vocabulary).unwrap();
+        type_stage_for_target(&resolved, &target).map(|stage| stage.into_facts())
+    };
+    // A sibling edge and a backedge both stay inside the region of `drain`.
+    let local = "asm machine drain() { transition -> check; asm machine check { jmp done; } asm machine done { jmp check; } }";
+    let stage = type_code(local).unwrap();
+    let targets: Vec<_> = stage
+        .instructions
+        .iter()
+        .map(|i| match i.operands.as_slice() {
+            [TypedInstructionOperand::Block { declaration, .. }] => declaration.path.as_str(),
+            other => panic!("expected one local block operand, found {other:?}"),
+        })
+        .collect();
+    assert_eq!(targets, ["drain::done", "drain::check"]);
+    // The same jump to a separately callable entry, to the region's own root, and from an inline region.
+    for (code, operand) in [
+        ("asm machine drain() { transition -> check; asm machine check { jmp done; } } asm machine done { ret; }", "done"),
+        ("asm machine drain() { transition -> check; asm machine check { jmp drain; } }", "drain"),
+        ("asm machine done { ret; } machine run() { asm { jmp done; } }", "done"),
+    ] {
+        let error = type_code(code).unwrap_err();
+        assert_eq!(error.message, "instruction target lies outside this assembly region", "{code}");
+        let start = code.find(&format!("jmp {operand}")).unwrap() + 4;
+        assert_eq!(error.span.slice(code.as_bytes()), Some(&code.as_bytes()[start..start + operand.len()]), "{code}");
+    }
+}

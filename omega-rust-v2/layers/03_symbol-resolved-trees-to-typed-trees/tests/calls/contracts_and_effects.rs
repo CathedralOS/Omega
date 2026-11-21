@@ -803,3 +803,48 @@ fn structural_callable_clauses_use_the_normalized_parameter_and_result_types() {
             .contains("no matching operator")
     );
 }
+
+#[test]
+fn a_reach_ceiling_covers_the_substituted_boundary_parents_of_each_named_service() {
+    // effects.md: reaching `Child<17u64>` also reaches `Parent<0u64>`, not `Parent<17u64>`.
+    let header = "boundary trait Parent<const N: u64> { machine ping() reaches Parent<N> crashes none; }
+        boundary trait Child<const Id: u64>: Parent<0u64> {}";
+    let run = |body: &str| {
+        let forward = check(&[("a.omg", body), ("z.omg", header)]);
+        let reverse = check(&[("z.omg", header), ("a.omg", body)]);
+        assert_eq!(forward.as_ref().err().map(|e| &e.message), reverse.as_ref().err().map(|e| &e.message));
+        forward
+    };
+    let parent = "machine p() reaches Child<17u64> crashes none { Parent::<0u64>::ping() }";
+    let stage = run(parent).unwrap();
+    // The bounded body publishes its authored ceiling; the parent contribution fits under it.
+    let effect = stage.machine_effects.iter().find(|row| row.machine.path == "p").unwrap();
+    assert!(
+        matches!(effect.reach.as_slice(), [s] if s.service.path == "Child"
+            && matches!(s.arguments.as_slice(), [ValueType::StaticInteger { value, .. }] if *value == 17.into())),
+        "{:?}",
+        effect.reach
+    );
+    let source = parent.replace("Parent::<0u64>", "Parent::<17u64>");
+    let error = run(&source).unwrap_err();
+    assert_eq!(error.file, "a.omg");
+    assert_eq!(error.message, "call exceeds service reach for Parent");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"Parent::<17u64>::ping()".as_slice()));
+    // A parent ceiling does not cover its child.
+    let child = "machine c() reaches Parent<0u64> crashes none { leaf() } machine leaf() reaches Child<17u64> crashes none {}";
+    assert_eq!(run(child).unwrap_err().message, "call exceeds service reach for Child");
+
+    // The same coverage applies where the contribution comes through a callback.
+    let header = "boundary trait P { machine ping() reaches P crashes none; } boundary trait C: P {}";
+    let run = |body: &str| check(&[("a.omg", &format!("{header} {body}"))]);
+    for body in [
+        "machine p() reaches C crashes none { P::ping() }",
+        "data Ping = machine() reaches P crashes none; machine run(f:Ping) reaches C crashes none {f()}",
+        "data Op = machine() reaches C crashes none; machine ap<const G:Op>() reaches C crashes none {G()}
+            machine leaf() crashes none {P::ping()} machine top() reaches C crashes none {ap::<leaf>()}",
+    ] {
+        run(body).unwrap_or_else(|e| panic!("{body}: {}", e.message));
+        let narrowed = body.replace("reaches C", "reaches none");
+        assert!(run(&narrowed).is_err(), "{narrowed}");
+    }
+}

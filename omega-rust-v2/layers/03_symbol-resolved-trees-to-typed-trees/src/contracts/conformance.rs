@@ -110,6 +110,26 @@ impl DeclarationCatalog<'_> {
             .eq(is.parameters.iter().map(|(_, t)| t.clone()))
             && instantiate(&rs.result) == is.result
     }
+    /// A reach ceiling bounds each named service and its declared boundary
+    /// ancestors, with the child's arguments substituted along each edge. The
+    /// first ordinary parent ends the walk because it carries no service identity.
+    pub(crate) fn reach_covers(
+        &self,
+        ceiling: &[crate::ServiceApplication],
+        service: &crate::ServiceApplication,
+    ) -> bool {
+        ceiling.iter().any(|named| {
+            let slot = crate::RequirementSlot {
+                declaration: named.service.clone(),
+                trait_arguments: named.arguments.clone(),
+            };
+            self.trait_lineage(&slot)
+                .into_iter()
+                .take_while(|ancestor| self.types.service_traits.contains(&ancestor.declaration))
+                .any(|ancestor| ancestor.declaration == service.service && ancestor.trait_arguments == service.arguments)
+        })
+    }
+
     /// Each entry carries the arguments in the declaring trait's own telescope.
     pub(crate) fn trait_lineage(
         &self,

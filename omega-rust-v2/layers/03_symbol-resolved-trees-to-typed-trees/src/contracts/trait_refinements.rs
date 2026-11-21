@@ -126,7 +126,7 @@ pub(crate) fn check_trait_refinements(
                         || r.prohibits_suspend && effects.pause.suspend
                         || reach
                             .as_ref()
-                            .is_some_and(|allowed| effects.reach.iter().any(|s| !allowed.contains(s)))
+                            .is_some_and(|allowed| effects.reach.iter().any(|s| !catalog.reach_covers(allowed, s)))
                     {
                         return Err(TypeError::for_site(
                             &obligation.site,

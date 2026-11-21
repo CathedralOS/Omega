@@ -705,3 +705,257 @@ fn redundant_call_markers_keep_their_operation_or_edge_without_parking() {
         }
     }
 }
+
+/// The probe `runtime callable contract with a guarantee`, byte for byte: the
+/// reader alias also promises `result < 200`.
+const GUARANTEED: &str = include_str!("fixtures/package_cases/runtime-callable-contract-guarantee/case/case.omg");
+
+/// The single runtime call operation of `machine`, with its index.
+fn runtime_call(machine: &LoweredMachine) -> (usize, &omega_lowering::PsiOperation) {
+    let [found] = machine
+        .body
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(_, op)| {
+            matches!(
+                op.kind,
+                OperationKind::Call {
+                    callee: CallTarget::Runtime { .. },
+                    ..
+                }
+            )
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("expected one runtime call in {}", machine.declaration.path)
+    };
+    found
+}
+
+#[test]
+fn a_runtime_contract_publishes_its_guarantee_and_each_call_owes_its_precondition() {
+    use omega_lowering::{CallRequirement, CallSite, PredicateOperator, PredicateStep};
+    use psi_handoff_consumer::product_witness::{CallTerm, runtime_call_contract};
+    let package = lower(GUARANTEED);
+    let [contract] = &package.callable_contracts[..] else {
+        panic!("one alias declares one contract, found {:?}", package.callable_contracts)
+    };
+    let id = CallableContractId::from_index(0).unwrap();
+    let less = |left: PredicateStep, bound: u32| {
+        vec![
+            left,
+            PredicateStep::Integer(bound.into()),
+            PredicateStep::Apply(PredicateOperator::LessThan),
+        ]
+    };
+    let clauses = |clauses: &[omega_lowering::ContractClause]| {
+        clauses
+            .iter()
+            .map(|c| (c.predicate.clone(), c.site.span.slice(GUARANTEED.as_bytes()).map(<[u8]>::to_vec)))
+            .collect::<Vec<_>>()
+    };
+    // The guarantee names the contract's own result, beside the precondition over its formal.
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-contract-guarantee", assert_eq!(
+        (clauses(&contract.requires), clauses(&contract.ensures)),
+        (vec![(less(PredicateStep::Formal(0), 256), Some(b"requires offset < 256".to_vec()))],
+         vec![(less(PredicateStep::Result, 200), Some(b"ensures result < 200".to_vec()))])
+    ));
+    assert_eq!((contract.parameters.as_slice(), &contract.result), ([integer(32)].as_slice(), &Some(byte())));
+    assert_eq!(
+        (&contract.reach, &contract.crash_ceiling, contract.crash_routes.len()),
+        (&Some(Vec::new()), &Some(Vec::new()), 0)
+    );
+    let [alias] = &package.aliases[..] else { panic!("expected only ByteReader") };
+    let AliasTarget::Structural(ty) = alias.target else {
+        panic!(
+            "a closed runtime signature with a guarantee is still a structural alias, found {:?}",
+            alias.target
+        )
+    };
+    assert_eq!(contract_of(&package, ty), id);
+
+    // The call names the formal's descriptor and that contract, and owes the
+    // contract's one precondition at its own position.
+    let read = machine(&package, "read");
+    assert_eq!(contract_of(&package, read.parameter_types[0]), id);
+    let (index, call) = runtime_call(read);
+    let descriptor = scalar_parameter(read, 0);
+    let offset = scalar_parameter(read, 1);
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-call-debt", assert_eq!(
+        call.kind,
+        OperationKind::Call {
+            callee: CallTarget::Runtime { descriptor, contract: id },
+            arguments: vec![CallArgument::Scalar(offset)],
+            requirements: vec![CallRequirement { site: CallSite::Operation(call.id), clause: 0 }],
+        }
+    ));
+    let OperationResult::Scalar(result) = call.result else {
+        panic!("expected the u8 result")
+    };
+    let omega_lowering::BlockTerminator::Return {
+        result: omega_lowering::ReturnEdge::Scalar(returned),
+        ..
+    } = read.body.blocks[0].terminator
+    else {
+        panic!("expected read to return the call result")
+    };
+    assert_eq!(returned, result);
+
+    // A Psi-only reader instantiates the debt on the caller's offset and the
+    // guarantee on this call's result.
+    let instantiated = runtime_call_contract(&package, &read.body, index).expect("the published call and contract agree");
+    let term = |n: u32| CallTerm::Step(PredicateStep::Integer(n.into()));
+    let lt = CallTerm::Step(PredicateStep::Apply(PredicateOperator::LessThan));
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-call-guarantee", assert_eq!(
+        (instantiated.contract, instantiated.debts, instantiated.guarantees),
+        (id, vec![vec![CallTerm::Argument(offset), term(256), lt.clone()]], vec![vec![CallTerm::Result(result), term(200), lt]])
+    ));
+
+    // Changing only the bound changes only the guarantee; removing the clause
+    // leaves the twin's contract and call otherwise identical.
+    for (variant, ensures) in [
+        (GUARANTEED.replacen("result < 200", "result < 100", 1), vec![less(PredicateStep::Result, 100)]),
+        (GUARANTEED.replacen("\n    ensures result < 200", "", 1), Vec::new()),
+    ] {
+        let twin = lower(&variant);
+        let [other] = &twin.callable_contracts[..] else {
+            panic!("expected one contract")
+        };
+        assert_eq!(
+            other
+                .ensures
+                .iter()
+                .map(|c| c.predicate.clone())
+                .collect::<Vec<_>>(),
+            ensures,
+            "{variant}"
+        );
+        assert_eq!(
+            (
+                &other.parameters,
+                &other.result,
+                other.requires.iter().map(|c| &c.predicate).collect::<Vec<_>>(),
+                &other.reach,
+                &other.crash_ceiling,
+                &other.crash_routes
+            ),
+            (
+                &contract.parameters,
+                &contract.result,
+                contract
+                    .requires
+                    .iter()
+                    .map(|c| &c.predicate)
+                    .collect::<Vec<_>>(),
+                &contract.reach,
+                &contract.crash_ceiling,
+                &contract.crash_routes
+            ),
+            "{variant}"
+        );
+        let twin_read = machine(&twin, "read");
+        assert_eq!(
+            (&twin_read.body.operations, &twin_read.body.blocks),
+            (&read.body.operations, &read.body.blocks),
+            "{variant}"
+        );
+    }
+}
+
+/// Construction, refinement and a join all pass the same contract gate. Each
+/// keeps its existing operation; whether the machine or source contract
+/// supplies `result < 200` is the checker's refinement question, so lowering
+/// publishes `narrow` as well as `widen`.
+#[test]
+fn guarantee_contracts_keep_construction_refinement_and_join_for_the_checker() {
+    let reader = GUARANTEED.split("\n\nmachine read").next().unwrap();
+    let construct = format!(
+        "{GUARANTEED}\n\nmachine low(offset: u32) -> u8\nrequires offset < 256\nensures result < 200\n{{\n    7\n}}\n\nmachine use_low(offset: u32) -> u8\nrequires offset < 256\n{{\n    read(low, offset)\n}}\n"
+    );
+    let package = lower(&construct);
+    let id = CallableContractId::from_index(0).unwrap();
+    let use_low = machine(&package, "use_low");
+    let (made, descriptor) = use_low
+        .body
+        .operations
+        .iter()
+        .find_map(|op| match (&op.kind, op.result) {
+            (OperationKind::ConstructCallableDescriptor { .. }, OperationResult::Scalar(value)) => Some((op.kind.clone(), value)),
+            _ => None,
+        })
+        .expect("a constructed descriptor");
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-guarantee-construction", assert_eq!(
+        made,
+        OperationKind::ConstructCallableDescriptor { machine: machine(&package, "low").id, contract: id }
+    ));
+    let read = machine(&package, "read").id;
+    assert_eq!(
+        calls(use_low),
+        [(
+            &CallTarget::Machine(read),
+            [
+                CallArgument::Scalar(descriptor),
+                CallArgument::Scalar(scalar_parameter(use_low, 0))
+            ]
+            .as_slice()
+        )]
+    );
+
+    let plain = "data PlainReader = machine(offset: u32) -> u8\n    requires offset < 256\n    reaches none crashes none;";
+    let refine = format!(
+        "{reader}\n\n{plain}\n\nmachine widen(reader: ByteReader) -> PlainReader\n{{\n    reader\n}}\n\nmachine narrow(reader: PlainReader) -> ByteReader\n{{\n    reader\n}}\n"
+    );
+    let package = lower(&refine);
+    let contract = |name: &str| {
+        let Some(AliasTarget::Structural(ty)) = package
+            .aliases
+            .iter()
+            .find(|a| a.declaration.path == name)
+            .map(|a| &a.target)
+        else {
+            panic!("expected structural {name}")
+        };
+        contract_of(&package, *ty)
+    };
+    let (guaranteed, unguaranteed) = (contract("ByteReader"), contract("PlainReader"));
+    assert!(
+        !package.callable_contracts[guaranteed.index()]
+            .ensures
+            .is_empty()
+            && package.callable_contracts[unguaranteed.index()]
+                .ensures
+                .is_empty()
+    );
+    let observed = ["widen", "narrow"].map(|name| {
+        let m = machine(&package, name);
+        refinements(m)
+            .into_iter()
+            .map(|(source, to, _)| (source == scalar_parameter(m, 0), to))
+            .collect::<Vec<_>>()
+    });
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-guarantee-refinement", assert_eq!(
+        observed,
+        [vec![(true, unguaranteed)], vec![(true, guaranteed)]]
+    ));
+
+    let joined = format!(
+        "{reader}\n\nmachine choose(flag: bool, left: ByteReader, right: ByteReader, offset: u32) -> u8\nrequires offset < 256\n{{\n    let chosen = match flag {{true -> left, false -> right,}};\n    chosen(offset)\n}}\n"
+    );
+    let package = lower(&joined);
+    let choose = machine(&package, "choose");
+    let (_, call) = runtime_call(choose);
+    let OperationKind::Call {
+        callee: CallTarget::Runtime { descriptor, contract },
+        requirements,
+        ..
+    } = &call.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!((*contract, requirements.len()), (id, 1));
+    assert!(
+        matches!(choose.body.values[descriptor.index()].origin, omega_lowering::ValueOrigin::BlockParameter(_)),
+        "the joined descriptor arrives at the call"
+    );
+}

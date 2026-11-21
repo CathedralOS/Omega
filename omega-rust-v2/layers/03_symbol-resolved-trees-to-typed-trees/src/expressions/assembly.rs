@@ -106,6 +106,18 @@ impl BodyTyper<'_, '_> {
             .target
             .validate()
             .map_err(|err| TypeError::at(source, node_index, err.to_string()))?;
+        // A local-block operand names a continuation of this region: an assembly
+        // machine nested in the outermost enclosing assembly machine. That root is
+        // a separately callable entry, and an inline region owns no blocks.
+        let root = std::iter::once(node_index)
+            .chain(source.ancestors(node_index))
+            .take_while(|&n| source.nodes[n].kind == AsmMachine)
+            .last();
+        let owns_block = |block: &omega_resolved::DeclarationId| {
+            root.is_some_and(|root| {
+                (root + 1..source.nodes[root].end).any(|n| source.nodes[n].kind == AsmMachine && self.unit.declaration_at(n) == Some(block))
+            })
+        };
         let mut region = omega_typed::TypedAssemblyRegion {
             target: target.target.clone(),
             bindings: Vec::new(),
@@ -154,6 +166,9 @@ impl BodyTyper<'_, '_> {
                                 _ => None,
                             });
                         actual.push(if let Some(block) = block {
+                            if !owns_block(&block) {
+                                return Err(TypeError::at(source, operand, "instruction target lies outside this assembly region"));
+                            }
                             Actual::Block(block)
                         } else {
                             let register = match self.unit.symbol(source.ungroup(operand)) {

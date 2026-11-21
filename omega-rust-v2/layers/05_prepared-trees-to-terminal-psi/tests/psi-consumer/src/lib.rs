@@ -198,6 +198,9 @@ pub use parked_byte_views::check_parked_byte_views;
 mod joined_loans;
 pub use joined_loans::check_joined_loan;
 
+mod exclusive_joins;
+pub use exclusive_joins::{ExclusiveJoin, JoinedUse, exclusive_join, local_descriptor_move};
+
 mod returned_view;
 pub use returned_view::{recursive_view_backings, returned_view_backing};
 

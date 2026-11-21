@@ -547,3 +547,370 @@ pub fn completion_cleanup(
     }
     Ok(disposing)
 }
+
+/// One step of a runtime contract clause instantiated at a call. The contract's
+/// formal `i` becomes the call's argument `i`, and `result` the call's own result.
+/// A terminal call has no result value in the caller: its result is the value the
+/// activation itself returns, written `Returned`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CallTerm {
+    Argument(omega_psi::ValueId),
+    Result(omega_psi::ValueId),
+    Returned,
+    Step(omega_psi::PredicateStep),
+}
+
+/// Where a runtime call sits: an operation, or the terminal call ending a block.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeCallAt {
+    Operation(usize),
+    TerminalEdge(usize),
+}
+
+/// What a runtime call owes and supplies, read only from the call and the contract it names.
+#[derive(Debug, Eq, PartialEq)]
+pub struct RuntimeCallContract {
+    pub contract: omega_psi::CallableContractId,
+    /// Each published precondition under the call's arguments, at its own clause position.
+    pub debts: Vec<Vec<CallTerm>>,
+    /// Each published guarantee under the call's arguments and result.
+    pub guarantees: Vec<Vec<CallTerm>>,
+}
+
+fn instantiate(
+    clause: &omega_psi::ContractClause,
+    arguments: &[omega_psi::ValueId],
+    result: Option<&CallTerm>,
+) -> Result<Vec<CallTerm>, String> {
+    use omega_psi::PredicateStep;
+    clause
+        .predicate
+        .iter()
+        .map(|step| match step {
+            PredicateStep::Formal(i) => arguments
+                .get(*i)
+                .copied()
+                .map(CallTerm::Argument)
+                .ok_or_else(|| format!("clause names formal {i} beyond the call's {} arguments", arguments.len())),
+            PredicateStep::Result => result
+                .cloned()
+                .ok_or_else(|| "clause names a result the call does not produce".to_string()),
+            PredicateStep::Integer(_) | PredicateStep::Boolean(_) | PredicateStep::Apply(_) => Ok(CallTerm::Step(step.clone())),
+            other => Err(format!("clause step {other:?} has no instantiation in this witness")),
+        })
+        .collect()
+}
+
+/// Every runtime call of `body`, operations first and then terminal edges, each in order.
+pub fn runtime_calls(body: &MachineBody) -> Vec<RuntimeCallAt> {
+    use omega_psi::CallTarget;
+    let operations = body.operations.iter().enumerate().filter_map(|(i, op)| {
+        matches!(
+            op.kind,
+            OperationKind::Call {
+                callee: CallTarget::Runtime { .. },
+                ..
+            }
+        )
+        .then_some(RuntimeCallAt::Operation(i))
+    });
+    let edges = body.blocks.iter().enumerate().filter_map(|(i, block)| {
+        matches!(
+            block.terminator,
+            BlockTerminator::TerminalCall {
+                callee: CallTarget::Runtime { .. },
+                ..
+            }
+        )
+        .then_some(RuntimeCallAt::TerminalEdge(i))
+    });
+    operations.chain(edges).collect()
+}
+
+/// Instantiate the contract of one runtime call. The descriptor's own carrier must be the
+/// contract the call names, the call must owe each published precondition once at its own
+/// site and position, and preconditions may not mention `result`.
+pub fn runtime_call_contract_at(
+    package: &omega_psi::LoweredPackage,
+    body: &MachineBody,
+    at: RuntimeCallAt,
+) -> Result<RuntimeCallContract, String> {
+    use omega_psi::{CallRequirement, CallSite, CallTarget, OperationResult, TypeShape};
+    let (callee, arguments, requirements, site, result) = match at {
+        RuntimeCallAt::Operation(index) => {
+            let op = body
+                .operations
+                .get(index)
+                .ok_or_else(|| format!("no operation {index}"))?;
+            let OperationKind::Call {
+                callee,
+                arguments,
+                requirements,
+            } = &op.kind
+            else {
+                return Err(format!("operation {index} is not a call: {:?}", op.kind));
+            };
+            let result = match op.result {
+                OperationResult::Scalar(value) => Some(CallTerm::Result(value)),
+                OperationResult::Unit => None,
+                OperationResult::Structural(place) => return Err(format!("structural runtime result {place:?}")),
+            };
+            (callee, arguments, requirements, CallSite::Operation(op.id), result)
+        }
+        RuntimeCallAt::TerminalEdge(index) => {
+            let block = body
+                .blocks
+                .get(index)
+                .ok_or_else(|| format!("no block {index}"))?;
+            let BlockTerminator::TerminalCall {
+                id,
+                callee,
+                arguments,
+                requirements,
+                ..
+            } = &block.terminator
+            else {
+                return Err(format!("block {index} does not end in a terminal call"));
+            };
+            (callee, arguments, requirements, CallSite::Edge(*id), Some(CallTerm::Returned))
+        }
+    };
+    let CallTarget::Runtime { descriptor, contract } = callee else {
+        return Err(format!("{at:?} is not a runtime call: {callee:?}"));
+    };
+    let carrier = body.values.get(descriptor.index()).map(|v| v.ty);
+    match carrier.and_then(|ty| package.types.get(ty)) {
+        Some(TypeShape::Callable(declared)) if declared == contract => {}
+        other => return Err(format!("descriptor {descriptor:?} carries {other:?}, not the called contract {contract:?}")),
+    }
+    let row = package
+        .callable_contracts
+        .get(contract.index())
+        .ok_or_else(|| format!("call names unpublished contract {contract:?}"))?;
+    let actuals = arguments
+        .iter()
+        .map(|argument| match argument {
+            CallArgument::Scalar(value) => Ok(*value),
+            other => Err(format!("argument {other:?} is not a scalar actual")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if actuals.len() != row.parameters.len() {
+        return Err(format!("call passes {} arguments to a contract of {}", actuals.len(), row.parameters.len()));
+    }
+    let owed: Vec<_> = (0..row.requires.len())
+        .map(|clause| CallRequirement { site, clause })
+        .collect();
+    if *requirements != owed {
+        return Err(format!(
+            "call owes {requirements:?}, but its contract publishes {} preconditions",
+            row.requires.len()
+        ));
+    }
+    if result.is_some() != row.result.is_some() {
+        return Err(format!("call result {result:?} disagrees with the contract result {:?}", row.result));
+    }
+    Ok(RuntimeCallContract {
+        contract: *contract,
+        debts: row
+            .requires
+            .iter()
+            .map(|clause| instantiate(clause, &actuals, None))
+            .collect::<Result<_, _>>()?,
+        guarantees: row
+            .ensures
+            .iter()
+            .map(|clause| instantiate(clause, &actuals, result.as_ref()))
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+/// Instantiate the contract of the runtime call that `body.operations[operation]` performs.
+pub fn runtime_call_contract(
+    package: &omega_psi::LoweredPackage,
+    body: &MachineBody,
+    operation: usize,
+) -> Result<RuntimeCallContract, String> {
+    runtime_call_contract_at(package, body, RuntimeCallAt::Operation(operation))
+}
+
+/// The body's only runtime call owes exactly `debts` and supplies exactly `guarantees`.
+pub fn runtime_call_owes_and_supplies(
+    package: &omega_psi::LoweredPackage,
+    body: &MachineBody,
+    debts: &[Vec<CallTerm>],
+    guarantees: &[Vec<CallTerm>],
+) -> Witness {
+    let [at] = runtime_calls(body)[..] else {
+        return Err(format!("expected one runtime call, found {:?}", runtime_calls(body)));
+    };
+    let found = runtime_call_contract_at(package, body, at)?;
+    if found.debts != debts || found.guarantees != guarantees {
+        return Err(format!("call owes {:?} and supplies {:?}", found.debts, found.guarantees));
+    }
+    Ok(())
+}
+
+/// Which storage the runtime call's measured view argument reads.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MeasuredView {
+    /// The parameter of the exclusive join.
+    Joined,
+    /// An incoming formal, by machine parameter position.
+    Formal(usize),
+}
+
+/// An exclusive view chosen by one Boolean dispatch, optionally a runtime descriptor chosen
+/// by a second dispatch on the same condition, and the one runtime call that follows,
+/// whose only argument is the length of a view. Read from Psi alone.
+#[derive(Debug, Eq, PartialEq)]
+pub struct JoinedRuntimeCall {
+    /// For each side (true, then false), the formal whose view that edge transfers to the join.
+    pub view_arrivals: [(bool, usize); 2],
+    /// For each side, the descriptor formal the second dispatch hands to its join, if any.
+    pub descriptor_arrivals: Option<[(bool, usize); 2]>,
+    /// The view whose length the call receives.
+    pub measured: MeasuredView,
+    /// Sides whose arrival transferred the measured formal before it is read again.
+    /// The checker judges such a read; the reader only reports it.
+    pub measured_after_transfer: Vec<bool>,
+    pub call: RuntimeCallContract,
+}
+
+/// Follow a Boolean dispatch whose arms each jump to one join, returning the join block
+/// and, for each side, that arm's jump.
+fn dispatch_arms(
+    body: &MachineBody,
+    block: usize,
+) -> Result<(omega_psi::ValueId, usize, [(bool, &omega_psi::SuccessorEdge); 2]), String> {
+    let at = |id: omega_psi::BlockId| {
+        body.blocks
+            .get(id.get() - 1)
+            .ok_or_else(|| format!("missing block {id:?}"))
+    };
+    let BlockTerminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &body.blocks[block].terminator
+    else {
+        return Err(format!("block {block} is not a Boolean dispatch"));
+    };
+    let mut join = None;
+    let mut arms = Vec::with_capacity(2);
+    for (side, edge) in [(true, when_true), (false, when_false)] {
+        let arm = at(edge.target)?;
+        let BlockTerminator::Jump(arrival) = &arm.terminator else {
+            return Err(format!("the {side} arm does not jump to a join"));
+        };
+        if !body.operations[arm.operations.clone()].is_empty() {
+            return Err(format!("the {side} arm computes before its arrival"));
+        }
+        if join.is_some_and(|target| target != arrival.target) {
+            return Err("the arms reach different joins".to_string());
+        }
+        join = Some(arrival.target);
+        arms.push((side, arrival));
+    }
+    let join = join.ok_or("missing join")?.get() - 1;
+    Ok((*condition, join, [arms[0], arms[1]]))
+}
+
+pub fn joined_runtime_call(
+    package: &omega_psi::LoweredPackage,
+    body: &MachineBody,
+) -> Result<JoinedRuntimeCall, String> {
+    let formal = |parameter: Parameter| {
+        body.parameters
+            .iter()
+            .position(|p| *p == parameter)
+            .ok_or_else(|| format!("{parameter:?} is not an incoming formal"))
+    };
+    let (condition, view_join, view_arms) = dispatch_arms(body, 0)?;
+    let mut view_arrivals = [(true, 0); 2];
+    let mut transferred = [(true, PlaceId(std::num::NonZeroUsize::MIN)); 2];
+    for (slot, (side, arrival)) in view_arms.into_iter().enumerate() {
+        let [CallArgument::MoveWhole(source)] = arrival.structural_arguments.as_slice() else {
+            return Err(format!("the {side} arrival does not transfer one view: {:?}", arrival.structural_arguments));
+        };
+        view_arrivals[slot] = (side, formal(Parameter::Structural(*source))?);
+        transferred[slot] = (side, *source);
+    }
+    let [joined] = body.blocks[view_join].structural_parameters[..] else {
+        return Err("the view join has no single structural parameter".to_string());
+    };
+    let (call_block, descriptor_arrivals, descriptor) = match &body.blocks[view_join].terminator {
+        BlockTerminator::Conditional { .. } => {
+            let (second, call_block, arms) = dispatch_arms(body, view_join)?;
+            if second != condition {
+                return Err("the descriptor dispatch tests a different condition".to_string());
+            }
+            let mut arrivals = [(true, 0); 2];
+            for (slot, (side, arrival)) in arms.into_iter().enumerate() {
+                let [value] = arrival.arguments[..] else {
+                    return Err(format!("the {side} descriptor arrival does not pass one value"));
+                };
+                arrivals[slot] = (side, formal(Parameter::Scalar(value))?);
+            }
+            let [descriptor] = body.blocks[call_block].scalar_parameters[..] else {
+                return Err("the descriptor join has no single scalar parameter".to_string());
+            };
+            (call_block, Some(arrivals), Some(descriptor))
+        }
+        _ => (view_join, None, None),
+    };
+    let ops = body.blocks[call_block].operations.clone();
+    let [length, call] = &body.operations[ops.clone()] else {
+        return Err(format!("expected a length then a call, found {:?}", &body.operations[ops]));
+    };
+    let OperationKind::ElementViewLength { source } = &length.kind else {
+        return Err(format!("the first operation is not a view length: {:?}", length.kind));
+    };
+    let measured = if *source == joined {
+        MeasuredView::Joined
+    } else {
+        MeasuredView::Formal(formal(Parameter::Structural(*source))?)
+    };
+    let OperationKind::Call {
+        callee: omega_psi::CallTarget::Runtime { descriptor: invoked, .. },
+        arguments,
+        ..
+    } = &call.kind
+    else {
+        return Err(format!("the second operation is not a runtime call: {:?}", call.kind));
+    };
+    if descriptor.is_some_and(|joined| joined != *invoked) {
+        return Err("the call does not invoke the joined descriptor".to_string());
+    }
+    if *arguments
+        != [CallArgument::Scalar(match length.result {
+            omega_psi::OperationResult::Scalar(value) => value,
+            _ => return Err("the length has no scalar result".to_string()),
+        })]
+    {
+        return Err(format!("the call does not pass the measured length: {arguments:?}"));
+    }
+    Ok(JoinedRuntimeCall {
+        view_arrivals,
+        descriptor_arrivals,
+        measured,
+        measured_after_transfer: transferred
+            .iter()
+            .filter(|(_, place)| place == source)
+            .map(|(side, _)| *side)
+            .collect(),
+        call: runtime_call_contract_at(package, body, RuntimeCallAt::Operation(ops.start + 1))?,
+    })
+}
+
+/// The joined runtime call reads exactly as `expected`.
+pub fn joined_runtime_call_matches(
+    package: &omega_psi::LoweredPackage,
+    body: &MachineBody,
+    expected: &JoinedRuntimeCall,
+) -> Witness {
+    let found = joined_runtime_call(package, body)?;
+    if found != *expected {
+        return Err(format!("recovered {found:?}"));
+    }
+    Ok(())
+}

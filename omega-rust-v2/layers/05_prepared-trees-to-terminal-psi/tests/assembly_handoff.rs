@@ -357,3 +357,27 @@ fn separate_inline_assembly_regions_have_distinct_scratch_state() {
         },
     );
 }
+
+#[test]
+fn a_branch_to_another_entry_is_refused_by_typing_and_its_local_twin_lowers() {
+    // The twins differ only in where `yes` is declared: nested in `choose` or as its own entry.
+    let local = "asm machine choose(n:u32) { set r0,n; jz yes; transition -> no; asm machine yes {ret;} asm machine no {ret;} }";
+    let foreign = "asm machine choose(n:u32) { set r0,n; jz yes; transition -> no; asm machine no {ret;} } asm machine yes {ret;}";
+    let lowered = parse_with(local, |sources| {
+        let p = resolve_source_package_with_assembly(sources, catalog("z")).unwrap();
+        lower_package(&prepare_source_package(&p).unwrap()).unwrap()
+    });
+    let BlockTerminator::Conditional { when_true, .. } = &lowered.machines[0].body.blocks[0].terminator else {
+        panic!("expected the conditional transfer to the local block")
+    };
+    assert!(lowered.machines[0].body.operations.iter().any(|op| matches!(&op.kind,
+        OperationKind::AssemblyInstruction(i) if i.operands == [AssemblyOperand::LocalBlock(when_true.target)])));
+    parse_with(foreign, |sources| {
+        // Typing runs when preparation receives the package, before any lowering.
+        let p = resolve_source_package_with_assembly(sources, catalog("z")).unwrap();
+        let error = prepare_source_package(&p).unwrap_err();
+        assert_eq!(error.message, "instruction target lies outside this assembly region");
+        let start = foreign.find("jz yes").unwrap() + 3;
+        assert_eq!(error.span.slice(foreign.as_bytes()), Some(&foreign.as_bytes()[start..start + 3]));
+    });
+}

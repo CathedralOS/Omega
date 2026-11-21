@@ -521,12 +521,27 @@ pub(crate) fn mutable_element_view(carrier: &ValueType) -> Option<&DeclarationId
     Some(&**id)
 }
 
+/// An exclusive loan carrier: a `@mut T` reference or a `@mut [T]` element
+/// view. It is affine, so a state edge transfers it rather than copying it
+/// (terminal-psi/byte_views.md#calls-and-control-transfers).
+pub(crate) fn is_exclusive_descriptor(carrier: &ValueType) -> bool {
+    matches!(place_reference(carrier), Some((crate::ReferenceAccess::Mutable, _))) || is_exclusive_element_view(carrier)
+}
+
+/// A `@mut [T]` element view of scalar or nominal elements. Like every other
+/// descriptor it lives in a structural place, but it is never copied.
+pub(crate) fn is_exclusive_element_view(carrier: &ValueType) -> bool {
+    matches!(scalar_element_view(carrier), Some((omega_typed::Access::Mut, _))) || mutable_element_view(carrier).is_some()
+}
+
 pub(crate) fn is_reference_descriptor(carrier: &ValueType) -> bool {
     is_shared_byte_view(carrier) || is_shared_element_view(carrier) || place_reference(carrier).is_some()
 }
 
 pub(crate) fn uses_structural_place(carrier: &ValueType) -> bool {
-    matches!(carrier, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)) || is_reference_descriptor(carrier)
+    matches!(carrier, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..))
+        || is_reference_descriptor(carrier)
+        || is_exclusive_element_view(carrier)
 }
 
 pub(crate) fn supports_value_copy(carrier: &ValueType) -> bool {

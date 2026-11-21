@@ -1,4 +1,4 @@
-use crate::evaluation::constant_evaluation::ConstantEvaluation;
+use crate::evaluation::constant_evaluation::{ConstantEvaluation, ObservationReplay};
 use crate::evaluation::integer_arithmetic::IntegerRange;
 use crate::invocation::{EvaluationError, Scope, UNSUPPORTED_BODY};
 use crate::reasons::PreparationReason;
@@ -119,8 +119,9 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
         &self,
         value: &PreparedValue,
         demand: &StaticValueDemand,
-    ) -> Option<StaticValue> {
+    ) -> Result<StaticValue, PreparationReason> {
         let proof = OnceCell::new();
+        let needs_target = std::cell::Cell::new(false);
         let canonical = as_static(value, &|owner| {
             self.nominal
                 .constrained
@@ -141,20 +142,31 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
                             std::ptr::eq(checked.trees, self.trees)
                                 && &checked.demand == demand
                                 && &checked.representative == value
-                                && checked.target_dependencies.iter().all(|used| {
-                                    self.target
-                                        .is_some_and(|target| target.matches_observation(used))
-                                })
+                                && match self.replay_observations(&checked.target_dependencies) {
+                                    ObservationReplay::Replays => true,
+                                    ObservationReplay::NeedsTarget => {
+                                        needs_target.set(true);
+                                        false
+                                    }
+                                    ObservationReplay::Changed => false,
+                                }
                         })
                     })
                     .is_none()
+        })
+        // Wait for a target only when its proofs are all that is missing: a
+        // value that is not canonical even without proof obligations refuses now.
+        .ok_or(if needs_target.get() && as_static(value, &|_| false).is_some() {
+            PreparationReason::ProofNeedsTarget
+        } else {
+            PreparationReason::NoCanonicalIndexIdentity
         })?;
         if let Some(Some(proof)) = proof.into_inner() {
             for dependency in &proof.target_dependencies {
                 self.record_observation(dependency.clone());
             }
         }
-        Some(canonical)
+        Ok(canonical)
     }
 
     pub(crate) fn owned_field_position(
@@ -218,19 +230,25 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
         carrier: &ValueType,
         fields: &[PreparedValue],
     ) -> Result<(), EvaluationError> {
+        let mut needs_target = false;
         let proof = self
             .nominal
             .establishments
             .iter()
-            .find(|proof| {
-                proof.covers(self.trees, obligation, carrier)
-                    && proof.fields.as_ref() == fields
-                    && proof.target_dependencies.iter().all(|used| {
-                        self.target
-                            .is_some_and(|target| target.matches_observation(used))
-                    })
+            .filter(|proof| proof.covers(self.trees, obligation, carrier) && proof.fields.as_ref() == fields)
+            .find(|proof| match self.replay_observations(&proof.target_dependencies) {
+                ObservationReplay::Replays => true,
+                ObservationReplay::NeedsTarget => {
+                    needs_target = true;
+                    false
+                }
+                ObservationReplay::Changed => false,
             })
-            .ok_or(NEEDS_CONSTRUCTION_PROOF)?;
+            .ok_or(if needs_target {
+                PreparationReason::ProofNeedsTarget
+            } else {
+                NEEDS_CONSTRUCTION_PROOF
+            })?;
         for dependency in &proof.target_dependencies {
             self.record_observation(dependency.clone());
         }

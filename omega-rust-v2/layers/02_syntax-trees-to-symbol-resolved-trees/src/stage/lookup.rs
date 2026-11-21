@@ -22,6 +22,9 @@ fn fixed_integer_family(name: &str, applied: bool) -> Option<u8> {
 pub(super) struct NameMatches {
     pub(super) slots: Vec<usize>,
     queries: Vec<Symbol>,
+    /// The one address whose visible set supplied every slot. A trait member address
+    /// also reaches its parents' requirements of that name, and those form one family.
+    pub(super) family: Option<(String, String)>,
 }
 
 impl NameMatches {
@@ -449,7 +452,7 @@ impl Catalog<'_> {
                         format!("unavailable import {}", file.nodes[import.node].path()),
                     ));
                 }
-                let target = self.symbol(file, span, &import.slots)?;
+                let target = self.symbol(file, span, &import.slots, Some(&import.address))?;
                 for &slot in &import.slots {
                     self.require_carrier(file, slot, import.node, span, visibility)?;
                 }
@@ -460,21 +463,34 @@ impl Catalog<'_> {
         Ok(())
     }
 
+    /// Callables at one path form an overload set. So do the requirements that a
+    /// single trait member address reaches through the trait's parents, as in
+    /// `C::f` when `C: P` and both declare `f`. L3 selects among them by signature.
+    /// Requirements found through two imports or two owners still compete.
     pub(super) fn symbol(
         &self,
         file: &File<'_>,
         span: SourceSpan,
         slots: &[usize],
+        family: Option<&(String, String)>,
     ) -> Result<Symbol, NameError> {
         let mut ids: Vec<_> = slots.iter().map(|&i| self.entries[i].id.clone()).collect();
         ids.sort_unstable();
         ids.dedup();
+        let one_family = || {
+            family.is_some_and(|address| {
+                let members = self.visible(file, address);
+                slots.iter().all(|slot| members.contains(slot))
+            })
+        };
         match ids.as_slice() {
             [id] => Ok(Symbol::Declaration(id.clone())),
             [first, ..]
-                if ids
-                    .iter()
-                    .all(|id| callable(id.kind) && id.package == first.package && id.path == first.path) =>
+                if ids.iter().all(|id| callable(id.kind))
+                    && (ids
+                        .iter()
+                        .all(|id| id.package == first.package && id.path == first.path)
+                        || one_family()) =>
             {
                 Ok(Symbol::Candidates(ids))
             }
@@ -678,7 +694,7 @@ impl Catalog<'_> {
                 .filter(|&i| self.entries[i].id.kind == NodeKind::Data)
                 .collect();
             if !owners.is_empty() {
-                names.push(self.symbol(file, span, &owners)?);
+                names.push(self.symbol(file, span, &owners, None)?);
             }
             match names.len() {
                 0 => return Ok(None),
@@ -727,8 +743,9 @@ impl Catalog<'_> {
         span: SourceSpan,
         slots: &[usize],
         attachments: &[Attachment],
+        family: Option<&(String, String)>,
     ) -> Result<Symbol, NameError> {
-        self.symbol(file, span, slots).or_else(|mut error| {
+        self.symbol(file, span, slots, family).or_else(|mut error| {
             // Source and compiled declarations can occupy different catalog slots.
             // Report the competing attachments in the same order as their identities.
             let mut slots = slots.to_vec();
@@ -814,6 +831,7 @@ impl Catalog<'_> {
         let at_address = |address: &(String, String)| NameMatches {
             slots: self.visible(file, address),
             queries: self.query_symbol(address).into_iter().collect(),
+            family: Some(address.clone()),
         };
         if let Some((root, rest)) = path.split_once('\\') {
             let address = self.address(file, path, file.span(n))?;
@@ -857,40 +875,69 @@ impl Catalog<'_> {
                     return Ok(NameMatches {
                         slots: visible,
                         queries: Vec::new(),
+                        family: None,
                     });
                 }
             }
         }
-        let local = at_address(&(file.package.into(), module_child(&file.namespace, path)));
-        let mut preferred: Vec<_> = local
-            .slots
-            .iter()
-            .copied()
-            .filter(|&i| {
-                self.entries[i]
-                    .source
-                    .is_some_and(|(origin, _)| origin == file.ordinal())
-            })
-            .collect();
+        let local_address = (file.package.to_owned(), module_child(&file.namespace, path));
+        let local = at_address(&local_address);
+        let own_file = |i: usize| {
+            self.entries[i]
+                .source
+                .is_some_and(|(origin, _)| origin == file.ordinal())
+        };
+        // The file's own declaration selects this address. Requirements it inherits
+        // from a parent trait come with it, wherever that parent is declared.
+        let mut preferred: Vec<_> = if local.slots.iter().any(|&i| own_file(i)) {
+            local
+                .slots
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    let id = &self.entries[i].id;
+                    own_file(i) || (id.package.as_str(), id.path.as_str()) != (local_address.0.as_str(), local_address.1.as_str())
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        // Each address that supplies slots. One address can supply one requirement family.
+        let mut sources = Vec::new();
+        if !preferred.is_empty() {
+            sources.push(local_address.clone());
+        }
         let mut imported = Vec::new();
         let mut queries = Vec::new();
         for &site in ctx.by_alias.get(root).into_iter().flatten() {
-            let address = &ctx.imports[site].address;
-            if !ctx.open_modules.contains(address) {
-                imported.extend_from_slice(&ctx.imports[site].slots);
-                queries.extend(self.query_symbol(address));
+            let import = &ctx.imports[site];
+            if !ctx.open_modules.contains(&import.address) {
+                imported.extend_from_slice(&import.slots);
+                queries.extend(self.query_symbol(&import.address));
+                if rest.is_none() && !import.slots.is_empty() {
+                    sources.push(import.address.clone());
+                }
             }
         }
         // Opening a module exposes its direct declarations under their own names.
         for (package, module) in &ctx.open_modules {
             let address = (package.clone(), module_child(module, root));
-            imported.extend(self.direct(file, &address));
+            let direct = self.direct(file, &address);
+            if rest.is_none() && !direct.is_empty() {
+                sources.push(address.clone());
+            }
+            imported.extend(direct);
             queries.extend(self.query_symbol(&address));
         }
         if let Some(rest) = rest {
             for slot in imported {
                 let id = &self.entries[slot].id;
-                preferred.extend(self.visible(file, &(id.package.clone(), qualify(&id.path, rest))));
+                let address = (id.package.clone(), qualify(&id.path, rest));
+                let members = self.visible(file, &address);
+                if !members.is_empty() {
+                    sources.push(address);
+                }
+                preferred.extend(members);
             }
         } else {
             preferred.extend(imported);
@@ -902,7 +949,17 @@ impl Catalog<'_> {
             // Several imports can expose the same declaration. Consumers select by its slot.
             preferred.sort_unstable();
             preferred.dedup();
-            return Ok(NameMatches { slots: preferred, queries });
+            sources.sort_unstable();
+            sources.dedup();
+            let family = match sources.as_slice() {
+                [address] => Some(address.clone()),
+                _ => None,
+            };
+            return Ok(NameMatches {
+                slots: preferred,
+                queries,
+                family,
+            });
         }
         if !local.slots.is_empty() || rest.is_none() {
             return Ok(local);

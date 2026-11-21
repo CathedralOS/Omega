@@ -10,6 +10,9 @@ pub(crate) type LocalCallees<'a> = std::collections::HashMap<&'a DeclarationId, 
 pub(crate) struct Callees<'a> {
     pub local: LocalCallees<'a>,
     pub machine_pause: Vec<PauseEffects>,
+    /// The published `requires` count of each runtime callable contract, by
+    /// `CallableContractId` index. A call through the contract owes each clause.
+    pub runtime_requirements: Vec<usize>,
     pub members: std::collections::HashMap<crate::declarations::members::Key, (usize, &'a TypedSignature, usize, PauseEffects)>,
     /// Local logical theorems, which a body cites by erased application.
     pub theorems: std::collections::HashMap<&'a DeclarationId, super::theorem_citations::TheoremCallee<'a>>,

@@ -101,3 +101,9 @@ non-scalar field operand of a formal record	product	psi-output/structural-templa
 projected field operand beside a sibling with cleanup or linear use	checker-input	psi-output/obligated-sibling-template-operand|psi-output/obligated-sibling-instance-cleanup|psi-output/obligated-sibling-template-consumption|psi-output/obligated-sibling-instance-consumption
 float comparison of two formals	product	psi-output/float-formal-comparison|psi-output/float-formal-comparison-consumer
 float literal result	product	psi-output/float-literal-result|psi-output/float-literal-result-consumer
+runtime callable contract with a guarantee	checker-input	psi-output/runtime-contract-guarantee|psi-output/runtime-call-debt|psi-output/runtime-call-guarantee|psi-output/runtime-guarantee-construction|psi-output/runtime-guarantee-refinement
+exclusive view as a match result	checker-input	psi-output/exclusive-view-join
+runtime descriptor joined from distinct selections	checker-input	psi-output/runtime-join-distinct-machines|psi-output/runtime-join-distinct-contracts
+runtime call debts on ordinary and terminal edges	checker-input	psi-output/runtime-ordered-debts|psi-output/runtime-terminal-debts
+exclusive view and runtime descriptor joined before one call	checker-input	psi-output/exclusive-descriptor-joined-call|psi-output/exclusive-view-read-after-transfer
+second name for an existing exclusive view	checker-input	psi-output/exclusive-local-transfer

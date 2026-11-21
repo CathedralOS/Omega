@@ -36,6 +36,14 @@ impl From<PreparationRefusal> for StaticDemandError {
     }
 }
 
+/// How a checked judgment's target observations replay under this pass's target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ObservationReplay {
+    Replays,
+    NeedsTarget,
+    Changed,
+}
+
 /// Values belong to this typing pass because it owns the selected calls.
 pub(crate) struct ConstantEvaluation<'trees, 'text> {
     pub(crate) trees: &'trees TypedTrees<'text>,
@@ -105,6 +113,36 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         let mut observations = self.observations.borrow_mut();
         if !observations.contains(&observation) {
             observations.push(observation);
+        }
+    }
+
+    /// Judge a checked proof's recorded target observations in this pass. A
+    /// proof that records none replays everywhere. Without a selected target the
+    /// proof is neither valid nor stale; its demand waits for target selection.
+    pub(crate) fn replay_observations(
+        &self,
+        observations: &[TargetObservation],
+    ) -> ObservationReplay {
+        match self.target {
+            _ if observations.is_empty() => ObservationReplay::Replays,
+            None => ObservationReplay::NeedsTarget,
+            Some(target) if observations.iter().all(|used| target.matches_observation(used)) => ObservationReplay::Replays,
+            Some(_) => ObservationReplay::Changed,
+        }
+    }
+
+    /// A refusal whose rule is missing target input leaves the request open,
+    /// wherever execution located it. Layout and floating operations already
+    /// return `OpenTarget` directly; proofs report their reason like any refusal.
+    fn open_when_target_missing(
+        &self,
+        request: &omega_typed::StaticValueRequest,
+        error: EvaluationError,
+    ) -> EvaluationError {
+        match error {
+            EvaluationError::Refused(cause, node) if cause.awaits_target() => EvaluationError::OpenTarget(self.request_refusal(request, node, cause)),
+            EvaluationError::Located(refusal) if refusal.cause.awaits_target() => EvaluationError::OpenTarget(refusal),
+            error => error,
         }
     }
 
@@ -188,11 +226,19 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         };
         loop {
             self.origin = Some(crate::PreparedValueOrigin::StaticIndex(demand.clone()));
-            match self.evaluate_value_request(request, arguments) {
+            match self
+                .evaluate_value_request(request, arguments)
+                .map_err(|error| self.open_when_target_missing(request, error))
+            {
                 Ok(value) => {
-                    return self
-                        .canonical_identity(&value, demand)
-                        .ok_or_else(|| refusal(&request.expression, PreparationReason::NoCanonicalIndexIdentity).into());
+                    return self.canonical_identity(&value, demand).map_err(|reason| {
+                        let refusal = refusal(&request.expression, reason);
+                        if reason.awaits_target() {
+                            StaticDemandError::OpenTarget(refusal)
+                        } else {
+                            StaticDemandError::Refused(refusal)
+                        }
+                    });
                 }
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
                 Err(EvaluationError::Located(error)) => return Err(error.into()),
@@ -288,7 +334,10 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
             let Some(&constant) = stack.last() else { return Ok(()) };
             let request = &constant.initializer;
             self.origin = Some(crate::PreparedValueOrigin::Constant(constant.declaration.clone()));
-            match self.evaluate_value_request(request, None) {
+            match self
+                .evaluate_value_request(request, None)
+                .map_err(|error| self.open_when_target_missing(request, error))
+            {
                 Ok(value) => {
                     self.publish_constant(constant, value)?;
                     active.remove(&constant.declaration);
@@ -323,4 +372,4 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

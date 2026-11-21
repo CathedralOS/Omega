@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::TargetObservation;
+use crate::evaluation::constant_evaluation::ObservationReplay;
 use omega_typed::{CallableType, IndirectCall, InvocationTarget, MachineApplication, MachineEffects, TypedTrees, TypingObligation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -375,6 +376,7 @@ impl ConstantEvaluation<'_, '_> {
         result: Option<&PreparedValue>,
     ) -> Result<(), EvaluationError> {
         let tree = self.tree(request.site)?;
+        let mut needs_target = false;
         for proof in &self.callable_refinements.uses {
             if !std::ptr::eq(proof.trees, self.trees)
                 || proof.call.node != request.site
@@ -393,11 +395,13 @@ impl ConstantEvaluation<'_, '_> {
             {
                 continue;
             }
-            if !proof.observations.iter().all(|used| {
-                self.target
-                    .is_some_and(|target| target.matches_observation(used))
-            }) {
-                continue;
+            match self.replay_observations(&proof.observations) {
+                ObservationReplay::Replays => {}
+                ObservationReplay::NeedsTarget => {
+                    needs_target = true;
+                    continue;
+                }
+                ObservationReplay::Changed => continue,
             }
             for used in &proof.observations {
                 self.record_observation(used.clone());
@@ -411,7 +415,9 @@ impl ConstantEvaluation<'_, '_> {
                 _ => None,
             })
             .ok_or(UNSUPPORTED_CONTRACT)?;
-        let reason = if result.is_some() {
+        let reason = if needs_target {
+            PreparationReason::ProofNeedsTarget
+        } else if result.is_some() {
             PreparationReason::CallableGuaranteeNeedsJudgment
         } else {
             PreparationReason::CallablePreconditionNeedsJudgment
@@ -459,6 +465,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         let origin = caller.node;
         let tree = self.tree(origin)?;
+        let mut needs_target = false;
         for proof in &self.callable_refinements.checked {
             if !std::ptr::eq(proof.trees, self.trees)
                 || proof.obligation.node != origin
@@ -475,16 +482,21 @@ impl ConstantEvaluation<'_, '_> {
             {
                 continue;
             }
-            if !proof.observations.iter().all(|observation| {
-                self.target
-                    .is_some_and(|target| target.matches_observation(observation))
-            }) {
-                continue;
+            match self.replay_observations(&proof.observations) {
+                ObservationReplay::Replays => {}
+                ObservationReplay::NeedsTarget => {
+                    needs_target = true;
+                    continue;
+                }
+                ObservationReplay::Changed => continue,
             }
             for observation in &proof.observations {
                 self.record_observation(observation.clone());
             }
             return Ok(());
+        }
+        if needs_target {
+            return Err(PreparationReason::ProofNeedsTarget.into());
         }
         Err(PreparationReason::CallbackNeedsRefinement.into())
     }

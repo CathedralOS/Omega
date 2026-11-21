@@ -1,5 +1,6 @@
 use super::*;
 use crate::TargetObservation;
+use crate::evaluation::constant_evaluation::ObservationReplay;
 use omega_typed::{CrashRoute, TypedTrees, TypingObligation};
 
 #[derive(Default)]
@@ -132,22 +133,26 @@ impl ConstantEvaluation<'_, '_> {
                     .eq(&fact.operands)
                 && fact.result.as_ref() == result
         });
-        let mut changed_target = false;
+        let (mut needs_target, mut changed_target) = (false, false);
         for fact in matching {
-            if !fact.observations.is_empty()
-                && !self.target.is_some_and(|target| {
-                    fact.observations
-                        .iter()
-                        .all(|observation| target.matches_observation(observation))
-                })
-            {
-                changed_target = true;
-                continue;
+            match self.replay_observations(&fact.observations) {
+                ObservationReplay::Replays => {}
+                ObservationReplay::NeedsTarget => {
+                    needs_target = true;
+                    continue;
+                }
+                ObservationReplay::Changed => {
+                    changed_target = true;
+                    continue;
+                }
             }
             for observation in &fact.observations {
                 self.record_observation(observation.clone());
             }
             return Ok(());
+        }
+        if needs_target {
+            return Err(PreparationReason::ProofNeedsTarget.into());
         }
         if changed_target {
             return Err(PreparationReason::InvocationProofTargetChanged.into());

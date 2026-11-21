@@ -1,4 +1,4 @@
-use super::tests::{ADMISSION, WORD, assert_refused, binds, frozen, prepare_pass, range_in, typed};
+use super::tests::{ADMISSION, FILE, PACKAGE, WORD, assert_refused, binds, frozen, prepare_pass, range_in, typed};
 use super::*;
 
 use crate::test_source_package::source_package;
@@ -441,4 +441,362 @@ fn a_static_callback_uses_the_selected_body_contract_at_its_indirect_occurrence(
         range,
         &postcondition,
     );
+}
+
+/// The precondition fact of `proof_inputs_replay_the_exact_layout_and_specialized_call`,
+/// rebuilt for whichever forest the round typed. It covers `within(7)` at
+/// `get::<1>` and records the `Size` observation it relied on.
+fn layout_premise_fact<'trees, 'text>(
+    trees: &'trees TypedTrees<'text>,
+    observation: &crate::TargetObservation,
+) -> CheckedInvocationFact<'trees, 'text> {
+    let selected = trees
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "get")
+        .unwrap();
+    let caller = trees
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "via")
+        .unwrap();
+    let signature = trees
+        .signatures
+        .iter()
+        .find(|signature| signature.machine == selected.machine)
+        .unwrap();
+    let tree = trees.trees().nth(signature.node.file).unwrap();
+    let file = tree.resolved().file;
+    let declaration = signature.node.node;
+    let requires = file.child(declaration, NodeKind::Requires).unwrap();
+    let [premise] = *file.nodes[requires].children.as_slice() else {
+        panic!("one premise")
+    };
+    CheckedInvocationFact {
+        trees,
+        request: ProofRequest {
+            invocation: InvocationSite {
+                call: selected.node,
+                signature,
+                body: file.node_id(file.child(declaration, NodeKind::Body).unwrap()),
+            },
+            claim: InvocationClaim::Requires(file.node_id(premise)),
+        },
+        application: Some(selected.in_caller_application(caller)),
+        observations: vec![observation.clone()],
+        operands: vec![PreparedValue::Integer(7u64.into())],
+        result: None,
+    }
+}
+
+/// The selected target and a capsule with the same identity and geometry but
+/// another plan, as in `proof_inputs_replay_the_exact_layout_and_specialized_call`.
+fn layout_premise_targets() -> (crate::TargetSemantics, crate::TargetSemantics, crate::TargetObservation) {
+    use crate::{LayoutExtent, LayoutGeometry, SelectedLayout, TargetIdentity, TargetSemantics};
+    use std::sync::Arc;
+    let identity = TargetIdentity {
+        profile: "selected-target".into(),
+        semantics_version: 1,
+        realization: Arc::from(&b"probe-abi"[..]),
+    };
+    let layout = SelectedLayout {
+        target: identity.clone(),
+        subject: WORD,
+        schema: Arc::from(&b"probe-u64-schema"[..]),
+        plan: Arc::from(&b"probe-plan-one"[..]),
+        geometry: LayoutGeometry {
+            extent: LayoutExtent::Fixed(8),
+            alignment: Some(8),
+        },
+    };
+    let capsule = TargetSemantics::new(identity.clone(), [layout.clone()], []).unwrap();
+    let other = TargetSemantics::new(
+        identity,
+        [SelectedLayout {
+            plan: Arc::from(&b"probe-plan-two"[..]),
+            ..layout
+        }],
+        [],
+    )
+    .unwrap();
+    let (_, observation) = capsule
+        .observe_layout(omega_typer::LayoutQuery::Size, &WORD)
+        .unwrap();
+    (capsule, other, observation)
+}
+
+const LAYOUT_PREMISE: &str = r"
+        use omega\language\core;
+        let within(n:u64):bool = n <= core\size_of::<u64>();
+        machine get<const K:u64>(n:u64)->u64 requires within(n) {n}
+        machine via<const K:u64>(n:u64)->u64 {get::<K>(n)}
+        const VALUE:u64=via::<1u64>(7u64);
+    ";
+
+/// Written independently of the reason inventory, like `ADMISSION`.
+const PROOF_NEEDS_TARGET: &str = "the checked proof depends on target input and no target is selected";
+
+#[test]
+fn a_target_dependent_proof_before_target_selection_keeps_the_constant_open() {
+    use crate::{CheckedPreparationEvidence, ConstantMaterializationError, PreparationProgress, PreparationRound, PreparationStep};
+
+    let (capsule, other, observation) = layout_premise_targets();
+    let package = source_package([("main.omg", LAYOUT_PREMISE)]);
+    let range = range_in(LAYOUT_PREMISE, "machine via<", "get::<K>(n)");
+    let chain = "\ncall chain: via -> get";
+
+    // No target: the same checked fact cannot be replayed yet. The constant
+    // keeps its typed recipe instead of refusing the package.
+    let round = PreparationRound::begin(&package, &[], None).unwrap();
+    let omega_typer::TypingProgress::Complete(trees) = round.typing() else {
+        panic!("the result type is already closed")
+    };
+    let evidence = || CheckedPreparationEvidence::default().with_invocation_fact(layout_premise_fact(trees, &observation));
+    let pass = prepare_pass(round.typing(), &[], None, evidence).expect("a missing target does not refuse the package");
+    let evaluated = round.evaluate(evidence()).unwrap();
+    let PreparationStep::Finished(PreparationProgress::Complete(prepared)) = round.advance(evaluated).unwrap() else {
+        panic!("the package is otherwise complete")
+    };
+    let [constant] = prepared.typed().constants.as_slice() else {
+        panic!("expected VALUE")
+    };
+    let declaration = &constant.declaration;
+    assert_eq!(prepared.constant(declaration), None);
+    let retained = prepared
+        .open_target_constant(declaration)
+        .expect("VALUE keeps its recipe for a later target");
+    assert_eq!((retained.package.as_str(), retained.file.as_str()), (PACKAGE, FILE));
+    assert_eq!((retained.span.get_start_offset(), retained.span.get_end_offset()), range);
+    assert_eq!(retained.message, format!("{ADMISSION}{PROOF_NEEDS_TARGET}{chain}"));
+    assert!(prepared.target_observations().is_empty());
+    spec_corpus::observe_handoff!(
+        "invocation-proof/open-before-target",
+        assert_eq!(
+            prepared
+                .constant_for_materialization(declaration, &capsule)
+                .unwrap_err(),
+            ConstantMaterializationError::OpenConstant
+        )
+    );
+    // The pass API reports the same open recipe for the same evidence.
+    let crate::PreparationAnswers::Frozen {
+        constants,
+        open_target_constants,
+    } = pass.answers
+    else {
+        panic!("a complete typing pass freezes")
+    };
+    assert!(constants.is_empty());
+    assert_eq!(
+        open_target_constants
+            .get(declaration)
+            .map(|error| error.as_ref()),
+        Some(retained)
+    );
+
+    // Controls on the same bytes and fact: the selected plan admits VALUE and a
+    // changed plan still refuses with its own reason.
+    let selected = PreparationRound::begin(&package, &[], Some(&capsule)).unwrap();
+    let omega_typer::TypingProgress::Complete(trees) = selected.typing() else {
+        panic!("closed")
+    };
+    let evaluated = selected
+        .evaluate(CheckedPreparationEvidence::default().with_invocation_fact(layout_premise_fact(trees, &observation)))
+        .unwrap();
+    let PreparationStep::Finished(PreparationProgress::Complete(admitted)) = selected.advance(evaluated).unwrap() else {
+        panic!("the selected plan admits VALUE")
+    };
+    assert_eq!(admitted.integer_constant(&admitted.typed().constants[0].declaration), Some(&7.into()));
+    assert_eq!(admitted.target_observations(), std::slice::from_ref(&observation));
+    let changed = PreparationRound::begin(&package, &[], Some(&other)).unwrap();
+    let omega_typer::TypingProgress::Complete(trees) = changed.typing() else {
+        panic!("closed")
+    };
+    assert_refused(
+        prepare_pass(changed.typing(), &[], Some(&other), || {
+            CheckedPreparationEvidence::default().with_invocation_fact(layout_premise_fact(trees, &observation))
+        }),
+        PreparationReason::InvocationProofTargetChanged,
+        range,
+        &format!("{ADMISSION}the checked invocation proof depends on a different target selection{chain}"),
+    );
+
+    // Wrong twins with no target. A fact checked for get::<2> or for operand 8
+    // does not match this occurrence, so it cannot wait for a target: the
+    // package refuses exactly as it does when no evidence is supplied.
+    let needs_proof = format!("{ADMISSION}the selected precondition requires a checked proof for the supplied arguments{chain}");
+    let unselected = PreparationRound::begin(&package, &[], None).unwrap();
+    let omega_typer::TypingProgress::Complete(trees) = unselected.typing() else {
+        panic!("closed")
+    };
+    let wrong_application = || {
+        let mut fact = layout_premise_fact(trees, &observation);
+        let Some(ValueType::StaticInteger { value, .. }) = fact
+            .application
+            .as_mut()
+            .and_then(|call| call.type_arguments.first_mut())
+        else {
+            panic!("one closed const argument")
+        };
+        *value = 2u64.into();
+        CheckedPreparationEvidence::default().with_invocation_fact(fact)
+    };
+    let wrong_operand = || {
+        let mut fact = layout_premise_fact(trees, &observation);
+        fact.operands = vec![PreparedValue::Integer(8u64.into())];
+        CheckedPreparationEvidence::default().with_invocation_fact(fact)
+    };
+    let progress = unselected.typing();
+    assert_refused(
+        prepare_pass(progress, &[], None, CheckedPreparationEvidence::default),
+        PreparationReason::PreconditionNeedsProof,
+        range,
+        &needs_proof,
+    );
+    assert_refused(
+        prepare_pass(progress, &[], None, wrong_application),
+        PreparationReason::PreconditionNeedsProof,
+        range,
+        &needs_proof,
+    );
+    assert_refused(
+        prepare_pass(progress, &[], None, wrong_operand),
+        PreparationReason::PreconditionNeedsProof,
+        range,
+        &needs_proof,
+    );
+}
+
+/// The layout-premise program with its result moved into an extent, so typing
+/// waits for the value and the open package carries the demand.
+const LAYOUT_PREMISE_EXTENT: &str = r"
+        use omega\language\core;
+        let within(n:u64):bool = n <= core\size_of::<u64>();
+        machine get<const K:u64>(n:u64)->u64 requires within(n) {n}
+        machine via<const K:u64>(n:u64)->u64 {get::<K>(n)}
+        machine carry(x:[u8;via::<1u64>(7u64)]){}
+    ";
+
+/// Step every round, supplying the layout-premise fact for each forest.
+fn step_with_layout_premise<'text>(
+    mut round: crate::PreparationRound<'_, 'text>,
+    observation: &crate::TargetObservation,
+) -> Result<crate::PreparationProgress<'text>, PreparationRefusal> {
+    use crate::{CheckedPreparationEvidence, PreparationStep};
+    loop {
+        let trees = match round.typing() {
+            omega_typer::TypingProgress::Pending(pending) => pending.trees(),
+            omega_typer::TypingProgress::Complete(trees) => trees,
+        };
+        let evaluated = round.evaluate_with_cause(CheckedPreparationEvidence::default().with_invocation_fact(layout_premise_fact(trees, observation)))?;
+        match round.advance(evaluated).unwrap() {
+            PreparationStep::Evaluate(next) => round = *next,
+            PreparationStep::Finished(progress) => return Ok(progress),
+        }
+    }
+}
+
+#[test]
+fn an_open_extent_resumes_under_the_selected_target_with_its_checked_proof() {
+    use crate::{
+        OpenTargetPreparation, PreparationFailure, PreparationProgress, PreparationRound, PreparedValueOrigin, prepare_source_package_diagnosed_with_inputs,
+    };
+
+    let (capsule, other, observation) = layout_premise_targets();
+    let package = source_package([("main.omg", LAYOUT_PREMISE_EXTENT)]);
+    let range = range_in(LAYOUT_PREMISE_EXTENT, "machine via<", "get::<K>(n)");
+    let chain = "\ncall chain: via -> get";
+    let open = || -> OpenTargetPreparation<'_> {
+        match step_with_layout_premise(PreparationRound::begin(&package, &[], None).unwrap(), &observation) {
+            Ok(PreparationProgress::OpenTarget(open)) => open,
+            other => panic!("before target selection the extent stays open: {other:?}"),
+        }
+    };
+
+    // Producer: the open package names the demand and why it waits.
+    let waiting = open();
+    let [demand] = waiting.demands() else { panic!("one open extent") };
+    spec_corpus::assert_preparation_cause!(
+        demand,
+        RefusalCause::Preparation(PreparationReason::ProofNeedsTarget),
+        PACKAGE,
+        FILE,
+        range,
+        format!("{ADMISSION}{PROOF_NEEDS_TARGET}{chain}"),
+    );
+    let demand = demand.demand.clone();
+
+    // Consumer: resuming under the selected target with the same fact for the
+    // resumed forest closes the extent and records the plan it relied on.
+    let resumed = match waiting
+        .resume(&capsule, |round| step_with_layout_premise(round, &observation))
+        .unwrap()
+    {
+        Ok(PreparationProgress::Complete(prepared)) => prepared,
+        other => panic!("the selected target closes the extent: {other:?}"),
+    };
+    let carry = resumed
+        .typed()
+        .signatures
+        .iter()
+        .find(|signature| signature.machine.path == "carry")
+        .unwrap();
+    let byte = ValueType::Integer { signed: false, width: Some(8) };
+    spec_corpus::observe_handoff!(
+        "invocation-proof/resumed-extent",
+        assert_eq!(carry.parameters[0].1, ValueType::Array(Box::new(byte), 7))
+    );
+    assert_eq!(resumed.target_observations(), std::slice::from_ref(&observation));
+    assert_eq!(
+        resumed
+            .dependencies()
+            .inputs(&PreparedValueOrigin::StaticIndex(demand))
+            .unwrap()
+            .target_observations,
+        std::slice::from_ref(&observation)
+    );
+    // Stepping from the start under the same target and fact reaches the same product.
+    let Ok(PreparationProgress::Complete(direct)) = step_with_layout_premise(PreparationRound::begin(&package, &[], Some(&capsule)).unwrap(), &observation)
+    else {
+        panic!("direct preparation under the target closes the extent")
+    };
+    assert_eq!(resumed, direct);
+
+    // Controls: another plan for the same identity refuses with its own reason,
+    // and closing without evidence refuses exactly like direct preparation.
+    let changed = open()
+        .resume(&other, |round| step_with_layout_premise(round, &observation))
+        .unwrap();
+    assert_refused_cause(
+        changed.map(|_| ()),
+        PreparationReason::InvocationProofTargetChanged,
+        range,
+        &format!("{ADMISSION}the checked invocation proof depends on a different target selection{chain}"),
+    );
+    let unproved = open().close(&capsule).unwrap_err();
+    let PreparationFailure::Preparation(refusal) = &unproved else {
+        panic!("{unproved:?}")
+    };
+    spec_corpus::assert_preparation_cause!(
+        refusal,
+        RefusalCause::Preparation(PreparationReason::PreconditionNeedsProof),
+        PACKAGE,
+        FILE,
+        range,
+        format!("{ADMISSION}the selected precondition requires a checked proof for the supplied arguments{chain}"),
+    );
+    assert_eq!(
+        prepare_source_package_diagnosed_with_inputs(&package, &[], Some(&capsule)).unwrap_err(),
+        unproved
+    );
+}
+
+fn assert_refused_cause(
+    result: Result<(), PreparationRefusal>,
+    reason: PreparationReason,
+    range: (usize, usize),
+    message: &str,
+) {
+    let refusal = result.expect_err("the resumed round must refuse");
+    spec_corpus::assert_preparation_cause!(refusal, RefusalCause::Preparation(reason), PACKAGE, FILE, range, message);
 }

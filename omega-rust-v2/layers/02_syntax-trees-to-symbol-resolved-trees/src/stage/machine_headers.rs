@@ -69,7 +69,7 @@ impl Catalog<'_> {
                 [_] if attachments.iter().any(|a| a.carrier_deferred) => self.domain_candidates(&slots, &attachments, String::new()),
                 [slot] if matches!(self.entries[*slot].id.kind, Domain | Trait | Conformance) => Symbol::Declaration(self.entries[*slot].id.clone()),
                 [_] => return Err(file.error(NameErrorKind::IneligibleMachineOwner, span, format!("{name} cannot qualify a machine declaration"))),
-                _ => self.occurrence_symbol(file, ctx, qualifier, &slots, &attachments).map_err(|cause| {
+                _ => self.occurrence_symbol(file, ctx, qualifier, &slots, &attachments, None).map_err(|cause| {
                     file.error(NameErrorKind::AmbiguousMachineOwner, qualifier, format!("ambiguous machine owner {name}: {}", cause.message))
                 })?,
             };

@@ -100,8 +100,7 @@ fn emit_body(
             return Err(LoweringError::new(&site, "parameter binder disagrees with the typed signature"));
         }
         let parameter = match crate::declarations::regions::slot_carrier(carrier, &signature.machine) {
-            carrier if crate::lowering::types::uses_structural_place(carrier)
-                || matches!(types.get(ty), Some(crate::TypeShape::MutableElementView { .. } | crate::TypeShape::MutableScalarElementView { .. })) => {
+            carrier if crate::lowering::types::uses_structural_place(carrier) => {
                 let place = PlaceId(next_id(block.places.len()));
                 block.places.push(Place {
                     ty,

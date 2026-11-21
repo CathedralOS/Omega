@@ -247,8 +247,15 @@ pub(super) fn select_runtime_call<'a>(
         }
         operands.push((argument, formal));
     }
+    // Each published contract precondition is one caller obligation at its own
+    // position, as for a direct call; the checker substitutes these operands.
+    let requirement_count = *expressions
+        .callees
+        .runtime_requirements
+        .get(contract.index())
+        .ok_or_else(|| error("runtime call names an unpublished callable contract"))?;
     Ok(Some(SelectedCall {
-        owed: super::calls::OwedClauses::callee(0),
+        owed: super::calls::OwedClauses::callee(requirement_count),
         callee: CallTarget::Runtime { descriptor, contract },
         acknowledgements: call.acknowledgements,
         operands,

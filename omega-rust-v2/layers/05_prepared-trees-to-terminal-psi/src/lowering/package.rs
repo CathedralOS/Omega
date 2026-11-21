@@ -297,9 +297,20 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             return Err(LoweringError::new(&alias.site, "restricted trait needs its packaged base requirements"));
         }
     }
+    // A runtime call owes each published `requires` clause of its contract, so
+    // the contracts are lowered before any body that calls through them.
+    let callable_contracts = types
+        .callable_contracts()
+        .iter()
+        .map(|callable| crate::declarations::callables::contract(prepared, callable))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut machines = Vec::with_capacity(instances.len());
     let mut crossing_owners = Vec::with_capacity(instances.len());
     let mut callees = calls::Callees {
+        runtime_requirements: callable_contracts
+            .iter()
+            .map(|contract| contract.requires.len())
+            .collect(),
         machine_pause: headers
             .iter()
             .map(|(contract, _)| contract.realized_pause)
@@ -465,11 +476,6 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     mathematics.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
     data_templates.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
     conformances.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
-    let callable_contracts = types
-        .callable_contracts()
-        .iter()
-        .map(|callable| crate::declarations::callables::contract(prepared, callable))
-        .collect::<Result<Vec<_>, _>>()?;
     let types = types.finish(&domain_catalog)?;
     let mut domains = Vec::new();
     let mut domain_aliases = Vec::new();

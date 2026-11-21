@@ -13,16 +13,16 @@ use omega_typed::{CallableType, PauseEffects, ValueType};
 
 /// Lowering admits only contracts whose every obligation Psi can state:
 /// a closed runtime contract with empty service and crash ceilings, no pause,
-/// no guarantee or requirement identity, by-value scalars or shared references
-/// to scalars as formals, and a scalar or absent result. A precondition over
-/// those formals is published on the contract, which governs every runtime
-/// call through it; a precondition the contract reader cannot state refuses.
-/// Reference results would additionally need public return-origin evidence.
-/// Exclusive loans, nested callables, guarantees and open rows refuse.
+/// no requirement identity, by-value scalars or shared references to scalars
+/// as formals, and a scalar or absent result. The contract publishes its
+/// precondition over those formals and its guarantee over them and `result`;
+/// every runtime call through it owes the first and supplies the second under
+/// that call's arguments and result. A clause the contract reader cannot state
+/// refuses. Reference results would additionally need public return-origin
+/// evidence. Exclusive loans, nested callables and open rows refuse.
 pub(crate) fn supported(callable: &CallableType) -> bool {
     callable.closed_runtime
         && callable.requirement.is_none()
-        && !callable.has_guarantee
         && callable.reach.as_ref().is_some_and(Vec::is_empty)
         && callable.crash_ceiling.as_ref().is_some_and(Vec::is_empty)
         && callable.pause == PauseEffects::default()

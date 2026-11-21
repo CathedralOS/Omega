@@ -17,6 +17,10 @@ CONTROLS = {
        for change in ("sibling-successor", "sibling-actuals")},
     **{f"cycle-cleanup/{change}": "a_back_edge_cleanup_dropped_or_copied_to_its_guard_fails_the_completion_witness"
        for change in ("omitted", "guard-edge")},
+    **{f"runtime-contract/{change}": "a_changed_carrier_contract_guarantee_or_debt_fails_the_runtime_call_contract_witness"
+       for change in ("descriptor-carrier", "callable-identity", "guarantee-dropped", "guarantee-bound", "debt-dropped")},
+    **{f"runtime-joined/{change}": "a_redirected_view_swapped_descriptor_or_changed_terminal_debt_fails_the_joined_call_witnesses"
+       for change in ("view-source", "descriptor-arrivals", "terminal-debt-dropped", "terminal-debt-order")},
 }
 
 

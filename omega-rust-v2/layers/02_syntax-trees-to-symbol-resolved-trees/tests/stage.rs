@@ -2907,3 +2907,136 @@ fn importing_a_module_cannot_hide_a_dependency_alias_conflict() {
     assert_eq!(error.message, "competing module paths dep: package lib and app\\dep");
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"dep\\run".as_slice()));
 }
+
+/// One trait member address reaches the requirement it declares and those its parents declare
+/// with the same name. They form one family for typing to select by signature, wherever the
+/// parent is declared. Requirements that reach a name through two imports, or a file's own
+/// declaration together with an import, still compete here.
+#[test]
+fn a_trait_member_address_hands_its_inherited_requirements_to_typing_as_one_family() {
+    let family = |stage: &omega_resolver::SymbolResolvedTrees<'_>, file: &str, text: &str, at: usize| {
+        let usage = stage
+            .trees()
+            .filter(|tree| tree.file.path == file)
+            .flat_map(|tree| tree.occurrences())
+            .find(|u| u.span.get_start_offset() == at && u.role == omega_resolver::NameRole::Reference)
+            .unwrap_or_else(|| panic!("no reference at {at} in `{text}`"));
+        let Symbol::Candidates(ids) = &usage.target else {
+            panic!("expected one requirement family at {at}: {:?}", usage.target)
+        };
+        let mut members: Vec<_> = ids
+            .iter()
+            .map(|id| (id.path.clone(), id.operands.join(",")))
+            .collect();
+        members.sort();
+        members
+    };
+    let parent = "trait P { machine f(x: u8) -> u8; }\n";
+    let rest =
+        "trait C: P { machine f(x: u16) -> u16; }\nmachine g(x: u8) -> u8 { x }\nmachine h(x: u16) -> u16 { x }\nSink satisfies C { C::f = g; C::f = h; }\n";
+    let original = format!("{parent}{rest}");
+    let expected = [
+        ("C::f".to_string(), "u16".to_string()),
+        ("P::f".to_string(), "u8".to_string()),
+    ];
+    let rows = |text: &str| [text.find("C::f = g").unwrap(), text.find("C::f = h").unwrap()];
+    let stage = run(&[("app", "a.omg", &original)], &[]).unwrap();
+    for at in rows(&original) {
+        spec_corpus::observe_handoff!(
+            "trait-requirement-family/producer",
+            assert_eq!(family(&stage, "a.omg", &original, at), expected)
+        );
+    }
+    let stage = run(&[("app", "a.omg", rest), ("app", "b.omg", parent)], &[]).unwrap();
+    for at in rows(rest) {
+        assert_eq!(family(&stage, "a.omg", rest, at), expected);
+    }
+
+    let chain = "trait A { machine f(x: u8) -> u8; }\ntrait B: A { machine f(x: u16) -> u16; }\ntrait C: B { }\nmachine g(x: u8) -> u8 { x }\nSink satisfies C { C::f = g; }\n";
+    let stage = run(&[("app", "a.omg", chain)], &[]).unwrap();
+    assert_eq!(
+        family(&stage, "a.omg", chain, chain.find("C::f = g").unwrap()),
+        [
+            ("A::f".to_string(), "u8".to_string()),
+            ("B::f".to_string(), "u16".to_string())
+        ]
+    );
+
+    let traits = "trait P { machine f(x: u8) -> u8; }\ntrait C: P { machine f(x: u16) -> u16; }\n";
+    let import = "use C::f;\nmachine k(x: u8) -> u8 { f(x) }\n";
+    let stage = run(&[("app", "a.omg", traits), ("app", "b.omg", import)], &[]).unwrap();
+    assert_eq!(family(&stage, "b.omg", import, import.find("C::f").unwrap()), expected);
+    assert_eq!(family(&stage, "b.omg", import, import.rfind("f(x)").unwrap()), expected);
+
+    let unrelated = "trait A { machine f(x: u8) -> u8; }\ntrait B { machine f(x: u16) -> u16; }\n";
+    let two_imports = "use A::f;\nuse B::f;\nmachine k(x: u8) -> u8 { f(x) }\n";
+    let error = run(&[("app", "a.omg", unrelated), ("app", "b.omg", two_imports)], &[]).unwrap_err();
+    spec_corpus::observe_handoff!(
+        "trait-requirement-family/refusal",
+        assert_refusal(
+            &error,
+            NameErrorKind::CompetingDeclarations,
+            "app",
+            "b.omg",
+            span_in(two_imports, "f(x)", "f"),
+            r"competing declarations: app\A::f, app\B::f"
+        )
+    );
+    let own_and_import = "use C::f;\nmachine f(x: u32) -> u32 { x }\nmachine k(x: u8) -> u8 { f(x) }\n";
+    let error = run(&[("app", "a.omg", traits), ("app", "b.omg", own_and_import)], &[]).unwrap_err();
+    assert_refusal(
+        &error,
+        NameErrorKind::CompetingDeclarations,
+        "app",
+        "b.omg",
+        span_in(own_and_import, "f(x) }", "f"),
+        r"competing declarations: app\C::f, app\P::f, app\f",
+    );
+}
+
+/// Integration control for `modules.md` import scope: "A file's own declarations
+/// and imports take precedence over a sibling's same-spelled declaration." The
+/// requirement family that `use C::f;` reaches stays the target of `f(x)` when a
+/// sibling file declares `f`, and a file's own `f` stays the target when a
+/// sibling imports `C::f`; imports are per file. Removing the sibling leaves each
+/// target unchanged, and the sibling's `f` is the target only where the file
+/// has no `f` of its own.
+#[test]
+fn a_files_own_import_or_declaration_takes_precedence_over_a_siblings_same_spelled_name() {
+    let target = |files: &[(&str, &str)], at: &str| {
+        let sources: Vec<_> = files.iter().map(|(file, text)| ("app", *file, *text)).collect();
+        let stage = run(&sources, &[]).unwrap();
+        let (file, text) = files.iter().find(|(file, _)| *file == "b.omg").copied().unwrap();
+        let at = text.rfind(at).unwrap();
+        let usage = stage
+            .trees()
+            .filter(|tree| tree.file.path == file)
+            .flat_map(|tree| tree.occurrences())
+            .find(|u| u.span.get_start_offset() == at && u.role == omega_resolver::NameRole::Reference)
+            .unwrap_or_else(|| panic!("no reference at {at}"));
+        match &usage.target {
+            Symbol::Candidates(ids) => {
+                let mut ids: Vec<_> = ids.iter().map(|id| id.path.clone()).collect();
+                ids.sort();
+                ids
+            }
+            Symbol::Declaration(id) => vec![format!("{} ({})", id.path, id.operands.join(","))],
+            other => panic!("unexpected target {other:?}"),
+        }
+    };
+    let traits = "trait P { machine f(x: u8) -> u8; }\ntrait C: P { machine f(x: u16) -> u16; }\n";
+    let import = "use C::f;\nmachine k(x: u8) -> u8 { f(x) }\n";
+    let sibling_declaration = "machine f(x: u32) -> u32 { x }\n";
+    let family = vec!["C::f".to_string(), "P::f".to_string()];
+    assert_eq!(target(&[("a.omg", traits), ("b.omg", import), ("c.omg", sibling_declaration)], "f(x)"), family);
+    assert_eq!(target(&[("a.omg", traits), ("b.omg", import)], "f(x)"), family);
+
+    let own = "machine f(x: u8) -> u8 { x }\nmachine k(x: u8) -> u8 { f(x) }\n";
+    let own_f = vec!["f (u8)".to_string()];
+    assert_eq!(target(&[("a.omg", traits), ("b.omg", own), ("c.omg", "use C::f;\n")], "f(x)"), own_f);
+    assert_eq!(target(&[("a.omg", traits), ("b.omg", own)], "f(x)"), own_f);
+
+    // Without an own name the sibling's declaration is visible and selected.
+    let bare = "machine k(x: u32) -> u32 { f(x) }\n";
+    assert_eq!(target(&[("a.omg", traits), ("b.omg", bare), ("c.omg", sibling_declaration)], "f(x)"), vec!["f (u32)".to_string()]);
+}

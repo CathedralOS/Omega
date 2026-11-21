@@ -1,0 +1,13 @@
+data Measure = machine(n: u64) -> u8
+    requires n < 1000
+    ensures result < 200
+    reaches none crashes none;
+
+machine pick(flag: bool, left: @mut [u32], right: @mut [u32], f: Measure, g: Measure) -> u8
+requires left.len < 1000
+requires right.len < 1000
+{
+    let chosen = match flag {true -> left, false -> right,};
+    let m = match flag {true -> f, false -> g,};
+    m(chosen.len)
+}

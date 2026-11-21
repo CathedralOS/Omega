@@ -36,6 +36,9 @@ L2	Generics	refusals	L3	tests/calls.rs	a_public_generic_argument_can_only_select
 L2	Trait requirements	direct	L2	tests/stage.rs	inherited_trait_rows_keep_the_declaring_owner	trait-requirements/producer
 L2	Trait requirements	consumer	L3	tests/calls.rs	a_row_selects_the_inherited_requirement_from_an_imported_module	visibility/consumer
 L2	Trait requirements	refusals	L3	tests/calls.rs	duplicate_rows_are_checked_after_selecting_the_requirement_overload	trait-requirements/refusal
+L2	Trait requirements	direct	L2	tests/stage.rs	a_trait_member_address_hands_its_inherited_requirements_to_typing_as_one_family	trait-requirement-family/producer
+L2	Trait requirements	consumer	L3	tests/calls.rs	rows_select_by_signature_between_a_child_requirement_and_its_parents	trait-requirement-family/consumer
+L2	Trait requirements	refusals	L2	tests/stage.rs	a_trait_member_address_hands_its_inherited_requirements_to_typing_as_one_family	trait-requirement-family/refusal
 L2	Assembly	direct	L2	tests/stage.rs	assembly_transfers_require_one_visible_local_continuation	assembly-symbols/producer
 L2	Assembly	consumer	L3	tests/calls.rs	target_instruction_operands_are_checked_against_the_admitted_target	assembly-symbols/consumer
 L2	Assembly	refusals	L3	tests/calls.rs	target_instruction_operands_are_checked_against_the_admitted_target	assembly-symbols/refusal
@@ -114,6 +117,7 @@ L4	When a public type depends on an unselected target,	refusals	L5	tests/assembl
 L4	Proofs supplied by the checker	direct	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/producer
 L4	Proofs supplied by the checker	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	invocation-proof/materialization
 L4	Proofs supplied by the checker	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	invocation-proof/changed-materialization-plan
+L4	Proofs supplied by the checker	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::a_target_dependent_proof_before_target_selection_keeps_the_constant_open	invocation-proof/open-before-target
 L4	Proofs supplied by the checker	refusals	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/refusal
 L4	A static callback selects an ordinary machine at a	direct	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/producer
 L4	A static callback selects an ordinary machine at a	refusals	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/refusal
@@ -199,6 +203,7 @@ L4	When preparation stops, its diagnosed entry point identifies the pass	refusal
 L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	failed_static_evaluation_is_preparation	preparation-refusal/evaluation
 L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	an_extent_without_a_selected_target_is_missing_target_input	preparation-refusal/missing-target
 L4	When a public type depends on an unselected target,	direct	L4	tests/preparation_failure_phases.rs	an_open_target_recipe_prepares_and_the_open_entry_point_retains_its_demand	preparation-refusal/open-target-retained
+L4	When a public type depends on an unselected target,	consumer	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::an_open_extent_resumes_under_the_selected_target_with_its_checked_proof	invocation-proof/resumed-extent
 L4	When a public type depends on an unselected target,	refusals	L4	tests/preparation_failure_phases.rs	a_selected_target_without_the_layout_refuses_evaluation_at_the_query	preparation-refusal/selected-target-evaluation
 L3	A static value evaluation request identifies the exact expression node and its carrier.	refusals	L3	tests/specialization_receipts.rs	specialization_receipt_preparation_entry_point_applies_the_same_boundary	specialized-evaluation-input/refusal
 L3	The resolver supplies the operator-token node,	direct	L3	tests/calls.rs	inferred_operator_home_distinguishes_inherited_and_independent_domains	overloads-and-operators/consumer

@@ -267,6 +267,26 @@ impl Expressions<'_> {
         value.into_call_argument(site)
     }
 
+    /// The operand a match arm supplies to its join parameter. An exclusive
+    /// descriptor is affine: the edge transfers the arm's descriptor, so the
+    /// join parameter becomes its only name and the arm's source binding is
+    /// consumed on that arrival. The checker judges any later use of it.
+    fn join_argument(
+        &self,
+        value: OperationResult,
+        carrier: &ValueType,
+        body: &MachineBody,
+        site: &Site,
+    ) -> Result<CallArgument, LoweringError> {
+        if crate::lowering::types::is_exclusive_descriptor(carrier) {
+            let OperationResult::Structural(place) = value else {
+                return Err(LoweringError::new(site, "an exclusive descriptor arm must supply a structural descriptor"));
+            };
+            return Ok(CallArgument::MoveWhole(place));
+        }
+        self.value_argument(value, body, site)
+    }
+
     pub(super) fn bind_local(
         &self,
         node: usize,
@@ -275,6 +295,24 @@ impl Expressions<'_> {
         flow: &mut BlockFlow,
     ) -> Result<OperationResult, LoweringError> {
         let site = site_at(self.tree.resolved().file, node);
+        if crate::lowering::types::is_exclusive_descriptor(carrier) {
+            let value = self.lower(node, carrier, body, flow)?;
+            let OperationResult::Structural(source) = value else {
+                return Err(LoweringError::new(&site, "an exclusive descriptor requires a structural place"));
+            };
+            // A named descriptor transfers into its new binding. A fresh result
+            // already has its own place, including a match's join parameter.
+            if self.bindings.iter().any(|(_, bound)| *bound == value) {
+                return Ok(body.push_operation(
+                    OperationOutput::Structural(body.places[source.index()].ty),
+                    OperationKind::MoveStructural {
+                        source: crate::ProjectedPlace { root: source, path: Vec::new() },
+                    },
+                    site,
+                ));
+            }
+            return Ok(value);
+        }
         if crate::lowering::types::place_reference(carrier).is_some() {
             return self.lower(node, carrier, body, flow);
         }
@@ -483,7 +521,7 @@ impl Expressions<'_> {
                     let site = site_at(file, expression);
                     let argument = match (ty, value) {
                         (None, OperationResult::Unit) => None,
-                        (Some(_), _) => Some(self.value_argument(value, block, &site)?),
+                        (Some(_), _) => Some(self.join_argument(value, carrier, block, &site)?),
                         _ => return Err(LoweringError::new(&site, "unit match arm produced a value")),
                     };
                     flow.jump_with_result(block, join, argument, site);
@@ -1037,12 +1075,13 @@ impl Expressions<'_> {
             if node.kind == NodeKind::Match {
                 // A shared reference arm copies its descriptor onto the edge, like a
                 // shared view; the join parameter then names the arriving loan.
-                // An exclusive descriptor would need affine transfer instead.
+                // An exclusive descriptor transfers instead (see `join_argument`).
                 let shared_reference = matches!(crate::lowering::types::place_reference(carrier), Some((crate::ReferenceAccess::Shared, _)));
                 if carrier != &ValueType::NoResult
                     && !self.types.can_forward_value(carrier)
                     && !crate::lowering::types::contains_nominal_value(carrier)
                     && !shared_reference
+                    && !crate::lowering::types::is_exclusive_descriptor(carrier)
                 {
                     return Err(unsupported_node(file, expression, "interior match requires a supported result carrier"));
                 }

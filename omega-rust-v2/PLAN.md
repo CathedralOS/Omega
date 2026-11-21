@@ -78,9 +78,9 @@ A layer is done when all of these are true:
 
 - Every rule in its contract has an accept fixture and a reject fixture, and
   all pass.
-- It runs over the whole spec example corpus (the 132 `omega` code blocks in
-  the spec) without crashing, and every result is either accepted or a
-  refusal the contract predicts.
+- It runs every published `omega` code block in the canonical spec without
+  crashing. Each example either passes or produces the refusal its layer
+  contract predicts.
 - Its independent invariant holds (see the test system below).
 - Each disputed responsibility has a regression that checks the fact handed
   forward and what the consumer does with it. The sign-off names those
@@ -113,7 +113,7 @@ rewrite expected files with `OMEGA_BLESS=1` set.
   with its source file and line, so the corpus cannot drift from the spec.
   Every layer runs over it. Not done yet: examples the spec presents as
   deliberately invalid are not tagged with the layer expected to refuse them.
-  The lexer did not need this, since all 132 are lexically valid.
+  At L0 sign-off, all 132 examples in that revision were lexically valid.
 - **An independent invariant per layer**, cheap to check and not derived from
   the layer's own logic. For the lexer: the tokens and skipped bytes, laid end
   to end, reproduce the source file exactly. For the parser: printing the tree
