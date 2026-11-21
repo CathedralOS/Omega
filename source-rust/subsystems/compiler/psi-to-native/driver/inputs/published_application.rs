@@ -66,7 +66,7 @@ pub fn review_source_providers(
     )?;
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    Ok(provider_realization::select_published_providers(admitted)?
+    Ok(provider_realization::select_published_providers(admitted, Default::default())?
         .result()
         .clone())
 }
