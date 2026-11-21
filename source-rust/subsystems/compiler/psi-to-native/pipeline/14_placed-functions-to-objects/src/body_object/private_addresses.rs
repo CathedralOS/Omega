@@ -3,7 +3,6 @@ use super::ObjectFunctionLocation;
 use crate::ObjectForeignCall;
 use crate::{
     FunctionSymbolPlan, ObjectPlan, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
-    SymbolSection,
 };
 use function_identity::MachineFunctionIdentity;
 use machine_code::PlacedImageAddress;

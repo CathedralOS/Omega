@@ -1,40 +1,8 @@
-/*
-We project admitted machine-code function fragments into sealed object
-artifacts (`ObjectArtifact`), compose private callback and component objects,
-bind physical and hosted entry shims, and emit verified executable and
-shared-component images across ELF, PE32+, and Mach-O. Every compiler-authored
-instruction byte, read-only byte-literal pool entry, normalized foreign-call
-custody record, and provenance-bearing function region is validated against the
-emitted container bytes without reconstructing legacy machine-code carriers.
-
-Our pipeline separates object custody from container emission and installation:
-`function_fragments.rs` is the sole builder of `ObjectArtifact` (in
-`object_artifact.rs`); `object.rs` composes private callback objects and
-component shared images; `entries.rs` binds physical stack-switch, hosted
-receiver, callable entry transport, and foreign adapter shims; `image.rs`
-routes sealed objects through direct or dynamic ELF container writers and
-replays terminal image custody. Receiver-side installation authority remains
-separate from emitting these containers.
-*/
-
-/*
-We project each admitted function fragment once into `ObjectArtifact` rather
-than replaying a parallel machine-code record model, and we embed complete
-private callback objects via `compose_private_function_objects` so helper
-functions, imports, and read-only data survive intact instead of being
-flattened into a synthetic single-block thunk. Keeping `RequestedDynamicElfImage`
-distinct from `ExecutableImage` ensures that final-byte custody for a dynamic
-ELF container can never be mistaken for direct execution or installation
-authority at compile time.
-*/
-
-/*
-`native-artifact`, `compiler`, `native-compiler`, `orchestration`, and
-`native-provider-runtime` consume our object-artifact builders, entry bindings,
-and executable/component image emitters. `image`, `image-elf`, `image-pe`, and
-`image-macho` provide the underlying container writers and relocation envelope
-verifiers that `image.rs` and `object.rs` orchestrate.
-*/
+//! Bind entries, compose body objects and emit executable and shared images.
+//! Each input body already has its text and data sections, symbols and relocations.
+//! `function_fragments` relates those sections to instruction and stack evidence.
+//! `object` links private callback and component objects. `entries` binds physical,
+//! hosted and foreign shims. `image` writes the container and checks its bytes.
 
 #![forbid(unsafe_code)]
 
@@ -104,7 +72,7 @@ pub use object::function_fragments::replay::{
 pub use object::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object::object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
 pub(crate) use object::object_artifact::stack_demand::StackDemand;
-pub use object::object_artifact::stack_demand::derive_stack_demand;
+pub use object::object_artifact::stack_demand::{ObjectStackError, derive_stack_demand};
 pub use object::object_artifact::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
     ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
@@ -112,8 +80,7 @@ pub use object::object_artifact::{
     resolve_instruction_sequence,
 };
 pub(crate) use object::object_artifact::{
-    ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError, ObjectPortEffect,
-    ObjectScalarStack, ObjectUnitStack,
+    ObjectCompilerPrivateFunction, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
 };
 
 pub use object::function_fragments::prepare_object_for_image;

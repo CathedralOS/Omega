@@ -1,9 +1,9 @@
 //! Sections, symbols and relocations for one placed body. All offsets in this
 //! artifact are object-relative; image composition rebases them as a unit.
 use crate::{
-    ObjectError, ObjectForeignCall, ObjectPlan, ObjectPublication, ObjectSymbolHandle,
-    RelocationPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-    entry_symbol_name,
+    ForeignCallPlacementError, ObjectForeignCall, ObjectPlan, ObjectPublication,
+    ObjectSymbolHandle, RelocationPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan,
+    SymbolSection, entry_symbol_name,
 };
 use semantic_vocabulary::MachineId;
 pub mod byte_literals;
@@ -55,7 +55,7 @@ fn find_object_function(
 pub enum Error {
     Mismatch(&'static str),
     Unsupported(&'static str),
-    ForeignCalls(ObjectError),
+    ForeignCalls(ForeignCallPlacementError),
     NativeCodeLayout(machine_code::code_layout::NativeCodeLayoutError),
     Overflow,
 }

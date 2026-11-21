@@ -1,14 +1,9 @@
 /*
-We provide two distinct object-file lanes and the target/symbol-naming rules
-both obey. The mutable arena-backed lane (`object_plan`) defines `ObjectPlan`
-and `RelocationPlan`, which image builders consume and which serialize as the
-`OMGOBJ` container. The immutable SHA-256-identified lane
-(`relocation_free_object` and `fragment_container`) defines
-`RelocationFreeObjectPlan`, which the optimization pipeline consumes and which
-serializes as the `OMGTRO` container, alongside its `OMGTOM` publication
-manifest. Both lanes resolve target-derived entry and section spellings through
-the closed five-pair target policy in `target_matrix` and compiler-private
-symbol names in `names`.
+`publish_function_object` turns one placed native body into linkable text and
+data, function and import symbols, and object-relative relocations. The
+relocation-free wire container and its manifest identify the originating
+placement for independent replay. `body_object` places literals, descriptors
+and private references before image composition can bind them.
 */
 
 /*
@@ -71,11 +66,9 @@ pub use body_object::{
 };
 mod foreign_calls;
 pub use foreign_calls::{
-    ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
-    place_foreign_call, resolve_instruction_sequence,
+    ForeignCallPlacementError, ObjectForeignCall, derive_normalized_foreign_call_custody,
+    fragment_instruction_span, place_foreign_call, resolve_instruction_sequence,
 };
-mod object_error;
-pub use object_error::ObjectError;
 mod fragment_container;
 mod names;
 mod object_plan;

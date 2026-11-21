@@ -1,9 +1,6 @@
-/*
-We project admitted machine-code function fragments, read-only byte-literal
-pools, implementation tables, normalized imports, and structural/source replay
-evidence into a sealed `ObjectArtifact`, verifying that every abstract and
-target operation is accounted for in the final native instructions.
-*/
+//! Prepare the issued body for image composition. Its section bytes, symbols,
+//! and relocations arrive together from object construction. Semantic,
+//! transport and stack evidence refer to that object's function extents.
 
 mod current_image_selections;
 pub(crate) mod image_data;
@@ -2867,7 +2864,7 @@ mod production {
         let profile = super::source::profile(source);
         let text = source.text_section();
         let fragments = source::fragments(source);
-        let temporary_stack_bytes = if text.functions.is_empty() {
+        let temporary_stack_bytes = if locations.is_empty() {
             Vec::new()
         } else {
             source::temporary_stack_bytes_by_function(source)?
@@ -2875,14 +2872,15 @@ mod production {
         let mut functions = Vec::new();
         let mut semantic_code_attribution = Vec::new();
         let mut requires_graph_storage_replay = false;
-        for (placed, location) in text.functions.iter().zip(locations) {
-            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
-            let abstracted = source::function_facts(source, placed.machine)?;
-            let abi = source::function_abi(source, placed.machine)?;
+        for location in locations {
+            let machine = location.machine;
+            let (attachment, provenance) = source::fragment_metadata(source, machine)?;
+            let abstracted = source::function_facts(source, machine)?;
+            let abi = source::function_abi(source, machine)?;
             requires_graph_storage_replay |= abstracted.requires_graph_storage_replay
-                || super::structural::requires_call_graph_replay(source, placed.machine)?;
+                || super::structural::requires_call_graph_replay(source, machine)?;
             let offset = location.text_offset;
-            let frame = source::frame(source, placed.machine)?;
+            let frame = source::frame(source, machine)?;
             let frame_bytes = u32::try_from(frame.map_or(0, |frame| frame.frame_size_bytes))
                 .map_err(|_| Error::Overflow)?;
             let alignment = frame.map_or(16, |frame| u32::from(frame.abi_stack_alignment_bytes));
@@ -2896,16 +2894,15 @@ mod production {
             );
             let mut unit_call_stacks = Vec::new();
             let mut scalar_call_stacks = Vec::new();
-            fragments.function(placed.machine).ok_or(Error::Mismatch(
+            fragments.function(machine).ok_or(Error::Mismatch(
                 "missing current fragment for temporary stack replay",
             ))?;
-            let stack_index =
-                source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?;
+            let stack_index = source::temporary_stack_index(&temporary_stack_bytes, machine)?;
             let function_temporary_stack = temporary_stack_bytes[stack_index].byte_count;
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
                 .ok_or(Error::Overflow)?;
-            for call in source::stack_calls(source, placed.machine, callable_invocations)? {
+            for call in source::stack_calls(source, machine, callable_invocations)? {
                 let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
                 local_peak = local_peak.max(caller_live_bytes);
                 let owner = call.owner;
@@ -2974,16 +2971,13 @@ mod production {
                 structural_return: None,
             });
             let fragment = fragments
-                .function(placed.machine)
+                .function(machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
             let mut rows = attribution::produce_current(
                 fragment,
-                source::publication_function(source, placed.machine)?,
+                source::publication_function(source, machine)?,
             )?;
-            rows.extend(super::structural::settlement_attributions(
-                source,
-                placed.machine,
-            )?);
+            rows.extend(super::structural::settlement_attributions(source, machine)?);
             rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
             super::structural::populate(
                 source,
@@ -2994,7 +2988,7 @@ mod production {
             )?;
             for attribution in rows {
                 semantic_code_attribution.push(ObjectCodeAttribution {
-                    machine: placed.machine,
+                    machine: machine,
                     text_offset: offset
                         .checked_add(attribution.code_offset)
                         .ok_or(Error::Overflow)?,
@@ -21205,8 +21199,8 @@ pub enum FunctionFragmentObjectArtifactError {
         operation: semantic_vocabulary::OperationId,
         reason: &'static str,
     },
-    PrivateFunctions(crate::ObjectError),
-    ForeignCalls(crate::ObjectError),
+    PrivateFunctions(crate::ObjectStackError),
+    ForeignCalls(object_file::ForeignCallPlacementError),
     NativeEntryBridge(physical_recipes::native_entry_bridge::NativeEntryBridgeError),
     PhysicalEntry(diagnostics::Diagnostic),
     NativeCodeLayout(machine_code::code_layout::NativeCodeLayoutError),

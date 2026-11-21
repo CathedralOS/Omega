@@ -2699,12 +2699,22 @@ pub(crate) mod stack_demand {
 
     use semantic_vocabulary::MachineId;
 
-    use crate::{ObjectArtifact, ObjectError};
+    use crate::ObjectArtifact;
+    use machine_code::physical_stack::StackDemandError;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ObjectStackError {
+        Body(StackDemandError),
+        PhysicalEntryStackArithmeticOverflow(MachineId),
+        PrivateEntryStackArithmeticOverflow(function_identity::MachineFunctionIdentity),
+    }
+    diagnostics::debug_display!(ObjectStackError);
+    impl std::error::Error for ObjectStackError {}
 
     pub fn derive_stack_demand(
         artifact: &ObjectArtifact,
         entry: MachineId,
-    ) -> Result<StackDemand, ObjectError> {
+    ) -> Result<StackDemand, ObjectStackError> {
         let mut demand = derive_body_stack_demand(artifact, entry)?;
         if let Some(binding) = artifact.physical_entry_binding()
             && binding.entry() == entry
@@ -2712,7 +2722,9 @@ pub(crate) mod stack_demand {
             let alignment = demand.stack_alignment();
             demand = demand
                 .with_entry_cost(binding.stack_overhead_bytes(), alignment)
-                .ok_or(ObjectError::PhysicalEntryStackArithmeticOverflow(entry))?;
+                .ok_or(ObjectStackError::PhysicalEntryStackArithmeticOverflow(
+                    entry,
+                ))?;
         }
         Ok(demand)
     }
@@ -2720,7 +2732,7 @@ pub(crate) mod stack_demand {
     pub(crate) fn derive_body_stack_demand(
         artifact: &ObjectArtifact,
         entry: MachineId,
-    ) -> Result<StackDemand, ObjectError> {
+    ) -> Result<StackDemand, ObjectStackError> {
         derive_namespace_stack_demand(
             artifact,
             entry,
@@ -2734,7 +2746,7 @@ pub(crate) mod stack_demand {
         entry: MachineId,
         private_functions: &[crate::ObjectCompilerPrivateFunction],
         active_private: &mut Vec<function_identity::MachineFunctionIdentity>,
-    ) -> Result<StackDemand, ObjectError> {
+    ) -> Result<StackDemand, ObjectStackError> {
         let mut private_demands = Vec::new();
         for callback in artifact
             .foreign_calls
@@ -2749,9 +2761,13 @@ pub(crate) mod stack_demand {
             let private = private_functions
                 .iter()
                 .find(|private| private.identity == identity)
-                .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
+                .ok_or(ObjectStackError::Body(
+                    StackDemandError::InvalidPrivateFunctionIdentity,
+                ))?;
             if active_private.contains(&identity) {
-                return Err(ObjectError::TerminalStackCycle(private.body.entry));
+                return Err(ObjectStackError::Body(
+                    StackDemandError::TerminalStackCycle(private.body.entry),
+                ));
             }
             active_private.push(identity);
             let mut demand = derive_namespace_stack_demand(
@@ -2767,13 +2783,15 @@ pub(crate) mod stack_demand {
                         u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias()),
                         alignment,
                     )
-                    .ok_or(ObjectError::PrivateEntryStackArithmeticOverflow(identity))?;
+                    .ok_or(ObjectStackError::PrivateEntryStackArithmeticOverflow(
+                        identity,
+                    ))?;
             }
             active_private.pop();
             private_demands.push((identity, demand));
         }
         derive_physical_stack_demand(&artifact.physical_facts().stack, entry, private_demands)
-            .map_err(ObjectError::from)
+            .map_err(ObjectStackError::Body)
     }
 
     pub(crate) fn validate_carried_stack_facts(artifact: &ObjectArtifact) -> bool {
@@ -2839,7 +2857,6 @@ pub(crate) use carriers::{
     ObjectCompilerPrivateFunction, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
     find_object_function,
 };
-pub(crate) use object_file::{ObjectByteLiteralPool, ObjectError};
 pub use object_file::{
     ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
     place_foreign_call, resolve_instruction_sequence,

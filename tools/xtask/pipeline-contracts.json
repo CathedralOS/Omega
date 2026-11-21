@@ -21765,7 +21765,7 @@
       "kind": "carried_record",
       "meaning": "Original error placing foreign-call or callback transport.",
       "producer": "native body object publication",
-      "signature": "24b41b99707797777c5aedc065ce55fd3b7de0984c3fae2d7785eb9bbc3f8edc"
+      "signature": "9ad5fead26a50b772b29d1e359b52d3aca2d17b8cc1c686f139a680dd6d0f263"
     },
     {
       "consumers": [
@@ -22089,7 +22089,7 @@
       "kind": "definition",
       "meaning": "Report the original missing, inconsistent or unsupported body section or relocation.",
       "producer": "native body object publication",
-      "signature": "fe9fd24d5008137736f9999b2b418be50ffefc893a6c5d8388e2726abb42d33d"
+      "signature": "fb939505dd1741be139fea573be1d5fba2b5594877b5f9362950757f3bda7697"
     },
     {
       "consumers": [
@@ -22313,11 +22313,11 @@
         "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
-      "item": "use:crate :: { ObjectError , ObjectForeignCall , ObjectPlan , ObjectPublication , ObjectSymbolHandle , RelocationPlan , SectionKind , SectionPlan , SymbolKind , SymbolPlan , SymbolSection , entry_symbol_name , }#1",
+      "item": "use:crate :: { ForeignCallPlacementError , ObjectForeignCall , ObjectPlan , ObjectPublication , ObjectSymbolHandle , RelocationPlan , SectionKind , SectionPlan , SymbolKind , SymbolPlan , SymbolSection , entry_symbol_name , }#1",
       "kind": "definition",
       "meaning": "Use native object-format records and entry-symbol naming.",
       "producer": "native body object publication",
-      "signature": "e0190c3c7249f36a829b4be57aa5e41a31fe589b447e42c84130f7a3cd37c900"
+      "signature": "b41be8dde020439fde3e12fe3ab7540e77723599277c6bfdfd37b55936b142d3"
     },
     {
       "consumers": [
