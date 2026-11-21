@@ -1,0 +1,24 @@
+// Expected exit: 0
+data Cell [copy] { value: u64; }
+machine entry(cells: @[Cell; 2], index: u64, again: bool, saved: @Cell) -> bool
+requires index < 2 {
+    transition { _ -> inspect(cells, index, again, saved, @cells[index]) }
+    machine inspect(cells: @[Cell; 2], index: u64, again: bool, saved: @Cell, fresh: @Cell) -> bool
+    requires index < 2 {
+        let previous: u64 = saved.value;
+        let current: u64 = fresh.value;
+        let equal: bool = current == previous;
+        transition again {
+            true -> entry(cells, 1u64 - index, false, fresh),
+            false -> equal
+        }
+    }
+}
+machine main() crashes Trap {
+    let cells: [Cell; 2] = [Cell { value: 11 }, Cell { value: 22 }];
+    let changed: bool = entry(@cells, 0, true, @cells[0]);
+    let same: bool = entry(@cells, 0, false, @cells[0]);
+    transition !changed && same { true -> ok(), false -> bad() }
+    machine ok() {}
+    machine bad() { crash Trap; }
+}

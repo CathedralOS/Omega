@@ -537,8 +537,25 @@ impl Projection {
             .ok_or("captured storage window is not a finite structural path")
     }
 
+    /// Each runtime index keeps the instruction that captured it, including
+    /// indices inherited from a parent projection.
+    pub fn index_captures(&self) -> impl Iterator<Item = (ValueId, Position)> + '_ {
+        self.address
+            .iter()
+            .flatten()
+            .filter_map(|step| match step {
+                AddressStep::Path(path, Some(at)) => Some((path, *at)),
+                _ => None,
+            })
+            .flat_map(|(path, at)| {
+                path.iter()
+                    .filter_map(move |step| step.runtime_index().map(|(value, _)| (value, at)))
+            })
+    }
+
     /// Compare complete addresses while keeping each runtime selector's
-    /// capture position. This grants no source, type or loan authority.
+    /// capture position. A loop can execute a position more than once. Callers
+    /// comparing physical addresses must account for the lifetime of those indices.
     pub fn captured_address_is_prefix_of(&self, other: &Self) -> bool {
         let (Some(parent), Some(child)) = (&self.address, &other.address) else {
             return false;

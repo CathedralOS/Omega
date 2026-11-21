@@ -155,14 +155,6 @@ framework or a list of unimplemented features.
 - Cost: These controls cannot reuse a single compiled implementation. A historical macOS run on `a827cf2c269` spent 22m17s building 24 controls across 12 binaries and 177s executing them. Measure the same selection and feature sets before attributing that time to this split.
 - Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
 
-### Capture comparisons leave their time scope implicit
-
-- Category: Knowledge crossing a boundary.
-- Where: [singleton and containment comparisons](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places/backing.rs#L78), [captured path prefix](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places/backing.rs#L204), [capture coordinates](source-rust/subsystems/compiler/psi-semantics/src/storage/borrowed_storage.rs#L581), [crossed-entry check](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places.rs#L888).
-- Saw: A singleton runtime-indexed path compares captured selectors by static block and instruction position. Some callers separately check whether control crossed an entry. The position itself can recur on a later loop entry.
-- Cost: A reviewer must establish which execution each comparison covers. A control that retires a binding and changes its index at the same instruction on re-entry would distinguish the two cases. No accepted invalid program has been demonstrated.
-- Reported: 2026-11-17, Codex, while checking reference transport through nested-machine loops
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 
 - Category: One idea, several implementations

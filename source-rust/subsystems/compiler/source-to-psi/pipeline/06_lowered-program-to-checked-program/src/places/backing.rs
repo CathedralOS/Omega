@@ -11,6 +11,8 @@ struct CapturedRegion {
     // Keep the complete formation address, rather than only its flattened
     // path. Different capture events are not the same selected reference.
     origin: Option<DescriptorCallOrigin>,
+    /// A later execution of this capture can select a different cell.
+    index_can_change_on_reentry: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +24,13 @@ pub(crate) struct Backing {
     subject: Option<(BlockId, Lineage)>,
 }
 
+#[derive(Clone, Copy)]
+enum CaptureComparison {
+    Independent,
+    /// Descriptor lifetime checking identified the active parent of this reborrow.
+    CheckedReborrow,
+}
+
 impl Backing {
     pub(super) fn direct(place: Lineage) -> Self {
         Self {
@@ -29,6 +38,7 @@ impl Backing {
             regions: vec![CapturedRegion {
                 place,
                 origin: None,
+                index_can_change_on_reentry: false,
             }],
             subject: None,
         }
@@ -73,8 +83,8 @@ impl Backing {
                 .all(|segment| !matches!(segment, Segment::RuntimeIndex { .. } | Segment::Referent))
     }
 
-    /// A single original address retains the established comparison rule.
-    /// Equal lists of alternatives do not prove a correlated selection.
+    /// Independently observed references must each name one address. A
+    /// recurring instruction can select a new element on its next execution.
     pub(super) fn same_single_region(&self, other: &Self) -> bool {
         match (self.regions.as_slice(), other.regions.as_slice()) {
             ([left], [right]) => {
@@ -84,7 +94,8 @@ impl Backing {
                         .segments
                         .iter()
                         .all(|segment| !matches!(segment, Segment::RuntimeIndex { .. }))
-                        || matches!((&left.origin, &right.origin), (Some(left), Some(right)) if left == right))
+                        || (left.origin == right.origin
+                            && Self::region_contains(left, right, CaptureComparison::Independent)))
             }
             _ => false,
         }
@@ -101,6 +112,10 @@ impl Backing {
     /// A captured runtime selector in a family needs a separate correlation
     /// proof; matching selector IDs alone cannot supply that proof.
     pub(super) fn definitely_contains(&self, selected: &Self) -> bool {
+        self.contains_regions(selected, CaptureComparison::Independent)
+    }
+
+    fn contains_regions(&self, selected: &Self, comparison: CaptureComparison) -> bool {
         let Some(deepest) = self
             .regions
             .iter()
@@ -135,7 +150,7 @@ impl Backing {
         let ([parent], [child]) = (self.regions.as_slice(), selected.regions.as_slice()) else {
             return false;
         };
-        Self::region_contains(parent, child)
+        Self::region_contains(parent, child, comparison)
     }
 
     /// Check the physical projections after the descriptor flow has proved
@@ -149,7 +164,7 @@ impl Backing {
             owner
                 .regions
                 .iter()
-                .any(|parent| Self::region_contains(parent, child))
+                .any(|parent| Self::region_contains(parent, child, CaptureComparison::CheckedReborrow))
         };
         self.regions
             .iter()
@@ -159,7 +174,15 @@ impl Backing {
                 .all(|owner| self.regions.iter().any(|child| projects(owner, child)))
     }
 
-    fn region_contains(parent: &CapturedRegion, child: &CapturedRegion) -> bool {
+    pub(super) fn contains_reborrow(&self, child: &Self) -> bool {
+        self.contains_regions(child, CaptureComparison::CheckedReborrow)
+    }
+
+    fn region_contains(
+        parent: &CapturedRegion,
+        child: &CapturedRegion,
+        comparison: CaptureComparison,
+    ) -> bool {
         if child.place.root != parent.place.root
             || !child.place.segments.starts_with(&parent.place.segments)
         {
@@ -172,6 +195,10 @@ impl Backing {
             .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
         {
             return true;
+        }
+        if parent.index_can_change_on_reentry && matches!(comparison, CaptureComparison::Independent)
+        {
+            return false;
         }
         let (
             Some(DescriptorCallOrigin::Argument {
@@ -565,7 +592,9 @@ impl<'a> Storage<'a> {
                     source: b,
                     projection: right,
                 }),
-            ) if a == b && left.captured_address_is_prefix_of(right) => {}
+            ) if a == b
+                && !parent.index_can_change_on_reentry
+                && left.captured_address_is_prefix_of(right) => {}
             _ => return Ok(None),
         }
         // Initialization and unscoped queries do not identify a current
@@ -735,12 +764,22 @@ impl<'a> Storage<'a> {
             let path = projection
                 .captured_address_path()
                 .map_err(|detail| self.unsupported(concerns, detail))?;
+            let mut index_can_change_on_reentry = false;
+            for (selector, (block, _)) in projection.index_captures() {
+                if self.graph.in_cycle(block)?
+                    && !self.lowered.parameters.iter().any(|param| param.id == selector)
+                {
+                    index_can_change_on_reentry = true;
+                    break;
+                }
+            }
             let mut resolved = self.stored_at(*source, &path, concerns)?;
             resolved.segments.extend_from_slice(suffix);
             self.shape(&resolved, concerns)?;
             regions.push(CapturedRegion {
                 place: resolved,
                 origin: Some(origin),
+                index_can_change_on_reentry,
             });
         }
         Backing::captured(subject, regions, owner)
@@ -766,6 +805,7 @@ mod address_comparison_tests {
                     .map(|place| CapturedRegion {
                         place,
                         origin: None,
+                        index_can_change_on_reentry: false,
                     })
                     .collect(),
                 None,
