@@ -16,9 +16,10 @@ pub fn complete<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
+    x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<psi_scalar_applications::AdmittedScalarApplications, String> {
-    prepare(artifact, primary, demand, proposals, accounting)
+    prepare(artifact, primary, demand, proposals, x86_fma, accounting)
         .map(|completion| completion.completed.into_admitted())
 }
 
@@ -29,6 +30,7 @@ pub fn prepare<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
+    x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<ProductScalarCompletion, String> {
     let deployed = proposals
@@ -75,9 +77,9 @@ pub fn prepare<'scope>(
                 .as_ref()
                 .map_err(|reasons| reasons.join("; "))?;
             let providers = selection.admit(artifact.view(), scope)?;
-            let realizations = TargetRealizedIntrinsics::retain(artifact, selection)?;
             let profile = target::TargetProfile::from_canonical_target_name(scope)
                 .map_err(|diagnostic| diagnostic.message)?;
+            let realizations = TargetRealizedIntrinsics::retain(artifact, selection, profile, x86_fma)?;
             let address_model =
                 target::TargetSemantics::close_address_model(profile).map(|model| {
                     semantic_vocabulary::ScalarAddressModel {
@@ -118,6 +120,8 @@ pub fn prepare<'scope>(
 /// `FloatSemantics` adapters that run them for a Build program, so a constant
 /// never sees a value the target's own realization would not produce.
 struct TargetRealizedIntrinsics {
+    profile: target::TargetProfile,
+    x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     selected: selected_provider_plans::SelectedProviderPlanFacts,
 }
@@ -126,12 +130,16 @@ impl TargetRealizedIntrinsics {
     fn retain(
         artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
         selection: &target_provider_admission::TerminalTargetProviderSelection,
+        profile: target::TargetProfile,
+        x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     ) -> Result<Self, String> {
         let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
             selection.plans.clone(),
         )?
         .with_assumed_bindings(selection.assumed_bindings.clone());
         Ok(Self {
+            profile,
+            x86_fma,
             artifact: Arc::clone(artifact),
             selected,
         })
@@ -185,6 +193,7 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
                 ),
             &demanded,
         )
+        .and_then(|admitted| admitted.with_direct_numeric(self.artifact.view().into(), imports, self.profile, self.x86_fma))
         .map_err(|diagnostics| {
             diagnostics
                 .into_iter()

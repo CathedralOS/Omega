@@ -79,6 +79,7 @@ fn check_conditions(
         TARGET,
         &[],
         std::slice::from_ref(proposal),
+        None,
         &mut Vec::new(),
     )
     .map(drop)

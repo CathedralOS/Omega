@@ -1764,6 +1764,7 @@ dependencies = [
  "provider-plans",
  "selected-provider-plans",
  "semantic-vocabulary",
+ "target",
  "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
