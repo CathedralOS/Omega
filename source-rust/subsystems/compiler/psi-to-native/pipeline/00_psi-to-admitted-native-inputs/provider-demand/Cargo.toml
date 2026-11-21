@@ -16,4 +16,4 @@ host-provider-inputs = { path = "../host-providers" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-codec = { path = "../../../../psi/artifact/codec" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }

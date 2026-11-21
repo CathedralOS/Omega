@@ -16,5 +16,5 @@ service-surface = { path = "../../../psi/interfaces/service-surface" }
 target = { path = "../../targets/target" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../../psi/semantics" }
 wire = { path = "../../../../../foundation/wire" }

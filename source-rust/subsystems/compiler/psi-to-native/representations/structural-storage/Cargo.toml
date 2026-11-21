@@ -8,5 +8,5 @@ version.workspace = true
 operation-operands = { path = "../operation-operands" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../../psi/semantics" }
 terminal-wire = { path = "../../../psi/artifact/wire" }

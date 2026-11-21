@@ -22,8 +22,8 @@ semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
 target = { path = "../../compiler/psi-to-native/targets/target" }
 terminal-psi = { path = "../../compiler/psi" }
 terminal-codec = { path = "../../compiler/psi/artifact/codec" }
-terminal-semantics = { path = "../../compiler/psi-semantics" }
-terminal-work = { path = "../../compiler/psi-semantics/work" }
+terminal-semantics = { path = "../../compiler/psi/semantics" }
+terminal-work = { path = "../../compiler/psi/semantics/work" }
 terminal-interpreter = { path = ".." }
 target-vocabulary = { path = "../../compiler/psi-to-native/representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-conventions" }

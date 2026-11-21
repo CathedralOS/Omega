@@ -18,6 +18,6 @@ terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
 psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../representations/function-identity" }

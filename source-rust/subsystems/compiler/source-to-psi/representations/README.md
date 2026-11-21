@@ -24,7 +24,7 @@ The [Terminal interpreter](../../../interpreter/README.md) runs the published
 program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/artifact/optimization-selections/src/lib.rs)
 defines pass selections and their identities.
 
-The shared Psi representation has companion packages for [canonical encoding](../../psi/artifact/codec/), [operation semantics](../../psi-semantics/) and [logical work bounds](../../psi-semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
+The shared Psi representation has companion packages for [canonical encoding](../../psi/artifact/codec/), [operation semantics](../../psi/semantics/) and [logical work bounds](../../psi/semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
 
 ## Records and facts
 
@@ -38,10 +38,10 @@ The shared Psi representation has companion packages for [canonical encoding](..
 | [Carry](../../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread and address demands, combined separately, each with the origin that explains it. |
 | [Effects](../../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes and positive progress, separate even when inference computes them in one graph walk. |
 
-The [resolved domain](symbol-resolved-trees/src/declarations_and_machines.rs)
-and [typed domain](typed-trees/src/declarations.rs) keep
+The [resolved domain](symbol-resolved-trees/nodes/declarations_and_machines.rs)
+and [typed domain](typed-trees/definitions/declarations.rs) keep
 predicate, role, route, alias, classification and semantic-identity records.
-The [typed machine](typed-trees/src/calls_and_control_flow.rs) carries
+The [typed machine](typed-trees/callables/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row and separate operational
 clauses. Shared vocabulary belongs in
 [semantic vocabulary](../../foundation/semantic-records/src/lib.rs). Having these records does not mean every later proof,

@@ -14,4 +14,4 @@ terminal-psi = { path = "../.." }
 terminal-codec = { path = "../codec" }
 
 [dev-dependencies]
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../semantics" }

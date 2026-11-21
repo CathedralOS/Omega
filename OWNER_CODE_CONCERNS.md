@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Shared Psi semantics live outside the portable program's directory
-
-- Category: The documents disagree.
-- Where: [Psi program](source-rust/subsystems/compiler/psi/README.md), [shared semantics](source-rust/subsystems/compiler/psi-semantics/README.md).
-- Saw: Source checking, native compilation and interpretation read the shared meanings of Psi operations from a directory outside the portable program. A maintainer following the program, artifact and execution-input owners still has to leave Psi to find those rules.
-- Cost: Move the existing semantics crates under `psi/semantics/`. Keep their Cargo boundaries, check the shared consumers, and update the ownership guides and relative links. The [storage analysis concern](#changing-storage-analysis-rebuilds-the-native-compiler) tracks the separate dependency cost.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Callable analysis loses arguments passed to checked providers
 
 - Category: Re-deriving.
