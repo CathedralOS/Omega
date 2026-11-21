@@ -637,7 +637,7 @@ impl AcceptedTerminalSource {
     pub fn requirement_review(
         &self,
         declaration: symbols::SymbolHandle,
-    ) -> Result<&crate::production::RequirementReviewMetadata, String> {
+    ) -> Result<&crate::lowering::RequirementReviewMetadata, String> {
         if self.source.trait_machine_signature(declaration).is_none() {
             return Err("requirement review names a foreign declaration".to_owned());
         }
