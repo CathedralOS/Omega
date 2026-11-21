@@ -128,6 +128,16 @@ pub(crate) fn check_declaration(
         subject,
         ..BodyTyper::new(unit, catalog, output)
     };
+    for (&span, ty) in &body.locals {
+        if body
+            .carried_loans(ty, super::storage_origin::Origin::Caller)
+            .is_some()
+        {
+            use super::storage_origin::{Origin, StorageRoot};
+            body.binding_origins
+                .insert(StorageRoot::Binding(span), Origin::reference(StorageRoot::Incoming(span, Vec::new())));
+        }
+    }
     if let Some(binding) = source.math_binding(node_index) {
         body.context = ExpressionContext::Proof;
         let mut result = catalog.types.mathematical[id].clone();

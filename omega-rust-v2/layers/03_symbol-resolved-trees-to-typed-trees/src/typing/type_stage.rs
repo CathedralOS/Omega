@@ -93,7 +93,7 @@ pub(crate) fn check_stage<'a>(
     check_static_indices(&units, catalog, environment, output)?;
     if allow_pending {
         // Formation may discover a prerequisite for a call's inferred effects.
-        catalog.types.formations.check(&catalog.types, output)?;
+        catalog.types.formations.check(&units, &catalog.types, output)?;
     }
     let demands = catalog.types.indices.take_demands();
     let dependencies =
@@ -105,7 +105,7 @@ pub(crate) fn check_stage<'a>(
     trait_refinements::check_trait_refinements(catalog, &dependencies, output)?;
     access_policies::check_access_policies(&units, catalog, &dependencies, output)?;
     if !allow_pending {
-        catalog.types.formations.check(&catalog.types, output)?;
+        catalog.types.formations.check(&units, &catalog.types, output)?;
     }
     let demands = dependencies.ready_demands(demands, &units, &catalog.types, output)?;
     let specialized_requests = demands

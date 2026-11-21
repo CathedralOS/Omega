@@ -256,6 +256,7 @@ impl<'a> PreparationDependencies<'a> {
         // slots this particular recipe calls, in this particular application.
         let ready = |demand: &StaticValueDemand| {
             self.node_is_ready(demand.request().node)
+                && !types.indices.demand_is_blocked(demand)
                 && match (demand, &selected) {
                     (StaticValueDemand::Specialized { request, arguments }, Some(used)) => slots_by_node
                         .get(&request.node)

@@ -17,6 +17,7 @@ import frontend_diagnostics
 from diagnostic_fields import unescape
 import handoff_evidence
 import lowering_evidence
+import lowering_origins
 import preparation_reason_evidence
 import test_inventory
 import typing_sites
@@ -109,7 +110,7 @@ def contextual_examples(report, directory, environment):
         report["measurement_errors"].append(f"context command exited {code} after reporting every case passed")
 
 
-def collect(output, stage, report):
+def collect(output, stage, report, *, require_lowering_origins=False):
     cases = report["cases"]
     errors = report["measurement_errors"]
     counts = Counter()
@@ -117,6 +118,17 @@ def collect(output, stage, report):
     target = ""
     failure_output = {}
     current_test = None
+    captures = Counter()
+    invalid_fixtures = set()
+    malformed_fixtures = 0
+    first_fixture = len(report.get("package_fixtures", ()))
+
+    def malformed_fixture():
+        nonlocal malformed_fixtures
+        malformed_fixtures += 1
+        if current_test:
+            invalid_fixtures.add((target.replace("\\", "/"), current_test[1]))
+
     # Each L5 record is credited only inside the captured output of the test that emits it.
     spec_emitter = ("tests/spec_corpus.rs", "spec_fragments_have_reviewed_lowering_outcomes")
     sample_emitter = ("tests/sample_baseline.rs", "fixed_sample_configurations_through_l5")
@@ -202,13 +214,14 @@ def collect(output, stage, report):
             current_test = None
         if captured := re.match(r"^---- (.+?) stdout ----$", line):
             current_test = (target, captured[1])
+            captures[target.replace("\\", "/"), captured[1]] += 1
             failure_output[current_test] = []
-        elif not line or line in {"successes:", "failures:"} or RESULT.match(line):
+        elif not line or line in {"successes:", "failures:"} or RESULT.match(line) or re.fullmatch(r"---- .+? stderr ----", line):
             if line:
                 current_test = None
         elif current_test and not line.startswith("OMEGA_"):
             failure_output[current_test].append(line)
-        if match := TEST.match(line):
+        if current_test is None and (match := TEST.match(line)):
             results.append({"target": target, "test": match[1], "status": match[2]})
         if match := RESULT.match(line):
             counts.update(dict(zip(("passed", "failed", "ignored"), map(int, match.groups()))))
@@ -362,20 +375,23 @@ def collect(output, stage, report):
                 errors.append(f"{stage}: duplicate obligation count {line}")
                 continue
             report["obligations"][fields[2]][fields[1]] = int(fields[3])
-        elif line.startswith("OMEGA_FIXTURE\t"):
+        elif line.startswith("OMEGA_FIXTURE"):
             fields = line.split("\t")
-            position_fields, fields = fields[5:], fields[:5]
+            position_fields, origin_fields, fields = fields[5:12], fields[12:], fields[:5]
             pairs = fields[3].split(",") if len(fields) == 5 and fields[3] else []
             kinds = [pair.split("=")[0] for pair in pairs]
-            if (len(fields) != 5 or not all(fields[1:3]) or len(set(kinds)) != len(kinds)
+            if (len(fields) != 5 or fields[0] != "OMEGA_FIXTURE" or not all(fields[1:3]) or len(set(kinds)) != len(kinds)
                     or any(not re.fullmatch(r"[A-Za-z]+=[1-9]\d*", pair) for pair in pairs)
                     or not (fields[4] == "produced Psi" or re.fullmatch(r"refused: \S.*", fields[4]))):
+                malformed_fixture()
                 errors.append(f"{stage}: malformed package fixture {line}")
                 continue
             where = emitting_test("package fixture", line)
             if where is None:
+                malformed_fixture()
                 continue
             if fields[1] != where[1]:
+                malformed_fixture()
                 errors.append(f"{stage}: package fixture names {fields[1]} but was printed by {where[0]}::{where[1]}: {line}")
                 continue
             obligations = {kind: int(n) for kind, n in (pair.split("=") for pair in pairs)}
@@ -389,7 +405,18 @@ def collect(output, stage, report):
                         raise ValueError("local refusal lacks its original source")
                     fixture["location"] = {"package": package, "occurrence": occurrence, **frontend_diagnostics.location(file, row, column, start, end)}
                 except ValueError as error:
+                    malformed_fixture()
                     errors.append(f"{stage}: invalid fixture location in {where[0]}::{where[1]}: {error}")
+                else:
+                    if origin_fields:
+                        try:
+                            if (not all(re.fullmatch(r"0|[1-9][0-9]*", n) for n in (start, end))
+                                    or row and not all(lowering_origins.POSITIVE.fullmatch(n) for n in (row, column))):
+                                raise ValueError("noncanonical program coordinates")
+                            fixture["reported_compiler_site"] = lowering_origins.decode(origin_fields)
+                        except ValueError as error:
+                            malformed_fixture()
+                            errors.append(f"{stage}: invalid compiler origin in {where[0]}::{where[1]}: {error}")
             report["package_fixtures"].append(fixture)
     # A passing comparison test must have printed the outcome it compared with the versioned baseline.
     statuses = {}
@@ -405,6 +432,8 @@ def collect(output, stage, report):
             if pinned and actual and "invalid" not in actual and pinned != actual:
                 errors.append(f"{stage}: sample/{label} compiler refusal differs from its pinned source bytes or diagnostic")
     if stage == "L5":
+        lowering_origins.finish(report, report.get("package_fixtures", ())[first_fixture:], statuses, captures,
+                                invalid_fixtures, malformed_fixtures, require_lowering_origins)
         sample_diagnostics.attach(cases, sample_refusals, errors)
     if not results or not counts:
         report["measurement_errors"].append(f"{stage}: missing Rust test results")
@@ -509,6 +538,7 @@ def summarize(report):
                   f"Disagreements or missing fragments: {len(agreement['differences'])}. Each refusal is compared by producing layer, typing phase, source location and reason."])
     lines.extend(lowering_evidence.summary(report))
     lines.extend(refusal_evidence.summary(report))
+    lines.extend(lowering_origins.summary(report))
     controls = report["product_controls"]
     lines += ["", f"Psi corruption checks rejected {sum(row['verified'] for row in controls.values())} "
               f"of {len(controls)} registered changes to branch targets, call operands, restoration or residual cleanup. "
@@ -605,7 +635,7 @@ def main():
     print(f"Report directory: {directory}", flush=True)
     for i, crate in enumerate(layers):
         stage = f"L{i}"
-        features = ["--features", "diagnostic-origins"] if stage == "L3" else []
+        features = ["--features", "diagnostic-origins"] if stage in {"L3", "L5"} else []
         command = ["mbx", "test", "--locked", "-p", crate, *features, "--no-fail-fast", "--", "--include-ignored", "--show-output", "--format", "pretty"]
         started = monotonic()
         log = directory / f"{stage}.log"
@@ -616,7 +646,7 @@ def main():
         except OSError as error:
             log.write_text(str(error), encoding="utf-8")
             exit_code = 1
-        tests, counts = collect(log.read_text(encoding="utf-8", errors="replace"), stage, report)
+        tests, counts = collect(log.read_text(encoding="utf-8", errors="replace"), stage, report, require_lowering_origins=stage == "L5")
         if exit_code and not counts.get("failed"):
             report["measurement_errors"].append(f"{stage}: command exited {exit_code} without a failing assertion; inspect {stage}.log")
         report["suites"][stage] = {"crate": crate, "command": command, "exit": exit_code, "seconds": round(monotonic() - started, 2),

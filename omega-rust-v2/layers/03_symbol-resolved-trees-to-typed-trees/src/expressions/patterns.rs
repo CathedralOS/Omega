@@ -97,8 +97,10 @@ impl BodyTyper<'_, '_> {
             changed |= self.version != entry_version;
             let merged = merged_origins.get_or_insert_default();
             for (span, origin) in &self.binding_origins {
-                let merged = merged.entry(*span).or_insert(Origin::Caller);
-                *merged = origin.join(merged);
+                merged
+                    .entry(span.clone())
+                    .and_modify(|prior| *prior = origin.join(prior))
+                    .or_insert_with(|| origin.clone());
             }
         }
         self.binding_origins = merged_origins.unwrap_or(entry_origins);
@@ -298,7 +300,7 @@ impl BodyTyper<'_, '_> {
                             expr
                         };
                         let component = from
-                            .component(subject, i)
+                            .component(self, subject, i, types.len())
                             .map_err(|m| TypeError::at(source, p, m))?;
                         self.bind_pattern_at(p, t, expr, &component, place)
                     })
@@ -376,7 +378,7 @@ impl BodyTyper<'_, '_> {
                         Some(crate::Projection::Field(Box::new(field.declaration.clone()))),
                     );
                     let component = from
-                        .component(subject, position)
+                        .component(self, subject, position, fields.ordered.len())
                         .map_err(|m| TypeError::at(source, part, m))?;
                     if node.kind == TuplePattern {
                         total &= self

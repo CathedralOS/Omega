@@ -60,7 +60,7 @@ impl BodyTyper<'_, '_> {
             .and_then(|p| self.catalog.types.parameter_carrier(p))
         {
             Some(ValueType::Callable(c)) => Ok(*c.clone()),
-            _ => Err(TypeError::at(self.unit.file, node_index, "static binder requires a callable contract")),
+            _ => Err(TypeError::for_reason(&crate::site_at(self.unit.file, node_index), crate::IndirectCallShapeError::MissingCallableContract)),
         }
     }
     pub(super) fn refine_callable(
@@ -189,7 +189,7 @@ impl BodyTyper<'_, '_> {
             .check_runtime_type(node_index, &c.result, &self.catalog.types)?;
         let params = &c.parameters;
         if params.len() != source.nodes[args].children.len() {
-            return Err(TypeError::at(source, node_index, "incorrect callback arity"));
+            return Err(TypeError::for_reason(&crate::site_at(source, node_index), crate::IndirectCallShapeError::OperandCountMismatch));
         }
         let mut operands = Vec::with_capacity(params.len());
         for (position, (&arg, p)) in source.nodes[args].children.iter().zip(params).enumerate() {

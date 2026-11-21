@@ -454,3 +454,66 @@ machine probe<T>()->u64 { core\size_of::<T>() }";
         }
     }
 }
+
+#[test]
+fn a_layout_waits_for_the_callback_that_determines_its_field_width() {
+    const CODE: &str = r"use omega\language\core;
+data Size=machine()->u64 reaches none crashes none;
+machine five()->u64{5u64}
+data Bits<const F:Size>{x:u<F()>;}
+data Word<const F:Size,const G:Size>{x:u<core\size_of::<Bits<F>>()>;}
+machine two()->u64{let w:Word<five,two> = Word::<five,two>{x:1};2u64}";
+    for (slot, callback) in [("F", "five"), ("G", "two")] {
+        let code = CODE.replace("Bits<F>", &format!("Bits<{slot}>"));
+        let source = resolve(&code);
+        let declaration = |name| {
+            source
+                .trees()
+                .next()
+                .unwrap()
+                .declaration_nodes()
+                .find(|(_, id)| id.path == name)
+                .unwrap()
+                .1
+                .clone()
+        };
+        let subject = ValueType::Applied(
+            Box::new(declaration("Bits")),
+            vec![ValueType::MachineSelection(omega_typed::MachineApplication {
+                machine: Box::new(declaration(callback)),
+                arguments: vec![],
+                enclosing_arguments: vec![],
+            })],
+        );
+        let target = identity("selected");
+        let capsule = TargetSemantics::new(target.clone(), [layout(&target, subject, LayoutExtent::Fixed(1), Some(1))], []).unwrap();
+        let initial = type_source_package_for_preparation(&source, &TypingEnvironment::default());
+        let selected = prepare_source_package_diagnosed_with_inputs(&source, &[], Some(&capsule));
+        if slot == "G" {
+            let error = initial.unwrap_err();
+            assert_eq!(error.message, "static evaluation is blocked by a typing dependency cycle");
+            assert_eq!(error.span.slice(code.as_bytes()), Some(br"core\size_of::<Bits<G>>()".as_slice()));
+            assert_eq!(selected.unwrap_err(), PreparationFailure::Typing(error));
+            continue;
+        }
+
+        let omega_typer::TypingProgress::Pending(pass) = initial.unwrap() else {
+            panic!("Bits needs its field width")
+        };
+        let [omega_typer::StaticValueDemand::Specialized { request, arguments }] = pass.demands() else {
+            panic!("only the field width can run before the layout is known");
+        };
+        assert_eq!(request.expression.span.slice(code.as_bytes()), Some(b"F()".as_slice()));
+        assert!(matches!(arguments.as_slice(), [ValueType::MachineSelection(selection)] if selection.machine.path == "five"));
+        let prepared = selected.unwrap();
+        let answers = prepared.specialized_indices();
+        assert_eq!(answers.len(), 2);
+        for (expression, value) in [("F()", 5), (r"core\size_of::<Bits<F>>()", 1)] {
+            let answer = answers
+                .iter()
+                .find(|answer| answer.request.expression.span.slice(code.as_bytes()) == Some(expression.as_bytes()))
+                .unwrap();
+            assert_eq!(answer.value, omega_typer::StaticValue::Integer(value.into()));
+        }
+    }
+}

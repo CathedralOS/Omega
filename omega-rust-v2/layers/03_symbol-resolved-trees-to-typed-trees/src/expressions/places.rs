@@ -519,8 +519,8 @@ impl BodyTyper<'_, '_> {
                         .map_err(|m| TypeError::at(source, node_index, m))?;
                     place.access = Some(effective.clone());
                     borrowed = Some(effective);
-                    origin = origin.whole();
-                    place.backing = origin.clone();
+                    place.backing = origin;
+                    origin = self.contents(&place.backing);
                     inner
                 }
                 None => &ty,
@@ -548,16 +548,23 @@ impl BodyTyper<'_, '_> {
                 };
                 self.unit.require_selection_authority(node_index, id)?;
                 let shape = subject.as_ref().and_then(|s| self.cases.get(s)).unwrap_or(id);
-                let (position, declared) = self
+                let (position, declared, count) = self
                     .catalog
                     .fields_at(shape, source, node_index)?
-                    .and_then(|fields| fields.get(field))
+                    .and_then(|fields| {
+                        fields
+                            .get(field)
+                            .map(|(position, field)| (position, field, fields.ordered.len()))
+                    })
                     .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field)))?;
                 self.unit
                     .require_selection_authority(node_index, &declared.declaration)?;
                 if let Some(subject) = &mut subject {
                     subject.fields.push(declared.declaration.clone());
                 }
+                place.backing = place
+                    .backing
+                    .project(super::storage_origin::Component::Field { index: position, count });
                 origin = origin.component(position);
                 ty = self
                     .catalog

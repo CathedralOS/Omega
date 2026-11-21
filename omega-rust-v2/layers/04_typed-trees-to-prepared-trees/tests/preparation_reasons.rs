@@ -408,6 +408,38 @@ fn an_inexact_floating_cast() {
 }
 
 #[test]
+fn an_inexact_floating_cast_points_to_the_failing_initializer_expression() {
+    let good = "const VALUE:u32 = ((1.0f32 as f64) as u32);";
+    with_package(good, |package| {
+        let prepared = prepare_source_package_diagnosed(package).unwrap();
+        let declaration = &prepared.typed().constants[0].declaration;
+        assert_eq!(prepared.constant(declaration), Some(&PreparedValue::Integer(1u32.into())));
+        assert!(prepared.target_observations().is_empty());
+    });
+
+    for (source, occurrence) in [
+        ("const VALUE:u32 = ((1.25f32 as f64) as u32);", "(1.25f32 as f64) as u32"),
+        ("const VALUE:f64 = ((0.1f64 as f32) as f64);", "0.1f64 as f32"),
+        (
+            "machine keep(value:u32)->u32 {value}\nconst VALUE:u32 = keep((1.25f32 as f64) as u32);",
+            "(1.25f32 as f64) as u32",
+        ),
+        (
+            "machine narrow(value:f64)->u32 { (value as u32) }\nconst VALUE:u32 = narrow(1.25f64);",
+            "narrow(1.25f64)", // A cast in the body still identifies the selected invocation.
+        ),
+    ] {
+        admitted(
+            source,
+            PreparationReason::InexactFloatCast,
+            "the floating carrier cast does not preserve the exact value",
+            occurrence,
+            "",
+        );
+    }
+}
+
+#[test]
 fn a_float_component_has_no_canonical_index_identity() {
     let source = "data Key [copy]{entry:f32;}
                   data With<const K:Key>{}

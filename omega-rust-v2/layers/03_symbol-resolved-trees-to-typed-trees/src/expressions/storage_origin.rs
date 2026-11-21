@@ -8,10 +8,9 @@
 //!
 //! A value's origin says whether it may hold a loan of invocation-local
 //! storage. Aggregates keep one origin per component, so selecting a tuple
-//! component or a record field keeps only that component's loans. Anything
-//! reached through a reference keeps the reference's origin as a whole: the
-//! typer does not know which loans the referent's contents carry, so it
-//! assumes they share the reference's backing.
+//! component or a record field keeps only that component's loans. A borrow of
+//! a known place keeps its root and field path. Reading the reference consults the current contents of that place, including writes
+//! made through other aliases.
 //!
 //! A place's backing says whose storage the place denotes. A local binding or
 //! a temporary is this invocation's storage. A place reached through a
@@ -32,10 +31,55 @@ use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
 use omega_tokens::SourceSpan;
 
+/// A formal's incoming referent lives outside the invocation. The variable
+/// containing that reference is a distinct place inside the invocation.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) enum StorageRoot {
+    Binding(SourceSpan),
+    Incoming(SourceSpan, Vec<InputProjection>),
+}
+
+/// A caller-supplied aggregate can contain a reference before this body has
+/// assigned any of its fields. Copies of that field denote the same referent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum InputProjection {
+    Field(usize),
+    Referent,
+}
+
+impl StorageRoot {
+    fn initial_contents(&self) -> Origin {
+        match self {
+            Self::Binding(_) => Origin::Caller,
+            Self::Incoming(span, path) => {
+                let mut contents = path.clone();
+                contents.push(InputProjection::Referent);
+                Origin::reference(Self::Incoming(*span, contents))
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Component {
+    Field { index: usize, count: usize },
+    // A dynamic index may select any element of the collection.
+    Element,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct LoanTarget {
+    root: StorageRoot,
+    path: Vec<Component>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub(super) enum Origin {
     /// Payload fields are numbered within their active sum case.
     Case(Box<omega_resolved::DeclarationId>, Box<Origin>),
+    /// Evaluated targets of a reference. A join can also contain a reference
+    /// with unknown identity; its lifetime still participates in return checks.
+    Reference { targets: Vec<LoanTarget>, unknown_local: Option<bool> },
     /// Holds no loan of invocation-local storage.
     #[default]
     Caller,
@@ -47,6 +91,24 @@ pub(super) enum Origin {
 }
 
 impl Origin {
+    pub(super) fn reference(root: StorageRoot) -> Self {
+        Self::Reference {
+            targets: vec![LoanTarget { root, path: Vec::new() }],
+            unknown_local: None,
+        }
+    }
+    pub(super) fn project(
+        &self,
+        component: Component,
+    ) -> Self {
+        let mut projected = self.clone();
+        if let Self::Reference { targets, .. } = &mut projected {
+            for target in targets {
+                target.path.push(component);
+            }
+        }
+        projected
+    }
     pub(super) fn parts(parts: Vec<Origin>) -> Self {
         if parts.iter().all(|p| *p == Self::Caller) {
             Self::Caller
@@ -59,13 +121,18 @@ impl Origin {
     pub(super) fn is_local(&self) -> bool {
         match self {
             Self::Case(_, payload) => payload.is_local(),
+            Self::Reference { targets, unknown_local } => {
+                *unknown_local == Some(true)
+                    || targets
+                        .iter()
+                        .any(|t| matches!(t.root, StorageRoot::Binding(_)))
+            }
             Self::Caller => false,
             Self::Local => true,
             Self::Parts(parts) => parts.iter().any(Self::is_local),
         }
     }
-    /// The origin of the whole value, for arrays and for contents reached
-    /// through a reference, where components are not tracked separately.
+    /// Summarize the lifetime when the selected component is unknown.
     pub(super) fn whole(&self) -> Self {
         if self.is_local() { Self::Local } else { Self::Caller }
     }
@@ -76,6 +143,22 @@ impl Origin {
         match self {
             Self::Case(_, payload) => payload.component(index),
             Self::Parts(parts) => parts.get(index).cloned().unwrap_or(Self::Local),
+            Self::Reference { targets, unknown_local } => {
+                // Fields of an untouched input aggregate still denote the original
+                // caller values, even when the aggregate has since been copied.
+                let mut targets = targets.clone();
+                for target in &mut targets {
+                    if target.path.is_empty()
+                        && let StorageRoot::Incoming(_, path) = &mut target.root
+                    {
+                        path.push(InputProjection::Field(index));
+                    }
+                }
+                Self::Reference {
+                    targets,
+                    unknown_local: *unknown_local,
+                }
+            }
             other => other.clone(),
         }
     }
@@ -86,6 +169,35 @@ impl Origin {
         match (self, other) {
             (Self::Case(a, x), Self::Case(b, y)) if a == b => Self::Case(a.clone(), Box::new(x.join(y))),
             (Self::Case(..), _) | (_, Self::Case(..)) => self.whole().join(&other.whole()),
+            (Self::Reference { .. }, Self::Parts(parts)) => Self::parts(
+                parts
+                    .iter()
+                    .enumerate()
+                    .map(|(i, part)| self.component(i).join(part))
+                    .collect(),
+            ),
+            (Self::Parts(_), Self::Reference { .. }) => other.join(self),
+            (Self::Reference { targets, unknown_local }, other) | (other, Self::Reference { targets, unknown_local }) => {
+                let mut joined = targets.clone();
+                let unknown = if let Self::Reference {
+                    targets: rhs,
+                    unknown_local: unknown,
+                } = other
+                {
+                    for target in rhs {
+                        if !joined.contains(target) {
+                            joined.push(target.clone());
+                        }
+                    }
+                    *unknown
+                } else {
+                    Some(other.is_local())
+                };
+                Self::Reference {
+                    targets: joined,
+                    unknown_local: (*unknown_local).max(unknown),
+                }
+            }
             (Self::Caller, x) | (x, Self::Caller) => x.clone(),
             (Self::Parts(a), Self::Parts(b)) if a.len() == b.len() => Self::parts(a.iter().zip(b).map(|(a, b)| a.join(b)).collect()),
             _ => Self::Local,
@@ -133,24 +245,30 @@ impl PatternSource {
     /// a referenced value live in the reference's backing.
     pub(super) fn component(
         &self,
+        typer: &BodyTyper<'_, '_>,
         subject: &crate::ValueType,
         index: usize,
+        count: usize,
     ) -> Result<Self, &'static str> {
         if let Some(part) = self.parts.get(index) {
             return Ok(part.clone());
         }
+        let field = Component::Field { index, count };
         Ok(match subject.reference_parts() {
             Some((access, _)) => Self {
-                value: self.value.whole(),
+                value: typer.contents(&self.value).component(index),
                 place: Some(StoragePlace {
                     access: Some(access.through(self.place.as_ref().and_then(|p| p.access.as_ref()))?),
-                    backing: self.value.whole(),
+                    backing: self.value.project(field),
                 }),
                 parts: Vec::new(),
             },
             _ => Self {
                 value: self.value.component(index),
-                place: self.place.clone(),
+                place: self.place.clone().map(|mut p| {
+                    p.backing = p.backing.project(field);
+                    p
+                }),
                 parts: Vec::new(),
             },
         })
@@ -241,9 +359,9 @@ impl BodyTyper<'_, '_> {
         let effective = access
             .through(outer.as_ref())
             .map_err(|m| TypeError::at(self.unit.file, node, m))?;
-        let backing = self.origin(operand).whole();
+        let backing = self.origin(operand);
         self.record_place(node, operand, Some(access), None);
-        self.set_origin(node, backing.clone());
+        self.set_origin(node, self.contents(&backing));
         self.places.insert(
             node,
             StoragePlace {
@@ -378,18 +496,43 @@ impl BodyTyper<'_, '_> {
         &self,
         span: &SourceSpan,
     ) -> Origin {
-        self.binding_origins.get(span).cloned().unwrap_or_default()
-    }
-    pub(super) fn set_binding_origin(
-        &mut self,
-        span: SourceSpan,
-        origin: Origin,
-    ) {
-        if origin == Origin::Caller {
-            self.binding_origins.remove(&span);
+        if let Some((_, place)) = self.borrowed_places.get(span) {
+            self.contents(&place.backing)
         } else {
-            self.binding_origins.insert(span, origin);
+            self.binding_origins
+                .get(&StorageRoot::Binding(*span))
+                .cloned()
+                .unwrap_or_default()
         }
+    }
+
+    pub(super) fn contents(
+        &self,
+        backing: &Origin,
+    ) -> Origin {
+        let Origin::Reference { targets, unknown_local } = backing else {
+            return backing.whole();
+        };
+        let unknown = unknown_local.map(|local| if local { Origin::Local } else { Origin::Caller });
+        targets
+            .iter()
+            .map(|target| {
+                let root = self
+                    .binding_origins
+                    .get(&target.root)
+                    .cloned()
+                    .unwrap_or_else(|| target.root.initial_contents());
+                target
+                    .path
+                    .iter()
+                    .fold(root, |origin, component| match component {
+                        Component::Field { index, .. } => origin.component(*index),
+                        Component::Element => origin,
+                    })
+            })
+            .chain(unknown)
+            .reduce(|a, b| a.join(&b))
+            .unwrap_or_default()
     }
     /// Record what a fresh binder receives from its pattern position.
     pub(super) fn bind_source(
@@ -400,7 +543,8 @@ impl BodyTyper<'_, '_> {
         source: &PatternSource,
     ) {
         self.locals.insert(span, ty);
-        self.set_binding_origin(span, source.value.clone());
+        self.binding_origins
+            .insert(StorageRoot::Binding(span), source.value.clone());
         match &source.place {
             Some(place) => self.borrowed_places.insert(span, (binder, place.clone())),
             None => self.borrowed_places.remove(&span),
@@ -412,45 +556,33 @@ impl BodyTyper<'_, '_> {
         place: usize,
         stored: Origin,
     ) {
-        let file = self.unit.file;
-        let (root, path) = self.output.place_path(file.node_id(place));
-        let binding = |node: omega_resolved::TreeNodeId| match self.unit.symbol(node.node) {
-            Some(Symbol::Binding { binder_node, .. }) => file.node_id(*binder_node),
-            _ => node,
+        let Origin::Reference { targets, unknown_local } = self.storage_place(place).backing else {
+            return;
         };
-        // A direct binding assignment replaces the binding. An alias captured
-        // from its old referent continues to denote that evaluated place.
-        let mut updates = Vec::new();
-        if !path.is_empty() {
-            let target: Vec<_> = path.iter().flat_map(|step| step.projections()).collect();
-            for (&span, (binder, _)) in &self.borrowed_places {
-                let (base, alias) = self.output.place_path(file.node_id(*binder));
-                if binding(base) != binding(root) {
-                    continue;
+        let ambiguous = targets.len() != 1 || unknown_local.is_some();
+        for target in targets {
+            let root = self
+                .binding_origins
+                .entry(target.root)
+                .or_insert_with_key(StorageRoot::initial_contents);
+            let mut value = root;
+            let mut weak = ambiguous;
+            for component in target.path {
+                match component {
+                    Component::Element => weak = true,
+                    Component::Field { index, count } => {
+                        if let Origin::Case(_, fields) = value {
+                            value = fields;
+                        }
+                        if !matches!(value, Origin::Parts(parts) if parts.len() == count) {
+                            *value = Origin::Parts((0..count).map(|i| value.component(i)).collect());
+                        }
+                        let Origin::Parts(parts) = value else { unreachable!() };
+                        value = &mut parts[index];
+                    }
                 }
-                let alias: Vec<_> = alias.iter().flat_map(|step| step.projections()).collect();
-                if !alias.starts_with(&target) && !target.starts_with(&alias) {
-                    continue;
-                }
-                // Separate evaluations can observe different referents of a mutable binding.
-                let value = if root == base && target.len() == alias.len() {
-                    stored.clone()
-                } else {
-                    self.binding_origin(&span).join(&stored.whole())
-                };
-                updates.push((span, value));
             }
-        }
-        if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root.node) {
-            let origin = if path.is_empty() {
-                stored
-            } else {
-                self.binding_origin(span).join(&stored.whole())
-            };
-            updates.push((*span, origin));
-        }
-        for (span, value) in updates {
-            self.set_binding_origin(span, value);
+            *value = if weak { value.join(&stored) } else { stored.clone() };
         }
     }
     pub(super) fn storage_place(
@@ -469,16 +601,13 @@ impl BodyTyper<'_, '_> {
                 .map(|(_, place)| place.clone())
                 .unwrap_or_else(|| StoragePlace {
                     access: Some(if self.writable.contains(span) { Access::Mut } else { Access::Shared }),
-                    backing: Origin::Local,
+                    backing: Origin::reference(StorageRoot::Binding(*span)),
                 });
         }
         let backing = match source.nodes[node].kind {
             NodeKind::PathExpression | NodeKind::Index => Origin::Caller,
             _ => Origin::Local,
         };
-        StoragePlace {
-            access: None,
-            backing,
-        }
+        StoragePlace { access: None, backing }
     }
 }

@@ -622,6 +622,38 @@ fn a_ranked_static_callback_requires_the_exact_component() {
 }
 
 #[test]
+fn a_skipped_direct_call_still_needs_its_recursive_callees_progress() {
+    let machines = "machine leaf(v:bool)->bool {leaf(v)}
+        machine outer(v:bool)->bool {v && leaf(v)}";
+    let skipped_invocation = format!("{machines}\nconst V:bool=false && outer(true);");
+    assert_eq!(
+        evaluate(&typed(&skipped_invocation, "app"), None, &[]).unwrap(),
+        omega_typed::StaticValue::Bool(false)
+    );
+    for (entry, chain) in [
+        ("outer(false)", "\ncall chain: outer -> leaf"),
+        ("outer(true)", "\ncall chain: outer -> leaf"),
+        ("leaf(false)", ""),
+    ] {
+        let source = format!("{machines}\nconst V:bool={entry};");
+        let error = evaluate(&typed(&source, "app"), None, &[]).unwrap_err();
+        assert_eq!(
+            error.message,
+            format!(
+                "static evaluation cannot admit this invocation: {}{chain}\nrecursive component: leaf -> leaf",
+                CYCLIC_INVOCATION.text()
+            )
+        );
+        assert_eq!(error.span.get_start_offset(), source.find("{leaf(v)}").unwrap() + 1);
+        let acyclic = source.replace("{leaf(v)}", "{v}");
+        assert_eq!(
+            evaluate(&typed(&acyclic, "app"), None, &[]).unwrap(),
+            omega_typed::StaticValue::Bool(entry == "outer(true)")
+        );
+    }
+}
+
+#[test]
 fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
     let source = "machine count<const Tag:u64>(n:u64)->u64 terminates by n {
             match n == 0u64 {true -> 7u64, false -> count::<Tag>(n - 1u64),}
@@ -631,7 +663,9 @@ fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
         }
         data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
         const SKIP:u64=apply::<relay::<2>>(0u64);
-        const RUN:u64=apply::<relay::<2>>(3u64);";
+        const RUN:u64=apply::<relay::<2>>(3u64);
+        const DIRECT_SKIP:u64=relay::<2>(0u64);
+        const DIRECT_RUN:u64=relay::<2>(3u64);";
     let progress = omega_typer::TypingProgress::Complete(typed(source, "app"));
     let omega_typer::TypingProgress::Complete(trees) = &progress else {
         unreachable!()
@@ -653,29 +687,31 @@ fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
             observations: vec![],
         }
     };
-    // Evaluate the skipped branch first. Its direct call is absent from the
-    // execution trace, but it is still part of the callback's checked closure.
-    let skip = &trees
-        .constants
-        .iter()
-        .find(|constant| constant.declaration.path == "SKIP")
-        .unwrap()
-        .initializer;
-    for evidence in [None, Some(proof(1))] {
-        let mut evaluator = ConstantEvaluation::new(trees, &[]);
-        evaluator.termination.evidence = evidence.into_iter().collect();
-        let error = evaluator.evaluate(skip, None).unwrap_err();
-        spec_corpus::observe_handoff!(
-            "nested-helpers-and-tail-expressions/refusal",
-            assert!(error.message.contains(CYCLIC_INVOCATION.text()), "{}", error.message)
-        );
+    // Neither skipped branch executes the direct call to count. Its exact
+    // ranking still supplies the wrapper's termination guarantee.
+    for name in ["SKIP", "DIRECT_SKIP"] {
+        let skip = &trees
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap()
+            .initializer;
+        for evidence in [None, Some(proof(1))] {
+            let mut evaluator = ConstantEvaluation::new(trees, &[]);
+            evaluator.termination.evidence = evidence.into_iter().collect();
+            let error = evaluator.evaluate(skip, None).unwrap_err();
+            spec_corpus::observe_handoff!(
+                "nested-helpers-and-tail-expressions/refusal",
+                assert!(error.message.contains(CYCLIC_INVOCATION.text()), "{}", error.message)
+            );
+        }
     }
     let checked = crate::CheckedPreparationEvidence::default().with_recursive_component(proof(2));
     let pass = crate::prepare_typing_pass(&progress, &[], None, checked).unwrap();
     let crate::PreparationAnswers::Frozen { constants, .. } = pass.answers else {
         panic!("expected closed callback values")
     };
-    for (name, expected) in [("SKIP", 9), ("RUN", 7)] {
+    for (name, expected) in [("SKIP", 9), ("RUN", 7), ("DIRECT_SKIP", 9), ("DIRECT_RUN", 7)] {
         let declaration = &trees
             .constants
             .iter()

@@ -55,12 +55,13 @@ impl BodyTyper<'_, '_> {
         let range = source.range_bounds(selector);
         // An element of a referenced collection lives wherever the reference
         // points; an element of an owned collection lives in that collection.
-        let contents = self.origin(base).whole();
         let backing = if reference.is_some() {
-            contents.clone()
+            self.origin(base)
         } else {
             self.storage_place(base).backing
         };
+        let contents = if reference.is_some() { self.contents(&backing) } else { self.origin(base) };
+        let backing = backing.project(super::storage_origin::Component::Element);
         let element = match storage {
             ValueType::Slice(t) | ValueType::Array(t, _) | ValueType::IndexedArray(t, _) => t.as_ref(),
             _ => {

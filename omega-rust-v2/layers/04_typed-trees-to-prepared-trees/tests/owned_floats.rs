@@ -1,9 +1,10 @@
 use omega_preparation::{
-    FloatFormat, FloatOperation, FloatRealization, FloatSemantics, MaterializationComponent, PreparedFloat, PreparedTrees, PreparedValue, TargetIdentity,
-    TargetObservation, TargetSemantics, prepare_source_package, prepare_source_package_for_target,
+    ConstantMaterializationError, FloatFormat, FloatOperation, FloatRealization, FloatSemantics, LayoutExtent, LayoutGeometry, MaterializationComponent,
+    PreparedFloat, PreparedTrees, PreparedValue, PreparedValueOrigin, SelectedLayout, TargetIdentity, TargetObservation, TargetSemantics,
+    prepare_source_package, prepare_source_package_for_target,
 };
 use omega_resolver::{ParsedSource, StageSource};
-use omega_typer::{TypeError, resolve_source_package};
+use omega_typer::{TypeError, ValueType, resolve_source_package};
 
 fn prepare<'text>(
     source: &'text str,
@@ -157,6 +158,60 @@ fn float_operations_use_the_selected_target_and_keep_separate_rounding() {
     let missing = self::target([(Binary32, Multiply), (Binary32, Negate)]);
     let error = prepare(source, Some(&missing)).unwrap_err().message;
     assert!(error.contains("does not support this floating operation"), "{error}");
+}
+
+#[test]
+fn an_exact_widening_keeps_the_observation_of_its_narrower_operand() {
+    // 1 + 2^-24 rounds to 1 in f32 but would be above 1 in f64.
+    let source = "const VALUE:f64 = ((1.0f32 + 0.000000059604644775390625f32) as f64);";
+    let operation = "1.0f32 + 0.000000059604644775390625f32";
+    let open = prepare(source, None).unwrap();
+    let declaration = &open.typed().constants[0].declaration;
+    assert!(open.constant(declaration).is_none());
+    let error = open.open_target_constant(declaration).unwrap();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(operation.as_bytes()));
+    assert_eq!(error.message, "static evaluation cannot admit this invocation: the floating operation needs a selected target realization");
+    assert!(open.target_observations().is_empty());
+
+    let identity = target([]).identity().clone();
+    let layout = SelectedLayout {
+        target: identity.clone(),
+        subject: ValueType::Float64,
+        schema: vec![1].into(),
+        plan: vec![1].into(),
+        geometry: LayoutGeometry { extent: LayoutExtent::Fixed(8), alignment: Some(8) },
+    };
+    let addition = FloatRealization {
+        format: FloatFormat::Binary32,
+        operation: FloatOperation::Add,
+        semantics: FloatSemantics::Ieee754NearestEvenV1,
+    };
+    let selected = TargetSemantics::new(identity.clone(), [layout.clone()], [addition]).unwrap();
+    let wrong_format = TargetSemantics::new(
+        identity.clone(),
+        [layout.clone()],
+        [FloatRealization { format: FloatFormat::Binary64, ..addition }],
+    )
+    .unwrap();
+    let error = prepare(source, Some(&wrong_format)).unwrap_err();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(operation.as_bytes()));
+    assert_eq!(error.message, "the selected target does not support this floating operation (Binary32 Add on test)");
+
+    let prepared = prepare(source, Some(&selected)).unwrap();
+    let declaration = &prepared.typed().constants[0].declaration;
+    let observation = TargetObservation::FloatRealization { target: identity, realization: addition };
+    assert_eq!(prepared.target_observations(), std::slice::from_ref(&observation));
+    let inputs = prepared.dependencies().inputs(&PreparedValueOrigin::Constant(declaration.clone())).unwrap();
+    assert!(inputs.constants.is_empty());
+    assert_eq!(inputs.target_observations.as_slice(), std::slice::from_ref(&observation));
+
+    let materialization = prepared.constant_for_materialization(declaration, &selected).unwrap();
+    assert_eq!(materialization.value.float(), Some(PreparedFloat::Binary64(0x3ff0_0000_0000_0000)));
+    assert_eq!(materialization.layout, &layout);
+    assert!(matches!(
+        prepared.constant_for_materialization(declaration, &wrong_format),
+        Err(ConstantMaterializationError::ChangedTargetDependency(used)) if used == &observation
+    ));
 }
 
 #[test]

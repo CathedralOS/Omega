@@ -1,22 +1,44 @@
 use omega_typed::{Site, TypedTree};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(not(feature = "diagnostic-origins"), derive(Eq, PartialEq))]
 pub struct LoweringError {
     pub site: Site,
     pub message: String,
+    #[cfg(feature = "diagnostic-origins")]
+    origin: &'static std::panic::Location<'static>,
 }
 
 impl LoweringError {
-    pub(crate) fn new(
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
+    pub fn new(
         site: &Site,
         message: impl Into<String>,
     ) -> Self {
         Self {
             site: site.clone(),
             message: message.into(),
+            #[cfg(feature = "diagnostic-origins")]
+            origin: std::panic::Location::caller(),
         }
     }
+
+    /// Compiler construction site for this returned diagnostic in the measured revision.
+    #[cfg(feature = "diagnostic-origins")]
+    pub fn diagnostic_origin(&self) -> &'static std::panic::Location<'static> {
+        self.origin
+    }
 }
+
+#[cfg(feature = "diagnostic-origins")]
+impl PartialEq for LoweringError {
+    fn eq(&self, other: &Self) -> bool {
+        self.site == other.site && self.message == other.message
+    }
+}
+
+#[cfg(feature = "diagnostic-origins")]
+impl Eq for LoweringError {}
 
 impl std::fmt::Display for LoweringError {
     fn fmt(

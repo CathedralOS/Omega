@@ -108,8 +108,12 @@ impl BodyTyper<'_, '_> {
             PathExpression | PathType if node.kind == PathExpression || self.context == ExpressionContext::StaticArgument => {
                 self.path_value(node_index, destination, &mut static_argument_slot)?
             }
-            Literal if node.leaves[0].kind == omega_tokens::TokenKind::Quoted
-                && let Some(carrier) = self.owned_byte_literal(node_index, context()?.exact(), machine_result)? => carrier,
+            Literal
+                if node.leaves[0].kind == omega_tokens::TokenKind::Quoted
+                    && let Some(carrier) = self.owned_byte_literal(node_index, context()?.exact(), machine_result)? =>
+            {
+                carrier
+            }
             Literal => {
                 let (value, suffix) = numeric_literals::literal(source_file, node_index)?;
                 if let Some(ty) = suffix {
@@ -199,7 +203,9 @@ impl BodyTyper<'_, '_> {
             ArrayLiteral => Some(
                 node.children
                     .iter()
-                    .fold(Origin::Caller, |all, &c| all.join(&self.origin(c).whole())),
+                    .map(|&child| self.origin(child))
+                    .reduce(|a, b| a.join(&b))
+                    .unwrap_or_default(),
             ),
             Borrow => Some(self.storage_place(node.children[0]).backing),
             Match | Body | RecordLiteral | Index => None,
@@ -304,7 +310,11 @@ impl BodyTyper<'_, '_> {
         use NodeKind::*;
         let source_file = self.unit.file;
         let indices = &self.catalog.types.indices;
-        let expected = || destination.when_known(indices, source_file, node_index).map(Destination::exact);
+        let expected = || {
+            destination
+                .when_known(indices, source_file, node_index)
+                .map(Destination::exact)
+        };
         let node = &source_file.nodes[node_index];
         let symbol = self.unit.name_in_role(node_index, false);
         if matches!(symbol, Some(Symbol::DeclarationQuery { .. })) {
@@ -390,7 +400,10 @@ impl BodyTyper<'_, '_> {
                 self.mathematical_citation(node_index, id, wanted)?;
                 wanted.clone()
             }
-            Some(Symbol::Declaration(id)) if id.kind == Machine && let Some(ValueType::Callable(c)) = expected()? => {
+            Some(Symbol::Declaration(id))
+                if id.kind == Machine
+                    && let Some(ValueType::Callable(c)) = expected()? =>
+            {
                 self.refine_callable(
                     node_index,
                     c,
@@ -422,7 +435,10 @@ impl BodyTyper<'_, '_> {
             }
             Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
             Some(Symbol::Declaration(id)) if id.kind == Case => {
-                let fields = self.catalog.fields_at(id, source_file, node_index)?.ok_or_else(|| TypeError::at(source_file, node_index, "missing field declarations"))?;
+                let fields = self
+                    .catalog
+                    .fields_at(id, source_file, node_index)?
+                    .ok_or_else(|| TypeError::at(source_file, node_index, "missing field declarations"))?;
                 if !fields.ordered.is_empty() {
                     return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
                 }

@@ -26,6 +26,7 @@ pub(crate) struct IndexEvaluations<'a> {
     allow_pending: bool,
     demands: RefCell<Vec<StaticValueDemand>>,
     blocked: RefCell<Vec<TreeNodeId>>,
+    blocked_demands: RefCell<HashSet<StaticValueDemand>>,
     pending_declarations: RefCell<HashSet<DeclarationId>>,
     pub(super) specializations: IndexSpecializations,
     supplied: HashMap<&'a StaticValueRequest, &'a StaticValue>,
@@ -53,6 +54,7 @@ impl<'a> IndexEvaluations<'a> {
             allow_pending,
             demands: RefCell::default(),
             blocked: RefCell::default(),
+            blocked_demands: RefCell::default(),
             pending_declarations: RefCell::default(),
             uses: RefCell::default(),
         })
@@ -104,14 +106,40 @@ impl<'a> IndexEvaluations<'a> {
         TypeError::waiting(file, node)
     }
 
+    pub(crate) fn specialized_requests(&self) -> HashMap<TreeNodeId, Vec<StaticValueRequest>> {
+        let mut by_node = HashMap::<_, Vec<_>>::new();
+        for (request, evaluation) in self.uses.borrow().iter() {
+            if matches!(evaluation, IndexEvaluation::Specialized(_)) {
+                by_node.entry(request.node).or_default().push(request.clone());
+            }
+        }
+        by_node
+    }
+
+    pub(crate) fn demand_is_blocked(
+        &self,
+        demand: &StaticValueDemand,
+    ) -> bool {
+        self.blocked_demands.borrow().contains(demand)
+    }
+
+    pub(crate) fn block_demand(
+        &self,
+        demand: &StaticValueDemand,
+    ) {
+        self.blocked_demands.borrow_mut().insert(demand.clone());
+    }
+
     pub(crate) fn retain_demands_at(
         &self,
         node: TreeNodeId,
         value: &ValueType,
-    ) {
-        if self.retain_demands(value) && static_demands(value).any(|demand| demand.request().node != node) {
+    ) -> bool {
+        let pending = self.retain_demands(value);
+        if pending && static_demands(value).any(|demand| demand.request().node != node) {
             self.block_node(node);
         }
+        pending
     }
 
     pub(crate) fn retain_demands(

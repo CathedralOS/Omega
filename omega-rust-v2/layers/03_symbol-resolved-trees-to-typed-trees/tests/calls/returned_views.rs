@@ -19,7 +19,29 @@ fn last_occurrence(
 #[test]
 fn returned_views_of_local_storage_are_refused_however_spelled() {
     for (source, returned) in [
+        (
+            "data B{v:@u8;} data Handles{box:@mut B;} machine f(h:Handles,n:u8)->@u8{let d=h.box;d.v=@n;h.box.v}",
+            "h.box.v",
+        ),
+        (
+            "data B{v:@u8;} data Handles{box:@mut B;} machine f(h:@mut Handles,n:u8)->@u8{h.box.v=@n;h.box.v}",
+            "h.box.v",
+        ),
+        (
+            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mut a=B{v:@n};let mut b=B{v:p};let d=match c {true -> @mut a,false -> @mut b,};d.v=p;a.v}",
+            "a.v",
+        ),
+        (
+            "data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut a=B{v:p};let mut b=B{v:p};let mut d=@mut a;let old=d;d=@mut b;old.v=@n;a.v}",
+            "a.v",
+        ),
         ("machine f(x:u8)->@u8 { let v = @x; v }", "v"),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:p};let d=@mut b;d.v=@n;b.v}", "b.v"),
+        (
+            "data B{v:@u8;} machine f(p:@u8,n:u8,c:bool)->@u8{let mut a=B{v:p};let mut b=B{v:p};let d=match c {true -> @mut a,false -> @mut b,};d.v=@n;a.v}",
+            "a.v",
+        ),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:p};let B{v}=@mut b;v=@n;b.v}", "b.v"),
         ("machine f(x:u8)->@u8 { match @x { r -> r, } }", "match @x { r -> r, }"),
         ("machine f(x:u8)->@u8 { transition @x { r -> r, } }", "r"),
         ("machine f()->@u8 { let y:u8 = 1; match @y { r -> r, } }", "match @y { r -> r, }"),
@@ -65,6 +87,12 @@ fn returned_views_of_local_storage_are_refused_however_spelled() {
 fn returned_views_of_caller_storage_keep_their_return_obligation() {
     for (source, returned) in [
         ("machine f(x:@u8)->@u8 { match x { r -> r, } }", "match x { r -> r, }"),
+        ("data B{v:@u8;} machine f(p:@u8)->@u8{let b=B{v:p};let d=@b;d.v}", "d.v"),
+        (
+            "data B{keep:@u8;scratch:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{keep:p,scratch:p};b.scratch=@n;b.keep}",
+            "b.keep",
+        ),
+        ("data B{v:@u8;} machine f(p:@u8,n:u8)->@u8{let mut b=B{v:@n};let d=@mut b;d.v=p;b.v}", "b.v"),
         ("machine f(x:@u8)->@u8 { transition x { r -> r, } }", "r"),
         ("data D { v:u8; } machine f(d:@D)->@u8 { @d.v }", "@d.v"),
         (

@@ -214,6 +214,7 @@ impl ConstantEvaluation<'_, '_> {
             }
             execution.steps.push(Step::CoerceFloat {
                 site: file.node_id(node),
+                in_initializer: matches!(scope, Scope::Initializer { .. }),
                 carrier: carrier.clone(),
             });
             source
@@ -227,18 +228,23 @@ impl ConstantEvaluation<'_, '_> {
     pub(super) fn coerce_float(
         &self,
         site: TreeNodeId,
+        in_initializer: bool,
         carrier: &ValueType,
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
         let operand = execution.values.pop().ok_or(UNSUPPORTED_BODY)?;
-        let not_exact = PreparationReason::InexactFloatCast;
+        let not_exact = || {
+            let error = EvaluationError::from(PreparationReason::InexactFloatCast);
+            // Initializers cite the failing expression; invocations retain their call site.
+            if in_initializer { error.at_node(site) } else { error }
+        };
         let output = if let Some(format) = FloatFormat::for_type(carrier) {
             let value = match operand {
                 PreparedValue::Float { value, .. } => value.exactly_in(format),
                 PreparedValue::Integer(value) => format.land_exact_integer(value),
                 _ => return Err(UNSUPPORTED_BODY.into()),
             }
-            .ok_or(not_exact)?;
+            .ok_or_else(not_exact)?;
             PreparedValue::Float {
                 value,
                 origin: origin(&self.tree(site)?, site.node),
@@ -248,8 +254,8 @@ impl ConstantEvaluation<'_, '_> {
                 .float()
                 .ok_or(UNSUPPORTED_BODY)?
                 .exact_integer()
-                .ok_or(not_exact)?;
-            PreparedValue::Integer(fits(integer, carrier).ok_or(not_exact)?)
+                .ok_or_else(not_exact)?;
+            PreparedValue::Integer(fits(integer, carrier).ok_or_else(not_exact)?)
         };
         execution.values.push(output);
         Ok(())
