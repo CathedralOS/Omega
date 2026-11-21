@@ -23,25 +23,25 @@ impl Program<'_> {
             let (
                 StorageShape::FixedArray {
                     element: actual_element,
-                    qualification: aq,
-                    length: al,
+                    qualification: actual_qualification,
+                    length: actual_length,
                 },
                 StorageShape::FixedArray {
                     element: expected_element,
-                    qualification: eq,
-                    length: el,
+                    qualification: expected_qualification,
+                    length: expected_length,
                 },
             ) = (&left.shape, &right.shape)
             else {
                 return false;
             };
-            if aq != eq
+            if actual_qualification != expected_qualification
                 || left.multiplicity != right.multiplicity
                 || !left.requires.is_empty()
                 || !right.requires.is_empty()
                 || left.cleanup.is_some()
                 || right.cleanup.is_some()
-                || (al != el && !length_matches(al, el))
+                || (actual_length != expected_length && !length_matches(actual_length, expected_length))
             {
                 return false;
             }
@@ -67,6 +67,26 @@ impl Program<'_> {
         }
         let inputs = required.formal_values();
         let formals = supplied.formal_values();
+        let forwarded = |actual_length: &ArrayExtent, expected_length: &ArrayExtent| {
+            let (
+                ArrayExtent::Parameter {
+                    owner: from,
+                    value: input,
+                },
+                ArrayExtent::Parameter {
+                    owner: to,
+                    value: formal,
+                },
+            ) = (actual_length, expected_length)
+            else {
+                return false;
+            };
+            *from == caller
+                && *to == callee
+                && inputs.iter().zip(&formals).any(|(actual, expected)| {
+                    actual.as_ref() == Some(input) && expected.as_ref() == Some(formal)
+                })
+        };
         for (actual, expected) in required
             .parameters
             .iter()
@@ -77,26 +97,6 @@ impl Program<'_> {
                 (actual, expected)
             else {
                 continue;
-            };
-            let forwarded = |al: &ArrayExtent, el: &ArrayExtent| {
-                let (
-                    ArrayExtent::Parameter {
-                        owner: from,
-                        value: input,
-                    },
-                    ArrayExtent::Parameter {
-                        owner: to,
-                        value: formal,
-                    },
-                ) = (al, el)
-                else {
-                    return false;
-                };
-                *from == caller
-                    && *to == callee
-                    && inputs.iter().zip(&formals).any(|(actual, expected)| {
-                        actual.as_ref() == Some(input) && expected.as_ref() == Some(formal)
-                    })
             };
             if self.array_argument_storage_matches(*actual, *expected, forwarded) {
                 *expected = *actual;
