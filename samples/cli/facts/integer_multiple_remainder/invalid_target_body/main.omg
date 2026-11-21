@@ -4,7 +4,7 @@ const OFFSET: u64 = 1;
 data EvenLength requires length % 2 == 0 { length: u16; }
 machine observe(value: EvenLength) -> u16 { value.length }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

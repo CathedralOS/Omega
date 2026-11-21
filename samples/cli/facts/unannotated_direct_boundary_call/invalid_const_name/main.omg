@@ -8,7 +8,7 @@ public boundary trait Mark {
 MarkerMark satisfies Mark {
     machine read() -> u64 { MARK_VALUE }
 }
-machine main() reaches crashes Trap {
+machine main() reaches none crashes Trap {
     let value: u64 = Mark::read();
     transition value == MARK_VALUE { true -> done(), _ -> bad() }
     machine done() {}

@@ -62,7 +62,7 @@ public boundary trait Gui {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost crashes none;
-    machine msg_translate(window_state: @Window, message: [u64; 6]) -> u32 reaches crashes none;
+    machine msg_translate(window_state: @Window, message: [u64; 6]) -> u32 reaches none crashes none;
     machine msg_dispatch(window_state: @Window, message: [u64; 6]) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -138,7 +138,7 @@ WindowGuiProvider satisfies Gui {
     {
         app_msg_peek(window_state, message)
     }
-    machine msg_translate(window_state: @Window, message: [u64; 6]) -> u32 reaches
+    machine msg_translate(window_state: @Window, message: [u64; 6]) -> u32 reaches none
     {
         app_msg_translate(window_state, message)
     }

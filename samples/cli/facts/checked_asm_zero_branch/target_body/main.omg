@@ -2,7 +2,7 @@
 // The checked seed-2 mov/sub/jz CFG takes its zero edge with eax == 0 and stores output == 0.
 machine main() crashes Trap { SelectedCountdown::countdown(2); }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

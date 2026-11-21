@@ -20,15 +20,15 @@ satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
 public data Capacity [linear] { token: u64; }
 public domain Capacity::Available established by Reader::acquire, Reader::complete;
 public boundary trait Reader {
-    machine same(first: @Buffer, second: @Buffer) -> u64 reaches crashes Trap;
-    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
+    machine same(first: @Buffer, second: @Buffer) -> u64 reaches none crashes Trap;
+    machine acquire() -> Capacity reaches none ensures result in Capacity::Available crashes Trap;
     machine register<'source>(capacity: Capacity in Capacity::Available, buffer: @'source Buffer in Buffer::Owned) -> Pending<'source>
-    reaches
+    reaches none
     ensures result in Pending::Retained crashes Trap;
     machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mut u64) -> Capacity
-    reaches
+    reaches none
     ensures result in Capacity::Available crashes Trap;
-    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches none crashes Trap;
 }
 data Main {}
 machine run_main(main: @mut Main) reaches Reader crashes Trap {

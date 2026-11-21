@@ -1235,6 +1235,7 @@ pub(crate) mod component_arguments {
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ComponentCallScope {
+        pub(crate) float_evaluation: crate::float_result_policy::FloatEvaluation,
         pub(crate) namespace: Option<u64>,
         machine: MachineId,
         block: BlockId,
@@ -1244,6 +1245,7 @@ pub(crate) mod component_arguments {
     impl<'artifact> TerminalExecution<'artifact> {
         pub(crate) fn component_call_scope(&self) -> ComponentCallScope {
             ComponentCallScope {
+                float_evaluation: self.float_evaluation,
                 namespace: self.local_structural_identities.exposure_namespace,
                 machine: self.current_machine,
                 block: self.current,
@@ -3478,6 +3480,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary,
         };
         let effect = TerminalEffect::BoundaryCall {
+            float_evaluation: self.float_evaluation,
             site: site.clone(),
             arguments: scalar_arguments,
             structural_arguments: exported_values,

@@ -45,7 +45,7 @@ requires width == 16 || width == 32
 }
 
 boundary trait SelectedForward {
-    machine forward(packet: Packet, last: u8) reaches crashes Trap;
+    machine forward(packet: Packet, last: u8) reaches none crashes Trap;
 }
 HostedForward satisfies SelectedForward {
     machine forward(packet: Packet, last: u8) crashes Trap {

@@ -7,12 +7,12 @@ use omega_language_std\Console;
 
 public boundary trait CheckedMath {
     machine offset_zero(value: i32) -> i32
-    reaches crashes none;
+    reaches none crashes none;
 }
 
 public CheckedMathProvider satisfies CheckedMath {
     machine offset_zero(value: i32) -> i32
-    reaches crashes none
+    reaches none crashes none
     {
         value
     }

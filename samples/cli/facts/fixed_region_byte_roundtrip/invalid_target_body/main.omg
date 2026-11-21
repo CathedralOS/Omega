@@ -1,7 +1,7 @@
 // Fact: A fixed interior typed region can be copied through byte views without changing its values or either neighboring word.
 // Invalid: the transported region end is 5, so the 32-byte source region cannot license a 40-byte view.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

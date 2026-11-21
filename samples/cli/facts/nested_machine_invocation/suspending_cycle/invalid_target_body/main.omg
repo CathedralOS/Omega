@@ -2,7 +2,7 @@
 // Place: target body. A Build-selected named implementation runs the cycle; each implementation adds its own tag.
 // Rejected: the ancestor edge omits the `suspend` its callee's envelope requires.
 public boundary trait Scheduler {
-    machine advance(value: u64) -> u64 reaches suspends crashes none;
+    machine advance(value: u64) -> u64 reaches none suspends crashes none;
 }
 InlineScheduler satisfies Scheduler {
     machine advance(value: u64) -> u64 { (value as +Wrapping * 3) as u64 }

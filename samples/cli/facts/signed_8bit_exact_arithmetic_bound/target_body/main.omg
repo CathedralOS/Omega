@@ -2,7 +2,7 @@
 // Place: target_body. Each hosted target body computes the 8-bit signed exact addition and subtraction.
 // Expected exit: 0
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

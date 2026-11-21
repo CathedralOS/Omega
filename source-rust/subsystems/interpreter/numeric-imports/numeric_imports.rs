@@ -11,6 +11,7 @@ use target_vocabulary::{
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain, NearestIeeeFloatArithmeticRealization,
 };
+use terminal_interpreter::float_result_policy::{FloatEvaluation, operand_meaning};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue,
@@ -119,6 +120,7 @@ impl TerminalEffectHandler for NumericImport {
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let TerminalEffect::BoundaryCall {
+            float_evaluation,
             arguments,
             structural_arguments,
             ..
@@ -145,17 +147,16 @@ impl TerminalEffectHandler for NumericImport {
             return Err(rejected("numeric operands differ from the bound contract"));
         }
         if let Some(classification) = &self.classification {
-            let [TerminalScalarValue::IeeeFloat(value)] = arguments else {
-                return Err(rejected("classification requires one IEEE payload"));
+            let [value] = arguments else {
+                return Err(rejected("classification requires one floating operand"));
             };
+            let meaning = operand_meaning(*value)
+                .map_err(|_| rejected("classification requires a floating operand"))?;
             let format = match self.realization.format {
                 IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
                 IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
             };
-            let (ordinal, sign) = match FloatSemantics::classify(
-                format,
-                &terminal_interpreter::float_result_policy::meaning(*value),
-            ) {
+            let (ordinal, sign) = match FloatSemantics::classify(format, &meaning) {
                 FloatClass::NaN => (0, None),
                 FloatClass::Infinity { negative } => (1, Some(negative)),
                 FloatClass::Normal { negative } => (2, Some(negative)),
@@ -178,7 +179,7 @@ impl TerminalEffectHandler for NumericImport {
                 ),
             ));
         }
-        let result = evaluate(self.realization, arguments)?;
+        let result = evaluate(*float_evaluation, self.realization, arguments)?;
         if let TerminalEffectResult::Scalar(value) = result
             && Some(value.scalar_type()) != self.signature.result.scalar()
         {
@@ -189,6 +190,7 @@ impl TerminalEffectHandler for NumericImport {
 }
 
 fn evaluate(
+    evaluation: FloatEvaluation,
     realization: NearestIeeeFloatArithmeticRealization,
     arguments: &[TerminalScalarValue],
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
@@ -209,33 +211,41 @@ fn evaluate(
             IntegerValue::Signed(value) => BigInt::from_i128(*value),
             IntegerValue::Unsigned(value) => BigInt::from_u128(*value),
         };
-        return Ok(scalar(encode(
+        return Ok(scalar(evaluation.arithmetic_result(
             realization.format,
-            FloatSemantics::from_integer(format, &integer),
+            &FloatSemantics::from_integer(format, &integer),
         )));
     }
-    let operands = arguments
+    let meanings = arguments
         .iter()
-        .map(|value| match value {
-            TerminalScalarValue::IeeeFloat(value) => Ok(*value),
-            _ => Err(rejected("float import requires floating operands")),
+        .map(|value| {
+            operand_meaning(*value).map_err(|_| rejected("float import requires floating operands"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let meanings = operands
-        .iter()
-        .map(|value| terminal_interpreter::float_result_policy::meaning(*value))
-        .collect::<Vec<_>>();
     let first = &meanings[0];
     let meaning = match realization.operation {
         Operation::FromInteger(_) => {
             return Err(rejected("integer conversion received floating operands"));
         }
+        Operation::Negate if evaluation == FloatEvaluation::CompileTime => {
+            // The boundary guarantees the negated meaning. A native sign-bit
+            // operation does not add a portable payload guarantee.
+            FloatSemantics::negate(format, first)
+        }
         Operation::Negate => {
-            let bits = match operands[0] {
-                IeeeFloatValue::Binary32(bits) => IeeeFloatValue::Binary32(bits ^ (1 << 31)),
-                IeeeFloatValue::Binary64(bits) => IeeeFloatValue::Binary64(bits ^ (1 << 63)),
+            let result = match arguments[0] {
+                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits)) => {
+                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(bits ^ (1 << 31)))
+                }
+                TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) => {
+                    TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits ^ (1 << 63)))
+                }
+                TerminalScalarValue::UndeterminedNaN(format) => {
+                    TerminalScalarValue::UndeterminedNaN(format)
+                }
+                _ => return Err(rejected("negation requires a floating operand")),
             };
-            return Ok(scalar(TerminalScalarValue::IeeeFloat(bits)));
+            return Ok(scalar(result));
         }
         Operation::Minimum | Operation::Maximum => {
             let take_first = if realization.operation == Operation::Minimum {
@@ -243,9 +253,7 @@ fn evaluate(
             } else {
                 FloatSemantics::greater(first, &meanings[1])
             };
-            return Ok(scalar(TerminalScalarValue::IeeeFloat(
-                operands[if take_first { 0 } else { 1 }],
-            )));
+            return Ok(scalar(arguments[if take_first { 0 } else { 1 }]));
         }
         Operation::Classify => {
             return Err(rejected(
@@ -364,7 +372,9 @@ fn evaluate(
             rounding,
         } => directed(operation, rounding)(format, first, &meanings[1]),
     };
-    Ok(scalar(encode(realization.format, meaning)))
+    Ok(scalar(
+        evaluation.arithmetic_result(realization.format, &meaning),
+    ))
 }
 
 fn directed_square_root(
@@ -408,13 +418,6 @@ fn directed(
     }
 }
 
-fn encode(format: IeeeFloatFormat, meaning: FloatMeaning) -> TerminalScalarValue {
-    TerminalScalarValue::IeeeFloat(match format {
-        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(meaning.to_f32().to_bits()),
-        IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(meaning.to_f64().to_bits()),
-    })
-}
-
 fn rejected(reason: &'static str) -> TerminalEffectRejection {
     TerminalEffectRejection::new(reason)
 }
@@ -425,9 +428,48 @@ mod tests {
     use target_vocabulary::IeeeFloatIntegerCarrier;
 
     #[test]
+    fn arithmetic_and_operand_selection_preserve_different_nan_information() {
+        use IeeeFloatArithmeticOperation as Operation;
+        let format = IeeeFloatFormat::Binary32;
+        let run = |operation, arguments: &[TerminalScalarValue]| {
+            let result = evaluate(
+                FloatEvaluation::CompileTime,
+                NearestIeeeFloatArithmeticRealization {
+                    operation,
+                    format,
+                    x86_scalar_fma: None,
+                },
+                arguments,
+            )
+            .unwrap();
+            let TerminalEffectResult::Scalar(value) = result else {
+                panic!("expected scalar result")
+            };
+            value
+        };
+        let zero = TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0));
+        let bits = TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0xff80_0123));
+        let unknown = run(Operation::Divide, &[zero, zero]);
+        assert_eq!(unknown, TerminalScalarValue::UndeterminedNaN(format));
+        assert_eq!(
+            run(Operation::IsNan, &[unknown]),
+            TerminalScalarValue::Boolean(true)
+        );
+        assert_eq!(run(Operation::Minimum, &[unknown, bits]), bits);
+        assert_eq!(run(Operation::Minimum, &[bits, unknown]), unknown);
+        assert_eq!(run(Operation::Negate, &[unknown]), unknown);
+        assert_eq!(run(Operation::Negate, &[bits]), unknown);
+        assert_eq!(
+            run(Operation::Negate, &[zero]),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x8000_0000)),
+        );
+    }
+
+    #[test]
     fn integer_conversion_runtime_preserves_exact_trapping_and_saturating_outcomes() {
         let evaluate_integer = |target, domain, value: f64| {
             evaluate(
+                FloatEvaluation::Runtime,
                 NearestIeeeFloatArithmeticRealization {
                     operation: IeeeFloatArithmeticOperation::TruncateToInteger { target, domain },
                     format: IeeeFloatFormat::Binary64,

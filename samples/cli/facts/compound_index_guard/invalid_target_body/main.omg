@@ -15,10 +15,10 @@ machine run_main(main: @mut Main) crashes Trap {
 }
 
 boundary trait CheckedIndexStore {
-    machine run(main: @mut Main) reaches crashes Trap;
+    machine run(main: @mut Main) reaches none crashes Trap;
 }
 IndexedStore satisfies CheckedIndexStore {
-    machine run(main: @mut Main) reaches crashes Trap {
+    machine run(main: @mut Main) reaches none crashes Trap {
         transition main.b * 20 + main.a >= 0 {
             true -> put(main),
             _ -> done(main)

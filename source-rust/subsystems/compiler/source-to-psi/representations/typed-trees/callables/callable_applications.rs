@@ -6720,6 +6720,36 @@ pub(crate) mod signatures {
             })
         }
 
+        /// A copied declaration owns the written reach clause, including a
+        /// written empty ceiling. Substitute each target in the binder scope
+        /// that also produces the copied signature's normalized reach.
+        pub(super) fn copy_authored_reach(
+            &mut self,
+            program: &mut TypedTrees,
+            declared: symbols::SymbolHandle,
+            applied: symbols::SymbolHandle,
+        ) -> Result<(), &'static str> {
+            let mut rows = program
+                .authored_service_reach_rows_for(declared)
+                .cloned()
+                .collect::<Vec<_>>();
+            for row in &mut rows {
+                row.owner = applied;
+                for target in &mut row.targets {
+                    target.service = match target.service {
+                        signature::ReachSubject::Service(id) => {
+                            signature::ReachSubject::Service(self.service_reach(program, id)?)
+                        }
+                        signature::ReachSubject::Static(symbol) => {
+                            signature::ReachSubject::Static(self.symbol(symbol))
+                        }
+                    };
+                }
+            }
+            program.authored_service_reach_rows.extend(rows);
+            Ok(())
+        }
+
         pub(super) fn invocations(
             &mut self,
             program: &mut TypedTrees,
@@ -6915,6 +6945,9 @@ pub(crate) mod signatures {
                 }
                 applied.service_reach_row =
                     self.applied_reach_row(program, declared.service_reach_row)?;
+                if applied.symbol != declared.symbol && applied.symbol == self.owned_signature {
+                    self.copy_authored_reach(program, declared.symbol, applied.symbol)?;
+                }
                 applied.invokes = self.invocations(program, declared.invokes)?;
                 if let source_declarations::TerminationGuarantee::Terminates { premises } =
                     &mut applied.termination_guarantee
@@ -9718,17 +9751,7 @@ impl TypedTrees {
         for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
             machine.service_reach_row = application.applied_reach_row(self, machine.service_reach_row)?;
-            let mut reach = self.authored_service_reach_rows_for(declaration).cloned().collect::<Vec<_>>();
-            for row in &mut reach {
-                row.owner = machine.symbol;
-                for target in &mut row.targets {
-                    target.service = match target.service {
-                        signature::ReachSubject::Service(id) => signature::ReachSubject::Service(application.service_reach(self, id)?),
-                        signature::ReachSubject::Static(symbol) => signature::ReachSubject::Static(application.symbol(symbol)),
-                    };
-                }
-            }
-            self.authored_service_reach_rows.extend(reach);
+            application.copy_authored_reach(self, declaration, machine.symbol)?;
             machine.invokes = application.invocations(self, machine.invokes)?;
             // Definitions belong to the copied declaration just like its
             // written contract. Apply both sides through the same type copier.

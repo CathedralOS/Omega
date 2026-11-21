@@ -2049,6 +2049,7 @@ pub(crate) mod placed {
             self.commit_host_boundary_result(declaration, &operation.result, returned)?;
             self.effects
                 .push(crate::boundary::effects::TerminalEffect::BoundaryCall {
+                    float_evaluation: self.float_evaluation,
                     site: crate::TerminalEffectWait {
                         program: self.program.identity.clone(),
                         machine: self.current_machine,

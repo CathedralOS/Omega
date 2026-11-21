@@ -4,7 +4,7 @@ public machine tick() -> bool blocks terminates { true }
 
 boundary trait Countdown {
     machine countdown(remaining: u64, value: u64) -> u64
-    reaches
+    reaches none
     blocks
     terminates
     requires remaining <= 4 && value <= 60
@@ -31,7 +31,7 @@ CountdownCode satisfies Countdown {
 
 boundary trait Evaluation {
     machine evaluate() -> u64
-    reaches
+    reaches none
     invokes Countdown
     blocks
     terminates crashes none;

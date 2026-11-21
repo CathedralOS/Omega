@@ -714,7 +714,7 @@ fn a_generic_array_implementation_can_return_one_of_its_elements() {
         super::boundary_calls::typed(
             "boundary trait Elements {
                 machine last<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
-                    reaches requires Count > 0 crashes none;
+                    reaches none requires Count > 0 crashes none;
             }
             Selected satisfies Elements {
                 machine last<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element

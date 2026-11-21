@@ -27,7 +27,7 @@ machine consume(packet: string) -> u64 crashes Trap {
     machine bad() -> u64 crashes Trap { crash Trap; }
 }
 boundary trait RecordOperation {
-    machine produce_and_consume() -> u64 reaches crashes Trap;
+    machine produce_and_consume() -> u64 reaches none crashes Trap;
 }
 SelectedRecordOperation satisfies RecordOperation {
     machine produce_and_consume() -> u64 crashes Trap {

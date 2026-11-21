@@ -15,7 +15,7 @@ requires installed(@packet.current.items) == true && packet.previous[0] == 3 && 
 ensures result == 3
 { packet.previous[0] }
 boundary trait HostedPacket {
-    machine produce(marker: u64) -> Packet reaches
+    machine produce(marker: u64) -> Packet reaches none
     ensures installed(@result.current.items) == true && result.previous[0] == 3 && result.previous[1] == 1 crashes none;
 }
 HostedPacketBody satisfies HostedPacket {
