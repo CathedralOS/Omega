@@ -61,39 +61,64 @@ pub fn predicates_are_false_with(
 ) -> bool {
     let mut bindings = KnownLiterals(&mut scalar_value);
     let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
-    predicates.iter().any(|predicate| {
-        let truth = closed_predicates::closed_guard_with(predicate, |leaf| {
-            // The general crash-guard evaluator also decides IEEE relations.
-            // This query admits only the Boolean/integer part of that owner.
-            let allowed = matches!(
-                leaf,
-                Proposition::Truth
-                    | Proposition::Falsehood
-                    | Proposition::Equal(..)
-                    | Proposition::LessThan(..)
-                    | Proposition::LessOrEqual(..)
-                    | Proposition::IntegerMathEqual(..)
-                    | Proposition::IntegerMathLessThan(..)
-                    | Proposition::IntegerMathLessOrEqual(..)
-            );
-            let value = if allowed && leaf.validate().is_ok() {
-                // Substitute each comparison once. An unresolved sibling must
-                // not hide another child's independently false condition.
-                crate::substitution::clauses::substitute_clause(leaf, &mut bindings)
-                    .ok()
-                    .filter(|closed| closed.validate().is_ok())
-                    .and_then(|closed| {
-                        closed_predicates::closed_guard(&closed, &mut integers)
-                            .ok()
-                            .flatten()
-                    })
-            } else {
-                None
-            };
-            Ok::<_, std::convert::Infallible>(value)
-        });
-        matches!(truth, Ok(Some(false)))
+    predicates
+        .iter()
+        .any(|predicate| literal_predicate(predicate, &mut bindings, &mut integers) == Some(false))
+}
+
+/// The truth of a checked scalar predicate under one concrete assignment.
+/// An unavailable input or unsupported observation supplies no decision.
+pub fn known_predicate_with(
+    predicate: &Proposition,
+    mut scalar_value: impl FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
+) -> Option<bool> {
+    literal_predicate(
+        predicate,
+        &mut KnownLiterals(&mut scalar_value),
+        &mut closed_predicates::ClosedIntegerEvaluator::default(),
+    )
+}
+
+fn literal_predicate<F>(
+    predicate: &Proposition,
+    bindings: &mut KnownLiterals<'_, F>,
+    integers: &mut closed_predicates::ClosedIntegerEvaluator,
+) -> Option<bool>
+where
+    F: FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
+{
+    closed_predicates::closed_guard_with(predicate, |leaf| {
+        // The general crash-guard evaluator also decides IEEE relations.
+        // This query admits only the Boolean/integer part of that owner.
+        let allowed = matches!(
+            leaf,
+            Proposition::Truth
+                | Proposition::Falsehood
+                | Proposition::Equal(..)
+                | Proposition::LessThan(..)
+                | Proposition::LessOrEqual(..)
+                | Proposition::IntegerMathEqual(..)
+                | Proposition::IntegerMathLessThan(..)
+                | Proposition::IntegerMathLessOrEqual(..)
+        );
+        let value = if allowed && leaf.validate().is_ok() {
+            // Substitute each comparison once. An unresolved sibling must
+            // not hide another child's independently false condition.
+            crate::substitution::clauses::substitute_clause(leaf, bindings)
+                .ok()
+                .filter(|closed| closed.validate().is_ok())
+                .and_then(|closed| {
+                    closed_predicates::closed_guard(&closed, integers)
+                        .ok()
+                        .flatten()
+                })
+        } else {
+            None
+        };
+        Ok::<_, std::convert::Infallible>(value)
     })
+    .ok()
+    .flatten()
 }
 
 /// Resolve a caller-owned erased actual before binding it to a genuine formal.
