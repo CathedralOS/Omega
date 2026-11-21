@@ -122,8 +122,10 @@ pub fn evaluate_with_source_consent(
     program: &mut TypedTrees,
     request: production::TerminalSourceCompilation<'_>,
     scopes: &[FixedLayoutTargetScope],
-    authority: Option<std::sync::Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
-    source_consent: Option<std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
+    authority: Option<std::sync::Arc<declaration_scope::PackageDeclarationScope>>,
+    source_consent: Option<
+        std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
+    >,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let demanded =

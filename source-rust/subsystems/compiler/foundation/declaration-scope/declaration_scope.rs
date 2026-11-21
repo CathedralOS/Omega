@@ -1,11 +1,13 @@
-//! Package selection permissions presented to a compilation.
+//! Direct package permissions for choosing declarations during compilation.
 #![forbid(unsafe_code)]
 
 mod custody;
 pub use custody::require_declaration_selection;
 
+use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 pub trait DeclarationSelectionAuthority: Send + Sync {
     fn allows_declaration_selection(
@@ -13,74 +15,148 @@ pub trait DeclarationSelectionAuthority: Send + Sync {
         requester: PackageKeyIdentity,
         owner: PackageKeyIdentity,
     ) -> bool;
-
     fn package_label(&self, identity: PackageKeyIdentity) -> String;
-
-    fn declaration_selection_scope(
-        &self,
-    ) -> Option<std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        None
-    }
 }
 
-/// The direct Product dependencies available to calling-policy invocations.
-/// There are no package resolvers or source files in this projection.
+/// Each requester can name its own declarations and those of its direct dependencies.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProductDeclarationScope(BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>);
+pub struct PackageDeclarationScope {
+    owners: BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>,
+    // Names belong to the current package graph and only affect diagnostics.
+    names: Option<BTreeMap<PackageKeyIdentity, String>>,
+}
 
-impl ProductDeclarationScope {
-    pub fn from_direct_dependencies(
-        packages: &[PackageKeyIdentity],
+pub use PackageDeclarationScope as ProductDeclarationScope;
+
+impl PackageDeclarationScope {
+    pub fn from_direct_dependencies<'a>(
+        packages: impl IntoIterator<Item = &'a PackageKeyIdentity>,
         edges: impl IntoIterator<Item = (PackageKeyIdentity, PackageKeyIdentity)>,
     ) -> Self {
-        let mut scopes = packages
-            .iter()
+        let mut owners = packages
+            .into_iter()
             .map(|&package| (package, vec![package]))
             .collect::<BTreeMap<_, _>>();
         for (requester, owner) in edges {
-            if scopes.contains_key(&owner)
-                && let Some(owners) = scopes.get_mut(&requester)
+            if owners.contains_key(&owner)
+                && let Some(row) = owners.get_mut(&requester)
             {
-                owners.push(owner);
+                row.push(owner);
             }
         }
-        for owners in scopes.values_mut() {
-            owners.sort_unstable();
-            owners.dedup();
+        for row in owners.values_mut() {
+            row.sort_unstable();
+            row.dedup();
         }
-        Self(scopes)
-    }
-    pub fn into_requesters(self) -> BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>> {
-        self.0
-    }
-    pub fn label(identity: PackageKeyIdentity) -> String {
-        use std::fmt::Write as _;
-        let mut label = String::with_capacity(72);
-        label.push_str("package ");
-        for byte in identity.digest() {
-            let _ = write!(label, "{byte:02x}");
+        Self {
+            owners,
+            names: None,
         }
-        label
+    }
+
+    pub fn with_package_names(mut self, names: BTreeMap<PackageKeyIdentity, String>) -> Self {
+        self.names = Some(names);
+        self
+    }
+
+    pub fn require_current(
+        previous: Option<&Self>,
+        current: Option<&Self>,
+        requesters: impl IntoIterator<Item = PackageKeyIdentity>,
+    ) -> Result<(), &'static str> {
+        match (previous, current) {
+            (None, None) => Ok(()),
+            (Some(previous), Some(current)) => {
+                for requester in requesters {
+                    let old = previous
+                        .owners
+                        .get(&requester)
+                        .ok_or("retained declaration scope does not cover a requesting package")?;
+                    let new = current
+                        .owners
+                        .get(&requester)
+                        .ok_or("current declaration scope does not cover a requesting package")?;
+                    if new != old {
+                        return Err("requesting package declaration scope changed");
+                    }
+                }
+                Ok(())
+            }
+            _ => Err("presence of declaration selection authority changed"),
+        }
+    }
+
+    pub fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        self.owners
+            .get(&requester)
+            .is_some_and(|owners| owners.binary_search(&owner).is_ok())
+    }
+
+    /// Existing source checkpoints encode a 32-bit tag followed by the requesters' direct grants.
+    pub fn write_checkpoint(
+        scope: Option<&Self>,
+        out: &mut RecordWriter,
+    ) -> Result<(), RecordError> {
+        out.record(|out| match scope {
+            None => 0u32.write(out),
+            Some(scope) => {
+                1u32.write(out)?;
+                scope.owners.write(out)
+            }
+        })
+    }
+
+    pub fn read_checkpoint<C>(
+        input: &mut RecordReader<'_, C>,
+    ) -> Result<Option<Arc<Self>>, RecordError> {
+        input.record(|input| match u32::read(input)? {
+            0 => Ok(None),
+            1 => {
+                let owners: BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>> =
+                    Record::read(input)?;
+                for (requester, row) in &owners {
+                    if row.windows(2).any(|pair| pair[0] >= pair[1])
+                        || row.binary_search(requester).is_err()
+                        || row.iter().any(|owner| !owners.contains_key(owner))
+                    {
+                        return Err(input.error("invalid package declaration scope"));
+                    }
+                }
+                Ok(Some(Arc::new(Self {
+                    owners,
+                    names: None,
+                })))
+            }
+            _ => Err(input.error("unknown package declaration scope")),
+        })
     }
 }
 
-impl DeclarationSelectionAuthority for ProductDeclarationScope {
+impl DeclarationSelectionAuthority for PackageDeclarationScope {
     fn allows_declaration_selection(
         &self,
         requester: PackageKeyIdentity,
         owner: PackageKeyIdentity,
     ) -> bool {
-        self.0
-            .get(&requester)
-            .is_some_and(|owners| owners.binary_search(&owner).is_ok())
+        self.allows_declaration_selection(requester, owner)
     }
     fn package_label(&self, identity: PackageKeyIdentity) -> String {
-        Self::label(identity)
-    }
-    fn declaration_selection_scope(
-        &self,
-    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        Some(self.0.clone())
+        use std::fmt::Write;
+        let mut digest = String::with_capacity(64);
+        for byte in identity.digest() {
+            let _ = write!(digest, "{byte:02x}");
+        }
+        match &self.names {
+            Some(names) => match names.get(&identity) {
+                Some(name) => format!("`{name}` ({digest})"),
+                None => digest,
+            },
+            None => format!("package {digest}"),
+        }
     }
 }
 
@@ -92,7 +168,7 @@ mod tests {
     fn scope_grants_only_listed_packages_and_their_direct_dependencies() {
         let package = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
         let (a, b, c, outsider) = (package(1), package(2), package(3), package(4));
-        let scope = ProductDeclarationScope::from_direct_dependencies(
+        let scope = PackageDeclarationScope::from_direct_dependencies(
             &[a, b, c],
             [(a, b), (a, b), (b, c), (a, outsider), (outsider, b)],
         );
@@ -101,6 +177,6 @@ mod tests {
         assert!(!scope.allows_declaration_selection(a, c));
         assert!(!scope.allows_declaration_selection(a, outsider));
         assert!(!scope.allows_declaration_selection(outsider, b));
-        assert_eq!(scope.into_requesters()[&a], [a, b]);
+        assert_eq!(scope.owners[&a], [a, b]);
     }
 }

@@ -8,6 +8,7 @@ version.workspace = true
 path = "project_build.rs"
 
 [dependencies]
+declaration-scope = { path = "../foundation/declaration-scope" }
 retained-product-selections = { path = "../source-to-psi/representations/retained-product-selections" }
 retained-image-runtime = { path = "../../interpreter/host/retained-image" }
 review-evidence = { path = "../../package-manager/review/evidence" }

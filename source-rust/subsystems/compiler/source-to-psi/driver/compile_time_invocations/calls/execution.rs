@@ -142,8 +142,12 @@ impl PreparedBuildMachineEntry {
             product: None,
         };
         match self.purpose {
-            source_provenance::DependencyScope::Build => authorities.build = self.authority.as_deref(),
-            source_provenance::DependencyScope::Product => authorities.product = self.authority.as_deref(),
+            source_provenance::DependencyScope::Build => {
+                authorities.build = self.authority.as_deref().map(|scope| scope as _)
+            }
+            source_provenance::DependencyScope::Product => {
+                authorities.product = self.authority.as_deref().map(|scope| scope as _)
+            }
         }
         produced
             .source_selections()
@@ -214,7 +218,7 @@ impl PreparedBuildMachineEntry {
             root,
             unselected,
             requester,
-            self.authority.as_deref(),
+            self.authority.as_deref().map(|scope| scope as _),
             source_selection
                 .as_ref()
                 .map(|selection| selection as &dyn evaluation_admission::InvocationSourceSelection),

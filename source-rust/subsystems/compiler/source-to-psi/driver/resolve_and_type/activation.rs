@@ -1,5 +1,5 @@
 use super::{PreCheckEvaluation, ResolveAndTypeRequest};
-use crate::compile_time_invocations::BuildTimeSelectionAuthority;
+use declaration_scope::PackageDeclarationScope;
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
 use symbol_resolved_trees_to_typed_trees::typing::SeededTypingBase;
@@ -12,23 +12,15 @@ use syntax_trees::SyntaxTrees;
 #[derive(Clone)]
 pub(super) struct SourceContext {
     pub bindings: Vec<SourceScopedTopLevelBinding>,
-    pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    pub declaration_scope: Option<Arc<PackageDeclarationScope>>,
     pub build_helper_identity: std::borrow::Cow<'static, str>,
-    pub recorded_authority:
-        Option<crate::source_state::declaration_authority::RecordedDeclarationAuthority>,
 }
 
 impl SourceContext {
     pub fn same_input(&self, other: &Self) -> bool {
-        self.recorded_authority.is_none()
-            && other.recorded_authority.is_none()
-            && self.bindings == other.bindings
+        self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
-            && match (&self.authority, &other.authority) {
-                (None, None) => true,
-                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                _ => false,
-            }
+            && self.declaration_scope == other.declaration_scope
     }
 
     fn compatibility(
@@ -73,36 +65,16 @@ impl SourceContext {
             if !sources.same_product_dependency_scope(previous, requester) {
                 return Err(SourceReuseMiss::ProductAliases);
             }
-            if current.recorded_authority.is_some() {
-                return Err(SourceReuseMiss::DeclarationAuthority);
-            }
-            let old_has_authority = self.recorded_authority.as_ref().map_or(
-                self.authority.is_some(),
-                crate::source_state::declaration_authority::RecordedDeclarationAuthority::has_authority,
-            );
-            if old_has_authority != current.authority.is_some() {
-                return Err(SourceReuseMiss::DeclarationAuthority);
-            }
-            if let Some(new) = &current.authority {
-                for owner in sources
-                    .selected_files()
-                    .filter_map(|file| file.package_identity)
-                {
-                    let old = match &self.recorded_authority {
-                        Some(recorded) => recorded.allows(requester, owner),
-                        None => self
-                            .authority
-                            .as_ref()
-                            .map(|old| old.allows_declaration_selection(requester, owner)),
-                    }
-                    .ok_or(SourceReuseMiss::DeclarationAuthority)?;
-                    if old != new.allows_declaration_selection(requester, owner) {
-                        return Err(SourceReuseMiss::DeclarationAuthority);
-                    }
-                }
-            }
         }
-        Ok(())
+        PackageDeclarationScope::require_current(
+            self.declaration_scope.as_deref(),
+            current.declaration_scope.as_deref(),
+            activation
+                .selected_files()
+                .filter(|file| !file.origin.is_toolchain())
+                .filter_map(|file| file.package_identity),
+        )
+        .map_err(|_| SourceReuseMiss::DeclarationAuthority)
     }
 }
 
@@ -241,7 +213,7 @@ pub(super) fn select_retained_source(
         let mut authority_miss = None;
         for pending in &mut pre_checks {
             if let Err(reason) =
-                pending.rejoin_source_authority(typing.typed(), context.authority.clone())
+                pending.rejoin_source_authority(typing.typed(), context.declaration_scope.clone())
             {
                 authority_miss = Some(reason);
                 break;
@@ -257,4 +229,108 @@ pub(super) fn select_retained_source(
         }));
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_state::TypedTrees;
+    use crate::source_symbols::SymbolTableBuilder;
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source_admission::{SourceOrigin, SourceResolutionStratum};
+    use source_provenance::DependencyScope;
+
+    #[test]
+    fn fresh_and_reopened_source_check_the_selected_packages_current_grants() {
+        let [root, helper, product, backup] =
+            [1, 2, 3, 4].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
+        let scope = |edges: &[(PackageKeyIdentity, PackageKeyIdentity)]| {
+            Arc::new(PackageDeclarationScope::from_direct_dependencies(
+                &[root, helper, product, backup],
+                edges.iter().copied(),
+            ))
+        };
+        for (purpose, granted, other) in [
+            (DependencyScope::Build, helper, product),
+            (DependencyScope::Product, product, helper),
+        ] {
+            let original = scope(&[(root, granted), (root, backup)]);
+            let mut sources = SourceMap::default();
+            sources.add_checked_instance(
+                "root/entry.omg".into(),
+                "",
+                "root".into(),
+                Some(root),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                purpose,
+            );
+            sources.retain_product_dependency_scope([
+                (root, "service", product),
+                (root, "backup", backup),
+            ]);
+            let sources = Arc::new(sources);
+            let mut retargeted = sources.as_ref().clone();
+            retargeted.retain_product_dependency_scope([
+                (root, "service", backup),
+                (root, "backup", product),
+            ]);
+            let mut typed = TypedTrees {
+                symbols: SymbolTableBuilder::with_sources(Some(sources.clone())).finish(),
+                ..TypedTrees::default()
+            };
+            let fresh = SourceContext {
+                bindings: vec![],
+                declaration_scope: Some(original.clone()),
+                build_helper_identity: "".into(),
+            };
+            let pending = PreCheckEvaluation::new(Some(original));
+            let limits = record_storage::RecordLimits::default();
+            let reopened =
+                record_storage::decode(&record_storage::encode(&fresh, limits).unwrap(), limits)
+                    .unwrap();
+            let reopened_pending =
+                record_storage::decode(&record_storage::encode(&pending, limits).unwrap(), limits)
+                    .unwrap();
+            for (context, requests) in [(fresh.clone(), pending), (reopened, reopened_pending)] {
+                assert!(matches!(
+                    context.compatibility(&fresh, &sources, &retargeted, &sources),
+                    Err(SourceReuseMiss::ProductAliases)
+                ));
+                let saved = context.declaration_scope.as_ref().unwrap();
+                assert!(saved.allows_declaration_selection(root, granted));
+                assert!(!saved.allows_declaration_selection(root, other));
+                for (edges, allowed) in [
+                    (
+                        vec![(root, granted), (root, backup), (other, granted)],
+                        true,
+                    ),
+                    (vec![(root, backup)], false),
+                    (vec![(root, backup), (root, other)], false),
+                ] {
+                    let current = SourceContext {
+                        declaration_scope: Some(scope(&edges)),
+                        ..fresh.clone()
+                    };
+                    assert_eq!(
+                        context
+                            .compatibility(&current, &sources, &sources, &sources)
+                            .is_ok(),
+                        allowed
+                    );
+                    let mut pending = requests.clone();
+                    assert_eq!(
+                        pending
+                            .rejoin_source_authority(&typed, current.declaration_scope)
+                            .is_ok(),
+                        allowed
+                    );
+                    assert_eq!(
+                        PreCheckEvaluation::record_continuations(vec![pending], &mut typed).is_ok(),
+                        allowed
+                    );
+                }
+            }
+        }
+    }
 }

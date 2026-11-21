@@ -231,7 +231,9 @@ fn resolve(
             previous,
             preparation,
             profile.target_name(),
-            inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+            inputs.map(|inputs| {
+                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            }),
         )
         .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
 }
@@ -406,7 +408,9 @@ impl PlanningSource {
             })?
             .1;
         if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
-            let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
+            let authority = inputs.map(|inputs| {
+                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            });
             let declaration = evaluated
                 .configuration
                 .selected_build_declaration
@@ -461,7 +465,6 @@ impl PlanningSource {
                 sources,
                 units,
                 first_source,
-                selection_authority: Arc::new(inputs.clone()),
             })
         };
         let mut build_advisories = self.stage.unused_import_advisories().to_vec();

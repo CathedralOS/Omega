@@ -6,14 +6,13 @@ use compiler::{NativeApplicationSettings, Program, SourceNativeTarget, StageSour
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
-use package_compilation::PackageDependencyClosure;
 use retained_product_selections::RetainedProviderSelection;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::compile_product::source_targets::SourceTarget;
 use source_compiler::compile_product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use source_compiler::compile_time_invocations::BuildTimeSelectionAuthority;
+use declaration_scope::PackageDeclarationScope;
 use source_declarations::declaration_selection::{
     DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
 };
@@ -29,7 +28,7 @@ pub struct ProductStage<'a> {
     entries: Cow<'a, [ProductEntryBinding]>,
     deployments: Vec<&'static str>,
     build_host: ProductTarget,
-    scope: Option<Arc<PackageDependencyClosure>>,
+    scope: Option<Arc<PackageDeclarationScope>>,
     defaults: Vec<RetainedProviderSelection>,
     native: Vec<PackageNativeBindings<'a>>,
 }
@@ -91,7 +90,8 @@ impl PlannedProduct {
                 .map(|target| target.target_name())
                 .collect(),
             build_host,
-            scope: packages.map(|inputs| Arc::new(inputs.dependency_closure())),
+            scope: packages
+                .map(|inputs| Arc::new(inputs.dependency_closure().declaration_permissions())),
             defaults,
             native,
         })
@@ -138,13 +138,13 @@ impl ProductStage<'_> {
         StageSource {
             parsed: Box::new(source.parsed.clone()),
             product: ProductSourceInputs {
-                declaration_authority: self.scope.as_deref().map(|scope| scope as &_),
+                declaration_scope: self.scope.clone(),
                 build_host: self.build_host,
                 build_accounting: Some(&self.product.evaluated().source_completion_accounting),
                 generated: self.product.generated.clone(),
                 targets: &self.targets,
                 calling_targets: &self.deployments,
-                subject: self.scope.as_ref().map(|scope| scope.root()),
+                subject: self.product.package_inputs().map(|inputs| inputs.root()),
                 root_binding_requests: &self.entries,
                 policy: ProductPolicyInputs {
                     activation: build.selected_build_declaration.as_ref(),
@@ -158,10 +158,6 @@ impl ProductStage<'_> {
                     evaluation: build.config.native_binding_evaluation.as_ref(),
                     packages: &self.native,
                 },
-                layout_selection_authority: self
-                    .scope
-                    .as_ref()
-                    .map(|scope| Arc::clone(scope) as Arc<dyn BuildTimeSelectionAuthority>),
                 optimizations: self
                     .rollback
                     .as_ref()
@@ -242,10 +238,7 @@ impl ProductStage<'_> {
                     .admit_for(Some(profile))
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
-            package_permissions: self
-                .scope
-                .as_ref()
-                .map(|scope| scope.declaration_permissions()),
+            package_permissions: self.scope.as_deref().cloned(),
             semantic_bindings: self
                 .product
                 .package_inputs()

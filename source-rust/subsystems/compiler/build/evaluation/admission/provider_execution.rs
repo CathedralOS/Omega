@@ -47,9 +47,10 @@ impl BuildProviderPlans {
         let entry = module
             .entry
             .ok_or_else(|| failure("Build declaration admission has no entry"))?;
-        let authority = self.packages.as_ref().map(|p| {
-            p.declaration_selection_authority(build_declarations::DependencyPurpose::Build)
-        });
+        let authority = self
+            .packages
+            .as_ref()
+            .map(|p| p.declaration_scope(build_declarations::DependencyPurpose::Build));
         let pending = evaluation_admission::admit_declaration_selections(
             artifact,
             None,

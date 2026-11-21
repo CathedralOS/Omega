@@ -91,9 +91,11 @@ impl PlanningSource {
             let source = assembled.prepare(
                 &self.preparation,
                 self.profile.target_name(),
-                self.original
-                    .as_ref()
-                    .map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+                self.original.as_ref().map(|inputs| {
+                    Arc::new(
+                        inputs.declaration_scope(build_declarations::DependencyPurpose::Product),
+                    )
+                }),
             )?;
             self.query_declarations = Some((inputs, source));
         }
