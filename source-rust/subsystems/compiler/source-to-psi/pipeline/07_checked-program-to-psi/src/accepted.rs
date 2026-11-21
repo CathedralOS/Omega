@@ -145,7 +145,7 @@ pub struct ConstantRead {
 
 impl ConstantRead {
     pub fn from_preparation(prepared: &crate::lowering::PreparedTypedTrees) -> Vec<Self> {
-        let source = prepared.typed();
+        let source = prepared.trees();
         prepared
             .constants()
             .map(|constant| Self {
@@ -576,7 +576,7 @@ impl AcceptedTerminalSource {
     }
 
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {
-        self.source.typed()
+        self.source.trees()
     }
 
     pub fn prepared(&self) -> &crate::lowering::PreparedTypedTrees {

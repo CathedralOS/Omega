@@ -314,8 +314,8 @@ mod tests {
             let next_constants =
                 source_compiler::publication::ConstantRead::from_preparation(&next.program);
             assert_ne!(
-                first.program.typed().identity.get(),
-                next.program.typed().identity.get()
+                first.program.trees().identity.get(),
+                next.program.trees().identity.get()
             );
             assert_eq!(
                 first_constants.len(),
@@ -331,23 +331,23 @@ mod tests {
                 folded_under_providers: false,
                 read: next_constants.clone(),
             };
-            super::compare_rejoined_constants(&old, &current, next.program.typed()).unwrap();
+            super::compare_rejoined_constants(&old, &current, next.program.trees()).unwrap();
             let missing = BuildConstants::default();
             assert!(
-                super::compare_rejoined_constants(&old, &missing, next.program.typed()).is_err()
+                super::compare_rejoined_constants(&old, &missing, next.program.trees()).is_err()
             );
             let other = next
                 .program
-                .typed()
+                .trees()
                 .const_declarations()
                 .iter()
                 .find(|declaration| {
-                    next.program.typed().symbols.name(declaration.symbol) == "OTHER"
+                    next.program.trees().symbols.name(declaration.symbol) == "OTHER"
                 })
                 .unwrap();
             let mut wrong = current.clone();
             wrong.read[0].value = other.evaluated_value.clone();
-            assert!(super::compare_rejoined_constants(&old, &wrong, next.program.typed()).is_err());
+            assert!(super::compare_rejoined_constants(&old, &wrong, next.program.trees()).is_err());
             assert_eq!(first.accounting.receipts().len(), executions);
             let mut joined = first.accounting.clone();
             joined.append(first.accounting.clone());

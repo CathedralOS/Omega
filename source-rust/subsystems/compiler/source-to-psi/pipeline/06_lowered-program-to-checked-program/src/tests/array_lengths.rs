@@ -77,8 +77,8 @@ machine build_entry() -> u64 { make().len }"
 fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
     let typed =
         crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
-    crate::lowering::elaborate_generic(&typed, entry).unwrap()
+    let entry = super::boundary_calls::entry(typed.trees());
+    crate::lowering::elaborate_generic(typed.trees(), entry).unwrap()
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
 fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed =
         crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -649,7 +649,7 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
         &[],
     )
     .unwrap();
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

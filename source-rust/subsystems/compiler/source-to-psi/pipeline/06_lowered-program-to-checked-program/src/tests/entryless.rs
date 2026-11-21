@@ -44,7 +44,7 @@ fn judged_parts(
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = &crate::prepare_fixture(typed.clone());
     let selected = if select_first {
-        vec![typed.machines()[0].symbol]
+        vec![typed.trees().machines()[0].symbol]
     } else {
         Vec::new()
     };
@@ -197,32 +197,33 @@ fn specialized_callback_reach_keeps_omission_empty_and_named_services_distinct()
              machine main() -> u64 {{ choose::<u64>(read, 1u64) }}"
         );
         let program = crate::preparation::prepare_typed_trees(typed(&text), &[]).unwrap();
-        let template = program
+        let trees = program.trees();
+        let template = trees
             .machines()
             .iter()
             .find(|m| m.name.as_str() == "choose")
             .unwrap();
-        let instance = program
+        let instance = trees
             .machine_specializations
             .iter()
             .find(|row| row.template == template.symbol)
             .unwrap();
-        let machine = program.machine_by_symbol(instance.instance).unwrap();
-        let state = program.machine_states(machine).first().unwrap();
-        let formal = program
+        let machine = trees.machine_by_symbol(instance.instance).unwrap();
+        let state = trees.machine_states(machine).first().unwrap();
+        let formal = trees
             .state_parameters
             .span(state.parameters)
             .unwrap()
             .first()
             .unwrap();
-        let TypeReferenceNode::Callable { contract } = program
+        let TypeReferenceNode::Callable { contract } = trees
             .type_reference_table
             .type_reference(formal.type_reference)
         else {
             panic!("the specialized parameter must retain its structural callable");
         };
-        let signature = &program.runtime_callable_contract(*contract).signature;
-        let rows = program
+        let signature = &trees.runtime_callable_contract(*contract).signature;
+        let rows = trees
             .authored_service_reach_rows_for(signature.symbol)
             .collect::<Vec<_>>();
         match expected {
@@ -235,11 +236,7 @@ fn specialized_callback_reach_keeps_omission_empty_and_named_services_distinct()
                 let targets = row
                     .targets
                     .iter()
-                    .map(|target| {
-                        program
-                            .symbols
-                            .name(target.service.symbol(&program).unwrap())
-                    })
+                    .map(|target| trees.symbols.name(target.service.symbol(&program).unwrap()))
                     .collect::<Vec<_>>();
                 assert_eq!(targets, services);
             }

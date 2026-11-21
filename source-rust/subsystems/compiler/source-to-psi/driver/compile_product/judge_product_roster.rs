@@ -172,7 +172,7 @@ pub(super) fn prepare_and_judge(
             return Err(failure.diagnostics);
         }
     };
-    let program = prepared.typed();
+    let program = prepared.trees();
     let mut provider_defaults = crate::compile_product::provider_choices::retain_provider_defaults(
         ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
     )?;

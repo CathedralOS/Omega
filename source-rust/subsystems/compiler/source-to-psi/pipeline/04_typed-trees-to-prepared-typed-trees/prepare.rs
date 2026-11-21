@@ -45,7 +45,7 @@ pub fn prepare_typed_trees(
 /// use typed_trees::source_state::TypedTrees;
 /// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
 /// let prepared = prepare_typed_trees(TypedTrees::default(), &[]).unwrap();
-/// assert!(std::sync::Arc::ptr_eq(prepared.typed(), prepared.clone().typed()));
+/// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
 /// A read-only snapshot alone cannot establish that those passes ran.
@@ -64,7 +64,7 @@ pub struct PreparedTypedTrees {
 
 impl PreparedTypedTrees {
     /// Read the exact source snapshot used to prepare this program.
-    pub fn typed(&self) -> &std::sync::Arc<FrozenTypedTrees> {
+    pub fn trees(&self) -> &std::sync::Arc<FrozenTypedTrees> {
         &self.typed
     }
 
@@ -179,7 +179,7 @@ mod tests {
         }
         assert_ne!(retained[0].1, retained[1].1);
         let prepared = prepare_typed_trees(program, &[]).unwrap();
-        let prepared = prepared.typed();
+        let prepared = prepared.trees();
         for (carrier, identity) in retained {
             let theory = prepared
                 .domain_definition_for_instance(domain, identity)
@@ -209,7 +209,7 @@ mod tests {
         let program = TypedTrees::default();
         let identity = program.identity;
         let frozen = prepare_typed_trees(program, &[]).unwrap();
-        assert_eq!(frozen.typed().identity.get(), identity.get());
+        assert_eq!(frozen.trees().identity.get(), identity.get());
     }
 
     #[test]

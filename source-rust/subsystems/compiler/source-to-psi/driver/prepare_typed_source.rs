@@ -203,7 +203,7 @@ mod tests {
         }
         .prepare()
         .expect("empty typed source requires no legacy evidence");
-        assert!(prepared.program.typed().machines().is_empty());
+        assert!(prepared.program.trees().machines().is_empty());
     }
 
     #[test]

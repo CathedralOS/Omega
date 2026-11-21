@@ -669,8 +669,8 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
             )),
         )],
     ));
-    let prefix_symbol = super::build_purpose::symbol(&typed, "prefix_length");
-    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let prefix_symbol = super::build_purpose::symbol(typed.trees(), "prefix_length");
+    let entry = super::build_purpose::symbol(typed.trees(), "build_entry");
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

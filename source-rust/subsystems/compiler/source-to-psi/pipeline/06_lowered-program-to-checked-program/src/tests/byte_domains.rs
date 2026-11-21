@@ -92,7 +92,7 @@ fn judge_portable_byte_build(
         source_provenance::DependencyScope::Build,
         BYTE_OBSERVATION_SOURCE,
     ));
-    let entries = [symbol(&typed, "build_entry")];
+    let entries = [symbol(typed.trees(), "build_entry")];
     let subjects = [Some(package())];
     let prepared = crate::lowering::prepare_compilation(
         &typed,

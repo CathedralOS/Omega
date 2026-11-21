@@ -93,7 +93,7 @@ pub fn prepare_compilation(
     compilation: crate::lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
-    let typed = typed.typed();
+    let typed = typed.trees();
     match crate::lowering::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
             return Ok(LoweredCompilationWithSource {
