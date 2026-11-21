@@ -360,8 +360,8 @@ fn declaration_signature(
         schema_lifetime_parameter_count: lifetime_parameter_count,
         schema_lifetime_arguments: (0..lifetime_parameter_count).collect(),
         application_lifetime_parameter_count: 0,
-        requirement_arguments: Vec::new(),
-        requirement_lifetime_arguments: Vec::new(),
+        requirement_arguments: schema_arguments.to_vec(),
+        requirement_lifetime_arguments: (0..lifetime_parameter_count).collect(),
         requirement_lifetime_parameter_count: signature
             .lifetime_parameters
             .len()

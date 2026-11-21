@@ -1127,28 +1127,27 @@ impl PolicySource<'_> {
             .declared_synchronous_invocations
             .clone()
             .ok_or_else(|| unavailable("the selected requirement's synchronous entry ceiling"))?;
+        let schema_arguments: Vec<_> = schema
+            .declaration
+            .receiver_applications
+            .first()
+            .into_iter()
+            .flat_map(|receiver| &receiver.argument_identities)
+            .map(|identity| review_evidence::record::PackageReviewTypeIdentity {
+                canonical: schema.identity_text(*identity).to_owned(),
+            })
+            .collect();
         let selected = service_method_policy(
             method,
             schema,
             requirement,
             requirement_owner.clone(),
             PackagePolicyServiceSignature {
-                schema_arguments: schema
-                    .declaration
-                    .receiver_applications
-                    .first()
-                    .into_iter()
-                    .flat_map(|receiver| &receiver.argument_identities)
-                    .map(
-                        |identity| review_evidence::record::PackageReviewTypeIdentity {
-                            canonical: schema.identity_text(*identity).to_owned(),
-                        },
-                    )
-                    .collect(),
+                requirement_arguments: schema_arguments.clone(),
+                schema_arguments,
                 schema_lifetime_parameter_count: 0,
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
-                requirement_arguments: Vec::new(),
                 requirement_lifetime_arguments: Vec::new(),
                 requirement_lifetime_parameter_count: 0,
                 static_parameters: callable.type_parameters.clone(),
