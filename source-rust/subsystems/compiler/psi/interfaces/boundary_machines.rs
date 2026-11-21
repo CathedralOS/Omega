@@ -237,6 +237,8 @@ pub enum CheckedBoundaryExecution {
     Provider,
     /// Exact sealed numeric declaration, realized by the selected target table.
     NumericPrimitive,
+    /// Immutable snapshot of the layout-policy argument issued for this invocation.
+    LayoutTargetFacts,
     /// The actual primitive remains distinct from the public requirement.
     HostedPrimitive {
         operation: language_core::sealed_intrinsics::HostedOperation,
@@ -269,6 +271,7 @@ impl CheckedBoundaryExecution {
             }
             Self::Provider
             | Self::NumericPrimitive
+            | Self::LayoutTargetFacts
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::AccessInitialize
@@ -286,6 +289,7 @@ impl CheckedBoundaryExecution {
         match self {
             Self::Provider
             | Self::NumericPrimitive
+            | Self::LayoutTargetFacts
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::StaticInterruptInstall

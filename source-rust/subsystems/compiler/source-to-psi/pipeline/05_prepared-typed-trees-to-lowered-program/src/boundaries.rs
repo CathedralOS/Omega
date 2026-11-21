@@ -166,6 +166,9 @@ impl BoundaryNamespace {
                 .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
             let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts) => {
+                    CheckedBoundaryExecution::LayoutTargetFacts
+                }
                 Some(
                     language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
                 ) => CheckedBoundaryExecution::NumericPrimitive,

@@ -2135,6 +2135,7 @@ pub(crate) mod execution {
     }
 
     pub struct TerminalExecution<'artifact> {
+        pub(crate) issued_layout_target: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
         pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
         pub(crate) scalar_applications: Option<psi_scalar_applications::ScalarApplicationValues>,
         pub(crate) scalar_entry_checks: Option<psi_scalar_applications::ScalarEntryChecks>,
@@ -2690,6 +2691,7 @@ pub(crate) mod execution {
                 established_erased_fields: inputs.established_erased_fields.to_vec(),
                 effects: Vec::new(),
                 call_observations: None,
+                issued_layout_target: None,
                 failed_call_result: None,
                 failed_return: None,
                 _frame_storage: frame_storage,
