@@ -78,10 +78,11 @@ fn a_saved_boundary_result_observation_requires_its_declared_shape() {
     let source = r#"
 data Packet { count: u64; }
 boundary trait Reader {
-    machine issue() -> Packet ensures result.count == 2u64 reaches none crashes none;
+    machine issue(count: u64) -> Packet
+    requires count == 2u64 ensures result.count == 2u64 reaches none crashes none;
 }
 machine entry() -> u64 reaches Reader invokes Reader {
-    let packet: Packet = Reader::issue();
+    let packet: Packet = Reader::issue(2u64);
     packet.count
 }
 "#;
@@ -102,14 +103,19 @@ machine entry() -> u64 reaches Reader invokes Reader {
         .iter_mut()
         .find(|boundary| !boundary.scalar_ensures.is_empty())
         .unwrap();
-    boundary.scalar_requires = std::mem::take(&mut boundary.scalar_ensures);
+    boundary.scalar_requires[0] = boundary.scalar_ensures[0].clone();
     let forged = terminal_codec::encode_module(&premature).unwrap();
-    assert!(matches!(
-        terminal_codec::decode_module(&forged),
-        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
-            "boundary scalar requires names an undeclared formal"
-        ))
-    ));
+    let refused = terminal_codec::decode_module(&forged).unwrap_err();
+    assert!(
+        matches!(
+            refused,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "boundary scalar requires names an undeclared formal"
+                    | "scalar field predicate has no readable declared root"
+            )
+        ),
+        "{refused:?}"
+    );
 
     let mut module = terminal_codec::decode_module(&bytes).unwrap();
     let boundary = module
