@@ -811,123 +811,152 @@ impl<'program> Program<'program> {
                     ));
                 }
             }
-            let implementation = if self.select_native_provider(context, supplied.symbol)? {
-                SourceImplementation::Native(supplied.symbol)
-            } else {
-                let machine = self.subject_machine(supplied.symbol)?;
-                self.fixed_contracts
-                    .push(super::FixedContract::Interface(machine));
-                SourceImplementation::Machine(machine)
-            };
-            let scope = self.applied_scope(context, &application, required)?;
-            let signature = self.static_requirement_signature(
-                context,
-                required,
-                scope,
-                application.declaration.is_boundary,
-                false,
-            )?;
-            if signature
-                .parameters
-                .iter()
-                .any(|value| matches!(value, ValueType::Rigid(_)))
-                || matches!(signature.result, Some(ValueType::Rigid(_)))
-            {
-                return Err(services::unavailable(
-                    context,
-                    "conformance requirement retains an unapplied abstract carrier",
-                ));
-            }
-            let provider = if application.declaration.is_boundary
-                && matches!(implementation, SourceImplementation::Machine(_))
-            {
-                let requirement = if application.keeps_declared_signatures(typed) {
-                    required.symbol
-                } else {
-                    let mut closed = typed.closed_requirement_applications().filter(|closed| {
-                        closed.template == required.symbol
-                            && typed
-                                .type_identity_text(closed.portable_trait_application_identity)
-                                .as_deref()
-                                == Some(application_identity.as_str())
-                            && closed.local_arguments.is_empty()
-                    });
-                    let selected = closed.next().ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "boundary implementation lost its prepared exact receiving application",
-                        )
-                    })?;
-                    if closed.next().is_some() {
-                        return Err(services::unavailable(
-                            context,
-                            "boundary implementation has ambiguous receiving applications",
-                        ));
-                    }
-                    selected.signature.symbol
-                };
-                let (boundary, _) = self
-                    .read_boundary_declaration(context, requirement)?
-                    .ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "boundary implementation lost its genuine required header",
-                        )
-                    })?;
-                let mut templates = typed
-                    .machine_specializations
-                    .iter()
-                    .filter(|receipt| receipt.instance == supplied.symbol);
-                let template = templates
-                    .next()
-                    .map_or(supplied.symbol, |receipt| receipt.template);
-                if templates.next().is_some() {
-                    return Err(services::unavailable(
-                        context,
-                        "provider body has ambiguous specialization provenance",
-                    ));
+            let mut members = Vec::new();
+            if application.declaration.is_boundary && !required.type_parameters.is_empty() {
+                // The authored member still owes its universal body and refinement
+                // checks when no concrete call reaches this installation.
+                if !self.generic_templates.contains(&supplied.symbol) {
+                    self.generic_templates.push(supplied.symbol);
                 }
-                let original = typed.machine_by_symbol(template).ok_or_else(|| {
-                    services::unavailable(context, "provider body lost its original declaration")
-                })?;
-                Some(StaticProviderCandidate {
-                    boundary,
-                    declaration: symbol,
-                    provider_identity: typed
-                        .normalized_hermetic_symbol_identity(
-                            typed.implementation_value_head(symbol),
-                        )
-                        .map_err(|reason| services::unavailable(context, reason))?,
-                    source_requirement: typed.trait_requirement_callable_identity_text(
-                        application.declaration,
-                        required,
-                    ),
-                    source_candidate: typed.machine_callable_identity_text(original).ok_or_else(
-                        || {
-                            services::unavailable(
-                                context,
-                                "provider body has no original callable identity",
-                            )
-                        },
-                    )?,
-                    package: typed.symbols.symbol_package_identity(template),
-                })
+                self.generic_conformance_witnesses(context, declaration)?;
+                for closed in typed.closed_requirement_applications().filter(|closed|
+                    closed.template == required.symbol && typed.requirement_application_matches_contract_scope(closed.signature.symbol, &application)
+                ) {
+                    let mut instances = typed.machine_specializations.iter().filter(|receipt|
+                        receipt.template == supplied.symbol &&
+                            typed.expression_table.static_machine_application(receipt.binding_application).registration_operation == closed.signature.symbol
+                    );
+                    let (Some(instance), None) = (instances.next(), instances.next()) else {
+                        return Err(services::unavailable(context, "the selected method needs one implementation for the public arguments"));
+                    };
+                    let body = typed.machine_by_symbol(instance.instance).ok_or_else(|| services::unavailable(context, "the selected method instance lost its body"))?;
+                    if self.provider_method_requirement(context, body.symbol, required.symbol)?.map(|signature| signature.symbol) != Some(closed.signature.symbol) {
+                        return Err(services::unavailable(context, "the selected method instance has another public requirement"));
+                    }
+                    members.push((closed.signature, body));
+                }
             } else {
-                None
-            };
-            questions.push(SourceConformance {
-                declaration: symbol,
-                requirement: row.requirement,
-                application: application_identity.clone(),
-                implementation,
-                signature,
-                envelope: self.static_envelope(
+                members.push((required, supplied));
+            }
+            for (required, supplied) in members {
+                let implementation = if self.select_native_provider(context, supplied.symbol)? {
+                    SourceImplementation::Native(supplied.symbol)
+                } else {
+                    let machine = self.subject_machine(supplied.symbol)?;
+                    self.fixed_contracts
+                        .push(super::FixedContract::Interface(machine));
+                    SourceImplementation::Machine(machine)
+                };
+                let scope = self.applied_scope(context, &application, required)?;
+                let signature = self.static_requirement_signature(
                     context,
                     required,
+                    scope,
                     application.declaration.is_boundary,
-                )?,
-                provider,
-            });
+                    false,
+                )?;
+                if signature
+                    .parameters
+                    .iter()
+                    .any(|value| matches!(value, ValueType::Rigid(_)))
+                    || matches!(signature.result, Some(ValueType::Rigid(_)))
+                {
+                    return Err(services::unavailable(
+                        context,
+                        "conformance requirement retains an unapplied abstract carrier",
+                    ));
+                }
+                let provider = if application.declaration.is_boundary
+                    && matches!(implementation, SourceImplementation::Machine(_))
+                {
+                    let requirement = if typed.closed_requirement_application(required.symbol).is_some() || application.keeps_declared_signatures(typed) {
+                        required.symbol
+                    } else {
+                        let mut closed = typed.closed_requirement_applications().filter(|closed| {
+                            closed.template == required.symbol
+                                && typed
+                                    .type_identity_text(closed.portable_trait_application_identity)
+                                    .as_deref()
+                                    == Some(application_identity.as_str())
+                                && closed.local_arguments.is_empty()
+                        });
+                        let selected = closed.next().ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "boundary implementation lost its prepared exact receiving application",
+                            )
+                        })?;
+                        if closed.next().is_some() {
+                            return Err(services::unavailable(
+                                context,
+                                "boundary implementation has ambiguous receiving applications",
+                            ));
+                        }
+                        selected.signature.symbol
+                    };
+                    let (boundary, _) = self
+                        .read_boundary_declaration(context, requirement)?
+                        .ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "boundary implementation lost its genuine required header",
+                            )
+                        })?;
+                    let mut templates = typed
+                        .machine_specializations
+                        .iter()
+                        .filter(|receipt| receipt.instance == supplied.symbol);
+                    let template = templates
+                        .next()
+                        .map_or(supplied.symbol, |receipt| receipt.template);
+                    if templates.next().is_some() {
+                        return Err(services::unavailable(
+                            context,
+                            "provider body has ambiguous specialization provenance",
+                        ));
+                    }
+                    let original = typed.machine_by_symbol(template).ok_or_else(|| {
+                        services::unavailable(context, "provider body lost its original declaration")
+                    })?;
+                    Some(StaticProviderCandidate {
+                        boundary,
+                        declaration: symbol,
+                        provider_identity: typed
+                            .normalized_hermetic_symbol_identity(
+                                typed.implementation_value_head(symbol),
+                            )
+                            .map_err(|reason| services::unavailable(context, reason))?,
+                        source_requirement: typed.trait_requirement_callable_identity_text(
+                            application.declaration,
+                            required,
+                        ),
+                        source_candidate: typed.machine_callable_identity_text(original).ok_or_else(
+                            || {
+                                services::unavailable(
+                                    context,
+                                    "provider body has no original callable identity",
+                                )
+                            },
+                        )?,
+                        package: typed.symbols.symbol_package_identity(template),
+                    })
+                } else {
+                    None
+                };
+                questions.push(SourceConformance {
+                    declaration: symbol,
+                    requirement: required.symbol,
+                    application: application_identity.clone(),
+                    implementation,
+                    signature,
+                    envelope: self.static_envelope(
+                        context,
+                        required,
+                        application.declaration.is_boundary,
+                    )?,
+                    provider,
+                });
+            }
         }
         let start = self.static_contracts.conformances.len();
         self.static_contracts.conformances.extend(questions);

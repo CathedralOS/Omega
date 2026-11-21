@@ -575,8 +575,7 @@ fn infer_call(
     };
     let (parameters, formals) =
         if let Some((owner, signature)) = program.trait_machine_signature(call.target) {
-            if !supplied.is_empty()
-                || !owner.type_parameters.is_empty()
+            if !owner.type_parameters.is_empty()
                 || !owner.lifetime_parameters.is_empty()
                 || !signature.lifetime_parameters.is_empty()
             {
@@ -1646,6 +1645,43 @@ mod tests {
             completed += 1;
         }
         assert!(completed >= 3, "constant and runtime applications");
+    }
+
+    #[test]
+    fn a_requirement_call_keeps_its_explicit_count_and_infers_the_element_type() {
+        let source = r#"
+            boundary trait Bytes {
+                machine last<const Count: u64, T [copy]>(values: @[T; Count]) -> T reaches none crashes none;
+            }
+            machine read(values: @[u8; 3]) -> u8 { Bytes::last::<3u64>(values) }
+        "#;
+        let program =
+            checked(&[("main.omg", source)]).expect("the array supplies its element type");
+        let (call, written) = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                let [written] = call.machine_arguments.as_ref() else {
+                    return None;
+                };
+                Some((call, written))
+            })
+            .expect("the method call has a written count");
+        let [count, element] = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application)
+        else {
+            panic!("the method needs the explicit count and the inferred element");
+        };
+        assert_eq!(count, written);
+        assert!(matches!(
+            program.type_reference_table.type_reference(element.type_reference),
+            TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::U8)
+        ));
     }
 
     #[test]
