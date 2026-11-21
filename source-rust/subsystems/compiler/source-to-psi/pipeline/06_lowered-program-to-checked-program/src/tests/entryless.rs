@@ -205,6 +205,36 @@ fn declared_callback_lifetimes_bind_in_the_named_owners_parameter_identity() {
 }
 
 #[test]
+fn declared_callback_lifetimes_bind_in_the_requirement_parameter_identity() {
+    fn requirement_key(first: &str, second: &str, captured: &str) -> String {
+        let source = format!(
+            "public data Visit<'item,T> = machine(item: @'item T) -> u64 reaches none crashes none;
+             public trait Hooks {{
+                 machine attach<{first},{second}>(callback: Visit<{captured},u64>)
+                 reaches none crashes none;
+             }}"
+        );
+        let program = typed(&source);
+        let owner = program
+            .traits()
+            .iter()
+            .find(|row| row.name.as_str() == "Hooks")
+            .unwrap();
+        let requirements = program.trait_machine_signatures(owner);
+        let [requirement] = requirements.as_array().expect("one callback requirement");
+        program.trait_requirement_callable_identity_text(owner, requirement)
+    }
+    assert_eq!(
+        requirement_key("'a", "'b", "'a"),
+        requirement_key("'left", "'right", "'left")
+    );
+    assert_ne!(
+        requirement_key("'a", "'b", "'a"),
+        requirement_key("'a", "'b", "'b")
+    );
+}
+
+#[test]
 fn declared_callback_lifetime_aliases_publish_without_an_entry() {
     let result = judged(
         "public data Visit<'item,T> = machine(item: @'item T) -> u64;
