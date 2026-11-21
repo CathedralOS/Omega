@@ -295,6 +295,24 @@ pub(crate) mod capabilities {
                     TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
                 }
             })?;
+        let mut implementations = Vec::new();
+        for (&boundary, supply) in installation.into_iter().flat_map(|value| &value.supplies) {
+            let AdmittedBoundarySupply::CheckedProvider(machine) = *supply else {
+                continue;
+            };
+            let declaration = program.verified_boundary_machine(&boundary)?;
+            if !crate::embedding::program::interpreter_owns_boundary_execution(declaration) {
+                implementations.push(
+                    terminal_semantics::callable_values::CallableBoundaryImplementation {
+                        boundary,
+                        machine,
+                    },
+                );
+            }
+        }
+        let callable_values = callable_values
+            .with_boundary_implementations(&implementations)
+            .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];

@@ -20,9 +20,9 @@ pub use reachable::{
     reachable_callable_invocations_with_roots,
 };
 pub use terminal::{
-    CallableBoundaryImplementation, CallableValuePreparationError, ReachedBoundaryCalls,
-    boundary_call_reach, project_callable_invocation, project_owned_cleanup_invocation,
-    reached_boundary_calls, stored_callable_definition, terminal_callable_values,
+    CallableValuePreparationError, ReachedBoundaryCalls, boundary_call_reach,
+    project_callable_invocation, project_owned_cleanup_invocation, reached_boundary_calls,
+    stored_callable_definition, terminal_callable_values,
     terminal_callable_values_with_boundary_implementations,
     terminal_callable_values_with_error_context,
 };
@@ -293,7 +293,57 @@ enum CallableActualValue {
     Ceiling(CallableContractId),
 }
 
+/// Call analysis uses the checked machine that Build selected for this boundary.
+/// Provider admission owns that selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CallableBoundaryImplementation {
+    pub boundary: BoundaryMachineId,
+    pub machine: MachineId,
+}
+
 impl CallableValueProgram<'_> {
+    /// Pass each boundary call's arguments to its selected machine.
+    pub fn with_boundary_implementations(
+        mut self,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> CallableValueResult<Self> {
+        if implementations.is_empty() {
+            return Ok(self);
+        }
+        let mut bindings = implementations.to_vec();
+        bindings.sort_unstable_by_key(|binding| binding.boundary);
+        if bindings
+            .windows(2)
+            .any(|pair| pair[0].boundary == pair[1].boundary)
+        {
+            return Err("callable boundary application has competing selected bodies");
+        }
+        for binding in &bindings {
+            self.body(binding.machine)?;
+        }
+        for (_, body) in &mut self.bodies {
+            for invocation in body
+                .invocations
+                .iter_mut()
+                .filter_map(|row| row.value.as_mut().ok())
+            {
+                let Some(boundary) = invocation.boundary else {
+                    continue;
+                };
+                let Ok(index) =
+                    bindings.binary_search_by_key(&boundary, |binding| binding.boundary)
+                else {
+                    continue;
+                };
+                if invocation.target != CallableInvocationTarget::Opaque {
+                    return Err("callable boundary implementation replaces a non-boundary target");
+                }
+                invocation.target = CallableInvocationTarget::Machine(bindings[index].machine);
+            }
+        }
+        Ok(self)
+    }
+
     pub(crate) fn validate_occurrence(
         &self,
         caller: MachineId,

@@ -1,4 +1,6 @@
 use target_operations::TargetOperationPlan;
+use terminal_semantics::callable_values::CallableValueProgram;
+use verified_optimization_input::NativeCallableBindings;
 
 /// The actual optimized-unit query result prepared before retained selection.
 /// Its private association prevents a result from another graph, entry or
@@ -19,10 +21,10 @@ pub struct PreparedCallableInvocations {
 impl PreparedCallableInvocations {
     pub fn new(
         unit: &optimization_unit::PsiOptimizationUnit,
-        roots: &terminal_semantics::callable_values::CallableInvocationRoots,
+        bindings: &NativeCallableBindings,
     ) -> Result<Self, &'static str> {
-        let program =
-            optimization_unit_semantics::callable_values::optimized_callable_values(unit)?;
+        let program = callable_program_with_providers(unit, bindings)?;
+        let roots = bindings.private_entries();
         let invocations =
             terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
                 &program,
@@ -84,4 +86,12 @@ impl PreparedCallableInvocations {
             self.entry_invocations.clone(),
         )
     }
+}
+
+pub(super) fn callable_program_with_providers<'unit>(
+    unit: &'unit optimization_unit::PsiOptimizationUnit,
+    bindings: &NativeCallableBindings,
+) -> Result<CallableValueProgram<'unit>, &'static str> {
+    optimization_unit_semantics::callable_values::optimized_callable_values(unit)?
+        .with_boundary_implementations(bindings.checked_bodies())
 }

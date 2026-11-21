@@ -1,14 +1,6 @@
 use super::*;
 use terminal_psi::{OperationKind as O, TerminalModule, Terminator};
 
-/// A checked provider body chosen for one exact boundary application. This
-/// association describes call flow; it grants no provider or package authority.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CallableBoundaryImplementation {
-    pub boundary: BoundaryMachineId,
-    pub machine: MachineId,
-}
-
 /// Follow selected providers through the same actuals and returned code values
 /// as ordinary calls. Making their bodies independent entry roots would lose
 /// that substitution and could activate code the caller never invokes.
@@ -16,46 +8,15 @@ pub fn terminal_callable_values_with_boundary_implementations<'a>(
     module: &'a TerminalModule,
     implementations: &[CallableBoundaryImplementation],
 ) -> Result<CallableValueProgram<'a>, String> {
-    let mut bindings = implementations.to_vec();
-    bindings.sort_unstable_by_key(|binding| binding.boundary);
-    if bindings
-        .windows(2)
-        .any(|pair| pair[0].boundary == pair[1].boundary)
-    {
-        return Err("callable boundary application has competing selected bodies".into());
-    }
-    for binding in &bindings {
-        if module.boundary_machine(binding.boundary).is_none()
+    if implementations.iter().any(|binding| {
+        module.boundary_machine(binding.boundary).is_none()
             || module.machine(binding.machine).is_none()
-        {
-            return Err(
-                "callable boundary implementation has an absent requirement or body".into(),
-            );
-        }
+    }) {
+        return Err("callable boundary implementation has an absent requirement or body".into());
     }
-    let mut program = terminal_callable_values(module)?;
-    for (_, body) in &mut program.bodies {
-        for invocation in body
-            .invocations
-            .iter_mut()
-            .filter_map(|row| row.value.as_mut().ok())
-        {
-            let Some(boundary) = invocation.boundary else {
-                continue;
-            };
-            let Ok(index) = bindings.binary_search_by_key(&boundary, |binding| binding.boundary)
-            else {
-                continue;
-            };
-            if invocation.target != CallableInvocationTarget::Opaque {
-                return Err(
-                    "callable boundary implementation replaces a non-boundary target".into(),
-                );
-            }
-            invocation.target = CallableInvocationTarget::Machine(bindings[index].machine);
-        }
-    }
-    Ok(program)
+    terminal_callable_values(module)?
+        .with_boundary_implementations(implementations)
+        .map_err(str::to_owned)
 }
 
 /// Boundary demand and the exact machines invoked by the same callable analysis.

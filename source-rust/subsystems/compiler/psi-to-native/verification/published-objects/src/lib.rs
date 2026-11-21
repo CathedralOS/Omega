@@ -347,23 +347,11 @@ pub fn verify_retained_target_operations(
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     // The validator judges the plan published for this object,
     // not a plan prepared again here.
-    let target = current.working_program_for_validation();
-    let callable_roots = current
-        .lowering_facts()
-        .callable_invocation_roots(target)
-        .map_err(diagnostics::Diagnostic::error)?;
     target_lowering::replay::verify_execution_plan(
         current.execution_plan(),
-        target_lowering::replay::ExecutionPlanReplayInputs {
-            target,
-            abstract_plan: optimized.plan(),
-            unit: optimized.unit(),
-            origins: current.boundary_origins(),
-            installed_interrupts: current.lowering_facts().installed_interrupts(),
-            closed_module: current.lowering_facts().closed_module(),
-            callable_roots: &callable_roots,
-            pre_physical: optimized.pre_physical_manifest().identity,
-        },
+        current.working_program_for_validation(),
+        optimized,
+        current.lowering_facts(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     let expected = current.lowering_facts().borrowed_storage_layouts(current.target())
