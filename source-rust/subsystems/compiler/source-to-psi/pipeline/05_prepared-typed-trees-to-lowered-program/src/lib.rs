@@ -918,6 +918,8 @@ fn witness_call(
     // requirement when its signature is the requirement's once they are
     // instantiated, as the witness's call instantiates them.
     if !program.same_signature(entry, &required, &supplied, supplied_machine)? {
+        eprintln!("SIGNATURE required {:?} {:?} {:?} supplied {:?} {:?} {:?}", required.parameters, required.result, required.borrowed, supplied.parameters, supplied.result, supplied.borrowed);
+        for (id, record) in program.records.iter() { eprintln!("STORAGE {:?} {:?} {:?}",id,record.identity,record.shape); }
         return Err(refuse(
             entry,
             Construct::Machine,
