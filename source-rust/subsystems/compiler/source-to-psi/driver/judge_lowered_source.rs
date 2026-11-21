@@ -204,7 +204,15 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
             &[],
         )
         .unwrap();
-        let entry = typed.realized_machine_named(entry).unwrap().symbol;
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.name.as_str() == entry
+                    && typed.symbols.symbol_package_identity(machine.symbol) == Some(package)
+            })
+            .expect("the authored package entry")
+            .symbol;
         let prepared = preparation::prepare_typed_trees(typed, &[]).unwrap();
         judge_terminal_source(
             prepared,

@@ -6496,6 +6496,12 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+
+    /// Entry propositions can name only projections whose scalar sources
+    /// belong to this machine. Rejoin them at the same owner as call imports.
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
     fn value(
         &mut self,
         id: ValueId,
