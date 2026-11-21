@@ -20,7 +20,7 @@ mod builtin_type_names;
 mod callable_types;
 pub(crate) mod declaration_selection;
 pub(crate) mod declared_types;
-mod dispatches;
+pub(super) mod dispatches;
 pub(crate) mod generic_data;
 pub(crate) mod integer_widths;
 pub(crate) mod machine_equations;

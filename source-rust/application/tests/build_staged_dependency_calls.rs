@@ -697,6 +697,53 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
 }
 
 #[test]
+fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "ready_subject");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    SUBJECT {
+        true -> finish(builder),
+        _ -> wrong(builder)
+    }
+    machine finish(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "wrong_dependency_value"); }
+}
+machine ready(builder: @mut Build, item: DependencyRegistration) -> bool suspends {
+    suspend Build::prepare_dependency(builder, item);
+    kit\v() == 7
+}
+"#.replace("HOST", target.target_name());
+    let call = "suspend ready(builder, registered)";
+    let direct = build.replace("SUBJECT", &format!("transition {call}"));
+    let bound = build.replace(
+        "SUBJECT",
+        &format!("let ready_now: bool = {call};\n    transition ready_now"),
+    );
+    // The second subject can only be evaluated after the first one returns.
+    let pair = build
+        .replace("SUBJECT", &format!(r"transition ({call}, kit\v())"))
+        .replace("true ->", "(_, 7) ->")
+        .replace("_ ->", "(_, _) ->");
+    for (name, source) in [
+        ("bound-subject", &bound),
+        ("direct-subject", &direct),
+        ("subsequent-subject", &pair),
+    ] {
+        let (ran, report) = check_project(name, source, 7, "", &["run", "--both", "build.omg"]);
+        assert!(
+            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            "{report}"
+        );
+    }
+    let (ran, report) = check_project("false-subject", &direct, 8, "", &["--check", "main.omg"]);
+    assert!(!ran && report.contains("project role"), "{report}");
+}
+
+#[test]
 fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
