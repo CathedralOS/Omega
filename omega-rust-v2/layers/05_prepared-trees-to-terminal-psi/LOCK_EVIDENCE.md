@@ -1,6 +1,8 @@
 # L5 handoff evidence
 
-L5 stays open. A test can pass because the compiler refused a valid program at a known line. The tables distinguish those cases from sources whose lowered Psi can already be inspected. The twelve pinned sample configurations currently produce three witnessed Psi packages and nine diagnostics before L5. Four of those diagnostics are required rejections. [Sample expectations](tests/sample_baseline/observations.tsv)
+L5 stays open. A test can pass because the compiler refused a valid program at a known line. The tables distinguish those cases from sources whose lowered Psi can already be inspected. The fifteen pinned sample configurations currently produce four witnessed Psi packages and eleven diagnostics before L5. Seven of those diagnostics are required rejections. [Sample expectations](tests/sample_baseline/observations.tsv)
+
+The [decision map](DECISIONS.md) records the decision, owner and distinguishing control for each of the 31 cases open at the start of the November 21 pass.
 
 ## What a consumer can distinguish
 

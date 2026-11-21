@@ -54,6 +54,8 @@ pub(crate) struct Expressions<'a> {
     pub(super) data: &'a [crate::LoweredData],
     pub(super) callees: &'a crate::machines::calls::Callees<'a>,
     pub(super) bindings: Vec<(usize, OperationResult)>,
+    /// Selector relations stated by this machine's published entry clauses.
+    pub(super) selector_premises: Vec<super::view_loans::SelectorPremise>,
 }
 
 #[derive(Clone, Copy)]

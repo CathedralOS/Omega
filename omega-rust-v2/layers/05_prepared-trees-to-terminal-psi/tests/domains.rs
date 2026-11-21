@@ -646,10 +646,16 @@ fn a_forwarded_predicate_binds_the_formal_and_result_and_is_required_at_each_cal
 #[test]
 fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_memberships() {
     for (source, cast, message) in [
-        ("domain u8::P requires true; domain u8::Tag; machine make(x:u8)->u8 { let q = x as +P +Tag; q as -P -Tag }",
-         "x as +P +Tag", "mixed predicate and tag establishment requires distinct completion origins"),
         ("domain u8::P; domain u8::P::Child requires true; machine make(x:u8 in P)->u8 in P::Child {x as =P +P::Child}",
          "x as =P +P::Child", "predicate completion does not support a domain requiring parent membership"),
+        // A vacuous origin needs empty required memberships, and a tag child requires its parent.
+        ("domain u8::P requires true; domain u8::T; domain u8::T::C; machine make(x:u8)->u8 { let q = x as +P +T +T::C; q as -P -T -T::C }",
+         "x as +P +T +T::C", "vacuous completion does not support a domain requiring parent membership"),
+        // A completion names a declaration, so neither origin can carry an application's index.
+        ("domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; domain u8::P requires true; machine make(x:u8)->u8 in Five & P {x as +Five +P}",
+         "x as +Five +P", "a completion with mixed origins does not support an applied domain"),
+        ("domain<const N:u8> u8::Above<N> requires self > N; domain u8::Five = u8::Above<5>; domain u8::Tag; machine make(x:u8)->u8 in Five & Tag {x as +Five +Tag}",
+         "x as +Five +Tag", "a completion with mixed origins does not support an applied domain"),
     ] {
         sources::refuse(&[("limit.omg", source)], "limit.omg", sources::unique_span(source, cast), message);
     }
@@ -657,7 +663,7 @@ fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_membersh
 
 #[test]
 fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
-    use omega_psi::{BlockTerminator, Parameter, PredicateCompletion, ReturnEdge, ScalarDomainInvariant};
+    use omega_psi::{BlockTerminator, CompletionOrigin, DomainCompletion, Parameter, ReturnEdge, ScalarDomainInvariant};
     let original = "domain u8::Positive requires self > 0u8; machine f(x:u8)->u8 in Positive {x as +Positive}";
     let twin = "domain u8::Positive requires self > 0u8; domain u8::Other requires self > 0u8; machine f(x:u8,y:u8)->u8 in Other {y as +Other}";
     for (text, cast, path, slot) in [(original, "x as +Positive", "u8::Positive", 0), (twin, "y as +Other", "u8::Other", 1)] {
@@ -689,9 +695,116 @@ fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
         assert_eq!(pkg.types.domain_set(*domains).unwrap(), std::slice::from_ref(&domain.declaration));
         assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == dest));
         spec_corpus::observe_handoff!(psi "psi-output/predicate-cast-completion", assert_eq!(
-            (edge.target, edge.arguments.as_slice(), edge.predicate_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
-            (arrival.id, &[input][..], &[PredicateCompletion { argument_index: 0, domain: domain.declaration.clone() }][..],
+            (edge.target, edge.arguments.as_slice(), edge.domain_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
+            (arrival.id, &[input][..], &[DomainCompletion { argument_index: 0, domain: domain.declaration.clone(), origin: CompletionOrigin::Proved }][..],
              &[ScalarDomainInvariant { subject: dest, domain: domain.declaration.clone() }][..])
         ));
+    }
+}
+
+/// The original `x as +P +Tag` program: one jump establishes both domains, each once,
+/// with its own origin. `requires true` is a predicate, so `P` is proved, not vacuous.
+#[test]
+fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
+    use omega_psi::{BlockTerminator, CompletionOrigin, DomainCompletion, QualificationDirection, ScalarDomainInvariant, ScalarQualificationChange};
+    let original = "domain u8::P requires true; domain u8::Tag; machine make(x:u8)->u8 { let q = x as +P +Tag; q as -P -Tag }";
+    let entries = original.replace("x as +P +Tag; q as -P -Tag", "x as +Tag +P; q as -Tag -P");
+    let declarations = original.replace("domain u8::P requires true; domain u8::Tag;", "domain u8::Tag; domain u8::P requires true;");
+    let unrelated = original.replace("domain u8::Tag;", "domain u8::Tag; domain u8::Other requires true; domain u8::Spare;");
+    let predicate = original.replace("requires true", "requires self > 0u8");
+    // L5 keeps a contradictory predicate for the checker; it is still a proved origin.
+    let contradiction = original.replace("requires true", "requires false");
+    let truth = vec![PredicateStep::Boolean(true)];
+    let positive = vec![PredicateStep::SelfValue, PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)];
+    let falsity = vec![PredicateStep::Boolean(false)];
+    for (text, cast, clause) in [
+        (original, "x as +P +Tag", &truth),
+        (entries.as_str(), "x as +Tag +P", &truth),
+        (declarations.as_str(), "x as +P +Tag", &truth),
+        (unrelated.as_str(), "x as +P +Tag", &truth),
+        (predicate.as_str(), "x as +P +Tag", &positive),
+        (contradiction.as_str(), "x as +P +Tag", &falsity),
+    ] {
+        let files = [("limit.omg", text)];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let mut debts: Vec<_> = prepared.typed().obligations.iter().filter_map(|o| match &o.kind {
+            omega_typed::ObligationKind::EstablishDomain(d) => Some((o.site.span.slice(text.as_bytes()), d.declaration.path.as_str())),
+            _ => None,
+        }).collect();
+        debts.sort();
+        assert_eq!(debts, [(Some(cast.as_bytes()), "u8::P"), (Some(cast.as_bytes()), "u8::Tag")]);
+        let pkg = sources::lower_prepared(&prepared, &files).unwrap();
+        drop(prepared);
+        let domain = |path| pkg.domains.iter().find(|d| d.declaration.path == path).unwrap();
+        let (p, tag) = (domain("u8::P"), domain("u8::Tag"));
+        assert_eq!((p.requires.len(), &p.requires[0].predicate, tag.requires.is_empty()), (1, clause, true));
+        let body = &pkg.machines[0].body;
+        let [entry, arrival, _erased] = body.blocks.as_slice() else { panic!("expected the completion and the erasure") };
+        let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("missing cast completion") };
+        assert_eq!(body.diagnostics.edges[edge.id.get() - 1].span.slice(text.as_bytes()), Some(cast.as_bytes()));
+        let [dest] = arrival.scalar_parameters[..] else { panic!("expected one destination") };
+        let BlockTerminator::Jump(erase) = &arrival.terminator else { panic!("missing erasure") };
+        assert_eq!(erase.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Erase }]);
+        assert!(erase.domain_completions.is_empty());
+        let row = |d: &omega_psi::LoweredDomain, origin| DomainCompletion { argument_index: 0, domain: d.declaration.clone(), origin };
+        spec_corpus::observe_handoff!(psi "psi-output/mixed-cast-completion", assert_eq!(
+            (edge.scalar_qualification_changes.as_slice(), edge.domain_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
+            (&[][..], &[row(p, CompletionOrigin::Proved), row(tag, CompletionOrigin::Vacuous)][..],
+             &[ScalarDomainInvariant { subject: dest, domain: p.declaration.clone() }][..])
+        ));
+        assert_eq!(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0),
+                   Ok(vec![(&p.declaration, CompletionOrigin::Proved), (&tag.declaration, CompletionOrigin::Vacuous)]));
+    }
+
+    // The consumer refuses each Psi that misstates one origin, row or arrival obligation.
+    type Mutation = fn(&mut omega_psi::SuccessorEdge, &mut Vec<ScalarDomainInvariant>);
+    let mutations: [(Mutation, &str); 6] = [
+        (|e, _| e.domain_completions.swap(0, 1), "completion rows do not name each added domain once in destination order"),
+        (|e, _| { e.domain_completions.pop(); }, "completion rows do not name each added domain once in destination order"),
+        (|e, _| e.domain_completions[0].origin = CompletionOrigin::Vacuous, "a vacuous origin names a domain with predicates"),
+        (|e, _| e.domain_completions[1].origin = CompletionOrigin::Proved, "a proved origin names a predicate-free domain"),
+        (|e, _| e.scalar_qualification_changes.push(ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }),
+         "an argument with completions also carries a qualification change"),
+        (|_, i| i.clear(), "the arrival invariants differ from the proved completions"),
+    ];
+    for (mutate, expected) in mutations {
+        let mut pkg = sources::lower(&[("limit.omg", original)]).unwrap();
+        let (entry, rest) = pkg.machines[0].body.blocks.split_first_mut().unwrap();
+        let BlockTerminator::Jump(edge) = &mut entry.terminator else { panic!("missing cast completion") };
+        mutate(edge, &mut rest[0].scalar_domain_invariants);
+        let body = &pkg.machines[0].body;
+        let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else { unreachable!() };
+        assert_eq!(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0), Err(expected));
+    }
+
+    // Dropping +Tag keeps one proved completion. Dropping +P keeps the ordinary Add,
+    // which names no completion row.
+    let d = "domain u8::P requires true; domain u8::Tag;";
+    for (text, rows) in [
+        (format!("{d} machine make(x:u8)->u8 {{ let q = x as +P; q as -P }}"), Some(vec![("u8::P", CompletionOrigin::Proved)])),
+        (format!("{d} machine make(x:u8)->u8 {{ let q = x as +Tag; q as -Tag }}"), None),
+    ] {
+        let pkg = sources::lower(&[("limit.omg", &text)]).unwrap();
+        let body = &pkg.machines[0].body;
+        let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else { panic!("missing cast") };
+        let read = psi_handoff_consumer::cast_completions(&pkg, body, edge, 0).map(|r| r.into_iter().map(|(d, o)| (d.path.as_str(), o)).collect::<Vec<_>>());
+        match rows {
+            Some(rows) => assert_eq!(read, Ok(rows)),
+            None => {
+                assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }]);
+                assert!(edge.domain_completions.is_empty());
+                assert_eq!(read, Err("an argument with completions also carries a qualification change"));
+            }
+        }
+    }
+
+    // Omitting either entry leaves the result type unmet, so the typer refuses first.
+    for (cast, found) in [("x as +P", "found u8 in app\\u8::P"), ("x as +Tag", "found u8 in app\\u8::Tag")] {
+        let text = format!("{d} machine make(x:u8)->u8 in P & Tag {{{cast}}}");
+        let resolved = sources::resolve(&[("limit.omg", &text)]);
+        let error = omega_preparation::prepare_source_package(&resolved).expect_err("the typer refuses the omitted domain");
+        assert_eq!((error.file.as_str(), error.span.slice(text.as_bytes())), ("limit.omg", Some(cast.as_bytes())));
+        assert!(error.message.ends_with(found), "{error:?}");
     }
 }

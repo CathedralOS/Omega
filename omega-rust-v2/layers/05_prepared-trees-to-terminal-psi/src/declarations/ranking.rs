@@ -10,7 +10,7 @@
 //! Unsupported shapes refuse.
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
-    BlockTerminator, CallArgument, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
+    ArithmeticPolicy, BlockTerminator, CallArgument, IntegerPrimitive, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
     RankComparison, RankExpression, RankOperand, RankOrder, RankRelation, RankedEdge, ScalarType, Site, TypeShape, ValueOrigin, site_at,
 };
 mod calls;
@@ -165,8 +165,54 @@ pub(crate) fn authored(
         }
         Ok(RankOperand::Input(index))
     };
+    // Terminal Psi also admits one exact subtraction of two such operands,
+    // such as `MAX - index`. Keep the authored operand order. The typed
+    // operation and its formation question must be the ones any exact integer
+    // subtraction carries; the checker proves that question at entry and on
+    // each successor. A wrapping, saturating or nested subject has no form.
+    let difference = |node: usize, minuend: usize, subtrahend: usize| -> Result<RankExpression<usize>, LoweringError> {
+        let computed = || {
+            refuse(
+                node,
+                "lowering only represents a computed rank that is one exact subtraction of formals or integer constants",
+            )
+        };
+        let (mut typed, mut operation, mut contract) = (false, None, None);
+        for record in tree.semantics_at(node) {
+            match record {
+                NodeSemantics::Expression(e) if !typed && e.static_argument_slot.is_none() && e.ty == witness.rank => typed = true,
+                NodeSemantics::Operation(op) if operation.is_none() => operation = Some(op),
+                NodeSemantics::Obligation(o) if contract.is_none() && matches!(o.kind, ObligationKind::OperationContract { .. }) => contract = Some(o),
+                _ => return Err(refuse(node, "unsupported typed ranking subject record")),
+            }
+        }
+        let (true, Some(operation), Some(contract)) = (typed, operation, contract) else {
+            return Err(refuse(node, "ranking subtraction has no typed carrier"));
+        };
+        if operation.token != "-" {
+            return Err(computed());
+        }
+        if operation.result != witness.rank || operation.operands.iter().any(|ty| ty != &witness.rank) {
+            return Err(refuse(node, "ranking subtraction has a foreign carrier"));
+        }
+        let lowered = crate::machines::arithmetic::index_operation(operation, contract, &sig.machine)?;
+        if lowered.primitive != IntegerPrimitive::Subtract || lowered.policy != ArithmeticPolicy::Exact {
+            return Err(computed());
+        }
+        if [minuend, subtrahend]
+            .into_iter()
+            .any(|child| matches!(file.nodes[file.ungroup(child)].kind, NodeKind::Binary | NodeKind::Unary))
+        {
+            return Err(computed());
+        }
+        Ok(RankExpression::ExactDifference {
+            minuend: operand(minuend)?,
+            subtrahend: operand(subtrahend)?,
+        })
+    };
     let subject = file.ungroup(measure);
     let rank = match (view, file.nodes[subject].kind, file.nodes[subject].children.as_slice()) {
+        (View::Descending, NodeKind::Binary, &[minuend, subtrahend]) => difference(subject, minuend, subtrahend)?,
         (View::Descending, kind, _) if kind != NodeKind::Tuple => RankExpression::Operand(operand(subject)?),
         (View::BoundedDistance, NodeKind::Tuple, &[cursor, limit]) => {
             if tree

@@ -229,12 +229,17 @@ fn the_published_shape_on_a_scalar_carrier_lowers_its_precondition_and_member_ca
 }
 
 /// Without its record domain, the published fence still passes `track.volume`,
-/// a scalar field of a formal record. The template call publishes that field
-/// read as its operand. The twin adds a fixed-array field to `Audio`; a record
-/// with a non-scalar field is not a plain field read, so L5 still refuses at
-/// the same call with the operand message.
+/// a scalar field of a formal record, and the template call publishes that field
+/// read as its operand. A field read names only the selected field, so adding an
+/// unused fixed-array or record sibling to `Audio`, before or after `volume`,
+/// publishes the same operand. Selecting the scalar sibling `level` names that
+/// field instead. A consumer of the Psi resolves each operand through the
+/// formal's record to the field's `u8` carrier, the requirement's formal type.
+/// Passing the array field itself has no template operand form, so L5 still
+/// refuses at that call. A sibling that owes cleanup or a linear use also still
+/// refuses there, as it did when every field had to be scalar.
 #[test]
-fn a_projected_operand_reads_its_scalar_field_and_a_non_scalar_record_refuses_at_the_call() {
+fn a_projected_operand_reads_its_selected_scalar_field_and_a_non_scalar_field_refuses_at_the_call() {
     let text = "data Audio { volume: u8; }
 trait Player { machine play(volume: u8); }
 
@@ -255,13 +260,85 @@ machine preview<const Audio: Player>(track: Audio)
         assert_eq!(call.operands, [TemplateOperand::RecordField { formal: 0, field: volume.declaration.clone() }]),
     );
 
+    // The exact input of the formerly refused case, then layout twins that keep the selection.
     let wide = text.replace("volume: u8; }", "volume: u8; name: [u8; 2]; }");
+    let byte = TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 8 });
+    for (file, source, selected) in [
+        ("record.omg", wide.clone(), "Audio::volume"),
+        ("swapped.omg", text.replace("volume: u8; }", "name: [u8; 2]; volume: u8; }"), "Audio::volume"),
+        ("extent.omg", text.replace("volume: u8; }", "volume: u8; name: [u8; 3]; }"), "Audio::volume"),
+        ("nested.omg", text.replace("data Audio { volume: u8; }", "data Tag { id: u16; }\ndata Audio { volume: u8; tag: Tag; }"), "Audio::volume"),
+        ("level.omg", wide.replace("volume: u8; name", "volume: u8; level: u8; name").replace("track.volume", "track.level"), "Audio::level"),
+    ] {
+        let package = sources::lower(&[(file, &source)]).unwrap();
+        let record = package.data.iter().find(|d| d.declaration.path == "Audio").expect("Audio reaches Psi");
+        let field = record.fields.iter().find(|f| f.declaration.path == selected).expect("the selected field reaches Psi");
+        // A layout twin must publish the original program's operand; the `level` control must not.
+        let expected = if selected == "Audio::volume" { volume.declaration.clone() } else { field.declaration.clone() };
+        assert_eq!((field.declaration == expected, expected == volume.declaration), (true, selected == "Audio::volume"));
+        let [template] = package.machine_templates.as_slice() else { panic!("expected the open template") };
+        let [call] = template.body.as_slice() else { panic!("expected the one requirement call") };
+        assert!(matches!(&call.target, TemplateCallTarget::Member { binder: 0, requirement } if requirement.path == "Player::play"));
+        spec_corpus::observe_handoff!(
+            psi "psi-output/mixed-record-template-operand",
+            assert_eq!(call.operands, [TemplateOperand::RecordField { formal: 0, field: expected.clone() }]),
+        );
+        // Consumer side: follow the operand through public Psi only.
+        let [TemplateOperand::RecordField { formal, field: read }] = call.operands.as_slice() else { panic!("expected one field operand") };
+        let [TypeExpressionStep::Named { declaration, argument_count: 0 }] = template.signature.parameters[*formal].0.as_slice() else {
+            panic!("expected a nominal formal")
+        };
+        let owner = package.data.iter().find(|d| &d.declaration == declaration).expect("the formal names a published record");
+        let carrier = owner.fields.iter().find(|f| &f.declaration == read).map(|f| package.types.get(f.carrier));
+        let [player] = package.traits.as_slice() else { panic!("expected Player") };
+        let requirement = player.requirements.iter().find(|r| r.declaration.path == "Player::play").unwrap();
+        spec_corpus::observe_handoff!(
+            psi "psi-output/mixed-record-operand-carrier",
+            assert_eq!(
+                (carrier, requirement.parameter_types.iter().map(|lane| match lane {
+                    omega_psi::Parameter::Scalar(ty) => (true, package.types.get(*ty)),
+                    omega_psi::Parameter::Structural(ty) => (false, package.types.get(*ty)),
+                }).collect::<Vec<_>>()),
+                (Some(Some(&byte)), vec![(true, Some(&byte))])
+            ),
+        );
+    }
+
+    // Unsupported: the selected field itself is an array.
+    let array = wide.replace("machine play(volume: u8);", "machine play(name: [u8; 2]);").replace("track.volume", "track.name");
     let message = "template call has unsupported operands, selection or obligations";
-    let error = sources::refuse(
-        &[("record.omg", &wide)],
-        "record.omg",
-        sources::unique_span(&wide, "Audio::play(track.volume)"),
-        message,
-    );
+    let error = sources::refuse(&[("array.omg", &array)], "array.omg", sources::unique_span(&array, "Audio::play(track.name)"), message);
     assert_eq!(error.message, message);
+
+    // Preserved: the formal keeps a sibling with cleanup or a linear use, and the template publishes no disposal.
+    for prefix in [
+        "data Handle dropped by release{mark:u8;}
+machine release(h:Handle){let Handle{mark as _}=h;}
+",
+        "data Handle [linear] { mark: u8; }
+",
+    ] {
+        let source = format!("{prefix}{}", text.replace("volume: u8; }", "volume: u8; h: Handle; }"));
+        let error = sources::refuse(&[("obligated.omg", &source)], "obligated.omg", sources::unique_span(&source, "Audio::play(track.volume)"), message);
+        assert_eq!(error.message, message);
+    }
+}
+
+#[test]
+fn a_nested_template_operand_needs_the_path_from_its_formal_to_the_scalar_field() {
+    let source = "data Tag { id: u8; }
+data Audio { volume: u8; tag: Tag; }
+trait Player { machine play(volume: u8); }
+
+machine preview<const Audio: Player>(track: Audio)
+{
+    Audio::play(track.tag.id);
+}
+";
+    sources::refuse(
+        &[("nested_path.omg", source)],
+        "nested_path.omg",
+        sources::unique_span(source, "Audio::play(track.tag.id)"),
+        "template call has unsupported operands, selection or obligations",
+    );
 }

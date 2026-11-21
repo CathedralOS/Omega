@@ -408,6 +408,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                 types: &types,
                 data: &data,
                 callees: &callees,
+                requires: &contract.requires,
             },
         )?;
         crossing_owners.push(owners);

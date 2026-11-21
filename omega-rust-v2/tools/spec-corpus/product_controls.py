@@ -9,6 +9,9 @@ CONTROLS = {
        for field in ("left", "right") for change in ("transferred-field", "whole-root", "omitted")},
     **{f"join-arrival/{change}": "a_normalized_or_redirected_arm_fails_the_join_arrival_witness"
        for change in ("disposed-remainder", "same-field")},
+    **{f"premised-selector/{relation}/{change}": "a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected_element"
+       for relation, changes in (("equal", ("clause-operator", "store-through-vacated-selector")),
+                                 ("distinct", ("clause-operator", "displaced-element-kept"))) for change in changes},
 }
 
 

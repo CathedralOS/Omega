@@ -179,6 +179,8 @@ def apply(report, rows=None):
                     errors.append(f"missing gap report for registered L5 limitation: {key} ({site})")
                 elif case["status"] != "open gap" or case["stage"] != "L5" or evidence not in case["detail"]:
                     errors.append(f"gap report {key} does not record the registered refusal {row.file}: {row.message}")
+                else:
+                    case["refusal_reason"] = row.message
             elif case is not None:
                 errors.append(f"registry gap label collides with a reported case: {key}")
             else:
@@ -186,6 +188,7 @@ def apply(report, rows=None):
                     "cohort": "handoff", "stage": "L5", "status": case_status,
                     "detail": f"{kind}. {row.justification} Observed {row.message} at {row.file} in {site}.",
                     "registered_refusal": row.cls,
+                    "refusal_reason": row.message,
                 }
             if key in report["cases"] and row.key in locations:
                 if row.gap_source == "registry":

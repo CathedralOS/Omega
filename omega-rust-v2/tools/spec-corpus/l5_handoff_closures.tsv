@@ -77,3 +77,7 @@ recursive view result at suspension	checker-input	psi-output/recursive-view-back
 out-of-bounds fixed index in a contract	checker-input	psi-output/out-of-bounds-contract-index
 restoration through a recomputed selector	checker-input	psi-output/recomputed-selector-fill
 recursive relay of a boundary view at suspension	checker-input	psi-output/recursive-boundary-view-relay
+restoration through a premised selector	checker-input	psi-output/premised-equal-selector-fill|psi-output/premised-distinct-selector-displacement
+scalar field operand of a record with a non-scalar field	product	psi-output/mixed-record-template-operand|psi-output/mixed-record-operand-carrier
+computed ranking subject	checker-input	psi-output/computed-rank-subject|psi-output/computed-rank-edge
+add a tag and a predicate domain in one cast	checker-input	psi-output/mixed-cast-completion

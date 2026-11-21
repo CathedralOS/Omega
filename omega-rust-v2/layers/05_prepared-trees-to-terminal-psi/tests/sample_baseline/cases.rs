@@ -28,6 +28,35 @@ pub struct Admitted {
     pub files: &'static [&'static str],
     /// The text in the dependency's `build.omg` that declares `package`.
     pub configuration: &'static str,
+    /// The alias edge the harness supplies with the package's sources.
+    pub edge: Edge,
+}
+
+/// Which `kit` edge reaches L2. Only `Registered` is what the pinned root recipe admits.
+/// The other two are negative controls that keep every source byte and change only the edge.
+#[derive(Clone, Copy)]
+pub enum Edge {
+    Registered,
+    /// The package's sources are present, but no edge names them.
+    Omitted,
+    /// The same alias names this other package of the graph instead.
+    Retargeted(&'static str),
+}
+
+impl Admitted {
+    /// The edge supplied to L2, if any.
+    pub fn admitted(&self) -> Option<omega_resolver::Dependency<'static>> {
+        let package = match self.edge {
+            Edge::Registered => self.package,
+            Edge::Omitted => return None,
+            Edge::Retargeted(package) => package,
+        };
+        Some(omega_resolver::Dependency {
+            requester: super::pipeline::ROOT,
+            alias: self.alias,
+            package,
+        })
+    }
 }
 
 impl Case {
@@ -136,6 +165,12 @@ pub const IMPORT_A: (&str, &[u8]) = ("m/a.omg", include_bytes!("../fixtures/dire
 pub const IMPORT_B: (&str, &[u8]) = ("m/b.omg", include_bytes!("../fixtures/direct_file_imports/m/b.omg"));
 /// The historical sample imports `m\a` by its filename. A filename names no namespace component.
 pub const FILE_IMPORT: &str = "L2\tm/b.omg:1:5\tunavailable import m\\a";
+/// The historical sample imports the dependency file `other.omg` by its name under the admitted alias.
+pub const DEPENDENCY_FILE_IMPORT: &str = "L2\tmain.omg:3:5\tunavailable import kit\\other";
+/// The lawful twin's import when `kit` does not select `mod_kernel`.
+pub const UNAVAILABLE_DECLARATION_IMPORT: &str = "L2\tmain.omg:3:5\tunavailable import kit\\other_v";
+/// The lawful twin replaces only the root file. The dependency files still come from the pinned history.
+pub const DEPENDENCY_IMPORT: (&str, &[u8]) = ("main.omg", include_bytes!("../fixtures/dependency_import/main.omg"));
 
 #[derive(Clone, Copy)]
 pub enum Check {
@@ -218,28 +253,14 @@ impl Check {
     }
 }
 
+/// Read through the Psi-only consumer, so the sample check and the L5 test share one reading.
 fn returns_dependency_call(package: &LoweredPackage) -> bool {
-    let owned = |owner: &str, name: &str| {
-        package
-            .machines
-            .iter()
-            .find(|m| m.declaration.package == owner && m.declaration.path == name)
-    };
-    let (Some(entry), Some(callee)) = (owned(super::pipeline::ROOT, "entry"), owned(DEPENDENCY, "other_v")) else {
-        return false;
-    };
-    let [block] = &entry.body.blocks[..] else { return false };
-    let BlockTerminator::Return {
-        result: ReturnEdge::Scalar(returned),
-        ..
-    } = block.terminator
-    else {
-        return false;
-    };
-    returns_literal(callee, &ScalarLiteral::Integer(7.into()))
-        && entry.body.operations.iter().any(|op| {
-            op.result == OperationResult::Scalar(returned)
-                && matches!(&op.kind, OperationKind::Call { callee: CallTarget::Machine(id), arguments, .. } if *id == callee.id && arguments.is_empty())
+    psi_handoff_consumer::returned_call(package, super::pipeline::ROOT, "entry")
+        == Ok(psi_handoff_consumer::ReturnedCall {
+            package: DEPENDENCY,
+            path: "other_v",
+            arguments: 0,
+            returns: Some(&ScalarLiteral::Integer(7.into())),
         })
 }
 
@@ -294,16 +315,27 @@ const HOST_START: &str = r"linux_x86_64\ProgramEntry, entry_start)";
 const FREESTANDING: &str = "builder.freestanding = true;";
 const DIRECT: &str = "probes/direct_file_imports";
 pub const NONMAIN: &str = "probes/build_nonmain_module";
+const KIT_ALIAS: &str = r#"with_alias(@mut kit_dependency, "kit")"#;
 const DEPENDENCY: &str = "mod_kernel";
 const DEPENDENCY_PACKAGE: &str = r#"Build::package(builder, "mod_kernel")"#;
 /// `probes/build_nonmain_module/build.omg` registers `dep` under the alias `kit`.
-pub const KIT: &[Admitted] = &[Admitted {
-    alias: "kit",
-    package: DEPENDENCY,
-    directory: "probes/build_nonmain_module/dep",
-    files: &["main.omg", "other.omg"],
-    configuration: DEPENDENCY_PACKAGE,
-}];
+pub const KIT: &[Admitted] = &[kit(Edge::Registered)];
+/// The same sources without the edge.
+pub const KIT_WITHOUT_EDGE: &[Admitted] = &[kit(Edge::Omitted)];
+/// The same sources with `kit` naming the toolchain package, which every graph contains and
+/// whose root namespace declares no `other_v`.
+pub const KIT_RETARGETED: &[Admitted] = &[kit(Edge::Retargeted(omega_toolchain::TOOLCHAIN_PACKAGE))];
+
+const fn kit(edge: Edge) -> Admitted {
+    Admitted {
+        alias: "kit",
+        package: DEPENDENCY,
+        directory: "probes/build_nonmain_module/dep",
+        files: &["main.omg", "other.omg"],
+        configuration: DEPENDENCY_PACKAGE,
+        edge,
+    }
+}
 
 pub const CASES: &[Case] = &[
     Case {
@@ -419,8 +451,35 @@ pub const CASES: &[Case] = &[
         directory: NONMAIN,
         files: MAIN,
         migrated: None,
-        configuration: r#"with_alias(@mut kit_dependency, "kit")"#,
+        configuration: KIT_ALIAS,
         dependencies: KIT,
-        expectation: Expectation::TrackCompatibility(Check::DependencyCall),
+        expectation: Expectation::MustRefuse(DEPENDENCY_FILE_IMPORT),
+    },
+    Case {
+        id: "import-from-dependency-v2",
+        directory: NONMAIN,
+        files: MAIN,
+        migrated: Some(&[DEPENDENCY_IMPORT]),
+        configuration: KIT_ALIAS,
+        dependencies: KIT,
+        expectation: Expectation::MustLower(Check::DependencyCall),
+    },
+    Case {
+        id: "missing-alias-v2",
+        directory: NONMAIN,
+        files: MAIN,
+        migrated: Some(&[DEPENDENCY_IMPORT]),
+        configuration: KIT_ALIAS,
+        dependencies: KIT_WITHOUT_EDGE,
+        expectation: Expectation::MustRefuse(UNAVAILABLE_DECLARATION_IMPORT),
+    },
+    Case {
+        id: "retargeted-alias-v2",
+        directory: NONMAIN,
+        files: MAIN,
+        migrated: Some(&[DEPENDENCY_IMPORT]),
+        configuration: KIT_ALIAS,
+        dependencies: KIT_RETARGETED,
+        expectation: Expectation::MustRefuse(UNAVAILABLE_DECLARATION_IMPORT),
     },
 ];

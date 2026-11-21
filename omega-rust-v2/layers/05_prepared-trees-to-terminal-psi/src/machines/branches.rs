@@ -143,19 +143,19 @@ impl BlockFlow {
     ) -> ValueId {
         let target = self.reserve();
         let mut edge = successor(body, target, vec![source], site);
-        let domains = match change {
+        match change {
             super::casts::ScalarChange::Ordinary(direction) => {
                 edge.scalar_qualification_changes.push(crate::ScalarQualificationChange { argument_index: 0, direction });
-                Vec::new()
             }
-            super::casts::ScalarChange::PredicateCompletion(domains) => {
-                edge.predicate_completions.extend(domains.iter().cloned().map(|domain| crate::PredicateCompletion { argument_index: 0, domain }));
-                domains
+            super::casts::ScalarChange::Completion(domains) => {
+                edge.domain_completions.extend(domains.into_iter().map(|(domain, origin)| crate::DomainCompletion { argument_index: 0, domain, origin }));
             }
-        };
+        }
+        // Only a proved origin owes a predicate; the arrival binds it to the fresh parameter.
+        let proved: Vec<_> = edge.domain_completions.iter().filter(|c| c.origin == crate::CompletionOrigin::Proved).map(|c| c.domain.clone()).collect();
         self.close(body, BlockTerminator::Jump(edge));
         let subject = self.open_scalar_join(body, target, target_type);
-        self.scalar_domain_invariants.extend(domains.into_iter().map(|domain| crate::ScalarDomainInvariant { subject, domain }));
+        self.scalar_domain_invariants.extend(proved.into_iter().map(|domain| crate::ScalarDomainInvariant { subject, domain }));
         subject
     }
 
@@ -563,7 +563,7 @@ pub(super) fn successor(
         target,
         arguments,
         scalar_qualification_changes: Vec::new(),
-        predicate_completions: Vec::new(),
+        domain_completions: Vec::new(),
         structural_arguments: Vec::new(),
         cleanup: Vec::new(),
     }

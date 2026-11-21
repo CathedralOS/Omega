@@ -134,7 +134,8 @@ pub(super) fn store_borrowed(
     if body.places[value.index()].ty != id {
         return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
     }
-    let disposition = if vacancy_at(body, flow, &destination, &site)? {
+    let premises = &expressions.selector_premises;
+    let disposition = if vacancy_at(body, premises, flow, &destination, &site)? {
         crate::StructuralStoreDisposition::FillVacancy
     } else if matches!(expressions.types.get(id),Some(TypeShape::Nominal(data)) if expressions.data[data.get()-1].multiplicity == crate::Multiplicity::Copy) {
         crate::StructuralStoreDisposition::ReplaceUnrestricted
@@ -164,9 +165,11 @@ pub(super) fn store_borrowed(
 }
 
 /// Choose the store operation that corresponds to the authored assignment.
-/// The checker independently authenticates each loan and its restoration.
+/// The checker independently authenticates each loan and its restoration,
+/// including any selector relation taken from an authored entry clause.
 fn vacancy_at(
     body: &MachineBody,
+    premises: &[super::view_loans::SelectorPremise],
     flow: &BlockFlow,
     destination: &ProjectedPlace,
     site: &Site,
@@ -177,29 +180,30 @@ fn vacancy_at(
     for operation in &body.operations {
         let OperationKind::BorrowedMove { source } = &operation.kind else { continue };
         let source = captured_place(body, source);
-        let reason = match relate(body, &source, &target) {
+        let reason = match relate(body, premises, &source, &target) {
             Relation::Unproved => "cannot prove the store selector equal to or distinct from the selector of an open vacancy",
             Relation::Overlap => "nested restoration needs the overlapping structural window",
             Relation::Same | Relation::Disjoint => continue,
         };
         if checked
             .iter()
-            .any(|prior| matches!(relate(body, prior, &source), Relation::Same))
+            .any(|prior| matches!(relate(body, premises, prior, &source), Relation::Same))
         {
             continue;
         }
         // An old extraction matters only until its matching store. Later
         // assignments through another selector may reuse the intact backing.
-        if exact_vacancy(body, flow, &source, site)? {
+        if exact_vacancy(body, premises, flow, &source, site)? {
             return Err(LoweringError::new(site, reason));
         }
         checked.push(source);
     }
-    exact_vacancy(body, flow, &target, site)
+    exact_vacancy(body, premises, flow, &target, site)
 }
 
 fn exact_vacancy(
     body: &MachineBody,
+    premises: &[super::view_loans::SelectorPremise],
     flow: &BlockFlow,
     target: &ProjectedPlace,
     site: &Site,
@@ -231,7 +235,7 @@ fn exact_vacancy(
             let path = captured_place(body, place);
             // View elements match by their evaluated selector, never by the
             // occurrence-local bound obligation or length observation.
-            if matches!(super::view_loans::relate(body, &path, target), super::view_loans::Relation::Same) {
+            if matches!(super::view_loans::relate(body, premises, &path, target), super::view_loans::Relation::Same) {
                 state = Some(vacant);
                 break;
             }

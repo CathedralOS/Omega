@@ -813,15 +813,166 @@ fn a_constant_rank_subject_publishes_its_prepared_value() {
     assert_eq!(witness.component, [f.id]);
     assert!(witness.edges.is_empty());
 
-    // A computed subject such as `K - n` still has no Psi rank form.
+    // A computed subject `K - n` is one exact subtraction in authored order:
+    // the prepared constant is the minuend and formal 0 the subtrahend.
     let computed = constant.replace("by K", "by K - n");
-    refuses_at(
-        &computed,
-        sources::unique_span(&computed, "K - n"),
-        "lowering only represents rank operands that name machine formals or integer constants",
+    let package = lower(&computed).unwrap();
+    let f = machine(&package, "f");
+    let witness = ranking(f);
+    assert_eq!(witness.relation, NATURAL_U64);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/computed-rank-subject",
+        assert_eq!(witness.rank, RankExpression::ExactDifference { minuend: RankOperand::Constant(3.into()), subtrahend: RankOperand::Input(0) })
+    );
+    assert_eq!(witness.component, [f.id]);
+    assert!(witness.edges.is_empty());
+    // An independent Psi reader evaluates it; below zero the rank is undefined.
+    assert_eq!(
+        [0, 2, 3, 4].map(|n| psi_handoff_consumer::entry_rank(&witness.rank, &[n])),
+        [Some(3), Some(1), Some(0), None]
+    );
+
+    // Swapping the sides, changing the prepared value or naming a literal or
+    // two formals changes exactly the matching operand.
+    use RankOperand::{Constant, Input};
+    let difference = |minuend, subtrahend| RankExpression::ExactDifference { minuend, subtrahend };
+    for (source, expected) in [
+        (constant.replace("by K", "by n - K"), difference(Input(0), Constant(3.into()))),
+        (
+            constant.replace("= 3", "= 4").replace("by K", "by K - n"),
+            difference(Constant(4.into()), Input(0)),
+        ),
+        (constant.replace("by K", "by 10 - n"), difference(Constant(10.into()), Input(0))),
+        (constant.replace("by K", "by (K - n)"), difference(Constant(3.into()), Input(0))),
+        ("machine g(m:u64, n:u64) terminates by m - n {}".into(), difference(Input(0), Input(1))),
+        ("machine g(m:u64, n:u64) terminates by n - m {}".into(), difference(Input(1), Input(0))),
+    ] {
+        let package = lower(&source).unwrap();
+        let subject = package
+            .machines
+            .iter()
+            .find(|m| m.contract.ranking.is_some())
+            .expect("one ranked machine");
+        assert_eq!(ranking(subject).rank, expected, "{source}");
+    }
+    let swapped = lower(&constant.replace("by K", "by n - K")).unwrap();
+    let swapped = &ranking(machine(&swapped, "f")).rank;
+    assert_ne!(swapped, &witness.rank);
+    assert_eq!([2, 3, 5].map(|n| psi_handoff_consumer::entry_rank(swapped, &[n])), [None, Some(0), Some(2)]);
+}
+
+#[test]
+fn an_exact_difference_rank_uses_the_same_subtraction_over_the_call_actuals() {
+    // The climbing cursor from the Terminal Psi page: rank `MAX - i`, call `climb(i + 1)`.
+    let source = "const MAX:u64 = 10;
+         machine climb(i:u64)->u64 terminates by MAX - i {
+            transition i < MAX {true -> climb(i + 1), false -> i,}
+         }";
+    let package = lower(source).unwrap();
+    let climb = machine(&package, "climb");
+    let witness = ranking(climb);
+    use RankOperand::{Constant, Input};
+    assert_eq!(witness.relation, NATURAL_U64);
+    assert_eq!(
+        witness.rank,
+        RankExpression::ExactDifference {
+            minuend: Constant(10.into()),
+            subtrahend: Input(0)
+        }
+    );
+    assert_eq!(witness.component, [climb.id]);
+    let [edge] = witness.edges.as_slice() else {
+        panic!("expected one internal edge claim")
+    };
+    let (block, call, arguments) = terminal_call(climb, climb);
+    let next = operation_result(climb, IntegerPrimitive::Add, formal(climb, 0));
+    assert_eq!(arguments, [CallArgument::Scalar(next)]);
+    // The edge keeps the constant minuend and substitutes the actual cursor.
+    // A positive cursor step under an exact difference selects strict descent;
+    // whether `MAX - (i + 1)` is defined there remains the checker's question.
+    spec_corpus::observe_handoff!(
+        psi "psi-output/computed-rank-edge",
+        assert_eq!((edge.block, edge.call, edge.forwarding_return, edge.target, &edge.successor, edge.comparison),
+                   (block, CallSite::Edge(call), None, climb.id, &Some(RankExpression::ExactDifference { minuend: Constant(10.into()), subtrahend: Input(next) }), RankComparison::Strict))
+    );
+    // An independent reader re-derives that successor from the published call.
+    assert_eq!(
+        psi_handoff_consumer::successor_from_call(&package, climb.id, edge).as_ref(),
+        Ok(edge.successor.as_ref().unwrap())
+    );
+
+    // Swapped sides: the same call raises the minuend, so no role is selected.
+    let swapped = lower(&source.replace("by MAX - i", "by i - MAX")).unwrap();
+    let climb = machine(&swapped, "climb");
+    let next = operation_result(climb, IntegerPrimitive::Add, formal(climb, 0));
+    let [edge] = ranking(climb).edges.as_slice() else {
+        panic!("expected one internal edge claim")
+    };
+    assert_eq!(
+        ranking(climb).rank,
+        RankExpression::ExactDifference {
+            minuend: Input(0),
+            subtrahend: Constant(10.into())
+        }
+    );
+    assert_eq!(
+        (&edge.successor, edge.comparison),
+        (
+            &Some(RankExpression::ExactDifference {
+                minuend: Input(next),
+                subtrahend: Constant(10.into())
+            }),
+            RankComparison::Pending
+        )
+    );
+    assert_eq!(
+        psi_handoff_consumer::successor_from_call(&swapped, climb.id, edge).as_ref(),
+        Ok(edge.successor.as_ref().unwrap())
+    );
+
+    // Passing the cursor unchanged repeats the exact source rank.
+    let repeated = lower(&source.replace("climb(i + 1)", "climb(i)")).unwrap();
+    let climb = machine(&repeated, "climb");
+    let [edge] = ranking(climb).edges.as_slice() else {
+        panic!("expected one internal edge claim")
+    };
+    assert_eq!(edge.successor, ranking(climb).source_rank(&climb.body.parameters));
+    assert_eq!(edge.comparison, RankComparison::Preserving);
+
+    // A shrinking minuend over an unchanged subtrahend also descends strictly.
+    let shrinking = lower("machine down(n:u64)->u64 terminates by n - 1 {transition n <= 1 {true -> n, false -> down(n - 1),}}").unwrap();
+    let down = machine(&shrinking, "down");
+    let [edge] = ranking(down).edges.as_slice() else {
+        panic!("expected one internal edge claim")
+    };
+    let next = operation_result(down, IntegerPrimitive::Subtract, formal(down, 0));
+    assert_eq!(
+        (&edge.successor, edge.comparison),
+        (
+            &Some(RankExpression::ExactDifference {
+                minuend: Input(next),
+                subtrahend: Constant(1.into())
+            }),
+            RankComparison::Strict
+        )
     );
 }
 
+#[test]
+fn a_computed_rank_other_than_one_exact_subtraction_has_no_psi_form() {
+    // Wrapping, saturating, additive and nested subjects are not the exact
+    // subtraction Terminal Psi names. Whether the language admits them as
+    // `Nat\Descending` subjects is not settled; lowering refuses them.
+    let constant = "const K:u64 = 3; machine f(n:u64) terminates by K {}";
+    for subject in ["K -% n", "K -| n", "K + n", "K - n - 1"] {
+        let source = constant.replace("by K", &format!("by {subject}"));
+        refuses_at(
+            &source,
+            sources::unique_span(&source, subject),
+            "lowering only represents a computed rank that is one exact subtraction of formals or integer constants",
+        );
+    }
+}
 #[test]
 fn a_constant_distance_limit_is_the_same_value_on_the_recursive_edge() {
     let package = lower(

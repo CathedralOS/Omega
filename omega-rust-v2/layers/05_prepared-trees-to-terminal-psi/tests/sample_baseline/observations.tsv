@@ -12,3 +12,6 @@ missing-import-v2	L2	root	main.omg	65	66	4	30	A	unresolved name A
 abstract-premise	L1	root	main.omg	772	776	37	27	Trap	expected `;` (bytes 772..776)
 false-abstract-premise	L1	root	main.omg	773	777	37	27	Trap	expected `;` (bytes 773..777)
 import-from-dependency	L2	root	main.omg	140	149	3	5	kit\other	unavailable import kit\other
+import-from-dependency-v2	psi	witness matched
+missing-alias-v2	L2	root	main.omg	153	164	3	5	kit\other_v	unavailable import kit\other_v
+retargeted-alias-v2	L2	root	main.omg	153	164	3	5	kit\other_v	unavailable import kit\other_v

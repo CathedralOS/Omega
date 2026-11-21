@@ -1,7 +1,8 @@
 //! Private ranking witnesses for authored `terminates by` clauses.
 //!
 //! A witness binds the well-founded relation, each member's rank over its own
-//! formals and integer constants, and one claim for every in-component control
+//! formals and integer constants (one operand, a saturating distance or one
+//! exact subtraction), and one claim for every in-component control
 //! edge. It carries no verdict: well-foundedness, every comparison, the rank
 //! bounds, the global every-cycle descent rule and the judgment of a member
 //! that authored no rank remain checker obligations. Identities are owned and
@@ -59,6 +60,15 @@ pub enum RankExpression<Input> {
     Operand(RankOperand<Input>),
     /// `Nat::BoundedDistance`: unsigned saturating `limit - cursor`.
     SaturatingDistance { cursor: RankOperand<Input>, limit: RankOperand<Input> },
+    /// `Nat::Descending` over one authored exact subtraction, such as
+    /// `MAX - index`. Operand order is the authored order. The rank is defined
+    /// only where `minuend - subtrahend` fits the carrier: the subtraction's
+    /// own formation question at entry and on every successor belongs to the
+    /// checker, as for any exact integer operation.
+    ExactDifference {
+        minuend: RankOperand<Input>,
+        subtrahend: RankOperand<Input>,
+    },
 }
 
 impl<Input: Copy> RankExpression<Input> {
@@ -67,6 +77,7 @@ impl<Input: Copy> RankExpression<Input> {
         match self {
             Self::Operand(operand) => operand.input().into_iter().collect(),
             Self::SaturatingDistance { cursor, limit } => cursor.input().into_iter().chain(limit.input()).collect(),
+            Self::ExactDifference { minuend, subtrahend } => minuend.input().into_iter().chain(subtrahend.input()).collect(),
         }
     }
 
@@ -80,6 +91,10 @@ impl<Input: Copy> RankExpression<Input> {
             Self::SaturatingDistance { cursor, limit } => RankExpression::SaturatingDistance {
                 cursor: cursor.try_map(&mut map)?,
                 limit: limit.try_map(&mut map)?,
+            },
+            Self::ExactDifference { minuend, subtrahend } => RankExpression::ExactDifference {
+                minuend: minuend.try_map(&mut map)?,
+                subtrahend: subtrahend.try_map(&mut map)?,
             },
         })
     }

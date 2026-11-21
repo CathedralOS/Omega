@@ -63,6 +63,15 @@ impl fmt::Display for TypeError {
 
 impl std::error::Error for TypeError {}
 
+/// The parts of a domain declaration that decide its origin when a cast adds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DomainEstablishment {
+    /// The declaration has `requires` clauses, including `requires true`.
+    pub predicate: bool,
+    /// The domain's subject carries a parent domain, so membership needs that parent.
+    pub requires_parent: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LoweringTypes {
     rows: Vec<TypeShape>,
@@ -70,8 +79,8 @@ pub struct LoweringTypes {
     applied_data: std::collections::HashMap<ValueType, DataId>,
     domain_sets: Vec<Vec<AtomKey>>,
     indexed_referents: Vec<IndexedReferent>,
-    /// Non-generic predicate declarations and whether their subject requires parent membership.
-    predicate_domains: std::collections::BTreeMap<DeclarationId, bool>,
+    /// What adding each local domain declaration must establish at a cast.
+    domain_establishments: std::collections::BTreeMap<DeclarationId, DomainEstablishment>,
     /// Runtime callable contracts in declaration-site order; see `crate::declarations::callables`.
     callables: Vec<omega_typed::CallableType>,
 }
@@ -104,11 +113,13 @@ impl LoweringTypes {
             applied_data,
             indexed_referents,
             domain_sets,
-            predicate_domains: domains
+            domain_establishments: domains
                 .iter()
                 // An indexed family's predicate binds its index; it still owes proof at addition.
-                .filter(|d| d.has_predicates())
-                .map(|d| (d.declaration.clone(), !d.carrier.domains().is_empty()))
+                .map(|d| (d.declaration.clone(), DomainEstablishment {
+                    predicate: d.has_predicates(),
+                    requires_parent: !d.carrier.domains().is_empty(),
+                }))
                 .collect(),
             rows: Vec::new(),
             data_declarations,
@@ -264,8 +275,8 @@ impl LoweringTypes {
         &self.callables
     }
 
-    pub(crate) fn predicate_requires_parent(&self, declaration: &DeclarationId) -> Option<bool> {
-        self.predicate_domains.get(declaration).copied()
+    pub(crate) fn domain_establishment(&self, declaration: &DeclarationId) -> Option<DomainEstablishment> {
+        self.domain_establishments.get(declaration).copied()
     }
 
     fn id_for_shape(

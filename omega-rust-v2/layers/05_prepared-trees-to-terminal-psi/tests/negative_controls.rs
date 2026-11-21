@@ -10,6 +10,7 @@
 //! | restoration turned into replacement | `loans::exclusive_move_and_replacement_retain_both_exact_paths` |
 //! | residual cleanup redirected or dropped | `ownership::transferring_a_field_to_a_call_does_not_dispose_the_argument_twice` |
 //! | arm remainder disposed or arm transfer redirected before a join | `ownership::transferring_an_owned_match_result_uses_the_join_parameter` |
+//! | premise operator flipped, premised store redirected or displacement kept | `view_loans::an_authored_selector_premise_chooses_the_store_the_checker_must_justify` |
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, LoweredPackage, MachineBody, OperationKind, StructuralStoreDisposition};
@@ -216,5 +217,68 @@ fn a_normalized_or_redirected_arm_fails_the_join_arrival_witness() {
             select,
             product_witness::join_arrivals_move_fields(select, "Pair::left", "Pair::right"),
         );
+    }
+}
+
+#[test]
+fn a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected_element() {
+    // Sources copied verbatim from `view_loans::an_authored_selector_premise_chooses_the_store_the_checker_must_justify`.
+    const EQUAL: &str = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64) requires i == j {let old=move p[i]; p[j]=move old;}";
+    const DISTINCT: &str = "data Cell{v:u8;} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64) requires i != j {let old=move p[i]; p[j]=move c; p[i]=move old;}";
+    use omega_lowering::{OperationResult, Parameter, PlaceProjection, PredicateOperator, PredicateStep};
+    let fill = |m: &omega_lowering::LoweredMachine| product_witness::premised_vacancy_fill(m, 0, 2, 3);
+    let displace = |m: &omega_lowering::LoweredMachine| product_witness::premised_sibling_displacement(m, 0, 2, 3);
+    for (source, witness, flipped, corruption) in [
+        (EQUAL, &fill as &dyn Fn(&omega_lowering::LoweredMachine) -> Witness, PredicateOperator::NotEqual, "clause-operator"),
+        (EQUAL, &fill, PredicateOperator::NotEqual, "store-through-vacated-selector"),
+        (DISTINCT, &displace, PredicateOperator::Equal, "clause-operator"),
+        (DISTINCT, &displace, PredicateOperator::Equal, "displaced-element-kept"),
+    ] {
+        let mut package = sources::lower(&[("view.omg", source)]).unwrap();
+        let machine = &mut package.machines[0];
+        witness(machine).expect("actual product");
+        match corruption {
+            // The same body under the opposite premise.
+            "clause-operator" => machine.contract.requires[0].predicate[2] = PredicateStep::Apply(flipped),
+            // The store names the vacancy's own formal: congruent, so no premise would be needed.
+            "store-through-vacated-selector" => {
+                let Parameter::Scalar(i) = machine.body.parameters[2] else {
+                    panic!("formal i is a scalar")
+                };
+                let store = machine
+                    .body
+                    .operations
+                    .iter_mut()
+                    .find_map(|op| match &mut op.kind {
+                        OperationKind::StructuralStore { destination, .. } => Some(destination),
+                        _ => None,
+                    })
+                    .expect("the premised store");
+                let Some(PlaceProjection::ViewElement { index, .. }) = store.path.last_mut() else {
+                    panic!("the store selects one view element")
+                };
+                index.selector = i;
+            }
+            // The displaced sibling silently survives.
+            _ => {
+                let displaced = machine
+                    .body
+                    .operations
+                    .iter()
+                    .filter_map(|op| match (&op.kind, op.result) {
+                        (OperationKind::BorrowedMove { .. }, OperationResult::Structural(place)) => Some(place),
+                        _ => None,
+                    })
+                    .nth(1)
+                    .expect("the displacement");
+                for block in &mut machine.body.blocks {
+                    if let BlockTerminator::Jump(edge) = &mut block.terminator {
+                        edge.cleanup.retain(|action| *action != CleanupAction::DiscardRoot(displaced));
+                    }
+                }
+            }
+        }
+        let label = format!("premised-selector/{}/{corruption}", if source == EQUAL { "equal" } else { "distinct" });
+        rejects(&label, &machine.body, witness(machine));
     }
 }

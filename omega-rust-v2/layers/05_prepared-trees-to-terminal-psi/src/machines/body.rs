@@ -15,6 +15,8 @@ pub(crate) struct Declarations<'a> {
     pub types: &'a LoweringTypes,
     pub data: &'a [crate::LoweredData],
     pub callees: &'a super::calls::Callees<'a>,
+    /// The machine's published entry clauses, the same premises the checker reads.
+    pub requires: &'a [crate::ContractClause],
 }
 
 pub(crate) fn lower_body(
@@ -38,7 +40,13 @@ fn emit_body(
     result_type: Option<TypeId>,
     declarations: &Declarations<'_>,
 ) -> Result<MachineBody, LoweringError> {
-    let Declarations { types, data, callees, machine } = *declarations;
+    let Declarations {
+        types,
+        data,
+        callees,
+        machine,
+        requires,
+    } = *declarations;
     let resolved = tree.resolved();
     let file = resolved.file;
     let declaration = signature.node.node;
@@ -125,6 +133,7 @@ fn emit_body(
                 Parameter::Structural(place) => OperationResult::Structural(*place),
             }))
             .collect(),
+        selector_premises: super::view_loans::selector_premises(requires, &block.parameters),
     };
     let mut flow = BlockFlow::entry();
     let borrowed = if assembly {

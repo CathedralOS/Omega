@@ -228,3 +228,152 @@ pub fn join_arrivals_move_fields(
     }
     Ok(())
 }
+
+/// The scalar entry value of formal `index`.
+fn scalar_formal(
+    body: &MachineBody,
+    index: usize,
+) -> Result<omega_psi::ValueId, String> {
+    match body.parameters.get(index) {
+        Some(Parameter::Scalar(value)) => Ok(*value),
+        other => Err(format!("formal {index} is not a scalar input: {other:?}")),
+    }
+}
+
+/// The evaluated selector of one runtime element directly below `view`'s referent.
+fn view_selector(
+    place: &ProjectedPlace,
+    view: PlaceId,
+) -> Option<omega_psi::ValueId> {
+    match place.path.as_slice() {
+        [PlaceProjection::Referent, PlaceProjection::ViewElement { index, .. }] if place.root == view => Some(index.selector),
+        _ => None,
+    }
+}
+
+/// The published entry clauses state `left operator right` over these formals, in either order.
+/// Only an authored clause can be this evidence; a store or move never states a relation.
+fn states_relation(
+    machine: &omega_psi::LoweredMachine,
+    left: usize,
+    right: usize,
+    operator: omega_psi::PredicateOperator,
+) -> Witness {
+    use omega_psi::PredicateStep::{Apply, Formal};
+    let stated = machine.contract.requires.iter().any(|clause| {
+        clause.predicate == [Formal(left), Formal(right), Apply(operator)] || clause.predicate == [Formal(right), Formal(left), Apply(operator)]
+    });
+    if stated {
+        Ok(())
+    } else {
+        Err(format!("no entry clause states formal {left} {operator:?} formal {right}: {:?}", machine.contract.requires))
+    }
+}
+
+/// Each element extraction and each element store of `view`, in operation order, as
+/// (selector, result place) and (selector, stored value, disposition).
+#[allow(clippy::type_complexity)]
+fn element_window(
+    body: &MachineBody,
+    view: PlaceId,
+) -> Result<(Vec<(omega_psi::ValueId, PlaceId)>, Vec<(omega_psi::ValueId, PlaceId, &StructuralStoreDisposition)>), String> {
+    let (mut moves, mut stores) = (Vec::new(), Vec::new());
+    for op in &body.operations {
+        match (&op.kind, op.result) {
+            (OperationKind::BorrowedMove { source }, omega_psi::OperationResult::Structural(place)) => {
+                moves.push((view_selector(source, view).ok_or_else(|| format!("extraction {source:?} is not one element of the view"))?, place));
+            }
+            (
+                OperationKind::StructuralStore {
+                    destination,
+                    value,
+                    disposition,
+                },
+                _,
+            ) => stores.push((
+                view_selector(destination, view).ok_or_else(|| format!("store {destination:?} is not one element of the view"))?,
+                *value,
+                disposition,
+            )),
+            _ => {}
+        }
+    }
+    Ok((moves, stores))
+}
+
+/// Whether some cleanup edge of the body discards exactly this owned place.
+fn discards(
+    body: &MachineBody,
+    place: PlaceId,
+) -> bool {
+    body.blocks.iter().any(|block| {
+        let cleanup = match &block.terminator {
+            BlockTerminator::Return { cleanup, .. } => cleanup.as_slice(),
+            BlockTerminator::Jump(edge) => edge.cleanup.as_slice(),
+            _ => &[],
+        };
+        cleanup.contains(&CleanupAction::DiscardRoot(place))
+    })
+}
+
+/// Under an authored `vacated == stored` entry clause, the program's one extraction vacates
+/// the element selected by formal `vacated` and its one store fills the element selected by
+/// formal `stored`, without extracting or discarding that element. The two selectors stay
+/// distinct values, so only the published clause can justify the repair.
+pub fn premised_vacancy_fill(
+    machine: &omega_psi::LoweredMachine,
+    view: usize,
+    vacated: usize,
+    stored: usize,
+) -> Witness {
+    let body = &machine.body;
+    states_relation(machine, vacated, stored, omega_psi::PredicateOperator::Equal)?;
+    let (root, taken, written) = (structural_formal(body, view)?, scalar_formal(body, vacated)?, scalar_formal(body, stored)?);
+    let (moves, stores) = element_window(body, root)?;
+    let [(selector, removed)] = moves[..] else {
+        return Err(format!("expected one extraction, found {moves:?}"));
+    };
+    if selector != taken {
+        return Err(format!("the extraction selects {selector:?}, expected formal {vacated}"));
+    }
+    let [(selector, _, disposition)] = stores[..] else {
+        return Err(format!("expected one store, found {stores:?}"));
+    };
+    if selector != written || *disposition != StructuralStoreDisposition::FillVacancy {
+        return Err(format!("the store selects {selector:?} as {disposition:?}, expected a vacancy fill through formal {stored}"));
+    }
+    if discards(body, removed) {
+        return Err("the extracted element is discarded instead of restored".into());
+    }
+    Ok(())
+}
+
+/// Under an authored `vacated != stored` entry clause, the store through formal `stored`
+/// first extracts that occupied element and discards it on a cleanup edge, then fills it;
+/// a later store fills the element vacated through formal `vacated`.
+pub fn premised_sibling_displacement(
+    machine: &omega_psi::LoweredMachine,
+    view: usize,
+    vacated: usize,
+    stored: usize,
+) -> Witness {
+    let body = &machine.body;
+    states_relation(machine, vacated, stored, omega_psi::PredicateOperator::NotEqual)?;
+    let (root, taken, written) = (structural_formal(body, view)?, scalar_formal(body, vacated)?, scalar_formal(body, stored)?);
+    let (moves, stores) = element_window(body, root)?;
+    let [(first, _), (second, displaced)] = moves[..] else {
+        return Err(format!("expected the vacancy and one displacement, found {moves:?}"));
+    };
+    if (first, second) != (taken, written) {
+        return Err(format!("extractions select {first:?} then {second:?}, expected formals {vacated} then {stored}"));
+    }
+    if !discards(body, displaced) {
+        return Err("the displaced occupied element is never discarded".into());
+    }
+    let selectors: Vec<_> = stores.iter().map(|(selector, _, disposition)| (*selector, (*disposition).clone())).collect();
+    let fill = StructuralStoreDisposition::FillVacancy;
+    if selectors != [(written, fill.clone()), (taken, fill)] {
+        return Err(format!("stores are {selectors:?}, expected fills through formal {stored} then formal {vacated}"));
+    }
+    Ok(())
+}

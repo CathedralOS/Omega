@@ -83,7 +83,7 @@ impl<'a> Comparisons<'a> {
         source: &RankExpression<ValueId>,
         successor: &RankExpression<ValueId>,
     ) -> RankComparison {
-        use RankExpression::{Operand, SaturatingDistance};
+        use RankExpression::{ExactDifference, Operand, SaturatingDistance};
         use RankOperand::Input;
         // Only an input value can carry a step or a guard. A constant
         // operand that differs between source and successor stays pending.
@@ -113,6 +113,30 @@ impl<'a> Comparisons<'a> {
                     RankComparison::Pending
                 }
             }
+            // An exact difference has no floor at zero: wherever the successor
+            // rank is defined, a positive step on one side with the other side
+            // unchanged makes it strictly smaller. Its definedness stays a
+            // checker question on the same subtraction.
+            (
+                ExactDifference {
+                    minuend,
+                    subtrahend: Input(prev),
+                },
+                ExactDifference {
+                    minuend: same,
+                    subtrahend: Input(next),
+                },
+            ) if minuend == same && self.positive_step(*next, *prev, IntegerPrimitive::Add) => RankComparison::Strict,
+            (
+                ExactDifference {
+                    minuend: Input(prev),
+                    subtrahend,
+                },
+                ExactDifference {
+                    minuend: Input(next),
+                    subtrahend: same,
+                },
+            ) if subtrahend == same && self.positive_step(*next, *prev, IntegerPrimitive::Subtract) => RankComparison::Strict,
             _ => RankComparison::Pending,
         }
     }

@@ -33,12 +33,75 @@ pub(super) enum Relation {
     Disjoint,
 }
 
+/// One operand of an authored entry clause that relates two selectors.
+#[derive(Clone, Debug, PartialEq)]
+enum PremiseOperand {
+    /// The entry value of this scalar formal.
+    Formal(ValueId),
+    Integer(num_bigint::BigInt),
+}
+
+/// An entry clause of the form `a == b` or `a != b` over scalar formals and
+/// integer literals, taken from the published `contract.requires`.
+///
+/// Psi fixes a store's disposition before the checker runs, so lowering must
+/// pick an encoding: fill the open vacancy or displace a distinct occupied
+/// element. Such a clause tells lowering which encoding the program means. It
+/// is not a verdict: the clause stays in the published contract, both
+/// selectors stay at their occurrences, and the lowered-form checker must
+/// establish the same relation from that premise
+/// (`wiki/spec/terminal-psi/loans.md#captured-places-and-available-premises`).
+/// Lowering does no premise reasoning beyond this exact clause shape; any other
+/// premise leaves the relation unproved.
+#[derive(Clone, Debug)]
+pub(crate) struct SelectorPremise {
+    left: PremiseOperand,
+    right: PremiseOperand,
+    equal: bool,
+}
+
+/// Collect the selector relations stated directly by `requires` clauses.
+pub(crate) fn selector_premises(
+    requires: &[crate::ContractClause],
+    parameters: &[crate::Parameter],
+) -> Vec<SelectorPremise> {
+    use crate::{Parameter, PredicateOperator, PredicateStep};
+    let operand = |step: &PredicateStep| match step {
+        PredicateStep::Formal(index) => match parameters.get(*index) {
+            Some(Parameter::Scalar(value)) => Some(PremiseOperand::Formal(*value)),
+            _ => None,
+        },
+        PredicateStep::Integer(value) => Some(PremiseOperand::Integer(value.clone())),
+        _ => None,
+    };
+    requires
+        .iter()
+        .filter_map(|clause| {
+            let [left, right, PredicateStep::Apply(operator)] = clause.predicate.as_slice() else {
+                return None;
+            };
+            let equal = match operator {
+                PredicateOperator::Equal => true,
+                PredicateOperator::NotEqual => false,
+                _ => return None,
+            };
+            Some(SelectorPremise {
+                left: operand(left)?,
+                right: operand(right)?,
+                equal,
+            })
+        })
+        .collect()
+}
+
 /// Compare two captured places. View elements match by their evaluated
 /// selector only; each occurrence keeps its own bound obligation and length
 /// observation, so those never decide identity. Distinct literal indices select
-/// disjoint elements. Two unrelated SSA values can select the same element.
+/// disjoint elements. Two unrelated SSA values can select the same element
+/// unless an authored entry clause relates them.
 pub(super) fn relate(
     body: &MachineBody,
+    premises: &[SelectorPremise],
     left: &ProjectedPlace,
     right: &ProjectedPlace,
 ) -> Relation {
@@ -48,7 +111,7 @@ pub(super) fn relate(
     for (a, b) in left.path.iter().zip(&right.path) {
         match (a, b) {
             (PlaceProjection::ViewElement { index: a, .. }, PlaceProjection::ViewElement { index: b, .. }) => {
-                match compare_selectors(body, a.selector, b.selector) {
+                match compare_selectors(body, premises, a.selector, b.selector) {
                     Relation::Same => {}
                     result => return result,
                 }
@@ -64,11 +127,13 @@ pub(super) fn relate(
     }
 }
 
-/// Classify only congruent selectors as the same and unequal literal indices
-/// as disjoint. Every other pair, including selectors that only an authored
-/// premise or arithmetic would relate, stays unproved.
+/// Classify congruent selectors as the same and unequal literal indices as
+/// disjoint. Otherwise an authored entry clause that equates or separates
+/// exactly these two selectors decides; every other pair, including selectors
+/// that only arithmetic or a less direct premise would relate, stays unproved.
 fn compare_selectors(
     body: &MachineBody,
+    premises: &[SelectorPremise],
     left: ValueId,
     right: ValueId,
 ) -> Relation {
@@ -92,7 +157,43 @@ fn compare_selectors(
                 Relation::Disjoint
             }
         }
-        _ => Relation::Unproved,
+        _ => premised(body, premises, left, right),
+    }
+}
+
+/// The relation an authored clause states between these exact selectors.
+/// A formal matches only its own entry value, never a later assignment; a
+/// literal matches only a selector that is that integer constant. Both
+/// selectors must share a scalar type.
+fn premised(
+    body: &MachineBody,
+    premises: &[SelectorPremise],
+    left: ValueId,
+    right: ValueId,
+) -> Relation {
+    if body.values[left.index()].ty != body.values[right.index()].ty {
+        return Relation::Unproved;
+    }
+    let names = |operand: &PremiseOperand, selector: ValueId| match operand {
+        PremiseOperand::Formal(value) => *value == selector,
+        PremiseOperand::Integer(expected) => matches!(
+            &body.values[selector.index()].origin,
+            crate::ValueOrigin::Operation(op)
+                if matches!(&body.operations[op.index()].kind, OperationKind::Constant(crate::ScalarLiteral::Integer(v)) if v == expected)
+        ),
+    };
+    let mut stated = None;
+    for premise in premises {
+        let relates = (names(&premise.left, left) && names(&premise.right, right)) || (names(&premise.left, right) && names(&premise.right, left));
+        // Contradictory clauses leave the store with no single meaning.
+        if relates && stated.replace(premise.equal).is_some_and(|prior| prior != premise.equal) {
+            return Relation::Unproved;
+        }
+    }
+    match stated {
+        Some(true) => Relation::Same,
+        Some(false) => Relation::Disjoint,
+        None => Relation::Unproved,
     }
 }
 

@@ -62,8 +62,9 @@ pub struct SuccessorEdge {
     pub arguments: Vec<ValueId>,
     /// The edge supplies the argument value and its target supplies the fresh parameter at this position.
     pub scalar_qualification_changes: Vec<ScalarQualificationChange>,
-    /// Requests for predicate establishment, not tag changes or proof verdicts.
-    pub predicate_completions: Vec<PredicateCompletion>,
+    /// One row per domain this jump establishes at an argument, each with its own origin.
+    /// An argument with completions has no qualification change; neither is a proof verdict.
+    pub domain_completions: Vec<DomainCompletion>,
     /// Each structural input transfers or copies into its corresponding target parameter.
     pub structural_arguments: Vec<crate::ValueOperand>,
     pub cleanup: Vec<CleanupAction>,
@@ -75,11 +76,23 @@ pub struct CaseSelection {
     pub case:crate::DeclarationId,
 }
 
-/// On this jump, check the argument against the fresh destination parameter at the same ordinal.
+/// On this jump, the fresh destination parameter at `argument_index` gains `domain`,
+/// which its argument lacks. `origin` is that membership's scalar return origin.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PredicateCompletion {
+pub struct DomainCompletion {
     pub argument_index: usize,
     pub domain: crate::DeclarationId,
+    pub origin: CompletionOrigin,
+}
+
+/// The completion origins of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompletionOrigin {
+    /// A predicate-free, route-free tag with no required membership. It owes nothing.
+    Vacuous,
+    /// An unrestricted predicate domain. The destination's block invariant retains the
+    /// predicate, and every arrival owes it; the row itself is not a proof.
+    Proved,
 }
 
 /// The named domain's complete `requires` list with `self` bound to this block parameter.

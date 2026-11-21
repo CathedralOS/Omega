@@ -5,8 +5,10 @@ use omega_psi::{
 };
 
 mod assembly;
+mod domain_completions;
 mod trapping;
 pub use assembly::assembly_branch;
+pub use domain_completions::cast_completions;
 pub use trapping::{DivisionOutcome, observe_byte_division};
 
 /// Every terminal external exit of a body, read from published terminators alone.
@@ -211,8 +213,14 @@ pub use parked_field_reborrows::{ParkedFieldReborrow, parked_field_reborrow};
 
 pub mod product_witness;
 
+mod dependency_call;
+pub use dependency_call::{ReturnedCall, returned_call};
+
 mod theorem_citations;
 pub use theorem_citations::{CitationObligations, theorem_citations};
 
 mod hooked_transfers;
 pub use hooked_transfers::{HookedFieldTransfer, hooked_field_transfers};
+
+mod ranking;
+pub use ranking::{entry_rank, successor_from_call};

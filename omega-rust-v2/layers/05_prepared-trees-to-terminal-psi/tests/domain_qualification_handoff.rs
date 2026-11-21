@@ -308,7 +308,7 @@ fn tag_cast(source: &str, cast: &str, expected: &[(&str, Option<u8>)]) -> (Lower
     assert_eq!(edge.target, arrival.id);
     assert_eq!(edge.arguments, [input]);
     assert_eq!(edge.scalar_qualification_changes, [omega_psi::ScalarQualificationChange { argument_index: 0, direction: omega_psi::QualificationDirection::Add }]);
-    assert!(edge.predicate_completions.is_empty());
+    assert!(edge.domain_completions.is_empty());
     let [dest] = arrival.scalar_parameters[..] else { panic!("expected one destination") };
     assert_eq!(body.values[dest.index()].origin, omega_psi::ValueOrigin::BlockParameter(arrival.id));
     assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == dest));

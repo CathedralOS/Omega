@@ -81,11 +81,8 @@ fn fixed_sample_configurations_through_l5() {
                     .iter()
                     .map(|&path| (dependency.package, path, blob(dependency.directory, path))),
             );
-            admitted.push(omega_resolver::Dependency {
-                requester: pipeline::ROOT,
-                alias: dependency.alias,
-                package: dependency.package,
-            });
+            // A negative control keeps the package's sources and omits or retargets only its edge.
+            admitted.extend(dependency.admitted());
         }
         let sources: Vec<_> = sources
             .iter()
@@ -207,22 +204,83 @@ fn dependency_import_sources(main: &'static [u8]) -> [(&'static str, &'static st
 
 #[test]
 fn a_build_admitted_alias_imports_a_dependency_declaration_and_its_absence_refuses() {
+    use omega_psi::{BlockTerminator, CallTarget, OperationKind, OperationResult, ReturnEdge, ScalarLiteral};
     let [kit] = cases::KIT else { unreachable!() };
-    let edge = omega_resolver::Dependency {
-        requester: pipeline::ROOT,
-        alias: kit.alias,
-        package: kit.package,
-    };
-    let main = include_bytes!("fixtures/dependency_import/main.omg");
+    let edge = kit.admitted().expect("the registered edge");
+    let (_, main) = cases::DEPENDENCY_IMPORT;
     let sources = dependency_import_sources(main);
     let product = pipeline::lower_admitted(&sources, &[edge]).expect("the admitted alias must lower");
-    assert!(
-        cases::Check::DependencyCall.matches(&product),
-        "expected entry to return the call to mod_kernel's other_v"
+
+    // Producer: entry's returned value is a call whose target id is the machine declared as
+    // mod_kernel's other_v. No other package declares a machine with that path.
+    let declared = |path: &str| {
+        product
+            .machines
+            .iter()
+            .filter(|m| m.declaration.path == path)
+            .collect::<Vec<_>>()
+    };
+    let ([entry], [callee]) = (&declared("entry")[..], &declared("other_v")[..]) else {
+        panic!("expected one entry and one other_v machine");
+    };
+    assert_eq!(
+        (entry.declaration.package.as_str(), callee.declaration.package.as_str()),
+        (pipeline::ROOT, kit.package)
     );
-    // The negative twin differs only in the Build admission: without the edge `kit` names nothing.
-    let refusal = pipeline::lower_admitted(&sources, &[]).unwrap_err();
-    assert_eq!(refusal.to_string(), "L2\tmain.omg:3:5\tunavailable import kit\\other_v");
+    let [block] = &entry.body.blocks[..] else { panic!("expected one block") };
+    let BlockTerminator::Return {
+        result: ReturnEdge::Scalar(returned),
+        ..
+    } = block.terminator
+    else {
+        panic!("expected a scalar return");
+    };
+    let call = entry
+        .body
+        .operations
+        .iter()
+        .find(|op| op.result == OperationResult::Scalar(returned))
+        .expect("an operation produces the returned value");
+    spec_corpus::observe_handoff!(
+        psi "psi-output/dependency-call",
+        assert!(matches!(&call.kind, OperationKind::Call { callee: CallTarget::Machine(id), arguments, .. } if *id == callee.id && arguments.is_empty())),
+    );
+
+    // Independent consumer: the Psi-only client follows the same return edge to its callee's package and constant.
+    let seven = ScalarLiteral::Integer(7.into());
+    let expected = psi_handoff_consumer::ReturnedCall {
+        package: kit.package,
+        path: "other_v",
+        arguments: 0,
+        returns: Some(&seven),
+    };
+    assert_eq!(psi_handoff_consumer::returned_call(&product, pipeline::ROOT, "entry"), Ok(expected));
+    assert!(cases::Check::DependencyCall.matches(&product));
+
+    // A changed callee still crosses the edge, but it reaches mod_kernel's v, so the call witness rejects it.
+    let other_callee = dependency_import_sources(b"use kit\\v;\nmachine entry() -> i32 {\n    v()\n}\n");
+    let changed = pipeline::lower_admitted(&other_callee, &[edge]).expect("importing v must lower");
+    let one = ScalarLiteral::Integer(1.into());
+    assert_eq!(
+        psi_handoff_consumer::returned_call(&changed, pipeline::ROOT, "entry"),
+        Ok(psi_handoff_consumer::ReturnedCall {
+            package: kit.package,
+            path: "v",
+            arguments: 0,
+            returns: Some(&one),
+        })
+    );
+    assert!(!cases::Check::DependencyCall.matches(&changed));
+
+    // Negative twins keep every source byte and change only the edge: omitted, or retargeted to the toolchain.
+    for admitted in [cases::KIT_WITHOUT_EDGE, cases::KIT_RETARGETED] {
+        let edges: Vec<_> = admitted.iter().filter_map(cases::Admitted::admitted).collect();
+        let refusal = pipeline::lower_admitted(&sources, &edges).unwrap_err();
+        assert_eq!(refusal.to_string(), cases::UNAVAILABLE_DECLARATION_IMPORT);
+    }
+    let retargeted = cases::KIT_RETARGETED[0].admitted().map(|edge| edge.package);
+    assert_eq!(retargeted, Some(omega_toolchain::TOOLCHAIN_PACKAGE));
+
     // The historical program imports the file name. The admitted edge leaves `kit\other` unbound.
     let historical = b"use kit\\other;\nmachine entry() -> i32 {\n    other_v()\n}\n";
     let refusal = pipeline::lower_admitted(&dependency_import_sources(historical), &[edge]).unwrap_err();
@@ -336,4 +394,20 @@ fn mismatched_expectations_report_where_compilation_actually_stopped() {
     let other_behavior = cases::Expectation::MustLower(cases::Check::EmptyMain).observe(&lowered);
     assert_eq!((other_behavior.actual.stage(), &other_behavior.actual), ("L5", &cases::Actual::Product { witness: Some(false) }));
     assert_eq!(other_behavior.mismatch.as_deref(), Some("produced Psi without the required behavior"));
+}
+
+#[test]
+fn an_unqualified_counter_preserves_the_two_samples_arithmetic_witnesses() {
+    for (source, witness) in [
+        (include_str!("fixtures/cross_width_compare/main.omg"), cases::Check::Comparisons),
+        (include_str!("fixtures/rational_arg_landing/main.omg"), cases::Check::IdentityCalls),
+    ] {
+        // Both pinned sources stop at the same unresolved policy name. Vary only
+        // the counter's qualification to test what each program reaches after lookup.
+        let qualified = "hits: i32 in Wrapping;";
+        assert_eq!(source.matches(qualified).count(), 1);
+        let control = source.replacen(qualified, "hits: i32;", 1);
+        let product = pipeline::lower(&[("main.omg", control.into_bytes())]).unwrap();
+        assert!(witness.matches(&product));
+    }
 }

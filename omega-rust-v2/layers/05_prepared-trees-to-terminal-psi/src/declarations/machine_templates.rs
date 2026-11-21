@@ -720,6 +720,8 @@ fn lower_call<'a>(
 }
 
 /// A scalar field read on a formal record, without a case opening, loan or cleanup.
+/// A field read names the selected field alone, so only that field must be scalar;
+/// an unused array or plain record sibling leaves the operand unchanged.
 fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &TypedSignature, node: usize) -> Option<crate::TemplateOperand> {
     let file = tree.resolved().file;
     let [base] = *file.nodes[node].children.as_slice() else { return None };
@@ -731,7 +733,7 @@ fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &T
         || !file.nodes[base].children.is_empty()
         || typed.cleanups.iter().any(|row| &row.owner == owner.as_ref())
         || typed.data_properties.iter().any(|(id, p)| id == owner.as_ref() && p.multiplicity == omega_typed::Multiplicity::Linear)
-        || !typed.record_fields.get(owner.as_ref())?.iter().all(|f| crate::lowering::types::scalar_carrier(&f.ty).is_ok())
+        || !typed.record_fields.get(owner.as_ref())?.iter().all(|f| discarded_plainly(typed, &f.ty, &mut vec![owner.as_ref()]))
     {
         return None;
     }
@@ -744,6 +746,35 @@ fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &T
             _ => return None,
         }
     }
-    let PredicateStep::Field(field) = contracts::field_segment(prepared, &LoweringTree::plain(tree), node, base, &receiver.ty, field?, leaf?).ok()? else { return None };
+    // `field_segment` checks the leaf against the field's declared carrier.
+    let leaf = leaf.filter(|ty| crate::lowering::types::scalar_carrier(ty).is_ok())?;
+    let PredicateStep::Field(field) = contracts::field_segment(prepared, &LoweringTree::plain(tree), node, base, &receiver.ty, field?, leaf).ok()? else { return None };
     Some(crate::TemplateOperand::RecordField { formal, field })
+}
+
+/// The receiver stays in the formal after a projected read. Keep the operand to
+/// receivers whose every field is dropped by discarding it: a scalar, a fixed
+/// array of such values, or a record without cleanup or a linear declaration
+/// whose fields are dropped the same way. A sibling that owes cleanup, a linear
+/// use, a loan or a case still refuses, as it did before only the selected
+/// field had to be scalar.
+fn discarded_plainly<'a>(typed: &'a omega_typed::TypedTrees<'_>, ty: &'a ValueType, open: &mut Vec<&'a omega_resolved::DeclarationId>) -> bool {
+    match ty {
+        ValueType::Array(element, _) => discarded_plainly(typed, element, open),
+        ValueType::Nominal(id) => {
+            let id = id.as_ref();
+            if open.contains(&id)
+                || typed.cleanups.iter().any(|row| &row.owner == id)
+                || typed.data_properties.iter().any(|(data, p)| data == id && p.multiplicity == omega_typed::Multiplicity::Linear)
+            {
+                return false;
+            }
+            let Some(fields) = typed.record_fields.get(id) else { return false };
+            open.push(id);
+            let plain = fields.iter().all(|f| discarded_plainly(typed, &f.ty, open));
+            open.pop();
+            plain
+        }
+        other => crate::lowering::types::scalar_carrier(other).is_ok(),
+    }
 }

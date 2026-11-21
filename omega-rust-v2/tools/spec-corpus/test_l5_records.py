@@ -48,7 +48,7 @@ def libtest(target, *tests):
 
 
 SAMPLE_LINES = [
-    "OMEGA_EXPECTED\tsample\t12",
+    "OMEGA_EXPECTED\tsample\t15",
     f"OMEGA_SOURCE\thistorical_samples\t{REVISION}",
     "standalone\tpsi\twitness matched",
     "OMEGA_CASE\tsample\tstandalone\tL5\texecutable product inspected\twitness matched",
@@ -82,8 +82,18 @@ SAMPLE_LINES = [
     "OMEGA_CASE\tsample\tfalse-abstract-premise\tL1\tcompatibility blocked\tmain.omg:37:27 expected `;` (bytes 773..777)",
     "OMEGA_SAMPLE_REFUSAL\timport-from-dependency\tL2\troot\tmain.omg\t140\t149\t3\t5\tkit\\other\tunavailable import kit\\other",
     "import-from-dependency\tL2\tmain.omg:3:5\tunavailable import kit\\other",
-    "OMEGA_CASE\tsample\timport-from-dependency\tL2\tcompatibility blocked\tmain.omg:3:5 unavailable import kit\\other",
+    "OMEGA_CASE\tsample\timport-from-dependency\tL2\tintended rejection verified\tmain.omg:3:5 unavailable import kit\\other",
+    "import-from-dependency-v2\tpsi\twitness matched",
+    "OMEGA_CASE\tsample\timport-from-dependency-v2\tL5\texecutable product inspected\twitness matched",
+    "OMEGA_SAMPLE_REFUSAL\tmissing-alias-v2\tL2\troot\tmain.omg\t153\t164\t3\t5\tkit\\other_v\tunavailable import kit\\other_v",
+    "missing-alias-v2\tL2\tmain.omg:3:5\tunavailable import kit\\other_v",
+    "OMEGA_CASE\tsample\tmissing-alias-v2\tL2\tintended rejection verified\tmain.omg:3:5 unavailable import kit\\other_v",
+    "OMEGA_SAMPLE_REFUSAL\tretargeted-alias-v2\tL2\troot\tmain.omg\t153\t164\t3\t5\tkit\\other_v\tunavailable import kit\\other_v",
+    "retargeted-alias-v2\tL2\tmain.omg:3:5\tunavailable import kit\\other_v",
+    "OMEGA_CASE\tsample\tretargeted-alias-v2\tL2\tintended rejection verified\tmain.omg:3:5 unavailable import kit\\other_v",
 ]
+# One case result per configuration in the versioned sample baseline.
+SAMPLE_COUNT = sum(line.startswith("OMEGA_CASE\tsample\t") for line in SAMPLE_LINES)
 
 SPEC_LINES = [
     "OMEGA_INVENTORY\tBorrow,CallPrecondition,OperationContract,VerifyLibraryImplementation,MathematicalFact,Termination,ProveGuarantee",
@@ -144,12 +154,12 @@ class L5RecordTests(unittest.TestCase):
         tests, counts = self.collect(sample(), contracts(), spec())
         self.assertEqual(self.report["measurement_errors"], [])
         self.assertEqual(counts, {"passed": 4, "failed": 1, "ignored": 0})
-        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": SAMPLE_COUNT, "spec": 3})
         self.assertEqual(self.report["cohort_sources"], {"spec_tree_at_head": "f" * 40, "historical_samples": REVISION})
         cases = self.report["cases"]
         self.assertEqual((cases["sample/cross-width"]["target"], cases["sample/cross-width"]["test"]), ("tests\\sample_baseline.rs", SAMPLE_TEST))
         self.assertEqual(cases["sample/cross-width"]["later_layers_not_reached"], ["L3", "L4", "L5"])
-        # Each of the nine printed refusals is attached to its case with its exact bytes and position.
+        # Each of the eleven printed refusals is attached to its case with its exact bytes and position.
         refusals = {key: case["compiler_refusal"] for key, case in cases.items() if "compiler_refusal" in case}
         self.assertEqual({key: (site["stage"], site["package"], site["file"], site["byte_start"], site["byte_end"],
                                 site["line"], site["byte_column"], site["occurrence_form"], site["occurrence"], site["reason"])
@@ -163,6 +173,8 @@ class L5RecordTests(unittest.TestCase):
             "sample/abstract-premise": ("L1", "root", "main.omg", 772, 776, 37, 27, "text", "Trap", "expected `;` (bytes 772..776)"),
             "sample/false-abstract-premise": ("L1", "root", "main.omg", 773, 777, 37, 27, "text", "Trap", "expected `;` (bytes 773..777)"),
             "sample/import-from-dependency": ("L2", "root", "main.omg", 140, 149, 3, 5, "text", "kit\\other", "unavailable import kit\\other"),
+            "sample/missing-alias-v2": ("L2", "root", "main.omg", 153, 164, 3, 5, "text", "kit\\other_v", "unavailable import kit\\other_v"),
+            "sample/retargeted-alias-v2": ("L2", "root", "main.omg", 153, 164, 3, 5, "text", "kit\\other_v", "unavailable import kit\\other_v"),
         })
         self.assertTrue(all(site["after_static_evaluation"] is False for site in refusals.values()))
         self.assertEqual(cases["sample/abstract-premise"]["later_layers_not_reached"], ["L2", "L3", "L4", "L5"])
@@ -211,8 +223,8 @@ class L5RecordTests(unittest.TestCase):
         self.assertEqual(self.report["cases"], {})
         self.assertEqual(self.report["expected"], {})
         self.assertTrue(all(error.startswith("L4: ") for error in self.report["measurement_errors"]))
-        # Twelve case results, nine refusal receipts and the expected count and source identity.
-        self.assertEqual(len(self.report["measurement_errors"]), 23)
+        # Fifteen case results, eleven refusal receipts and the expected count and source identity.
+        self.assertEqual(len(self.report["measurement_errors"]), 28)
 
     def test_duplicate_records_keep_the_first_observation(self):
         repeated = [
@@ -224,14 +236,14 @@ class L5RecordTests(unittest.TestCase):
         self.collect(sample(SAMPLE_LINES + SAMPLE_LINES[:4]), spec(SPEC_LINES + repeated))
         cases = self.report["cases"]
         self.assertEqual(cases["spec/proofs/contracts.md:826"]["status"], "executable product inspected")
-        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": SAMPLE_COUNT, "spec": 3})
         self.assertEqual(self.report["obligations"]["Borrow"], {"proofs/contracts.md:826": 1})
         self.assertNotIn("Move", self.report["obligations"])
         self.assertEqual(self.report["cohort_sources"]["historical_samples"], REVISION)
         self.errors_naming("duplicate result for spec/proofs/contracts.md:826", "duplicate result for sample/standalone",
                            *repeated[1:], *SAMPLE_LINES[:2])
         self.assertEqual(len(self.report["measurement_errors"]), 7)
-        self.assertEqual(sum(row["cohort"] == "sample" for row in cases.values()), 12)
+        self.assertEqual(sum(row["cohort"] == "sample" for row in cases.values()), SAMPLE_COUNT)
 
     def test_unknown_or_malformed_records_are_reported_and_the_rest_preserved(self):
         bad_spec = [
@@ -262,7 +274,7 @@ class L5RecordTests(unittest.TestCase):
         self.errors_naming(*bad_spec, *bad_sample, *bad_fixtures)
         self.assertEqual(len(self.report["measurement_errors"]), len(bad_spec) + len(bad_sample) + len(bad_fixtures))
         self.assertEqual(self.report["cohort_sources"], {"spec_tree_at_head": "f" * 40, "historical_samples": REVISION})
-        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": SAMPLE_COUNT, "spec": 3})
         self.assertEqual(self.report["cases"]["sample/standalone"]["status"], "executable product inspected")
         self.assertEqual(len(self.report["package_fixtures"]), 2)
         self.assertEqual(self.report["obligations"]["VerifyLibraryImplementation"]["language/machine_values.md:44"], 1)
@@ -333,7 +345,7 @@ class SampleRefusalTests(unittest.TestCase):
 
     def test_the_unchanged_receipts_attach_without_errors(self):
         self.assertEqual(self.outcome({}), [])
-        self.assertEqual(sum("compiler_refusal" in row for row in self.report["cases"].values()), 9)
+        self.assertEqual(sum("compiler_refusal" in row for row in self.report["cases"].values()), 11)
 
     def test_a_missing_receipt_is_reported_once(self):
         self.assertEqual(self.outcome({CROSS_RECEIPT: None}), ["sample/cross-width: missing the compiler's original refusal"])
