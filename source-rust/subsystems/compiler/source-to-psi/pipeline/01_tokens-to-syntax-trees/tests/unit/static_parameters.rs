@@ -52,7 +52,7 @@ fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
 }
 
 #[test]
-fn mutable_modifiers_report_the_obsolete_token_in_every_position() {
+fn only_the_current_mutability_modifier_is_accepted() {
     for source in [
         "machine f(mut value: u8) {}",
         "machine f() { let mut local: u8 = 1; }",
@@ -62,11 +62,20 @@ fn mutable_modifiers_report_the_obsolete_token_in_every_position() {
         "machine f(value: @mutable u8) { let loan = value as @mut u8; }",
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).expect_err("short modifier must reject");
+        let error = parse_syntax_trees(&tokens).expect_err("old modifier must reject");
         let span = error.source_span.span;
-        assert_eq!(&source[span.start..span.end], "mut", "{source}");
-        assert!(error.message.contains("`mutable`"), "{source}: {}", error.message);
+        assert!(span.end > span.start, "{source}");
     }
+}
+
+#[test]
+fn an_ordinary_name_can_be_borrowed_after_the_at_sign() {
+    let source = "data mut { value: u8; }
+        machine read(value: @mut) -> u8 { value.value }
+        machine f(mut: mut) -> u8 { read(@mut) }
+        machine g() -> u8 { let mut: mut = mut { value: 3u8 }; read(@mut) }";
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    parse_syntax_trees(&tokens).expect("an ordinary type or value named mut remains usable");
 }
 
 #[test]

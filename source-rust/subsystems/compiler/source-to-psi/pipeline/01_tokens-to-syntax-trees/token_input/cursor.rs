@@ -467,17 +467,12 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn take_binding_mutability(self) -> Result<(bool, Self), ParseError> {
-        let precedes_name = self.peek_semantic(1).is_some_and(|token| {
-            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                || token.punctuation() == Some(PunctuationKind::At)
-        });
-        if !precedes_name {
-            return Ok((false, self));
-        }
-        if self.at_contextual("mut") {
-            return Err(self.error_here("the mutable binding modifier is `mutable`"));
-        }
-        if self.at_contextual("mutable") {
+        if self.at_contextual("mutable")
+            && self.peek_semantic(1).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    || token.punctuation() == Some(PunctuationKind::At)
+            })
+        {
             Ok((true, self.take_contextual("mutable")?))
         } else {
             Ok((false, self))
@@ -485,9 +480,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn take_reference_access(self) -> Result<(ReferenceAccess, Self), ParseError> {
-        if self.at_contextual("mut") {
-            return Err(self.error_here("the mutable reference modifier is `mutable`"));
-        }
         if self.at_contextual("mutable") {
             Ok((ReferenceAccess::Mutable, self.take_contextual("mutable")?))
         } else if self.at_contextual("write") {
