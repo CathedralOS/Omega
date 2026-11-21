@@ -2,7 +2,7 @@
 use physical_recipes::native_entry_bridge::{
     NativeEntryBridgeCode, NativeEntryBridgeError as Error, NativeEntryBridgePlan,
 };
-/// An encoded bridge issued by stage 12 from the selected physical plan.
+/// A bridge encoded from the selected physical plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeEntryBridge<Origin> {
     code: NativeEntryBridgeCode,

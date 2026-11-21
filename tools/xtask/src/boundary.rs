@@ -361,8 +361,7 @@ const AFTER_PREPARATION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -382,8 +381,7 @@ const AFTER_SELECTION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
@@ -410,8 +408,7 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -708,7 +705,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
     "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
@@ -716,17 +713,17 @@ const WORKING_PROGRAM_READERS: &[&str] = &[
 /// cannot give object production access to the target-operation working program.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/validation.rs",
 ];
 const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/lib.rs",
         "mod retained_working_program;",
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments.rs",
         "pub(super) mod retained_source_validation;",
     ),
 ];
@@ -827,12 +824,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     ),
     (
         "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
-        "place_encoded_program",
-        1,
-    ),
-    (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-        "relax_resolved_layout",
+        "resolve_program",
         1,
     ),
     (
@@ -841,7 +833,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs",
         "assemble_fixed_frame_realization",
         1,
     ),
@@ -990,13 +982,13 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         ],
         &[
             "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
+            ("source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));
@@ -1019,11 +1011,11 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
 pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1368,10 +1360,12 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::NATIVE_STAGES[14];
+        let library = linear_pipeline::NATIVE_STAGES[13];
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[7], None, true),
+            (stages[14], stages[12], None, true),
+            (stages[15], stages[12], None, false),
             (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
@@ -1679,10 +1673,10 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image = "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src";
+        let image = "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src";
         assert_eq!(
             backend_execution_plan_read_violations(&root),
-            ["source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image: implementation directory is missing"]
+            ["source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image: implementation directory is missing"]
         );
         let files = [
             (

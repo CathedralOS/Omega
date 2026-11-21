@@ -25,7 +25,7 @@ impl<Context> ResolvedHostedProgram<Context> {
 
 pub fn resolve_hosted_program<Context>(
     encoded: EncodedHostedProgramEntry<Context>,
-) -> Result<crate::ResolvedEntry<ResolvedHostedProgram<Context>>, Diagnostic> {
+) -> Result<ResolvedHostedProgram<Context>, Diagnostic> {
     let (context, entry, imports) = encoded.into_parts();
     let invalid = || {
         Diagnostic::error("hosted entry has a misaligned, overlapping or unresolved fixup field")
@@ -57,11 +57,11 @@ pub fn resolve_hosted_program<Context>(
         }
         previous_end = end;
     }
-    Ok(crate::ResolvedEntry(ResolvedHostedProgram {
+    Ok(ResolvedHostedProgram {
         context,
         entry,
         imports,
-    }))
+    })
 }
 
 pub struct ResolvedPhysicalProgram<Context> {
@@ -84,7 +84,7 @@ impl<Context> ResolvedPhysicalProgram<Context> {
 
 pub fn resolve_physical_program<Context>(
     encoded: EncodedPhysicalEntry<Context>,
-) -> Result<crate::ResolvedEntry<ResolvedPhysicalProgram<Context>>, Diagnostic> {
+) -> Result<ResolvedPhysicalProgram<Context>, Diagnostic> {
     let (context, bridge, switch) = encoded.into_parts();
     switch.validate_bridge(&bridge)?;
     let mut previous_end = 0;
@@ -102,9 +102,9 @@ pub fn resolve_physical_program<Context>(
     }
     let bridge = crate::entry_layout::resolve_native_entry_bridge(bridge)
         .map_err(|error| Diagnostic::error(error.to_string()))?;
-    Ok(crate::ResolvedEntry(ResolvedPhysicalProgram {
+    Ok(ResolvedPhysicalProgram {
         context,
         bridge,
         switch,
-    }))
+    })
 }

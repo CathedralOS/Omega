@@ -226,15 +226,11 @@ pub(crate) fn emit_realization_object(
     let hosted_entry = hosted_entry
         .map(placement::program_entry_layout::resolve_hosted_program)
         .transpose()
-        .map_err(|error| vec![error])?
-        .map(relaxation::retain_fixed_entry)
-        .map(function_layout::place_fixed_entry);
+        .map_err(|error| vec![error])?;
     let physical_entry = physical_entry
         .map(placement::program_entry_layout::resolve_physical_program)
         .transpose()
-        .map_err(|error| vec![error])?
-        .map(relaxation::retain_fixed_entry)
-        .map(function_layout::place_fixed_entry);
+        .map_err(|error| vec![error])?;
     let layouts = encoded.try_map(
         |body| compile_body::layout_encoded_body(body, observation).map_err(root_error),
         |body| body.layout(),
@@ -242,9 +238,9 @@ pub(crate) fn emit_realization_object(
     let runtime_provisions =
         runtime_provisions.map(|runtime| runtime.map_adapters(crate::driver::runtime::foreign_adapters::construct));
     let hosted_entry =
-        hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_placement);
+        hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_layout);
     let physical_entry = physical_entry
-        .map(object_file::program_entry_object::PhysicalProgramObject::from_placement);
+        .map(object_file::program_entry_object::PhysicalProgramObject::from_layout);
     let objects = layouts.try_map(
         |body| compile_body::construct_body_object(body).map_err(root_error),
         |body| body.construct_object(),

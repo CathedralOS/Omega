@@ -17,8 +17,8 @@ const ENCODING: &str = native!("/representations/machine-code/encoding-admission
 const AARCH64: &str =
     native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64");
 const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64");
-pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/image-emission");
-pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
+pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/15_objects-to-image/image-emission");
+pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/15_objects-to-image/native-artifact");
 pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/publication";
@@ -29,6 +29,8 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
         (ENCODING, AARCH64),
         (ENCODING, X86),
+        // Fixed-width entry layouts already contain the final call and relocation fields.
+        (stages[14], stages[12]),
         (
             "source-rust/subsystems/interpreter/host/native-sponsor",
             IMAGE_EMISSION,
@@ -44,7 +46,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         stages[7],
         stages[8],
         stages[9],
-        stages[13],
+        stages[12],
         IMAGE_EMISSION,
     ] {
         readers.push((OBJECT_REPLAY, dependency));

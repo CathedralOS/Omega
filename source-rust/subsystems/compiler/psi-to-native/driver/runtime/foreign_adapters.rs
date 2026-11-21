@@ -5,7 +5,7 @@
 pub(crate) use entry_planning::native_foreign_bridge::PlannedForeignAdapter;
 pub(crate) type EncodedForeignAdapter =
     native_encoding::native_foreign_bridge::EncodedForeignAdapter;
-pub(crate) type PlacedForeignAdapter = function_layout::entry_placement::PlacedForeignAdapter;
+pub(crate) use placement::entry_layout::ResolvedForeignAdapter;
 pub(crate) type ObjectForeignAdapter = object_file::ForeignAdapterObject;
 
 pub(crate) fn plan(
@@ -32,15 +32,13 @@ pub(crate) fn encode(
         .map_err(|reason| format!("foreign runtime adapter physical transport: {reason:?}"))
 }
 
-pub(crate) fn place(adapter: EncodedForeignAdapter) -> Result<PlacedForeignAdapter, String> {
+pub(crate) fn place(adapter: EncodedForeignAdapter) -> Result<ResolvedForeignAdapter, String> {
     placement::entry_layout::resolve_foreign_adapter(adapter)
-        .map(relaxation::retain_fixed_entry)
-        .map(function_layout::place_fixed_entry)
         .map_err(|error| error.to_string())
 }
 
-pub(crate) fn construct(adapter: PlacedForeignAdapter) -> Result<ObjectForeignAdapter, String> {
-    object_file::ForeignAdapterObject::from_placement(adapter)
+pub(crate) fn construct(adapter: ResolvedForeignAdapter) -> Result<ObjectForeignAdapter, String> {
+    object_file::ForeignAdapterObject::from_layout(adapter)
 }
 
 /// Exercise the runtime adapter compiler with the explicit ABI inputs supplied
