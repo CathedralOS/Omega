@@ -269,9 +269,9 @@ pub(super) fn case_fields<'a>(
 
 pub(super) fn check_element_type(
     unit: &LoweredPackage,
-    element: &TypeExpression,
+    element: &[Step],
 ) -> Check<()> {
-    record(unit, &element.0, Selection::WholeInput).map(|_| ())
+    record(unit, element, Selection::WholeInput).map(|_| ())
 }
 
 fn check_clauses(

@@ -62,16 +62,7 @@ pub fn theorem_citations<'a>(
         }
         let mut evidence = Vec::new();
         for (binder, argument) in theorem.binders.iter().zip(&application.arguments) {
-            let (TheoremBinder::Hypothesis(index), TheoremArgument::Citation(declaration)) = (binder, argument) else {
-                return None;
-            };
-            evidence.push((
-                *index,
-                package
-                    .machines
-                    .iter()
-                    .find(|m| &m.declaration == declaration)?,
-            ));
+            evidence.push(root_evidence(package, theorem, binder, argument)?);
         }
         citations.push(CitationObligations {
             theorem,
@@ -82,6 +73,21 @@ pub fn theorem_citations<'a>(
         });
     }
     Some(citations)
+}
+
+/// An application supplies only root hypotheses; nested premises bind within
+/// the contract of their parent.
+fn root_evidence<'a>(
+    package: &'a LoweredPackage,
+    theorem: &LogicalTheorem,
+    binder: &TheoremBinder,
+    argument: &TheoremArgument,
+) -> Option<(usize, &'a LoweredMachine)> {
+    let (TheoremBinder::Hypothesis(index), TheoremArgument::Citation(declaration)) = (binder, argument) else { return None };
+    if theorem.hypotheses.get(*index)?.parent.is_some() {
+        return None;
+    }
+    Some((*index, package.machines.iter().find(|m| &m.declaration == declaration)?))
 }
 
 /// What a checker must do at one machine citation inside a theorem proof.
@@ -176,9 +182,7 @@ fn proof_citations<'a>(
                 }
                 let mut evidence = Vec::new();
                 for (binder, argument) in callee.binders.iter().zip(arguments) {
-                    let (TheoremBinder::Hypothesis(index), TheoremArgument::Citation(machine)) = (binder, argument) else { return None };
-                    callee.hypotheses.get(*index)?;
-                    evidence.push((*index, package.machines.iter().find(|m| &m.declaration == machine)?));
+                    evidence.push(root_evidence(package, callee, binder, argument)?);
                 }
                 nested.push(NestedCitation { theorem: callee, subjects: resolved, evidence, owed: &callee.requires, imported: &callee.ensures });
                 bound.push(None);

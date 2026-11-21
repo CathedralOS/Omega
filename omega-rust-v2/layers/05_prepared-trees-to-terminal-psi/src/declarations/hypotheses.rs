@@ -15,17 +15,31 @@ use omega_prepared::PreparedTrees;
 use omega_resolved::{DeclarationId, Symbol};
 use omega_syntax::NodeKind;
 use omega_typed::{CallUse, NodeSemantics, ObligationKind, Site, TypedSignature, TypedTree, ValueType};
+use std::collections::HashMap;
 
-/// One hypothesis of the theorem being lowered, with its syntax node and the
-/// generic slot of the `machine` binder that alone supplies it.
+/// The site that introduces the evidence for a universal premise.
+#[derive(Clone, Copy)]
+enum Introduction {
+    TheoremBinder(usize),
+    EnclosingHypothesis(usize),
+}
+
+/// A checked hypothesis and the location of its declaration within this theorem.
 #[derive(Clone, Copy)]
 pub(crate) struct Bound<'a> {
     typed: &'a omega_typed::LogicalHypothesis,
     pub(super) node: usize,
-    binder: usize,
+    introduction: Introduction,
 }
 
 impl<'a> Bound<'a> {
+    fn parent(self) -> Option<usize> {
+        match self.introduction {
+            Introduction::TheoremBinder(_) => None,
+            Introduction::EnclosingHypothesis(parent) => Some(parent),
+        }
+    }
+
     pub(super) fn result(&self) -> Option<&'a ValueType> {
         (self.typed.result != ValueType::NoResult).then_some(&self.typed.result)
     }
@@ -79,6 +93,12 @@ pub(crate) fn header(
         ));
     }
 
+    let mut records = HashMap::new();
+    for record in typed.logical_hypotheses.iter().filter(|record| record.owner == sig.machine) {
+        if records.insert(&record.site, record).is_some() {
+            return Err(LoweringError::new(&record.site, "duplicate checked hypothesis at the same occurrence"));
+        }
+    }
     let mut found = Vec::new();
     for &child in &file.nodes[node].children {
         match file.nodes[child].kind {
@@ -86,10 +106,7 @@ pub(crate) fn header(
             NodeKind::Terminates if file.nodes[child].children.is_empty() => {}
             NodeKind::Hypothesis => {
                 let site = site_at(tree, child);
-                let hypothesis = typed
-                    .logical_hypotheses
-                    .iter()
-                    .find(|h| h.site == site && h.owner == sig.machine && h.parent.is_none())
+                let hypothesis = records.remove(&site).filter(|row| row.parent.is_none())
                     .ok_or_else(|| LoweringError::new(&site, "logical hypothesis has no checked theorem record"))?;
                 found.push((hypothesis, child, None));
             }
@@ -125,10 +142,14 @@ pub(crate) fn header(
         };
         binders.push(binder);
     }
-    let bounds = found
+    let mut bounds = found
         .into_iter()
         .map(|(typed, node, binder)| {
-            binder.map(|binder| Bound { typed, node, binder }).ok_or_else(|| {
+            binder.map(|slot| Bound {
+                typed,
+                node,
+                introduction: Introduction::TheoremBinder(slot),
+            }).ok_or_else(|| {
                 let mut site = typed.site.clone();
                 if let Some(name) = file.nodes[node].binder_name() {
                     site.span = name.span;
@@ -141,6 +162,30 @@ pub(crate) fn header(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    // Append children in source order. The existing root slots remain stable,
+    // and every parent precedes its children at arbitrary nesting depth.
+    let mut parent = 0;
+    while let Some(bound) = bounds.get(parent).copied() {
+        for &child in &file.nodes[bound.node].children {
+            if file.nodes[child].kind == NodeKind::Hypothesis {
+                let site = site_at(tree, child);
+                let record = records
+                    .remove(&site)
+                    .filter(|row| row.parent.as_ref() == Some(&bound.typed.site))
+                    .ok_or_else(|| LoweringError::new(&site, "nested hypothesis disagrees with its checked parent"))?;
+                bounds.push(Bound {
+                    typed: record,
+                    node: child,
+                    introduction: Introduction::EnclosingHypothesis(parent),
+                });
+            }
+        }
+        parent += 1;
+    }
+    if !records.is_empty() {
+        return Err(refuse("checked hypothesis has no declaration in its theorem"));
+    }
+
     let plain = LoweringTree::plain(tree);
     let mut hypotheses = Vec::with_capacity(bounds.len());
     for (index, bound) in bounds.iter().enumerate() {
@@ -150,7 +195,7 @@ pub(crate) fn header(
         let (mut premises, mut conclusions) = (Vec::new(), Vec::new());
         for &part in &file.nodes[bound.node].children {
             let (clauses, expected) = match file.nodes[part].kind {
-                NodeKind::Params => continue,
+                NodeKind::Params | NodeKind::Hypothesis => continue,
                 NodeKind::Result if result.is_none() && hypothesis.result != ValueType::NoResult => {
                     result = Some(logical_type(&hypothesis.result, &site_at(tree, part))?);
                     continue;
@@ -191,6 +236,7 @@ pub(crate) fn header(
             })
             .collect::<Result<_, _>>()?;
         hypotheses.push(crate::LogicalHypothesis {
+            parent: bound.parent(),
             site: hypothesis.site.clone(),
             parameters,
             result,
@@ -431,8 +477,29 @@ pub(super) fn strict_fact(
     })
 }
 
-/// Proof formals are identified by their binding and exact checked logical type,
-/// not by whether their carrier is supported as a runtime contract operand.
+/// Walk outward from the clause's directly enclosing hypothesis.
+fn lexical_scope<'a>(bounds: &'a [Bound<'_>], slot: Option<usize>) -> impl Iterator<Item = usize> + 'a {
+    std::iter::successors(slot, |index| bounds[*index].parent())
+}
+
+/// Resolve a formal by its binding occurrence, including enclosing hypotheses.
+pub(super) fn scoped_parameter<'a>(
+    bounds: &[Bound<'a>],
+    slot: Option<usize>,
+    span: &crate::SourceSpan,
+) -> Option<(usize, usize, &'a ValueType)> {
+    lexical_scope(bounds, slot).find_map(|hypothesis| {
+        bounds[hypothesis]
+            .typed
+            .parameters
+            .iter()
+            .enumerate()
+            .find(|(_, (name, _))| name == span)
+            .map(|(index, (_, carrier))| (hypothesis, index, carrier))
+    })
+}
+
+/// Proof formals are identified by their binding and exact checked logical type.
 pub(super) fn parameter(
     owner: ClauseOwner<'_>,
     tree: &LoweringTree<'_>,
@@ -444,22 +511,16 @@ pub(super) fn parameter(
     };
     let Some(Symbol::Binding {
         span,
-        binder_node,
         kind: NodeKind::Param,
         ..
     }) = tree.resolved().symbol(node)
     else {
         return None;
     };
-    let matches = |(name, carrier): &_| name == span && carrier == ty;
-    if let Some(hypothesis) = local {
-        let bound = bounds.get(hypothesis)?;
-        if (bound.node..tree.resolved().file.nodes[bound.node].end).contains(binder_node) {
-            let index = bound.typed.parameters.iter().position(matches)?;
-            return Some(PredicateStep::HypothesisParameter { hypothesis, index });
-        }
+    if let Some((hypothesis, index, carrier)) = scoped_parameter(bounds, local, span) {
+        return (carrier == ty).then_some(PredicateStep::HypothesisParameter { hypothesis, index });
     }
-    theorem.parameters.iter().position(matches).map(PredicateStep::Formal)
+    theorem.parameters.iter().position(|(name, carrier)| name == span && carrier == ty).map(PredicateStep::Formal)
 }
 
 /// `Step::ensures(subjects)` applies the hypothesis's conclusions at exact
@@ -482,7 +543,7 @@ pub(super) fn guarantee<'o>(
     };
     let site = site_at(tree, node);
     let refuse = |reason: &str| LoweringError::new(&site, reason);
-    let ClauseOwner::Theorem(theorem, bounds, _) = owner else {
+    let ClauseOwner::Theorem(theorem, bounds, local) = owner else {
         return Err(refuse("a logical guarantee projection requires its theorem's hypotheses"));
     };
     let hypothesis = bounds
@@ -494,12 +555,12 @@ pub(super) fn guarantee<'o>(
     let [callee, args] = *file.nodes[node].children.as_slice() else {
         return Err(refuse("logical guarantee projection has no callee and subjects"));
     };
-    let names = [
-        file.nodes[bound.node].binder_name().map(|name| name.span),
-        file.generic_parameters(theorem.node.node)
-            .nth(bound.binder)
-            .map(|(name, _, _)| name.span),
-    ];
+    let external_binder = match bound.introduction {
+        Introduction::TheoremBinder(slot) => file.generic_parameters(theorem.node.node).nth(slot).map(|(name, _, _)| name.span),
+        Introduction::EnclosingHypothesis(parent) if lexical_scope(bounds, local).any(|scope| scope == parent) => None,
+        Introduction::EnclosingHypothesis(_) => return Err(refuse("logical guarantee projection escapes its enclosing hypothesis")),
+    };
+    let names = [file.nodes[bound.node].binder_name().map(|name| name.span), external_binder];
     if !matches!(tree.resolved().symbol(callee), Some(Symbol::StaticMember { binder, member }) if member == "ensures" && names.contains(&Some(*binder))) {
         return Err(refuse("logical guarantee projection disagrees with its hypothesis binder"));
     }

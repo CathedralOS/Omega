@@ -202,13 +202,16 @@ pub fn check_selected_policy_call<'a>(
     let fields = storage::case_fields(constructor.unit(), &issuance.ty, &issuance.declaration)?;
     let empty_field = match (fields.as_slice(), issuance.fields.as_slice(), payload) {
         ([], [], []) => None,
-        ([(required, ty)], [(field, TemplateOperand::Step(0))], [TemplateStep::Array(array)])
+        ([(required, ty)], [(field, operand)], steps)
             if *required == field
-                && ty == &array.ty
-                && array.elements.is_empty()
-                && matches!(ty.0.split_last(), Some((Step::Slice, element)) if element == array.element.0) =>
+                && let Some((Step::Slice, element)) = ty.0.split_last() =>
         {
-            storage::check_element_type(constructor.unit(), &array.element)?;
+            match (operand, steps) {
+                (TemplateOperand::Zero(zero), []) if zero == ty => {}
+                (TemplateOperand::Step(0), [TemplateStep::Array(array)]) if &array.ty == ty && array.elements.is_empty() && array.element.0 == element => {}
+                _ => return Err("unsupported issuance payload or incorrect field ownership"),
+            }
+            storage::check_element_type(constructor.unit(), element)?;
             Some(field)
         }
         _ => return Err("unsupported issuance payload or incorrect field ownership"),
