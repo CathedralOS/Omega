@@ -50,6 +50,7 @@ mod nominal_applications;
 mod numeric_contracts;
 mod places;
 mod predicates;
+mod provider_methods;
 mod provider_selections;
 mod providers;
 mod rankings;
