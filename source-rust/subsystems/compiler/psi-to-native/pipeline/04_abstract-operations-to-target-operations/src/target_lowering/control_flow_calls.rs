@@ -1800,17 +1800,26 @@ pub(crate) mod calls {
         if argument.path.is_empty()
             && declaration.access == argument.access
             && let Some(source) = parameters_by_place.get(&argument.place)
-            && declaration.access.admits(source.access)
+            && declaration.access.admits_referent(source.access)
             && source.structural_type == declaration.structural_type
             && let Some(pointer) = types.get(source.structural_type).and_then(|ty| {
-                calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, argument.access)
+                calling_conventions::terminal_layout::opaque_borrow_transport(
+                    &ty.shape,
+                    argument.access,
+                )
             })
-            && source.shape == pointer && destination.shape == pointer
+            && source.shape == pointer
+            && destination.shape == pointer
         {
             return super::borrowed_calls::direct_referent(
-                argument, declaration, destination, source.structural_type,
-                source.placement.clone().into(), types,
-            ).ok_or(LoweringError::UnknownStructuralType(source.structural_type));
+                argument,
+                declaration,
+                destination,
+                source.structural_type,
+                source.placement.clone().into(),
+                types,
+            )
+            .ok_or(LoweringError::UnknownStructuralType(source.structural_type));
         }
         if live.structural_homes.contains_key(&argument.place) {
             return super::borrowed_calls::argument(
