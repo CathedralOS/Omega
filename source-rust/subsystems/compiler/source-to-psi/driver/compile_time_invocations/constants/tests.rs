@@ -119,6 +119,55 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
 }
 
 #[test]
+fn a_closed_arithmetic_extent_settles_at_its_original_array() {
+    let source = |expression: &str| {
+        typed_source(&format!(
+            "machine read(bytes: @[u8; {expression}]) -> u8 {{ bytes[3u64] }}"
+        ))
+    };
+    let mut program = source("3u64 + 1u64");
+    let reader = program.realized_machine_named("read").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let values = evaluate_const_arguments(
+        &mut program,
+        request(&[reader]),
+        None,
+        None,
+        &mut accounting,
+    )
+    .unwrap();
+    let [input] = values.as_slice() else {
+        panic!("the written addition is one input")
+    };
+    assert!(matches!(input.value, PreparedValue::StaticArgument { owner, .. } if owner == reader));
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(program.deferred_refusal(reader).is_none());
+    assert!(
+        program
+            .type_reference_table
+            .type_reference_rows()
+            .any(|(_, ty)| matches!(
+                ty,
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Literal(4),
+                    ..
+                }
+            ))
+    );
+    let mut invalid = source("18446744073709551615u64 + 1u64");
+    let reader = invalid.realized_machine_named("read").unwrap().symbol;
+    let failure = evaluate_const_arguments(
+        &mut invalid,
+        request(&[reader]),
+        None,
+        None,
+        &mut Default::default(),
+    )
+    .expect_err("an exact addition outside its u64 carrier cannot supply an extent");
+    assert!(diagnostics::join_messages(&failure).contains("computed array extent"));
+}
+
+#[test]
 fn only_a_reader_of_an_array_requests_its_extent() {
     let base = typed_source(
         "const WIDTH: u64 = 4u64; const UNUSED: u64 = 4u64;
