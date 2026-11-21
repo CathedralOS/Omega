@@ -25,6 +25,11 @@ pub enum CoreVocabulary {
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
+    /// The proof-only meaning, format type and two IEEE format constants.
+    FloatMeaning,
+    FloatFormat,
+    FloatBinary32,
+    FloatBinary64,
     OpaqueRepresentation,
     PrivateCallbackSlot,
     FixedLayoutPlan,
@@ -264,6 +269,30 @@ const ROWS: &[CoreVocabularyRow] = &[
         "FilesystemNamespaceMutation",
         BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
+    ),
+    row(
+        "float_meaning.omg",
+        "FloatMeaning",
+        BundledFile::CoreFloatMeaning,
+        CoreVocabulary::FloatMeaning,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatFormat,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat::BINARY32",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatBinary32,
+    ),
+    row(
+        "float_format.omg",
+        "FloatFormat::BINARY64",
+        BundledFile::CoreFloatFormat,
+        CoreVocabulary::FloatBinary64,
     ),
     row(
         "never.omg",

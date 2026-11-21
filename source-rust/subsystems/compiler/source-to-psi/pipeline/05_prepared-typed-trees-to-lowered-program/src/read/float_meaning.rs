@@ -1,0 +1,408 @@
+//! Read structural equality of the proof-only IEEE meanings. Operands keep
+//! their scalar sources; neither an IEEE comparison nor equality of raw bits
+//! denotes this proposition.
+
+use crate::lowering::{Unserved, refuse};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use crate::source_state::signature::SignatureContractKind;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use language_core::core_vocabulary::CoreVocabulary;
+use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
+use numerics::float_projection::FloatProjectionOperation;
+use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind as Kind};
+use semantic_vocabulary::{
+    FloatMeaningClause, FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
+    FloatMeaningSlot as Slot, IeeeFloatFormat as Format, IntegerType, MachineId, Proposition,
+    ScalarType,
+};
+use symbols::{FixedCoreDeclaration, SymbolHandle};
+use terminal_check_tables::{Checked, Construct, Refusal};
+
+use super::{Program, clause_calls::callee_scope, contracts::ClauseScope};
+
+fn unavailable(id: MachineId, detail: &'static str) -> Refusal {
+    refuse(id, Construct::Machine, Unserved::Contract(detail))
+}
+
+fn intern(id: MachineId, values: &mut Vec<Value>, value: Value) -> Checked<Slot> {
+    let position = values
+        .iter()
+        .position(|known| *known == value)
+        .unwrap_or_else(|| {
+            let position = values.len();
+            values.push(value);
+            position
+        });
+    u32::try_from(position)
+        .map(Slot)
+        .map_err(|_| unavailable(id, "too many float meaning rows"))
+}
+
+impl Program<'_> {
+    pub(super) fn float_meaning_identity(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let mut values = Vec::new();
+        let left = self.meaning_term(id, scope, left, &mut values, None)?;
+        let right = self.meaning_term(id, scope, right, &mut values, None)?;
+        let clause = FloatMeaningClause {
+            values,
+            left: left.min(right),
+            right: left.max(right),
+        };
+        clause
+            .validate()
+            .map_err(|detail| unavailable(id, detail))?;
+        Ok(Proposition::FloatMeaningEqual(clause))
+    }
+
+    fn meaning_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        term: ExpressionHandle,
+        values: &mut Vec<Value>,
+        result: Option<Slot>,
+    ) -> Checked<Slot> {
+        let typed = self.typed;
+        if !typed.expression_table.expression_is_valid(term) {
+            return Err(unavailable(id, "missing float meaning subject"));
+        }
+        let call = match typed.expression_table.expression(term) {
+            ExpressionNode::Name(name)
+                if name.reserved_result_of.is_valid() && !name.static_application.is_valid() =>
+            {
+                self.require_result_owner(id, scope, name.reserved_result_of)?;
+                return result.ok_or_else(|| {
+                    unavailable(id, "float meaning result outside its return clause")
+                });
+            }
+            ExpressionNode::Call(call) => call,
+            _ => {
+                return Err(unavailable(
+                    id,
+                    "float meaning without a projection or semantic application",
+                ));
+            }
+        };
+        let machine = self.clause_call_machine(id, call)?;
+        let selected = typed.symbols.sealed_intrinsic(machine);
+        if matches!(
+            selected,
+            Some(SealedIntrinsic::CompilerPrimitive(
+                CompilerPrimitive::FloatProjection | CompilerPrimitive::FloatSemantics
+            ))
+        ) {
+            let (definition, entry) = self.declaration(id, machine)?;
+            if definition.supply_mode != source_declarations::MachineSupplyMode::CompilerProvided
+                || definition.body_is_present
+                || (call.target_symbol != machine && call.target_symbol != entry.symbol)
+                || self
+                    .meaning_type(entry.return_type)
+                    .and_then(|ty| typed.core_vocabulary(ty))
+                    != Some(CoreVocabulary::FloatMeaning)
+            {
+                return Err(unavailable(
+                    id,
+                    "float meaning call does not select its canonical declaration",
+                ));
+            }
+        }
+        match selected {
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatProjection)) => {
+                let name = typed.symbols.display_path(machine, "::");
+                let projection = name
+                    .rsplit_once("::")
+                    .and_then(|(namespace, leaf)| {
+                        FloatProjectionOperation::from_source_identity(namespace, leaf)
+                    })
+                    .ok_or_else(|| {
+                        unavailable(id, "float projection outside its sealed catalog")
+                    })?;
+                let [argument] = typed.expression_table.expression_handles(call.arguments) else {
+                    return Err(unavailable(id, "float projection without its one operand"));
+                };
+                let expected = ScalarType::IeeeFloat(match projection {
+                    FloatProjectionOperation::Meaning32 => Format::Binary32,
+                    FloatProjectionOperation::Meaning64 => Format::Binary64,
+                });
+                let (_, entry) = self.declaration(id, machine)?;
+                let parameters = typed.state_parameters(entry);
+                let Some([parameter]) = parameters.as_array() else {
+                    return Err(unavailable(
+                        id,
+                        "float projection without its one declared parameter",
+                    ));
+                };
+                let declared = self
+                    .meaning_type(parameter.type_reference)
+                    .and_then(|ty| typed.symbols.builtin_type_atom(ty));
+                if parameter.is_mutable
+                    || parameter.is_const
+                    || !matches!(
+                        (expected, declared),
+                        (
+                            ScalarType::IeeeFloat(Format::Binary32),
+                            Some(symbols::BuiltinTypeAtom::F32)
+                        ) | (
+                            ScalarType::IeeeFloat(Format::Binary64),
+                            Some(symbols::BuiltinTypeAtom::F64)
+                        )
+                    )
+                {
+                    return Err(unavailable(
+                        id,
+                        "float projection changes its declared source carrier",
+                    ));
+                }
+                let (source, supplied) = self.term(id, scope, *argument, Some(expected))?;
+                if supplied.scalar() != Some(expected) {
+                    return Err(unavailable(
+                        id,
+                        "float projection changes its source carrier",
+                    ));
+                }
+                self.admitted_declarations.include(machine);
+                intern(
+                    id,
+                    values,
+                    Value::Projection {
+                        source,
+                        contract: projection.contract_identity(),
+                    },
+                )
+            }
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatSemantics)) => {
+                self.meaning_application(id, scope, machine, call, values, result)
+            }
+            None => self.unfold_meaning(id, scope, call, values),
+            _ => Err(unavailable(
+                id,
+                "float meaning call selects a different sealed operation",
+            )),
+        }
+    }
+
+    fn meaning_type(&self, reference: TypeReferenceHandle) -> Option<SymbolHandle> {
+        if !self.typed.contains_type_reference(reference) {
+            return None;
+        }
+        match self.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            _ => None,
+        }
+    }
+
+    fn meaning_application(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        machine: SymbolHandle,
+        call: &TableCallExpression,
+        values: &mut Vec<Value>,
+        result: Option<Slot>,
+    ) -> Checked<Slot> {
+        let typed = self.typed;
+        let (declaration, entry) = self.declaration(id, machine)?;
+        let args = typed.expression_table.expression_handles(call.arguments);
+        let parameters = typed.state_parameters(entry);
+        if parameters.len() != args.len()
+            || self
+                .meaning_type(entry.return_type)
+                .and_then(|ty| typed.core_vocabulary(ty))
+                != Some(CoreVocabulary::FloatMeaning)
+        {
+            return Err(unavailable(id, "incomplete float semantic signature"));
+        }
+        let mut kinds = Vec::with_capacity(args.len());
+        let mut operands = Vec::with_capacity(args.len());
+        let mut declared_format = None;
+        let mut projected_format = None;
+        for (parameter, &argument) in parameters.iter().zip(args) {
+            if !typed.expression_table.expression_is_valid(argument)
+                || parameter.is_const
+                || parameter.is_mutable
+            {
+                return Err(unavailable(
+                    id,
+                    "float semantic application changes its value parameter",
+                ));
+            }
+            let ty = self
+                .meaning_type(parameter.type_reference)
+                .ok_or_else(|| unavailable(id, "unknown float semantic parameter type"))?;
+            let (kind, operand) = match typed.core_vocabulary(ty) {
+                Some(CoreVocabulary::FloatFormat) => {
+                    let ExpressionNode::Name(name) = typed.expression_table.expression(argument)
+                    else {
+                        return Err(unavailable(
+                            id,
+                            "float semantic format without its selected constant",
+                        ));
+                    };
+                    let format = match typed.core_vocabulary(name.symbol) {
+                        Some(CoreVocabulary::FloatBinary32) => Format::Binary32,
+                        Some(CoreVocabulary::FloatBinary64) => Format::Binary64,
+                        _ => {
+                            return Err(unavailable(
+                                id,
+                                "float semantic format outside the admitted core constants",
+                            ));
+                        }
+                    };
+                    declared_format = Some(format);
+                    (Kind::Format, Operand::Format(format))
+                }
+                Some(CoreVocabulary::FloatMeaning) => {
+                    let slot = self.meaning_term(id, scope, argument, values, result)?;
+                    projected_format = projected_format.or(values[slot.0 as usize].format());
+                    (Kind::Meaning, Operand::Meaning(slot))
+                }
+                _ => {
+                    let carrier = typed
+                        .symbols
+                        .builtin_type_atom(ty)
+                        .and_then(|t| t.fixed_integer())
+                        .ok_or_else(|| unavailable(id, "unknown float semantic integer carrier"))?;
+                    let expected =
+                        ScalarType::Integer(IntegerType::from_fixed(carrier).ok_or_else(|| {
+                            unavailable(id, "unknown float semantic fixed carrier")
+                        })?);
+                    let (term, supplied) = self.term(id, scope, argument, Some(expected))?;
+                    if supplied.scalar() != Some(expected) {
+                        return Err(unavailable(
+                            id,
+                            "float semantic integer operand changes carrier",
+                        ));
+                    }
+                    (Kind::Integer(carrier), Operand::Integer(term))
+                }
+            };
+            kinds.push(kind);
+            operands.push(operand);
+        }
+        let name = typed.symbols.display_path(declaration.symbol, "::");
+        let operation = name
+            .rsplit_once("::")
+            .and_then(|(namespace, leaf)| {
+                FloatSemanticOperation::from_source_identity(namespace, leaf, &kinds, Kind::Meaning)
+            })
+            .ok_or_else(|| {
+                unavailable(
+                    id,
+                    "float meaning application outside its sealed catalog signature",
+                )
+            })?;
+        let format = declared_format
+            .or(projected_format)
+            .ok_or_else(|| unavailable(id, "float meaning application without a precision"))?;
+        self.admitted_declarations.include(machine);
+        intern(
+            id,
+            values,
+            Value::Application {
+                contract: operation.contract_identity(),
+                format,
+                operands,
+            },
+        )
+    }
+
+    /// A pure wrapper may supply the same proof value. Read its actual body
+    /// and check each published result identity under the argument binding.
+    fn unfold_meaning(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &TableCallExpression,
+        values: &mut Vec<Value>,
+    ) -> Checked<Slot> {
+        let unfolded = self.unfold_as(id, scope, call, |program, declaration, state| {
+            let typed = program.typed;
+            if program
+                .meaning_type(state.return_type)
+                .and_then(|symbol| typed.core_vocabulary(symbol))
+                != Some(CoreVocabulary::FloatMeaning)
+            {
+                return Err(unavailable(
+                    id,
+                    "float meaning call returns a different declared type",
+                ));
+            }
+            let mut guarantees = Vec::new();
+            for (owner, contracts) in [
+                (declaration.symbol, typed.machine_contracts(declaration)),
+                (state.symbol, typed.state_contracts(state)),
+            ] {
+                for contract in contracts {
+                    if contract.kind != SignatureContractKind::Ensures || contract.binding.is_some()
+                    {
+                        return Err(unavailable(
+                            id,
+                            "float meaning call has an unserved requirement or guarantee",
+                        ));
+                    }
+                    for fact in super::span(
+                        |span| typed.proof_facts.span(span),
+                        contract.facts,
+                        id,
+                        "float meaning guarantees",
+                    )? {
+                        guarantees.push((owner, program.fact(id, fact)?));
+                    }
+                }
+            }
+            Ok(guarantees)
+        })?;
+        let (slot, _) =
+            self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
+                let mut nested = callee_scope(&unfolded.bound, unfolded.machine);
+                let body = program.meaning_term(id, &nested, unfolded.body, values, None)?;
+                for (owner, expression) in unfolded.result {
+                    let typed = program.typed;
+                    let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+                    else {
+                        return Err(unavailable(
+                            id,
+                            "float meaning wrapper has an unserved guarantee",
+                        ));
+                    };
+                    if typed
+                        .symbols
+                        .fixed_core_declaration_for_symbol(call.target_symbol)
+                        != Some(FixedCoreDeclaration::Identity)
+                    {
+                        return Err(unavailable(
+                            id,
+                            "float meaning guarantee has no exact identity",
+                        ));
+                    }
+                    nested.owner = owner;
+                    nested.formal_fields = true;
+                    let (ty, [left, right], _) =
+                        program.identity_inputs(id, &nested, expression, call)?;
+                    if typed.core_vocabulary(ty) != Some(CoreVocabulary::FloatMeaning) {
+                        return Err(unavailable(
+                            id,
+                            "float meaning guarantee changes its subject type",
+                        ));
+                    }
+                    let left = program.meaning_term(id, &nested, left, values, Some(body))?;
+                    let right = program.meaning_term(id, &nested, right, values, Some(body))?;
+                    if left != right {
+                        return Err(unavailable(
+                            id,
+                            "float meaning wrapper does not establish its result identity",
+                        ));
+                    }
+                }
+                Ok(body)
+            })?;
+        self.retain_call_arguments(id, unfolded.bound)?;
+        Ok(slot)
+    }
+}

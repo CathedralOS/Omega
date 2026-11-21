@@ -42,6 +42,7 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
+mod float_meaning;
 mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;

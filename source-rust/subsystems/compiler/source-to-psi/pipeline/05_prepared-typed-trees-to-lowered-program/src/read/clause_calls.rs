@@ -40,11 +40,11 @@ use crate::lowering::{Unserved, refuse};
 
 /// A called machine prepared for unfolding: its parameter bindings, its body
 /// expression and its declared result.
-struct Unfolded {
-    machine: SymbolHandle,
-    bound: Vec<(SymbolHandle, ScalarTerm)>,
-    body: crate::source_state::expression::ExpressionHandle,
-    result: ScalarType,
+pub(super) struct Unfolded<R> {
+    pub(super) machine: SymbolHandle,
+    pub(super) bound: Vec<(SymbolHandle, ScalarTerm)>,
+    pub(super) body: crate::source_state::expression::ExpressionHandle,
+    pub(super) result: R,
 }
 
 /// A scalar term forms all its operands. Track substitutions during its
@@ -120,7 +120,7 @@ impl Program<'_> {
     /// Read `body` with `machine` marked as being unfolded, refusing a
     /// machine that is already being unfolded: a recursive predicate has no
     /// finite unfolding.
-    fn within_unfolding<T>(
+    pub(super) fn within_unfolding<T>(
         &mut self,
         id: MachineId,
         machine: SymbolHandle,
@@ -174,9 +174,31 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
-    ) -> Checked<Unfolded> {
+    ) -> Checked<Unfolded<ScalarType>> {
+        self.unfold_as(id, scope, call, |program, declaration, state| {
+            let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+            if !declaration.contracts.is_empty() || !state.contracts.is_empty() {
+                return unserved("called machine in a clause is not a closed, contract-free body");
+            }
+            let Some(result) = program
+                .result_type(id, state.return_type)?
+                .filter(|result| result.qualification() == Qualification::NONE)
+                .and_then(|result| result.scalar())
+            else {
+                return unserved("called machine in a clause has no plain scalar result");
+            };
+            Ok(result)
+        })
+    }
+
+    pub(super) fn clause_call_machine(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+    ) -> Checked<SymbolHandle> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if call.receiver.is_valid()
+            || call.runtime_call.is_some()
             || !call.evidence_arguments.is_empty()
             || call.requirement_application.is_valid()
             || call.exact_coercion_target.is_valid()
@@ -214,6 +236,23 @@ impl Program<'_> {
             call.authored_machine_application,
             &call.machine_arguments,
         )?;
+        Ok(machine)
+    }
+
+    pub(super) fn unfold_as<R>(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &TableCallExpression,
+        result: impl FnOnce(
+            &mut Self,
+            &crate::source_state::machine::Machine,
+            &crate::source_state::state::State,
+        ) -> Checked<R>,
+    ) -> Checked<Unfolded<R>> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let target = call.target_symbol;
+        let machine = self.clause_call_machine(id, call)?;
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
         if target != machine && target != state.symbol {
@@ -230,11 +269,10 @@ impl Program<'_> {
             || declaration.suspends
             || declaration.blocks
             || !declaration.type_parameters.is_empty()
-            || !declaration.contracts.is_empty()
-            || !state.contracts.is_empty()
         {
             return unserved("called machine in a clause is not a closed, contract-free body");
         }
+        let result = result(self, declaration, state)?;
         // The body's one value: a trailing expression, or the unconditional
         // value transition stage 02 writes for a body that is only a value.
         let body = match typed.statement_table.statements(state.statement_nodes) {
@@ -253,13 +291,6 @@ impl Program<'_> {
                 }
             }
             _ => return unserved("called machine in a clause is not one value expression"),
-        };
-        let Some(result) = self
-            .result_type(id, state.return_type)?
-            .filter(|result| result.qualification() == Qualification::NONE)
-            .and_then(|result| result.scalar())
-        else {
-            return unserved("called machine in a clause has no plain scalar result");
         };
         let parameters = typed.state_parameters(state);
         let arguments = typed.expression_table.expression_handles(call.arguments);
@@ -295,7 +326,7 @@ impl Program<'_> {
 
 /// The scope the callee's body is read in: its parameters, each bound to the
 /// caller's argument term, and nothing of the caller's own names.
-fn callee_scope<'b>(
+pub(super) fn callee_scope<'b>(
     bound: &'b [(SymbolHandle, ScalarTerm)],
     owner: SymbolHandle,
 ) -> ClauseScope<'b> {
