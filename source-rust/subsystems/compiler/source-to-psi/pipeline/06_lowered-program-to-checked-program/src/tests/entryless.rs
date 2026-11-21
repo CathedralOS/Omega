@@ -134,6 +134,35 @@ fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
 }
 
 #[test]
+fn transparent_data_aliases_cannot_erase_a_parameter_property() {
+    let declarations = "data Ticket [linear] { value: u32; }
+                        public data CopyOnly<T [copy]> = u32;
+                        public data LinearOnly<T [linear]> = u32;";
+    let accepted = format!(
+        "{declarations}
+                           public data A = CopyOnly<u32>;
+                           public data B = LinearOnly<Ticket>;"
+    );
+    let result = judged(&accepted, false);
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+    for (application, required) in [
+        ("CopyOnly<Ticket>", "[copy]"),
+        ("LinearOnly<u32>", "[linear]"),
+    ] {
+        let source = format!("{declarations} public data Invalid = {application};");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("the property required by {application} was erased");
+        };
+        assert!(
+            error
+                .message
+                .ends_with(&format!("the binder requires `{required}`")),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);

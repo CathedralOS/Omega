@@ -1868,6 +1868,10 @@ pub(crate) fn close_typed_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
+    crate::type_reference::alias_uses::check_applications(
+        &lowerer.typed_trees,
+        cohort.typed_type_references,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::typing::runtime_callables::bind_calls(

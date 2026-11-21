@@ -529,22 +529,15 @@ pub(crate) mod alias_uses {
                     ));
                 }
             };
-        // A selected dependency can be absent from the live package roots.
-        // Its retained declaration still owns the argument telescope and span.
-        let alias = source
-            .type_aliases
-            .retained_records()
-            .find(|alias| alias.symbol == declaration)
-            .ok_or_else(|| {
-                Diagnostic::error("type alias application lost its declaration")
-                    .with_source_span(reference)
-            })?;
         let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
+            if source.symbols.source_map().is_some() {
+                return None;
+            }
             source
-                .symbols
-                .source_map()
-                .is_none()
-                .then(|| alias.name.source_span())
+                .type_aliases
+                .retained_records()
+                .find(|alias| alias.symbol == declaration)
+                .map(|alias| alias.name.source_span())
         });
         if source.symbols.get(declaration).kind != symbols::SymbolKind::TypeAlias
             || selected_source != Some(declaration_source)
@@ -553,27 +546,6 @@ pub(crate) mod alias_uses {
                 "type alias application does not rejoin its selected source declaration",
             )
             .with_source_span(reference));
-        }
-        let formals = source.data_type_parameters(alias.type_parameters);
-        let actuals = target.type_reference_table.type_reference_handles(arguments);
-        if actuals.len() != formals.len()
-            || lifetime_arguments.len() != alias.lifetime_parameters.len()
-        {
-            return Err(
-                Diagnostic::error("type alias application does not supply its declared arguments")
-                    .with_source_span(reference),
-            );
-        }
-        for (index, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
-            if matches!(formal.kind, resolved::data::TypeParameterKind::Type)
-                && target.type_argument_names_value(*actual)
-            {
-                return Err(Diagnostic::error(format!(
-                    "type alias argument {} requires a type but was supplied a value",
-                    index + 1
-                ))
-                .with_source_span(reference));
-            }
         }
         let supplied_operand_owner = target
             .type_reference_table
@@ -592,6 +564,67 @@ pub(crate) mod alias_uses {
             },
         );
         Ok(instance)
+    }
+
+    /// Substitution may erase an argument from the result entirely. Judge the
+    /// retained application once the cohort has complete type declarations.
+    pub(crate) fn check_applications(
+        program: &typed::TypedTrees,
+        completed_references: usize,
+    ) -> Result<(), Diagnostic> {
+        use typed_trees::static_operand_binding::{Stop, type_argument_meets_bounds};
+        let aliases = program.type_aliases();
+        for application in program
+            .type_reference_table
+            .type_alias_applications_after(completed_references)
+        {
+            let site = application.reference;
+            let alias = aliases
+                .iter()
+                .find(|alias| alias.symbol == application.declaration)
+                .ok_or_else(|| {
+                    crate::unavailable_judgment("selected type alias declaration")
+                        .with_source_span(site)
+                })?;
+            let formals = program
+                .data_type_parameters
+                .span(alias.type_parameters)
+                .ok_or_else(|| {
+                    crate::unavailable_judgment("declared type alias parameters").with_source_span(site)
+                })?;
+            let actuals = program
+                .type_reference_table
+                .type_reference_handles(application.arguments);
+            if actuals.len() != formals.len()
+                || application.lifetime_arguments.len() != alias.lifetime_parameters.len()
+            {
+                return Err(Diagnostic::error(
+                    "type alias application does not supply its declared arguments",
+                )
+                .with_source_span(site));
+            }
+            for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
+                if formal.kind != typed::data::TypeParameterKind::Type {
+                    continue;
+                }
+                if program.type_argument_names_value(*actual) {
+                    return Err(Diagnostic::error(format!(
+                        "type alias argument {} requires a type but was supplied a value",
+                        position + 1
+                    ))
+                    .with_source_span(site));
+                }
+                type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
+                    match stop {
+                        Stop::Rejected(reason) => Diagnostic::error(reason),
+                        Stop::Unserved(reason) => crate::unavailable_judgment(&reason),
+                        Stop::Defect(reason) => crate::unavailable_judgment(reason),
+                    }
+                    .with_source_span(site)
+                })?;
+            }
+        }
+        Ok(())
     }
 }
 pub(crate) mod arithmetic_results {

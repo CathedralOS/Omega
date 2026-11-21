@@ -527,7 +527,7 @@ fn named_static_record(
 /// the uses to that closed check. A `carry` bound has no judgment against a
 /// supplied type yet, so the application is refused, as the other
 /// application paths refuse it.
-fn type_argument_meets_bounds(
+pub fn type_argument_meets_bounds(
     program: &TypedTrees,
     binder: &crate::source_state::data::TypeParameter,
     reference: TypeReferenceHandle,

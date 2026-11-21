@@ -886,7 +886,7 @@ impl Program<'_> {
         &mut self,
         alias: &crate::source_state::type_aliases::TypeAliasDefinition,
     ) -> Checked<()> {
-        use crate::source_state::data::{DataProperties, TypeParameterKind};
+        use crate::source_state::data::TypeParameterKind;
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
         let typed = self.typed;
         let parameters = typed
@@ -901,7 +901,7 @@ impl Program<'_> {
             })?;
         if parameters.iter().any(|parameter| {
             parameter.kind != TypeParameterKind::Type
-                || parameter.bounds != DataProperties::default()
+                || parameter.bounds.carry.is_some()
                 || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
         }) || !alias.lifetime_parameters.is_empty()
