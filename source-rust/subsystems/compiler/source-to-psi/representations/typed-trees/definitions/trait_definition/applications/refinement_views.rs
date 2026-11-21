@@ -34,7 +34,7 @@ impl<'program> AppliedTraitScope<'program> {
             .collect()
     }
 
-    pub(crate) fn callable_contract_key(
+    pub fn callable_contract_key(
         &self,
         program: &TypedTrees,
     ) -> Option<(

@@ -33,6 +33,10 @@ use source_text::SourceSpan;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum RequirementHeaderOrigin {
     Declared(SymbolHandle),
+    AppliedService {
+        requirement: SymbolHandle,
+        receiver: (SymbolHandle, crate::source_state::type_identity::NormalizedTypeIdentity),
+    },
     CallableParameter(SymbolHandle),
 }
 
@@ -1075,7 +1079,8 @@ impl<'t> Program<'t> {
             .iter()
             .filter_map(|(origin, machine)| match origin {
                 RequirementHeaderOrigin::Declared(declaration) => Some((*declaration, *machine)),
-                RequirementHeaderOrigin::CallableParameter(_) => None,
+                RequirementHeaderOrigin::CallableParameter(_)
+                | RequirementHeaderOrigin::AppliedService { .. } => None,
             })
     }
 
@@ -1090,6 +1095,58 @@ impl<'t> Program<'t> {
         self.requirement_form(
             RequirementHeaderOrigin::Declared(declared.symbol),
             declared,
+            RequirementValues::Rigid,
+        )
+    }
+
+    /// A generic body calls the applied public contract, with its own binders
+    /// still rigid. Different receiving contracts must have distinct headers.
+    pub(super) fn applied_service_requirement(
+        &mut self,
+        caller: MachineId,
+        target: SymbolHandle,
+        scope: &crate::source_state::trait_definition::AppliedTraitScope<'t>,
+    ) -> Checked<MachineId> {
+        let refused = |what| refuse(caller, Construct::Machine, Unserved::Call(what));
+        let (owner, declared) = self
+            .typed
+            .trait_machine_signature(target)
+            .filter(|(owner, signature)| {
+                owner.is_boundary
+                    && signature.symbol == target
+                    && signature.type_parameters.is_empty()
+                    && signature.lifetime_parameters.is_empty()
+            })
+            .ok_or_else(|| refused("open service call needs its exact declared method"))?;
+        if crate::source_state::boundary_completions::boundary_requirement_completion(
+            self.typed, target,
+        ) != semantic_vocabulary::BoundaryCompletion::NormalReturn
+        {
+            return Err(refused(
+                "open service call requires its declared completion",
+            ));
+        }
+        let receiving = scope
+            .declaring_scope(self.typed, owner.symbol)
+            .ok_or_else(|| refused("open service call names another declaring receiver"))?;
+        let receiver = receiving
+            .callable_contract_key(self.typed)
+            .ok_or_else(|| refused("open service call lost its complete receiving contract"))?;
+        let header = self
+            .typed
+            .applied_callable_signature(&receiving, target)
+            .or_else(|| {
+                receiving
+                    .keeps_declared_signatures(self.typed)
+                    .then_some(declared)
+            })
+            .ok_or_else(|| refused("open service call lost its applied requirement header"))?;
+        self.requirement_form(
+            RequirementHeaderOrigin::AppliedService {
+                requirement: target,
+                receiver,
+            },
+            header,
             RequirementValues::Rigid,
         )
     }
@@ -1130,6 +1187,7 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let symbol = match origin {
             RequirementHeaderOrigin::Declared(symbol)
+            | RequirementHeaderOrigin::AppliedService { requirement: symbol, .. }
             | RequirementHeaderOrigin::CallableParameter(symbol) => symbol,
         };
         let (arguments, parameters) = match values {

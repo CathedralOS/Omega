@@ -835,6 +835,7 @@ impl<'t> Program<'t> {
                     self.node(id, call.receiver)?,
                     ExpressionNode::Name(path) if self.names_requirement(call.target_symbol, path.symbol)
                 ));
+        let mut abstract_service = None;
         if call.requirement_application.is_valid() && named.is_none() {
             if !self
                 .typed
@@ -858,7 +859,15 @@ impl<'t> Program<'t> {
                         Unserved::Call("requirement call lost its declaring application"),
                     )
                 })?;
-            if !self
+            if (self.rigid || self.alternative.is_some())
+                && self.checking_generic_entry(id)
+                && self.typed.closed_requirement_application(call.target_symbol).is_none()
+                && !call.build_selection.is_valid()
+            {
+                self.visible_to(id, call.target_symbol)?;
+                abstract_service =
+                    Some(self.applied_service_requirement(id, call.target_symbol, &scope)?);
+            } else if !self
                 .typed
                 .requirement_application_matches_contract_scope(call.target_symbol, &scope)
             {
@@ -875,7 +884,9 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        let mut read = if let Some(selected) = named {
+        let mut read = if let Some(header) = abstract_service {
+            self.call_of(id, slots, (header.into(), None), arguments, source, expected)?
+        } else if let Some(selected) = named {
             self.named_call(
                 id,
                 slots,
