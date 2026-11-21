@@ -511,7 +511,14 @@ pub fn open_products(
                         };
                         // A Build-host occurrence can carry different accepted bindings in different
                         // deployment sections even when its target and host are the same.
-                        let mut cache = Vec::new();
+                        let mut cache = services::HandoffCache::default();
+                        if root.evaluated().configuration.product_selection_requests.iter().any(|request| {
+                            request.target.is_some_and(|selected| selected.canonical_name() == target.target_name())
+                                && request.composition == Some(semantic_vocabulary::source_selections::CompositionMode::Independent)
+                        })
+                        {
+                            cache.components = Some((target, BTreeMap::new()));
+                        }
                         let consent = accepted
                             .map(|policy| policy.root_permissions())
                             .transpose()
@@ -524,6 +531,10 @@ pub fn open_products(
                                 &mut cache,
                             )
                             .map_err(|failure| error(failure.into()))?;
+                        let planned = match cache.components {
+                            Some((_, suppliers)) => planned.with_component_suppliers(suppliers),
+                            None => planned,
+                        };
                         Ok(Rc::new(match consent {
                             Some(consent) => planned.with_runtime_consents(vec![consent]),
                             None => planned,

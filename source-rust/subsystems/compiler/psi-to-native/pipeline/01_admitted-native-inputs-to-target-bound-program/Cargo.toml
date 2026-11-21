@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+component-description = { path = "../../verification/component-description" }
 target-bound-program = { path = "../../representations/target-bound-program" }
 behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
 optimization-core = { path = "../../representations/optimization-records" }

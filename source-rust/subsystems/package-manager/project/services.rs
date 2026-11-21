@@ -154,7 +154,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             &settled.build,
             request.purpose,
             self.host.profile,
-            &mut Vec::new(),
+            &mut HandoffCache::default(),
         )?;
         Ok(ProductQueryDependency {
             alias,
@@ -227,7 +227,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             &settled.build,
             purpose,
             profile,
-            &mut Vec::new(),
+            &mut HandoffCache::default(),
         )?;
         let provider = product
             .product_stage(&[profile])?
@@ -259,6 +259,15 @@ impl SourceHost<'_, '_> {
     }
 }
 
+#[derive(Default)]
+pub(super) struct HandoffCache {
+    handoffs: Vec<PackageBuildHandoff>,
+    pub(super) components: Option<(
+        target::TargetProfile,
+        BTreeMap<semantic_vocabulary::PackageKeyIdentity, project_build::PlannedProduct>,
+    )>,
+}
+
 impl HandoffSources<'_> {
     /// Recursively form each package/purpose/target handoff once from that dependency's
     /// original Build return and the handoffs of its own dependencies.
@@ -267,7 +276,7 @@ impl HandoffSources<'_> {
         settled: &project_build::SettledDependency,
         purpose: DependencyPurpose,
         target: target::TargetProfile,
-        cache: &mut Vec<PackageBuildHandoff>,
+        cache: &mut HandoffCache,
     ) -> Result<project_build::PlannedProduct, CompileFailure> {
         let inputs = settled
             .inputs()
@@ -290,7 +299,7 @@ impl HandoffSources<'_> {
                 DependencyPurpose::Product => target,
                 DependencyPurpose::Build => self.profile,
             };
-            if let Some(handoff) = cache.iter().find(|bundle| {
+            if let Some(handoff) = cache.handoffs.iter().find(|bundle| {
                 bundle.package() == package
                     && bundle.purpose() == purpose
                     && bundle.target() == deployment
@@ -305,7 +314,13 @@ impl HandoffSources<'_> {
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
             let product = self.dependency_product(&child.build, purpose, deployment, cache)?;
             let bundle = product.build_handoff(deployment)?;
-            cache.push(bundle.clone());
+            if purpose == DependencyPurpose::Product
+                && let Some((selected, products)) = &mut cache.components
+                && *selected == deployment
+            {
+                products.insert(package, product);
+            }
+            cache.handoffs.push(bundle.clone());
             bundles.push(bundle);
         }
         let inputs = inputs

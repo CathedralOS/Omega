@@ -580,7 +580,9 @@ impl<A> NativeRuntimePlan<A> {
     /// A physical adapter can have a different machine ID from the semantic entry.
     pub fn matches_retained_program(&self, program: &crate::RetainedTerminalArtifact) -> bool {
         let proposal = program.native_realization_proposal();
-        let entry = proposal.program_entry();
+        let Some(entry) = proposal.program_entry() else {
+            return false;
+        };
         let checked = entry.checked_entry();
         let physical = entry
             .physical_adapter()
@@ -670,7 +672,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             .map_or(checked.terminal_entry(), |adapter| adapter.machine());
         let scope = input.require_native_providers(providers, native.bindings)?;
         let selected = providers.selection();
-        if scope.checked_entry() != checked
+        if scope.checked_entry() != Some(checked)
             || scope.reach().entry() != native_entry
             || scope.reach().target_context().target() != target_slot.owner.target_name()
             || scope.reach().target_context().terminal_psi() != checked.terminal_psi_identity()

@@ -30,10 +30,7 @@ pub mod component_inputs;
 pub use target_bound_program::entry_settlement;
 pub mod native_proposal;
 pub mod settlement;
-pub use component_inputs::{
-    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-    RetainedComponentNativeInputs,
-};
+pub use component_inputs::{AdmittedNativeComponentCall, ComponentImport};
 pub use target_bound_program::ScopedProviderSelection;
 mod runtime_input;
 pub mod runtime_provisions;
@@ -46,7 +43,8 @@ pub use entry_settlement::{
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use native_proposal::{
-    RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
+    NativeRootNomination, RetainedTerminalArtifact, TerminalNativeProposalRequest,
+    TerminalNativeRealizationProposal,
 };
 pub use provider_admission::{
     InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,

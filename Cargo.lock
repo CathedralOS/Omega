@@ -103,6 +103,7 @@ dependencies = [
  "build-time-values",
  "build-value-projection",
  "calling-conventions",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
@@ -1522,6 +1523,7 @@ dependencies = [
  "boundary-applications",
  "bounded-process",
  "calling-conventions",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "encoding-admission",
@@ -1555,6 +1557,7 @@ dependencies = [
  "provider-correspondence",
  "provider-demand",
  "provider-plans",
+ "provider-stack-contribution",
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
@@ -1579,6 +1582,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "verified-optimization-input",
+ "wire",
 ]
 
 [[package]]
@@ -3421,6 +3425,7 @@ dependencies = [
  "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-publication-records",
  "psi-target-layouts",
  "selected-provider-plans",

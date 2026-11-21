@@ -42,6 +42,7 @@ impl ProductStage<'_> {
             let prepare = || {
                 let program = Program::CheckedSource {
                     publication: suite.compile(test, target)?,
+                    suppliers: self.product,
                     runtime_consent: self.runtime_consent(profile)?,
                     target: self.native_target(profile, assumptions.to_vec())?,
                 };

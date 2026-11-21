@@ -763,6 +763,7 @@ fn check_callback_publication(retain_body_source: bool) {
         native_artifact::NativeImageProviders::from_admission(providers, &fixture.selected)
             .expect("retain provider evidence for the admitted root");
     let requested = native_artifact::ProgramImageInput {
+        components: Vec::new(),
         terminal: Arc::clone(artifact),
         published,
         image: image_emission::ExecutableImageEmissionRequest::direct(3),

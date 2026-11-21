@@ -132,6 +132,13 @@ pub fn close_providers(
         .map_err(|error| vec![Diagnostic::error(error.diagnostic(module))])?;
         let mut next = Vec::new();
         for provider in selected.providers() {
+            // A receiving compilation reaches the independent requirement. Its supplier
+            // closes the implementation in the supplier's own artifact.
+            if provider.choice.composition_mode
+                == semantic_vocabulary::source_selections::CompositionMode::Independent
+            {
+                continue;
+            }
             for row in &provider.rows {
                 for &position in &row.candidate_positions {
                     let candidate = &module.interfaces.provider_candidates[position];

@@ -36,6 +36,10 @@ pub(super) fn plan_published_target_execution(
     bindings: &[CallableBoundaryImplementation],
     review: Option<provider_demand::PackageReviewRequirements>,
     has_bound_applications: bool,
+    components: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        std::sync::Arc<component_description::VerifiedComponent>,
+    >,
 ) -> Result<SelectedExecution, NativeProgramPlanningError> {
     let artifact = std::sync::Arc::clone(origins.artifact());
     // An inspection or package review can select providers without an executable entry.
@@ -47,13 +51,19 @@ pub(super) fn plan_published_target_execution(
         has_bound_applications,
     );
     let module = artifact.semantic_module();
-    let (inputs, review) = crate::provider_execution_inputs::plan_inputs_and_review(
+    let (mut inputs, review) = crate::provider_execution_inputs::plan_inputs_and_review(
         origins,
         target,
         logical.requirements(),
         review,
     )
     .map_err(NativeProgramPlanningError::Admission)?;
+    if !components.is_empty() {
+        inputs.components = Some(crate::target_supply::PublishedComponentSuppliers {
+            receiver: std::sync::Arc::clone(&artifact),
+            suppliers: components,
+        });
+    }
     let selected = plan_target_execution(module, target, logical, bindings, inputs)?
         .with_folded_entry_reach(folded_entry);
     Ok(match review {

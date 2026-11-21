@@ -238,7 +238,7 @@ fn private_entry_requires_the_target_of_its_parent() {
     assert_ne!(republished.identity(), x64.authorization().identity());
     let proposal = x64.native_realization_proposal();
     let providers = proposal.providers();
-    let mut entry = proposal.program_entry().clone();
+    let mut entry = proposal.program_entry().unwrap().clone();
     assert_eq!(
         entry
             .bind_physical_adapter(
@@ -260,7 +260,7 @@ fn private_entry_requires_the_target_of_its_parent() {
         x64.native_realization_proposal(),
         &parent,
         republished.artifact(),
-        x64.native_realization_proposal().target_program_entry(),
+        x64.native_realization_proposal().root_callable(),
     )
     .err()
     .expect("the private entry must use the publication authorized by its parent");
@@ -275,7 +275,7 @@ fn private_entry_requires_the_target_of_its_parent() {
         arm64.native_realization_proposal(),
         &parent,
         x64.artifact(),
-        x64.native_realization_proposal().target_program_entry(),
+        x64.native_realization_proposal().root_callable(),
     )
     .err()
     .expect("the x64 parent cannot supply layouts for an Arm64 entry");
@@ -670,7 +670,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
 fn root_and_private_callable_enforce_the_selected_process_exit() {
     use artifact_lowering::{
         RetainedNativeProviderInputs, admit_prepared_native_realization, lower_native_callable,
-        lower_native_execution, prepare_native_providers,
+        test_support::{lower_native_execution, prepare_native_providers},
     };
     use provider_realization::native_execution::{BoundNativeCallable, prepare_program};
 
