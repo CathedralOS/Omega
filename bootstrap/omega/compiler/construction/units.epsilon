@@ -4,6 +4,7 @@ data OmegaConstructionUnit {
     machine_count: i32;
     state_count: i32;
     parameter_count: i32;
+    root_parameters: i32;
     data_count: i32;
     field_count: i32;
     case_count: i32;
@@ -36,6 +37,12 @@ data OmegaConstructionState {
 data OmegaConstructionDirectory {
     states: [OmegaConstructionState; 16384];
     state_first: i32;
+    // Root parameters have permanent argument homes across files. For larger
+    // packages the remaining parameter slots describe only the loaded file.
+    compact_parameters: i32;
+    unit_root_parameters: i32;
+    max_nested_parameters: i32;
+    parameter_rows: [i32; 16384];
     // The field, payload field and parameter each own a disjoint range of 16384 rows.
     arrays: [OmegaConstructionArray; 49152];
     machines: [OmegaConstructionDeclaration; 4096];
@@ -53,6 +60,9 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     self.construction.total.machine_count = 0;
     self.construction.total.state_count = 0;
     self.construction.total.parameter_count = 0;
+    self.construction.total.root_parameters = 0;
+    self.construction.max_nested_parameters = 0;
+    self.construction.compact_parameters = 0;
     self.construction.total.data_count = 0;
     self.construction.total.field_count = 0;
     self.construction.total.case_count = 0;
@@ -70,6 +80,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     }
     state parse(unit: i32, eligible: i32) {
         self.parser.reset_syntax();
+        self.construction.unit_root_parameters = 0;
         self.parser.unit_index = unit;
         self.parser.retain_unit_namespace(source, unit, self.parser.sources.units[unit].path);
         transition self.parser.status {
@@ -90,8 +101,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
             (self.parser.data_member_count <= 16384 - self.construction.total.field_count - self.construction.total.case_count) &&
             (self.parser.data_payload_field_count <= 16384 - self.construction.total.payload_count) &&
             (self.parser.machine_count <= 4096 - self.construction.total.machine_count) &&
-            (self.parser.machine_state_count <= 16384 - self.construction.total.state_count) &&
-            (self.parser.machine_parameter_count <= 16384 - self.construction.total.parameter_count) {
+            (self.parser.machine_state_count <= 16384 - self.construction.total.state_count) {
             true -> data_item(unit, 0)
             _ -> units(unit + 1, 0)
         }
@@ -199,6 +209,13 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         self.construction.states[global].block_bound = row.block_bound;
         self.construction.states[global].crash_bound = row.crash_bound;
         self.construction.states[global].name_start = row.name.start;
+        transition row.lexical_parent < 0 {
+            true -> root_parameters(unit, index, row.parameter_count)
+            _ -> state_item(unit, index + 1)
+        }
+    }
+    state root_parameters(unit: i32, index: i32, count: i32) {
+        self.construction.unit_root_parameters = self.construction.unit_root_parameters + count;
         transition true { true -> state_item(unit, index + 1) }
     }
     state machine_item(unit: i32, local: i32) {
@@ -243,11 +260,21 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         self.construction.total.case_count = self.construction.total.case_count + self.parser.data_case_count;
         self.construction.total.payload_count = self.construction.total.payload_count + self.parser.data_payload_field_count;
         self.construction.total.parameter_count = self.construction.total.parameter_count + self.parser.machine_parameter_count;
+        self.construction.total.root_parameters = self.construction.total.root_parameters + self.construction.unit_root_parameters;
+        let nested: i32 = self.parser.machine_parameter_count - self.construction.unit_root_parameters;
+        transition nested > self.construction.max_nested_parameters {
+            true -> largest_unit(unit, nested)
+            _ -> units(unit + 1, 1)
+        }
+    }
+    state largest_unit(unit: i32, count: i32) {
+        self.construction.max_nested_parameters = count;
         transition true { true -> units(unit + 1, 1) }
     }
     state finish(eligible: i32) {
         transition (eligible == 1) && (self.construction.total.machine_count > 0) &&
-            (self.entry_unit >= 0) && (self.entry_unit < self.parser.sources.unit_count) {
+            (self.entry_unit >= 0) && (self.entry_unit < self.parser.sources.unit_count) &&
+            (self.construction.total.root_parameters <= 16384 - self.construction.max_nested_parameters) {
             true -> install()
             _ -> pooled()
         }
@@ -256,6 +283,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state install() {
         self.parser.reset_syntax();
         self.construction.active = 1;
+        self.construction.compact_parameters = self.construction.total.parameter_count > 16384;
         self.parser.root_count = self.construction.total.machine_count + self.construction.total.data_count;
         self.parser.data_count = self.construction.total.data_count;
         self.parser.machine_count = self.construction.total.machine_count;
@@ -287,7 +315,7 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.construction.unit_end = end.machine_count;
     self.parser.machine_count = first.machine_count;
     self.construction.state_first = first.state_count;
-    self.parser.machine_parameter_count = first.parameter_count;
+    self.parser.machine_parameter_count = self.parameter_row_base(first.parameter_count);
     self.parser.data_count = first.data_count;
     self.parser.data_field_count = first.field_count;
     self.parser.data_member_count = first.field_count + first.case_count;
@@ -296,7 +324,7 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.parser.unit_index = unit;
     self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
     transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count - first.state_count) &&
-        (self.parser.machine_parameter_count == end.parameter_count) && (self.parser.data_count == end.data_count) &&
+        (self.parser.machine_parameter_count == self.parameter_row_base(first.parameter_count) + end.parameter_count - first.parameter_count) && (self.parser.data_count == end.data_count) &&
         (self.parser.data_field_count == end.field_count) && (self.parser.data_case_count == end.case_count) &&
         (self.parser.data_payload_field_count == end.payload_count) {
         true -> machine_states(first.machine_count)
@@ -317,7 +345,7 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     state state_links(row: i32) {
         transition row < self.parser.machine_state_count {
             true -> state_end(row)
-            _ -> expose_signatures()
+            _ -> parameter_layout()
         }
     }
     state state_end(row: i32) {
@@ -331,14 +359,49 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
         self.parser.machine_states[row].lexical_parent = self.construction.state_first + self.parser.machine_states[row].lexical_parent;
         transition true { true -> state_links(row + 1) }
     }
+    state parameter_layout() {
+        transition self.construction.compact_parameters {
+            1 -> parameter_state(0, self.construction.units[unit].root_parameters, self.construction.total.root_parameters)
+            _ -> expose_signatures()
+        }
+    }
+    state parameter_state(row: i32, root: i32, nested: i32) {
+        transition row < self.parser.machine_state_count {
+            true -> parameter_owner(row, root, nested, self.parser.machine_states[row])
+            _ -> expose_signatures()
+        }
+    }
+    state parameter_owner(row: i32, root: i32, nested: i32, state_row: OmegaMachineStateSyntax) {
+        transition state_row.lexical_parent < 0 {
+            true -> parameter_range(row, root + state_row.parameter_count, nested, root, state_row)
+            _ -> parameter_range(row, root, nested + state_row.parameter_count, nested, state_row)
+        }
+    }
+    state parameter_range(row: i32, root: i32, nested: i32, slot: i32, state_row: OmegaMachineStateSyntax) {
+        self.construction.states[self.construction.state_first + row].first_parameter = slot;
+        self.parser.machine_states[row].first_parameter = slot;
+        transition true { true -> parameter_row(row, root, nested, slot, state_row.first_parameter, state_row.parameter_count) }
+    }
+    state parameter_row(row: i32, root: i32, nested: i32, slot: i32, syntax: i32, count: i32) {
+        transition count > 0 {
+            true -> bind_parameter(row, root, nested, slot, syntax, count)
+            _ -> parameter_state(row + 1, root, nested)
+        }
+    }
+    state bind_parameter(row: i32, root: i32, nested: i32, slot: i32, syntax: i32, count: i32) {
+        self.construction.parameter_rows[slot] = syntax;
+        transition true { true -> parameter_row(row, root, nested, slot + 1, syntax + 1, count - 1) }
+    }
+
     state expose_signatures() {
         self.parser.machine_count = self.construction.total.machine_count;
-        self.parser.machine_parameter_count = self.construction.total.parameter_count;
         self.parser.data_count = self.construction.total.data_count;
         self.parser.data_field_count = self.construction.total.field_count;
         self.parser.data_case_count = self.construction.total.case_count;
         self.parser.data_payload_field_count = self.construction.total.payload_count;
+        transition self.construction.compact_parameters { 1 -> return _ -> all_parameters() }
     }
+    state all_parameters() { self.parser.machine_parameter_count = self.construction.total.parameter_count; }
     state internal() { self.parser.status = OmegaParserStatus::InternalFailure; }
 }
 
@@ -490,5 +553,41 @@ machine OmegaScalarCompiler::state_name_start(&mut self, index: i32) -> i32 {
     transition self.construction.active {
         1 -> return self.construction.states[index].name_start
         _ -> return self.parser.machine_states[index].name.start
+    }
+}
+
+machine OmegaScalarCompiler::parameter_row_base(&mut self, previous: i32) -> i32 {
+    transition self.construction.compact_parameters { 1 -> return 0 _ -> return previous }
+}
+
+machine OmegaScalarCompiler::parameter_syntax_row(&mut self, slot: i32) -> i32 {
+    transition self.construction.compact_parameters {
+        1 -> return self.construction.parameter_rows[slot]
+        _ -> return slot
+    }
+}
+
+// Restore nested signatures while their syntax is loaded. Physical offsets
+// survive in the emitted tape, so a nested caller cannot alias the next file's
+// arguments even though both use the same temporary parameter slot numbers.
+machine OmegaScalarCompiler::prepare_nested_parameters(&mut self, source: &[u8], unit: i32) -> i32 {
+    transition self.construction.compact_parameters {
+        1 -> slots(self.construction.total.root_parameters,
+            self.construction.total.root_parameters + self.parser.machine_parameter_count -
+            (self.construction.units[unit + 1].root_parameters - self.construction.units[unit].root_parameters))
+        _ -> return 1
+    }
+    state slots(slot: i32, limit: i32) {
+        transition slot < limit {
+            true -> assign(slot, limit, self.parameter_type(source, slot))
+            _ -> return 1
+        }
+    }
+    state assign(slot: i32, limit: i32, kind: i32) {
+        self.parameter_types[slot] = kind;
+        transition self.require_cell(source, slot, kind) {
+            1 -> slots(slot + 1, limit)
+            _ -> return 0
+        }
     }
 }

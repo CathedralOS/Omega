@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,341 lines / 1,108,030 bytes with SHA-256
-`db46d240ab70b03f6c7ceb9b10914960e04649c79d670ca2dd92c1c6c2d967dd`.
+The manifest materializes 28,494 lines / 1,115,919 bytes with SHA-256
+`147fe7bfb454d329799f935e4c27da40e78b8a6d5e4b9c09100129700a2cce94`.
 The manifest itself is 2,905 bytes, SHA-256
-`34d5c4243c2626ff2859a1063ef02786d58301ee92bbf288c4b0ec49d3ffa3ce`;
+`0f222b53ffe1adc829af77e53fcd4f21e6f2cbfe2db54f0f05d2a51b95b7a180`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -129,7 +129,13 @@ and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters. Up to 16,384 state labels can span a construction request.
-Each file still parses at most 4,096 states. Parameter ranges, source
+Each file still parses at most 4,096 states.
+The parser admits at most 16,384 parameters in a single file. When a package
+exceeds that many cumulative parameters, its free machines keep permanent
+argument slots. Nested parameters reuse the remaining slots while their file
+is loaded. The generated program gives different nested machines distinct
+argument storage. The package must fit the free-machine parameters
+together with the nested parameters of its largest file. Parameter ranges, source
 coordinates and declared effect bounds survive the release of that file.
 A state body, its lexical scope, and its checked terminal instructions belong
 to the current file. Calls across files resolve a machine root; nested states

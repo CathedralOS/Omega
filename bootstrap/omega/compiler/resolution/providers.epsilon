@@ -196,7 +196,7 @@ machine OmegaScalarCompiler::forwards_exit_status(
     }
     state parameter(row: OmegaExpressionSyntax) {
         return (row.payload1 == 1) && (row.payload3 == 1) && (self.parser.sources.equal_name(source,
-            self.parser.members[row.payload0], self.parser.machine_parameters[entry.first_parameter].name) == 1);
+            self.parser.members[row.payload0], self.parser.machine_parameters[self.parameter_syntax_row(entry.first_parameter)].name) == 1);
     }
 }
 
