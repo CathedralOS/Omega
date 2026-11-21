@@ -3807,7 +3807,7 @@ impl<'a> Replay<'a> {
                 Some(DescriptorStoredOrigin::IncomingContents {
                     position,
                     steps: query.steps.clone(),
-                    projection: projection.clone().without_runtime_coordinates(),
+                    projection: machine.export_input_projection(projection),
                 })
             }
             Origin::Backing(DescriptorCallOrigin::Literal { machine, place }) => {
@@ -3829,7 +3829,7 @@ impl<'a> Replay<'a> {
                 }
                 Some(DescriptorStoredOrigin::Parameter {
                     position,
-                    projection: projection.clone().without_runtime_coordinates(),
+                    projection: machine.export_input_projection(projection),
                 })
             }
         }

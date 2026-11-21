@@ -68,6 +68,7 @@ fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipCont
             .unwrap(),
             vec![condition(2)],
         )),
+        unsigned_index_literals: Vec::new(),
         payload_scalar_definitions: BTreeMap::new(),
         payload_scalar_postconditions: BTreeMap::from([(
             position(2),

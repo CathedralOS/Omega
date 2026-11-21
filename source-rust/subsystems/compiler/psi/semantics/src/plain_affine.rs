@@ -1844,22 +1844,26 @@ fn analyze(
         let module = module.ok_or(Error::unsupported(
             "conditional storage analysis requires its exact module",
         ))?;
-        crate::descriptor_results::terminal_reference_graph_from(module, [machine.id]).map_err(
-            |failure| Error::Unsupported {
-                detail: failure
-                    .detail()
-                    .unwrap_or("reference storage has no complete closure"),
-                site: (failure.machine() == machine.id)
-                    .then(|| failure.operation(module))
-                    .flatten()
-                    .map(Site::Operation),
-            },
-        )?
+        // A reference can borrow an element through a slice. Its residence
+        // follows both the slice's backing and the resulting reference.
+        crate::descriptor_results::terminal_borrowed_storage_graph_from(module, [machine.id], &[])
+            .map_err(|failure| Error::Unsupported {
+            detail: failure
+                .detail()
+                .unwrap_or("reference storage has no complete closure"),
+            site: (failure.machine() == machine.id)
+                .then(|| failure.operation(module))
+                .flatten()
+                .map(Site::Operation),
+        })?
     } else {
         Vec::new()
     };
     let mut references = needs_storage_flow.then(|| {
-        crate::descriptor_results::DescriptorAnalysis::with_reference_slots(types, &reference_graph)
+        crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+            types,
+            &reference_graph,
+        )
     });
     let backing = if needs_backing {
         let references = references.as_mut().ok_or(Error::malformed(
@@ -2091,9 +2095,15 @@ impl<'a> Analysis<'a> {
             .as_mut()
             .ok_or(Error::malformed("a residence has no reference analysis"))?
             .residence_flow(body.id, &mut rules)
-            .ok_or(Error::unsupported(
-                "captured storage has no complete residence flow",
-            ))?;
+            .map_err(|failure| Error::Unsupported {
+                detail: failure
+                    .detail()
+                    .unwrap_or("captured storage has no complete residence flow"),
+                site: (failure.machine() == body.id)
+                    .then(|| failure.operation(module))
+                    .flatten()
+                    .map(Site::Operation),
+            })?;
         let mut births = vec![None; self.roots.len()];
         let mut dispositions = std::collections::BTreeSet::new();
         for parameter in &body.structural_parameters {

@@ -1433,6 +1433,7 @@ fn adapt(
         }),
         scalar_payload_writes: BTreeMap::new(),
         scalar_payload_reads: BTreeMap::new(),
+        unsigned_index_literals: Vec::new(),
         payload_scalar_definitions: BTreeMap::new(),
         payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),
@@ -1614,6 +1615,15 @@ fn adapt(
                     .push((destination, value));
             }
             let result = operation.structural_result().map(|(_, result)| result);
+            if let O::IntegerConstant {
+                result,
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            } = operation
+                && let Ok(index) = u64::try_from(*value)
+            {
+                graph.unsigned_index_literals.push((*result, index));
+            }
             if !node.definitions.is_empty() {
                 graph.payload_scalar_definitions.insert(
                     position,
@@ -3019,7 +3029,7 @@ fn adapt(
         }
     }
     scalar_expressions.retain_case_conditions(types, &mut graph);
-    Some(graph)
+    graph.finish_index_literals()
 }
 
 pub(crate) fn element_coordinates_preserved<'a>(

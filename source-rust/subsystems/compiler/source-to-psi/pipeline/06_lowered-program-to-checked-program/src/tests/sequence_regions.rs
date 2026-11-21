@@ -322,6 +322,90 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
 }
 
 #[test]
+fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
+    let source = r#"
+        data Cell { value: u32; }
+        data Row { cells: [Cell; 1]; }
+        machine first(row: @mut Row) -> @mut Cell {
+            let cells: @mut [Cell] = @mut row.cells[..];
+            @mut cells[0]
+        }
+        machine build_entry() -> u32 {
+            let mut row: Row = Row { cells: [Cell { value: 3u32 }] };
+            let child: @mut Cell = first(@mut row);
+            child.value = 17u32;
+            row.cells[0].value
+        }
+    "#;
+    let positive = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 17);
+
+    let out_of_range = source.replace("@mut cells[0]", "@mut cells[1]");
+    let refusal = match judge_build(&out_of_range) {
+        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+        other => panic!("{other:?}"),
+    };
+    assert!(
+        refusal.detail.contains("outside its fixed array bounds"),
+        "{refusal:?}"
+    );
+
+    let local = source.replace(
+        "let cells: @mut [Cell] = @mut row.cells[..]",
+        "let mut local: [Cell; 1] = [Cell { value: 3u32 }]; let cells: @mut [Cell] = @mut local[..]",
+    );
+    let negative = judge_build(&local).unwrap();
+    assert!(
+        matches!(negative, RouteVerdict::Rejected { ref violations, .. }
+            if violations.iter().any(|failure| failure.statement.contains("local storage cannot establish"))),
+        "{negative:?}"
+    );
+}
+
+#[test]
+fn each_selector_returns_only_the_child_created_on_its_own_arm() {
+    let source = include_str!(
+        "../../../../../../../../samples/cli/probes/case_selected_slice_reference/main.omg"
+    ).replace("machine main()", "machine build_entry()");
+    let verdict = judge_build(&source).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_later_argument_cannot_retarget_a_borrowed_slice_element() {
+    let source = r#"
+        data Cell { value: u64; }
+        data Row { cells: [Cell; 2]; }
+        data Cursor { index: u64; }
+        machine advance(cursor: @mut Cursor) -> u64 {
+            cursor.index = 1u64;
+            19u64
+        }
+        machine write(cell: @mut Cell, value: u64) { cell.value = value; }
+        machine fill(row: @mut Row, cursor: @mut Cursor) {
+            let cells: @mut [Cell] = @mut row.cells[..];
+            write(@mut cells[cursor.index], advance(@mut cursor));
+        }
+        machine build_entry() -> u32 {
+            let mut row: Row = Row { cells: [Cell { value: 3u64 }, Cell { value: 7u64 }] };
+            let mut cursor: Cursor = Cursor { index: 0u64 };
+            fill(@mut row, @mut cursor);
+            transition row.cells[0].value == 19u64 && row.cells[1].value == 7u64
+                && cursor.index == 1u64 { true -> 47u32, false -> 0u32 }
+        }
+    "#;
+    let result = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    assert_integer_result(*accepted, 47);
+}
+
+#[test]
 fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
     // expressions.md, "Borrowed range access": a bare range forms a shared
     // view when a call receives it as a reference, exactly as `&items[..]`.
