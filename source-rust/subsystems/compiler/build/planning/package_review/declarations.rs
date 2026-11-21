@@ -186,10 +186,15 @@ impl<'a> PolicySource<'a> {
             return Ok(());
         }
         let exposure = if exposure == PackageReviewSemanticDependencyExposure::PublicInterface {
-            let visibility = declaration_visibility(source, declaration).ok_or_else(|| {
-                unavailable("the visibility of the declaration that uses a carried type")
-            })?;
-            if visibility.is_public() {
+            let exposed = match source.machine_by_symbol(declaration) {
+                Some(machine) => super::callables::exposes_machine_interface(machine),
+                None => declaration_visibility(source, declaration)
+                    .ok_or_else(|| {
+                        unavailable("the visibility of the declaration that uses a carried type")
+                    })?
+                    .is_public(),
+            };
+            if exposed {
                 PackageReviewSemanticDependencyExposure::PublicInterface
             } else {
                 PackageReviewSemanticDependencyExposure::PrivateImplementation
