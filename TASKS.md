@@ -13,7 +13,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **LOWERED-FORM-CHECKER.** Highest priority by owner ruling. Finish the [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md) for the accepted language. Every valid program must reach publication with its obligations proved, and an invalid program must be refused at the responsible obligation. [Checker entry](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/verdict.rs)
 
   - Check `source/library/std/main.omg` as a package on each hosted target, then run `mbx xtask sample-gate --filter cli/basics`. Follow the first unsupported construct through the ordinary Build and Product.
-  - Run the [portable filesystem program](_recycling/tests/fixtures/pending/filesystem_portable_rules/main.omg) with a 4,200-file `omega_fs_rules_wide/` directory. Preserve its truncate, oversized-read, default-permission and recursive-directory checks. Its expected exit is 42 in both engines.
   - Complete ownership and loan facts for affine locals, mutable sequence backing, views and mixed-origin reference results. Check fixed-array lengths on call results, indexed values and case payloads, and reject out-of-extent indices at the access.
   - Check [domain predicates](wiki/spec/language/domains.md#byte-containers-and-encoding-domains) that call machines with requirements, type parameters or borrowed byte views. Prove ordinary `core::Identity<FloatMeaning>` clauses from the helper body, including `abs_f64` and `sqrt_f64`.
 

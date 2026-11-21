@@ -19,9 +19,10 @@ impl Project {
         std::fs::write(self.0.path().join(name), text).unwrap();
     }
 
-    fn observe(&self, arguments: &[&str]) -> Output {
+    fn observe(&self, arguments: &[&str], build: impl AsRef<Path>) -> Output {
         Command::new(env!("CARGO_BIN_EXE_omega"))
             .args(arguments)
+            .arg(build.as_ref())
             .current_dir(self.0.path())
             .env(
                 "OMEGA_LIBRARY_ROOT",
@@ -142,17 +143,19 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     project.write("main.omg", main);
     project.write("operations.omg", &adapter_operations(&library));
     project.write("build.omg", &build(false));
-    both_zero(project.observe(&[
-        "run",
-        "--both",
-        "--build-input",
-        "main.omg",
-        "--build-input",
-        "operations.omg",
-        "--build-input",
+    both_zero(project.observe(
+        &[
+            "run",
+            "--both",
+            "--build-input",
+            "main.omg",
+            "--build-input",
+            "operations.omg",
+            "--build-input",
+            "build.omg",
+        ],
         "build.omg",
-        "build.omg",
-    ]));
+    ));
 
     // Only the requested extent changes: the same copy must refuse byte 766.
     let invalid = main.replacen(
@@ -162,16 +165,18 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     );
     assert_ne!(invalid, main);
     project.write("main.omg", &invalid);
-    let output = project.observe(&[
-        "--check",
-        "--build-input",
-        "main.omg",
-        "--build-input",
-        "operations.omg",
-        "--build-input",
+    let output = project.observe(
+        &[
+            "--check",
+            "--build-input",
+            "main.omg",
+            "--build-input",
+            "operations.omg",
+            "--build-input",
+            "build.omg",
+        ],
         "build.omg",
-        "build.omg",
-    ]);
+    );
     let text = report(&output);
     assert!(!output.status.success(), "{text}");
     assert!(
@@ -188,13 +193,46 @@ fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
         include_str!("fixtures/filesystem/run/public_values/main.omg"),
     );
     project.write("build.omg", &build(true));
-    both_zero(project.observe(&[
-        "run",
-        "--both",
-        "--build-input",
-        "main.omg",
-        "--build-input",
+    both_zero(project.observe(
+        &[
+            "run",
+            "--both",
+            "--build-input",
+            "main.omg",
+            "--build-input",
+            "build.omg",
+        ],
         "build.omg",
-        "build.omg",
-    ]));
+    ));
+}
+
+// This rule checks POSIX mode bits and consumes its input directory.
+#[cfg(unix)]
+#[test]
+fn portable_filesystem_rules_hold_on_each_engine() {
+    let build = support::repository_root()
+        .join("source-rust/application/tests/fixtures/filesystem/run/portable_rules/build.omg");
+    for (engine, expected) in [("native", "native exit 42"), ("psi", "Psi exit 42")] {
+        let project = Project::new(engine);
+        let wide = project.0.path().join("omega_fs_rules_wide");
+        std::fs::create_dir(&wide).unwrap();
+        for index in 0..4200 {
+            std::fs::File::create(wide.join(index.to_string())).unwrap();
+        }
+
+        let output = project.observe(&["run", "--engine", engine], &build);
+        let text = report(&output);
+        assert_eq!(output.status.code(), Some(42), "{engine}: {text}");
+        assert!(
+            text.lines().any(|line| line == expected),
+            "{engine}: {text}"
+        );
+        for tree in [wide, project.0.path().join("omega_fs_rules")] {
+            assert!(
+                !tree.try_exists().unwrap(),
+                "{engine} left {}",
+                tree.display()
+            );
+        }
+    }
 }
