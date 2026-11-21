@@ -2473,12 +2473,13 @@ pub mod layout_storage {
         }
     }
 
-    impl crate::source_state::PlanLaidLayout {
-        pub fn native_semantic_identity(&self, program: &TypedTrees) -> Result<String, String> {
-            use crate::source_state::type_identity::{
-                IndexIdentityArgument, portable_applied_index_identity,
-            };
-            let owner = program
+    impl LayoutStorageArguments {
+        pub fn argument_owner(
+            &self,
+            program: &TypedTrees,
+            argument: TypeReferenceHandle,
+        ) -> SymbolHandle {
+            program
                 .data_implementation_applications
                 .iter()
                 .find_map(|(_, demand)| {
@@ -2489,8 +2490,50 @@ pub mod layout_storage {
                 .unwrap_or_else(|| {
                     program
                         .type_reference_table
-                        .operand_lifetime_owner(self.semantic_type)
-                });
+                        .operand_lifetime_owner(argument)
+                })
+        }
+
+        /// Resolve FixedLayout<T> through the selected policy's own binder
+        /// environment. This is a source obligation even without target facts.
+        pub fn plan_requirement(
+            &self,
+            program: &TypedTrees,
+            requester: SymbolHandle,
+        ) -> Result<SymbolHandle, &'static str> {
+            use crate::source_state::type_identity::TypeIdentityQualification;
+            let contract = program
+                .trait_definition_by_symbol(self.contract)
+                .ok_or("layout storage lost its exact core contract")?;
+            let Some([parameter]) = program.trait_type_parameters(contract).as_array() else {
+                return Err("core layout contract lost its exact semantic parameter");
+            };
+            let Some([requirement]) = program.trait_machine_signatures(contract).as_array() else {
+                return Err("fixed layout contract has no exact plan requirement");
+            };
+            let policy = program
+                .applied_requirement_scope(requester, self.policy)
+                .and_then(|scope| scope.declaring_scope(program, self.contract))
+                .ok_or("selected policy does not retain the core layout application")?;
+            if !policy
+                .parameter_argument(program, parameter.symbol)
+                .is_valid()
+                || policy.parameter_identity(
+                    program,
+                    parameter.symbol,
+                    TypeIdentityQualification::Ordinary,
+                ) != program.normalized_type_identity(self.semantic_type)
+            {
+                return Err("selected layout policy belongs to another semantic type");
+            }
+            Ok(requirement.symbol)
+        }
+
+        pub fn native_semantic_identity(&self, program: &TypedTrees) -> Result<String, String> {
+            use crate::source_state::type_identity::{
+                IndexIdentityArgument, portable_applied_index_identity,
+            };
+            let owner = self.argument_owner(program, self.semantic_type);
             let identity = portable_applied_index_identity(
                 program,
                 IndexIdentityArgument::TypeArgument(self.semantic_type),
@@ -2507,23 +2550,8 @@ pub mod layout_storage {
             use crate::source_state::type_identity::{
                 IndexIdentityArgument, portable_applied_index_identity,
             };
-            let storage = program
-                .layout_storage_arguments(self.application)
-                .ok_or("native layout lost its exact constructor application")?;
-            let selected = program.static_operand_from_type_reference(storage.policy)?;
-            let owner = program
-                .data_implementation_applications
-                .iter()
-                .find_map(|(_, demand)| {
-                    (program.normalized_type_identity(demand.source_application)
-                        == program.normalized_type_identity(self.application))
-                    .then_some(demand.lexical_owner)
-                })
-                .unwrap_or_else(|| {
-                    program
-                        .type_reference_table
-                        .operand_lifetime_owner(storage.policy)
-                });
+            let selected = program.static_operand_from_type_reference(self.policy)?;
+            let owner = self.argument_owner(program, self.policy);
             let identity = portable_applied_index_identity(
                 program,
                 IndexIdentityArgument::StaticArgument(&selected),
@@ -2544,7 +2572,7 @@ pub mod layout_storage {
         ) -> Result<String, String> {
             program.native_data_declaration_identity(data).or_else(|_| {
                 program
-                    .normalized_hermetic_symbol_identity(self.schema_symbol)
+                    .normalized_hermetic_symbol_identity(data.symbol)
                     .map(|schema| format!("closed-plan-laid-data::{policy}::{schema}"))
             })
         }

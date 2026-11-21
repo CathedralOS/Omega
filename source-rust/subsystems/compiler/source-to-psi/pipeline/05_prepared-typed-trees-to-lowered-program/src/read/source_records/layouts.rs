@@ -36,7 +36,12 @@ impl Program<'_> {
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let typed = self.typed;
-        if typed.plan_laid_layouts.is_empty() {
+        if typed.plan_laid_layouts.is_empty()
+            && !self
+                .records
+                .iter()
+                .any(|(_, record)| record.authored_layout)
+        {
             return Ok(());
         }
         // Only actual applications participate in these joins. Prepare their
@@ -78,16 +83,11 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
-            let selected = source.application.as_ref().and_then(|application| {
-                plans
-                    .binary_search_by_key(
-                        &typed.normalized_type_identity(application.reference),
-                        |(identity, _)| *identity,
-                    )
-                    .ok()
-                    .map(|position| plans[position].1)
-            });
-            let Some(ordinal) = selected else {
+            let storage = source
+                .application
+                .as_ref()
+                .and_then(|application| typed.layout_storage_arguments(application.reference));
+            let Some(storage) = storage else {
                 native.insert(
                     old.record,
                     old.data_identity,
@@ -106,20 +106,35 @@ impl Program<'_> {
                 );
                 continue;
             };
-            let plan = &typed.plan_laid_layouts[ordinal];
+            // The declaration must select a policy for this exact semantic
+            // type even when no target has asked the policy to run.
+            storage
+                .plan_requirement(typed, storage.argument_owner(typed, storage.policy))
+                .map_err(|reason| malformed(machine, reason))?;
+            let selected = plans
+                .binary_search_by_key(
+                    &typed.normalized_type_identity(storage.application),
+                    |(identity, _)| *identity,
+                )
+                .ok()
+                .map(|position| &typed.plan_laid_layouts[plans[position].1]);
             let data = typed
-                .closed_data_definition(plan.semantic_type)
+                .closed_data_definition(storage.semantic_type)
                 .ok_or_else(|| malformed(machine, "layout lost its semantic declaration"))?;
             if data.symbol != source.declaration
-                || plan.data_symbol != data.symbol
-                || plan.schema_symbol != data.symbol
+                || selected.is_some_and(|plan| {
+                    plan.data_symbol != data.symbol
+                        || plan.schema_symbol != data.symbol
+                        || typed.normalized_type_identity(plan.semantic_type)
+                            != typed.normalized_type_identity(storage.semantic_type)
+                })
             {
                 return Err(malformed(
                     machine,
                     "layout changed its retained semantic owner",
                 ));
             }
-            let semantic_application = typed.normalized_type_identity(plan.semantic_type);
+            let semantic_application = typed.normalized_type_identity(storage.semantic_type);
             let first = schemas.partition_point(|(identity, _)| *identity < semantic_application);
             let last = schemas.partition_point(|(identity, _)| *identity <= semantic_application);
             if last - first != 1 {
@@ -142,91 +157,28 @@ impl Program<'_> {
             let fields = field_coordinates(&source.fields, record.fields(), machine)?;
             let schema_fields =
                 field_coordinates(&schema_source.fields, schema_record.fields(), machine)?;
-            let policy = plan
+            let policy = storage
                 .native_policy_identity(typed)
                 .map_err(|reason| unavailable(machine, reason))?;
-            let semantic = plan
+            let semantic = storage
                 .native_semantic_identity(typed)
                 .map_err(|reason| unavailable(machine, reason))?;
-            let data_identity = plan
+            let data_identity = storage
                 .native_data_identity(typed, data, &policy)
                 .map_err(|reason| unavailable(machine, reason))?;
             let policy_identity = identities.intern(&policy);
             // The complete storage application retains both the semantic type
             // and selected policy tuple; a bare member name would lose them.
             let plan_identity = identities.intern(&record.identity);
-            let ordinal = u32::try_from(ordinal)
+            let ordinal = u32::try_from(applications.len())
                 .ok()
                 .and_then(|index| index.checked_add(1))
                 .ok_or_else(|| malformed(machine, "layout application identity overflows"))?;
             let id = LayoutApplicationId(ordinal);
-            let PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
-                return Err(unavailable(
-                    machine,
-                    "layout has no retained target input roster",
-                ));
+            let (inputs, realizations, reports) = match selected {
+                Some(plan) => target_geometry(typed, plan, &fields, &schema_fields, machine)?,
+                None => (Vec::new(), Vec::new(), Vec::new()),
             };
-            let mut members = typed
-                .plan_laid_target_layouts
-                .span(span)
-                .ok_or_else(|| malformed(machine, "layout target members are unavailable"))?
-                .iter()
-                .collect::<Vec<_>>();
-            members.sort_unstable_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
-            let mut inputs = plan
-                .target_inputs
-                .iter()
-                .map(|facts| TargetLayoutInput {
-                    target: facts.profile.clone(),
-                    pointer_size: facts.pointer_size,
-                    pointer_alignment: facts.pointer_alignment,
-                    case_tag_size: facts.case_tag_size,
-                    case_tag_alignment: facts.case_tag_alignment,
-                    little_endian: facts.little_endian,
-                })
-                .collect::<Vec<_>>();
-            inputs.sort_unstable_by(|left, right| left.target.cmp(&right.target));
-            if inputs.is_empty()
-                || inputs.len() != members.len()
-                || inputs
-                    .windows(2)
-                    .any(|pair| pair[0].target == pair[1].target)
-            {
-                return Err(malformed(
-                    machine,
-                    "layout target roster is absent or duplicated",
-                ));
-            }
-            let mut realizations = Vec::with_capacity(members.len());
-            let mut reports = Vec::with_capacity(members.len());
-            for (input, member) in inputs.iter().zip(members) {
-                if member.target.as_str() != input.target
-                    || member.target_facts.profile != input.target
-                    || member.target_facts.pointer_size != input.pointer_size
-                    || member.target_facts.pointer_alignment != input.pointer_alignment
-                    || member.target_facts.case_tag_size != input.case_tag_size
-                    || member.target_facts.case_tag_alignment != input.case_tag_alignment
-                    || member.target_facts.little_endian != input.little_endian
-                {
-                    return Err(malformed(
-                        machine,
-                        "layout target member changed its producing inputs",
-                    ));
-                }
-                realizations.push(realization(
-                    typed,
-                    plan,
-                    member,
-                    &fields,
-                    &schema_fields,
-                    input,
-                    machine,
-                )?);
-                reports.push(NativeLayoutRealization {
-                    target: Some(input.clone()),
-                    report: member.geometry.native_layout_report(),
-                });
-            }
             let mut nominal = Vec::with_capacity(source.fields.len());
             for (field, symbol) in record.fields().iter().zip(&source.fields) {
                 let identity = typed
@@ -248,7 +200,8 @@ impl Program<'_> {
             let position = usize::try_from(old.record.get() - 1)
                 .map_err(|_| malformed(machine, "record coordinate exceeds host storage"))?;
             let declaration = module
-                .types.structural_types
+                .types
+                .structural_types
                 .get_mut(position)
                 .filter(|declaration| declaration.id == old.record)
                 .ok_or_else(|| {
@@ -274,6 +227,89 @@ impl Program<'_> {
         module.layouts.target_layout_applications = applications;
         Ok(())
     }
+}
+
+/// Every concrete placement is paired with the immutable target facts used
+/// for its producing invocation. A plan claiming evaluation must have receipts.
+fn target_geometry(
+    typed: &crate::source_state::TypedTrees,
+    plan: &PlanLaidLayout,
+    fields: &[(SymbolHandle, StructuralFieldId)],
+    schema_fields: &[(SymbolHandle, StructuralFieldId)],
+    machine: MachineId,
+) -> Checked<(
+    Vec<TargetLayoutInput>,
+    Vec<TargetLayoutRealization>,
+    Vec<NativeLayoutRealization>,
+)> {
+    let PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
+        return Err(unavailable(
+            machine,
+            "layout has no retained target input roster",
+        ));
+    };
+    let mut members = typed
+        .plan_laid_target_layouts
+        .span(span)
+        .ok_or_else(|| malformed(machine, "layout target members are unavailable"))?
+        .iter()
+        .collect::<Vec<_>>();
+    members.sort_unstable_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
+    let mut inputs = plan
+        .target_inputs
+        .iter()
+        .map(|facts| TargetLayoutInput {
+            target: facts.profile.clone(),
+            pointer_size: facts.pointer_size,
+            pointer_alignment: facts.pointer_alignment,
+            case_tag_size: facts.case_tag_size,
+            case_tag_alignment: facts.case_tag_alignment,
+            little_endian: facts.little_endian,
+        })
+        .collect::<Vec<_>>();
+    inputs.sort_unstable_by(|left, right| left.target.cmp(&right.target));
+    if inputs.is_empty()
+        || inputs.len() != members.len()
+        || inputs
+            .windows(2)
+            .any(|pair| pair[0].target == pair[1].target)
+    {
+        return Err(malformed(
+            machine,
+            "layout target roster is absent or duplicated",
+        ));
+    }
+    let mut realizations = Vec::with_capacity(members.len());
+    let mut reports = Vec::with_capacity(members.len());
+    for (input, member) in inputs.iter().zip(members) {
+        if member.target.as_str() != input.target
+            || member.target_facts.profile != input.target
+            || member.target_facts.pointer_size != input.pointer_size
+            || member.target_facts.pointer_alignment != input.pointer_alignment
+            || member.target_facts.case_tag_size != input.case_tag_size
+            || member.target_facts.case_tag_alignment != input.case_tag_alignment
+            || member.target_facts.little_endian != input.little_endian
+        {
+            return Err(malformed(
+                machine,
+                "layout target member changed its producing inputs",
+            ));
+        }
+        realizations.push(realization(
+            typed,
+            plan,
+            member,
+            fields,
+            schema_fields,
+            input,
+            machine,
+        )?);
+        reports.push(NativeLayoutRealization {
+            target: Some(input.clone()),
+            report: member.geometry.native_layout_report(),
+        });
+    }
+    Ok((inputs, realizations, reports))
 }
 
 fn field_coordinates(

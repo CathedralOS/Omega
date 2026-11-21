@@ -1253,7 +1253,17 @@ impl<'t> Program<'t> {
     /// passes here, as an entry, a Build selection, a subject declaration or
     /// a callee, so a declaration with a row is never read through.
     pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
-        let Some(row) = self.typed.deferred_refusal(declaration) else {
+        // The structural type itself carries a pending layout application.
+        // A use that consumes geometry must settle it for its exact target.
+        let row = self
+            .typed
+            .deferred_refusals_of(declaration)
+            .filter(|row| {
+                row.request
+                    != crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage
+            })
+            .min_by_key(|row| !row.request.is_violation());
+        let Some(row) = row else {
             return Ok(());
         };
         // Violations remain errors even when their statement is unreachable;

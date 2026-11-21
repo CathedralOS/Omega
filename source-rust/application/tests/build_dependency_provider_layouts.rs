@@ -115,15 +115,20 @@ fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
 fn an_entryless_library_demands_only_the_selected_targets_layouts() {
     use platform_custody::temporary_directory::TemporaryDirectory;
     let root = TemporaryDirectory::create("entryless-layout-demand", false).unwrap();
-    std::fs::write(root.path().join("build.omg"), r#"machine build(builder: @mut Build) {
+    std::fs::write(
+        root.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
         Build::package(builder, "layout_reach");
         Build::select_provider::<Reading, ConstantReading>(builder, alpha_bootstrap);
-    }"#).unwrap();
+    }"#,
+    )
+    .unwrap();
 
     // Alpha has no C record geometry. Its selected provider can still return
     // a constant while an unrelated declaration in the same library mentions CLayout.
     for (formal, uses_layout) in [("", false), ("pair: @PacketPair", true)] {
-        let source = format!(r#"use omega\language\core\CLayout;
+        let source = format!(
+            r#"use omega\language\core\CLayout;
             public data Packet [copy] {{ a: i64; b: i64; }}
             public data PacketPair = [CLayout<Packet>; 2];
             public machine accepts_pair(pair: @PacketPair) reaches none crashes none {{}}
@@ -132,12 +137,14 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
             }}
             public ConstantReading satisfies Reading {{
                 machine value({formal}) -> i32 reaches none crashes none {{ 7 }}
-            }}"#);
+            }}"#
+        );
         std::fs::write(root.path().join("main.omg"), source).unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
             .args(["--check", "--target", "linux_x86_64", "build.omg"])
             .current_dir(root.path())
-            .output().unwrap();
+            .output()
+            .unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), !uses_layout, "{stderr}");
         if uses_layout {
