@@ -1915,7 +1915,6 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
- "terminal-semantics",
  "wire",
 ]
 

@@ -1,6 +1,5 @@
 /*
-Semantic judgments for scalar leaf evaluation, integer/float arithmetic and comparison contracts,
-and scalar representation views.
+Semantic judgments for scalar leaf evaluation, arithmetic and comparison contracts.
 */
 
 pub(crate) mod proof_bearing_scalar;
@@ -11,7 +10,6 @@ pub(crate) mod scalar_leaf_schema;
 pub(crate) mod scalar_leaf_semantics;
 pub(crate) mod scalar_observations;
 pub mod scalar_ordering;
-pub(crate) mod scalar_representation_view;
 pub(crate) mod unchanged_scalar;
 
 #[cfg(test)]
