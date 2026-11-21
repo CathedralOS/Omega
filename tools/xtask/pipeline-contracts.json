@@ -506,7 +506,7 @@
       "kind": "producer",
       "meaning": "Check the admitted private callable’s runtime provisions and plan its target body with the original Psi code and boundary evidence.",
       "producer": "native program planning",
-      "signature": "b25b330820b73c46bbfa57c6b5a604141859b0649afd6f59816e95b947857fec"
+      "signature": "4458b634ca04b56d4e1d39c593f77b9e488c095c2e0d025b269c6efcea51770b"
     },
     {
       "consumers": [
@@ -517,7 +517,7 @@
       "kind": "producer",
       "meaning": "Lower the precise callable selected by the proposal occurrence, under the admitted program’s provider context.",
       "producer": "native program planning",
-      "signature": "ebef042c0bfa1898ceb646b2b5784a53b6a02ad4490eba83114299942df69ad1"
+      "signature": "5bec394d48fec9bcf1d14f4f4aef9ec443d9adeba5c804aba6027818268b1d38"
     },
     {
       "consumers": [
@@ -774,6 +774,42 @@
       "meaning": "Use the checked callback occurrence to select its private entry and calling convention.",
       "producer": "native callable planning",
       "signature": "cca5ce4329d110a244eba98705094039d7d299aa464f1c297523c68baff7f342"
+    },
+    {
+      "consumers": [
+        "private physical planning",
+        "callable object publication"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
+      "item": "struct:CallableAdmission#1",
+      "kind": "carried_record",
+      "meaning": "The independently lowered body carries its admitted runtime providers and callable authority through export publication.",
+      "producer": "native callable planning",
+      "signature": "e50db0488dedc6bfe77a16db44b084db50396321b6766609ab0dd91dd9a8cf58"
+    },
+    {
+      "consumers": [
+        "private physical planning",
+        "callable object publication"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
+      "item": "CallableAdmission::field:runtime#1",
+      "kind": "carried_record",
+      "meaning": "The exact supplier host provisions used when admitting the body and later executing that exported callable in Psi.",
+      "producer": "native callable planning",
+      "signature": "5e869ef812f897f05501ef4de8eb1fbbb743b3f915056bf1691f82561dc10d5a"
+    },
+    {
+      "consumers": [
+        "private physical planning",
+        "callable object publication"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
+      "item": "CallableAdmission::field:authority#1",
+      "kind": "carried_record",
+      "meaning": "The checked supplier service and authority ceiling compared with the receiving import.",
+      "producer": "native callable planning",
+      "signature": "da6a82c58b916d59e02382102827bf040ef8bf694f06cf4a0532b09c5f4d7593"
     },
     {
       "consumers": [
@@ -3293,6 +3329,18 @@
     },
     {
       "consumers": [
+        "stage 01 native execution preparation",
+        "stage 01 package review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
+      "item": "function:component_calling_application#1",
+      "kind": "checker",
+      "meaning": "Select the callable’s settled ABI, or materialize its eligible native default when its source selected no custom policy.",
+      "producer": "stage 01 native calling plan selection",
+      "signature": "ee36b3d3e6dfa82714f358820042c0320f9d03dcdbfdf0ad886377528aa51cd6"
+    },
+    {
+      "consumers": [
         "native_compiler::select_published_providers"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/execution.rs",
@@ -3333,7 +3381,7 @@
       "kind": "producer",
       "meaning": "Capture scalar reach for the published artifact and target, retain its result for executable entry binding, and finish package review separately.",
       "producer": "target-bound program planning",
-      "signature": "8016e392c7f569bbb5345f43b273e0d6c97a518e67b7996c338a5361db23ed20"
+      "signature": "3a99569ab020e3abb04fea3dadc782d3bc5e91092797507924d2b79b016e897f"
     },
     {
       "consumers": [
@@ -3344,7 +3392,7 @@
       "kind": "producer",
       "meaning": "Admit selected native supply, verify source body correspondence and installation reach, then retain the entry nomination for the exact module and profile.",
       "producer": "03 native program planning",
-      "signature": "454007acf5e8f3bf835db1a5b3ab484b5f7e7965b8cac72be2f0beff625fdb48"
+      "signature": "187ca5a66c66c52506e7224e991c37d2ac57770c0785601bdf054d40f000d26e"
     },
     {
       "consumers": [
@@ -3364,9 +3412,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/execution.rs",
       "item": "function:selected_boundary_implementations#1",
       "kind": "checker",
-      "meaning": "Reconstruct and check the targetâ€™s actual checked implementations, including duplicate or competing boundary choices.",
+      "meaning": "Reconstruct the executable checked bindings of fused provider plans. Independently imported requirements retain their separately admitted calls.",
       "producer": "target-bound program planning",
-      "signature": "9c2e67bbb3d51ca164a231094162eaae7c93dfcf392d861e93ea83e609a0508f"
+      "signature": "5cfecdd135a34bbd2b3327b5d5a1c5743d4ef868deaa3e8e752d7ead8cb6e515"
     },
     {
       "consumers": [
@@ -4263,7 +4311,7 @@
       "kind": "producer",
       "meaning": "Dispatch raw unscoped or target facts to native planning and translate missing supplies using the target and captured boundary labels.",
       "producer": "provider demand to selected execution",
-      "signature": "6f05dbbc7359f292ce1115a7e37423f0ae99be4e970a69eed253cec30f489b82"
+      "signature": "49756c20c994b87fdebdda4f383ea63672eea4cfcfbe6cdf41dc7cd9f3db11a9"
     },
     {
       "consumers": [
@@ -4275,7 +4323,7 @@
       "kind": "producer",
       "meaning": "Plan providers from the host-admitted demand and keep that authorization with the original issuer.",
       "producer": "provider demand to selected execution",
-      "signature": "9704f7a6129eaf977dbeefdcbb008f2ef8bf4af9c3a401c76d64f193070e0f4a"
+      "signature": "7545906ad8ceb1db9c76977a6c8cd04770438164d1e127055bf5b3cf23cc8722"
     },
     {
       "consumers": [
@@ -5354,7 +5402,7 @@
       "kind": "producer",
       "meaning": "Admit native supply, bind installation requirements and verify the exact target fold against selected plans.",
       "producer": "target supply realization",
-      "signature": "68c2e8742dc60f1e6cecfcf898ee30d7c8f48689b44f97d74fff5212dc608be6"
+      "signature": "fbba04c0585f94534e627a3d2ad97f3481c209cdead0c7424aad3f9ea0f8283f"
     },
     {
       "consumers": [
@@ -5367,7 +5415,7 @@
       "kind": "producer",
       "meaning": "Bind the published scalar requirements to this exact admitted supply and issue the effective artifact and updated realization together.",
       "producer": "target supply realization",
-      "signature": "2f265866953aa0605e60170e6cc1b2629b0a9a82c95eb11b94009f746b2ef39d"
+      "signature": "5648470ad31b497ce812ef655508f16bc55ffa01ca1927bf013d5563d6b0686d"
     },
     {
       "consumers": [
@@ -5380,7 +5428,7 @@
       "kind": "producer",
       "meaning": "Admit native requirement plans, candidate and calling receipts, installed permissions and row execution evidence against the exact source and target.",
       "producer": "target supply realization",
-      "signature": "7d30eaea856447c87ee25ac5f8eb66c724941e19f1bb2c5a0fff03ab4fc3ce9f"
+      "signature": "88695dca27fb9a5718330b18c2a0b9431a6ad1d1056d31a7de188863d54b1d34"
     },
     {
       "consumers": [
@@ -5419,7 +5467,7 @@
       "kind": "checker",
       "meaning": "Verify original code identity and reproduce the exact nonempty selected dependency table before attaching received folded code.",
       "producer": "target supply realization",
-      "signature": "1954cf174aa5444d4854e1341c4c19088336d56589056a2f56b662b079e519b2"
+      "signature": "c39cc64d87e9db08b7440ff6d90191ea1df2c636006b9e7ac3f09efcc2dab4b4"
     },
     {
       "consumers": [
@@ -5471,7 +5519,7 @@
       "kind": "carried_record",
       "meaning": "Inspect the retained program identity, selected rows, placements and permission evidence.",
       "producer": "target supply realization",
-      "signature": "38b28660c7fbc8b7f78bd73466e9b6e00e1b46297e10e4d426d34e4dbdf93089"
+      "signature": "12ac1edceb2a59c3597c5a86134f35554f81365a58dd3942149fee2171006c85"
     },
     {
       "consumers": [
@@ -5718,7 +5766,7 @@
       "kind": "carried_record",
       "meaning": "Composition mode and row execution evidence retained beyond the normalized provider plan.",
       "producer": "target supply realization",
-      "signature": "9b2b2d50dbae85bcbea7c2b91a621c907f49d307bd9a1c454d8a848781049ea0"
+      "signature": "de03738516e51d438922b5ad2bc28100480b98d05c72697bc42249efc1878721"
     },
     {
       "consumers": [
@@ -5731,7 +5779,7 @@
       "kind": "carried_record",
       "meaning": "A normalized provider plan with selecting schema coordinates, composition mode and row execution evidence.",
       "producer": "target supply realization",
-      "signature": "f8e91b5b01b91bb276409af76cf6acb313d8874838619dfc8efa356469dc4e6b"
+      "signature": "bf03658f39e93de3fbd746d08cac36350642fe157ef8a9575c3ce995e92cda5c"
     },
     {
       "consumers": [
@@ -5833,6 +5881,71 @@
       "meaning": "Keep the normalized plan for each realized provider.",
       "producer": "target supply realization",
       "signature": "3ed1e99985f4d8b895e155ec6cf93f2f47ac0955a80d53887e152585b93b481f"
+    },
+    {
+      "consumers": [
+        "SelectedExecution",
+        "provider proposal construction",
+        "checked native calling-policy review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
+      "item": "ProviderPlanRealizationInput::field:component#1",
+      "kind": "carried_record",
+      "meaning": "Cross-artifact evidence rejoining this selected plan and the receiving boundary to the independently verified supplier.",
+      "producer": "target supply realization",
+      "signature": "c1cbbb5bbb78e9ddd04bfd96da4487e6ef70a3b35b72488e9597bed32536c0d0"
+    },
+    {
+      "consumers": [
+        "SelectedExecution",
+        "provider proposal construction",
+        "checked native calling-policy review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
+      "item": "PlanRealization::field:component#1",
+      "kind": "carried_record",
+      "meaning": "Verified supplier and corresponding calls for this Independent plan, retained with its selected execution.",
+      "producer": "target supply realization",
+      "signature": "775b0c4b0663394b41a23d4075ce095659428458621bc08ab63f967c6f3bbc58"
+    },
+    {
+      "consumers": [
+        "SelectedExecution",
+        "provider proposal construction",
+        "checked native calling-policy review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
+      "item": "impl:RealizedTargetSupply::from_checked::use:semantic_vocabulary :: source_selections :: CompositionMode#1",
+      "kind": "definition",
+      "meaning": "Use the source composition mode declared by the portable provider selection.",
+      "producer": "target supply realization",
+      "signature": "38e63c5da76b8c3c46e70c30d3f2d8c937fd69bc381591c9901f8ad506642895"
+    },
+    {
+      "consumers": [
+        "SelectedExecution",
+        "provider proposal construction",
+        "checked native calling-policy review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
+      "item": "impl:SelectedProviderRealization::method:rebind_components#1",
+      "kind": "producer",
+      "meaning": "Rejoins selected calls to the receiver’s derived artifact after its folded dependency closure is verified.",
+      "producer": "target supply realization",
+      "signature": "23e9e74ccf0043ea3f0c0ddec5800c15d4fc1bd42261a172699cbe1780d96363"
+    },
+    {
+      "consumers": [
+        "SelectedExecution",
+        "provider proposal construction",
+        "checked native calling-policy review"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
+      "item": "impl:SelectedProviderRealization::method:component_imports#1",
+      "kind": "carried_record",
+      "meaning": "Pairs each Independent plan with the exact supplier that passes its cross-artifact call checks.",
+      "producer": "target supply realization",
+      "signature": "3af0c1f9b0783dd2d6dfa557668c1b6202cdc5e8aaf25a3c8b6ad8307f8b9d29"
     },
     {
       "consumers": [
@@ -20063,9 +20176,9 @@
       "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
       "item": "function:close_providers#1",
       "kind": "producer",
-      "meaning": "Follow the program entry, scalar evaluation and chosen provider bodies to identify reachable requirements.",
+      "meaning": "Follow entries, scalar evaluation and fused provider bodies. An independent call retains its selected requirement and leaves implementation reach to the supplying artifact.",
       "producer": "Psi logical provider reach",
-      "signature": "c017ee6c0caeb3817b88c946e00c6205a85b15d3c3f2d3edde2fcf1f64de3fe0"
+      "signature": "b56b8dc59a486786d788e077b4a7d4fd34d6494ad602feec264ce1d08d92df0a"
     },
     {
       "consumers": [
@@ -21599,7 +21712,7 @@
       "kind": "definition",
       "meaning": "Hand source choices to a receiver that presents the matching publication and deployment.",
       "producer": "source provider publication",
-      "signature": "2803b075bf16bf0bbbbb3af90d36786ed4b46b41516e7fa136aed9ed557f19dd"
+      "signature": "d45cb042f5ff1df690c534393d12bd76fe9a9fa00c4c7e140f9441f3ac5bbbf6"
     },
     {
       "consumers": [
@@ -21660,6 +21773,18 @@
       "meaning": "Check that reopened bytes retain their provider choices and that a changed manifest or deployment is refused.",
       "producer": "source provider publication",
       "signature": "15fe5e756a8b8825978eb8a0a9dee6a431321c0a312059c8297d85980d982ae7"
+    },
+    {
+      "consumers": [
+        "native provider demand issuance",
+        "target-specific package review"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/representations/published-target-providers/publication.rs",
+      "item": "impl:PublishedTargetProviders::method:independent_packages#1",
+      "kind": "carried_record",
+      "meaning": "Lists the package owners of Independent choices in the closed target selection. Executable reach determines which methods need physical imports.",
+      "producer": "source provider publication",
+      "signature": "1eec4c66cfd28d0145bece30c02f4a4c737f5a48ff6c6a00bf319b64d7980fc4"
     },
     {
       "consumers": [

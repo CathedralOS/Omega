@@ -63,6 +63,8 @@ pub struct PlannedProduct {
     pub(crate) source: AssembledSyntax,
     pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
+    pub(super) suppliers:
+        std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
     pub(crate) preparation: SourcePreparation,
     pub(crate) timings: CompileTimings,
 }
@@ -71,6 +73,15 @@ impl PlannedProduct {
     /// Restrict native and runtime requests to the reviewed Product occurrences of this lock.
     pub fn with_runtime_consents(mut self, accepted: Vec<TerminalPermissionAcceptance>) -> Self {
         self.runtime_consents = Some(accepted);
+        self
+    }
+
+    /// Captured Products from the same resolver traversal as the receiving Build.
+    pub fn with_component_suppliers(
+        mut self,
+        suppliers: std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, Self>,
+    ) -> Self {
+        self.suppliers = suppliers;
         self
     }
 
@@ -483,6 +494,7 @@ impl PlanningSource {
             runtime_consents: None,
             source,
             package_inputs: inputs.cloned(),
+            suppliers: Default::default(),
             preparation: self.preparation,
             timings: self.timings,
         })

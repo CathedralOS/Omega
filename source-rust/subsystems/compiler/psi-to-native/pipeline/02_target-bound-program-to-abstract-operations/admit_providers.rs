@@ -52,13 +52,13 @@ impl PreparedRetainedNativeProviders<'_> {
         crate::NativeAdmissionRequest {
             private_entry_ram: &[],
             entry: terminal_psi::TargetMachineCallable::Machine(
-                proposal.program_entry().checked_entry().terminal_entry(),
+                proposal.scope_source().root().semantic_entry(),
             ),
             boundary_application_coverage: Some(self.execution.boundary_application_coverage()),
             behavior_exclusions: proposal.behavior_exclusions(),
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
-                bootstrap_entry: proposal.program_entry().checked_entry().terminal_entry(),
+                bootstrap_entry: proposal.scope_source().root().semantic_entry(),
                 program_provider_context: None,
                 installation_assumptions,
                 selected_provider_plans: self.execution.selection(),
@@ -77,6 +77,29 @@ impl PreparedRetainedNativeProviders<'_> {
             },
         }
     }
+}
+
+/// Lower a native compilation root and prepare the providers from that same selected execution.
+pub fn lower_native_root<'input>(
+    proposal: &'input TerminalNativeRealizationProposal,
+    inputs: RetainedNativeProviderInputs<'input>,
+    private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+    scalars: Option<crate::NativeScalarApplications<'_>>,
+) -> Result<
+    (
+        VerifiedNativeArtifactInput,
+        PreparedRetainedNativeProviders<'input>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let root = crate::selected_execution::lower_native_execution(
+        proposal,
+        inputs.execution,
+        private_entry_ram,
+        scalars,
+    )?;
+    let providers = prepare_native_providers(proposal, inputs)?;
+    Ok((root, providers))
 }
 
 pub fn prepare_native_providers<'input>(

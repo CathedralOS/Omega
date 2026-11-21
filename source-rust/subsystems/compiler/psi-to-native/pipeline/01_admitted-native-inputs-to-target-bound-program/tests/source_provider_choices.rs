@@ -38,6 +38,7 @@ fn fixture_inputs(
     assert!(module.interfaces.external_providers.is_empty());
     assert!(module.interfaces.calling_policy_requests.is_empty());
     provider_realization::target_supply::TargetSupplyExecutionInputs {
+        components: None,
         calling_applications: Vec::new(),
         external_bindings: Vec::new(),
         evaluated_native_bindings: Vec::new(),

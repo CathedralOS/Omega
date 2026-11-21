@@ -14,6 +14,51 @@ fn default_abi_eligible(declaration: &terminal_psi::CallingAbiDeclaration) -> bo
         })
 }
 
+/// Materialize the declaration's native default only if its author selected no custom policy.
+pub(crate) fn component_calling_application(
+    program: &super::CallingProgram,
+    profile: target::TargetProfile,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    settled: &[calling_conventions::BoundaryCallingApplication],
+) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+    let module = program.artifact.semantic_module();
+    let declaration = module.boundary_calling_abi(boundary)?;
+    let key = declaration.identity(&module.identities)?;
+    let mut offered = settled
+        .iter()
+        .filter(|row| row.abi == key && row.target == profile.native_target());
+    if let Some(row) = offered.next() {
+        if offered.next().is_some() {
+            return Err("component callable has competing physical calling applications".into());
+        }
+        return Ok(row.clone());
+    }
+    for request in &module.interfaces.calling_policy_requests {
+        let instances = request
+            .instances
+            .as_ref()
+            .map_err(|errors| errors.join("; "))?;
+        if instances.iter().any(|row| {
+            module.identities.text(row.declaring_application)
+                == Some(key.declaring_application.as_str())
+        }) {
+            return Err("component callable lost its selected custom calling application".into());
+        }
+    }
+    if !default_abi_eligible(declaration) {
+        return Err("component callable needs an explicitly selected calling policy".into());
+    }
+    let mut rows = super::plan_computation::evaluate_default_calling_applications(
+        program,
+        &[key],
+        profile,
+        calling_conventions::CallingPolicy::native_for_target(profile.native_target()),
+        None,
+    )?;
+    rows.pop()
+        .ok_or_else(|| "component callable lost its default calling application".into())
+}
+
 /// A row may be needed both for execution and for package review. Reuse only
 /// the default ABI computed from this exact artifact, target and binding receipt.
 pub(crate) struct NativeCallingResults {

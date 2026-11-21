@@ -8,7 +8,8 @@ mod native_execution_scope;
 
 pub use entry_call::SelectedProgramEntryCall;
 pub use native_execution_scope::{
-    NativeExecutionScope, NativeScopeBinding, NativeScopeSource, ScopedProviderSelection,
+    NativeExecutionScope, NativeRoot, NativeScopeBinding, NativeScopeSource,
+    ScopedProviderSelection,
 };
 pub use provider_bindings::{
     SelectedProviderAdapter, SelectedProviderAdapters, retain_selected_provider_adapters,

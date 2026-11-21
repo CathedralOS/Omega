@@ -56,6 +56,12 @@ impl RuntimePermissionDeclarations {
 }
 
 impl PublishedTargetProgram {
+    pub fn independent_packages(
+        &self,
+    ) -> Result<std::collections::BTreeSet<semantic_vocabulary::PackageKeyIdentity>, String> {
+        self.providers.independent_packages()
+    }
+
     pub fn subject(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
         self.subject
     }

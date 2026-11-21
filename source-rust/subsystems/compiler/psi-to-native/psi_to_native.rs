@@ -10,13 +10,13 @@ mod physical_publication_tests;
 #[path = "verification/stage_validators.rs"]
 pub mod stage_validators;
 
-pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
-pub use provider_realization::published_application::NativeApplicationSettings;
-pub use native_artifact::AdmittedRuntimeProgram;
+pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
-    SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
-    prepare_source_program,
+    SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
 };
+pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
+pub use native_artifact::AdmittedRuntimeProgram;
+pub use provider_realization::published_application::NativeApplicationSettings;
 
 use diagnostics::Diagnostic;
 use provider_admission::current_terminal_authority_policy;
@@ -43,6 +43,7 @@ pub struct NativeEmission {
 /// program. Its reviewed assumptions travel to the same entry and installation checks.
 pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
+    suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
@@ -91,11 +92,13 @@ impl NativeProgram {
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
+            suppliers,
             permissions,
             installation_assumptions,
         } = self;
         let mut receipts = Vec::new();
         let request = NativeCompileRequest {
+            suppliers: &suppliers,
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,
             private_entry_ram,

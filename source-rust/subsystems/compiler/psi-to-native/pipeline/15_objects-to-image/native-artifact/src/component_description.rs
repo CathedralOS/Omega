@@ -10,6 +10,21 @@ use std::collections::BTreeMap;
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 use wire::digest_encoder::hex;
 
+/// A standalone package publishes its portable closure before an installation
+/// selects native export locations and stack provisions.
+pub fn describe_portable_component(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    plans: &selected_provider_plans::SelectedProviderPlanFacts,
+) -> Result<Vec<u8>, DescribeError> {
+    publish_component_description(ComponentDescriptionFacts {
+        artifact,
+        selected_provider_plans: plans,
+        stack_demand: None,
+        realization_identity: None,
+    })
+    .map(|(_, bytes)| bytes)
+}
+
 pub(super) fn publish_component_description(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<(TerminalPsiIdentity, Vec<u8>), DescribeError> {

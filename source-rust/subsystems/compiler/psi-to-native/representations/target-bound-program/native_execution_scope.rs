@@ -8,11 +8,53 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity, TerminalArtifactView};
 
+/// The external nomination that justifies traversing a native body without a parent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeRoot {
+    Program(ValidatedNativeProgramEntrySettlement),
+    Component {
+        target: target::TargetProfile,
+        export: psi_provider_selections::AdmittedComponentProvider,
+    },
+}
+
+impl NativeRoot {
+    pub fn target(&self) -> target::TargetProfile {
+        match self {
+            Self::Program(entry) => entry.source().target_slot().owner,
+            Self::Component { target, .. } => *target,
+        }
+    }
+
+    pub fn callable(&self) -> terminal_psi::TargetMachineCallable {
+        match self {
+            Self::Program(entry) => entry.target_callable(),
+            Self::Component { export, .. } => {
+                terminal_psi::TargetMachineCallable::Machine(export.candidate())
+            }
+        }
+    }
+
+    pub fn semantic_entry(&self) -> MachineId {
+        match self {
+            Self::Program(entry) => entry.checked_entry().terminal_entry(),
+            Self::Component { export, .. } => export.candidate(),
+        }
+    }
+
+    pub fn program(&self) -> Option<&ValidatedNativeProgramEntrySettlement> {
+        match self {
+            Self::Program(entry) => Some(entry),
+            Self::Component { .. } => None,
+        }
+    }
+}
+
 /// These inputs are fixed when the native proposal is published. Private entries reuse them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeScopeSource {
     artifact: TerminalArtifactIdentity,
-    program: ValidatedNativeProgramEntrySettlement,
+    root: NativeRoot,
     entry_call: Option<crate::SelectedProgramEntryCall>,
     selection: Arc<SelectedProviderPlanFacts>,
     adapters: SelectedProviderAdapters,
@@ -23,7 +65,7 @@ pub struct NativeScopeSource {
 impl NativeScopeSource {
     pub fn admit(
         authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        program: ValidatedNativeProgramEntrySettlement,
+        root: NativeRoot,
         selection: Arc<SelectedProviderPlanFacts>,
         adapters: SelectedProviderAdapters,
         callbacks: Arc<[provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal]>,
@@ -31,29 +73,41 @@ impl NativeScopeSource {
         executions: &[Vec<Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>>],
     ) -> Result<Self, Vec<Diagnostic>> {
         let artifact = authorization.artifact();
-        if program.artifact_identity() != authorization.identity() {
-            return Err(vec![Diagnostic::error(
-                "native proposal belongs to another canonical artifact",
-            )]);
-        }
         adapters
             .require_selection(&selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if program
-            .physical_adapter()
-            .is_some_and(|entry| entry.provider_selection != adapters.selection_digest())
-        {
-            return Err(vec![Diagnostic::error(
-                "physical program entry belongs to another provider selection",
-            )]);
-        }
-        let entry_call = crate::entry_settlement::bind_selected_program_entry_call(
-            artifact, &program, &selection, executions,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let entry_call = match &root {
+            NativeRoot::Program(program) => {
+                if program.artifact_identity() != authorization.identity() {
+                    return Err(vec![Diagnostic::error(
+                        "native proposal belongs to another canonical artifact",
+                    )]);
+                }
+                if program
+                    .physical_adapter()
+                    .is_some_and(|entry| entry.provider_selection != adapters.selection_digest())
+                {
+                    return Err(vec![Diagnostic::error(
+                        "physical program entry belongs to another provider selection",
+                    )]);
+                }
+                crate::entry_settlement::bind_selected_program_entry_call(
+                    artifact, program, &selection, executions,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+            }
+            NativeRoot::Component { export, .. } => {
+                if export.provider() != artifact.view().identity() {
+                    return Err(vec![Diagnostic::error(
+                        "component export belongs to another supplier",
+                    )]);
+                }
+                None
+            }
+        };
         Ok(Self {
             artifact: authorization.identity(),
-            program,
+            root,
             entry_call,
             selection,
             adapters,
@@ -62,8 +116,8 @@ impl NativeScopeSource {
         })
     }
 
-    pub const fn program_entry(&self) -> &ValidatedNativeProgramEntrySettlement {
-        &self.program
+    pub const fn root(&self) -> &NativeRoot {
+        &self.root
     }
 
     pub fn program<'a>(
@@ -75,12 +129,7 @@ impl NativeScopeSource {
                 "native proposal belongs to another canonical artifact",
             )]);
         }
-        NativeScopeBinding::checked(
-            authorization.artifact(),
-            self,
-            self.program.target_callable(),
-            None,
-        )
+        NativeScopeBinding::checked(authorization.artifact(), self, self.root.callable(), None)
     }
 }
 
@@ -101,7 +150,7 @@ impl<'a> NativeScopeBinding<'a> {
         parent: Option<&'a NativeExecutionScope>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = artifact.view();
-        let target = source.program.source().target_slot().owner;
+        let target = source.root.target();
         let targets = psi_target_layouts::terminal_target_context(view, target.target_name());
         let entry = targets
             .entry(view.identity(), view.module(), root)
@@ -155,7 +204,7 @@ impl<'a> NativeScopeBinding<'a> {
         let reach = TargetBoundReach::bind(
             self.artifact,
             self.targets,
-            self.source.program.source().target_slot().owner,
+            self.source.root.target(),
             self.entry,
             emitted,
             selected_candidate_positions,
@@ -214,8 +263,13 @@ impl NativeExecutionScope {
         &self.reach
     }
 
-    pub fn checked_entry(&self) -> &psi_publication_records::CheckedProgramEntryTerminalReceipt {
-        self.source.program.checked_entry()
+    pub fn checked_entry(
+        &self,
+    ) -> Option<&psi_publication_records::CheckedProgramEntryTerminalReceipt> {
+        self.source
+            .root
+            .program()
+            .map(|entry| entry.checked_entry())
     }
 
     pub fn source_native_bindings(&self) -> [u8; 32] {
@@ -241,9 +295,7 @@ impl NativeExecutionScope {
     }
 
     pub fn require_source(&self, source: &Arc<NativeScopeSource>) -> Result<(), Vec<Diagnostic>> {
-        if self.reach.target_context().target()
-            != source.program.source().target_slot().owner.target_name()
-        {
+        if self.reach.target_context().target() != source.root.target().target_name() {
             return Err(vec![Diagnostic::error(
                 "native execution belongs to another target",
             )]);

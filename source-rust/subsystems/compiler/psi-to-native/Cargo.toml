@@ -11,10 +11,14 @@ path = "psi_to_native.rs"
 test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
+wire = { path = "../../../foundation/wire" }
+provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
+component-description = { path = "verification/component-description" }
 bound-framed-machine = { path = "representations/bound-framed-machine" }
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
+provider-plans = { path = "../build/providers/plans" }
 selected-provider-plans = { path = "../build/providers/selections" }
 provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi/execution-inputs/scalar-applications" }
@@ -71,7 +75,6 @@ verified-optimization-input = { path = "representations/abstract-operations/veri
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 
 [dev-dependencies]
-provider-plans = { path = "../build/providers/plans" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
