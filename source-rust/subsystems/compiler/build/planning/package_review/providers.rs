@@ -807,7 +807,6 @@ impl PolicySource<'_> {
             .trait_definition_by_symbol(choice.subject)
             .filter(|service| service.is_boundary)
             .ok_or_else(|| unavailable("the selected provider's declared service"))?;
-        let methods = source.trait_machine_signatures(service);
         let package = plan
             .package
             .ok_or_else(|| unavailable("the selected provider's package"))?;
@@ -824,8 +823,8 @@ impl PolicySource<'_> {
             .schema
             .declaration
             .receiver_applications
-            .first()
-            .is_some_and(|root| !root.lifetime_argument_identities.is_empty())
+            .iter()
+            .any(|receiver| !receiver.lifetime_argument_identities.is_empty())
         {
             return Err(unavailable(
                 "the selected service's checked lifetime substitution",
@@ -833,13 +832,28 @@ impl PolicySource<'_> {
         }
         let receiver = self.schema_effect_scope(choice.subject, &plan.schema)?;
         let receiver_identity = self.effect_identity(&receiver)?;
+        let declaring_scopes = source_compiler::representations::source_state::service_declarations::projection::inherited_scopes(
+            source, receiver,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let mut signatures = std::collections::HashMap::new();
+        for declaring in &declaring_scopes {
+            for signature in source.trait_machine_signatures(declaring.declaration) {
+                if signatures
+                    .insert(signature.symbol, (declaring, signature))
+                    .is_some()
+                {
+                    return Err(unavailable("the unique declared provider requirement"));
+                }
+            }
+        }
         if receiver_identity
             .application
             .as_ref()
             .map(|term| term.canonical.as_str())
             != choice.subject_application.as_deref()
-            || methods.len() != plan.schema.declaration.methods.len()
-            || methods.len() != plan.method_count
+            || signatures.len() != plan.schema.declaration.methods.len()
+            || signatures.len() != plan.method_count
             || !owned
             || (!local_service && !service.is_public)
         {
@@ -856,8 +870,6 @@ impl PolicySource<'_> {
             ));
         }
         let declaration_symbols = &declarations.accepted.closure().elaboration().boundaries;
-        let mut signatures = methods.iter().collect::<Vec<_>>();
-        signatures.sort_unstable_by_key(|signature| symbol_key(signature.symbol));
         let provider_rows = &plan.rows;
         if provider_rows
             .windows(2)
@@ -891,26 +903,29 @@ impl PolicySource<'_> {
                 .ok_or_else(|| unavailable("the accepted requirement's source declaration"))?;
             let application = source.closed_requirement_application(*original);
             let template = application.map_or(*original, |closed| closed.template);
-            let index = signatures
-                .binary_search_by_key(&symbol_key(template), |signature| {
-                    symbol_key(signature.symbol)
-                })
-                .map_err(|_| unavailable("one exact authored service requirement"))?;
-            let signature = signatures[index];
-            if source.trait_requirement_callable_identity_text(service, signature) != canonical {
-                return Err(unavailable("one exact authored service requirement"));
+            let (declaring, signature) = signatures
+                .remove(&template)
+                .ok_or_else(|| unavailable("one exact authored service requirement"))?;
+            let owner = declaring.declaration;
+            if source.trait_requirement_callable_identity_text(owner, signature) != canonical
+                || source.trait_declaration_path(owner) != method.requirement_owner
+                || source.symbols.symbol_package_identity(owner.symbol)
+                    != method.requirement_owner_package_identity
+                || declarations.service(service_id)?.identity != self.effect_identity(declaring)?
+            {
+                return Err(unavailable(
+                    "the selected method's exact declaring receiver",
+                ));
             }
             let checked_signature = if let Some(closed) = application {
-                let receiver =
-                    source.type_identity_text(closed.portable_trait_application_identity);
-                if closed.declaring_trait != service.symbol
-                    || receiver.as_deref() != plan.schema.root_application_identity()
+                if closed.declaring_trait != owner.symbol
+                    || !source.requirement_application_matches_contract_scope(*original, declaring)
                     || !closed.local_arguments.is_empty()
                 {
                     return Err(unavailable("the selected provider's exact applied method"));
                 }
                 closed.signature
-            } else if receiver.keeps_declared_signatures(source) {
+            } else if declaring.keeps_declared_signatures(source) {
                 signature
             } else {
                 return Err(unavailable(
@@ -932,7 +947,7 @@ impl PolicySource<'_> {
                 method,
                 &plan.schema,
                 requirement,
-                schema_declaration.clone(),
+                self.nominal(owner.symbol)?,
                 declarations,
             )?;
             projected_methods.push(projected);
@@ -1041,10 +1056,22 @@ impl PolicySource<'_> {
             .owning_service
             .ok_or_else(|| unavailable("the selected requirement's owning service"))?;
         let published_owner = &declarations.service(owner)?.identity;
+        let mut declaring_receivers = schema.declaration.declaring_receivers(method);
+        let declaring = declaring_receivers.next();
+        let exact_receiver = match (&published_owner.application, declaring) {
+            (Some(term), Some(receiver)) => {
+                schema.identity_text(receiver.application) == term.canonical
+            }
+            (None, Some(receiver)) => {
+                receiver.argument_identities.is_empty()
+                    && receiver.lifetime_argument_identities.is_empty()
+            }
+            (None, None) => schema.declaration.receiver_applications.is_empty(),
+            _ => false,
+        };
         if published_owner.declaration != requirement_owner
-            || published_owner.application.as_ref().is_some_and(|term| {
-                schema.root_application_identity() != Some(term.canonical.as_str())
-            })
+            || !exact_receiver
+            || declaring_receivers.next().is_some()
         {
             return Err(unavailable(
                 "the selected requirement's exact owning service",
@@ -1127,24 +1154,25 @@ impl PolicySource<'_> {
             .declared_synchronous_invocations
             .clone()
             .ok_or_else(|| unavailable("the selected requirement's synchronous entry ceiling"))?;
-        let schema_arguments: Vec<_> = schema
-            .declaration
-            .receiver_applications
-            .first()
-            .into_iter()
-            .flat_map(|receiver| &receiver.argument_identities)
-            .map(|identity| review_evidence::record::PackageReviewTypeIdentity {
-                canonical: schema.identity_text(*identity).to_owned(),
-            })
-            .collect();
+        let arguments = |receiver: Option<&service_surface::ServiceReceiverApplication>| {
+            receiver
+                .into_iter()
+                .flat_map(|receiver| &receiver.argument_identities)
+                .map(
+                    |identity| review_evidence::record::PackageReviewTypeIdentity {
+                        canonical: schema.identity_text(*identity).to_owned(),
+                    },
+                )
+                .collect()
+        };
         let selected = service_method_policy(
             method,
             schema,
             requirement,
             requirement_owner.clone(),
             PackagePolicyServiceSignature {
-                requirement_arguments: schema_arguments.clone(),
-                schema_arguments,
+                schema_arguments: arguments(schema.declaration.receiver_applications.first()),
+                requirement_arguments: arguments(declaring),
                 schema_lifetime_parameter_count: 0,
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
