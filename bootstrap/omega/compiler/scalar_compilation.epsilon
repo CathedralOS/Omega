@@ -47,6 +47,12 @@ data OmegaStateInvocation {
     caller: i32;
     target: i32;
     nested_call: i32;
+    // Exact checked operands are retained for deferred private-entry obligations.
+    before: i32;
+    first_argument: i32;
+    argument_count: i32;
+    guard: i32;
+    truth: i32;
     next: i32;
     coordinate: i32;
     acknowledgements: i32;
@@ -189,6 +195,8 @@ data OmegaScalarCompiler {
     // every call discharges them against its captured actual arguments.
     bound_first: [i32; 16384];
     bound_count: [i32; 16384];
+    // One inferred fixed-index interval per private nested state, never authored.
+    inferred_index_bound: [i32; 16384];
     bound_total: i32;
     entry_bounds: [OmegaEntryBound; 16384];
     value_states: [i32; 16384];
@@ -1266,6 +1274,11 @@ machine OmegaScalarCompiler::retain_state_invocation(
         self.state_invocations[edge].caller = caller;
         self.state_invocations[edge].target = target;
         self.state_invocations[edge].nested_call = 0;
+        self.state_invocations[edge].before = -1;
+        self.state_invocations[edge].first_argument = -1;
+        self.state_invocations[edge].argument_count = -1;
+        self.state_invocations[edge].guard = -1;
+        self.state_invocations[edge].truth = 0;
         self.state_invocations[edge].next = self.state_incoming[target];
         self.state_invocations[edge].coordinate = coordinate;
         self.state_invocations[edge].acknowledgements = acknowledgements;
@@ -1274,6 +1287,190 @@ machine OmegaScalarCompiler::retain_state_invocation(
         return 1;
     }
     state fail() { self.record_internal(); return 0; }
+}
+
+// Invocation operands remain tied to their checked source state. Global calls
+// cannot target private nested entries; their rows keep the absent context.
+machine OmegaScalarCompiler::retain_arrival_context(
+    &mut self, before: i32, first: i32, count: i32, guard: i32, truth: i32
+) {
+    let edge: i32 = self.state_invocation_count - 1;
+    self.state_invocations[edge].before = before;
+    self.state_invocations[edge].first_argument = first;
+    self.state_invocations[edge].argument_count = count;
+    self.state_invocations[edge].guard = guard;
+    self.state_invocations[edge].truth = truth;
+}
+
+// A missing private entry contract may propose one fixed-index interval.
+// It is an assumption for checking this body until every arrival discharges it.
+// Explicit contracts and externally callable entries never acquire requirements.
+machine OmegaScalarCompiler::infer_private_index(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    expression: i32, extent: i32
+) -> i32 {
+    let row: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
+    transition (row.lexical_parent >= 0) && (row.requirement_count == 0) && (extent > 0) {
+        true -> parameter(self.u64_index_parameter(source, state_index, before, expression))
+        _ -> return 0
+    }
+    state parameter(index: i32) {
+        transition (index >= 0) && (self.preserve_entry_place(state_index, before, index, 0) == 1) {
+            true -> existing(index)
+            _ -> return 0
+        }
+    }
+    state existing(index: i32) {
+        transition self.inferred_index_bound[state_index] {
+            0 -> capacity(index)
+            _ -> same(index, self.entry_bounds[self.bound_first[state_index]])
+        }
+    }
+    state capacity(index: i32) {
+        transition (self.bound_count[state_index] == 0) && (self.bound_total < 16384) {
+            true -> retain(index)
+            _ -> return 0
+        }
+    }
+    state retain(index: i32) {
+        let bound: i32 = self.bound_total;
+        self.bound_first[state_index] = bound;
+        self.bound_count[state_index] = 1;
+        self.entry_bounds[bound].kind = OmegaEntryBoundKind::Interval;
+        self.entry_bounds[bound].root = index;
+        self.entry_bounds[bound].offset = 0;
+        self.entry_bounds[bound].field = -1;
+        self.entry_bounds[bound].minimum = 0;
+        self.entry_bounds[bound].maximum = extent - 1;
+        self.inferred_index_bound[state_index] = 1;
+        self.bound_total = bound + 1;
+        return 1;
+    }
+    state same(index: i32, bound: OmegaEntryBound) {
+        transition bound.root == index {
+            true -> tighten()
+            _ -> return 0
+        }
+    }
+    state tighten() {
+        let bound: i32 = self.bound_first[state_index];
+        transition self.entry_bounds[bound].maximum > extent - 1 {
+            true -> narrower(bound)
+            _ -> return 1
+        }
+    }
+    state narrower(bound: i32) {
+        self.entry_bounds[bound].maximum = extent - 1;
+        return 1;
+    }
+}
+
+// Incoming-edge cycles cannot prove their own proposed entry assumptions.
+// Stop at this owner's boundary; ordinary cross-owner recursion is separately
+// refused by the existing call graph. Shared predecessors are not cycles.
+machine OmegaScalarCompiler::private_arrival_acyclic(&mut self, owner: i32, target: i32) -> i32 {
+    transition true { true -> clear(self.parser.machine_items[owner].first_state) }
+    state clear(index: i32) {
+        transition index < self.parser.machine_items[owner].first_state + self.parser.machine_items[owner].state_count {
+            true -> cleared(index)
+            _ -> seed()
+        }
+    }
+    state cleared(index: i32) {
+        self.invocation_seen[index] = 0;
+        transition true { true -> clear(index + 1) }
+    }
+    state seed() {
+        self.call_walk[0] = target;
+        self.call_cursors[0] = self.state_incoming[target];
+        self.invocation_seen[target] = 1;
+        transition true { true -> walk(0) }
+    }
+    state walk(depth: i32) {
+        let edge: i32 = self.call_cursors[depth];
+        transition edge >= 0 {
+            true -> incoming(depth, self.state_invocations[edge])
+            _ -> leave(depth)
+        }
+    }
+    state incoming(depth: i32, row: OmegaStateInvocation) {
+        self.call_cursors[depth] = row.next;
+        transition self.state_owners[row.caller] == owner {
+            true -> color(depth, row)
+            _ -> walk(depth)
+        }
+    }
+    state color(depth: i32, row: OmegaStateInvocation) {
+        transition self.invocation_seen[row.caller] {
+            0 -> push(depth, row.caller)
+            1 -> cycle(row.coordinate)
+            _ -> walk(depth)
+        }
+    }
+    state push(depth: i32, caller: i32) {
+        transition depth + 1 < 4096 {
+            true -> entered(depth + 1, caller)
+            _ -> cycle(self.diagnostic_offset)
+        }
+    }
+    state entered(depth: i32, caller: i32) {
+        self.invocation_seen[caller] = 1;
+        self.call_walk[depth] = caller;
+        self.call_cursors[depth] = self.state_incoming[caller];
+        transition true { true -> walk(depth) }
+    }
+    state leave(depth: i32) {
+        self.invocation_seen[self.call_walk[depth]] = 2;
+        transition depth { 0 -> return 1 _ -> walk(depth - 1) }
+    }
+    state cycle(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+}
+
+// This owner is checked completely before it can emit. Revisit every ordinary
+// and terminal arrival, including earlier calls checked before the body proposed
+// its requirement. No sampled caller or inferred cycle can stand for the rest.
+machine OmegaScalarCompiler::check_private_arrivals(&mut self, source: &[u8], owner: i32) -> i32 {
+    transition true { true -> next_state(self.parser.machine_items[owner].first_state) }
+    state next_state(index: i32) {
+        transition index < self.parser.machine_items[owner].first_state + self.parser.machine_items[owner].state_count {
+            true -> inferred(index)
+            _ -> return 1
+        }
+    }
+    state inferred(index: i32) {
+        transition self.inferred_index_bound[index] {
+            1 -> acyclic(index)
+            _ -> next_state(index + 1)
+        }
+    }
+    state acyclic(index: i32) {
+        transition (self.state_incoming[index] >= 0) && (self.private_arrival_acyclic(owner, index) == 1) {
+            true -> incoming(index, self.state_incoming[index])
+            _ -> unsupported(self.parser.machine_states[self.local_state_row(index)].name.start)
+        }
+    }
+    state incoming(index: i32, edge: i32) {
+        transition edge >= 0 {
+            true -> context(index, self.state_invocations[edge])
+            _ -> next_state(index + 1)
+        }
+    }
+    state context(index: i32, row: OmegaStateInvocation) {
+        self.diagnostic_offset = row.coordinate;
+        transition (self.state_owners[row.caller] == owner) && (row.before >= 0) &&
+            (row.first_argument >= 0) && (row.argument_count == self.state_parameter_count(index)) {
+            true -> prove(index, row)
+            _ -> unsupported(row.coordinate)
+        }
+    }
+    state prove(index: i32, row: OmegaStateInvocation) {
+        transition self.check_call_bounds(source, row.caller, row.before,
+            row.first_argument, row.argument_count, index, row.guard, row.truth) {
+            1 -> incoming(index, row.next)
+            _ -> return 0
+        }
+    }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
 }
 
 // An inferred zero denotes anonymous numeric syntax, not a chosen carrier.
@@ -1677,6 +1874,7 @@ machine OmegaScalarCompiler::check_value(
     }
     state nested_effects(call: OmegaCallExpressionSyntax, target: i32) {
         self.state_invocations[self.state_invocation_count - 1].nested_call = 1;
+        self.retain_arrival_context(before, call.first_argument, call.argument_count, -1, 0);
         transition self.retain_call_effects(state_index, before, call.first_argument,
             call.argument_count, self.state_first_parameter(target)) {
             1 -> retain(OmegaCheckedValueKind::NestedCall, target)
@@ -2746,13 +2944,20 @@ machine OmegaScalarCompiler::check_transition_target(
     state prove(row: OmegaTransitionStatementSyntax, target: i32, guard: i32, truth: i32) {
         transition self.check_call_bounds(source, state_index, before, row.first_argument, row.argument_count,
             target, guard, truth) {
-            1 -> retain(row, target)
+            1 -> retain(row, target, guard, truth)
             _ -> return 0
         }
     }
-    state retain(row: OmegaTransitionStatementSyntax, target: i32) {
+    state retain(row: OmegaTransitionStatementSyntax, target: i32, guard: i32, truth: i32) {
         self.transition_targets[row_index] = target;
-        return self.retain_state_invocation(state_index, target, row.target.start, row.acknowledgements);
+        transition self.retain_state_invocation(state_index, target, row.target.start, row.acknowledgements) {
+            1 -> context(row, guard, truth)
+            _ -> return 0
+        }
+    }
+    state context(row: OmegaTransitionStatementSyntax, guard: i32, truth: i32) {
+        self.retain_arrival_context(before, row.first_argument, row.argument_count, guard, truth);
+        return 1;
     }
     state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
     state reject(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
@@ -3860,6 +4065,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state reset_state_node(index: i32) {
         self.state_incoming[index] = -1;
+        self.inferred_index_bound[index] = 0;
         self.invocation_seen[index] = 0;
         self.state_effects[index] = self.state_crash_bound(index) & 2;
         transition self.state_block_bound(index) {
@@ -4909,6 +5115,12 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state finish_machine(index: i32) {
+        transition self.check_private_arrivals(source, index) {
+            1 -> finished_private_arrivals(index)
+            _ -> return
+        }
+    }
+    state finished_private_arrivals(index: i32) {
         let name: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, index);
         transition (self.parser.sources.unit_at(name.start) == self.entry_unit) &&
             (self.span_equals(source, name.start, name.end, entry) == 1) {
@@ -7380,7 +7592,14 @@ machine OmegaScalarCompiler::check_index_bound(
         self.index_plans[expression].bound_limit = bound;
         return 1;
     }
-    state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+    state unsupported() {
+        let plan: OmegaFixedIndexPlan = self.index_plans[expression];
+        transition self.infer_private_index(source, plan.owner_state, plan.before, selector, plan.extent) {
+            1 -> retain(OmegaIndexBoundKind::ValueInterval, selector, plan.extent - 1)
+            _ -> failed_inference()
+        }
+    }
+    state failed_inference() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
     state rejected() { self.record_reject(-1, 4, self.diagnostic_offset); return 0; }
 }
 
@@ -8095,12 +8314,24 @@ machine OmegaScalarCompiler::guard_bound_pair(&mut self, root: i32, offset: i32,
     state ceiling() {
         transition self.value_kinds[other] {
             OmegaCheckedValueKind::Literal -> ceiling_literal(self.value_payloads[other])
+            OmegaCheckedValueKind::Place -> ceiling_field(self.place_fields[other])
+            OmegaCheckedValueKind::ProjectedRead -> ceiling_field(self.value_payloads[other])
             _ -> return 0
         }
     }
     state ceiling_literal(value: i32) {
         transition (minimum <= 0) && (maximum >= 0) && (value >= strict) &&
             (value - strict <= maximum) { true -> return 1 _ -> return 0 }
+    }
+    // A live unsigned field remains below its checked data invariant. This
+    // projects that upper bound through the current pure comparison guard.
+    state ceiling_field(field: i32) {
+        let kind: i32 = self.cell_types[49152 + other];
+        transition (field >= 0) && ((kind == 64) ||
+            ((self.is_policy_word(kind) == 1) && (kind % 256 == 64))) {
+            true -> ceiling_literal(self.field_upper_bounds[field])
+            _ -> return 0
+        }
     }
     state right_place() {
         transition self.guard_place(other, root, offset) {
