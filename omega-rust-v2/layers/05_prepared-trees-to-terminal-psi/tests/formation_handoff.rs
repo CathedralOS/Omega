@@ -216,7 +216,7 @@ fn zero_field_supplies_the_exact_declared_slot_at_the_construction() {
 
 #[test]
 fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
-    use omega_lowering::{CallTarget, OperationResult};
+    use omega_lowering::{CallTarget, OperationResult, ScalarType, TypeShape};
     let file = "case_zero.omg";
     let source = "data Choice{case First(x:u8,flag:bool,y:u8); case Other(flag:bool);}
         machine left()->u8{1} machine right()->u8{2}
@@ -225,6 +225,7 @@ fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
     let zeros: Vec<_> = obligations.iter().filter(|o| matches!(&o.kind, ObligationKind::ZeroField {..})).collect();
     let [zero] = zeros.as_slice() else { panic!("one omitted payload field") };
     assert!(matches!(&zero.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::Bool} if field.path == "Choice::First::flag"));
+    assert_eq!(spelled(&zero.site, file, source), "Choice::First{y:right(),x:left(),..}");
     let package = lowered.unwrap();
     let machine = |path| package.machines.iter().find(|m| m.declaration.path == path).unwrap();
     let body = &machine("build").body;
@@ -238,10 +239,19 @@ fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
     assert_eq!(body.diagnostics.operations[construct.id.index()], zero.site);
     let OperationKind::EstablishCase {case, fields} = &construct.kind else { panic!("expected case construction") };
     assert_eq!(case.path, "Choice::First");
-    assert_eq!(fields.len(), 3);
-    for (field, (path, backing)) in fields.iter().zip([("Choice::First::x", left), ("Choice::First::flag", flag), ("Choice::First::y", right)]) {
+    let OperationResult::Structural(home) = construct.result else { panic!("expected a constructed Choice") };
+    let schema = package.data.iter().find(|d| d.declaration.path == "Choice").unwrap();
+    assert_eq!(body.places[home.index()].ty, schema.carrier);
+    let active = schema.cases.iter().find(|c| &c.declaration == case).expect("case belongs to Choice");
+    assert_eq!((fields.len(), active.fields.len()), (3, 3));
+    assert_eq!(package.types.get(active.fields[1].carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Boolean)));
+    let expected = [("Choice::First::x", left), ("Choice::First::flag", flag), ("Choice::First::y", right)];
+    for ((field, declared), (path, backing)) in fields.iter().zip(&active.fields).zip(expected) {
         assert_eq!(field.field.path, path);
-        assert!(matches!(backing.result, OperationResult::Scalar(v) if field.operand == ValueOperand::Scalar(v)));
+        assert_eq!(field.field, declared.declaration);
+        let ValueOperand::Scalar(v) = field.operand else { panic!("expected scalar input for {path}") };
+        assert_eq!(OperationResult::Scalar(v), backing.result);
+        assert_eq!(body.values[v.index()].ty, declared.carrier, "carrier for {path}");
     }
 }
 
