@@ -441,7 +441,7 @@ impl PolicySource<'_> {
         super::callables::validate_body_effect_inventory(module)?;
         if accepted.closure().elaboration().boundaries.len() != declarations.boundaries.len() {
             return Err(unavailable(
-                "the accepted module's complete boundary inventory",
+                "the source declaration for every boundary in the accepted module",
             ));
         }
         let (authored, mut supplied_slots) = self.authored_providers(target)?;
@@ -517,7 +517,7 @@ impl PolicySource<'_> {
             || review.boundaries.windows(2).any(|pair| pair[0] == pair[1])
         {
             return Err(unavailable(
-                "the accepted module's complete boundary inventory",
+                "a reviewed source or authenticated primitive for every accepted boundary",
             ));
         }
         let mut service_ids = Vec::new();
@@ -552,8 +552,18 @@ impl PolicySource<'_> {
         let typed = self.typed();
         let originals = &declarations.accepted.closure().elaboration().boundaries;
         let mut reviewed = Vec::new();
+        let mut primitives = Vec::new();
         for &boundary in &declarations.boundaries {
             if review.boundaries.binary_search(&boundary.id).is_ok() {
+                continue;
+            }
+            // A hosted primitive executes a distinct, authenticated declaration
+            // of an ordinary service requirement. The public requirement and
+            // the receiver's terminal permission retain their own identities.
+            if let Some(requirement) = terminal_semantics::closed_conformances::hosted_primitive_requirement(
+                declarations.accepted.module(), boundary,
+            ).map_err(unavailable)? {
+                primitives.push((boundary.id, requirement));
                 continue;
             }
             let Some(service) = boundary.owning_service else {
@@ -585,6 +595,11 @@ impl PolicySource<'_> {
                 .extend(&boundary.published_synchronous_entries);
         }
         review.boundaries.extend(reviewed);
+        review.boundaries.sort_unstable();
+        if primitives.iter().any(|(_, requirement)| review.boundaries.binary_search(requirement).is_err()) {
+            return Err(unavailable("the public requirement realized by a checked hosted primitive"));
+        }
+        review.boundaries.extend(primitives.into_iter().map(|(primitive, _)| primitive));
         Ok(())
     }
 
