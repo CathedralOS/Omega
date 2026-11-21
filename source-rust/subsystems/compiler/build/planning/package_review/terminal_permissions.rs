@@ -203,7 +203,7 @@ fn project_service(
                 "the same checked signature for every permission-service method",
             ));
         }
-        let authority = service_authority(input, slot, signature, method)?;
+        let authority = service_authority(input, signature, method)?;
         let scope = service_scope.method(input, signature.symbol)?;
         let reviewed_signature = declaration_signature(
             input,
@@ -271,7 +271,6 @@ fn project_service(
 /// Its accepted binding still names the complete checked service declaration.
 fn service_authority(
     input: &PolicySource<'_>,
-    slot: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
     signature: &StateSignature,
     method: &ServiceMethod,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {
@@ -286,10 +285,10 @@ fn service_authority(
         ));
     }
     let mut reach = source
-        .boundary_method_services(slot, signature)
-        .map_err(unavailable)?
-        .into_iter()
-        .map(|id| {
+        .service_reach_rows
+        .services(signature.service_reach_row)
+        .iter()
+        .map(|&id| {
             let service = source.service_reaches.definition(id).ok_or_else(|| {
                 unavailable("the exact service declaration named by a boundary method")
             })?;
