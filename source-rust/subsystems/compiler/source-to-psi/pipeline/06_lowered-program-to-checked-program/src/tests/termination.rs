@@ -1,8 +1,6 @@
-//! A loop that writes `terminates by` is accepted only when its measure is
-//! shown to go down on every recursive call. Each accepted program has a
-//! twin that differs only in the measure or in the recursive argument and
-//! is rejected for that comparison; the forms of the clause the route does
-//! not rank yet are refused by name, never accepted unjudged.
+//! A `terminates by` measure can stay equal on a transfer. Every complete
+//! cycle must include a proved strict decrease. The programs below check
+//! the published comparisons, stalled cycles and unsupported ranking views.
 //!
 //! The source programs are subjects without entries, so every machine of
 //! one is judged.
