@@ -280,6 +280,7 @@ pub(super) fn prepare_and_judge(
         prepared.clone(),
         roster,
         build.optimizations.clone(),
+        pass.timings,
     )?;
     Ok(JudgedSource {
         program: Arc::clone(program),

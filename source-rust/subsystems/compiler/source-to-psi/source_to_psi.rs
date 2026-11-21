@@ -48,16 +48,21 @@ pub struct StageSource<'a> {
 }
 
 /// Return the source judgment's advisories as soon as the Product is checked.
-pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
-    let (product, resolved) = source.resolve()?;
+pub fn check(
+    source: StageSource<'_>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+    let (product, resolved) = source.resolve(timings)?;
     let checked = product.judge(
         resolved,
         ProductEntry::BuildBindings,
         &mut Default::default(),
+        timings,
     )?;
-    checked
-        .terminal_publication
-        .check(product.declaration_scope.as_deref().map(|scope| scope as _))
+    checked.terminal_publication.check(
+        product.declaration_scope.as_deref().map(|scope| scope as _),
+        timings,
+    )
 }
 
 pub fn compile(
