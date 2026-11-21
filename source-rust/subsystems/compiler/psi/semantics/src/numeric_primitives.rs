@@ -82,6 +82,10 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
         NumericIntrinsic::FloatBinary { operation, .. } => {
             Ok(format!("Float::{}", operation.name()))
         }
+        NumericIntrinsic::Builtin { format, .. } | NumericIntrinsic::Negation(format) => {
+            let name = meaning.float_operation_name().ok_or("unknown named float operation")?;
+            Ok(format!("{}::{name}", format.name().to_ascii_uppercase()))
+        }
         NumericIntrinsic::Conversion {
             source,
             target,
@@ -168,22 +172,6 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         FloatSemanticValueKind::{Format, Integer, Meaning},
     };
     let semantic = match meaning {
-        NumericIntrinsic::FloatBinary { operation, .. }
-            if matches!(
-                operation,
-                PrimitiveFloatBinaryOperation::Add
-                    | PrimitiveFloatBinaryOperation::Subtract
-                    | PrimitiveFloatBinaryOperation::Multiply
-                    | PrimitiveFloatBinaryOperation::Divide
-            ) =>
-        {
-            FloatSemanticOperation::from_source_identity(
-                "FloatSemantics",
-                operation.name(),
-                &[Format, Meaning, Meaning],
-                Meaning,
-            )
-        }
         NumericIntrinsic::Conversion {
             source,
             target,
@@ -200,7 +188,9 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
                 Meaning,
             )
         }
-        _ => None,
+        _ => meaning.float_operation_name().and_then(|name| {
+            FloatSemanticOperation::for_float_operands(name, meaning.signature()?.operand_count, Meaning)
+        }),
     };
     if let Some(operation) = semantic {
         let (formals, result) = scalar_formals(meaning)?;
@@ -728,4 +718,52 @@ fn coordinates(
         declared(format),
         qualify(declared(result)),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use numerics::intrinsics::{FloatBuiltin, FloatFormat};
+    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+
+    #[test]
+    fn ternary_float_contracts_bind_each_argument_and_the_selected_rounding() {
+        for (format, carrier) in [
+            (FloatFormat::F32, IeeeFloatFormat::Binary32),
+            (FloatFormat::F64, IeeeFloatFormat::Binary64),
+        ] {
+            let value =
+                |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::IeeeFloat(carrier));
+            for name in ["multiply_then_add", "fused_multiply_add"] {
+                let meaning = FloatBuiltin::from_name(name).unwrap().intrinsic(format);
+                let operation = FloatSemanticOperation::from_source_identity(
+                    "FloatSemantics",
+                    name,
+                    &[Format, Meaning, Meaning, Meaning],
+                    Meaning,
+                )
+                .unwrap();
+                let equation = FloatMeaningClause::result_equation(
+                    value(4),
+                    operation.contract_identity(),
+                    carrier,
+                    [value(1), value(2), value(3)],
+                )
+                .unwrap();
+                equation.validate().unwrap();
+                assert_eq!(
+                    ensures(meaning).unwrap(),
+                    [Proposition::FloatMeaningEqual(equation)]
+                );
+                assert_eq!(
+                    declaration_path(meaning).unwrap(),
+                    format!("{}::{name}", format.name().to_ascii_uppercase())
+                );
+            }
+        }
+    }
 }

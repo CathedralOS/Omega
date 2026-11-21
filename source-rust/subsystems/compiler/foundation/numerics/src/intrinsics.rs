@@ -194,6 +194,7 @@ impl FloatFormat {
 /// Each row retains its published wire tag.
 #[derive(Clone, Copy)]
 pub struct FloatBuiltin {
+    pub name: &'static str,
     tag: u8,
     arity: usize,
     result: FloatResult,
@@ -202,6 +203,10 @@ pub struct FloatBuiltin {
 }
 
 impl FloatBuiltin {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().find(|row| row.name == name).copied()
+    }
+
     pub fn intrinsic(self, format: FloatFormat) -> NumericIntrinsic {
         NumericIntrinsic::Builtin {
             format,
@@ -216,48 +221,48 @@ impl FloatBuiltin {
 macro_rules! float_builtins {
     ($( $tag:literal => $name:ident($arity:literal, $result:ident, $binary32:ident, $binary64:ident) ),+ $(,)?) => {
         impl FloatBuiltin {
-            $(pub const $name: Self = Self {
+            pub const ALL: &[Self] = &[$(Self {
+                name: stringify!($name),
                 tag: $tag,
                 arity: $arity,
                 result: FloatResult::$result,
                 binary32: BuiltinFunction::$binary32,
                 binary64: BuiltinFunction::$binary64,
-            };)+
-            const ALL: &'static [Self] = &[$(Self::$name,)+];
+            },)+];
         }
     };
 }
 
 float_builtins! {
-    0 => MINIMUM(2, Float, FloatMinimum, FloatMinimum),
-    1 => MAXIMUM(2, Float, FloatMaximum, FloatMaximum),
-    2 => SQUARE_ROOT(1, Float, FloatSquareRoot, FloatSquareRoot),
-    3 => MULTIPLY_THEN_ADD(3, Float, FloatMultiplyThenAddF32, FloatMultiplyThenAddF64),
-    4 => FUSED_MULTIPLY_ADD(3, Float, FloatFusedMultiplyAddF32, FloatFusedMultiplyAddF64),
-    5 => IS_NAN(1, Boolean, FloatIsNan, FloatIsNan),
-    6 => IS_FINITE(1, Boolean, FloatIsFinite, FloatIsFinite),
-    7 => IS_INFINITE(1, Boolean, FloatIsInfinite, FloatIsInfinite),
-    8 => IS_NORMAL(1, Boolean, FloatIsNormal, FloatIsNormal),
-    9 => IS_SUBNORMAL(1, Boolean, FloatIsSubnormal, FloatIsSubnormal),
-    10 => CLASSIFY(1, Class, FloatClassifyF32, FloatClassifyF64),
-    11 => ADD_TOWARD_ZERO(2, Float, FloatAddTowardZeroF32, FloatAddTowardZeroF64),
-    12 => ADD_TOWARD_POSITIVE(2, Float, FloatAddTowardPositiveF32, FloatAddTowardPositiveF64),
-    13 => ADD_TOWARD_NEGATIVE(2, Float, FloatAddTowardNegativeF32, FloatAddTowardNegativeF64),
-    14 => SUBTRACT_TOWARD_ZERO(2, Float, FloatSubtractTowardZeroF32, FloatSubtractTowardZeroF64),
-    15 => SUBTRACT_TOWARD_POSITIVE(2, Float, FloatSubtractTowardPositiveF32, FloatSubtractTowardPositiveF64),
-    16 => SUBTRACT_TOWARD_NEGATIVE(2, Float, FloatSubtractTowardNegativeF32, FloatSubtractTowardNegativeF64),
-    17 => MULTIPLY_TOWARD_ZERO(2, Float, FloatMultiplyTowardZeroF32, FloatMultiplyTowardZeroF64),
-    18 => MULTIPLY_TOWARD_POSITIVE(2, Float, FloatMultiplyTowardPositiveF32, FloatMultiplyTowardPositiveF64),
-    19 => MULTIPLY_TOWARD_NEGATIVE(2, Float, FloatMultiplyTowardNegativeF32, FloatMultiplyTowardNegativeF64),
-    20 => DIVIDE_TOWARD_ZERO(2, Float, FloatDivideTowardZeroF32, FloatDivideTowardZeroF64),
-    21 => DIVIDE_TOWARD_POSITIVE(2, Float, FloatDivideTowardPositiveF32, FloatDivideTowardPositiveF64),
-    22 => DIVIDE_TOWARD_NEGATIVE(2, Float, FloatDivideTowardNegativeF32, FloatDivideTowardNegativeF64),
-    23 => SQUARE_ROOT_TOWARD_ZERO(1, Float, FloatSqrtTowardZeroF32, FloatSqrtTowardZeroF64),
-    24 => SQUARE_ROOT_TOWARD_POSITIVE(1, Float, FloatSqrtTowardPositiveF32, FloatSqrtTowardPositiveF64),
-    25 => SQUARE_ROOT_TOWARD_NEGATIVE(1, Float, FloatSqrtTowardNegativeF32, FloatSqrtTowardNegativeF64),
-    26 => FUSED_MULTIPLY_ADD_TOWARD_ZERO(3, Float, FloatFusedMultiplyAddTowardZeroF32, FloatFusedMultiplyAddTowardZeroF64),
-    27 => FUSED_MULTIPLY_ADD_TOWARD_POSITIVE(3, Float, FloatFusedMultiplyAddTowardPositiveF32, FloatFusedMultiplyAddTowardPositiveF64),
-    28 => FUSED_MULTIPLY_ADD_TOWARD_NEGATIVE(3, Float, FloatFusedMultiplyAddTowardNegativeF32, FloatFusedMultiplyAddTowardNegativeF64),
+    0 => minimum(2, Float, FloatMinimum, FloatMinimum),
+    1 => maximum(2, Float, FloatMaximum, FloatMaximum),
+    2 => square_root(1, Float, FloatSquareRoot, FloatSquareRoot),
+    3 => multiply_then_add(3, Float, FloatMultiplyThenAddF32, FloatMultiplyThenAddF64),
+    4 => fused_multiply_add(3, Float, FloatFusedMultiplyAddF32, FloatFusedMultiplyAddF64),
+    5 => is_nan(1, Boolean, FloatIsNan, FloatIsNan),
+    6 => is_finite(1, Boolean, FloatIsFinite, FloatIsFinite),
+    7 => is_infinite(1, Boolean, FloatIsInfinite, FloatIsInfinite),
+    8 => is_normal(1, Boolean, FloatIsNormal, FloatIsNormal),
+    9 => is_subnormal(1, Boolean, FloatIsSubnormal, FloatIsSubnormal),
+    10 => classify(1, Class, FloatClassifyF32, FloatClassifyF64),
+    11 => add_toward_zero(2, Float, FloatAddTowardZeroF32, FloatAddTowardZeroF64),
+    12 => add_toward_positive(2, Float, FloatAddTowardPositiveF32, FloatAddTowardPositiveF64),
+    13 => add_toward_negative(2, Float, FloatAddTowardNegativeF32, FloatAddTowardNegativeF64),
+    14 => subtract_toward_zero(2, Float, FloatSubtractTowardZeroF32, FloatSubtractTowardZeroF64),
+    15 => subtract_toward_positive(2, Float, FloatSubtractTowardPositiveF32, FloatSubtractTowardPositiveF64),
+    16 => subtract_toward_negative(2, Float, FloatSubtractTowardNegativeF32, FloatSubtractTowardNegativeF64),
+    17 => multiply_toward_zero(2, Float, FloatMultiplyTowardZeroF32, FloatMultiplyTowardZeroF64),
+    18 => multiply_toward_positive(2, Float, FloatMultiplyTowardPositiveF32, FloatMultiplyTowardPositiveF64),
+    19 => multiply_toward_negative(2, Float, FloatMultiplyTowardNegativeF32, FloatMultiplyTowardNegativeF64),
+    20 => divide_toward_zero(2, Float, FloatDivideTowardZeroF32, FloatDivideTowardZeroF64),
+    21 => divide_toward_positive(2, Float, FloatDivideTowardPositiveF32, FloatDivideTowardPositiveF64),
+    22 => divide_toward_negative(2, Float, FloatDivideTowardNegativeF32, FloatDivideTowardNegativeF64),
+    23 => square_root_toward_zero(1, Float, FloatSqrtTowardZeroF32, FloatSqrtTowardZeroF64),
+    24 => square_root_toward_positive(1, Float, FloatSqrtTowardPositiveF32, FloatSqrtTowardPositiveF64),
+    25 => square_root_toward_negative(1, Float, FloatSqrtTowardNegativeF32, FloatSqrtTowardNegativeF64),
+    26 => fused_multiply_add_toward_zero(3, Float, FloatFusedMultiplyAddTowardZeroF32, FloatFusedMultiplyAddTowardZeroF64),
+    27 => fused_multiply_add_toward_positive(3, Float, FloatFusedMultiplyAddTowardPositiveF32, FloatFusedMultiplyAddTowardPositiveF64),
+    28 => fused_multiply_add_toward_negative(3, Float, FloatFusedMultiplyAddTowardNegativeF32, FloatFusedMultiplyAddTowardNegativeF64),
 }
 
 pub struct NumericSignature {
@@ -282,6 +287,26 @@ impl NumericSignature {
 }
 
 impl NumericIntrinsic {
+    fn float_builtin(self) -> Option<FloatBuiltin> {
+        let Self::Builtin { format, .. } = self else {
+            return None;
+        };
+        FloatBuiltin::ALL
+            .iter()
+            .find(|row| row.intrinsic(format) == self)
+            .copied()
+    }
+
+    /// The Core member used for a same-format float operation.
+    pub fn float_operation_name(self) -> Option<&'static str> {
+        match self {
+            Self::FloatBinary { operation, .. } => Some(operation.name()),
+            Self::Negation(_) => Some("negate"),
+            Self::Builtin { .. } => Some(self.float_builtin()?.name),
+            _ => None,
+        }
+    }
+
     pub fn signature(self) -> Option<NumericSignature> {
         let float_type = |format| match format {
             FloatFormat::F32 => NumericType::F32,
@@ -289,9 +314,7 @@ impl NumericIntrinsic {
         };
         let (operand, operand_count, result) = match self {
             Self::Builtin { format, .. } => {
-                let row = FloatBuiltin::ALL
-                    .iter()
-                    .find(|row| row.intrinsic(format) == self)?;
+                let row = self.float_builtin()?;
                 let operand = float_type(format);
                 (
                     operand,
@@ -363,9 +386,7 @@ impl NumericIntrinsic {
         let mut bytes = [0; Self::ENCODED_SIZE];
         let header = match self {
             Self::Builtin { format, .. } => {
-                let row = FloatBuiltin::ALL
-                    .iter()
-                    .find(|row| row.intrinsic(format) == self)?;
+                let row = self.float_builtin()?;
                 [0, row.tag, format_tag(format), 0]
             }
             Self::FloatBinary { operation, format } => [
@@ -513,7 +534,7 @@ mod tests {
             }
         }
         assert_eq!(
-            FloatBuiltin::IS_NAN
+            FloatBuiltin::from_name("is_nan").unwrap()
                 .intrinsic(FloatFormat::F64)
                 .canonical_encoding()
                 .unwrap()[..4],
