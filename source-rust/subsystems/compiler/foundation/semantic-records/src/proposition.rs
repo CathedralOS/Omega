@@ -1187,7 +1187,7 @@ mod integer_types {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum IntegerMathTerm {
         IntegerLiteral(IntegerMathLiteral),
         MathValue {
@@ -1205,16 +1205,22 @@ mod integer_types {
     }
 
     impl IntegerMathTerm {
-        pub fn operands(&self) -> Vec<&IntegerMathTerm> {
+        pub(super) fn append_operands<'a>(&'a self, operands: &mut Vec<&'a Self>) {
             match self {
-                Self::MathValue { .. } | Self::IntegerLiteral(_) | Self::Embed(_) => Vec::new(),
+                Self::MathValue { .. } | Self::IntegerLiteral(_) | Self::Embed(_) => {}
                 Self::Add(left, right)
                 | Self::Subtract(left, right)
-                | Self::Multiply(left, right) => {
-                    vec![left.as_ref(), right.as_ref()]
+                | Self::Multiply(left, right) => operands.extend([left.as_ref(), right.as_ref()]),
+                Self::ShiftLeft { value, count } => {
+                    operands.extend([value.as_ref(), count.as_ref()])
                 }
-                Self::ShiftLeft { value, count } => vec![value.as_ref(), count.as_ref()],
             }
+        }
+
+        pub fn operands(&self) -> Vec<&IntegerMathTerm> {
+            let mut operands = Vec::new();
+            self.append_operands(&mut operands);
+            operands
         }
 
         pub fn operands_mut(&mut self) -> Vec<&mut IntegerMathTerm> {
@@ -2634,6 +2640,8 @@ mod propositions {
 
     impl std::error::Error for PropositionError {}
 }
+#[path = "expression_clone.rs"]
+mod expression_clone;
 #[path = "scalar_terms.rs"]
 mod scalar_terms;
 mod value_ids {
