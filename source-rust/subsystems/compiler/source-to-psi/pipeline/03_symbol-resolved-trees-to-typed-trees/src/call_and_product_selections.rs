@@ -1403,6 +1403,7 @@ pub(crate) mod construction_destinations {
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
         let mut result_calls = Vec::new();
+        let mut inferred_locals = Vec::new();
         let mut unlanded = Vec::new();
         let mut pending_destinations = Vec::new();
         // Values this pass cannot land, each with the request its holder
@@ -1482,6 +1483,17 @@ pub(crate) mod construction_destinations {
                                 machine.symbol,
                             ));
                         }
+                        StatementNode::LocalData(local)
+                            if local.type_is_inferred
+                                && local.initial_value.is_valid()
+                                && local.role.has_ordinary_initializer() =>
+                        {
+                            inferred_locals.push((
+                                state.statement_nodes.handle_at(statement_index as u32),
+                                state.symbol,
+                                local.initial_value,
+                            ));
+                        }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
                                 // One declared-place query supplies the exact
@@ -1551,6 +1563,19 @@ pub(crate) mod construction_destinations {
                         | StatementNode::LocalData(_) => {}
                     }
                 }
+            }
+        }
+
+        // Operator selection can supply an initializer's type only after all
+        // declarations are available. Publish each result in statement order
+        // so later locals can read the type of an earlier operand.
+        for (handle, owner, initializer) in inferred_locals {
+            if let Some(reference) =
+                crate::typing::typing_queries::declared_expression_type(program, owner, initializer)
+                && let StatementNode::LocalData(local) =
+                    program.statement_table.statement_mut(handle)
+            {
+                local.type_reference = reference;
             }
         }
 
