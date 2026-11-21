@@ -986,6 +986,62 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
 }
 
 #[test]
+fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
+    use provider_acceptance::AcceptedSemanticBindingRole;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-hosted-exit-product",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"use omega\language\core\ProcessExit;
+        machine build(builder: @mut Build) {
+            Build::package(builder, "exit_provider");
+            Build::select_provider::<ProcessExit, LeafExit>(builder, linux_x86_64);
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"use omega\language\core\Never;
+        use omega\language\core\ProcessExit;
+        use omega\language\core\ProcessExitPrimitive;
+        public LeafExit satisfies ProcessExit {
+            machine exit_process(code: i32) -> Never reaches ProcessExit crashes none terminates {
+                ProcessExitPrimitive(code);
+            }
+        }
+        public machine finish(code: i32) -> Never reaches ProcessExit crashes none terminates {
+            ProcessExit::exit_process(code);
+        }"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let checked = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let [exit] = checked.semantic_binding_candidates.as_slice() else {
+        panic!("expected the selected process-exit nomination");
+    };
+    assert_eq!(
+        exit.binding().role(),
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+    );
+    assert_eq!(exit.binding().terminal_authority_permissions().len(), 1);
+    assert!(checked.policy.terminal_permissions.services.is_empty());
+}
+
+#[test]
 fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
     use provider_acceptance::{
         AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,

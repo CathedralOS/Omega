@@ -6,6 +6,7 @@ use provider_acceptance::{AcceptedSemanticBinding, accepted_service_schema_diges
 use provider_plans::ServiceSchema;
 use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::representations::source_state::trait_definition::TraitDefinition;
 use std::path::Path;
 
 use super::declarations::unavailable;
@@ -14,6 +15,19 @@ use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyCallableRole, PackageReviewNominalOwner,
 };
 use std::collections::BTreeSet;
+
+/// A Build may import the same boundary to select its provider. Only the
+/// Product occurrence can supply the declaration a Product role denotes.
+fn product_boundaries<'a>(input: &PolicySource<'a>) -> impl Iterator<Item = &'a TraitDefinition> {
+    let source = input.typed();
+    source.traits().iter().filter(move |slot| {
+        slot.is_boundary
+            && source.symbols.symbol_is_in_dependency_scope(
+                slot.symbol,
+                source_provenance::DependencyScope::Product,
+            )
+    })
+}
 
 /// Retain the declaration that actually supplies a proposed role. ProcessExit
 /// belongs to core, while the reviewed binding names its selected provider.
@@ -41,9 +55,8 @@ pub(super) fn checked_service(
             }
         })
         .transpose()?;
-    let mut slots = source.traits().iter().filter(|d| {
-        d.is_boundary
-            && source.symbols.display_path(d.symbol, "::") == path
+    let mut slots = product_boundaries(input).filter(|d| {
+        source.symbols.display_path(d.symbol, "::") == path
             && if core {
                 source.core_vocabulary(d.symbol)
                     == Some(language_core::core_vocabulary::CoreVocabulary::ProcessExitService)
@@ -140,9 +153,8 @@ fn host_services(
             return Err(unavailable("an ambiguous consumer service role"));
         }
         let source = input.typed();
-        let mut declarations = source.traits().iter().filter(|slot| {
-            slot.is_boundary
-                && source.symbols.symbol_package_identity(slot.symbol) == Some(owner)
+        let mut declarations = product_boundaries(input).filter(|slot| {
+            source.symbols.symbol_package_identity(slot.symbol) == Some(owner)
                 && source.symbols.display_path(slot.symbol, "::") == path
         });
         let (Some(slot), None) = (declarations.next(), declarations.next()) else {
@@ -209,9 +221,8 @@ pub(super) fn candidates(
         return Ok((rows, None));
     };
     let role = provider_acceptance::program_entry_semantic_binding_role(contract);
-    let mut definitions = source.traits().iter().filter_map(|d| {
-        if !d.is_boundary
-            || d.name.as_str() != schema_name
+    let mut definitions = product_boundaries(input).filter_map(|d| {
+        if d.name.as_str() != schema_name
             || source.symbols.symbol_package_identity(d.symbol) != Some(owner)
         {
             return None;
