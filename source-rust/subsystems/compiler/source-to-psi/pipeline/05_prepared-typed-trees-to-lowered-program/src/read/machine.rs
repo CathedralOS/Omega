@@ -988,10 +988,14 @@ impl<'t> Program<'t> {
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let (signature, names) = if self.rigid && arguments.is_empty() {
-            self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?
+        let ((signature, names), value_parameters) = if self.rigid && arguments.is_empty() {
+            // The witness receives each unspecialized const as a scalar input,
+            // just like the declaration whose contract it checks.
+            let parameters = self.requirement_binders(id, declared)?.len();
+            let header = self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?;
+            (header, parameters)
         } else {
-            self.requirement_signature(id, declared, arguments)?
+            (self.requirement_signature(id, declared, arguments)?, 0)
         };
         self.retain_requirement_policy(id, declared, declared.symbol)?;
         self.admitted_declarations.include(declared.symbol);
@@ -1034,7 +1038,7 @@ impl<'t> Program<'t> {
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
-        self.value_parameters.push(0);
+        self.value_parameters.push(value_parameters);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
         self.source_scopes.push(self.source_scope.clone());
