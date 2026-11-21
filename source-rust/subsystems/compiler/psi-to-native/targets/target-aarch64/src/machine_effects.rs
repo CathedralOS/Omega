@@ -1395,6 +1395,14 @@ mod tests {
             assert_eq!(keys.hosted_read_byte, Some(read));
             assert_eq!(keys.hosted_exit_process_i32, Some(exit));
             assert_eq!(keys.hosted_write_byte_i32, Some(write));
+            for form in selected_instructions::IeeeFloatArithmeticForm::ALL {
+                if form.operation.rounding_direction().is_some() && form.operand_count() == 3 {
+                    assert_eq!(
+                        keys.for_semantic(MachineSemanticKind::NearestIeeeFloatArithmetic(form)),
+                        Some(crate::AARCH64_IEEE_FLOAT_TERNARY)
+                    );
+                }
+            }
             assert_eq!(
                 keys.call_unit,
                 if darwin {

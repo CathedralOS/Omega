@@ -156,6 +156,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
             ieee_float_arithmetic: Some(crate::X86_64_IEEE_FLOAT_ARITHMETIC),
             ieee_float_directed_binary: Some(crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY),
+            ieee_float_directed_ternary: None,
             ieee_float_directed_unary: Some(crate::X86_64_IEEE_FLOAT_DIRECTED_UNARY),
             ieee_float_unary: Some(crate::X86_64_IEEE_FLOAT_UNARY),
             ieee_float_conversion_control: Some(crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL),
