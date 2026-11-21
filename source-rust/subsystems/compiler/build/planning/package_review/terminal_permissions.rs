@@ -10,12 +10,11 @@ use diagnostics::Diagnostic;
 use provider_acceptance::AcceptedSemanticBinding;
 use provider_plans::{ServiceMethod, ServiceSchema};
 use review_evidence::record::{
-    PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyServiceAuthority,
-    PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
-    PackagePolicyTerminalPermissions, PackagePolicyTerminalService, PackagePolicyTermination,
-    PackageReviewSignatureParameter,
+    PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
+    PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation,
 };
-use review_evidence::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
+use review_evidence::record::PackageReviewTypeIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::signature::StateSignature;
 use std::collections::BTreeMap;
@@ -26,7 +25,6 @@ pub(super) fn project(
     selected: &SelectedProviderResult,
     target: TargetProfile,
     package: PackageKeyIdentity,
-    callables: &[PackagePolicyCallable],
 ) -> Result<PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
     if input.sources().package_identity() != Some(package)
         || selected.target_profile() != Some(target)
@@ -75,8 +73,7 @@ pub(super) fn project(
         let (existing_schema, reviewed) = match services.entry(service.clone()) {
             std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::btree_map::Entry::Vacant(entry) => {
-                let declared =
-                    project_service(input, selected, target, callables, symbol, &schema)?;
+                let declared = project_service(input, selected, target, symbol, &schema)?;
                 entry.insert((schema.clone(), declared))
             }
         };
@@ -153,7 +150,6 @@ fn project_service(
     input: &PolicySource<'_>,
     selected: &SelectedProviderResult,
     target: TargetProfile,
-    callables: &[PackagePolicyCallable],
     symbol: symbols::SymbolHandle,
     schema: &ServiceSchema,
 ) -> Result<PackagePolicyTerminalService, Vec<Diagnostic>> {
@@ -197,37 +193,17 @@ fn project_service(
             unavailable("the original declaration of every permission-service method")
         })?;
         let requirement = input.nominal(signature.symbol)?;
-        let mut published = callables.iter().filter(|callable| {
-            callable.role == PackagePolicyCallableRole::Boundary && callable.identity == requirement
-        });
-        let foreign;
-        let callable = match (published.next(), published.next()) {
-            (Some(callable), None) => callable,
-            (None, None) => {
-                // A receiver may accept a service from another package. Its own
-                // public inventory then omits the supplier's callable.
-                foreign = input.declared_boundary(&input.requirement(slot, signature)?)?;
-                &foreign
-            }
-            _ => {
-                return Err(unavailable(
-                    "one checked contract for a receiver permission",
-                ));
-            }
-        };
         let formals = source.state_signature_parameters(signature);
-        if callable.identity != requirement
-            || callable.parameters.len() != formals.len()
-            || method.parameter_count != formals.len()
-            || callable.return_type.is_some() != method.has_result
-            || callable.declared_may_suspend != Some(method.may_suspend)
-            || callable.declared_may_block != Some(method.may_block)
+        if formals.len() != method.parameter_count
+            || signature.return_type.is_valid() != method.has_result
+            || signature.suspends != method.may_suspend
+            || signature.blocks != method.may_block
         {
             return Err(unavailable(
-                "the same checked method in the service and source policies",
+                "the same checked signature for every permission-service method",
             ));
         }
-        let authority = service_authority(callable, method, &service)?;
+        let authority = service_authority(input, slot, signature, method)?;
         let scope = service_scope.method(input, signature.symbol)?;
         let reviewed_signature = declaration_signature(
             input,
@@ -291,39 +267,54 @@ fn project_service(
     })
 }
 
+/// A receiver may have no executable call or bodyless form for a foreign service.
+/// Its accepted binding still names the complete checked service declaration.
 fn service_authority(
-    callable: &PackagePolicyCallable,
+    input: &PolicySource<'_>,
+    slot: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
+    signature: &StateSignature,
     method: &ServiceMethod,
-    service: &PackageReviewNominalIdentity,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {
-    match (&callable.declared_termination, method.terminates_guarantee) {
-        (Some(PackagePolicyTermination::Terminates { premises }), true) if premises.is_empty() => {}
-        (Some(PackagePolicyTermination::NoGuarantee), false) => (),
-        _ => {
-            return Err(unavailable(
-                "the checked progress contract of a permission-service method",
-            ));
-        }
-    }
-    if !method.termination_premises.is_empty() {
+    use source_compiler::representations::source_state::invocations::{self, InvocationTarget};
+    let source = input.typed();
+    if signature.termination_guarantee.promises_termination() != method.terminates_guarantee
+        || !method.termination_premises.is_empty()
+        || matches!(&signature.termination_guarantee, source_declarations::TerminationGuarantee::Terminates{premises} if !premises.is_empty())
+    {
         return Err(unavailable(
-            "the checked progress premises of a permission-service method",
+            "the checked progress contract of a permission-service method",
         ));
     }
-    let mut reach = callable.declared_service_reach.clone().ok_or_else(|| {
-        unavailable("the exact declared authority of a permission-service method")
-    })?;
-    reach.push(service.clone());
+    let mut reach = source
+        .boundary_method_services(slot, signature)
+        .map_err(unavailable)?
+        .into_iter()
+        .map(|id| {
+            let service = source.service_reaches.definition(id).ok_or_else(|| {
+                unavailable("the exact service declaration named by a boundary method")
+            })?;
+            input.nominal(service.symbol)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     reach.sort_unstable();
     reach.dedup();
+    let mut synchronous = invocations::declared_signature_invocations(source, signature)
+        .map_err(unavailable)?
+        .into_iter()
+        .map(|target| match target {
+            InvocationTarget::Parameter(position) => {
+                Ok(PackageReviewSynchronousInvocation::Parameter(position))
+            }
+            InvocationTarget::Service(service) => input
+                .nominal(service)
+                .map(PackageReviewSynchronousInvocation::Service),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    synchronous.sort_unstable();
+    synchronous.dedup();
     Ok(PackagePolicyServiceAuthority {
         service_reach: reach,
-        synchronous_invocations: callable
-            .declared_synchronous_invocations
-            .clone()
-            .ok_or_else(|| {
-                unavailable("the synchronous invocation contract of a permission-service method")
-            })?,
+        synchronous_invocations: synchronous,
         progress_premises: Vec::new(),
     })
 }
@@ -341,11 +332,7 @@ fn declaration_signature(
         .map(|formal| {
             Ok(PackageReviewSignatureParameter {
                 name: formal.name.as_str().to_owned(),
-                type_identity: input.scoped_type(
-                    signature.symbol,
-                    formal.type_reference,
-                    scope,
-                )?,
+                type_identity: input.scoped_type(signature.symbol, formal.type_reference, scope)?,
                 is_const: formal.is_const,
                 is_mutable: formal.is_mutable,
             })

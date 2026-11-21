@@ -1275,7 +1275,8 @@ pub mod projection {
                 normal_result_memberships: normal_memberships
                     .collect(signature.symbol, signature.contracts, Some(scope))
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
-                service_reach: service_reach_names(program, trait_definition, signature),
+                service_reach: service_reach_names(program, trait_definition, signature)
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 synchronous_invocations: synchronous_invocations(program, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
@@ -1588,34 +1589,50 @@ pub mod projection {
         );
     }
 
+    impl crate::source_state::TypedTrees {
+        /// The service terms issued for a boundary method. Package evidence and the
+        /// provider schema project the same declaration handles into their own identities.
+        pub fn boundary_method_services(
+            &self,
+            boundary: &crate::source_state::trait_definition::TraitDefinition,
+            signature: &crate::source_state::signature::StateSignature,
+        ) -> Result<Vec<semantic_vocabulary::ServiceReachId>, &'static str> {
+            let mut services = self
+                .service_reach_rows
+                .services(signature.service_reach_row)
+                .to_vec();
+            if boundary.is_boundary {
+                let slot = self
+                    .service_reaches
+                    .id_for_symbol(boundary.symbol)
+                    .ok_or("boundary has no source service identity")?;
+                self.service_reaches.extend_closure(slot, &mut services);
+            }
+            services.sort_unstable_by_key(|service| service.0);
+            services.dedup();
+            Ok(services)
+        }
+    }
+
     fn service_reach_names(
         program: &crate::source_state::TypedTrees,
         trait_definition: &crate::source_state::trait_definition::TraitDefinition,
         signature: &crate::source_state::signature::StateSignature,
-    ) -> Vec<String> {
-        let mut services = program
-            .service_reach_rows
-            .services(signature.service_reach_row)
-            .to_vec();
-        if trait_definition.is_boundary
-            && let Some(service) = program
-                .service_reaches
-                .id_for_symbol(trait_definition.symbol)
-        {
-            program
-                .service_reaches
-                .extend_closure(service, &mut services);
-        }
-        services.sort_by_key(|service| service.0);
-        services.dedup();
-        let mut names = services
+    ) -> Result<Vec<String>, &'static str> {
+        let mut names = program
+            .boundary_method_services(trait_definition, signature)?
             .into_iter()
-            .filter_map(|service| program.service_reaches.definition(service))
-            .map(|definition| definition.name.clone())
-            .collect::<Vec<_>>();
+            .map(|service| {
+                program
+                    .service_reaches
+                    .definition(service)
+                    .map(|definition| definition.name.clone())
+                    .ok_or("boundary method references an absent service")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         names.sort_unstable();
         names.dedup();
-        names
+        Ok(names)
     }
 
     fn service_reach_row_names(
