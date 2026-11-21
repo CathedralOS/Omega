@@ -85,6 +85,56 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn inherited_provider_methods_keep_the_declaring_application_and_result() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Reading<T> {
+            machine read() -> T reaches none crashes none;
+        }
+        public boundary trait Narrow: Reading<u32> {}
+        public NarrowSupply satisfies Narrow {
+            machine read() -> u32 reaches none crashes none { 17u32 }
+        }
+        public WideSupply satisfies Reading<u64> {
+            machine read() -> u64 reaches none crashes none { 29u64 }
+        }";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let candidates = &module.interfaces.provider_candidates;
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(
+        candidates[0].source_requirement_identity,
+        candidates[1].source_requirement_identity
+    );
+    assert_ne!(
+        candidates[0].receiving_application,
+        candidates[1].receiving_application
+    );
+    for candidate in candidates {
+        assert_eq!(
+            candidate.declaration_application,
+            candidate.receiving_application
+        );
+        let boundary = module.boundary_machine(candidate.boundary).unwrap();
+        let service = boundary.owning_service.unwrap();
+        let receiver = module
+            .interfaces
+            .services
+            .iter()
+            .find(|row| row.id == service)
+            .unwrap();
+        assert_eq!(receiver.identity, candidate.receiving_application);
+    }
+
+    let wrong = source.replace(
+        "-> u32 reaches none crashes none { 17u32 }",
+        "-> u64 reaches none crashes none { 17u64 }",
+    );
+    let (files, root) = captured(package, &wrong);
+    assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
 fn invocation_ceiling_follows_callable_parameter_aliases() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let check = |ceiling: &str, body: &str| {
