@@ -20197,9 +20197,9 @@
       "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
       "item": "function:close_providers#1",
       "kind": "producer",
-      "meaning": "Follow entries, scalar evaluation and fused provider bodies. An independent call retains its selected requirement and leaves implementation reach to the supplying artifact.",
+      "meaning": "Follow entries, scalar evaluation and fused checked provider bodies. A selected sealed operation ends the body walk at its requirement. Independent calls leave implementation reach to the supplying artifact.",
       "producer": "Psi logical provider reach",
-      "signature": "b56b8dc59a486786d788e077b4a7d4fd34d6494ad602feec264ce1d08d92df0a"
+      "signature": "893221d23f12b48dd658b332d36877f1859c056c427f1f9b72fbcc0155e534ef"
     },
     {
       "consumers": [
