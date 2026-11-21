@@ -1,4 +1,5 @@
-//! Explicit L5 constructor syntax and calls to reviewed caller-forwarding functions.
+//! Explicit L5 constructor syntax and calls to reviewed caller-forwarding functions, then a
+//! separate list of where `self.name(...)` calls are written, with no claim about their callees.
 //! This is a source inventory, not name resolution or refusal-policy coverage.
 #[path = "../site_scan.rs"]
 mod site_scan;
@@ -209,6 +210,16 @@ struct Row {
     text: String,
 }
 
+/// Where a `self.name(...)` call is written: the method name's line and column, which is the
+/// location `#[track_caller]` reports for a method call. It says nothing about which method
+/// rustc selects; that depends on the receiver type, traits in scope and blanket impls.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct MethodCall {
+    line: usize,
+    column: usize,
+    method: String,
+}
+
 struct Scanner<'a> {
     path: &'a str,
     module: Option<Name>, // None for modules local to a block (not addressable from the file root)
@@ -217,6 +228,7 @@ struct Scanner<'a> {
     locals: Vec<(String, Option<Definition>)>,
     used: &'a mut BTreeSet<Body>,
     rows: Vec<Row>,
+    methods: Vec<MethodCall>,
 }
 
 impl Scanner<'_> {
@@ -445,6 +457,22 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             }
         }
     }
+    fn visit_expr_method_call(
+        &mut self,
+        call: &'ast syn::ExprMethodCall,
+    ) {
+        // Record the position only. Matching the name to a definition here would credit the wrong
+        // method whenever an imported trait or a by-reference impl wins rustc's method lookup.
+        if matches!(&*call.receiver, Expr::Path(p) if p.qself.is_none() && p.path.is_ident("self")) {
+            let start = call.method.span().start();
+            self.methods.push(MethodCall {
+                line: start.line,
+                column: start.column + 1,
+                method: call.method.unraw().to_string(),
+            });
+        }
+        visit::visit_expr_method_call(self, call);
+    }
     fn visit_expr_call(
         &mut self,
         call: &'ast ExprCall,
@@ -486,12 +514,17 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
     }
 }
 
-fn inventory(files: &BTreeMap<String, File>) -> Vec<(&str, Row)> {
+type Inventory<'a> = (Vec<(&'a str, Row)>, Vec<(&'a str, MethodCall)>);
+
+/// Candidate rows, then the separate list of `self.name(...)` positions. The second list never
+/// changes a candidate's role.
+fn inventory(files: &BTreeMap<String, File>) -> Inventory<'_> {
     let mut known = Wrappers::new();
     for (path, file) in files {
         module_wrappers(path, &module(path), &file.items, &mut known);
     }
     let mut rows = Vec::new();
+    let mut methods = Vec::new();
     let mut used = BTreeSet::new();
     for (path, file) in files {
         let mut s = Scanner {
@@ -501,10 +534,13 @@ fn inventory(files: &BTreeMap<String, File>) -> Vec<(&str, Row)> {
             used: &mut used,
             locals: vec![],
             rows: vec![],
+            methods: vec![],
         };
         s.module_items(&file.items);
         s.rows.sort();
+        s.methods.sort();
         rows.extend(s.rows.into_iter().map(|row| (path.as_str(), row)));
+        methods.extend(s.methods.into_iter().map(|call| (path.as_str(), call)));
     }
     // Only replace a constructor when we have a caller candidate for that exact body.
     for (path, row) in &mut rows {
@@ -512,7 +548,7 @@ fn inventory(files: &BTreeMap<String, File>) -> Vec<(&str, Row)> {
             row.role = "forwarder-body";
         }
     }
-    rows
+    (rows, methods)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -534,8 +570,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             files.insert(relative, file);
         }
     }
-    let rows = inventory(&files);
-    println!("#lowering-diagnostic-sites\tv1\npath\tline\tcolumn\trole\tcallee\tclass\ttext");
+    let (rows, methods) = inventory(&files);
+    println!("#lowering-diagnostic-sites\tv2\npath\tline\tcolumn\trole\tcallee\tclass\ttext");
     for (path, row) in &rows {
         println!(
             "{SOURCE}/{}\t{}\t{}\t{}\t{}\t{}\t{}",
@@ -548,7 +584,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             field(&row.text)
         );
     }
-    println!("#end\tsites={}\tfiles={}", rows.len(), files.len());
+    println!("#self-method-calls\npath\tline\tcolumn\tmethod");
+    for (path, call) in &methods {
+        println!("{SOURCE}/{}\t{}\t{}\t{}", field(path), call.line, call.column, call.method);
+    }
+    println!("#end\tsites={}\tfiles={}\tself_method_calls={}", rows.len(), files.len(), methods.len());
     Ok(())
 }
 
@@ -557,13 +597,90 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod probe;
 
 #[cfg(test)]
+#[path = "lowering_diagnostic_sites/method_probe.rs"]
+mod method_probe;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn self_method_calls_are_listed_where_rustc_reports_them_without_naming_a_callee() {
+        let source = include_str!("lowering_diagnostic_sites/method_probe.rs");
+        let files = BTreeMap::from([("method_probe.rs".into(), syn::parse_file(source).unwrap())]);
+        let (rows, methods) = inventory(&files);
+        let ([direct, split, closure], reached) = method_probe::run();
+        // Rustc's choices, which no syntax-only rule reproduces: the `&mut self` call reaches the
+        // imported blanket trait, and the unrelated type's call reaches its own method.
+        assert_eq!(reached, ["external trait", "same-named unrelated method"]);
+        // 1-based line and column of `word` on the line `offset` lines below the one containing `header`.
+        let find = |header: &str, offset: usize, word: &str| {
+            let line = source.lines().position(|l| l.contains(header)).unwrap() + offset;
+            (line + 1, source.lines().nth(line).unwrap().find(word).unwrap() + 1)
+        };
+        let direct_at = find("fn direct", 1, "refuse");
+        let split_at = find("fn split", 2, "refuse"); // the method name, not `self` or the dot
+        let closure_at = find("ok_or_else", 0, "refuse");
+        let external_at = find("fn external", 1, "refuse");
+        let unrelated_at = find("fn call", 1, "refuse");
+        let observed: Vec<_> = [direct, split, closure]
+            .iter()
+            .map(|e| {
+                assert!(Path::new(e.0.file()).ends_with("lowering_diagnostic_sites/method_probe.rs"));
+                (e.0.line() as usize, e.0.column() as usize)
+            })
+            .collect();
+        assert_eq!(observed, [direct_at, split_at, closure_at]);
+        // Every call is listed, including the two that never construct an error.
+        assert_eq!(
+            methods
+                .iter()
+                .map(|(_, m)| (m.line, m.column, m.method.as_str()))
+                .collect::<Vec<_>>(),
+            [direct_at, split_at, closure_at, external_at, unrelated_at].map(|(line, column)| (line, column, "refuse"))
+        );
+        // The inherent constructor stays an ordinary candidate: no call is taken as its forwarder.
+        assert_eq!(
+            rows.iter()
+                .map(|(_, r)| ((r.line, r.column), r.role))
+                .collect::<Vec<_>>(),
+            [(find("\"inherent\"", 0, "LoweringError"), "constructor")]
+        );
+    }
+
+    #[test]
+    fn only_calls_on_plain_self_outside_tests_are_listed() {
+        let file = syn::parse_file(
+            r#"
+            impl S {
+                fn f(&mut self) {
+                    self.r#refuse(); self.inner.refuse(); Self::refuse(self); (*self).refuse();
+                    other.refuse(); let _ = format!("{}", self.named()); self.a().b();
+                    let _ = "self.in_text()";
+                }
+                #[test] fn t(&self) { self.in_test(); }
+            }
+            #[cfg(test)] mod tests { fn g(&self) { self.in_test_module(); } }
+            "#,
+        )
+        .unwrap();
+        let files = BTreeMap::from([("lib.rs".into(), file)]);
+        let (rows, methods) = inventory(&files);
+        assert!(rows.is_empty());
+        assert_eq!(
+            methods
+                .iter()
+                .map(|(_, m)| m.method.as_str())
+                .collect::<Vec<_>>(),
+            ["refuse", "named", "a"]
+        );
+    }
+
+    #[test]
     fn scanner_keys_match_real_track_caller_locations() {
         let files = BTreeMap::from([("probe.rs".into(), syn::parse_file(include_str!("lowering_diagnostic_sites/probe.rs")).unwrap())]);
-        let rows = inventory(&files);
+        let (rows, methods) = inventory(&files);
+        assert!(methods.is_empty());
         let observed = probe::run().map(|e| {
             assert!(Path::new(e.0.file()).ends_with("lowering_diagnostic_sites/probe.rs"));
             (e.0.line() as usize, e.0.column() as usize)
@@ -630,7 +747,8 @@ mod tests {
         )
         .unwrap();
         let files = BTreeMap::from([("lib.rs".into(), file)]);
-        let rows = inventory(&files);
+        let (rows, methods) = inventory(&files);
+        assert!(methods.is_empty());
         assert_eq!(rows.iter().map(|(_, r)| r.role).collect::<Vec<_>>(), ["constructor", "constructor"]);
     }
 
@@ -655,7 +773,8 @@ mod tests {
                 .unwrap(),
             ),
         ]);
-        let rows = inventory(&files);
+        let (rows, methods) = inventory(&files);
+        assert!(methods.is_empty());
         assert_eq!(
             rows.iter().map(|(_, r)| (r.role, r.class)).collect::<Vec<_>>(),
             [
