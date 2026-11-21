@@ -810,6 +810,9 @@ impl Extend<SymbolHandle> for Capture<'_> {
 }
 
 impl TypedReferences for Capture<'_> {
+    fn inferred_type_references(&self) -> bool {
+        false
+    }
     fn machine_body(&mut self, machine: &crate::source_state::machine::Machine) -> bool {
         self.bodies.contains(machine.symbol)
     }
