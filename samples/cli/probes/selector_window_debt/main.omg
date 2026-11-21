@@ -17,7 +17,7 @@ machine drop_token(token: @mut Token) { token.byte = 0; }
 machine reset(index: @mut u64) { $index = 0; }
 
 machine rotate(tokens: @mut [Token], initial: u64)
-requires tokens.len >= 2, initial < 2
+requires tokens.length >= 2, initial < 2
 {
     let mut at: u64 = initial;
     let mut unrelated: u64 = initial;

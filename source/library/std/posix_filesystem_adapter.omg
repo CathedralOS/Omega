@@ -525,7 +525,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine posix_filesystem_read(filesystem: @mut PosixFilesystem, file: File, buffer: @mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 {
-    transition count <= buffer.len {
+    transition count <= buffer.length {
         true -> transfer(filesystem, file, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
@@ -572,33 +572,33 @@ reaches FilesystemContentWrite
 {
     transition { _ -> remaining(filesystem, descriptor, bytes, 0) }
     machine remaining(filesystem: @mut PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> UnitResult
-    requires position <= bytes.len
+    requires position <= bytes.length
     {
-        transition position < bytes.len {
+        transition position < bytes.length {
             true -> write(filesystem, descriptor, bytes, position),
             false -> complete()
         }
     }
     machine write(filesystem: @mut PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> UnitResult
-    requires position < bytes.len
+    requires position < bytes.length
     {
-        let count: i64 = PosixFilesystemHost::write(descriptor, @bytes[position..bytes.len]);
+        let count: i64 = PosixFilesystemHost::write(descriptor, @bytes[position..bytes.length]);
         transition count > 0 {
             true -> progressed(filesystem, descriptor, bytes, position, count),
             false -> stalled(filesystem, descriptor, bytes, position, count)
         }
     }
     machine progressed(filesystem: @mut PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> UnitResult
-    requires position <= bytes.len, count > 0
+    requires position <= bytes.length, count > 0
     {
         let written: u64 = narrow_i64_to_u64_exact(count);
-        transition written <= bytes.len - position {
+        transition written <= bytes.length - position {
             true -> remaining(filesystem, descriptor, bytes, position + written),
             false -> invalid()
         }
     }
     machine stalled(filesystem: @mut PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> UnitResult
-    requires position <= bytes.len
+    requires position <= bytes.length
     {
         transition count == -4 {
             true -> remaining(filesystem, descriptor, bytes, position),
@@ -646,7 +646,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine posix_filesystem_read_all(filesystem: @mut PosixFilesystem, path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
-    transition count <= buffer.len {
+    transition count <= buffer.length {
         true -> acquire(filesystem, path, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
@@ -686,7 +686,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine posix_filesystem_copy(filesystem: @mut PosixFilesystem, from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 {
-    transition cap <= buffer.len {
+    transition cap <= buffer.length {
         true -> acquire(filesystem, from, to, buffer, cap),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
@@ -736,10 +736,10 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     requires count >= 0
     {
         let received: u64 = narrow_i64_to_u64_exact(count);
-        transition received <= buffer.len { true -> destination(filesystem, to, buffer, received, mode), false -> invalid() }
+        transition received <= buffer.length { true -> destination(filesystem, to, buffer, received, mode), false -> invalid() }
     }
     machine destination(filesystem: @mut PosixFilesystem, to: @[u8] in Path, buffer: @mut [u8], count: u64, mode: u32) -> IoResult
-    requires count <= buffer.len
+    requires count <= buffer.length
     {
         filesystem.open_options = posix_filesystem_creation_open_options();
         PosixFilesystemTarget::encode_open_options(filesystem);
@@ -747,7 +747,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         transition descriptor >= 0 { true -> write(filesystem, descriptor, buffer, count, mode), false -> failed_open(filesystem, descriptor) }
     }
     machine write(filesystem: @mut PosixFilesystem, descriptor: i32, buffer: @mut [u8], count: u64, mode: u32) -> IoResult
-    requires count <= buffer.len
+    requires count <= buffer.length
     {
         let bytes: @[u8] = @buffer[0..count];
         let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
@@ -873,7 +873,7 @@ machine posix_filesystem_create_dir_all(filesystem: @mut PosixFilesystem, path: 
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 {
     filesystem.dir_mode = 493;
-    transition { _ -> posix_filesystem_mkall_walk(filesystem, path, 1, path.len) }
+    transition { _ -> posix_filesystem_mkall_walk(filesystem, path, 1, path.length) }
 }
 
 // Create every parent prefix in order, then the whole path, as Windows does. A
@@ -884,12 +884,12 @@ machine posix_filesystem_mkall_walk(filesystem: @mut PosixFilesystem, path: @[u8
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 terminates by remaining
 {
-    transition i < path.len && remaining > 0 {
+    transition i < path.length && remaining > 0 {
         true -> inspect(filesystem, path, i, remaining),
         false -> posix_filesystem_create_dir_existing(filesystem, path)
     }
     machine inspect(filesystem: @mut PosixFilesystem, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
-    requires i < path.len && remaining > 0
+    requires i < path.length && remaining > 0
     terminates by remaining
     {
         // A builtin index takes an unqualified view (domains.md, "Operands").
@@ -899,7 +899,7 @@ terminates by remaining
         }
     }
     machine create(filesystem: @mut PosixFilesystem, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
-    requires i < path.len && remaining > 0
+    requires i < path.length && remaining > 0
     terminates by remaining
     {
         // A builtin range takes an unqualified view (domains.md, "Operands"): remove
@@ -1640,7 +1640,7 @@ terminates by remaining
 machine posix_filesystem_read_at(filesystem: @mut PosixFilesystem, file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
 {
-    transition count <= buffer.len {
+    transition count <= buffer.length {
         true -> transfer(filesystem, file, buffer, count, offset),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
@@ -1826,19 +1826,19 @@ reaches FilesystemMetadataQuery
         }
     }
     machine capacity(resolved: [u8; 4096], output: @mut [u8], length: u64) -> i64 {
-        transition length < output.len {
+        transition length < output.length {
             true -> copy(resolved, output, length, 0),
             false -> small_output()
         }
     }
     machine copy(resolved: [u8; 4096], output: @mut [u8], length: u64, index: u64) -> i64 {
-        transition index <= length && index < 4096 && index < output.len {
+        transition index <= length && index < 4096 && index < output.length {
             true -> store(resolved, output, length, index),
             false -> (1)
         }
     }
     machine store(resolved: [u8; 4096], output: @mut [u8], length: u64, index: u64) -> i64
-    requires index < 4096, index < output.len
+    requires index < 4096, index < output.length
     {
         output[index] = resolved[index];
         transition { _ -> copy(resolved, output, length, index + 1) }

@@ -93,7 +93,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console + DirectoryEnumer
         transition meta_result { MetadataResult::Ok { meta } -> block audit_len(context, next_passed, meta), _ -> done(context, next_passed) }
     }
     machine audit_len(context: @mut Main, passed: i32 in Wrapping, meta: Metadata) {
-        transition meta.len == 32 { true -> block audit_time(context, passed, meta), _ -> done(context, passed) }
+        transition meta.length == 32 { true -> block audit_time(context, passed, meta), _ -> done(context, passed) }
     }
 
     machine audit_time(context: @mut Main, passed: i32 in Wrapping, meta: Metadata) {
@@ -151,7 +151,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console + DirectoryEnumer
         transition meta_result { MetadataResult::Ok { meta } -> block compact_ck(context, passed, meta), _ -> done(context, passed) }
     }
     machine compact_ck(context: @mut Main, passed: i32 in Wrapping, meta: Metadata) {
-        transition meta.len == 9 { true -> block backup(context, passed), _ -> done(context, passed) }
+        transition meta.length == 9 { true -> block backup(context, passed), _ -> done(context, passed) }
     }
 
     machine backup(context: @mut Main, passed: i32 in Wrapping) {

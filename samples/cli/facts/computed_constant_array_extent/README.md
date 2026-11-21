@@ -66,7 +66,7 @@ Governing contracts: [constants](../../../../wiki/spec/language/constants.md),
 [modules](../../../../wiki/spec/language/modules.md). Broader module evaluation
 remains open, including specialized provider/target applications, abstract/open
 carriers and other structured proof subjects. Literal-array argument evaluation,
-array-indexed record predicates and array `.len` observations have separate
+array-indexed record predicates and array `.length` observations have separate
 baseline limitations; these witnesses do not claim those mechanisms.
 
 Constant evaluation of generic constructors through named const arguments remains

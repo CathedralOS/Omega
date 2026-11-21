@@ -599,20 +599,20 @@ crashes Trap
 machine decoded_spells(input: @TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: @[u8]) -> bool
 crashes Trap
 {
-    transition length == spelling.len {
+    transition length == spelling.length {
         true -> compare(input, start, spelling, 0 as +Trapping),
         _ -> absent()
     }
 
     machine compare(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool {
-        transition index < spelling.len {
+        transition index < spelling.length {
             true -> byte(input, cursor, spelling, index),
             _ -> present()
         }
     }
 
     machine byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool
-    requires index < spelling.len
+    requires index < spelling.length
     {
         transition cursor < 131072 {
             true -> compare_byte(input, cursor, spelling, index),
@@ -621,7 +621,7 @@ crashes Trap
     }
 
     machine compare_byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool
-    requires cursor < 131072, index < spelling.len
+    requires cursor < 131072, index < spelling.length
     {
         let decoded: u8 = input.decoded[cursor as -Trapping];
         let expected: u8 = spelling[index as -Trapping];

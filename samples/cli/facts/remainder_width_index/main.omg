@@ -2,9 +2,9 @@
 // equal to a view's length it indexes that view.
 // Expected exit: 0
 machine pick(value: u64, buckets: @[u8]) -> u8
-requires buckets.len > 0
+requires buckets.length > 0
 {
-    let width: u64 = buckets.len as u64;
+    let width: u64 = buckets.length as u64;
     buckets[value % width]
 }
 

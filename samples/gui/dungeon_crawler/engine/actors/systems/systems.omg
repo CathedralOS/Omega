@@ -19,10 +19,10 @@ requires Capacity >= 1 && Rooms >= 1 {
 machine advance_slice<const Rooms: u64>(actors: @mut [Actor<Rooms>], intents: @[Command], dungeon: @Dungeon<Rooms>, key: bool)
 terminates
 terminates by actors -> Slice::Length
-requires Rooms >= 1 && actors.len == intents.len {
-    transition actors.len > 0 { true -> head(actors, intents, dungeon, key), _ -> done() }
+requires Rooms >= 1 && actors.length == intents.length {
+    transition actors.length > 0 { true -> head(actors, intents, dungeon, key), _ -> done() }
     machine head(actors: @mut [Actor<Rooms>], intents: @[Command], dungeon: @Dungeon<Rooms>, key: bool)
-    requires Rooms >= 1 && actors.len > 0 && actors.len == intents.len {
+    requires Rooms >= 1 && actors.length > 0 && actors.length == intents.length {
         let actor: Actor<Rooms> = cooldowns::<Rooms>(actors[0]);
         let moved: Actor<Rooms> = move_actor::<Rooms>(actor, dungeon, intents[0].direction, key);
         actors[0] = attack_intent::<Rooms>(moved, intents[0]);
@@ -56,9 +56,9 @@ machine resolve_targets<const Rooms: u64>(attacker: Actor<Rooms>, targets: @mut 
 terminates
 terminates by targets -> Slice::Length
 requires Rooms >= 1 {
-    transition targets.len > 0 { true -> head(attacker, targets), _ -> done() }
+    transition targets.length > 0 { true -> head(attacker, targets), _ -> done() }
     machine head(attacker: Actor<Rooms>, targets: @mut [Actor<Rooms>])
-    requires Rooms >= 1 && targets.len > 0 {
+    requires Rooms >= 1 && targets.length > 0 {
         let victim: Actor<Rooms> = strike::<Rooms>(attacker, targets[0]);
         targets[0] = contact::<Rooms>(attacker, victim);
         transition { _ -> resolve_targets(attacker, @mut targets[1..]) }
@@ -70,9 +70,9 @@ public machine room_has_hostiles<const Rooms: u64>(actors: @[Actor<Rooms>], room
 terminates
 terminates by actors -> Slice::Length
 requires Rooms >= 1 && room < Rooms {
-    transition actors.len > 0 { true -> head(actors, room, faction), _ -> (false) }
+    transition actors.length > 0 { true -> head(actors, room, faction), _ -> (false) }
     machine head(actors: @[Actor<Rooms>], room: u64, faction: u32) -> bool
-    requires Rooms >= 1 && room < Rooms && actors.len > 0 {
+    requires Rooms >= 1 && room < Rooms && actors.length > 0 {
         let actor: Actor<Rooms> = actors[0];
         transition actor.active && actor.vitality.current > 0 && actor.room == room && actor.faction != faction {
             true -> (true),

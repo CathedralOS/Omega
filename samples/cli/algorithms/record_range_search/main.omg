@@ -4,10 +4,10 @@
 data Record { key: u64; address: u64; }
 
 machine bound(records: @[Record], key: u64, after_equal: bool) -> u64 {
-    transition { _ -> search(records, key, after_equal, 0, records.len) }
+    transition { _ -> search(records, key, after_equal, 0, records.length) }
     machine search(records: @[Record], key: u64, after_equal: bool,
                  lower: u64, upper: u64) -> u64
-    requires lower <= upper && upper <= records.len
+    requires lower <= upper && upper <= records.length
     {
         transition lower < upper {
             true -> probe(records, key, after_equal, lower, upper),
@@ -16,7 +16,7 @@ machine bound(records: @[Record], key: u64, after_equal: bool) -> u64 {
     }
     machine probe(records: @[Record], key: u64, after_equal: bool,
                 lower: u64, upper: u64) -> u64
-    requires lower < upper && upper <= records.len
+    requires lower < upper && upper <= records.length
     {
         let middle: u64 = lower + (upper - lower) / 2;
         let current: u64 = records[middle].key;

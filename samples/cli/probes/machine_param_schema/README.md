@@ -7,8 +7,8 @@ Compile-scope probe. No standard-library dependency.
   Console` const+reach bounds; `Schema<2>(v)` calls;
   const-generic machines passed by name.
 - ensures_fact_list: multi-clause `ensures` rosters
-  (`count > 0; count <= slots.len`) and `requires` quoting
-  member expressions like `counter.slots.len`.
+  (`count > 0; count <= slots.length`) and `requires` quoting
+  member expressions like `counter.slots.length`.
 
 Compile-checked only (no ProcessExit provider):
 

@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: field.
 machine inspect(bytes: @[u8]) -> u8
-requires ascii_only(bytes) && bytes.len >= 1
+requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 data Box { bytes: [u8; 1]; }
 machine probe() -> u8 {

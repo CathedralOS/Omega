@@ -20,7 +20,7 @@
 domain [u8; 8]::Ascii requires ascii_only(self);
 
 machine replace(at: u64, bytes: @mut [u8; 8] in Ascii, value: u8) -> bool {
-    transition at < bytes.len && value < 128 {
+    transition at < bytes.length && value < 128 {
         true -> write(at, bytes, value, true),
         _ -> false
     }

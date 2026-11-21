@@ -25,30 +25,30 @@ data Held<'row> {
 }
 
 machine low_pair<'row>(items: @'row mut [f64], mean: f64) -> Centered<'row>
-requires items.len == 2
+requires items.length == 2
 {
     Centered { window: items, value: mean }
 }
 
 machine high_pair<'row>(items: @'row mut [f64], mean: f64) -> Centered<'row>
-requires items.len == 2
+requires items.length == 2
 {
     Centered { window: items, value: mean }
 }
 
 machine echo(value: f64) -> f64 { value }
 
-machine length_of(window: @mut [f64]) -> u64 { window.len }
+machine length_of(window: @mut [f64]) -> u64 { window.length }
 
 machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.measurements = [3.0, 5.0, 1.0, 9.0];
     transition { _ -> low(main) }
     machine low(main: @mut Main) {
         let produced: Centered = low_pair(@mut main.measurements[0..2], 2.0);
-        let local_length: u64 = produced.window.len;
+        let local_length: u64 = produced.window.length;
         main.centered = echo(produced.value);
         let held: Held = Held { window: produced.window };
-        let field_length: u64 = held.window.len;
+        let field_length: u64 = held.window.length;
         main.local_length = local_length;
         main.field_length = field_length;
         main.parameter_length = length_of(held.window);

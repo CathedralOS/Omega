@@ -1,7 +1,7 @@
 # Contracted collection measurements
 
 This workload now exercises a general compiler repair through its reusable
-slice row accessor. A checked helper declares `ensures result == values.len`;
+slice row accessor. A checked helper declares `ensures result == values.length`;
 its caller captures the returned count and guards a variable index with it.
 Previously this valid composition rejected with `cannot prove index ... within
 unknown slice length`. The direct length guard checked successfully.

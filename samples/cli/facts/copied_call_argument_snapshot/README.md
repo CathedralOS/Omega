@@ -278,7 +278,7 @@ Each computed byte-view place also creates its snapshot through
 record field. The completed result establishes length 7 before another operand
 replaces its former home with length 9. The consumer uses that retained length
 directly; the sentinel byte 49 checks the nonzero offset at runtime. Its twin
-changes the window bound to 9 and must reject `ranged_original.bytes.len == 7`,
+changes the window bound to 9 and must reject `ranged_original.bytes.length == 7`,
 independently of the earlier twin obligation. All nine positive and negative
 places have matching fact pins.
 
@@ -397,7 +397,7 @@ replaces its former descriptor home with a view of 9.
 
 Each of the nine places has an `indexed_byte_view/main.omg` witness and an
 `indexed_byte_view/invalid/main.omg` twin. Both direct and public `dyn` producers
-return `Counted<'storage, (source.bytes.len)>` from a local array-backed view. The
+return `Counted<'storage, (source.bytes.length)>` from a local array-backed view. The
 receiver accepts `Counted<'storage, 7>` and consumes its own default-domain
 invariant through `seven`; it needs no redundant length precondition. The caller
 subtracts 7 and checks that the former home became 9 while its sibling stayed 4.
@@ -575,7 +575,7 @@ it is retained evidence, not a new repair.
 The same copied-first-argument fact also crosses all nine
 `<place>/provider_extent_poststate` programs. A public installer changes
 `View.bytes` from a one-byte window to a seven-byte window; its independently
-proved public ensures publishes `slot.bytes.len == replacement.len`. The next
+proved public ensures publishes `slot.bytes.length == replacement.length`. The next
 operand copies that length into an owned dependent `Counted<7>`, before the
 last operand overwrites the former descriptor home with a nine-byte static
 view. The counter toggles once and the ordinary consumer subtracts exactly 7.

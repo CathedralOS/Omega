@@ -1,7 +1,7 @@
 machine measure(path: @[u8], remaining: u32) -> u64 {
     transition remaining > 0 {
         true -> measure(path, remaining - 1),
-        false -> path.len
+        false -> path.length
     }
 }
 

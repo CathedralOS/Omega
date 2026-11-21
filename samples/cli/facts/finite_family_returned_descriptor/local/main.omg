@@ -36,8 +36,8 @@ requires width == 16 || width == 32
     let selected: dyn Windowing<Packet<'bytes>, Returned<'bytes>> = Header as dyn Windowing<Packet<'bytes>, Returned<'bytes>>;
     let returned: Returned = dispatch(selected, packet, width);
     let result: Packet = unwrap(returned, width);
-    transition result.bytes.len == 3 { true -> read(result, last), false -> bad() }
-    machine read(result: Packet, last: u8) requires result.bytes.len == 3 {
+    transition result.bytes.length == 3 { true -> read(result, last), false -> bad() }
+    machine read(result: Packet, last: u8) requires result.bytes.length == 3 {
         transition result.bytes[0] == 11 && result.bytes[2] == last { true -> done(), false -> bad() }
     }
     machine done() {}

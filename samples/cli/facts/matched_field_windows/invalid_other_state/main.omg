@@ -4,7 +4,7 @@
 // Invalid control: the successor state's other arm selects `items[2..3]`, so the arm
 // that does not pin `which` publishes length 1.
 machine from_state<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
-    ensures result.len == 2
+    ensures result.length == 2
 {
     transition { _ -> pick(items, which) }
     machine pick(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8] {
@@ -17,7 +17,7 @@ machine from_state<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
 machine main() crashes Trap {
     let mut bytes: [u8; 4] = [1, 2, 3, 4];
     let window: @mut [u8] = from_state(@mut bytes, 0);
-    transition window.len == 2 { true -> done(), false -> bad() }
+    transition window.length == 2 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

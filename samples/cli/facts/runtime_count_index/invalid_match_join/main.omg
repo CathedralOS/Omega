@@ -1,14 +1,14 @@
 // A match join of two copies of a runtime count still indexes a byte view.
-// Rejected: the joined count may equal items.len, so `Index < items.len`
+// Rejected: the joined count may equal items.length, so `Index < items.length`
 // cannot be discharged at read_at.
 machine read_at<Index: u32>(items: @[u8]) -> u8
-requires Index < items.len
+requires Index < items.length
 {
     items[Index]
 }
 
 machine indexed(items: @[u8], count: u32, flag: bool) -> u8
-requires count <= items.len
+requires count <= items.length
 {
     let copy: u32 = count;
     let index: u32 = match flag { true -> count, false -> copy };

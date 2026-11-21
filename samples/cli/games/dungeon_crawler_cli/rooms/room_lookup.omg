@@ -22,7 +22,7 @@ ensures
         cell: CellId,
         out_room: @mut Room,
         index: u64 in Wrapping)
-    requires room_count <= 16, index < 16, rooms.len == 16
+    requires room_count <= 16, index < 16, rooms.length == 16
     {
         let found: bool = rooms[index].cell == cell;
         let next_index: u64 in Wrapping = index + 1;
@@ -75,7 +75,7 @@ machine find_room_mut(level: @mut Level,
         room_count: u64,
         cell: CellId,
         index: u64 in Wrapping) -> @mut Room
-    requires room_count <= 16, index < 16, rooms.len == 16
+    requires room_count <= 16, index < 16, rooms.length == 16
     {
         let found: bool = rooms[index].cell == cell;
         let next_index: u64 in Wrapping = index + 1;

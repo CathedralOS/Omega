@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
     requires
         valid_utf8(view)
     {
-        main.result = view.len;
+        main.result = view.length;
     }
     machine bad() { }
 }

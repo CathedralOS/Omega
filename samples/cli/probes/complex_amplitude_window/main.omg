@@ -8,7 +8,7 @@ data Complex [copy] { real: f64; imaginary: f64; }
 data Held<'row> { cells: @'row mut [Complex]; }
 
 machine half<'row>(row: @'row mut [Complex; 4], which: i64) -> @'row mut [Complex]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut row[0..2],
@@ -17,7 +17,7 @@ ensures result.len == 2
 }
 
 machine scale_pair(window: @mut [Complex], factor: f64)
-requires window.len >= 2 {
+requires window.length >= 2 {
     let first: Complex = window[0];
     let second: Complex = window[1];
     window[0] = Complex { real: first.real * factor, imaginary: first.imaginary * factor };
@@ -27,7 +27,7 @@ requires window.len >= 2 {
 machine cell_real(cell: Complex) -> f64 { cell.real }
 
 machine scaled_real(window: @[Complex]) -> f64
-requires window.len >= 1 {
+requires window.length >= 1 {
     cell_real(window[0])
 }
 
@@ -45,12 +45,12 @@ machine main() crashes Trap {
     let view: @mut [Complex] = half(@mut row, 0);
     let mut held: Held = Held { cells: view };
     scale_pair(held.cells, 2.0);
-    transition held.cells.len == 2 {
+    transition held.cells.length == 2 {
         true -> observe(@mut held, right_real, right_imaginary, far_real, far_imaginary),
         false -> bad()
     }
     machine observe(held: @mut Held, right_real: f64, right_imaginary: f64, far_real: f64, far_imaginary: f64)
-    requires held.cells.len == 2 {
+    requires held.cells.length == 2 {
         let local: Complex = held.cells[0];
         let through_field: f64 = held.cells[0].real;
         let through_parameter: f64 = cell_real(local);

@@ -15,7 +15,7 @@ public machine parse(bytes: @[u8]) -> Inputs {
     input.valid = true;
     transition { _ -> scan(bytes, 0, input) }
     machine scan(bytes: @[u8], index: u64, input: Inputs) -> Inputs {
-        transition index < bytes.len {
+        transition index < bytes.length {
             true -> character(bytes, index, input),
             false -> finish(input)
         }
@@ -63,7 +63,7 @@ public machine parse(bytes: @[u8]) -> Inputs {
         }
     }
     machine next(bytes: @[u8], index: u64, input: Inputs) -> Inputs {
-        transition index < bytes.len {
+        transition index < bytes.length {
             true -> scan(bytes, index + 1, input),
             false -> finish(input)
         }

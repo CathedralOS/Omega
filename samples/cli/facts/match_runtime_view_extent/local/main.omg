@@ -18,7 +18,7 @@ machine store(flag: bool) -> Outcome crashes Trap {
         true -> @mut chosen,
         false -> @mut other
     };
-    let last: u64 = selected.len - 1;
+    let last: u64 = selected.length - 1;
     selected[last] = 41;
     transition visits == 1 && chosen[0] == 3 && chosen[2] == 18 && other[0] == 7 && other[4] == 26 {
         true -> report(Outcome { chosen_last: chosen[3], other_last: other[5] }),

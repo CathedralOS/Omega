@@ -358,7 +358,7 @@ ensures
 }
 
 machine room_label(cell: CellId) -> @[u8] in Ascii
-ensures result.len <= 16
+ensures result.length <= 16
 {
     transition {
         cell == CellId::R00 -> "Gate",
@@ -368,7 +368,7 @@ ensures result.len <= 16
 
 machine room_description(depth: u32 in Wrapping,
     branch_id: u32 in Wrapping) -> @[u8] in Ascii
-ensures result.len <= 64
+ensures result.length <= 64
 {
     transition {
         depth == 0 -> "The old gate room breathes cold air from below.",
@@ -380,7 +380,7 @@ ensures result.len <= 64
 }
 
 machine direction_command(direction: Direction) -> @[u8] in Ascii
-ensures result.len <= 8
+ensures result.length <= 8
 {
     transition {
         direction == Direction::North -> "north",

@@ -94,7 +94,7 @@ machine linux_arm64_posix_decode_metadata(filesystem: @mut PosixFilesystem) -> M
             blksize: narrow_i64_to_u64_exact(blksize),
         };
         let metadata: Metadata = Metadata {
-            len: stat.value.size,
+            length: stat.value.size,
             kind: posix_metadata_kind(mode),
             permissions: Permissions::Posix { mode: mode & 4095 },
             nlink: stat.value.nlink as u64,

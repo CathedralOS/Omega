@@ -16,7 +16,7 @@
 data Reward { gold: i32 in Wrapping; }
 data Probe { base: u64; }
 
-machine count(bytes: @[u8]) -> u64 { (bytes.len) }
+machine count(bytes: @[u8]) -> u64 { (bytes.length) }
 
 machine Main::bump(reward: @mut Reward) {
     reward.gold = reward.gold + 1;

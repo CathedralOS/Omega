@@ -14,7 +14,7 @@ Each program owns `chosen: [i64; 4] = [3, 17, 18, 19]` and
 different extents, `&mut chosen` and `&mut other`, to one `&mut [i64]` view, so
 the view's length is 4 or 6 depending on the flag. `choose(counter, flag)`
 requires `counter == 0` and sets it to 1, so the subject runs once. The consumer
-computes `selected.len - 1` (proved from the join's extent, at least 4) and
+computes `selected.length - 1` (proved from the join's extent, at least 4) and
 stores 41 there. Afterwards the program reads `chosen[3]`, `other[5]` and the
 canaries `chosen[0]`, `chosen[2]`, `other[0]`, `other[4]`. `main()` runs both
 flag values: `true` expects `chosen[3] == 41, other[5] == 27`; `false` expects
@@ -36,7 +36,7 @@ constant length, or the wrong backing traps.
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) first |
 
 Each twin replaces the `true` arm's array with `let mut empty: [i64; 0] = [];`
-and `&mut empty`, so one arm records extent 0. The consumer's `selected.len - 1`
+and `&mut empty`, so one arm records extent 0. The consumer's `selected.length - 1`
 then has no proof and the twin rejects with ``local `last` may overflow `u64`:
 the operands are not provably in range``. The twin keeps both arms whole-array
 loans, so it reaches the join's extent rather than the arm compatibility check.

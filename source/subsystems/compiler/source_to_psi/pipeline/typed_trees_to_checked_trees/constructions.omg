@@ -130,7 +130,7 @@ crashes Trap
 
     // A slice or record field written from a place (a view, another
     // construction) takes the subject paths below that place, so the
-    // record's `items.len` is the view's length.
+    // record's `items.length` is the view's length.
     machine held(
         checker: @mut Checker,
         syntax: @SyntaxTrees,

@@ -2,12 +2,12 @@
 // Expected exit: 0
 machine write_first(first: @mut u8) { $first = 41; }
 machine preserve_suffix(bytes: @mut [u8])
-requires bytes.len >= 1024
+requires bytes.length >= 1024
 {
     let view: @mut [u8] = bytes;
-    let saved: u8 = view[view.len - 4];
+    let saved: u8 = view[view.length - 4];
     write_first(@mut view[0]);
-    view[view.len - 4] = saved;
+    view[view.length - 4] = saved;
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 1024];

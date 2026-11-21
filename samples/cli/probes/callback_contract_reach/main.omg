@@ -51,7 +51,7 @@ data Main {
 
 machine Main::main(main: @mut Main) {
     main.hits = 0;
-    transition traverse::<quiet>(70) == 70 && main.buffer.bytes.len == 7 {
+    transition traverse::<quiet>(70) == 70 && main.buffer.bytes.length == 7 {
         true -> pass(main),
         _ -> fail(main)
     }

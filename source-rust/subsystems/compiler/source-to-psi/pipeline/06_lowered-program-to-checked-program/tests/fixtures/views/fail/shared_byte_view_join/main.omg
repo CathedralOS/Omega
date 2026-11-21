@@ -4,7 +4,7 @@ use omega\language\core\byte_observation;
 domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
 
 machine read_prefix<'a>(bytes: @'a [u8] in Ascii, other: @'a [u8] in Ascii, use_first: bool) -> u8
-requires 1 <= bytes.len, 1 <= other.len
+requires 1 <= bytes.length, 1 <= other.length
 {
     let raw: @'a [u8] = match use_first {
         true -> (bytes as -Ascii),

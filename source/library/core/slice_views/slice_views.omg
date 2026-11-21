@@ -1,5 +1,5 @@
 machine element<T [copy]>(items: @[T], index: u64) -> T
-requires index < items.len {
+requires index < items.length {
     items[index]
 }
 
@@ -8,8 +8,8 @@ requires index < items.len {
 // delegates here without introducing another provider requirement.
 machine subslice<T>(items: @[T], start: u64, end: u64) -> @[T]
 requires
-    start <= end && end <= items.len
+    start <= end && end <= items.length
 ensures
-    result.len == end - start {
+    result.length == end - start {
     @items[start..end]
 }

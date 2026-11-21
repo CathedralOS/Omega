@@ -419,13 +419,13 @@ machine lexer_push_decoded(lexer: @mut Lexer, byte: u8) {
 machine token_equals(lexer: @mut Lexer, candidate: @[u8]) -> bool {
     let start: u64 in Trapping = lexer.token_start;
     let end: u64 in Trapping = lexer.token_end;
-    transition end - start == candidate.len {
+    transition end - start == candidate.length {
         true -> scan(lexer, start, candidate, 0),
         _ -> false
     }
 
     machine scan(lexer: @mut Lexer, start: u64 in Trapping, candidate: @[u8], index: u64 in Trapping) -> bool {
-        transition index < candidate.len {
+        transition index < candidate.length {
             true -> compare(lexer, start, candidate, index),
             _ -> true
         }

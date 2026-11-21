@@ -4,18 +4,18 @@ data Match [copy] { position: u64; value: i32; }
 data Partition<'storage> { records: @'storage mut [Match]; count: u64; }
 
 machine retain(records: @mut [Match], count: u64, minimum: i32) -> u64
-requires count <= records.len
+requires count <= records.length
 ensures result <= count {
     transition { _ -> next(records, count, minimum, 0, 0) }
     machine next(records: @mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
-    requires written <= read && read <= count && count <= records.len {
+    requires written <= read && read <= count && count <= records.length {
         transition read < count {
             true -> inspect(records, count, minimum, read, written),
             false -> written
         }
     }
     machine inspect(records: @mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
-    requires written <= read && read < count && count <= records.len {
+    requires written <= read && read < count && count <= records.length {
         let record: Match = records[read];
         transition record.value >= minimum {
             true -> keep(records, count, minimum, read, written, record),
@@ -23,15 +23,15 @@ ensures result <= count {
         }
     }
     machine keep(records: @mut [Match], count: u64, minimum: i32, read: u64, written: u64, record: Match) -> u64
-    requires written <= read && read < count && count <= records.len {
+    requires written <= read && read < count && count <= records.length {
         records[written] = record;
         transition { _ -> next(records, count, minimum, read + 1, written + 1) }
     }
 }
 
 machine filter_partition<'storage>(partition: @mut Partition<'storage>, minimum: i32)
-requires partition.count <= partition.records.len
-ensures partition.count <= partition.records.len {
+requires partition.count <= partition.records.length
+ensures partition.count <= partition.records.length {
     partition.count = retain(@mut partition.records[..], partition.count, minimum);
 }
 

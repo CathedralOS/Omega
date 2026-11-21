@@ -4,7 +4,7 @@ data Complex [copy] { real: f64; imaginary: f64; }
 data Held<'row> { cells: @'row mut [Complex]; }
 
 machine half<'row>(row: @'row mut [Complex; 4], which: i64) -> @'row mut [Complex]
-ensures result.len == 2
+ensures result.length == 2
 {
     match which {
         0 -> @mut row[0..2],
@@ -21,11 +21,11 @@ machine main() {
     ];
     let view: @mut [Complex] = half(@mut row, 0);
     let mut held: Held = Held { cells: view };
-    transition held.cells.len == 2 {
+    transition held.cells.length == 2 {
         true -> observe(@mut held),
         false -> done()
     }
-    machine observe(held: @mut Held) requires held.cells.len == 2 {
+    machine observe(held: @mut Held) requires held.cells.length == 2 {
         let _past: Complex = held.cells[2];
     }
     machine done() {}

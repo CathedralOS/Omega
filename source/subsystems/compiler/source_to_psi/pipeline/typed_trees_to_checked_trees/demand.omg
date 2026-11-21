@@ -91,7 +91,7 @@ public data MemberChain [copy] {
     path: ArrivalPath;
 }
 
-// The member path `handle` names: field and `.len` steps (and borrows) down
+// The member path `handle` names: field and `.length` steps (and borrows) down
 // to a name bound to a parameter from `first_parameter` (`parameter_count`
 // of them), at most four steps.
 public machine member_chain(

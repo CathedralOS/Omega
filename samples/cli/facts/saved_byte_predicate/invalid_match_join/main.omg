@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: match_join.
 machine inspect(bytes: @[u8]) -> u8
-requires ascii_only(bytes) && bytes.len >= 1
+requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 machine make(flag: bool) -> [u8; 1] { match flag { true -> [65u8], false -> [65u8] } }
 machine probe() -> u8 {

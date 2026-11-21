@@ -11,21 +11,21 @@ machine borrow_stream<'owner>(stream: @'owner Stream) -> StreamView<'owner> in B
 
 machine receive<'owner>(stream: StreamView<'owner> in Borrowed, buffer: @mut [u8], count: u64) -> u64 {
     let identity: u64 = $stream.identity;
-    let capacity: u64 = buffer.len;
+    let capacity: u64 = buffer.length;
     transition count <= capacity {
         true -> bounded(identity, buffer, count),
         false -> bounded(identity, buffer, capacity)
     }
     machine bounded(identity: u64, buffer: @mut [u8], count: u64) -> u64
-    requires count <= buffer.len {
+    requires count <= buffer.length {
         transition count <= 4 {
             true -> received(identity, @mut buffer[0..count]),
             false -> received(identity, @mut buffer[0..4])
         }
     }
     machine received(identity: u64, bytes: @mut [u8]) -> u64
-    requires bytes.len <= 4 {
-        bytes.len
+    requires bytes.length <= 4 {
+        bytes.length
     }
 }
 

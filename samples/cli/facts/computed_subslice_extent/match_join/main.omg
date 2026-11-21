@@ -1,9 +1,9 @@
 // Given can_window(items, low) == true, the captured view items[low + 0 .. low + 2] has extent 2, and reading offset 1 observes original backing items[low + 1].
 // Expected exit: 0
-machine can_window(items: @[u8], low: u64) -> bool { items.len == 4 && low <= 2 }
+machine can_window(items: @[u8], low: u64) -> bool { items.length == 4 && low <= 2 }
 machine marked_window<'a>(items: @'a [u8], low: u64, path: @write u64) -> @'a [u8]
 requires can_window(items, low) == true
-ensures result.len == 2
+ensures result.length == 2
 {
     $path = 1;
     items[low + 0u64..low + 2u64]
@@ -16,7 +16,7 @@ requires can_window(items, low) == true
         true -> marked_window(items, low, path),
         _ -> items[low + 0u64..low + 2u64]
     };
-    let measured: u64 = view.len;
+    let measured: u64 = view.length;
     let selected: u8 = view[1];
     match measured { 2 -> selected, _ -> 0u8 }
 }

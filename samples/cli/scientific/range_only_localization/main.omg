@@ -29,13 +29,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         _ -> invalid()
     }
     machine input(bytes: @[u8], count: u64, problem: @mut Problem) {
-        transition count <= bytes.len {
+        transition count <= bytes.length {
             true -> admitted(bytes, count, problem),
             false -> invalid()
         }
     }
     machine admitted(bytes: @[u8], count: u64, problem: @mut Problem)
-    requires count <= bytes.len
+    requires count <= bytes.length
     {
         transition count == 0 {
             true -> demo(problem),

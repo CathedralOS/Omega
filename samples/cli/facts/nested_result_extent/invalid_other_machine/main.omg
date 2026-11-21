@@ -7,13 +7,13 @@ ensures result <= left && result <= right &&
 }
 data Bound { end: u64; }
 machine Bound::consume(bound: Bound, buffer: @mut [u8]) -> u64
-requires bound.end <= buffer.len
+requires bound.end <= buffer.length
 {
     let prefix: @mut [u8] = @mut buffer[0..bound.end];
-    prefix.len
+    prefix.length
 }
 machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64 {
-    let bound: Bound = Bound { end: minimum(minimum(count, other.len), 2147483647) };
+    let bound: Bound = Bound { end: minimum(minimum(count, other.length), 2147483647) };
     Bound::consume(bound, buffer)
 }
 machine main() crashes Trap {

@@ -19,7 +19,7 @@ data Packet {
 }
 
 machine read(values: @[i32]) -> i32 {
-    transition values.len >= 4 {
+    transition values.length >= 4 {
         true -> (values[0]),
         _ -> (0)
     }

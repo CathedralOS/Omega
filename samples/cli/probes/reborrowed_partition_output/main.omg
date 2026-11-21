@@ -4,20 +4,20 @@ data Match [copy] { position: u64; value: i32; }
 data Partition<'storage> { records: @'storage mut [Match]; count: u64; }
 
 machine append<'storage>(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool {
-    transition selected < partitions.len {
+    transition selected < partitions.length {
         true -> capacity(partitions, selected, record),
         false -> false
     }
     machine capacity(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool
-    requires selected < partitions.len {
-        transition partitions[selected].count < partitions[selected].records.len {
+    requires selected < partitions.length {
+        transition partitions[selected].count < partitions[selected].records.length {
             true -> store(partitions, selected, record),
             false -> false
         }
     }
     machine store(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool
-    requires selected < partitions.len
-        && partitions[selected].count < partitions[selected].records.len {
+    requires selected < partitions.length
+        && partitions[selected].count < partitions[selected].records.length {
         let output: @mut [Partition<'storage>] = @mut partitions[..];
         output[selected].records[output[selected].count] = record;
         output[selected].count = output[selected].count + 1;

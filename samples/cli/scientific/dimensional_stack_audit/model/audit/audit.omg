@@ -71,9 +71,9 @@ requires embed(count) == 3
     transition { _ -> (true) }
 }
 public machine contributor_span(contributors: @[Contributor; 3]) -> u32
-requires embed(contributors.len) == 3
+requires embed(contributors.length) == 3
 {
-    let count: u64 = contributors.len;
+    let count: u64 = contributors.length;
     let accepted: bool = observe_span(count);
     transition accepted { true -> (3), false -> (0) }
 }

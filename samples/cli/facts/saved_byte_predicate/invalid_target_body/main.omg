@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: target_body.
 machine inspect(bytes: @[u8]) -> u8
-requires ascii_only(bytes) && bytes.len >= 1
+requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches none crashes Trap;
@@ -26,12 +26,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine probe(bytes: @mut [u8], other: @mut [u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1 && other.len >= 1;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.length >= 1 && other.length >= 1;
 }
 
 X86Probe satisfies SelectedProbe {
     machine probe(bytes: @mut [u8], other: @mut [u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1 && other.len >= 1
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.length >= 1 && other.length >= 1
     {
         SelectedBodyCheck::require_tag(17u64);
         let view: @mut [u8] = @mut bytes[0..1];
@@ -43,7 +43,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine probe(bytes: @mut [u8], other: @mut [u8]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1 && other.len >= 1
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.length >= 1 && other.length >= 1
     {
         SelectedBodyCheck::require_tag(29u64);
         let view: @mut [u8] = @mut bytes[0..1];

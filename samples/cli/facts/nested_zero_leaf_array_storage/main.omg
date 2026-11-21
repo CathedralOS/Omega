@@ -8,13 +8,13 @@ public boundary trait ZeroLeafProvider {
 
 machine empty_row(row: @[u8; 0]) -> bool {
  let view: @[u8] = @row[..];
- view.len == 0
+ view.length == 0
 }
 machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider {
  let shifted: Packet = ZeroLeafProvider::shift(copied);
  first.before == 17 && first.after == 31
  && shifted.before == 28 && shifted.after == 60
- && shifted.empty.len == 512 && shifted.empty[511].len == 512
+ && shifted.empty.length == 512 && shifted.empty[511].length == 512
  && empty_row(@shifted.empty[511][511])
  && size_of::<Packet>() == 16
 }

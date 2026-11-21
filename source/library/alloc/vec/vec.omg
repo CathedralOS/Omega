@@ -89,33 +89,33 @@ crashes Trap
 
 
 public data Vec
-requires self.len <= self.capacity, self.capacity <= 4611686018427387903,
+requires self.length <= self.capacity, self.capacity <= 4611686018427387903,
     self.storage.length == self.capacity * 4
 {
     storage: Extent in Granted & Vacant;
-    len: u64;
+    length: u64;
     capacity: u64;
 }
 
 public machine Vec::open(storage: Extent in Granted & Vacant, capacity: u64) -> Vec
 requires capacity <= 4611686018427387903, storage.length == capacity * 4
-ensures result.len == 0, result.capacity == capacity,
+ensures result.length == 0, result.capacity == capacity,
     result.storage.base == storage.base, result.storage.length == storage.length
-{ Vec { storage: storage, len: 0, capacity: capacity } }
+{ Vec { storage: storage, length: 0, capacity: capacity } }
 
 public machine Vec::push<Role>(vec: Vec, value: u32) -> Vec
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
-requires vec.len < vec.capacity
-ensures result.len == vec.len + 1, result.capacity == vec.capacity,
+requires vec.length < vec.capacity
+ensures result.length == vec.length + 1, result.capacity == vec.capacity,
     result.storage.base == vec.storage.base, result.storage.length == vec.storage.length
 crashes Trap
 {
-    let length: u64 = vec.len;
+    let length: u64 = vec.length;
     let capacity: u64 = vec.capacity;
     let storage: Extent in Granted & Vacant = vec.storage;
     let changed: Extent in Granted & Vacant = store::<Role>(storage, length * 4, value);
-    Vec { storage: changed, len: length + 1, capacity: capacity }
+    Vec { storage: changed, length: length + 1, capacity: capacity }
 }
 
 machine inspect_cell<Role>(storage: @Extent in Granted & Vacant) -> u32 crashes Trap {
@@ -144,16 +144,16 @@ public data Read { vec: Vec; value: u32; }
 public machine Vec::get<Role>(vec: Vec, index: u64) -> Read
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
-requires index < vec.len
-ensures result.vec.len == vec.len, result.vec.capacity == vec.capacity,
+requires index < vec.length
+ensures result.vec.length == vec.length, result.vec.capacity == vec.capacity,
     result.vec.storage.base == vec.storage.base, result.vec.storage.length == vec.storage.length
 crashes Trap
 {
-    let length: u64 = vec.len;
+    let length: u64 = vec.length;
     let capacity: u64 = vec.capacity;
     let storage: Extent in Granted & Vacant = vec.storage;
     let observed: Observed = inspect::<Role>(storage, index * 4);
-    Read { vec: Vec { storage: observed.storage, len: length, capacity: capacity }, value: observed.value }
+    Read { vec: Vec { storage: observed.storage, length: length, capacity: capacity }, value: observed.value }
 }
 
 data Copied {
@@ -195,18 +195,18 @@ public machine Vec::grow<Role>(vec: Vec, replacement: Extent in Granted & Vacant
     -> Growth
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
-requires capacity <= 4611686018427387903, capacity >= vec.len,
+requires capacity <= 4611686018427387903, capacity >= vec.length,
     replacement.length == capacity * 4
-ensures result.vec.len == vec.len, result.vec.capacity == capacity,
+ensures result.vec.length == vec.length, result.vec.capacity == capacity,
     result.vec.storage.base == replacement.base, result.vec.storage.length == replacement.length,
     result.retired_storage.base == vec.storage.base, result.retired_storage.length == vec.storage.length
 crashes Trap
 {
-    let length: u64 = vec.len;
+    let length: u64 = vec.length;
     let original: Extent in Granted & Vacant = vec.storage;
     let copied: Copied = copy_prefix::<Role>(original, replacement, length, length);
     verify_vector(@copied.replacement, length, capacity);
-    let grown: Vec = Vec { storage: copied.replacement, len: length, capacity: capacity };
+    let grown: Vec = Vec { storage: copied.replacement, length: length, capacity: capacity };
     Growth { vec: grown, retired_storage: copied.original }
 }
 

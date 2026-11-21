@@ -9,12 +9,12 @@ public machine initialize(table: @mut Calibration) {
     table.reverse = [Knot { stimulus: 0, response: 4000 }, Knot { stimulus: 20, response: 25000 }, Knot { stimulus: 50, response: 60000 }, Knot { stimulus: 100, response: 105000 }];
 }
 public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
-    transition points.len >= 2 {
+    transition points.length >= 2 {
         true -> interval(points, stimulus),
         false -> (-1)
     }
     machine interval(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping
-    requires points.len >= 2 {
+    requires points.length >= 2 {
         let left: Knot = points[0];
         let right: Knot = points[1];
         transition stimulus >= left.stimulus && stimulus <= right.stimulus {
@@ -34,7 +34,7 @@ public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in
         left.response + (stimulus - left.stimulus) * (right.response - left.response) / denominator
     }
     machine scan(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
-        transition points.len >= 2 {
+        transition points.length >= 2 {
             true -> interval(points, stimulus),
             false -> (-1)
         }

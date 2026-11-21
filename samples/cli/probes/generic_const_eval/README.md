@@ -3,7 +3,7 @@
 First sample instantiating a generic inside const
 evaluation: `const Observed: u64 = extent()` calls
 `identity<[u8; Count]>` — the substituted T row retains
-`Count`'s const-param origin; `bytes.len` reads the
+`Count`'s const-param origin; `bytes.length` reads the
 evaluated literal's extent.
 
 Compile-checked only: no standard-library dependency and no

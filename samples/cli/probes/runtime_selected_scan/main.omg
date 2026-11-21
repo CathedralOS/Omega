@@ -17,8 +17,8 @@ requires machine Compare(value: @i32, threshold: i32) -> bool;
 
     machine next(values: @'input [i32], threshold: i32, position: u64)
         -> Optional<@'input i32>
-    requires position <= values.len {
-        transition position < values.len {
+    requires position <= values.length {
+        transition position < values.length {
             true -> inspect(values, threshold, position),
             false -> Optional::None
         }
@@ -26,7 +26,7 @@ requires machine Compare(value: @i32, threshold: i32) -> bool;
 
     machine inspect(values: @'input [i32], threshold: i32, position: u64)
         -> Optional<@'input i32>
-    requires position < values.len {
+    requires position < values.length {
         transition Compare(@values[position], threshold) {
             true -> Optional::Some { value: @values[position] },
             false -> next(values, threshold, position + 1)

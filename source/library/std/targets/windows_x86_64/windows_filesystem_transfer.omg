@@ -75,7 +75,7 @@ ensures result != -1 {
 
 machine windows_filesystem_native_write_file(handle: u64, bytes: @[u8]) -> i64
 reaches FilesystemContentWrite {
-    transition bytes.len <= 4294967295 { true -> block pin(handle, bytes), _ -> (-87) }
+    transition bytes.length <= 4294967295 { true -> block pin(handle, bytes), _ -> (-87) }
     machine pin(handle: u64, bytes: @[u8]) -> i64 {
         let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
         transition (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
@@ -93,7 +93,7 @@ reaches FilesystemContentWrite {
 
 machine windows_filesystem_native_read_file(handle: u64, buffer: @mut [u8], count: u64) -> i64
 reaches FilesystemContentRead {
-    transition count <= buffer.len && count <= 4294967295 {
+    transition count <= buffer.length && count <= 4294967295 {
         true -> block pin(handle, buffer, count),
         _ -> (-87)
     }
@@ -125,12 +125,12 @@ machine windows_write_pinned(handle: i64 in WindowsSynchronousFileOrAbsent, byte
 requires (handle as -WindowsSynchronousFileOrAbsent) != 0
 reaches FilesystemContentWrite
 {
-    transition bytes.len <= 4294967295 {
+    transition bytes.length <= 4294967295 {
         true -> block sized(handle, bytes),
         _ -> (-87)
     }
     machine sized(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8]) -> i64
-    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.len <= 4294967295 {
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 {
         let mut written: u32 = 0;
         let ok: i32 = block WindowsFilesystemTransferIo::write_file(handle, bytes, @mut written, 0);
         transition ok == 0 {
@@ -149,18 +149,18 @@ reaches FilesystemContentWrite
 machine windows_read_pinned(handle: i64 in WindowsSynchronousFileOrAbsent, buffer: @mut [u8], count: u64) -> i64
 requires (handle as -WindowsSynchronousFileOrAbsent) != 0
 reaches FilesystemContentRead {
-    transition count <= buffer.len && count <= 4294967295 {
+    transition count <= buffer.length && count <= 4294967295 {
         true -> block bounded(handle, buffer, count),
         _ -> (-87)
     }
     machine bounded(handle: i64 in WindowsSynchronousFileOrAbsent, buffer: @mut [u8], count: u64) -> i64
-    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && count <= buffer.len && count <= 4294967295 {
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && count <= buffer.length && count <= 4294967295 {
         block windows_read_window(handle, @mut buffer[0..count])
     }
 }
 
 machine windows_read_window(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mut [u8]) -> i64
-requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.len <= 4294967295
+requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295
 reaches FilesystemContentRead {
         let mut read_count: u32 = 0;
         let succeeded: i32 = block WindowsFilesystemTransferIo::read_file(handle, bytes, @mut read_count, 0);

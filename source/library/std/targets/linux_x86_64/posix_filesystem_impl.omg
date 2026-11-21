@@ -150,7 +150,7 @@ machine linux_x86_64_posix_read(fd: i32, buffer: @mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read
 reaches FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.len);
+    let capacity: u64 = min_u64(count, buffer.length);
     PosixFilesystemLinuxX86ByteViews::read(fd, @mut buffer[0..capacity])
 }
 
@@ -165,7 +165,7 @@ machine linux_x86_64_posix_read_at(fd: i32, buffer: @mut [u8], count: u64, offse
     satisfies PosixFilesystemHost::read_at
 reaches FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.len);
+    let capacity: u64 = min_u64(count, buffer.length);
     PosixFilesystemLinuxX86ByteViews::pread64(fd, @mut buffer[0..capacity], offset)
 }
 
@@ -385,7 +385,7 @@ reaches FilesystemMetadataQuery
     transition fits { true -> transfer(terminated, buffer, count), _ -> -36 }
     machine transfer(terminated: [u8; 4096], buffer: @mut [u8], count: u64) -> i64 {
         // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
-        let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
+        let capacity: u64 = min_u64(min_u64(count, buffer.length), 2147483647);
         PosixFilesystemLinuxX86ByteViews::readlinkat(-100, @terminated, @mut buffer[0..capacity])
     }
 }
@@ -395,7 +395,7 @@ machine linux_x86_64_posix_read_dir(fd: i32, buffer: @mut [u8], count: u64, posi
 reaches DirectoryEnumeration
 {
     // The directory callback's remaining-count field is a signed int.
-    let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
+    let capacity: u64 = min_u64(min_u64(count, buffer.length), 2147483647);
     PosixFilesystemLinuxX86ByteViews::getdents64(fd, @mut buffer[0..capacity])
 }
 

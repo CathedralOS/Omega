@@ -23,25 +23,25 @@ boundary trait ArrayAccess {
     machine index<T, const N: u64>(items: @[T; N], index: u64) -> T
     reaches none
     requires
-        index < items.len
+        index < items.length
     crashes none;
 
     machine index_mut<T, const N: u64>(items: @mut [T; N], index: u64) -> @mut T
     reaches none
     requires
-        index < items.len
+        index < items.length
     crashes none;
 
     // Borrow the elements as a slice view; the view length matches the array.
     machine as_slice<T, const N: u64>(items: @[T; N]) -> @[T]
     reaches none
     ensures
-        result.len == items.len
+        result.length == items.length
     crashes none;
 
     machine as_mut_slice<T, const N: u64>(items: @mut [T; N]) -> @mut [T]
     reaches none
     ensures
-        result.len == items.len
+        result.length == items.length
     crashes none;
 }

@@ -42,9 +42,9 @@ data Main {
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     let shapes: Shapes = Shapes {};
-    transition shapes.inclusive.storage.len == 256
-        && shapes.exclusive.storage.len == 257
-        && shapes.domained.storage.len == 256 {
+    transition shapes.inclusive.storage.length == 256
+        && shapes.exclusive.storage.length == 257
+        && shapes.domained.storage.length == 256 {
         true -> pass(main),
         _ -> fail(main)
     }

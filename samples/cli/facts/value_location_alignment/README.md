@@ -31,9 +31,9 @@ the result is at least 8.
 A second production of the same query observes a borrowed slice:
 [nonempty slice](compositions/nonempty_slice/main.omg), with a
 [twin](compositions/nonempty_slice/invalid/main.omg) that removes only
-`requires items.len >= 1`. A slice's location is its first element's, which
+`requires items.length >= 1`. A slice's location is its first element's, which
 exists only for a nonempty view, so the twin rejects with "needs the nonempty
-fact `items.len >= 1`". A `&[u8]` companion reports 1, not the 8 of the
+fact `items.length >= 1`". A `&[u8]` companion reports 1, not the 8 of the
 slice descriptor.
 
 A third production observes a parameter from its own contract:

@@ -312,13 +312,13 @@ machine bignum_render_decimal(value: @Bignum, digits: @mut [u8; 40]) {
 }
 
 machine bytes40_equal(left: @[u8; 40], right: @[u8]) -> bool {
-    transition right.len == 40 {
+    transition right.length == 40 {
         true -> loop_(left, right, 0),
         _ -> (false)
     }
 
     machine loop_(left: @[u8; 40], right: @[u8], index: u64) -> bool {
-        transition index < 40 && right.len == 40 {
+        transition index < 40 && right.length == 40 {
             true -> check_byte(left, right, index),
             _ -> (true)
         }

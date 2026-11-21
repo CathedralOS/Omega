@@ -2,7 +2,7 @@
 // Measured loops pass both scalar values and the remaining borrowed bytes.
 machine checksum(bytes: @[u8], accumulated: u8) -> u8
 terminates by bytes -> Slice::Length {
-    transition bytes.len > 0 {
+    transition bytes.length > 0 {
         true -> checksum(bytes[1..], accumulated ^ bytes[0]),
         false -> accumulated
     }

@@ -1,12 +1,12 @@
 use omega\language\core\ProcessExit;
 // FNV-1a string hash -- a real byte-string algorithm over a `[u8;N] in Utf8`
 // carrier. It walks the string's bytes by runtime index, bounded by the carrier's
-// runtime `.len`, and folds each byte into a 32-bit hash:
+// runtime `.length`, and folds each byte into a 32-bit hash:
 //
 //   hash = 2166136261
 //   for each byte b in text: hash = (hash ^ b) * 16777619   (u32, wrapping)
 //
-// This composes everything needed to process real text: a `.len`-bounded loop,
+// This composes everything needed to process real text: a `.length`-bounded loop,
 // a runtime-indexed carrier byte read, named widening, bitwise XOR, and a
 // wrapping multiply. Hashing "omega", the low byte of the digest is 40.
 // Expected exit: 40.
@@ -33,7 +33,7 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
                hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0
     {
-        transition position < text.len {
+        transition position < text.length {
             true -> mix(text, position, hash),
             _ -> (hash)
         }

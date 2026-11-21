@@ -4,15 +4,15 @@
 // the view's length.
 // Expected exit: 0
 machine read_at(value: u64, buckets: @[u8], width: u64) -> u8
-requires buckets.len > 0 && width == buckets.len as u64
+requires buckets.length > 0 && width == buckets.length as u64
 {
     buckets[value % width]
 }
 
 machine pick(value: u64, buckets: @[u8]) -> u8
-requires buckets.len > 0
+requires buckets.length > 0
 {
-    read_at(value, buckets, buckets.len as u64)
+    read_at(value, buckets, buckets.length as u64)
 }
 
 machine main() crashes Trap {

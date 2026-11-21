@@ -7,7 +7,7 @@ trait Payload {
 }
 First satisfies Payload {
     machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] {
-        let bytes: @'input [u8] in Utf8 = match first.len == 3 {
+        let bytes: @'input [u8] in Utf8 = match first.length == 3 {
             true -> second,
             false -> first
         };
@@ -16,7 +16,7 @@ First satisfies Payload {
 }
 Second satisfies Payload {
     machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] {
-        let bytes: @'input [u8] in Utf8 = match second.len == 3 {
+        let bytes: @'input [u8] in Utf8 = match second.length == 3 {
             true -> second,
             false -> first
         };

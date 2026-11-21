@@ -2,7 +2,7 @@
 // Expected exit: 0
 const LENGTH: u64 = 3;
 machine last_byte(items: @[u8]) -> u8
-requires items.len == LENGTH && LENGTH > 0
+requires items.length == LENGTH && LENGTH > 0
 {
     let window: @[u8] = @items[0..LENGTH];
     window[LENGTH - 1]

@@ -63,20 +63,20 @@ machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
 machine parse(input: @[u8], output: @mut [PatternByte]) -> Optional<u64> {
     transition { _ -> next(input, output, 0) }
     machine next(input: @[u8], output: @mut [PatternByte], count: u64) -> Optional<u64>
-    requires count <= output.len {
-        transition input.len == 0 {
+    requires count <= output.length {
+        transition input.length == 0 {
             true -> Optional::Some { value: count },
             false -> available(input, output, count)
         }
     }
     machine available(input: @[u8], output: @mut [PatternByte], count: u64) -> Optional<u64> {
-        transition input.len >= 2 && count < output.len {
+        transition input.length >= 2 && count < output.length {
             true -> decode(input, output, count),
             false -> Optional::None
         }
     }
     machine decode(input: @[u8], output: @mut [PatternByte], count: u64) -> Optional<u64>
-    requires input.len >= 2 && count < output.len {
+    requires input.length >= 2 && count < output.length {
         let decoded: Optional<PatternByte> = pair(input[0], input[1]);
         transition decoded {
             Optional::Some { value } -> save(input, output, count, value),
@@ -85,26 +85,26 @@ machine parse(input: @[u8], output: @mut [PatternByte]) -> Optional<u64> {
     }
     machine save(input: @[u8], output: @mut [PatternByte], count: u64, value: PatternByte)
         -> Optional<u64>
-    requires input.len >= 2 && count < output.len {
+    requires input.length >= 2 && count < output.length {
         output[count] = value;
         transition { _ -> next(input[2..], output, count + 1) }
     }
 }
 
 machine prefix(bytes: @[u8], pattern: @[PatternByte]) -> bool {
-    transition pattern.len == 0 {
+    transition pattern.length == 0 {
         true -> true,
         false -> available(bytes, pattern)
     }
     machine available(bytes: @[u8], pattern: @[PatternByte]) -> bool
-    requires pattern.len > 0 {
-        transition bytes.len > 0 {
+    requires pattern.length > 0 {
+        transition bytes.length > 0 {
             true -> compare(bytes, pattern),
             false -> false
         }
     }
     machine compare(bytes: @[u8], pattern: @[PatternByte]) -> bool
-    requires bytes.len > 0 && pattern.len > 0 {
+    requires bytes.length > 0 && pattern.length > 0 {
         transition (bytes[0] & pattern[0].mask) == pattern[0].value {
             true -> prefix(bytes[1..], pattern[1..]),
             false -> false
@@ -113,24 +113,24 @@ machine prefix(bytes: @[u8], pattern: @[PatternByte]) -> bool {
 }
 
 machine scan(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64]) -> u64
-requires pattern.len > 0 {
+requires pattern.length > 0 {
     transition { _ -> next(bytes, pattern, positions, 0, 0) }
     machine next(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64], start: u64, count: u64) -> u64
-    requires start <= bytes.len && count <= positions.len {
-        transition start < bytes.len && count < positions.len {
+    requires start <= bytes.length && count <= positions.length {
+        transition start < bytes.length && count < positions.length {
             true -> inspect(bytes, pattern, positions, start, count),
             false -> count
         }
     }
     machine inspect(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64], start: u64, count: u64) -> u64
-    requires start < bytes.len && count < positions.len {
+    requires start < bytes.length && count < positions.length {
         transition prefix(bytes[start..], pattern) {
             true -> record(bytes, pattern, positions, start, count),
             false -> next(bytes, pattern, positions, start + 1, count)
         }
     }
     machine record(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64], start: u64, count: u64) -> u64
-    requires start < bytes.len && count < positions.len {
+    requires start < bytes.length && count < positions.length {
         positions[count] = start;
         transition { _ -> next(bytes, pattern, positions, start + 1, count + 1) }
     }

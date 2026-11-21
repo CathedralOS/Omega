@@ -8,7 +8,7 @@ use omega\language\core\ProcessExit;
 // so sum2 = 56.
 //
 // Iterates with the idiomatic SHRINKING-SLICE pattern: each step reads s[0] under
-// the `s.len > 0` guard (which discharges the index bound) and tail-recurses on
+// the `s.length > 0` guard (which discharges the index bound) and tail-recurses on
 // s[1..]. This is how Omega iterates a runtime-length sequence -- a runtime index
 // counter would need a separately-proven `idx < len`. sum2's update needs sum1's
 // NEW value, so `(sum1 + s[0]) % 255` appears in both tail arguments.
@@ -25,7 +25,7 @@ machine fletcher(
     sum1: i32 in Wrapping,
     sum2: i32 in Wrapping
 ) -> i32 {
-    transition s.len > 0 {
+    transition s.length > 0 {
         true -> fletcher(s[1..], (sum1 + s[0]) % 255, (sum2 + ((sum1 + s[0]) % 255)) % 255),
         false -> ((sum2) as i32)
     }

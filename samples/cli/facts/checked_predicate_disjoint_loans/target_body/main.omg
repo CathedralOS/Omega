@@ -24,12 +24,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedReplace {
     machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.length == 2, first_index < values.length, second_index < values.length, distinct(first_index, second_index) == true;
 }
 
 X86Replace satisfies SelectedReplace {
     machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.length == 2, first_index < values.length, second_index < values.length, distinct(first_index, second_index) == true
     {
         SelectedBodyCheck::require_tag(17u64);
         let first: @mut Cell = @mut values[first_index];
@@ -41,7 +41,7 @@ X86Replace satisfies SelectedReplace {
 
 ArmReplace satisfies SelectedReplace {
     machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.length == 2, first_index < values.length, second_index < values.length, distinct(first_index, second_index) == true
     {
         SelectedBodyCheck::require_tag(29u64);
         let first: @mut Cell = @mut values[first_index];

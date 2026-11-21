@@ -23,8 +23,8 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
 
     machine scan(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
         -> @'input mut [T]
-    requires retained <= cursor && cursor <= values.len {
-        transition cursor < values.len {
+    requires retained <= cursor && cursor <= values.length {
+        transition cursor < values.length {
             true -> visit(selected, values, cursor, retained),
             false -> (@mut values[..retained])
         }
@@ -32,7 +32,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
 
     machine visit(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
         -> @'input mut [T]
-    requires retained <= cursor && cursor < values.len {
+    requires retained <= cursor && cursor < values.length {
         transition Retain::test(selected, @values[cursor]) {
             true -> keep(selected, values, cursor, retained),
             false -> scan(selected, values, cursor + 1, retained)
@@ -41,7 +41,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
 
     machine keep(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
         -> @'input mut [T]
-    requires retained <= cursor && cursor < values.len {
+    requires retained <= cursor && cursor < values.length {
         values[retained] = values[cursor];
         transition { _ -> scan(selected, values, cursor + 1, retained + 1) }
     }
@@ -58,7 +58,7 @@ machine main() crashes Trap {
     ];
     let mut selection: dyn Retain<Reading> = Increased as dyn Retain<Reading>;
     let first: @mut [Reading] = compact(selection, @mut readings[1..5]);
-    let first_count: u64 = first.len;
+    let first_count: u64 = first.length;
     selection = Positive as dyn Retain<Reading>;
     let second: @mut [Reading] = compact(selection, first);
     let correct: bool = verify(second);
@@ -66,7 +66,7 @@ machine main() crashes Trap {
     let all_correct: bool = verify(all);
     selection = Unchanged as dyn Retain<Reading>;
     let none: @mut [Reading] = compact(selection, all);
-    let none_count: u64 = none.len;
+    let none_count: u64 = none.length;
     let empty: @mut [Reading] = compact(selection, none);
     let empty_correct: bool = is_empty(empty);
     transition correct && all_correct && first_count == 3
@@ -80,15 +80,15 @@ machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 
-machine is_empty(values: @[Reading]) -> bool { values.len == 0 }
+machine is_empty(values: @[Reading]) -> bool { values.length == 0 }
 
 machine verify(selected: @[Reading]) -> bool {
-    transition selected.len == 2 {
+    transition selected.length == 2 {
         true -> inspect(selected),
         false -> false
     }
     machine inspect(selected: @[Reading]) -> bool
-    requires selected.len == 2 {
+    requires selected.length == 2 {
         selected[0].address == 30 && selected[1].address == 40
             && selected[0].previous == 1 && selected[0].current == 4
             && selected[1].previous == 8 && selected[1].current == 9

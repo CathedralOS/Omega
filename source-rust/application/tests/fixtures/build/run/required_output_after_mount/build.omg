@@ -13,7 +13,7 @@ machine build(builder: @mut Build) suspends {
     suspend Build::prepare_dependency(builder, registration);
     let seven: i32 = kit\v();
     let checked: BuildPath = BuildOutput::resolve(@builder.output, held);
-    let passed: bool = seven == 7 && held.len == 10u64;
+    let passed: bool = seven == 7 && held.length == 10u64;
     let settled: OutputCompletion = BuildOutput::complete(@mut builder.output, obligation, checked);
     settle(builder, settled);
     transition passed {

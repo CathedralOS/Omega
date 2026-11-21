@@ -759,7 +759,7 @@ crashes Trap
     }
 }
 
-// The value of `.field` or `.len`: a place below its operand's place, or,
+// The value of `.field` or `.length`: a place below its operand's place, or,
 // for a value that is no place (a call's result), its type's range. An
 // array's length is its type's.
 public machine member_value(
@@ -893,7 +893,7 @@ crashes Trap
     }
 }
 // A record bound from another place takes that place's known paths: each
-// subject place within `source` by at most four field or `.len` steps
+// subject place within `source` by at most four field or `.length` steps
 // (arrivals.omg) equals the same path below `target` from here on, and
 // each field pending below `source` is pending below `target` too. A
 // slice bound from a view thus keeps the view's length.

@@ -1,17 +1,17 @@
 // Expected exit: 0. The original calculation returns 31: (3+5+7+9)+7.
 
 machine cells_valid(cells: @[i32]) -> bool {
-    check_cells(cells, cells.len)
+    check_cells(cells, cells.length)
 }
 
 machine check_cells(cells: @[i32], remaining: u64) -> bool
-requires remaining <= cells.len
+requires remaining <= cells.length
 terminates
-terminates by remaining in 0..=cells.len
+terminates by remaining in 0..=cells.length
 {
     transition remaining > 0 { true -> inspect(cells, remaining), false -> (true) }
     machine inspect(cells: @[i32], remaining: u64) -> bool
-    requires remaining > 0 && remaining <= cells.len
+    requires remaining > 0 && remaining <= cells.length
     {
         let index: u64 = remaining - 1;
         transition cells[index] >= 0 && cells[index] <= 255 {
@@ -23,7 +23,7 @@ terminates by remaining in 0..=cells.len
 
 machine cell_is_byte(cells: @[i32], index: u64)
 requires cells_valid(cells) == true
-requires index < cells.len
+requires index < cells.length
 ensures cells[index] >= 0 && cells[index] <= 255
 {}
 
@@ -36,7 +36,7 @@ data Main {
 }
 
 machine fill(cells: @mut [i32], at: u64, value: i32)
-requires at < cells.len
+requires at < cells.length
 requires cells_valid(cells) == true
 requires value >= 0 && value <= 255
 ensures cells_valid(cells) == true
@@ -45,7 +45,7 @@ ensures cells_valid(cells) == true
 }
 
 machine tally(cells: @[i32]) -> i32
-requires cells.len == 4
+requires cells.length == 4
 requires cells_valid(cells) == true
 ensures result >= 0 && result <= 1020
 {

@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: call_result.
 machine inspect(bytes: @[u8]) -> u8
-requires ascii_only(bytes) && bytes.len >= 1
+requires ascii_only(bytes) && bytes.length >= 1
 { bytes[0] }
 machine make() -> [u8; 1] { [65u8] }
 machine probe() -> u8 {

@@ -7,7 +7,7 @@ machines. One core import (`numeric_conversion`); no standard-library
 dependency.
 
 - `head`/`window_len` carry `requires` rosters with `&&` chains and
-  `.len` bounds — `0 <= index && index < items.len` proven from literal
+  `.length` bounds — `0 <= index && index < items.length` proven from literal
   call sites.
 - `items[start..end]` exclusive subslice and `view[0..=1]` inclusive
   subslice on a view of a view.

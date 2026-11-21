@@ -21,7 +21,7 @@ use omega\language\core\FilesystemNamespaceMutation;
 machine windows_filesystem_copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 {
-    transition cap <= buffer.len {
+    transition cap <= buffer.length {
         true -> block acquire(from, to, buffer, cap),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
@@ -53,13 +53,13 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         }
     }
     machine bounded(to: @[u8] in Path, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult {
-        transition count <= buffer.len {
+        transition count <= buffer.length {
             true -> block destination(to, buffer, count, permissions),
             false -> (IoResult::Error { kind: ErrorKind::Other })
         }
     }
     machine destination(to: @[u8] in Path, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult
-    requires count <= buffer.len {
+    requires count <= buffer.length {
         // GENERIC_WRITE plus FILE_READ_ATTRIBUTES allows the permission update
         // to preserve unrelated attributes on this same object. Ordinary write
         // opens need not acquire the extra query right just for this algorithm.
@@ -72,7 +72,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         }
     }
     machine write(destination: File, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult
-    requires count <= buffer.len {
+    requires count <= buffer.length {
         let bytes: @[u8] = @buffer[0..count];
         let result: UnitResult = block windows_filesystem_write_complete(destination, bytes);
         transition result {

@@ -29,16 +29,16 @@ requires
 domain [u8; 2]::Utf8
 requires
     valid_utf8(self);
-machine cells_valid(cells: @[i32]) -> bool { check_cells(cells, cells.len) }
+machine cells_valid(cells: @[i32]) -> bool { check_cells(cells, cells.length) }
 
 machine check_cells(cells: @[i32], remaining: u64) -> bool
-requires remaining <= cells.len
+requires remaining <= cells.length
 terminates
-terminates by remaining in 0..=cells.len
+terminates by remaining in 0..=cells.length
 {
     transition remaining > 0 { true -> inspect(cells, remaining), false -> (true) }
     machine inspect(cells: @[i32], remaining: u64) -> bool
-    requires remaining > 0 && remaining <= cells.len
+    requires remaining > 0 && remaining <= cells.length
     {
         let selected: u64 = remaining - 1;
         transition cells[selected] >= 0 && cells[selected] <= 1 {
@@ -49,7 +49,7 @@ terminates by remaining in 0..=cells.len
 }
 
 machine cell_is_bit(cells: @[i32], selected: u64)
-requires cells_valid(cells) == true && selected < cells.len
+requires cells_valid(cells) == true && selected < cells.length
 ensures cells[selected] >= 0 && cells[selected] <= 1
 {}
 

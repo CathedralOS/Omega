@@ -52,7 +52,7 @@ boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCallin
 // native reference to them. All signed bit patterns, including UTIME sentinels,
 // survive unchanged; semantic timestamp validation remains the OS's operation.
 machine darwin_timestamp_word(bytes: @[u8]) -> i64
-requires bytes.len == 8
+requires bytes.length == 8
 {
     // Each byte lands in its own eight bits, so `+` assembles the word exactly
     // as `|` would; the Wrapping policy declares `+` and no bitwise operator.
@@ -246,7 +246,7 @@ machine macos_arm64_posix_read(fd: i32, buffer: @mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read
 reaches FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.len);
+    let capacity: u64 = min_u64(count, buffer.length);
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_read(fd, @mut buffer[0..capacity]);
     darwin_normalize_i64(outcome)
 }
@@ -263,7 +263,7 @@ machine macos_arm64_posix_read_at(fd: i32, buffer: @mut [u8], count: u64, offset
     satisfies PosixFilesystemHost::read_at
 reaches FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.len);
+    let capacity: u64 = min_u64(count, buffer.length);
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_at(fd, @mut buffer[0..capacity], offset);
     darwin_normalize_i64(outcome)
 }
@@ -523,7 +523,7 @@ reaches FilesystemMetadataQuery
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     transition fits { true -> transfer(terminated, buffer, count), _ -> -63 }
     machine transfer(terminated: [u8; 4096], buffer: @mut [u8], count: u64) -> i64 {
-        let capacity: u64 = min_u64(count, buffer.len);
+        let capacity: u64 = min_u64(count, buffer.length);
         let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_link(@terminated, @mut buffer[0..capacity]);
         darwin_normalize_i64(outcome)
     }
@@ -533,11 +533,11 @@ machine macos_arm64_posix_read_dir(fd: i32, buffer: @mut [u8], count: u64, posit
     satisfies PosixFilesystemHost::read_dir
 reaches DirectoryEnumeration
 {
-    let capacity: u64 = min_u64(count, buffer.len);
+    let capacity: u64 = min_u64(count, buffer.length);
     transition { _ -> transfer(fd, @mut buffer[0..capacity], position) }
     machine transfer(fd: i32, buffer: @mut [u8], position: @mut i64) -> i64 {
         transition {
-            buffer.len >= 1024 -> extended(fd, buffer, position),
+            buffer.length >= 1024 -> extended(fd, buffer, position),
             _ -> ordinary(fd, buffer, position)
         }
     }
@@ -547,15 +547,15 @@ reaches DirectoryEnumeration
         darwin_normalize_i64(outcome)
     }
     machine extended(fd: i32, buffer: @mut [u8], position: @mut i64) -> i64
-    requires buffer.len >= 1024
+    requires buffer.length >= 1024
     {
         // ___getdirentries64 reserves four suffix bytes for private EOF flags
         // at this threshold. Records occupy at most capacity - 4. Preserve the
         // caller's suffix rather than exposing that auxiliary kernel write.
-        let first_index: u64 = buffer.len - 4;
-        let second_index: u64 = buffer.len - 3;
-        let third_index: u64 = buffer.len - 2;
-        let fourth_index: u64 = buffer.len - 1;
+        let first_index: u64 = buffer.length - 4;
+        let second_index: u64 = buffer.length - 3;
+        let third_index: u64 = buffer.length - 2;
+        let fourth_index: u64 = buffer.length - 1;
         let first: u8 = buffer[first_index];
         let second: u8 = buffer[second_index];
         let third: u8 = buffer[third_index];

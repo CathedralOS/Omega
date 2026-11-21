@@ -38,7 +38,7 @@ use representations\typed_trees\typing_selection;
 // moved, of a part of it or of a whole containing it, rejects, and a
 // by-value use of an affine or linear place moves it. A borrow, an implicit
 // shared loan, a callee, a dispatch subject or pattern, a membership's
-// value, a `.len`, and an order, equality or logical operand inspect
+// value, a `.length`, and an order, equality or logical operand inspect
 // without moving. A by-value use of a place reached through a reference, or
 // of a binder of a borrowed subject, would move out of a loan and rejects.
 // Assigning a moved place re-establishes it; writing into a moved place's
@@ -67,7 +67,7 @@ public data UseRole [copy] {
     case Drop;
     case Write;
     case WriteLend;
-    // The base of a `.len` selection: its metadata is read, never its
+    // The base of a `.length` selection: its metadata is read, never its
     // contents, so a write-only reference reaches it.
     case Measure;
 }
@@ -664,7 +664,7 @@ crashes Trap
         _ -> done()
     }
 
-    // `.len` measures its base.
+    // `.length` measures its base.
     machine field(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
         let place: bool = field_place(typing, handle, expression);
         transition place {

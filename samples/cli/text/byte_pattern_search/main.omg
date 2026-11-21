@@ -5,20 +5,20 @@
 use omega\language\core\Optional;
 
 machine starts_with(bytes: @[u8], pattern: @[u8]) -> bool {
-    transition pattern.len == 0 {
+    transition pattern.length == 0 {
         true -> (true),
         false -> nonempty(bytes, pattern)
     }
     machine nonempty(bytes: @[u8], pattern: @[u8]) -> bool
-    requires pattern.len > 0
+    requires pattern.length > 0
     {
-        transition bytes.len > 0 {
+        transition bytes.length > 0 {
             true -> compare(bytes, pattern),
             false -> (false)
         }
     }
     machine compare(bytes: @[u8], pattern: @[u8]) -> bool
-    requires bytes.len > 0 && pattern.len > 0
+    requires bytes.length > 0 && pattern.length > 0
     {
         transition bytes[0] == pattern[0] {
             true -> starts_with(bytes[1..], pattern[1..]),
@@ -30,7 +30,7 @@ machine starts_with(bytes: @[u8], pattern: @[u8]) -> bool {
 machine find(bytes: @[u8], pattern: @[u8]) -> Optional<u64> {
     transition { _ -> search(bytes, pattern, 0) }
     machine search(bytes: @[u8], pattern: @[u8], position: u64) -> Optional<u64>
-    requires position <= bytes.len
+    requires position <= bytes.length
     {
         let remaining: @[u8] = bytes[position..];
         let matches: bool = starts_with(remaining, pattern);
@@ -40,9 +40,9 @@ machine find(bytes: @[u8], pattern: @[u8]) -> Optional<u64> {
         }
     }
     machine advance(bytes: @[u8], pattern: @[u8], position: u64) -> Optional<u64>
-    requires position <= bytes.len
+    requires position <= bytes.length
     {
-        transition position < bytes.len {
+        transition position < bytes.length {
             true -> search(bytes, pattern, position + 1),
             false -> (Optional::None)
         }
@@ -64,19 +64,19 @@ machine absent(result: @Optional<u64>) -> bool {
 }
 
 machine collect_matches(bytes: @[u8], pattern: @[u8], output: @mut [u64]) -> u64
-requires pattern.len > 0
+requires pattern.length > 0
 {
     transition { _ -> scan(bytes, pattern, output, 0, 0) }
     machine scan(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
-    requires position <= bytes.len && count <= output.len
+    requires position <= bytes.length && count <= output.length
     {
-        transition position < bytes.len && count < output.len {
+        transition position < bytes.length && count < output.length {
             true -> examine(bytes, pattern, output, position, count),
             false -> (count)
         }
     }
     machine examine(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
-    requires position < bytes.len && count < output.len
+    requires position < bytes.length && count < output.length
     {
         let matches: bool = starts_with(bytes[position..], pattern);
         transition matches {
@@ -85,7 +85,7 @@ requires pattern.len > 0
         }
     }
     machine record(bytes: @[u8], pattern: @[u8], output: @mut [u64], position: u64, count: u64) -> u64
-    requires position < bytes.len && count < output.len
+    requires position < bytes.length && count < output.length
     {
         output[count] = position;
         transition { _ -> scan(bytes, pattern, output, position + 1, count + 1) }

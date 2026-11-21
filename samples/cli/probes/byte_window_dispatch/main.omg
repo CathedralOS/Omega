@@ -1,26 +1,26 @@
 // Expected exit: 0. Selected decoders return windows of the caller's packet.
-data WindowDecoder = machine(packet: @[u8]) -> @[u8] requires packet.len >= 4 reaches none crashes none;
+data WindowDecoder = machine(packet: @[u8]) -> @[u8] requires packet.length >= 4 reaches none crashes none;
 
 machine header_window(packet: @[u8]) -> @[u8]
-requires packet.len >= 4 {
+requires packet.length >= 4 {
     packet[0..2]
 }
 
 machine trailer_window(packet: @[u8]) -> @[u8]
-requires packet.len >= 4 {
+requires packet.length >= 4 {
     packet[2..4]
 }
 
 machine read_first(decoder: WindowDecoder, packet: @[u8]) -> u8
-requires packet.len >= 4
+requires packet.length >= 4
 crashes Trap {
     let bytes: @[u8] = decoder(packet);
-    transition bytes.len == 2 {
+    transition bytes.length == 2 {
         true -> read(bytes),
         false -> bad()
     }
     machine read(bytes: @[u8]) -> u8
-    requires bytes.len == 2 {
+    requires bytes.length == 2 {
         bytes[0]
     }
     machine bad() -> u8 { crash Trap; }

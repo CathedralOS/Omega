@@ -8,12 +8,12 @@ trait Visitor<Output> {
 }
 
 machine append<'storage>(output: @mut Matches<'storage>, value: i32) -> bool {
-    transition output.count < output.values.len {
+    transition output.count < output.values.length {
         true -> store(output, value),
         false -> false
     }
     machine store(output: @mut Matches<'storage>, value: i32) -> bool
-    requires output.count < output.values.len {
+    requires output.count < output.values.length {
         output.values[output.count] = value;
         output.count = output.count + 1;
         true
@@ -35,21 +35,21 @@ Tagged<'storage> satisfies Visitor<Matches<'storage>> {
 machine scan<'storage>(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>) -> u64 {
     transition { _ -> next(visitor, input, output, 0) }
     machine next(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>, position: u64) -> u64
-    requires position <= input.len {
-        transition position < input.len {
+    requires position <= input.length {
+        transition position < input.length {
             true -> inspect(visitor, input, output, position),
             false -> output.count
         }
     }
     machine inspect(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>, position: u64) -> u64
-    requires position < input.len {
+    requires position < input.length {
         transition input[position] > 0 {
             true -> emit(visitor, input, output, position),
             false -> next(visitor, input, output, position + 1)
         }
     }
     machine emit(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>, position: u64) -> u64
-    requires position < input.len {
+    requires position < input.length {
         let accepted: bool = Visitor::emit(visitor, output, input[position]);
         transition accepted {
             true -> next(visitor, input, output, position + 1),

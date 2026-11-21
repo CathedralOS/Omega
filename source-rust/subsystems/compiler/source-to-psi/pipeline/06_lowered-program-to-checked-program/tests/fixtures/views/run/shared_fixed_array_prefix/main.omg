@@ -16,7 +16,7 @@ machine label_live(label: @Label) -> bool {
 }
 
 machine matches_a1(prefix: @[u8] in Ascii) -> bool {
-    let len: u64 = prefix.len;
+    let len: u64 = prefix.length;
     let raw: @[u8] = prefix as -Ascii;
     raw == "A1" && len == 2
 }

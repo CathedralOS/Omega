@@ -14,7 +14,7 @@ use omega\language\core\is_finite;
 // The scanner borrows the parsed fields through a shared descriptor.
 data RadiometryInput<'fields> [copy] { values: @'fields [f64]; }
 machine finite_input<'fields>(input: RadiometryInput<'fields>, index: u64) -> bool
-requires index < input.values.len { is_finite(input.values[index]) }
+requires index < input.values.length { is_finite(input.values[index]) }
 
 data Main {
     protocol: Protocol;

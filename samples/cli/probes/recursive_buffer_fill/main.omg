@@ -4,22 +4,22 @@
 data Cells { bytes: [u8; 8]; }
 
 machine fill_field(cells: @mut Cells, position: u64) -> u64
-terminates by (position, cells.bytes.len) -> Nat::BoundedDistance
-requires position < cells.bytes.len
+terminates by (position, cells.bytes.length) -> Nat::BoundedDistance
+requires position < cells.bytes.length
 {
     cells.bytes[position] = 7;
-    transition position + 1 < cells.bytes.len {
+    transition position + 1 < cells.bytes.length {
         true -> fill_field(cells, position + 1),
         _ -> (position + 1)
     }
 }
 
 machine fill_array(bytes: @mut [u8; 4], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance
-requires position < bytes.len
+terminates by (position, bytes.length) -> Nat::BoundedDistance
+requires position < bytes.length
 {
     bytes[position] = 5;
-    transition position + 1 < bytes.len {
+    transition position + 1 < bytes.length {
         true -> fill_array(bytes, position + 1),
         _ -> (position + 1)
     }
@@ -42,11 +42,11 @@ machine main() crashes Trap {
 }
 
 machine fill_slice(bytes: @mut [u8], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len
-requires position < bytes.len
+terminates by (position, bytes.length) -> Nat::BoundedDistance in 0..=bytes.length
+requires position < bytes.length
 {
     bytes[position] = 3;
-    transition position + 1 < bytes.len {
+    transition position + 1 < bytes.length {
         true -> fill_slice(bytes, position + 1),
         _ -> (position + 1)
     }

@@ -125,7 +125,7 @@ ensures result <= requested && result <= 4294967295
 machine windows_filesystem_read(file: File, buffer: @mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 {
-    transition file.handle != 0 && count <= buffer.len {
+    transition file.handle != 0 && count <= buffer.length {
         true -> block transfer(file, buffer, count),
         false -> invalid(file)
     }
@@ -150,7 +150,7 @@ reaches FilesystemContentWrite
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine transfer(file: File, bytes: @[u8]) -> IoResult {
-        let limit: u64 = windows_filesystem_transfer_size(bytes.len);
+        let limit: u64 = windows_filesystem_transfer_size(bytes.length);
         let result: i64 = block WindowsFilesystemHost::write_file(file.handle, @bytes[0..limit]);
         windows_filesystem_transferred(result, limit)
     }
@@ -167,7 +167,7 @@ reaches FilesystemContentRead
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult {
-        transition offset >= 0 && count <= buffer.len {
+        transition offset >= 0 && count <= buffer.length {
             true -> block transfer(file, buffer, count, offset),
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }
@@ -193,7 +193,7 @@ reaches FilesystemContentWrite
         }
     }
     machine transfer(file: File, bytes: @[u8], offset: i64) -> IoResult {
-        let limit: u64 = windows_filesystem_transfer_size(bytes.len);
+        let limit: u64 = windows_filesystem_transfer_size(bytes.length);
         let result: i64 = block WindowsFilesystemHost::write_at(file.handle, @bytes[0..limit], offset);
         windows_filesystem_transferred(result, limit)
     }

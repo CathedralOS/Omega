@@ -6,7 +6,7 @@ data Pair { first: Cell; second: Cell; }
 machine observe(cell: @Cell) -> u64 { cell.value }
 machine update(value: @mut u64) { $value = 11; }
 
-machine middle(bytes: @[u8]) -> u8 requires bytes.len == 3 { bytes[1] }
+machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
 
 machine array_view() -> bool {
     let mut bytes: [u8; 3] = [17, 42, 99];

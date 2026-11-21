@@ -136,45 +136,45 @@ public machine transpose(layout: @Layout2) -> Layout2 {
 }
 
 public machine read_checked(backing: @[i32], index: u64) -> i32
-requires index < backing.len {
+requires index < backing.length {
     backing[index]
 }
 
 public machine try_read(backing: @[i32], layout: @Layout2, row: u64, column: u64) -> ReadResult {
-    let admitted: bool = valid_readonly(layout, backing.len);
+    let admitted: bool = valid_readonly(layout, backing.length);
     transition admitted {
         true -> locate(backing, layout, row, column),
         false -> ReadResult::Invalid
     }
     machine locate(backing: @[i32], layout: @Layout2, row: u64, column: u64) -> ReadResult {
-        let selected: IndexResult = try_offset(layout, backing.len, row, column);
+        let selected: IndexResult = try_offset(layout, backing.length, row, column);
         transition selected { IndexResult::Ok { index } -> bounded(backing, index), IndexResult::Invalid -> ReadResult::Invalid }
     }
     machine bounded(backing: @[i32], index: u64) -> ReadResult {
-        transition index < backing.len {
+        transition index < backing.length {
             true -> read(backing, index),
             false -> ReadResult::Invalid
         }
     }
-    machine read(backing: @[i32], index: u64) -> ReadResult requires index < backing.len {
+    machine read(backing: @[i32], index: u64) -> ReadResult requires index < backing.length {
         ReadResult::Ok { value: read_checked(backing, index) }
     }
 }
 
 public machine try_write(backing: @mut [i32], layout: @Layout2, row: u64, column: u64, value: i32) -> bool {
-    let admitted: bool = valid_mutable(layout, backing.len);
+    let admitted: bool = valid_mutable(layout, backing.length);
     transition admitted {
         true -> locate(backing, layout, row, column, value),
         false -> false
     }
     machine locate(backing: @mut [i32], layout: @Layout2, row: u64, column: u64, value: i32) -> bool {
-        let selected: IndexResult = try_offset(layout, backing.len, row, column);
+        let selected: IndexResult = try_offset(layout, backing.length, row, column);
         transition selected { IndexResult::Ok { index } -> bounded(backing, index, value), IndexResult::Invalid -> false }
     }
     machine bounded(backing: @mut [i32], index: u64, value: i32) -> bool {
-        transition index < backing.len { true -> store(backing, index, value), false -> false }
+        transition index < backing.length { true -> store(backing, index, value), false -> false }
     }
-    machine store(backing: @mut [i32], index: u64, value: i32) -> bool requires index < backing.len {
+    machine store(backing: @mut [i32], index: u64, value: i32) -> bool requires index < backing.length {
         backing[index] = value;
         true
     }

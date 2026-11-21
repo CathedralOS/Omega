@@ -51,7 +51,7 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
-        transition index < text.len {
+        transition index < text.length {
             true -> read(text, index, previous, total),
             _ -> (RomanParse::Parsed { total: total })
         }

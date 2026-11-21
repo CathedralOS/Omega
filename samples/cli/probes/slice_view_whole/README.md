@@ -35,5 +35,5 @@ for its actual updated contents, not assume arbitrary predicates survive stores.
 ## Learnings
 
 - Parenthesize indexed elements and binary expressions used directly as transition results; this example retains its original named `total` and `observed` calculations.
-- A `&mut [T]`/`&[T]` view carries unknown length: indexed element access needs `requires at < cells.len` (or `cells.len == 4`) on the callee, even though the `[..]` reborrowed array has statically-known extent.
+- A `&mut [T]`/`&[T]` view carries unknown length: indexed element access needs `requires at < cells.length` (or `cells.length == 4`) on the callee, even though the `[..]` reborrowed array has statically-known extent.
 - A multi-clause `transition` subject with `&&` at top level must sit on continuation lines before `{`.

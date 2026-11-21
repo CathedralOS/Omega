@@ -30,7 +30,7 @@ an aggregate, and a move (custody transfer) still relocates them.
 
 Every place builds the same packet `[11, 23, 29, 31]`, the windows
 `packet[0..1]` and `packet[2..3]`, and lends the first element through a copied
-local and the second directly to `read(bytes: &[u8]) -> u8 requires bytes.len == 1`.
+local and the second directly to `read(bytes: &[u8]) -> u8 requires bytes.length == 1`.
 `main` crashes unless the two reads are 11 and 29, so a lend that reached the
 wrong window, or the wrong extent, changes a byte. Only the transport of the
 array changes.
@@ -51,7 +51,7 @@ The field place stores the array in `Bundle`; the parameter place passes it to
 `observe`; the call-result place returns it from `relay`, whose `ensures` names
 both windows' extents; the const-name place indexes by named constants; the
 nested and other-machine places pass it to a machine that states
-`requires windows[0].len == 1 && windows[1].len == 1`. The match-join place
+`requires windows[0].length == 1 && windows[1].length == 1`. The match-join place
 settles a flag through `&mut` so the checker cannot fold the `match`; its second
 arm holds the windows `packet[1..2]` and `packet[3..4]`, which read 23 and 31, so
 a join that took the wrong arm crashes `main`. The target-body place calls the
@@ -60,7 +60,7 @@ different binder spellings, one selected per hosted target through `Build` rows.
 
 Each twin changes one window bound: `packet[0..1]` becomes `packet[0..2]`, and in
 the match join the second arm's `packet[1..2]` becomes `packet[1..3]`. The array
-literal alone proves the callee's `requires bytes.len == 1`, so the lent window
+literal alone proves the callee's `requires bytes.length == 1`, so the lent window
 carries its extent from the literal with no caller guard. With a two-byte window
 the checker refuses ``cannot prove requires contract`` at the call that lends it
 (`read`, or `observe`, `inspect` and `forward` where the array crosses a machine
@@ -76,7 +76,7 @@ checker is untouched. Linux, macOS, and QEMU were not run; the other hosted targ
 bound, not executed, and only the Windows provider of `Observe` executes here.
 
 - **Establishment:** the array literal establishes each window's extent and the
-  callee's `requires bytes.len == 1` is proved from it at the call. No caller
+  callee's `requires bytes.length == 1` is proved from it at the call. No caller
   guard re-establishes it.
 - **Identity and lifetime:** each element is its own descriptor over the packet's
   bytes. The second lend reads `packet[2]`, not `packet[0]`, and the neighbors 23

@@ -15,7 +15,7 @@ omega run --both samples/cli/collections/partitioned_scan_output/main.omg
 ```
 
 The stored count's exact increment follows from
-`partitions[selected].count < partitions[selected].values.len`. Writing one
+`partitions[selected].count < partitions[selected].values.length`. Writing one
 element preserves that descriptor's extent and the containing record's sibling
 count; it does not preserve facts after replacing the descriptor or changing a
 selector. The same operation must work through nested descriptors and local

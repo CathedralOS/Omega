@@ -135,13 +135,13 @@ public machine balanced(cavity: @Cavity) -> bool {
 data HeldTicks<'row> { values: @'row mut [i32 in Wrapping]; }
 
 machine gate_window<'row>(items: @'row mut [i32 in Wrapping; 4]) -> HeldTicks<'row>
-ensures result.values.len == 1
+ensures result.values.length == 1
 {
     HeldTicks { values: @mut items[0..1] }
 }
 
 machine rest_window<'row>(items: @'row mut [i32 in Wrapping; 4]) -> HeldTicks<'row>
-ensures result.values.len == 3
+ensures result.values.length == 3
 {
     HeldTicks { values: @mut items[1..4] }
 }
@@ -152,7 +152,7 @@ machine half_window<'row>(
     items: @'row mut [i32 in Wrapping; 4],
     which: i32 in Wrapping
 ) -> HeldTicks<'row>
-ensures result.values.len == 2
+ensures result.values.length == 2
 {
     match which {
         0 -> HeldTicks { values: @mut items[0..2] },
@@ -161,20 +161,20 @@ ensures result.values.len == 2
 }
 
 machine write_first(window: @mut [i32 in Wrapping], tick: i32 in Wrapping)
-requires window.len >= 1 {
+requires window.length >= 1 {
     window[0] = tick;
 }
 
 public machine arrival_row_holds() -> bool {
     let mut row: [i32 in Wrapping; 4] = [1, 2, 3, 4];
     let gate: HeldTicks = gate_window(@mut row);
-    let gate_length: u64 = gate.values.len;
+    let gate_length: u64 = gate.values.length;
     write_first(gate.values, 1);
     let rest: HeldTicks = rest_window(@mut row);
-    let rest_length: u64 = rest.values.len;
+    let rest_length: u64 = rest.values.length;
     write_first(rest.values, 2);
     let half: HeldTicks = half_window(@mut row, 0);
-    let half_length: u64 = half.values.len;
+    let half_length: u64 = half.values.length;
     write_first(half.values, 1);
     gate_length == 1 && rest_length == 3 && half_length == 2 && row[0] == 1
         && row[1] == 2 && row[2] == 3 && row[3] == 4

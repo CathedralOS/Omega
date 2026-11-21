@@ -7,27 +7,27 @@ data Cell [copy] { value: u32; tag: u64; }
 data Window<'input> { values: @'input mut [Cell]; }
 
 machine replace<'carrier, 'input>(windows: @'carrier mut [Window<'input>], replacement: @'input mut [Cell])
-requires windows.len == 2 {
+requires windows.length == 2 {
     windows[0].values = replacement;
 }
 
 machine replaced(values: @[Cell]) -> bool {
-    transition values.len == 2 {
+    transition values.length == 2 {
         true -> inspect(values),
         false -> false
     }
-    machine inspect(values: @[Cell]) -> bool requires values.len == 2 {
+    machine inspect(values: @[Cell]) -> bool requires values.length == 2 {
         values[0].value == 42 && values[0].tag == 9223372036854775808
             && values[1].value == 19 && values[1].tag == 29
     }
 }
 
 machine unchanged(values: @[Cell]) -> bool {
-    transition values.len == 1 {
+    transition values.length == 1 {
         true -> inspect(values),
         false -> false
     }
-    machine inspect(values: @[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: @[Cell]) -> bool requires values.length == 1 {
         values[0].value == 31 && values[0].tag == 41
     }
 }

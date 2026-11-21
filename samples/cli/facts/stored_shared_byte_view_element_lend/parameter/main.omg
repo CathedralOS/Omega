@@ -3,13 +3,13 @@
 // Place: parameter.
 // Expected exit: 0
 machine read(bytes: @[u8]) -> u8
-requires bytes.len == 1
+requires bytes.length == 1
 {
     bytes[0]
 }
 
 machine observe(windows: [@[u8]; 2]) -> bool
-requires windows[0].len == 1 && windows[1].len == 1
+requires windows[0].length == 1 && windows[1].length == 1
 {
     let first: @[u8] = windows[0];
     let a: u8 = read(first);

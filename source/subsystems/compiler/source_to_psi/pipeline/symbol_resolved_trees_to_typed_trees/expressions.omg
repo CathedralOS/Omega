@@ -483,7 +483,7 @@ crashes Trap
 
 // `value.field`: the common field of the data type `value` has, through any
 // number of references, with the type's generic arguments substituted, or a
-// collection's `.len`.
+// collection's `.length`.
 machine type_field(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -502,10 +502,10 @@ crashes Trap
         }
     }
 
-    // A slice or array has one projection, its `u64` element count `.len`
+    // A slice or array has one projection, its `u64` element count `.length`
     // (wiki/spec/language/counts_and_addresses.md).
     machine collection(typer: @mut Typer, sources: @SourceSet, index: u64 in Trapping, expression: Expression, row: TypeRow) {
-        let length: bool = span_spells(sources, expression.name.source_span, "len");
+        let length: bool = span_spells(sources, expression.name.source_span, "length");
         transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array) && length {
             true -> counted(typer, index, expression),
             _ -> not_data(typer, expression)

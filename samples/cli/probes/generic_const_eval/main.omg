@@ -2,7 +2,7 @@
 // `const Observed: u64 = extent()` where `extent()`
 // instantiates `identity<[u8; Count]>` — the substituted
 // `T` row retains `Count`'s const-param origin even though
-// the structural extent is already 3. `bytes.len` reads
+// the structural extent is already 3. `bytes.length` reads
 // the extent of the evaluated literal.
 //
 //   * `const Count: u64 = count()` — machine call in
@@ -22,7 +22,7 @@ machine identity<T [copy]>(value: T) -> T { value }
 
 machine extent() -> u64 {
     let bytes: [u8; Count] = identity::<[u8; Count]>([1u8, 2u8, 3u8]);
-    bytes.len
+    bytes.length
 }
 
 data Main { hits: i32 in Wrapping; }

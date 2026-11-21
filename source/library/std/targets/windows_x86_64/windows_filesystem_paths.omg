@@ -15,7 +15,7 @@ data WindowsPathCharacter {
 }
 
 machine windows_wide_path(path: @[u8], output: @mut [u16; 4096]) -> i64 {
-    windows_path_encode(path, output, 0, 0, path.len)
+    windows_path_encode(path, output, 0, 0, path.length)
 }
 
 data WindowsPathStep {
@@ -43,12 +43,12 @@ terminates by remaining
 }
 
 machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
-    transition output_offset < output.len {
+    transition output_offset < output.length {
         true -> position(path, output, input_offset, output_offset),
         false -> bad()
     }
     machine position(path: @[u8], output: @mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
-        transition input_offset < path.len {
+        transition input_offset < path.length {
             true -> decode(path, output, input_offset, output_offset),
             false -> terminate(output, output_offset)
         }
@@ -72,7 +72,7 @@ machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u
     }
     machine pair(output: @mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         let next_output: u64 = output_offset + 1;
-        transition next_output < output.len {
+        transition next_output < output.length {
             true -> emit_pair(output, character, output_offset, next_output),
             false -> bad()
         }
@@ -95,7 +95,7 @@ machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u
 // Decode one scalar. Reject overlong encodings, UTF-16 surrogates, out-of-range
 // scalars and embedded NUL before returning a character to the encoder.
 machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter {
-    transition offset < path.len { true -> lead(path, offset), false -> bad() }
+    transition offset < path.length { true -> lead(path, offset), false -> bad() }
     machine lead(path: @[u8], offset: u64) -> WindowsPathCharacter {
         let first: u8 = path[offset];
         transition first > 0 && first < 128 {
@@ -105,7 +105,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
     }
     machine multibyte(path: @[u8], offset: u64, first: u8) -> WindowsPathCharacter {
         let second_offset: u64 = offset + 1;
-        transition first >= 194 && first <= 244 && second_offset < path.len {
+        transition first >= 194 && first <= 244 && second_offset < path.length {
             true -> second(path, first, second_offset),
             false -> bad()
         }
@@ -124,7 +124,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
         }
     }
     machine third_room(path: @[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
-        transition offset < path.len { true -> third(path, first, second, offset), false -> bad() }
+        transition offset < path.length { true -> third(path, first, second, offset), false -> bad() }
     }
     machine third(path: @[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
         let third: u8 = path[offset];
@@ -148,7 +148,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
         }
     }
     machine fourth_room(path: @[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
-        transition offset < path.len { true -> fourth(path, first, second, third, offset), false -> bad() }
+        transition offset < path.length { true -> fourth(path, first, second, third, offset), false -> bad() }
     }
     machine fourth(path: @[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
         let fourth: u8 = path[offset];

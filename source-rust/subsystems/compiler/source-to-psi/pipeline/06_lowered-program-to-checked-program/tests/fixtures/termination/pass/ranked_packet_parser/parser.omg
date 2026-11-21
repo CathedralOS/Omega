@@ -3,14 +3,14 @@
 machine header(unread: @[u8], checksum: u8) -> u8
 terminates
 terminates by unread -> Slice::Length {
-    transition unread.len > 0 {
-        true -> payload(unread, 0, unread.len, checksum),
+    transition unread.length > 0 {
+        true -> payload(unread, 0, unread.length, checksum),
         false -> checksum
     }
 }
 
 machine payload(bytes: @[u8], cursor: u64, end: u64, checksum: u8) -> u8
-requires cursor < end && end == bytes.len
+requires cursor < end && end == bytes.length
 terminates
 terminates by (cursor, end) -> Nat::BoundedDistance {
     let byte: u8 = bytes[cursor];

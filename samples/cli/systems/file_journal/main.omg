@@ -52,7 +52,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console + FilesystemContentR
         transition main.metadata { MetadataResult::Ok { meta } -> block inspected(main, meta), _ -> done(main) }
     }
     machine inspected(main: @mut Main, metadata: Metadata) {
-        transition metadata.len == 17 { true -> block open_for_read(main), false -> done(main) }
+        transition metadata.length == 17 { true -> block open_for_read(main), false -> done(main) }
     }
     machine open_for_read(main: @mut Main) {
         main.passed = main.passed + 1;

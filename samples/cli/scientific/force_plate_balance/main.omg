@@ -28,13 +28,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine line(buffer: @[u8; 256], count: u64, final: bool) {
-        transition count <= buffer.len {
+        transition count <= buffer.length {
             true -> block bounded_line(buffer, count, final),
             _ -> failed()
         }
     }
     machine bounded_line(buffer: @[u8; 256], count: u64, final: bool)
-    requires count <= buffer.len
+    requires count <= buffer.length
     {
         transition final {
             true -> end(@buffer[..count], count),

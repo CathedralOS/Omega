@@ -5,7 +5,7 @@
 //
 //   * `write_bytes(out: &mut [u8; 17], value, width)` — sized-array
 //     borrow parameter (not a slice).
-//   * `out[position] = value` through the borrow; `out.len` known.
+//   * `out[position] = value` through the borrow; `out.length` known.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -16,7 +16,7 @@ machine write_bytes(out: @mut [u8; 17], value: u8, width: u64) -> u64 {
         _ -> fill(out, value, width, 0)
     }
     machine fill(out: @mut [u8; 17], value: u8, width: u64, position: u64) -> u64 {
-        transition (position < width && position < out.len) {
+        transition (position < width && position < out.length) {
             true -> write_digit(out, value, width, position),
             false -> (width)
         }

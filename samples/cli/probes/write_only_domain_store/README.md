@@ -10,7 +10,7 @@ the stored value — same write-side check as `&mut`.
 Indexing a domain-qualified array member reads as an
 unknown-length slice (`tagged.label[0]` fails "cannot
 prove index within unknown slice length"). This is compiler migration debt:
-`[u8; 8] in Utf8` is the same exact-length carrier as `[u8; 8]`, so its `.len`
+`[u8; 8] in Utf8` is the same exact-length carrier as `[u8; 8]`, so its `.length`
 is 8 and the qualified-to-plain copy changes no representation.
 
 Compile-checked only: no standard-library dependency and

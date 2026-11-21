@@ -39,7 +39,7 @@ data RouteSpan<'row> { events: @'row [u64]; }
 data Shelf<'row> { span: RouteSpan<'row>; }
 
 machine chosen_span<'row>(route: @'row [u64; 4], which: u64) -> RouteSpan<'row>
-ensures result.events.len >= 1
+ensures result.events.length >= 1
 {
     match which {
         0 -> RouteSpan { events: @route[0..which + 1] },
@@ -48,7 +48,7 @@ ensures result.events.len >= 1
 }
 
 machine span_starts<'row>(span: RouteSpan<'row>, expected: u64) -> bool
-requires span.events.len >= 1
+requires span.events.length >= 1
 {
     span.events[0] == expected
 }
@@ -70,9 +70,9 @@ invokes Console
     }
     machine optimal(certificate: @Certificate) {
         let head: RouteSpan = chosen_span(@certificate.best.route, 0);
-        let head_length: u64 = head.events.len;
+        let head_length: u64 = head.events.length;
         let nested: Shelf = Shelf { span: chosen_span(@certificate.best.route, 1) };
-        let field_length: u64 = nested.span.events.len;
+        let field_length: u64 = nested.span.events.length;
         let parameter_ok: bool = span_starts(head, certificate.best.route[0]);
         let call_ok: bool = span_starts(
             chosen_span(@certificate.best.route, 0),

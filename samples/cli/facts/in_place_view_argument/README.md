@@ -38,8 +38,8 @@ changing the expected byte to 12 in the local shape traps natively (SIGILL) and
 in Terminal Psi (`Trap`).
 
 Each twin changes only the backing array's extent from 4 to 3 bytes. The formed
-view then carries length 3 and the callee's `requires packet.bytes.len >= 4`
-fails with ``needs fact `packet.bytes.len >= 4` here``.
+view then carries length 3 and the callee's `requires packet.bytes.length >= 4`
+fails with ``needs fact `packet.bytes.length >= 4` here``.
 
 ## Baseline and repair
 

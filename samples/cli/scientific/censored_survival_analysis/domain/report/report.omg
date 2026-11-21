@@ -10,7 +10,7 @@ use omega\language\core\I64::from_f64;
 
 // The measured extent is supplied by a checked contract, independently of the
 // array's capacity. This reusable view accessor also accepts empty slices.
-machine extent(values: @[f64]) -> u64 ensures result == values.len { values.len }
+machine extent(values: @[f64]) -> u64 ensures result == values.length { values.length }
 machine row_value(values: @[f64], index: u32) -> f64 {
     let count: u64 = extent(values);
     transition index < count { true -> (values[index]), false -> 0.0 }

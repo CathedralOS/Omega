@@ -4,27 +4,27 @@
 data Input<'input> { tag: u8; bytes: @'input [u8]; tail: u8; }
 boundary trait Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8 reaches none
-    requires packet.bytes.len >= 4 crashes none;
+    requires packet.bytes.length >= 4 crashes none;
 }
 X86Reader satisfies Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8
-    requires packet.bytes.len >= 4 {
+    requires packet.bytes.length >= 4 {
         transition packet.tag == 5 && packet.tail == 9 {
             true -> third(packet.bytes),
             false -> zero()
         }
-        machine third(bytes: @[u8]) -> u8 requires bytes.len >= 4 { bytes[2] }
+        machine third(bytes: @[u8]) -> u8 requires bytes.length >= 4 { bytes[2] }
         machine zero() -> u8 { 0 }
     }
 }
 ArmReader satisfies Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8
-    requires packet.bytes.len >= 4 {
+    requires packet.bytes.length >= 4 {
         transition packet.tag == 5 && packet.tail == 9 {
             true -> third(packet.bytes),
             false -> zero()
         }
-        machine third(bytes: @[u8]) -> u8 requires bytes.len >= 4 { bytes[2] }
+        machine third(bytes: @[u8]) -> u8 requires bytes.length >= 4 { bytes[2] }
         machine zero() -> u8 { 0 }
     }
 }

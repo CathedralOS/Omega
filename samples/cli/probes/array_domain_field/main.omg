@@ -31,7 +31,7 @@ machine Main::main(main: @mut Main) {
         transition { _ -> read(main) }
     }
     machine read(main: @mut Main) {
-        transition main.label.len == 3 && main.label[0] == 66
+        transition main.label.length == 3 && main.label[0] == 66
             && main.label[1] == 98 && main.label[2] == 99 {
             true -> pass(main),
             _ -> fail(main)

@@ -27,7 +27,7 @@ machine parse_hex(text: @[u8], start: i32 in Wrapping) -> i32 in Wrapping {
     }
     machine bounds(text: @[u8], position: i32 in Wrapping,
                  count: i32 in Wrapping, value: i32 in Wrapping) -> i32 in Wrapping {
-        transition position >= 0 && position < text.len {
+        transition position >= 0 && position < text.length {
             true -> read(text, position, count, value),
             _ -> (0 - 1)
         }
@@ -43,14 +43,14 @@ machine parse_hex(text: @[u8], start: i32 in Wrapping) -> i32 in Wrapping {
 }
 
 public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
-    transition text.len >= 17 && text.len <= 19 {
+    transition text.length >= 17 && text.length <= 19 {
         true -> ending(text, cavity),
         _ -> false
     }
     machine ending(text: @[u8], cavity: @mut Cavity) -> bool
-    requires text.len >= 17
+    requires text.length >= 17
     {
-        transition text.len {
+        transition text.length {
             17 -> separators(text, cavity),
             18 -> newline(text, cavity),
             19 -> carriage(text, cavity),
@@ -58,7 +58,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
         }
     }
     machine newline(text: @[u8], cavity: @mut Cavity) -> bool
-    requires text.len >= 18
+    requires text.length >= 18
     {
         transition text[17] == 10 {
             true -> separators(text, cavity),
@@ -66,7 +66,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
         }
     }
     machine carriage(text: @[u8], cavity: @mut Cavity) -> bool
-    requires text.len >= 19
+    requires text.length >= 19
     {
         transition text[17] == 13 && text[18] == 10 {
             true -> separators(text, cavity),
@@ -74,7 +74,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
         }
     }
     machine separators(text: @[u8], cavity: @mut Cavity) -> bool
-    requires text.len >= 17
+    requires text.length >= 17
     {
         transition text[4] == 32 && text[9] == 32 && text[14] == 32 {
             true -> numbers(text, cavity),
@@ -82,7 +82,7 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
         }
     }
     machine numbers(text: @[u8], cavity: @mut Cavity) -> bool
-    requires text.len >= 17
+    requires text.length >= 17
     {
         let walls: i32 in Wrapping = parse_hex(text, 0);
         let gates: i32 in Wrapping = parse_hex(text, 5);

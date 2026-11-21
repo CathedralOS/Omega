@@ -155,7 +155,7 @@ crashes Trap
 
 // The root of a place expression, as a key: a local's statement, a
 // parameter or a pattern binder, reached through fields (a field selecting
-// `.len` is no place) and indexes, and through references when `through`
+// `.length` is no place) and indexes, and through references when `through`
 // holds. Zero for any other expression.
 public machine path_root(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, through: bool) -> u64 in Trapping
 crashes Trap
@@ -246,7 +246,7 @@ crashes Trap
     }
 }
 
-// Whether a field expression selects a field, a place, rather than `.len`.
+// Whether a field expression selects a field, a place, rather than `.length`.
 public machine field_place(typing: @Typing, node: u64 in Trapping, expression: Expression) -> bool
 crashes Trap
 {
@@ -578,7 +578,7 @@ crashes Trap
 // Whether a place expression reaches its value through a reference: a
 // field or an index whose base, at any step, is a reference.
 // Whether a place is, or is reached through, a write-only reference: the
-// place itself, or a field (a `.len` selection reads metadata, not the
+// place itself, or a field (a `.length` selection reads metadata, not the
 // referent) or element base along its path, of type `&write T`.
 public machine through_write_only(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> bool
 crashes Trap

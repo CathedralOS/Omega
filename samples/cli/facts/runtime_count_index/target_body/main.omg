@@ -19,11 +19,11 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 boundary trait SelectedReadAt {
     machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    requires Index < items.len;
+    requires Index < items.length;
 }
 X86ReadAt satisfies SelectedReadAt {
     machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    requires Index < items.len
+    requires Index < items.length
     {
         SelectedBodyCheck::require_tag(17u64);
         items[Index]
@@ -31,7 +31,7 @@ X86ReadAt satisfies SelectedReadAt {
 }
 ArmReadAt satisfies SelectedReadAt {
     machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    requires Index < items.len
+    requires Index < items.length
     {
         SelectedBodyCheck::require_tag(29u64);
         items[Index]

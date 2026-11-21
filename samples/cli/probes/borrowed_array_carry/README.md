@@ -6,7 +6,7 @@ state re-entry edges. No standard-library dependency.
 - `write_bytes(out: &mut [u8; 17], ...)` — a sized-array borrow
   parameter (not a slice): the referent stays caller-owned while the
   graph forwards the same borrow on each loop edge.
-- `out[position] = value` through the borrow; `out.len` known at
+- `out[position] = value` through the borrow; `out.length` known at
   every edge.
 
 Compile-checked only (no ProcessExit provider):

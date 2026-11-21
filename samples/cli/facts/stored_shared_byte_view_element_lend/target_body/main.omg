@@ -3,7 +3,7 @@
 // Place: target_body.
 // Expected exit: 0
 machine read(bytes: @[u8]) -> u8
-requires bytes.len == 1
+requires bytes.length == 1
 {
     bytes[0]
 }
@@ -11,12 +11,12 @@ requires bytes.len == 1
 boundary trait Observe {
     machine observe(windows: [@[u8]; 2]) -> bool
     reaches none
-    requires windows[0].len == 1 && windows[1].len == 1 crashes none;
+    requires windows[0].length == 1 && windows[1].length == 1 crashes none;
 }
 
 LinuxX8664Observer satisfies Observe {
     machine observe(windows: [@[u8]; 2]) -> bool
-    requires windows[0].len == 1 && windows[1].len == 1
+    requires windows[0].length == 1 && windows[1].length == 1
     {
         let first: @[u8] = windows[0];
         let a: u8 = read(first);
@@ -27,7 +27,7 @@ LinuxX8664Observer satisfies Observe {
 
 LinuxArm64Observer satisfies Observe {
     machine observe(pair: [@[u8]; 2]) -> bool
-    requires pair[0].len == 1 && pair[1].len == 1
+    requires pair[0].length == 1 && pair[1].length == 1
     {
         let head: @[u8] = pair[0];
         let a: u8 = read(head);
@@ -38,7 +38,7 @@ LinuxArm64Observer satisfies Observe {
 
 MacosArm64Observer satisfies Observe {
     machine observe(slots: [@[u8]; 2]) -> bool
-    requires slots[0].len == 1 && slots[1].len == 1
+    requires slots[0].length == 1 && slots[1].length == 1
     {
         let lead: @[u8] = slots[0];
         let a: u8 = read(lead);
@@ -49,7 +49,7 @@ MacosArm64Observer satisfies Observe {
 
 WindowsX8664Observer satisfies Observe {
     machine observe(frames: [@[u8]; 2]) -> bool
-    requires frames[0].len == 1 && frames[1].len == 1
+    requires frames[0].length == 1 && frames[1].length == 1
     {
         let top: @[u8] = frames[0];
         let a: u8 = read(top);

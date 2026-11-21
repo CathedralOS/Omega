@@ -9,15 +9,15 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
 {
     transition { _ -> next(values, context, 0) }
     machine next(values: @'input [T], context: @Context, position: u64) -> Optional<@'input T>
-    requires position <= values.len
+    requires position <= values.length
     {
-        transition position < values.len {
+        transition position < values.length {
             true -> inspect(values, context, position),
             false -> Optional::None
         }
     }
     machine inspect(values: @'input [T], context: @Context, position: u64) -> Optional<@'input T>
-    requires position < values.len
+    requires position < values.length
     {
         transition Predicate(@values[position], context) {
             true -> Optional::Some { value: @values[position] },
@@ -31,15 +31,15 @@ requires machine Predicate(value: @T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
     machine next(values: @[T], position: u64, matched: u64) -> u64
-    requires matched <= position && position <= values.len
+    requires matched <= position && position <= values.length
     {
-        transition position < values.len {
+        transition position < values.length {
             true -> inspect(values, position, matched),
             false -> (matched)
         }
     }
     machine inspect(values: @[T], position: u64, matched: u64) -> u64
-    requires matched <= position && position < values.len
+    requires matched <= position && position < values.length
     {
         transition Predicate(@values[position]) {
             true -> next(values, position + 1, matched + 1),
@@ -67,15 +67,15 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
 {
     transition { _ -> next(values, context, 0, 0) }
     machine next(values: @[T], context: @Context, position: u64, matched: u64) -> u64
-    requires matched <= position && position <= values.len
+    requires matched <= position && position <= values.length
     {
-        transition position < values.len {
+        transition position < values.length {
             true -> inspect(values, context, position, matched),
             false -> (matched)
         }
     }
     machine inspect(values: @[T], context: @Context, position: u64, matched: u64) -> u64
-    requires matched <= position && position < values.len
+    requires matched <= position && position < values.length
     {
         transition Predicate(@values[position], context) {
             true -> next(values, context, position + 1, matched + 1),

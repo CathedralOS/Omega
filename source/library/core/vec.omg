@@ -46,19 +46,19 @@ boundary trait VecAccess {
     machine Capacity<T>(items: @Vec<T>) -> u64
     reaches none
     ensures
-        result >= items.len
+        result >= items.length
     crashes none;
 
     machine index<T>(items: @Vec<T>, index: u64) -> T
     reaches none
     requires
-        index < items.len
+        index < items.length
     crashes none;
 
     machine index_mut<T>(items: @mut Vec<T>, index: u64) -> @mut T
     reaches none
     requires
-        index < items.len
+        index < items.length
     crashes none;
 
     // Borrow the elements as a slice view; the view length matches the
@@ -66,13 +66,13 @@ boundary trait VecAccess {
     machine as_slice<T>(items: @Vec<T>) -> @[T]
     reaches none
     ensures
-        result.len == items.len
+        result.length == items.length
     crashes none;
 
     machine as_mut_slice<T>(items: @mut Vec<T>) -> @mut [T]
     reaches none
     ensures
-        result.len == items.len
+        result.length == items.length
     crashes none;
 
     // Append a value using already-owned capacity. Reallocation is never
@@ -81,7 +81,7 @@ boundary trait VecAccess {
     machine push<T>(items: @mut Vec<T>, value: T)
     reaches none
     requires
-        items.len < items.capacity
+        items.length < items.capacity
     crashes none;
 
     // Infallible under its proof obligation, matching
@@ -90,6 +90,6 @@ boundary trait VecAccess {
     machine pop<T>(items: @mut Vec<T>) -> T
     reaches none
     requires
-        items.len > 0
+        items.length > 0
     crashes none;
 }

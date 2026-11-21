@@ -1,14 +1,14 @@
 // Expected exit: 0
 // A mutable slice store updates the original array and preserves its neighbors.
 machine put(bytes: @mut [u8], position: u64, value: u8)
-requires position < bytes.len {
+requires position < bytes.length {
     bytes[position] = value;
 }
-machine prefix(bytes: @mut [u8]) -> u8 requires bytes.len > 1 {
+machine prefix(bytes: @mut [u8]) -> u8 requires bytes.length > 1 {
     bytes[0] = 7;
     42
 }
-machine composed(bytes: @mut [u8]) requires bytes.len > 1 {
+machine composed(bytes: @mut [u8]) requires bytes.length > 1 {
     bytes[1] = prefix(bytes);
 }
 data Packet { before: u8; bytes: [u8; 3]; after: u8; }
