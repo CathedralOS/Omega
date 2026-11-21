@@ -18,27 +18,7 @@ use crate::compile_time_invocations::{
     demanded_declarations, invocation_error,
 };
 
-use super::{References, decoded, family_position, insert, key, named_uses};
-
-fn dependencies(program: &TypedTrees, entry: SymbolHandle) -> Vec<SymbolHandle> {
-    let mut references = References::default();
-    let mut pending = vec![entry];
-    let mut visited = Vec::new();
-    while let Some(callee) = pending.pop() {
-        let Some(machine) = program
-            .machine_by_symbol(callee)
-            .or_else(|| program.machine_holding_state(callee))
-        else {
-            continue;
-        };
-        if !insert(&mut visited, machine.symbol) {
-            continue;
-        }
-        crate::source_state::references::visit_machine(program, &mut references, machine);
-        pending.append(&mut references.calls);
-    }
-    references.symbols
-}
+use super::{References, decoded, family_position, key, named_uses};
 
 fn materialize_uses(
     program: &mut TypedTrees,
@@ -225,7 +205,12 @@ pub fn evaluate_with_source_consent(
     let mut remaining = vec![0usize; jobs.len()];
     for (position, (_, symbol, entry)) in jobs.iter().enumerate() {
         let value = family_position(&demanded, *symbol).expect("constant job was demanded");
-        for dependency in dependencies(program, *entry) {
+        let references = References {
+            calls: vec![*entry],
+            ..Default::default()
+        }
+        .follow_calls(program);
+        for dependency in references.symbols {
             if family_position(&constants, dependency).is_some() {
                 values[value].constants.push(dependency);
             }

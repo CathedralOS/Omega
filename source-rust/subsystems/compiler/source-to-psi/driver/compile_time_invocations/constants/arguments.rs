@@ -300,6 +300,8 @@ pub fn evaluate(
             PreparedValue::StaticArgument {
                 owner: job.owner,
                 site: job.argument,
+                expression: job.expression,
+                carrier: job.carrier,
             },
             constants,
             TargetInputs::None,

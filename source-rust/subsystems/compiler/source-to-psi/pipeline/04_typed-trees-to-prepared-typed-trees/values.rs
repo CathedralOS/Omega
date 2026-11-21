@@ -3,7 +3,8 @@ use arena::Handle;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::source_state::{
-    TypedTrees, constant::ConstDeclaration, types::TypeReferenceHandle,
+    TypedTrees, constant::ConstDeclaration, expression::ExpressionHandle,
+    types::TypeReferenceHandle,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,13 +13,14 @@ pub enum PreparedValue {
     StaticArgument {
         owner: SymbolHandle,
         site: TypeReferenceHandle,
+        expression: ExpressionHandle,
+        carrier: TypeReferenceHandle,
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetInputs {
     /// This value has no admitted deployment input.
-    #[default]
     None,
     /// The initializer or extent remains open until its deployment supplies the inputs.
     Deferred,
@@ -74,13 +76,38 @@ pub(super) fn constant_inputs(
         }
         match row.value {
             PreparedValue::Constant(symbol) => wanted.push(symbol),
-            PreparedValue::StaticArgument { owner, site } => {
+            PreparedValue::StaticArgument {
+                owner,
+                site,
+                expression,
+                carrier,
+            } => {
                 if !program.symbols.symbols().nodes().is_valid(owner)
                     || !program.type_reference_table.contains_type_reference(site)
+                    || !program.expression_table.expression_is_valid(expression)
+                    || !program
+                        .type_reference_table
+                        .contains_type_reference(carrier)
                 {
                     return Err(vec![Diagnostic::error(
-                        "prepared static argument lost its declaration or type occurrence",
+                        "prepared static argument lost its declaration, expression or carrier",
                     )]);
+                }
+                if row.targets == TargetInputs::Deferred {
+                    let recipe = program.constant_recipe_for_const_application(site);
+                    let contexts = program.constant_recipes.is_valid(recipe).then(|| {
+                        program
+                            .constant_expression_contexts
+                            .span_or_empty(program.constant_recipes.get(recipe).contexts)
+                    });
+                    if !matches!(contexts.and_then(|contexts| contexts.as_array::<1>()),
+                        Some([context]) if context.owner == owner && context.result_type == carrier &&
+                            context.evaluation_expression == expression)
+                    {
+                        return Err(vec![Diagnostic::error(
+                            "deferred static argument lost its original evaluation context",
+                        )]);
+                    }
                 }
             }
         }
