@@ -12,6 +12,7 @@ data Main {
 
 machine Main::main(&mut self) {
     self.check_arm_condition("machine p(x:R) { transition { x.kind == 0 || x.ready -> pass(), _ -> fail() } }");
+    self.check_invokes_rows("boundary trait Clock { machine sleep(ms:u32) reaches Clock invokes Raw invokes Other blocks crashes none; machine idle(); } trait Reader { machine run() invokes First; } machine f(x:u8)->u8 requires x>0 invokes Last { 42 }");
     self.check_declared_domains("domain u8::Raw; public domain [u8]::Utf8 requires byte_observation\\valid_utf8(@self[..]); domain u8::Checked requires true,;");
     self.parser.parse_view("domain u8::D(subject);");
     self.check_syntax_refused(12, 13);
@@ -60,6 +61,28 @@ machine Main::main(&mut self) {
     self.check_boundary_traits(
         "public boundary trait Service { machine stop(code:i32)->Never reaches Service crashes none terminates; machine stop()->u8; } boundary trait Other {} machine entry()->u8{42}"
     );
+    self.check_trait_static_parameters("public trait Calling<const Policy: CallingPolicy, const Limit: u64> { machine apply(x: u8); } trait Empty {} trait Separate<const Policy: Other> {}");
+    self.parser.parse_view("trait Bound<P satisfies CallingPolicy> {}");
+    self.check_syntax_refused(14, 23);
+    self.check_retired_trait_binder();
+    self.parser.parse_view("trait Bound<const P CallingPolicy> {}");
+    self.check_syntax_refused(20, 33);
+    self.parser.parse_view("trait Bound<const : CallingPolicy> {}");
+    self.check_syntax_refused(18, 19);
+    self.parser.parse_view("trait Bound<const P: > {}");
+    self.check_syntax_refused(21, 22);
+    self.parser.parse_view("trait Bound<const P: A const Q: B> {}");
+    self.check_syntax_refused(23, 28);
+    self.parser.parse_view("trait Bound<const P: A, const P: B> {}");
+    self.check_syntax_refused(30, 31);
+    self.parser.parse_view("trait Bound<const P: A,> {}");
+    self.check_syntax_refused(23, 24);
+    self.parser.parse_view("trait Bound<const P: A");
+    self.check_syntax_refused(22, 22);
+    self.parser.parse_view("trait Bound<const P: A<T>> {}");
+    self.check_incomplete(22, 23);
+    self.parser.parse_view("trait Bound<const P: machine> {}");
+    self.check_incomplete(21, 28);
     self.check_trait_owners("public trait Plain {machine f(x:u8)->i32;} boundary trait External {machine f()->u8;} trait Empty {}");
     self.parser.parse_view("trait Plain { machine f() { 42 } }");
     self.check_incomplete(26, 27);
@@ -138,7 +161,7 @@ machine Main::main(&mut self) {
     self.check_domain_type(1, 0, 18, 26);
     assert self.parser.member_count == 16384;
     self.parser.append_unit("machine f() {}", 0);
-    self.check_full_path_arena();
+    self.check_full_path_arena(8, 9);
 
     self.parser.parse_view("data R { leaf:[u64 in ;2]; }");
     self.check_syntax_refused(22, 23);
@@ -613,7 +636,7 @@ machine Main::check_array_type(&mut self, node: i32, element: i32) {
     state child() { assert self.parser.type_references[node].payload0 == element; }
 }
 
-machine Main::check_full_path_arena(&mut self) {
+machine Main::check_full_path_arena(&mut self, start: i32, end: i32) {
     transition self.parser.status {
         OmegaParserStatus::ResourceFailure -> resource()
         _ -> self.console.exit_process(92)
@@ -627,8 +650,8 @@ machine Main::check_full_path_arena(&mut self) {
     state refusal() {
         assert self.parser.resource_limit == 16384;
         assert self.parser.resource_requested == 16385;
-        assert self.parser.diagnostic_start == 8;
-        assert self.parser.diagnostic_end == 9;
+        assert self.parser.diagnostic_start == start;
+        assert self.parser.diagnostic_end == end;
     }
 }
 
@@ -1727,5 +1750,82 @@ machine Main::check_field_lifetime_order(&mut self, source: &[u8]) {
         assert application.payload3 == 2;
         self.check_span(source, self.parser.members[application.payload2], "b");
         self.check_span(source, self.parser.members[application.payload2 + 1], "a");
+    }
+}
+
+machine Main::check_trait_static_parameters(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    assert self.parser.ordinary_trait_count == 3;
+    assert self.parser.trait_static_parameter_count == 3;
+    let calling: OmegaTraitSyntax = self.parser.ordinary_traits[0];
+    let empty: OmegaTraitSyntax = self.parser.ordinary_traits[1];
+    let separate: OmegaTraitSyntax = self.parser.ordinary_traits[2];
+    assert calling.is_public == 1;
+    assert calling.first_static_parameter == 0;
+    assert calling.static_parameter_count == 2;
+    assert calling.requirement_count == 1;
+    assert empty.static_parameter_count == 0;
+    assert separate.first_static_parameter == 2;
+    assert separate.static_parameter_count == 1;
+    self.check_trait_static_parameter(source, 0, "Policy", "CallingPolicy");
+    self.check_trait_static_parameter(source, 1, "Limit", "u64");
+    self.check_trait_static_parameter(source, 2, "Policy", "Other");
+}
+
+machine Main::check_trait_static_parameter(&mut self, source: &[u8], slot: i32, name: &[u8], declared_type: &[u8]) {
+    let parameter: OmegaTraitStaticParameterSyntax = self.parser.trait_static_parameters[slot];
+    self.check_span(source, parameter.name, name);
+    self.check_type_name(source, parameter.type_reference, declared_type);
+}
+
+machine Main::check_retired_trait_binder(&mut self) {
+    transition self.parser.diagnostic_code {
+        OmegaParseDiagnosticCode::RetiredTraitEvidenceBinder -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+
+// A boundary requirement, an ordinary trait member and a free machine each
+// own their authored entry names. Repeated rows preserve distinct identities.
+machine Main::check_invokes_rows(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    let sleep: OmegaBoundaryRequirementSyntax = self.parser.boundary_requirements[0];
+    assert sleep.first_clause == 0;
+    assert sleep.clause_count == 5;
+    assert self.parser.boundary_requirements[1].clause_count == 0;
+    assert self.parser.boundary_requirements[2].first_clause == 5;
+    assert self.parser.boundary_requirements[2].clause_count == 1;
+    assert self.parser.machine_items[0].first_clause == 6;
+    assert self.parser.machine_items[0].clause_count == 1;
+    self.check_invokes_row(source, 1, "Raw");
+    self.check_invokes_row(source, 2, "Other");
+    self.check_invokes_row(source, 5, "First");
+    self.check_invokes_row(source, 6, "Last");
+
+    // Clause and name storage both stop exactly before the first absent slot.
+    self.parser.parse_view("");
+    self.parser.machine_clause_count = 16384;
+    self.parser.append_unit("machine f() invokes Entry {}", 0);
+    self.check_full_path_arena(20, 25);
+    self.parser.parse_view("");
+    self.parser.member_count = 16383;
+    self.parser.append_unit("machine f() invokes Entry {}", 0);
+    self.check_full_path_arena(20, 25);
+}
+
+machine Main::check_invokes_row(&mut self, source: &[u8], index: i32, expected: &[u8]) {
+    let row: OmegaMachineClauseSyntax = self.parser.machine_clauses[index];
+    transition row.kind {
+        OmegaMachineClauseKind::Invokes -> entry(row)
+        _ -> self.console.exit_process(1)
+    }
+    state entry(clause: OmegaMachineClauseSyntax) {
+        assert clause.member_count == 1;
+        assert self.parser.scan.span_equals(source, clause.start, clause.start + 7, "invokes") == 1;
+        let name: OmegaRelativeSpan = self.parser.members[clause.first_member];
+        self.check_span(source, name, expected);
+        assert clause.end == name.end;
     }
 }

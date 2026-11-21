@@ -28,6 +28,8 @@ def cases():
         return data, rows
 
     yield from data_lifetime_cases(packet)
+    yield from trait_static_parameter_cases(packet)
+    yield from invokes_cases(packet)
 
     # A callee in another file owns its parameter's element type and count.
     paths = ["main.omg", "later/api.omg"]
@@ -162,6 +164,43 @@ def cases():
 
 def copy_declaration(definitions, name):
     return declaration(definitions, b"public data " + name + b" [copy] {")
+
+
+def invokes_cases(packet):
+    # A gated package cannot drop an entry ceiling, even on an unused machine.
+    for name, source, anchor, status in [
+        ("invokes-unchecked-entry", b"machine main()->u8 invokes Entry {42}", b"invokes", 2),
+        ("invokes-service-twin", b"boundary trait Entry {} machine main()->u8 invokes Entry {42}", b"invokes", 2),
+        ("invokes-unused-entry", b"machine helper() invokes Entry {} machine main()->u8{42}", b"invokes", 2),
+        ("invokes-missing-binding", b"machine main()->u8 invokes {42}", b"{42}", 1),
+        ("invokes-binding-at-eof", b"machine main()->u8 invokes", b"", 1),
+        ("invokes-non-name", b"machine main()->u8 invokes 42 {42}", b"42", 1),
+        ("invokes-data-owner", b"data D invokes Bad {} machine main()->u8{42}", b"invokes", 1),
+        ("invokes-case-owner", b"data D {case One invokes Bad;} machine main()->u8{42}", b"invokes", 1),
+        ("invokes-domain-owner", b"domain u8::D invokes Bad; machine main()->u8{42}", b"invokes", 1),
+    ]:
+        wire, rows = packet([source], ["main.omg"])
+        position = source.index(anchor) if anchor else len(source)
+        yield name, wire, struct.pack("<BII", 0, status, rows[0][1] + position)
+
+    # The same spelling can name an ordinary local, and a service can still
+    # form a reach ceiling when the program makes no synchronous entry claim.
+    for name, source in [
+        ("invokes-contextual-name", b"machine main()->u8{let invokes:u8=42; invokes}"),
+        ("invokes-reaches-twin", b"boundary trait Entry {} machine main()->u8 reaches Entry {42}"),
+    ]:
+        yield name, packet([source], ["main.omg"])[0], 42
+
+    # Preserve the original four authored wait names. Supplying their imports
+    # as memberless services isolates checking of the Clock requirement.
+    clock = (ROOT / "source/library/std/clock.omg").read_bytes()
+    services = [("linux_arm64", "LinuxArmClockWait"), ("linux_x86_64", "LinuxClockWait"),
+                ("macos_arm64", "DarwinClockWait"), ("windows_x86_64", "WindowsClockWait")]
+    sources = [b"machine main()->u8{42}", clock,
+               *(f"public boundary trait {entry} {{}}".encode() for _, entry in services)]
+    paths = ["main.omg", "clock.omg", *(f"targets/{target}/wait.omg" for target, _ in services)]
+    wire, rows = packet(sources, paths)
+    yield "invokes-production-clock", wire, struct.pack("<BII", 0, 2, rows[1][1] + clock.index(b"boundary trait Clock"))
 
 
 def declaration(definitions, header):
@@ -928,6 +967,18 @@ def predicate_transition_cases(encode):
             status, spelling = expected
             expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
         yield name, request, expected
+
+
+def trait_static_parameter_cases(packet):
+    for name, declarations, status, anchor in [
+        ("typed-static-trait-parameter", b"trait Calling<const Policy: CallingPolicy> {} trait CallingPolicy {}", 2, b"trait Calling<"),
+        ("retired-trait-evidence-binder", b"trait Calling<Policy satisfies CallingPolicy> {}", 1, b"satisfies"),
+        ("duplicate-static-trait-parameter", b"trait Calling<const Policy: A, const Policy: B> {}", 1, b"Policy: B"),
+        ("missing-static-trait-parameter-type", b"trait Calling<const Policy: > {}", 1, b">"),
+    ]:
+        source = declarations + b" machine main()->u8{42}"
+        request, rows = packet([source], ["main.omg"])
+        yield name, request, struct.pack("<BII", 0, status, rows[0][1] + source.index(anchor))
 
 
 def data_lifetime_cases(packet):
