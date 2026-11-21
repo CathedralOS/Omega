@@ -8,19 +8,15 @@
 // profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
 
-use super::vocabulary::has_exact_toolchain_build_facet;
-use super::{BuildValueAdmission, vocabulary};
+use super::BuildValueAdmission;
 use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use filesystem_authority::FilesystemGrantRootIdentity;
 use build_time_values::BuildTimeValue;
-use source_compiler::representations::source_state::TypedTrees;
+use filesystem_authority::FilesystemGrantRootIdentity;
 
 pub(super) fn initial_value(
     admission: &BuildValueAdmission,
-    typed: &TypedTrees,
-    machine: &source_compiler::representations::source_state::machine::Machine,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> BuildTimeValue {
     let mut build_fields = Vec::new();
@@ -43,22 +39,20 @@ pub(super) fn initial_value(
             },
         ));
     }
-    build_fields.extend([
-        (
-            "subsystem".to_owned(),
-            BuildTimeValue::Case {
-                variant: "Console".to_owned(),
-                payload: Vec::new(),
-            },
-        ),
-    ]);
-    if vocabulary::build_machine_declares_identifier_field(typed, machine) {
+    build_fields.extend([(
+        "subsystem".to_owned(),
+        BuildTimeValue::Case {
+            variant: "Console".to_owned(),
+            payload: Vec::new(),
+        },
+    )]);
+    if admission.identifier {
         build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));
     }
     if let Some(field) = admission.optimization.zero_build_field() {
         build_fields.push(field);
     }
-    if has_exact_toolchain_build_facet(typed, "BuildLog") {
+    if admission.log {
         build_fields.push((
             "log".to_owned(),
             BuildTimeValue::Struct {
@@ -67,7 +61,7 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "BuildProduct") {
+    if admission.product {
         build_fields.push((
             "product".to_owned(),
             BuildTimeValue::Struct {
@@ -76,7 +70,7 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "ElfInterpreterSelection") {
+    if admission.elf_interpreter {
         build_fields.push((
             "elf_interpreter".to_owned(),
             BuildTimeValue::Struct {
@@ -95,7 +89,7 @@ pub(super) fn initial_value(
     }
     // Testing starts enabled: a zero-initialized `tests` facet never silently
     // disables registered groups (wiki/spec/build/testing.md).
-    if has_exact_toolchain_build_facet(typed, "BuildTests") {
+    if admission.tests {
         build_fields.push((
             "tests".to_owned(),
             BuildTimeValue::Struct {
@@ -104,18 +98,15 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if has_exact_toolchain_build_facet(typed, "BuildSource")
-        && has_exact_toolchain_build_facet(typed, "BuildOutput")
-    {
-        let root_facet = |type_name: &str, root: FilesystemGrantRootIdentity| {
-            BuildTimeValue::Struct {
+    if admission.filesystem_roots {
+        let root_facet =
+            |type_name: &str, root: FilesystemGrantRootIdentity| BuildTimeValue::Struct {
                 type_name: type_name.to_owned(),
                 fields: vec![(
                     "root".to_owned(),
                     BuildTimeValue::Int(i64::from(root.get())),
                 )],
-            }
-        };
+            };
         build_fields.extend([
             (
                 "source".to_owned(),
@@ -127,7 +118,7 @@ pub(super) fn initial_value(
             ),
         ]);
     }
-    if has_exact_toolchain_build_facet(typed, "BuildInputs") {
+    if admission.inputs {
         build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {

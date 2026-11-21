@@ -31,6 +31,8 @@ pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 
 mod build_bindings;
 mod build_companions;
+mod build_receiver;
+pub use build_receiver::CheckedBuildReceiver;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod published_entry;

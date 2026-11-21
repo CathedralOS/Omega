@@ -343,7 +343,7 @@ fn publish_build(
         None,
     )
     .map_err(|failure| failure.diagnostics)?;
-    judged.invocation.publish().map(|_| ())
+    judged.invocation.prepare_publication()?.publish().map(|_| ())
 }
 
 #[test]

@@ -10,7 +10,7 @@ use build_time_values::BuildTimeValue;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
-    receiver: super::build_receiver::BuildReceiver,
+    receiver: source_compiler::publication::CheckedBuildReceiver,
     preparation_allows_return: Option<bool>,
     pub symbol: SymbolHandle,
     pub name: String,
@@ -59,25 +59,14 @@ pub fn admit_build_machine(
 ) -> Result<(SelectedBuildMachine, source_compiler::PreparedBuildInvocation), Vec<Diagnostic>> {
     let prepared = invocation.accepted();
     let typed = prepared.source();
-    let elaboration = &prepared.closure().elaboration();
-    if !prepared.is_invocation()
-        || prepared
-            .entry()
-            .and_then(|entry| elaboration.machines.get(entry))
-            != Some(&machine_symbol)
-    {
-        return Err(vec![Diagnostic::error(
-            "Build entry differs from its accepted invocation root",
-        )]);
-    }
+    let receiver = prepared.build_receiver(machine_symbol)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let machine = typed.machine(machine_symbol).ok_or_else(|| {
         vec![Diagnostic::error(
             "prepared Build program lost its selected entry",
         )]
     })?;
     let machine_name = machine.name.as_str().to_owned();
-    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let normalized_callable_identity =
         typed
             .machine_callable_identity_text(machine)
@@ -92,7 +81,6 @@ pub fn admit_build_machine(
         .roots
         .partial_build_entry
         .map(|_| typed.roots.partial_build_can_return);
-    let initial_build = value_admission.initial_value(typed, machine, filesystem_scope);
 
     let publication = invocation.prepare_publication()?;
     let protocols = publication.build_protocol_use();
@@ -103,6 +91,7 @@ pub fn admit_build_machine(
     }
     let filesystem_reachable = protocols.filesystem;
 
+    let initial_build = value_admission.initial_value(filesystem_scope);
     let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
     } else {
