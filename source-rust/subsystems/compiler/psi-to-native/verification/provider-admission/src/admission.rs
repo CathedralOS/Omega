@@ -180,18 +180,7 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
-    // A private callable can omit its sibling's calls. Keep unknown IDs in the
-    // request so admission reports a malformed selection. Both conflict checks
-    // and execution must see the same reached builtins.
-    let compiler_builtins: Vec<_> = request
-        .compiler_builtins
-        .iter()
-        .filter(|builtin| {
-            let boundary = builtin.boundary();
-            input.plan().boundary_machine(boundary).is_some()
-                || input.module().boundary_machine(boundary).is_none()
-        })
-        .collect();
+    let compiler_builtins = compiler_builtins::reached_builtins(input, artifact, request)?;
     let (native_settlements, native_mechanisms) =
         crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
     require_reached_providers(

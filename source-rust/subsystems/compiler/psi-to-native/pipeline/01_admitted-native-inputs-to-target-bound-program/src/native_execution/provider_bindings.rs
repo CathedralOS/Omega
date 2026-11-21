@@ -167,7 +167,7 @@ pub(super) fn bind(
         selection,
         intrinsic_provenance.into_iter(),
         &demands,
-        module,
+        artifact.view(),
         &proposal.providers().direct_boundary_leaves,
     )?;
     let demands = demands

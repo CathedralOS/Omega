@@ -14,6 +14,7 @@ pub struct SelectedCompilerBuiltin {
     requirement: String,
     plan_index: usize,
     selection: Arc<SelectedProviderPlanFacts>,
+    artifact: terminal_psi::TerminalPsiIdentity,
     boundary: BoundaryMachineId,
     // A selected row can lack a closed identity. The receiving callable refuses
     // it when its execution actually reaches this boundary.
@@ -27,9 +28,10 @@ impl SelectedCompilerBuiltin {
         selected: &'a Arc<SelectedProviderPlanFacts>,
         provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
         demanded_boundaries: &BTreeSet<String>,
-        module: &terminal_psi::TerminalModule,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
         direct_leaves: &[direct_boundary_bindings::DirectBoundaryLeaf],
     ) -> Result<Vec<Self>, Vec<Diagnostic>> {
+        let module = artifact.module();
         let plans = selected.plans();
         let mut builtins = Vec::new();
         provider_correspondence::intrinsic_selection::visit_selected_intrinsics(
@@ -90,6 +92,7 @@ impl SelectedCompilerBuiltin {
                     requirement: selected_row.requirement_identity.to_owned(),
                     plan_index: selected_row.plan_index,
                     selection: Arc::clone(selected),
+                    artifact: artifact.identity(),
                     boundary: boundary.id,
                     identity,
                     format,
@@ -100,6 +103,10 @@ impl SelectedCompilerBuiltin {
             },
         )?;
         Ok(builtins)
+    }
+
+    pub const fn artifact(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.artifact
     }
 
     pub const fn boundary(&self) -> BoundaryMachineId {

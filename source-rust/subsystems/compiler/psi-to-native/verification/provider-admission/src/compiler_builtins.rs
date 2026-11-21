@@ -33,6 +33,50 @@ use target_operations::{
 use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, TerminalAccessorKind};
 use terminal_semantics::AccessorScalarBoundaryDemand;
 
+/// Boundary numbers are local to the issuing artifact. Check that identity
+/// before using a number to narrow the root's selection to a private body.
+pub(super) fn reached_builtins<'request>(
+    input: &AdmissionSource,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    request: &ProviderAdmissionRequest<'_, 'request>,
+) -> Result<Vec<&'request SelectedCompilerBuiltin>, Vec<Diagnostic>> {
+    if request.compiler_builtins.is_empty() {
+        return Ok(Vec::new());
+    }
+    let subject = artifact.view().identity();
+    if subject != input.plan().psi || subject != input.closed_module().identity() {
+        return Err(vec![Diagnostic::error(
+            "compiler builtin admission requires the same Psi artifact and lowered plan",
+        )]);
+    }
+    let mut boundaries: Vec<_> = input
+        .plan()
+        .boundary_machines
+        .iter()
+        .map(|declaration| declaration.id)
+        .collect();
+    boundaries.sort_unstable();
+    let mut reached = Vec::new();
+    for builtin in request.compiler_builtins {
+        if builtin.artifact() != subject {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler builtin `{}` belongs to a different Psi artifact",
+                builtin.requirement()
+            ))]);
+        }
+        if !builtin.belongs_to(request.selected_provider_plans) {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler builtin `{}` belongs to a different provider selection",
+                builtin.requirement()
+            ))]);
+        }
+        if boundaries.binary_search(&builtin.boundary()).is_ok() {
+            reached.push(builtin);
+        }
+    }
+    Ok(reached)
+}
+
 pub(super) fn settle_compiler_builtins<'request>(
     input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
@@ -47,7 +91,7 @@ pub(super) fn settle_compiler_builtins<'request>(
     let mut resolved = Vec::with_capacity(compiler_builtins.len());
     let mut refusals = Vec::new();
     for &provider in compiler_builtins {
-        match ResolvedBuiltin::for_provider(provider, request.selected_provider_plans) {
+        match ResolvedBuiltin::for_provider(provider) {
             Ok(builtin) => resolved.push(builtin),
             Err(reason) => refusals.push(reason),
         }
@@ -307,17 +351,8 @@ struct ResolvedBuiltin<'a> {
 }
 
 impl<'a> ResolvedBuiltin<'a> {
-    fn for_provider(
-        provider: &'a SelectedCompilerBuiltin,
-        selection: &selected_provider_plans::SelectedProviderPlanFacts,
-    ) -> Result<Self, Diagnostic> {
+    fn for_provider(provider: &'a SelectedCompilerBuiltin) -> Result<Self, Diagnostic> {
         use native_intrinsics::CompilerIntrinsicExecutionIdentity as Intrinsic;
-        if !provider.belongs_to(selection) {
-            return Err(Diagnostic::error(format!(
-                "compiler builtin `{}` belongs to a different provider selection",
-                provider.requirement()
-            )));
-        }
         let refuse = |reason: &str| {
             Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{}` has {reason}",
