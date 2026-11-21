@@ -7,7 +7,7 @@ use omega_lowering::{
 };
 use omega_resolved::{NameRole, Symbol};
 
-const INSPECT: &str = "machine inspect(bytes:@[u8])->u64 suspends { bytes.len }";
+const INSPECT: &str = "machine inspect(bytes:@[u8])->u64 suspends { bytes.length }";
 const HEADER: &str = "machine forward(outer:bool,inner:bool,left:@[u8],right:@[u8],dead:@[u8])->u64 suspends";
 
 #[test]

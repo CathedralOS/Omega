@@ -8,7 +8,7 @@ use psi_handoff_consumer::check_joined_loan;
 fn a_parked_call_retains_the_view_arriving_from_the_taken_branch() {
     for (positive, negative, formals) in [("left", "right", [1, 2]), ("right", "left", [2, 1])] {
         let text = format!(
-            "machine inspect(bytes:@[u8])->u64 suspends {{ bytes.len }}
+            "machine inspect(bytes:@[u8])->u64 suspends {{ bytes.length }}
              machine forward(flag:bool,left:@[u8],right:@[u8])->u64 suspends {{
                  let chosen = match flag {{true -> {positive}, false -> {negative},}};
                  let count:u64 = suspend inspect(chosen);

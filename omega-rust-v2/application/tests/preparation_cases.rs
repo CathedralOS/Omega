@@ -486,7 +486,7 @@ fn an_out_of_bounds_read_identifies_the_failed_subscript_in_the_initializer() {
         bad: &[("array.omg", "const TABLE:[u8;2]=[4u8,5u8]; const ANSWER:u8=TABLE[0u64] +% TABLE[2u64];")],
         file: "array.omg",
         occurrence: "TABLE[2u64]",
-        reason: refusal!("selected array read requires index < items.len"),
+        reason: refusal!("selected array read requires index < items.length"),
         rule: FROZEN_VALUES,
     });
 }

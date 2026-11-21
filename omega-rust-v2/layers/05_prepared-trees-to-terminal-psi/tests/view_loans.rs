@@ -718,9 +718,9 @@ const LEASE_EDIT: &str = "machine edit(p:@mut [Lease],c:Lease,i:u64,j:u64,k:u64)
 const LEASE_SWAP: &str = "{let old=move p[i]; p[j]=move c; p[i]=move old;}";
 /// Two same-typed views swap element `i`; each has its own bound clause.
 const TWO_VIEW_SWAP: &str =
-    "machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < p.len requires i < q.len {let a=move p[i]; let b=move q[i]; p[i]=move b; q[i]=move a;}";
+    "machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < p.length requires i < q.length {let a=move p[i]; let b=move q[i]; p[i]=move b; q[i]=move a;}";
 
-/// `Formal(selector) < Formal(view).len`: the live element count of that exact formal.
+/// `Formal(selector) < Formal(view).length`: the live element count of that exact formal.
 fn element_bound(
     selector: usize,
     view: usize,
@@ -742,7 +742,7 @@ fn edit(pkg: &omega_lowering::LoweredPackage) -> &omega_lowering::LoweredMachine
 
 #[test]
 fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_the_body() {
-    // `i < p.len` on `p: @mut [Lease]` measures the same live element count
+    // `i < p.length` on `p: @mut [Lease]` measures the same live element count
     // each element bound of `p` is owed against. The clause is an erased term,
     // so the bounded program's body is the unbounded program's body: the same
     // extractions, stores, length observations and dispositions. Only the
@@ -751,7 +751,7 @@ fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_t
         ("i == j", PredicateOperator::Equal),
         ("i != j", PredicateOperator::NotEqual),
     ] {
-        let bounded = format!("{LEASE}{LEASE_EDIT} requires i < p.len requires j < p.len requires {relation} {LEASE_SWAP}");
+        let bounded = format!("{LEASE}{LEASE_EDIT} requires i < p.length requires j < p.length requires {relation} {LEASE_SWAP}");
         let unbounded = format!("{LEASE}{LEASE_EDIT} requires {relation} {LEASE_SWAP}");
         let bounded = sources::lower(&[("view.omg", &bounded)]).unwrap();
         let unbounded = sources::lower(&[("view.omg", &unbounded)]).unwrap();
@@ -839,7 +839,7 @@ fn a_length_clause_names_its_own_view_among_equal_typed_views() {
     ));
 
     // A clause on the other view leaves the bound owed.
-    let other = format!("{LEASE}machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < q.len {{let old=move p[i]; p[i]=move old;}}");
+    let other = format!("{LEASE}machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < q.length {{let old=move p[i]; p[i]=move old;}}");
     let pkg = sources::lower(&[("view.omg", &other)]).unwrap();
     let machine = edit(&pkg);
     assert_eq!(machine.contract.requires[0].predicate, element_bound(2, 1));
@@ -932,7 +932,7 @@ fn the_psi_bounds_reader_refuses_mutated_views_and_snapshots() {
 
 #[test]
 fn a_nominal_view_count_comes_from_the_requested_formal_in_each_context() {
-    let source = "data R { x:u8; } machine count(p:@mut [R],q:@mut [R],i:u64)->u64 requires i < p.len ensures result == q.len {q.len}";
+    let source = "data R { x:u8; } machine count(p:@mut [R],q:@mut [R],i:u64)->u64 requires i < p.length ensures result == q.length {q.length}";
     let mut package = sources::lower(&[("case.omg", source)]).unwrap();
     let m = package
         .machines

@@ -9,8 +9,8 @@ fn an_indexed_operand_keeps_its_domain_when_the_extent_is_computed() {
     let program = "domain u8::Policy;
         machine + add(x:u8 in Policy,y:u8)->u8 in Policy { ((x as -Policy) +| y) as +Policy }
         machine width()->u64 {4u64}
-        machine literal(a:[u8 in Policy;4],i:u64)->u8 in Policy requires i < a.len {a[i]+1}
-        machine computed(a:[u8 in Policy;width()],i:u64)->u8 in Policy requires i < a.len {a[i]+1}
+        machine literal(a:[u8 in Policy;4],i:u64)->u8 in Policy requires i < a.length {a[i]+1}
+        machine computed(a:[u8 in Policy;width()],i:u64)->u8 in Policy requires i < a.length {a[i]+1}
         machine pack(x:u8 in Policy)->[u8 in Policy;1] {[x]}";
     let package = source::lower(&[("policy.omg", program)]).unwrap();
     let machine = |name| {

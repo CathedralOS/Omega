@@ -1,1 +1,1 @@
-machine pick(flag: bool, left: @mut [u32], right: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; chosen.len }
+machine pick(flag: bool, left: @mut [u32], right: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; chosen.length }

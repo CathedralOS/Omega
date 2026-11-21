@@ -105,7 +105,7 @@ fn an_existential_callable_shares_the_state_witness_and_keeps_its_postcondition(
         ("<", PredicateOperator::LessThan),
     ] {
         let text = format!(
-            "data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64 ensures result {token} output.len reaches none crashes none; data Reader<'a, some S> {{ state: @'a mut S; read: ReadInto<S>; }}"
+            "data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64 ensures result {token} output.length reaches none crashes none; data Reader<'a, some S> {{ state: @'a mut S; read: ReadInto<S>; }}"
         );
         let package = sources::lower(&[("reader.omg", &text)]).unwrap();
         let reader = &package.data_templates[0];

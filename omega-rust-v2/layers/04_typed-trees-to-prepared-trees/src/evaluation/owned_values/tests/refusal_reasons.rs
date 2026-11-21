@@ -146,7 +146,7 @@ fn authored_selected_array_read_past_the_end_is_refused_at_the_call() {
     authored_refusal(
         &read(2),
         PreparationReason::ArrayIndexOutOfBounds,
-        "selected array read requires index < items.len",
+        "selected array read requires index < items.length",
         "pick(ITEMS,2u64)",
     );
 }

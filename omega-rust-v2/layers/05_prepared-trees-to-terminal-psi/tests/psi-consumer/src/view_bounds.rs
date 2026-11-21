@@ -3,7 +3,7 @@
 //! Each extraction or store through `p[i]` on `p: @mut [T]` owes `i < len`,
 //! where `len` is an `ElementViewLength` observation of that same view
 //! (`wiki/spec/terminal-psi/byte_views.md`, typed slices). An entry clause
-//! `i < p.len` publishes the same count as a contract term on the formal `p`.
+//! `i < p.length` publishes the same count as a contract term on the formal `p`.
 //! This reader relates the two by exact identity: the bound's view must be the
 //! formal the clause measures, and its selector must be the formal the clause
 //! compares. It is not the checker's verdict. It reasons about no arithmetic,
@@ -24,7 +24,7 @@ pub struct ViewElementBound {
     pub obligation: BoundsObligationId,
     pub length: ValueId,
     /// Positions in `contract.requires` of clauses that state this exact bound:
-    /// `s < v.len` or `v.len > s` over the bound's own view and selector formals.
+    /// `s < v.length` or `v.length > s` over the bound's own view and selector formals.
     pub stated_by: Vec<usize>,
 }
 
@@ -176,7 +176,7 @@ fn dominators(body: &omega_psi::MachineBody) -> Result<Vec<Vec<bool>>, &'static 
     Ok(dominators)
 }
 
-/// `selector < view.len` or `view.len > selector`, with the count step on the view formal.
+/// `selector < view.length` or `view.length > selector`, with the count step on the view formal.
 fn states_bound(
     predicate: &[PredicateStep],
     view: usize,

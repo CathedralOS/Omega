@@ -299,7 +299,7 @@ pub(crate) fn lower_predicate(
                 }
             }
             (NodeKind::FieldAccess, [base]) if semantic.constant.is_none() && semantic.field.is_none() && landing.is_none() && semantic.operation.is_some() => {
-                // Element views keep their own element-count step: their `.len`
+                // Element views keep their own element-count step: their `.length`
                 // is never a byte count or a fixed extent.
                 let (receiver, length) = semantic
                     .operation

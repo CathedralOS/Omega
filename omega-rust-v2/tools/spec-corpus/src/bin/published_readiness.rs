@@ -235,7 +235,7 @@ fn reader() -> bool {
     let init = block(chapter, 41);
     let source = format!("machine pack() {{ let mut file:File;\n{init}\n}}");
     let defs =
-        "data File {} data Socket {} machine read_file(state:@mut File,output:@mut [u8])->u64 ensures result <= output.len reaches none crashes none {0}";
+        "data File {} data Socket {} machine read_file(state:@mut File,output:@mut [u8])->u64 ensures result <= output.length reaches none crashes none {0}";
     let wrong = defs.replace("state:@mut File", "state:@mut Socket");
     let files = |declarations| {
         [

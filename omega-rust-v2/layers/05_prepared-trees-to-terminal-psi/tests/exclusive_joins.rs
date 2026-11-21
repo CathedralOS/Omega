@@ -201,7 +201,7 @@ fn a_read_through_the_joined_view_measures_and_reads_the_join_parameter() {
 
 #[test]
 fn both_arms_may_transfer_the_same_formal() {
-    let text = "machine pick(flag: bool, left: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> left,}; chosen.len }";
+    let text = "machine pick(flag: bool, left: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> left,}; chosen.length }";
     assert_eq!(exclusive_join(&lower(text), "pick").map(|j| j.arrivals), Ok([(true, 1), (false, 1)]));
 }
 
@@ -209,7 +209,7 @@ fn both_arms_may_transfer_the_same_formal() {
 fn a_transferred_formal_used_after_the_join_is_left_for_the_checker() {
     // On the true arrival `left` was transferred into `chosen`. Lowering keeps
     // the later read of `left` so the checker can refuse it on that arrival.
-    let text = "machine pick(flag: bool, left: @mut [u32], right: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; let n = chosen.len; n +% left.len }";
+    let text = "machine pick(flag: bool, left: @mut [u32], right: @mut [u32]) -> u64 { let chosen = match flag {true -> left, false -> right,}; let n = chosen.length; n +% left.length }";
     let join = exclusive_join(&lower(text), "pick").unwrap();
     assert_eq!(join.arrivals, [(true, 1), (false, 2)]);
     assert_eq!(join.reused_after_transfer, [1]);
@@ -217,7 +217,7 @@ fn a_transferred_formal_used_after_the_join_is_left_for_the_checker() {
 
 #[test]
 fn binding_an_existing_exclusive_view_transfers_the_descriptor() {
-    let original = "machine pick(left: @mut [u32]) -> u64 { let chosen = left; chosen.len }";
+    let original = "machine pick(left: @mut [u32]) -> u64 { let chosen = left; chosen.length }";
     let mut package = lower(original);
     let body = pick(&package);
     let [Parameter::Structural(formal)] = body.parameters[..] else {
@@ -240,7 +240,7 @@ fn binding_an_existing_exclusive_view_transfers_the_descriptor() {
 
 #[test]
 fn naming_a_join_result_twice_keeps_the_transfer_and_the_later_use_separate() {
-    let program = ORIGINAL.replace("chosen.len }", "let other = chosen; other.len + chosen.len }");
+    let program = ORIGINAL.replace("chosen.length }", "let other = chosen; other.length + chosen.length }");
     let package = lower(&program);
     let body = pick(&package);
     let joined = body
@@ -251,7 +251,7 @@ fn naming_a_join_result_twice_keeps_the_transfer_and_the_later_use_separate() {
     let (source, destination, reads) = psi_handoff_consumer::local_descriptor_move(body).unwrap();
     assert_eq!(source, joined);
     spec_corpus::observe_handoff!(psi "psi-output/exclusive-local-reuse", assert_eq!(reads, [destination, joined]));
-    let single_name = lower(&ORIGINAL.replace("chosen.len }", "chosen.len + chosen.len }"));
+    let single_name = lower(&ORIGINAL.replace("chosen.length }", "chosen.length + chosen.length }"));
     assert_eq!(psi_handoff_consumer::local_descriptor_move(pick(&single_name)), Err("missing descriptor move"));
 }
 

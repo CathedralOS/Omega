@@ -326,7 +326,7 @@ fn field_projections_keep_the_selected_declaration_and_its_applied_type() {
 
 #[test]
 fn collection_metadata_nodes_record_the_selected_operation() {
-    let source = "data Record{len:u64;} machine observations(view:@[u8],record:Record)->u64{_ = view.address; view.len + record.len}";
+    let source = "data Record{length:u64;} machine observations(view:@[u8],record:Record)->u64{_ = view.address; view.length + record.length}";
     let typed = type_package(source, READ, FILE_ORDERS[0]).unwrap();
     let tree = typed
         .trees()
@@ -345,8 +345,8 @@ fn collection_metadata_nodes_record_the_selected_operation() {
     let view = ValueType::Reference(omega_typer::Access::Shared, Box::new(ValueType::Slice(Box::new(byte))));
     for (expression, token, expected) in [
         (
-            "view.len",
-            ".len",
+            "view.length",
+            ".length",
             ValueType::Integer {
                 signed: false,
                 width: Some(64),
@@ -375,15 +375,28 @@ fn collection_metadata_nodes_record_the_selected_operation() {
         );
     }
 
-    let record = node("record.len");
+    let record = node("record.length");
     assert!(
         tree.semantics_at(record)
-            .any(|record| matches!(record, NodeSemantics::Field(field) if field.path == "Record::len"))
+            .any(|record| matches!(record, NodeSemantics::Field(field) if field.path == "Record::length"))
     );
     assert!(
         tree.semantics_at(record)
             .all(|record| !matches!(record, NodeSemantics::Operation(_)))
     );
+}
+
+#[test]
+fn len_requires_a_declared_record_field() {
+    let record = "data Record{len:u64;} machine observe(value:Record)->u64{value.len}";
+    type_package(record, READ, FILE_ORDERS[0]).unwrap();
+
+    for collection in ["[u8;4]", "@[u8]"] {
+        let source = format!("machine observe(value:{collection})->u64{{value.len}}");
+        let error = type_package(&source, READ, FILE_ORDERS[0]).unwrap_err();
+        assert!(error.message.contains("cannot select a field"), "{error:?}");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"value.len".as_slice()));
+    }
 }
 
 #[test]

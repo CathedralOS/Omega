@@ -7,10 +7,10 @@ use psi_handoff_consumer::check_parked_byte_views;
 fn the_callee_and_continuation_retain_their_own_incoming_byte_views() {
     for (selected, resumed, selected_formal, resumed_formal) in [("left", "right", 0, 1), ("right", "left", 1, 0)] {
         let text = format!(
-            "machine inspect(bytes:@[u8])->u64 suspends {{ bytes.len }}
+            "machine inspect(bytes:@[u8])->u64 suspends {{ bytes.length }}
              machine forward(left:@[u8],right:@[u8])->u64 suspends {{
                  let count:u64 = suspend inspect({selected});
-                 count +% {resumed}.len
+                 count +% {resumed}.length
              }}"
         );
         let package = {
@@ -61,7 +61,7 @@ fn the_callee_and_continuation_retain_their_own_incoming_byte_views() {
 
 #[test]
 fn a_view_used_by_both_the_callee_and_the_continuation_has_one_retained_loan() {
-    let text = "machine inspect(bytes:@[u8])->u64 suspends {bytes.len} machine forward(unused:@[u8],selected:@[u8])->u64 suspends {let count:u64=suspend inspect(selected); count +% selected.len}";
+    let text = "machine inspect(bytes:@[u8])->u64 suspends {bytes.length} machine forward(unused:@[u8],selected:@[u8])->u64 suspends {let count:u64=suspend inspect(selected); count +% selected.length}";
     let pkg = source::lower(&[("shared-role.omg", text)]).unwrap();
     let caller = pkg
         .machines
