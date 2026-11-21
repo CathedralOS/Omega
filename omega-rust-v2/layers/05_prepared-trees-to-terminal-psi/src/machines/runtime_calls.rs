@@ -248,7 +248,7 @@ pub(super) fn select_runtime_call<'a>(
         operands.push((argument, formal));
     }
     Ok(Some(SelectedCall {
-        requirement_count: 0,
+        owed: super::calls::OwedClauses::callee(0),
         callee: CallTarget::Runtime { descriptor, contract },
         acknowledgements: call.acknowledgements,
         operands,

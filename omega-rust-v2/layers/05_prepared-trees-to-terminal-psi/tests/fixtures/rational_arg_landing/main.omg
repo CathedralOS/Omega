@@ -20,7 +20,7 @@ ensures result == value
     value
 }
 
-data Main { hits: i32 in Wrapping; }
+data Main { hits: i32; }
 
 machine main(main: @mut Main) {
     main.hits = 0;

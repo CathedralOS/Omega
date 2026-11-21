@@ -1105,3 +1105,69 @@ fn a_same_path_copy_in_another_package_cannot_acquire_library_supply() {
     };
     assert!(matches!(&row.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(id) if id == selected));
 }
+
+/// `target/l5owner/policy/empty/access_plan.omg`, byte for byte.
+const EMPTY_ROUTES: &str = r"use omega\language\core;
+                  use omega\language\core\reflect;
+                  use omega\language\core\access;
+                  domain i32::Locked access Rule;
+                  Rule satisfies AccessPolicy {
+                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                          new_plan::<'t>(@schema, Issuance::Only{routes: []})
+                      }
+                  }";
+
+/// The type L3 publishes for the expression spelled exactly at `start..end`.
+fn expression_at(
+    stage: &TypedStage,
+    start: usize,
+    end: usize,
+) -> omega_typer::ValueType {
+    let mut found = stage
+        .expressions
+        .iter()
+        .filter(|e| e.site.file == "app.omg" && (e.site.span.get_start_offset(), e.site.span.get_end_offset()) == (start, end));
+    let ty = found
+        .next()
+        .unwrap_or_else(|| panic!("no expression at bytes {start}..{end}"))
+        .ty
+        .clone();
+    assert!(found.next().is_none(), "two expressions at bytes {start}..{end}");
+    ty
+}
+
+/// resources/access.md spells `Issuance::Only { routes: [] }` for a policy that
+/// admits nobody. The `[]` builds the owned `[CallableInfo<'t>]` field itself,
+/// with the element identity of the constructed `Issuance<'t>`: the same `'t`
+/// that `Rule::plan` passes to `new_plan`, not a fresh inferred lifetime.
+#[test]
+fn an_explicit_empty_route_list_lands_at_the_declared_routes_field() {
+    use omega_typer::ValueType::{Applied, Slice};
+    assert_eq!((EMPTY_ROUTES.len(), &EMPTY_ROUTES[414..416]), (462, "[]"));
+    let stage = check(EMPTY_ROUTES).unwrap();
+    let construction = "Issuance::Only{routes: []}";
+    let start = EMPTY_ROUTES.find(construction).unwrap();
+    let Applied(issuance, arguments) = expression_at(&stage, start, start + construction.len()) else {
+        panic!("Issuance::Only must publish its applied data type")
+    };
+    assert_eq!(
+        (issuance.package.as_str(), issuance.path.as_str()),
+        ("@omega/toolchain", r"language\core\Issuance")
+    );
+    let [lifetime] = arguments.as_slice() else {
+        panic!("Issuance takes one lifetime")
+    };
+    assert!(!matches!(lifetime, omega_typer::ValueType::InferredLifetime { .. }), "{lifetime:?}");
+    let Slice(element) = expression_at(&stage, 414, 416) else {
+        panic!("the routes literal must publish the owned [CallableInfo<'t>] field type")
+    };
+    let Applied(info, element_arguments) = *element else {
+        panic!("routes holds CallableInfo")
+    };
+    assert_eq!(
+        (info.package.as_str(), info.path.as_str()),
+        ("@omega/toolchain", r"language\core\reflect\CallableInfo")
+    );
+    assert_eq!(element_arguments.as_slice(), std::slice::from_ref(lifetime));
+    assert_eq!(stage.access_policies.len(), 1);
+}

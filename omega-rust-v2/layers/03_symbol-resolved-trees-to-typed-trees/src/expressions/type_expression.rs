@@ -298,6 +298,12 @@ impl BodyTyper<'_, '_> {
         for (e, t) in entries {
             self.check_destination(e, &t, &element)?;
         }
+        // The literal builds its value at the destination, as a record literal
+        // does, so at an owned `[T]` it is that `[T]`; its elements stay its
+        // children. An existing `[T; N]` value still does not land there.
+        if let Some(ValueType::Slice(_)) = destination.exact() {
+            return Ok(ValueType::Slice(Box::new(element)));
+        }
         Ok(ValueType::Array(Box::new(element), node.children.len() as u64))
     }
 

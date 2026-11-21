@@ -14,7 +14,7 @@ data Main {
     mid: i16;
     far: i64;
     tiny: u8;
-    hits: i32 in Wrapping;
+    hits: i32;
 }
 
 machine main(main: @mut Main) {

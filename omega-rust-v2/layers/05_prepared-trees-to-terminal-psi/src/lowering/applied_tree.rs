@@ -16,6 +16,8 @@ pub(crate) struct LoweringTree<'a> {
     integer_binders: Vec<(usize, usize, ValueType)>,
     pub(crate) callback_routes: Vec<(&'a omega_typed::IndirectCall, crate::CallbackCrashRoutes)>,
     pub(crate) guarded_rows: Vec<usize>,
+    /// Call node, invoked binder and the number of clauses its bound owes.
+    callback_invocations: Vec<(usize, usize, usize)>,
 }
 
 impl<'a> LoweringTree<'a> {
@@ -27,7 +29,14 @@ impl<'a> LoweringTree<'a> {
             integer_binders: Vec::new(),
             callback_routes: Vec::new(),
             guarded_rows: Vec::new(),
+            callback_invocations: Vec::new(),
         }
+    }
+
+    /// The closed static binder invoked at `node` and the count of its bound's
+    /// preconditions, when this instance selected that binder.
+    pub(crate) fn callback_invocation(&self, node: usize) -> Option<(usize, usize)> {
+        self.callback_invocations.iter().find(|(at, _, _)| *at == node).map(|&(_, binder, count)| (binder, count))
     }
 
     pub(crate) fn integer_binding(&self, binder: usize) -> Option<(usize, &ValueType)> {
@@ -56,6 +65,7 @@ impl<'a> LoweringTree<'a> {
         let mut records = Vec::new();
         let mut callback_routes = Vec::new();
         let mut guarded_rows = Vec::new();
+        let mut callback_invocations = Vec::new();
         let mut node = declaration;
         while node < file.nodes[declaration].end {
             if node != declaration && file.nodes[node].kind == omega_syntax::NodeKind::Machine {
@@ -103,6 +113,12 @@ impl<'a> LoweringTree<'a> {
                     && owner == application.machine.as_ref()
                     && let Some(binding) = callbacks.iter().find(|b| b.slot == *index)
                 {
+                    // A fact application names only its callee's own clauses
+                    // (`PredicateStep::MachineApplication`). It has no position for
+                    // the binder's premises, so stop rather than drop them.
+                    if call.use_site != omega_typed::CallUse::Execution && !binding.requires.is_empty() {
+                        return Err(LoweringError::new(&call.site, "callback premise in a contract predicate has no Psi clause form"));
+                    }
                     let selected = binding
                         .lower_call(call, application)
                         .ok_or_else(|| LoweringError::new(&call.site, "static call disagrees with its selected callable contract"))?;
@@ -114,6 +130,7 @@ impl<'a> LoweringTree<'a> {
                         }));
                         guarded_rows.extend(rows);
                     }
+                    callback_invocations.push((node, *index, binding.requires.len()));
                     records.push((node, AppliedRecord::SelectedCallback(Box::new(selected))));
                     continue;
                 }
@@ -132,6 +149,7 @@ impl<'a> LoweringTree<'a> {
             positive_widths,
             callback_routes,
             guarded_rows,
+            callback_invocations,
         })
     }
 

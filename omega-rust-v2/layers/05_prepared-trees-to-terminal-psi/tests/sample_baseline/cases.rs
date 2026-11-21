@@ -1,7 +1,9 @@
 use super::pipeline::Refusal;
 use omega_psi::{
-    BlockTerminator, CallTarget, IntegerPrimitive, LoweredMachine, LoweredPackage, OperationKind, OperationResult, PlaceProjection, ReturnEdge, ScalarLiteral,
+    BlockTerminator, CallArgument, ContractClause, IntegerPrimitive, LoweredMachine, LoweredPackage, OperationKind, OperationResult, Parameter, PlaceProjection,
+    PredicateStep, ReturnEdge, ScalarLiteral, ScalarType,
 };
+use psi_handoff_consumer::{Operand, Term};
 
 pub struct Case {
     pub id: &'static str,
@@ -75,7 +77,6 @@ impl Case {
 #[derive(Clone, Copy)]
 pub enum Expectation {
     MustLower(Check),
-    TrackCompatibility(Check),
     ExpectCheckerRefusal(Check),
     MustRefuse(&'static str),
 }
@@ -149,7 +150,7 @@ impl Expectation {
                 }
                 let witness = match self {
                     Self::MustRefuse(_) => None,
-                    Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => Some(check.matches(&product)),
+                    Self::MustLower(check) | Self::ExpectCheckerRefusal(check) => Some(check.matches(&product)),
                 };
                 Actual::Product { witness }
             }
@@ -169,6 +170,12 @@ pub const MISSING_IMPORT: &str = "L2\tmain.omg:4:30\tunresolved name A";
 /// Ratified decision `no-data-code-attachment` retires `machine Main::main`.
 pub const CROSS_WIDTH_OWNER: &str = "L2\tmain.omg:20:9\ta data carrier cannot own a machine";
 pub const RATIONAL_LANDING_OWNER: &str = "L2\tmain.omg:25:9\ta data carrier cannot own a machine";
+/// The pinned premise samples use V1's `crash Trap;`, which the V2 parser refuses on purpose.
+pub const ABSTRACT_PREMISE_CRASH: &str = "L1\tmain.omg:37:27\texpected `;` (bytes 772..776)";
+/// The `false` premise is one byte longer, so the same token starts one byte later.
+pub const FALSE_ABSTRACT_PREMISE_CRASH: &str = "L1\tmain.omg:37:27\texpected `;` (bytes 773..777)";
+pub const ABSTRACT_PREMISE_V2: (&str, &[u8]) = ("main.omg", include_bytes!("../fixtures/abstract_signature_call/local/main.omg"));
+pub const FALSE_ABSTRACT_PREMISE_V2: (&str, &[u8]) = ("main.omg", include_bytes!("../fixtures/abstract_signature_call/invalid_local/main.omg"));
 pub const IMPORT_A: (&str, &[u8]) = ("m/a.omg", include_bytes!("../fixtures/direct_file_imports/m/a.omg"));
 pub const IMPORT_B: (&str, &[u8]) = ("m/b.omg", include_bytes!("../fixtures/direct_file_imports/m/b.omg"));
 /// The historical sample imports `m\a` by its filename. A filename names no namespace component.
@@ -187,6 +194,8 @@ pub enum Check {
     NestedField,
     Comparisons,
     IdentityCalls,
+    /// `premise` returns this literal, and `apply<witness>`'s call through `Observe` owes the
+    /// alias premise beside `witness`'s own premise.
     Premise(bool),
     /// The root's `entry` returns the result of calling `other_v` in the `mod_kernel` package.
     DependencyCall,
@@ -228,37 +237,133 @@ impl Check {
                 .iter()
                 .all(|(name, expected)| named(name).is_some_and(|m| returns_literal(m, &ScalarLiteral::Integer((*expected).into())))),
             Self::NestedField => named("result").is_some_and(|machine| returns_nested_field(product, machine)),
-            Self::Comparisons => [
-                IntegerPrimitive::NotEqual,
-                IntegerPrimitive::LessThan,
-                IntegerPrimitive::Equal,
-            ]
-            .iter()
-            .all(|primitive| {
-                product.machines.iter().any(|m| {
-                    m.body
-                        .operations
-                        .iter()
-                        .any(|op| matches!(&op.kind, OperationKind::Integer { operation, .. } if operation.primitive == *primitive))
-                })
-            }),
-            Self::IdentityCalls => named("identity").is_some_and(|callee| {
-                product.machines.iter().any(|m| {
-                    m.body
-                        .operations
-                        .iter()
-                        .filter(|op| matches!(&op.kind, OperationKind::Call { callee: CallTarget::Machine(id), .. } if *id == callee.id))
-                        .count()
-                        == 3
-                })
-            }),
+            Self::Comparisons => psi_handoff_consumer::integer_comparisons(product, super::pipeline::ROOT, "main") == Ok(cross_width_comparisons()),
+            Self::IdentityCalls => {
+                let (seven, two) = (ScalarLiteral::Integer(7.into()), ScalarLiteral::Integer(2.into()));
+                psi_handoff_consumer::call_arguments(product, super::pipeline::ROOT, "main", "identity") == Ok(identity_landings(&seven, &two))
+            }
             Self::Premise(value) => {
-                named("premise").is_some_and(|m| returns_literal(m, &ScalarLiteral::Boolean(value)))
-                    && named("witness").is_some_and(|m| !m.contract.requires.is_empty())
+                named("premise").is_some_and(|m| returns_literal(m, &ScalarLiteral::Boolean(value))) && callback_premise(product).is_ok()
             }
             Self::DependencyCall => returns_dependency_call(product),
         }
     }
+}
+
+fn integer(
+    signed: bool,
+    width: u64,
+) -> Option<ScalarType> {
+    Some(ScalarType::Integer { signed, width })
+}
+
+/// `main.small != main.big && main.mid < main.far && main.tiny == main.small`: each comparison
+/// reads two fields of `main`'s formal, each at its own declared carrier, with no conversion between.
+pub fn cross_width_comparisons() -> Vec<(IntegerPrimitive, Vec<Operand<'static>>)> {
+    let field = |name, carrier| Operand {
+        term: Term::FieldRead { formal: 0, fields: vec![name] },
+        carrier,
+    };
+    vec![
+        (IntegerPrimitive::NotEqual, vec![field("Main::small", integer(true, 8)), field("Main::big", integer(true, 32))]),
+        (IntegerPrimitive::LessThan, vec![field("Main::mid", integer(true, 16)), field("Main::far", integer(true, 64))]),
+        (IntegerPrimitive::Equal, vec![field("Main::tiny", integer(false, 8)), field("Main::small", integer(true, 8))]),
+    ]
+}
+
+/// The value each `identity` call receives, in source order. The anonymous `7 / 2 * 2` and the
+/// arithmetic past `u64::MAX` fold exactly to 7. The typed `7i32 / 2 * 2` stays an `i32` division
+/// and multiplication, so the carrier decides its result.
+pub fn identity_landings<'a>(
+    seven: &'a ScalarLiteral,
+    two: &'a ScalarLiteral,
+) -> Vec<Vec<Operand<'a>>> {
+    let i32 = integer(true, 32);
+    let constant = |value| Operand {
+        term: Term::Constant(value),
+        carrier: i32,
+    };
+    let typed = Operand {
+        term: Term::Integer {
+            primitive: IntegerPrimitive::Multiply,
+            operands: vec![
+                Operand {
+                    term: Term::Integer {
+                        primitive: IntegerPrimitive::Divide,
+                        operands: vec![constant(seven), constant(two)],
+                    },
+                    carrier: i32,
+                },
+                constant(two),
+            ],
+        },
+        carrier: i32,
+    };
+    vec![vec![constant(seven)], vec![typed], vec![constant(seven)]]
+}
+
+/// One root machine at `path`, or why there is not exactly one.
+fn unique<'a>(
+    package: &'a LoweredPackage,
+    path: &str,
+) -> Result<&'a LoweredMachine, String> {
+    let mut found = package
+        .machines
+        .iter()
+        .filter(|m| m.declaration.package == super::pipeline::ROOT && m.declaration.path == path);
+    match (found.next(), found.next()) {
+        (Some(machine), None) => Ok(machine),
+        _ => Err(format!("expected one machine {path}")),
+    }
+}
+
+/// The abstract-premise sample's callback, read through the Psi-only consumer. `main` calls the
+/// `apply` instance on `true`. That instance's one listed invocation is binder 0, executes `witness`
+/// on `apply`'s own formal and owes the alias's one premise. `witness` keeps its own premise, at
+/// another site, for the refinement. Each clause applies `premise` to its owner's first formal.
+/// Returns the first disagreement.
+pub fn callback_premise(package: &LoweredPackage) -> Result<(), String> {
+    let (apply, witness, premise) = (unique(package, "apply")?, unique(package, "witness")?, unique(package, "premise")?);
+    let applies_premise = |clause: &ContractClause| {
+        matches!(&clause.predicate[..], [PredicateStep::Formal(0), PredicateStep::MachineApplication { callee, .. }] if *callee == premise.declaration)
+    };
+    let rows = psi_handoff_consumer::callback_premises(package, apply).ok_or("malformed callback listing")?;
+    let [row] = rows.as_slice() else {
+        return Err(format!("expected one callback invocation, found {}", rows.len()));
+    };
+    let [Parameter::Scalar(kept)] = apply.body.parameters[..] else {
+        return Err("apply has no single scalar formal".into());
+    };
+    if (row.binder, row.selected.id) != (0, witness.id) {
+        return Err(format!("binder {} selects {}, not witness", row.binder, row.selected.declaration.path));
+    }
+    if row.arguments != [CallArgument::Scalar(kept)] {
+        return Err("the call does not pass apply's own formal".into());
+    }
+    let [owed] = row.owed[..] else {
+        return Err(format!("the call owes {} alias clauses, not one", row.owed.len()));
+    };
+    let [provided] = row.provided else {
+        return Err(format!("witness provides {} clauses, not one", row.provided.len()));
+    };
+    let [own] = &apply.contract.requires[..] else {
+        return Err("the apply instance does not keep its one premise".into());
+    };
+    if ![owed, provided, own].into_iter().all(applies_premise) {
+        return Err("a clause does not apply premise to its first formal".into());
+    }
+    if owed.site == provided.site || owed.site == own.site {
+        return Err("the owed clause is not the alias's own clause".into());
+    }
+    let truth = ScalarLiteral::Boolean(true);
+    let expected = vec![vec![Operand {
+        term: Term::Constant(&truth),
+        carrier: Some(ScalarType::Boolean),
+    }]];
+    if psi_handoff_consumer::call_arguments(package, super::pipeline::ROOT, "main", "apply")? != expected {
+        return Err("main does not call the apply instance once on true".into());
+    }
+    Ok(())
 }
 
 /// Read through the Psi-only consumer, so the sample check and the L5 test share one reading.
@@ -382,7 +487,8 @@ pub const CASES: &[Case] = &[
         dependencies: &[],
         expectation: Expectation::MustRefuse(RATIONAL_LANDING_OWNER),
     },
-    // The same programs with `Main::main` declared as the free machine `main`.
+    // The same programs with `Main::main` declared as the free machine `main` and the
+    // unimported `Wrapping` removed from the unread `hits` counter.
     Case {
         id: "cross-width-v2",
         directory: "probes/cross_width_compare",
@@ -390,7 +496,7 @@ pub const CASES: &[Case] = &[
         migrated: Some(&[("main.omg", include_bytes!("../fixtures/cross_width_compare/main.omg"))]),
         configuration: HOST_START,
         dependencies: &[],
-        expectation: Expectation::TrackCompatibility(Check::Comparisons),
+        expectation: Expectation::MustLower(Check::Comparisons),
     },
     Case {
         id: "rational-landing-v2",
@@ -399,7 +505,7 @@ pub const CASES: &[Case] = &[
         migrated: Some(&[("main.omg", include_bytes!("../fixtures/rational_arg_landing/main.omg"))]),
         configuration: HOST_START,
         dependencies: &[],
-        expectation: Expectation::TrackCompatibility(Check::IdentityCalls),
+        expectation: Expectation::MustLower(Check::IdentityCalls),
     },
     Case {
         id: "direct-imports",
@@ -443,13 +549,33 @@ pub const CASES: &[Case] = &[
         migrated: None,
         configuration: HOST_MAIN,
         dependencies: &[],
-        expectation: Expectation::TrackCompatibility(Check::Premise(true)),
+        expectation: Expectation::MustRefuse(ABSTRACT_PREMISE_CRASH),
     },
     Case {
         id: "false-abstract-premise",
         directory: "facts/abstract_signature_call/invalid_local",
         files: MAIN,
         migrated: None,
+        configuration: HOST_MAIN,
+        dependencies: &[],
+        expectation: Expectation::MustRefuse(FALSE_ABSTRACT_PREMISE_CRASH),
+    },
+    // The same pair with the retired callback binder written as a `const` binder of a callable
+    // alias, and V1's crash statement removed. Only `premise`'s returned literal differs.
+    Case {
+        id: "abstract-premise-v2",
+        directory: "facts/abstract_signature_call/local",
+        files: MAIN,
+        migrated: Some(&[ABSTRACT_PREMISE_V2]),
+        configuration: HOST_MAIN,
+        dependencies: &[],
+        expectation: Expectation::MustLower(Check::Premise(true)),
+    },
+    Case {
+        id: "false-abstract-premise-v2",
+        directory: "facts/abstract_signature_call/invalid_local",
+        files: MAIN,
+        migrated: Some(&[FALSE_ABSTRACT_PREMISE_V2]),
         configuration: HOST_MAIN,
         dependencies: &[],
         expectation: Expectation::ExpectCheckerRefusal(Check::Premise(false)),

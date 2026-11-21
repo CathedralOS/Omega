@@ -49,13 +49,40 @@ pub(crate) fn record_acknowledgement(
     }
 }
 
+/// The clauses a call owes and, for a closed callback invocation, the binder
+/// whose interface owns them.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OwedClauses {
+    pub count: usize,
+    pub binder: Option<usize>,
+}
+
+impl OwedClauses {
+    pub(crate) fn callee(count: usize) -> Self {
+        Self { count, binder: None }
+    }
+}
+
+/// Publish the call's obligations at its final site. A callback invocation is
+/// listed so its clause positions refer to the binder, not to the callee.
+pub(crate) fn owe(
+    body: &mut crate::MachineBody,
+    call: crate::CallSite,
+    owed: OwedClauses,
+) -> Vec<crate::CallRequirement> {
+    if let Some(binder) = owed.binder {
+        body.callback_invocations.push(crate::CallbackInvocation { call, binder });
+    }
+    crate::declarations::contracts::call_requirements(call, owed.count)
+}
+
 /// Once selection is complete, ordinary and terminal calls use the same
 /// operand lowering for static targets and runtime descriptors.
 pub(super) struct SelectedCall<'a> {
     pub acknowledgements: PauseEffects,
     pub callee: crate::CallTarget,
     pub operands: Vec<(usize, &'a ValueType)>,
-    pub requirement_count: usize,
+    pub owed: OwedClauses,
 }
 
 pub(super) fn select_call<'a>(
@@ -193,10 +220,20 @@ fn select_direct_call<'a>(
         return Err(error("static call lacks the exact callable refinement for its selected instance"));
     }
     // L3 marks explicit preconditions. Psi also gives each call the predicates
-    // on its callee's qualified formals.
-    if precondition != signature.requires.then_some(&call.machine) {
-        return Err(error("selected call precondition records disagree with its callee contract"));
-    }
+    // on its callee's qualified formals. An invocation of a closed static binder
+    // owes the binder's clauses instead: typing records no direct precondition
+    // there, and the selection's refinement covers the callee's own premises.
+    let owed = if let Some((binder, count)) = tree.callback_invocation(node) {
+        if precondition.is_some() || !matches!(target, crate::CallTarget::Machine(_)) {
+            return Err(error("selected call precondition records disagree with its callee contract"));
+        }
+        OwedClauses { count, binder: Some(binder) }
+    } else {
+        if precondition != signature.requires.then_some(&call.machine) {
+            return Err(error("selected call precondition records disagree with its callee contract"));
+        }
+        OwedClauses::callee(requirement_count)
+    };
     // L3's occurrence obligations describe the invoked interface. For a
     // closed routed binder that interface deferred crashes to the selection;
     // the independently joined guarded-call rows supply its dependency.
@@ -251,6 +288,6 @@ fn select_direct_call<'a>(
         acknowledgements: call.acknowledgements,
         callee: target,
         operands,
-        requirement_count,
+        owed,
     })
 }

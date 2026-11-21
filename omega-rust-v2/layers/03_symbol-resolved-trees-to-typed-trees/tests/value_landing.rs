@@ -167,3 +167,112 @@ fn a_reference_is_not_implicitly_read_and_an_explicit_read_needs_read_authority(
         "cannot read through a write-only reference",
     );
 }
+
+/// The type L3 publishes for the expression spelled `text` in the body.
+fn published(
+    stage: &TypedStage,
+    body: &str,
+    text: &str,
+) -> omega_typer::ValueType {
+    let start = body.rfind(text).unwrap();
+    let mut found = stage
+        .expressions
+        .iter()
+        .filter(|e| e.site.file == BODY && (e.site.span.get_start_offset(), e.site.span.get_end_offset()) == (start, start + text.len()));
+    let ty = found
+        .next()
+        .unwrap_or_else(|| panic!("no expression {text}"))
+        .ty
+        .clone();
+    assert!(found.next().is_none(), "two expressions {text}");
+    ty
+}
+
+/// An array literal builds an owned `[T]` field at that field's own type, for
+/// any element count, as `Issuance::Only { routes: [] }` does in
+/// resources/access.md. It is the destination's `[T]` with the destination's
+/// element, not a `[T; N]` value converted afterwards. An existing `[T; N]`
+/// value, a view destination, a fixed length and no destination keep their
+/// refusals.
+#[test]
+fn an_array_literal_builds_an_owned_slice_field_at_its_element_type() {
+    use omega_typer::ValueType::{Array, Integer, Parameter, Slice};
+    let u8_type = Integer { signed: false, width: Some(8) };
+    let schema = "data Items<T> { items: [T]; } data Bytes { items: [u8]; } data Pair { items: [u8; 2]; }";
+
+    // A closed generic field, empty and with elements whose type comes only
+    // from the field (unsuffixed numbers).
+    for (operand, elements) in [
+        ("Items::<u8>{items: []}", &[][..]),
+        ("Items::<u8>{items: [1, 2]}", &["1", "2"][..]),
+    ] {
+        let body = format!("machine f() -> Items<u8> {{ {operand} }}");
+        let stage = check(schema, &body).unwrap();
+        let literal = &operand[operand.find('[').unwrap()..operand.len() - 1];
+        assert_eq!(published(&stage, &body, literal), Slice(Box::new(u8_type.clone())), "{operand}");
+        for element in elements {
+            let start = body.rfind(literal).unwrap() + literal.find(element).unwrap();
+            assert!(
+                stage
+                    .landings
+                    .iter()
+                    .any(|l| l.site.span.get_start_offset() == start && l.ty == u8_type),
+                "{element}"
+            );
+        }
+    }
+
+    // An open generic field keeps the machine's own parameter as its element.
+    let body = "machine f<T>() -> Items<T> { Items::<T>{items: []} }";
+    let stage = check(schema, body).unwrap();
+    let Slice(element) = published(&stage, body, "[]") else {
+        panic!("expected an owned [T]")
+    };
+    assert!(
+        matches!(element.as_ref(), Parameter { owner, index: 0 } if owner.path.as_str() == "f"),
+        "{element:?}"
+    );
+
+    // A case payload with a suffixed element: the same type, no `[u8; 1]`.
+    let body = "data Choice { case Only(items: [u8]); case None; } machine f() -> Choice { Choice::Only{items: [7u8]} }";
+    let stage = check("", body).unwrap();
+    assert_eq!(published(&stage, body, "[7u8]"), Slice(Box::new(u8_type.clone())));
+    assert_eq!(published(&stage, body, "7u8"), u8_type);
+
+    // The fixed-length twin still publishes the array itself.
+    let body = "machine f() -> Pair { Pair{items: [1, 2]} }";
+    let stage = check(schema, body).unwrap();
+    assert_eq!(published(&stage, body, "[1, 2]"), Array(Box::new(u8_type.clone()), 2));
+
+    // Refusals, each at its exact site. A wrong element is refused at the
+    // element. A wrong length, an existing array value and a view keep the
+    // baseline diagnostics, and a literal with no destination still needs one.
+    for (body, site, message) in [
+        ("machine f() -> Bytes { Bytes{items: [true]} }", "true", "expected u8, found bool"),
+        ("machine f() -> Bytes { Bytes{items: [300]} }", "300", "expected u8, found 300"),
+        ("machine f() -> Pair { Pair{items: [1u8]} }", "[1u8]", "expected [u8; 2], found [u8; 1]"),
+        (
+            "machine f() -> Bytes { let a: [u8; 1] = [1]; Bytes{items: a} }",
+            "a",
+            "expected [u8], found [u8; 1]",
+        ),
+        ("machine f() { let v: @[u8] = []; }", "[]", "array literal needs an element type"),
+        ("machine f() { let xs = []; }", "[]", "array literal needs an element type"),
+    ] {
+        refused_at(schema, body, site, message);
+    }
+}
+
+/// The typer refuses `body` at the last occurrence of `site`.
+fn refused_at(
+    schema: &str,
+    body: &str,
+    site: &str,
+    message: &str,
+) {
+    let start = body.rfind(site).unwrap();
+    let error = check(schema, body).unwrap_err();
+    assert!(!error.waiting_for_static_value());
+    assert_eq!((&*error.package, &*error.file, &*error.message), ("game", BODY, message), "{body}");
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(start, start + site.len()), "{body}");
+}

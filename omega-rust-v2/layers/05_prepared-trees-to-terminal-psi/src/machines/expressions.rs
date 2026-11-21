@@ -77,7 +77,7 @@ enum PendingOperation {
     },
     Call {
         callee: CallTarget,
-        requirement_count: usize,
+        owed: super::calls::OwedClauses,
         borrowed: Vec<Option<CallArgument>>,
         pause: crate::PauseEffects,
     },
@@ -312,7 +312,7 @@ impl Expressions<'_> {
         node: usize,
         body: &mut MachineBody,
         flow: &mut BlockFlow,
-    ) -> Result<(CallTarget, Vec<CallArgument>, usize, crate::PauseEffects), LoweringError> {
+    ) -> Result<(CallTarget, Vec<CallArgument>, super::calls::OwedClauses, crate::PauseEffects), LoweringError> {
         let file = self.tree.resolved().file;
         let carrier = &self.signature.result;
         let mut call_node = node;
@@ -343,7 +343,7 @@ impl Expressions<'_> {
                 arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
             }
         }
-        Ok((call.callee, arguments, call.requirement_count, call.acknowledgements))
+        Ok((call.callee, arguments, call.owed, call.acknowledgements))
     }
 
     pub(crate) fn lower(
@@ -605,7 +605,7 @@ impl Expressions<'_> {
                         PendingOperation::Call {
                             pause,
                             callee,
-                            requirement_count,
+                            owed,
                             borrowed,
                         } => {
                             let site = site_at(file, node);
@@ -619,7 +619,7 @@ impl Expressions<'_> {
                             let operation = OperationId(next_id(block.operations.len()));
                             drop(operands);
                             super::calls::record_acknowledgement(block, crate::CallSite::Operation(operation), pause);
-                            let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Operation(operation), requirement_count);
+                            let requirements = super::calls::owe(block, crate::CallSite::Operation(operation), owed);
                             OperationKind::Call {
                                 callee,
                                 arguments,
@@ -861,7 +861,7 @@ impl Expressions<'_> {
                     operation: PendingOperation::Call {
                         borrowed,
                         callee: call.callee,
-                        requirement_count: call.requirement_count,
+                        owed: call.owed,
                         pause: call.acknowledgements,
                     },
                     arity: visits.len(),

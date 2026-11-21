@@ -392,6 +392,8 @@ pub struct MachineBody {
     /// ordinal in `LoweredMachine::regions`. The checker judges the relation.
     pub lifetime_bindings: Vec<(PlaceId, usize)>,
     pub call_acknowledgements: Vec<crate::CallAcknowledgement>,
+    /// Calls that invoke a closed static callable binder, in emission order.
+    pub callback_invocations: Vec<crate::CallbackInvocation>,
     pub suspension_sites: Vec<crate::SuspensionSite>,
     pub blocks: Vec<crate::BranchBlock>,
     pub operations: Vec<PsiOperation>,

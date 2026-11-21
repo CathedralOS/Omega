@@ -113,6 +113,10 @@ pub struct StaticCallableSelection {
     pub machine: MachineId,
     pub parameters: Vec<TypeId>,
     pub result: Option<TypeId>,
+    /// The applied bound's preconditions over its own formals, in authored
+    /// order. Each invocation of the binder owes them under its arguments.
+    /// The checker judges that they imply the selected machine's `requires`.
+    pub requires: Vec<ContractClause>,
     pub pause: crate::PauseEffects,
     pub terminates: bool,
     pub empty_reach: bool,

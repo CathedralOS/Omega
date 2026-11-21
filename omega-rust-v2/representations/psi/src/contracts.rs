@@ -25,8 +25,22 @@ pub enum CleanupList {
     Store(OperationId),
 }
 
+/// A call in a closed instance that invokes the static callable binder at
+/// `binder` in `LoweredMachine::arguments`. The callee is that selection's
+/// machine. The generic body owes the binder's preconditions under the call's
+/// arguments; the selection's refinement, judged by the checker, is what makes
+/// the selected machine's own premises available.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CallbackInvocation {
+    pub call: CallSite,
+    pub binder: usize,
+}
+
 /// The producing call and the zero-based position of a requirement in its
 /// selected callee. Both coordinates are needed when two predicates are equal.
+/// A call listed in `MachineBody::callback_invocations` invokes a closed static
+/// binder: its positions refer to that binder's `StaticCallableSelection::requires`,
+/// not to the selected machine's own contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CallRequirement {
     pub site: CallSite,

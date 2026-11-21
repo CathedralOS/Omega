@@ -9,10 +9,15 @@ pub(crate) struct Callback<'a> {
     pub slot: usize,
     pub selection: &'a TypedSignature,
     pub bound: &'a CallableType,
+    /// The applied bound's preconditions over its own formals. Every
+    /// invocation of this binder owes them; the selected machine keeps its own
+    /// premises on its published contract for the checker's refinement.
+    pub requires: Vec<crate::ContractClause>,
 }
 
 impl<'a> Callback<'a> {
     pub fn bind(
+        prepared: &omega_prepared::PreparedTrees<'_>,
         slot: usize,
         selection: &MachineApplication,
         bound: &'a CallableType,
@@ -29,10 +34,8 @@ impl<'a> Callback<'a> {
             || !selection.enclosing_arguments.is_empty()
             || bound.requirement.is_some()
             || bound.has_guarantee
-            || bound.requires
             || bound.reach.as_ref().is_some_and(|r| !r.is_empty())
             || bound.crash_ceiling.as_ref().is_some_and(|r| !r.is_empty())
-            || sig.requires
             || sig.has_guarantee
             || sig.satisfies.is_some()
             || sig.parameters.iter().map(|(_, v)| v).ne(&bound.parameters)
@@ -42,7 +45,15 @@ impl<'a> Callback<'a> {
         {
             return Err(bad());
         }
-        Ok(Self { slot, selection: sig, bound })
+        // The alias signature owns the clauses. Lower them through the same
+        // interface path an open template binder uses, so the two agree.
+        let requires = if bound.requires {
+            let (origin, node) = prepared.typed().callable_origin(&bound.contract).ok_or_else(bad)?;
+            crate::declarations::type_expression::callable_interface(prepared, &origin, node, bound)?.requires
+        } else {
+            Vec::new()
+        };
+        Ok(Self { slot, selection: sig, bound, requires })
     }
     pub fn lower_call(
         &self,
@@ -101,6 +112,7 @@ impl<'a> Callback<'a> {
             result: (self.bound.result != ValueType::NoResult)
                 .then(|| id(&self.bound.result))
                 .transpose()?,
+            requires: self.requires.clone(),
             pause: self.bound.pause,
             terminates: self.bound.terminates,
             empty_reach: self.bound.reach.is_some(),

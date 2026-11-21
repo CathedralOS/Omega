@@ -19,6 +19,7 @@ pub(crate) struct MachineInstance<'a> {
 /// Root declarations are already sorted. Follow their checked executable calls
 /// in occurrence order so file order cannot change an instance's machine ID.
 pub(crate) fn plan<'a>(
+    prepared: &omega_prepared::PreparedTrees<'_>,
     declarations: &[&'a TypedSignature],
     trees: &'a [TypedTree<'a>],
     typed: &'a omega_typed::TypedTrees<'a>,
@@ -82,7 +83,7 @@ pub(crate) fn plan<'a>(
                     .iter()
                     .find(|(owner, i, _)| *owner == template.machine && *i == slot)
                     .ok_or_else(|| LoweringError::new(&template.site, "static callback lacks its typed binder contract"))?;
-                callbacks.push(Callback::bind(slot, selected, &bound.2, &templates)?);
+                callbacks.push(Callback::bind(prepared, slot, selected, &bound.2, &templates)?);
             }
         }
         let tree = LoweringTree::for_application(typed, &trees[template.node.file], &signature, &application, &callbacks)?;

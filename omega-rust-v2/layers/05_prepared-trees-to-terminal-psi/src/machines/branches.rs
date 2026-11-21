@@ -235,10 +235,10 @@ pub(crate) fn lower_tail_dispatch(
                     .semantics_at(ungrouped)
                     .any(|record| matches!(record, NodeSemantics::Call(_))))
         {
-            let (callee, arguments, requirement_count, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
+            let (callee, arguments, owed, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
             let id = push_edge_site(body, site_at(file, arm.expression));
             super::calls::record_acknowledgement(body, crate::CallSite::Edge(id), pause);
-            let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Edge(id), requirement_count);
+            let requirements = super::calls::owe(body, crate::CallSite::Edge(id), owed);
             flow.close(
                 body,
                 BlockTerminator::TerminalCall {

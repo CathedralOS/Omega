@@ -78,6 +78,7 @@ fn emit_body(
         lifetime_bindings: Vec::new(),
         call_acknowledgements: Vec::new(),
         suspension_sites: Vec::new(),
+        callback_invocations: Vec::new(),
         blocks: Vec::new(),
         operations: Vec::new(),
         parameters: Vec::with_capacity(binders.len()),

@@ -136,7 +136,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     theorems.sort_unstable_by(|(_, a), (_, b)| a.declaration.cmp(&b.declaration));
     let (theorem_signatures, theorems): (Vec<_>, Vec<_>) = theorems.into_iter().unzip();
     signatures.sort_unstable_by(|a, b| a.machine.cmp(&b.machine));
-    let instances = super::applications::plan(&signatures, &trees, typed)?;
+    let instances = super::applications::plan(prepared, &signatures, &trees, typed)?;
     let members = crate::declarations::members::plan(typed, &trees, &instances, &signature_by_declaration)?;
     let machine_templates = crate::declarations::machine_templates::plan(prepared, &trees, &signatures, &instances, &trait_schemas)?;
     let effects: HashMap<_, _> = typed

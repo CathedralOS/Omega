@@ -88,3 +88,4 @@ caller-chosen boundary view result at suspension	checker-input	psi-output/caller
 recursive relay of a caller-chosen boundary view at suspension	checker-input	psi-output/recursive-caller-chosen-boundary-view
 shared float view of a mutable scalar local	checker-input	psi-output/mutable-scalar-home-view
 borrowed scalar home live across a suspension	checker-input	psi-output/parked-scalar-home
+premise-bearing closed static callback	checker-input	psi-output/closed-callback-owes-bound-premise

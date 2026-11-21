@@ -475,7 +475,13 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
 #[test]
 fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
     let only = ACCESS_PLAN.replace("Unrestricted{}", "Only{..}");
-    for (source, case) in [(ACCESS_PLAN, "Issuance::Unrestricted"), (only.as_str(), "Issuance::Only")] {
+    // The exact bytes of target/l5owner/policy/empty/access_plan.omg.
+    let empty = ACCESS_PLAN.replace("Unrestricted{}", "Only{routes: []}");
+    for (source, case) in [
+        (ACCESS_PLAN, "Issuance::Unrestricted"),
+        (only.as_str(), "Issuance::Only"),
+        (empty.as_str(), "Issuance::Only"),
+    ] {
         with_prepared("policy.omg", source, |prepared| {
             let typed = prepared.typed();
             let [selection] = typed.access_policies.as_slice() else {
@@ -507,6 +513,36 @@ fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
             let construction = tree.construction(issuance.node.node).unwrap();
             assert_eq!(&construction.owner, core.id("Issuance"));
             assert_eq!(construction.case.as_ref(), Some(core.id(case)));
+            // Only the explicit spelling writes `routes`. Its `[]` is the declared
+            // owned `[CallableInfo<'t>]` field at the constructed issuance's own
+            // `'t`, with no elements; it is not a view and not a `[T; 0]` value.
+            let written: Vec<_> = construction
+                .initializers
+                .iter()
+                .map(|field| field.expression)
+                .collect();
+            if source == empty {
+                use omega_typed::ValueType::{Applied, Slice};
+                let [routes] = written.as_slice() else {
+                    panic!("expected the written routes field, found {written:?}")
+                };
+                assert_eq!(tree.resolved().file.span(*routes).slice(source.as_bytes()), Some(&b"[]"[..]));
+                assert!(tree.resolved().file.nodes[*routes].children.is_empty());
+                let Applied(_, lifetime) = &construction.carrier else {
+                    panic!("Issuance is applied to its lifetime")
+                };
+                let published: Vec<_> = tree
+                    .semantics_at(*routes)
+                    .filter_map(|record| match record {
+                        omega_typed::NodeSemantics::Expression(expression) => Some(expression.ty.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                let element = Applied(Box::new(core.id(r"reflect\CallableInfo").clone()), lifetime.clone());
+                assert_eq!(published, [Slice(Box::new(element))]);
+            } else {
+                assert!(written.is_empty(), "{case} writes no field: {written:?}");
+            }
 
             let library = typed.library.unwrap();
             let signature = library.signatures.iter().find(|s| s.machine == call.machine).unwrap();

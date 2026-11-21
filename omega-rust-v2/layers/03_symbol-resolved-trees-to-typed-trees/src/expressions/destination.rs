@@ -92,7 +92,12 @@ impl<'a> Destination<'a> {
     {
         let may_have_length = |extent: &ValueType| indices.can_wait_for_equality(extent, &ValueType::static_size(count));
         match self {
+            // An owned `[T]` field has no length of its own, so every element
+            // count lands at its element type (`Issuance::Only { routes: [] }`
+            // in resources/access.md). A view `@[T]` is a reference, not this
+            // destination, and stays without an element type.
             Self::Exact(ValueType::Array(element, size)) if *size == count => Destination::Exact(element),
+            Self::Exact(ValueType::Slice(element)) => Destination::Exact(element),
             Self::Exact(array @ ValueType::IndexedArray(element, extent)) if may_have_length(extent) => Destination::Pending(PendingDestination {
                 types: std::slice::from_ref(element.as_ref()),
                 prerequisites: std::slice::from_ref(array),

@@ -233,3 +233,9 @@ pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
 
 mod primitive_homes;
 pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
+
+mod scalar_terms;
+pub use scalar_terms::{Operand, Term, call_arguments, integer_comparisons};
+
+mod callback_premises;
+pub use callback_premises::{CallbackPremises, callback_premises};
