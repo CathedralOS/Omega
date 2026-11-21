@@ -316,7 +316,7 @@ fn strict_quotient_order_needs_both_strengthened_premises() {
             assumption(premises[1].clone(), 1),
         );
         proof.conclusion = actual.clone();
-        let accepted = check_certificate(&context, &actual, &premises, &axioms, &proof).unwrap();
+        let accepted = accept_certificate(&context, &actual, &premises, &axioms, &proof).unwrap();
         assert!(
             accepted
                 .rules
