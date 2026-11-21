@@ -581,6 +581,26 @@ fn check_callback_publication(retain_body_source: bool) {
         object.object().check_bindings(&missing_private),
         Err("object publication changed the closed physical program's private references")
     );
+    if let Some(retained) = object.retained_fragment_source() {
+        let issued = retained.published_object();
+        let sections = issued.sections();
+        let callback = fixture.occurrences[0].callback_thunk_identity();
+        let (symbol, declaration) =
+            object_file::object_function_reference(&sections.object, callback)
+                .expect("the body object already declares the callback before composition");
+        assert_eq!(declaration.section, object_file::SymbolSection::None);
+        assert!(
+            sections
+                .relocations
+                .records()
+                .any(|(_, row)| row.symbol_handle == symbol)
+        );
+        assert_eq!(sections.relocations, *object.relocations());
+        assert_eq!(sections.text_bytes, object.text_bytes());
+        assert_eq!(sections.foreign_calls, object.foreign_calls());
+        assert!(sections.object.check_bindings(&missing_private).is_err());
+        assert!(sections.object.check_bindings(&changed_import).is_err());
+    }
     let calls = &object.foreign_call_plans().calls;
     assert!(
         !calls.is_empty(),

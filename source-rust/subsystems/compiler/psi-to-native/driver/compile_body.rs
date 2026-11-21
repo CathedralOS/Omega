@@ -287,7 +287,7 @@ pub(crate) struct BodyObject {
 }
 
 pub(crate) fn construct_body_object(body: LaidOutBody) -> Result<BodyObject, BodyEmissionError> {
-    let issued = object_file::stage_optimized_relocation_free_object_container(body.placed)
+    let issued = object_file::publish_function_object(body.placed)
         .map_err(object_publication_error)?;
     let projection =
         native_artifact::emit_fragment_object(issued).map_err(BodyEmissionError::Object)?;

@@ -80,7 +80,7 @@ impl crate::ObjectPlan {
     }
 }
 
-pub fn stage_optimized_relocation_free_object_container(
+pub fn publish_function_object(
     placement: function_layout::FunctionPlacement<BodyPublication>,
 ) -> Result<PublishedFunctionObject, RelocationFreeObjectContainerError> {
     let (source, frame_application) = placement.into_parts();
@@ -117,8 +117,13 @@ pub fn stage_optimized_relocation_free_object_container(
         body: Arc::clone(source.placed_body()),
         custody,
     };
+    let sections = Arc::new(
+        crate::FunctionObjectSections::assemble(&publication)
+            .map_err(RelocationFreeObjectContainerError::Sections)?,
+    );
     let replay = frame_application.map(|frame_application| {
         Arc::new(StagedOptimizedRelocationFreeObjectContainer {
+            sections: Arc::clone(&sections),
             publication: publication.clone(),
             source,
             frame_application,
@@ -128,25 +133,34 @@ pub fn stage_optimized_relocation_free_object_container(
     });
     Ok(PublishedFunctionObject {
         publication,
+        sections,
         replay,
     })
 }
 
-/// Object construction releases placement history before ordinary image emission.
-/// An explicit audit keeps that history beside the exact object issued with it.
+/// Linkable object sections, physical source evidence, and any requested audit inputs.
+/// Only object construction can issue the three together.
 pub struct PublishedFunctionObject {
     publication: ObjectPublication,
+    sections: Arc<crate::FunctionObjectSections>,
     replay: Option<Arc<StagedOptimizedRelocationFreeObjectContainer>>,
 }
-
 impl PublishedFunctionObject {
+    pub fn sections(&self) -> &crate::FunctionObjectSections {
+        &self.sections
+    }
     pub fn into_parts(
         self,
     ) -> (
         ObjectPublication,
+        crate::FunctionObjectSections,
         Option<Arc<StagedOptimizedRelocationFreeObjectContainer>>,
     ) {
-        (self.publication, self.replay)
+        (
+            self.publication,
+            Arc::unwrap_or_clone(self.sections),
+            self.replay,
+        )
     }
 }
 
@@ -273,6 +287,7 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
 #[derive(Debug)]
 #[must_use = "a staged object container owns its complete text-section custody"]
 pub struct StagedOptimizedRelocationFreeObjectContainer {
+    sections: Arc<crate::FunctionObjectSections>,
     publication: ObjectPublication,
     source: PlacedFunctionText,
     frame_application: function_layout::StagedFunctionFragmentFrameApplication,
@@ -281,6 +296,14 @@ pub struct StagedOptimizedRelocationFreeObjectContainer {
 }
 
 impl StagedOptimizedRelocationFreeObjectContainer {
+    pub fn published_object(&self) -> PublishedFunctionObject {
+        PublishedFunctionObject {
+            replay: None,
+            publication: self.publication.clone(),
+            sections: Arc::clone(&self.sections),
+        }
+    }
+
     pub fn original_target(&self) -> Option<&physical_program::RetainedTargetOperations> {
         self.source.contracts().body.original_for_audit()
     }
@@ -437,6 +460,7 @@ impl StagedRelocationFreeObjectContainerCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelocationFreeObjectContainerError {
+    Sections(crate::body_object::Error),
     PublicationMismatch,
     Source(RelocationFreeTextSectionPlacementError),
     InvalidObject(RelocationFreeObjectError),

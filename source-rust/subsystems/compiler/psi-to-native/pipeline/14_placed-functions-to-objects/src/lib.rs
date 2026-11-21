@@ -65,6 +65,17 @@ pub use bridge_object::{
     BridgeCallRelocation, CallableEntryTransport, ForeignAdapterObject, ForeignAdapterObjectParts,
     NativeBridgeObject, NativeEntryBridge, NativeForeignBridge, PrivateEntryObject,
 };
+pub mod body_object;
+pub use body_object::{
+    FunctionObjectSections, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunctionLocation,
+};
+mod foreign_calls;
+pub use foreign_calls::{
+    ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
+    place_foreign_call, resolve_instruction_sequence,
+};
+mod object_error;
+pub use object_error::ObjectError;
 mod fragment_container;
 mod names;
 mod object_plan;
@@ -73,7 +84,7 @@ mod target_matrix;
 
 pub use fragment_container::{
     ObjectPublication, PublishedFunctionObject, RelocationFreeObjectContainerError,
-    StagedOptimizedRelocationFreeObjectContainer, stage_optimized_relocation_free_object_container,
+    StagedOptimizedRelocationFreeObjectContainer, publish_function_object,
     validate_optimized_relocation_free_object_container,
 };
 pub use machine_code::{

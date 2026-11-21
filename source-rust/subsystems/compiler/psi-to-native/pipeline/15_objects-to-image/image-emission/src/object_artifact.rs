@@ -11,6 +11,7 @@ mod carriers {
         BoundarySettlementRecord, PortEffectRecord, ScalarControlAffineCleanupRecord,
         SemanticCodeAttribution, StructuralReturnRecord,
     };
+    use object_file::{ObjectByteLiteralPool, ObjectForeignCall};
     use object_file::{ObjectPlan, ObjectSymbolHandle, RelocationPlan};
     use semantic_vocabulary::MachineId;
     use target::NativeTarget;
@@ -54,23 +55,6 @@ mod carriers {
             Option<crate::object::function_fragments::native_code_layouts::NativeCodeLayoutPool>,
         pub(crate) code_descriptor_pool:
             Option<crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ObjectByteLiteralPool {
-        pub symbol: ObjectSymbolHandle,
-        pub text_offset: usize,
-        pub byte_count: usize,
-        pub addresses: Vec<ObjectByteLiteralAddress>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ObjectByteLiteralAddress {
-        pub machine: MachineId,
-        pub literal: machine_code::ByteLiteralReference,
-        pub fields: machine_code::ImageAddressFields,
-        pub pool_offset: usize,
-        pub byte_count: usize,
     }
 
     impl ObjectArtifact {
@@ -278,8 +262,7 @@ mod carriers {
             &self,
             identity: terminal_psi::TerminalPsiIdentity,
             selected_provider_closure: [u8; 32],
-        ) -> Result<Option<&native_execution_reach::ExecutionReach>, &'static str>
-        {
+        ) -> Result<Option<&native_execution_reach::ExecutionReach>, &'static str> {
             let facts = self.emission_facts().admission.entry_facts();
             facts.selected_terminal_entry(identity, self.entry, self.target)?;
             facts.native_execution_scope_for(
@@ -388,7 +371,7 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectFunction {
-        pub machine: MachineId,
+        pub location: object_file::ObjectFunctionLocation,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
         pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
@@ -396,9 +379,6 @@ mod carriers {
         pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
         pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,
         pub provenance: TerminalPsiProvenance,
-        pub symbol: ObjectSymbolHandle,
-        pub text_offset: usize,
-        pub byte_count: usize,
         pub x86_floating_control: Option<machine_code::X86FloatingControlRecord>,
         pub unit_stack: Option<ObjectUnitStack>,
         pub scalar_stack: Option<ObjectScalarStack>,
@@ -428,6 +408,18 @@ mod carriers {
         pub structural_return: Option<StructuralReturnRecord>,
     }
 
+    impl std::ops::Deref for ObjectFunction {
+        type Target = object_file::ObjectFunctionLocation;
+
+        fn deref(&self) -> &Self::Target {
+            &self.location
+        }
+    }
+    impl AsRef<object_file::ObjectFunctionLocation> for ObjectFunction {
+        fn as_ref(&self) -> &object_file::ObjectFunctionLocation {
+            &self.location
+        }
+    }
     impl ObjectFunction {
         pub fn call_arguments(
             &self,
@@ -561,22 +553,6 @@ mod carriers {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ObjectForeignCall {
-        pub machine: MachineId,
-        pub owner: CallSiteOwner,
-        pub operation_ordinal: usize,
-        pub binding: target_operations::NormalizedForeignCallBinding,
-        pub provider_execution: machine_code::ExternalExecutionRecord,
-        pub caller_live_bytes: u32,
-        pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
-        pub callback_addresses: Vec<machine_code::CallbackAddressMaterialization>,
-        pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,
-        pub x86_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
-        pub aarch64_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
-        pub text_offset: usize,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectPortEffect {
         pub machine: MachineId,
         pub effect: PortEffectRecord,
@@ -589,299 +565,6 @@ mod carriers {
         pub attribution: SemanticCodeAttribution,
         pub text_offset: usize,
     }
-}
-
-mod errors {
-    use semantic_vocabulary::MachineId;
-    use target_operations::CallSiteOwner;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum ObjectError {
-        ForeignCallProgramMismatch,
-        EmptyPlan,
-        NonCanonicalFunctionOrder {
-            previous: MachineId,
-            current: MachineId,
-        },
-        EmptyFunction(MachineId),
-        InvalidPrivateFunctionIdentity,
-        EmptyPrivateFunctionSymbol,
-        PrivateFunctionSymbolCollision,
-        InvalidPrivateFunctionAbi,
-        InvalidPrivateFunctionBody,
-        UnsupportedPrivateFunctionBody,
-        NonCanonicalInternalCallOrder(MachineId),
-        NonCanonicalForeignCallOrder(MachineId),
-        NonCanonicalSemanticCodeAttributionOrder(MachineId),
-        SemanticCodeAttributionOutsideFunction(MachineId),
-        InvalidSemanticCodeAttribution(MachineId),
-        NonCanonicalPortEffectOrder(MachineId),
-        NonCanonicalBoundarySettlementOrder(MachineId),
-        InvalidStructuralReturnEvidence(MachineId),
-        StructuralReturnEvidenceConflict(MachineId),
-        StructuralReturnBytesMismatch(MachineId),
-        UnknownInternalCallTarget {
-            caller: MachineId,
-            target: MachineId,
-        },
-        InvalidInternalCallSite {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            offset: usize,
-        },
-        InvalidForeignCallSite {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            offset: usize,
-        },
-        InvalidForeignCallProjection {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            reason: &'static str,
-        },
-        InvalidForeignCallArgument {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            import: Option<String>,
-            parameter: Option<u32>,
-            reason: &'static str,
-            transport: Option<String>,
-        },
-        InvalidCallbackAddressCustody {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        MissingCallbackPrivateFunction {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        InvalidForeignCallFloatingControl {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        ForeignCallOwnerNotInProvenance {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        DuplicateForeignCallOwner {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        ForeignCallTargetMismatch {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        ForeignStackProviderPlanMismatch {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        UnsupportedForeignStackAlignment {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            admitted_alignment: u64,
-            physical_alignment: u32,
-        },
-        ForeignCallOverlapsInternalCall {
-            caller: MachineId,
-            offset: usize,
-        },
-        ForeignLocatorIdentityCollision {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        MissingForeignImportSymbol {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        InvalidInternalUnitCallEvidence(MachineId),
-        InvalidInternalUnitScalarCallEvidence(MachineId),
-        InvalidUnitScalarFunctionAbi(MachineId),
-        InvalidInstalledProviderUnitScalarCallEvidence(MachineId),
-        InvalidUnitWriteOnlyPrimitiveStoreEvidence(MachineId),
-        InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
-        InvalidScalarStructuralScalarFieldStoreEvidence(MachineId),
-        InvalidUnitAffineCleanupEvidence(MachineId),
-        InternalCallOperationNotInProvenance {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        DuplicateInternalCallOperation {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        MissingUnitCallStackEvidence {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        UnexpectedUnitCallStackEvidence {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        MissingScalarCallStackEvidence {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        UnexpectedScalarCallStackEvidence {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        InvalidUnitStackAlignment {
-            machine: MachineId,
-            alignment: u32,
-        },
-        ConflictingTerminalStackEvidence(MachineId),
-        InvalidScalarStackAlignment {
-            machine: MachineId,
-            alignment: u32,
-        },
-        InvalidScalarConditionalEvidence {
-            machine: MachineId,
-            offset: usize,
-        },
-        ScalarConditionalCallOutsideArm {
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-            offset: usize,
-        },
-        UntypedScalarInternalCall {
-            machine: MachineId,
-            offset: usize,
-        },
-        InvalidScalarCallStackEvidence {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            offset: usize,
-        },
-        MisalignedScalarCalleeEntry {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            caller_live_bytes: u32,
-        },
-        NonCanonicalScalarStackMutationOrder(MachineId),
-        InvalidScalarInstructionEncoding {
-            machine: MachineId,
-            offset: usize,
-        },
-        NonLinearScalarControlFlow {
-            machine: MachineId,
-            offset: usize,
-        },
-        UnclaimedScalarStackMutation {
-            machine: MachineId,
-            offset: usize,
-        },
-        UnsupportedScalarStackMutation {
-            machine: MachineId,
-            offset: usize,
-        },
-        InvalidScalarStackEvidence {
-            machine: MachineId,
-            offset: usize,
-        },
-        MissingBalancedScalarReturn(MachineId),
-        ScalarStackArithmeticOverflow(MachineId),
-        ScalarStackReleaseExceedsAllocation {
-            machine: MachineId,
-            offset: usize,
-        },
-        UnitCallStackArithmeticOverflow {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        InvalidUnitStackEncoding {
-            machine: MachineId,
-            owner: Option<CallSiteOwner>,
-            offset: usize,
-        },
-        InvalidUnitInstructionEncoding {
-            machine: MachineId,
-            offset: usize,
-        },
-        DuplicateUnitStackAdjustment(MachineId),
-        UnclaimedUnitStackAdjustment {
-            machine: MachineId,
-            offset: usize,
-        },
-        UnclaimedUnitStackMutation {
-            machine: MachineId,
-            offset: usize,
-        },
-        MisalignedUnitCalleeEntry {
-            caller: MachineId,
-            owner: CallSiteOwner,
-            caller_live_bytes: u32,
-        },
-        MissingX86UnitCallStackAdjustment {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        MissingAarch64UnitReturnLink {
-            caller: MachineId,
-            operation: Option<semantic_vocabulary::OperationId>,
-        },
-        UnaccountedTerminalStack(MachineId),
-        TerminalStackCycle(MachineId),
-        PrivateEntryStackArithmeticOverflow(function_identity::MachineFunctionIdentity),
-        PhysicalEntryStackArithmeticOverflow(MachineId),
-        TerminalStackCompositionOverflow {
-            caller: MachineId,
-            owner: CallSiteOwner,
-        },
-        PortEffectOutsideFunction {
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-        },
-        PortEffectOperationNotInProvenance {
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-        },
-        DuplicatePortEffectOperation {
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-        },
-        PortEffectBytesMismatch {
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-        },
-        BoundarySettlementOutsideFunction {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        BoundarySettlementOperationNotInProvenance {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        DuplicateBoundarySettlementOperation {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        InvalidBoundarySettlementArgumentPath {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        InvalidCompletionReceiptArgumentIndex {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        InvalidCompletionReceiptCustody {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        InvalidCompletionProviderCustody {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        BoundaryRealizationMismatch {
-            machine: MachineId,
-            operation: semantic_vocabulary::InvocationSite,
-        },
-        EntryFunctionMissing(MachineId),
-        TextSizeOverflow,
-    }
-
-    diagnostics::debug_display!(ObjectError);
-
-    impl std::error::Error for ObjectError {}
 }
 
 pub(crate) mod installed_stack {
@@ -1279,9 +962,6 @@ pub(crate) mod installed_stack {
         Ok(())
     }
 }
-
-#[path = "foreign_call_publication.rs"]
-mod normalized_foreign_calls;
 
 pub(crate) mod replay {
     pub(crate) mod boundary {
@@ -3014,8 +2694,7 @@ pub(crate) mod stack_demand {
     pub use machine_code::physical_stack::StackDemand;
     use machine_code::physical_stack::{
         ForeignStackExtent, LocalStackExtent, PhysicalForeignStackCall, PhysicalStackCall,
-        PhysicalStackFunction, PhysicalStackProgram, StackDemandError,
-        derive_physical_stack_demand,
+        PhysicalStackFunction, PhysicalStackProgram, derive_physical_stack_demand,
     };
 
     use semantic_vocabulary::MachineId;
@@ -3149,48 +2828,21 @@ pub(crate) mod stack_demand {
             }).collect(),
         }
     }
-
-    impl From<StackDemandError> for ObjectError {
-        fn from(error: StackDemandError) -> Self {
-            match error {
-                StackDemandError::EntryFunctionMissing(machine) => {
-                    Self::EntryFunctionMissing(machine)
-                }
-                StackDemandError::UnknownInternalCallTarget { caller, target } => {
-                    Self::UnknownInternalCallTarget { caller, target }
-                }
-                StackDemandError::TerminalStackCycle(machine) => Self::TerminalStackCycle(machine),
-                StackDemandError::ConflictingTerminalStackEvidence(machine) => {
-                    Self::ConflictingTerminalStackEvidence(machine)
-                }
-                StackDemandError::UnaccountedTerminalStack(machine) => {
-                    Self::UnaccountedTerminalStack(machine)
-                }
-                StackDemandError::TerminalStackCompositionOverflow { caller, owner } => {
-                    Self::TerminalStackCompositionOverflow { caller, owner }
-                }
-                StackDemandError::InvalidPrivateFunctionIdentity => {
-                    Self::InvalidPrivateFunctionIdentity
-                }
-            }
-        }
-    }
 }
 
 pub use carriers::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
-    ObjectForeignCall, ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack,
-    ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
+    ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack, ObjectUnitCallStack,
+    PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
-    ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,
-    ObjectPortEffect, ObjectScalarStack, ObjectUnitStack, find_object_function,
+    ObjectCompilerPrivateFunction, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
+    find_object_function,
 };
-pub(crate) use errors::ObjectError;
-pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
-pub use normalized_foreign_calls::{
-    derive_normalized_foreign_call_custody, fragment_instruction_span, place_foreign_call,
-    resolve_instruction_sequence,
+pub(crate) use object_file::{ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectError};
+pub use object_file::{
+    ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
+    place_foreign_call, resolve_instruction_sequence,
 };
 
 #[cfg(test)]

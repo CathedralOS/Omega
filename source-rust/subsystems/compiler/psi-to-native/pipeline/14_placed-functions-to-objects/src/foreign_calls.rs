@@ -1,13 +1,28 @@
 //! Resolve the foreign-call physical plan against current placed instruction
 //! spans. No selected function or earlier executable program is read here.
-use super::carriers::{ObjectArtifact, ObjectForeignCall};
-use super::errors::ObjectError;
+use crate::ObjectError;
 use machine_code::foreign_call_plans::{
     ForeignCallPlanError, InstructionSpanObligation, InstructionSpanSequence,
     PhysicalForeignCallPlan,
 };
 use semantic_vocabulary::MachineId;
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForeignCall {
+    pub machine: MachineId,
+    pub owner: CallSiteOwner,
+    pub operation_ordinal: usize,
+    pub binding: target_vocabulary::NormalizedForeignCallBinding,
+    pub provider_execution: machine_code::ExternalExecutionRecord,
+    pub caller_live_bytes: u32,
+    pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
+    pub callback_addresses: Vec<machine_code::CallbackAddressMaterialization>,
+    pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,
+    pub x86_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
+    pub aarch64_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
+    pub text_offset: usize,
+}
 
 impl From<ForeignCallPlanError> for ObjectError {
     fn from(error: ForeignCallPlanError) -> Self {
@@ -269,12 +284,6 @@ pub fn place_foreign_call(
     })
 }
 
-pub(crate) fn image_foreign_calls_match_object(
-    artifact: &ObjectArtifact,
-    image_rows: &[ObjectForeignCall],
-) -> bool {
-    image_rows == artifact.foreign_calls()
-}
 fn callback_address_custody(
     record: &selected_instructions::SelectedNormalizedForeignCall,
     placed: &[machine_code::PlacedCallbackAddressMaterialization],

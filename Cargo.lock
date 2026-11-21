@@ -1793,6 +1793,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "calling-conventions",
+ "diagnostics",
  "function-identity",
  "function-layout",
  "installation-admission",
@@ -1801,10 +1802,12 @@ dependencies = [
  "optimization-core",
  "physical-program",
  "physical-recipes",
+ "runtime-abi",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-vocabulary",
  "terminal-psi",
  "wire",
 ]

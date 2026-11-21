@@ -116,7 +116,7 @@ pub(crate) use object::object_artifact::{
     ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
 };
 
-pub use object::function_fragments::build_function_fragment_object_artifact;
+pub use object::function_fragments::prepare_object_for_image;
 
 mod hosted_loader;
 mod hosted_program;
