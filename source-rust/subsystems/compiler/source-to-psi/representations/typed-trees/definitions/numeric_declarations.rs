@@ -31,7 +31,7 @@ pub(super) fn resolve(
         if name == "negate" {
             NumericIntrinsic::Negation(format)
         } else {
-            float_builtin(name)?.intrinsic(format)
+            FloatBuiltin::from_name(name)?.intrinsic(format)
         }
     };
     meaning.signature()
@@ -59,99 +59,33 @@ fn conversion_operand(name: &str) -> Option<NumericType> {
     })
 }
 
-const FLOAT_BUILTINS: &[(&str, FloatBuiltin)] = &[
-    ("minimum", FloatBuiltin::MINIMUM),
-    ("maximum", FloatBuiltin::MAXIMUM),
-    ("square_root", FloatBuiltin::SQUARE_ROOT),
-    ("multiply_then_add", FloatBuiltin::MULTIPLY_THEN_ADD),
-    ("fused_multiply_add", FloatBuiltin::FUSED_MULTIPLY_ADD),
-    ("is_nan", FloatBuiltin::IS_NAN),
-    ("is_finite", FloatBuiltin::IS_FINITE),
-    ("is_infinite", FloatBuiltin::IS_INFINITE),
-    ("is_normal", FloatBuiltin::IS_NORMAL),
-    ("is_subnormal", FloatBuiltin::IS_SUBNORMAL),
-    ("classify", FloatBuiltin::CLASSIFY),
-    ("add_toward_zero", FloatBuiltin::ADD_TOWARD_ZERO),
-    ("add_toward_positive", FloatBuiltin::ADD_TOWARD_POSITIVE),
-    ("add_toward_negative", FloatBuiltin::ADD_TOWARD_NEGATIVE),
-    ("subtract_toward_zero", FloatBuiltin::SUBTRACT_TOWARD_ZERO),
-    (
-        "subtract_toward_positive",
-        FloatBuiltin::SUBTRACT_TOWARD_POSITIVE,
-    ),
-    (
-        "subtract_toward_negative",
-        FloatBuiltin::SUBTRACT_TOWARD_NEGATIVE,
-    ),
-    ("multiply_toward_zero", FloatBuiltin::MULTIPLY_TOWARD_ZERO),
-    (
-        "multiply_toward_positive",
-        FloatBuiltin::MULTIPLY_TOWARD_POSITIVE,
-    ),
-    (
-        "multiply_toward_negative",
-        FloatBuiltin::MULTIPLY_TOWARD_NEGATIVE,
-    ),
-    ("divide_toward_zero", FloatBuiltin::DIVIDE_TOWARD_ZERO),
-    (
-        "divide_toward_positive",
-        FloatBuiltin::DIVIDE_TOWARD_POSITIVE,
-    ),
-    (
-        "divide_toward_negative",
-        FloatBuiltin::DIVIDE_TOWARD_NEGATIVE,
-    ),
-    (
-        "square_root_toward_zero",
-        FloatBuiltin::SQUARE_ROOT_TOWARD_ZERO,
-    ),
-    (
-        "square_root_toward_positive",
-        FloatBuiltin::SQUARE_ROOT_TOWARD_POSITIVE,
-    ),
-    (
-        "square_root_toward_negative",
-        FloatBuiltin::SQUARE_ROOT_TOWARD_NEGATIVE,
-    ),
-    (
-        "fused_multiply_add_toward_zero",
-        FloatBuiltin::FUSED_MULTIPLY_ADD_TOWARD_ZERO,
-    ),
-    (
-        "fused_multiply_add_toward_positive",
-        FloatBuiltin::FUSED_MULTIPLY_ADD_TOWARD_POSITIVE,
-    ),
-    (
-        "fused_multiply_add_toward_negative",
-        FloatBuiltin::FUSED_MULTIPLY_ADD_TOWARD_NEGATIVE,
-    ),
-];
-
-fn float_builtin(name: &str) -> Option<FloatBuiltin> {
-    FLOAT_BUILTINS
-        .iter()
-        .find_map(|(spelling, builtin)| (*spelling == name).then_some(*builtin))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use language_core::BuiltinFunction;
+    use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
     use numerics::intrinsics::NumericResult;
 
     #[test]
     fn every_named_float_row_requires_its_complete_signature() {
-        for (row_index, (name, builtin)) in FLOAT_BUILTINS.iter().enumerate() {
-            let arity = builtin
-                .intrinsic(FloatFormat::F32)
-                .signature()
-                .unwrap()
-                .operand_count;
-            assert!(!FLOAT_BUILTINS[..row_index].iter().any(|row| row.0 == *name));
-            assert_eq!(
-                numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(name),
-                Some(arity),
-                "{name}",
+        for (row_index, builtin) in FloatBuiltin::ALL.iter().enumerate() {
+            let name = builtin.name;
+            let signature = builtin.intrinsic(FloatFormat::F32).signature().unwrap();
+            let arity = signature.operand_count;
+            let result = match signature.result {
+                NumericResult::Primitive(NumericType::F32) => FloatSemanticValueKind::Meaning,
+                NumericResult::Boolean => FloatSemanticValueKind::Bool,
+                NumericResult::FloatClass => FloatSemanticValueKind::Class,
+                _ => panic!("unexpected binary32 result for {name}"),
+            };
+            assert!(
+                !FloatBuiltin::ALL[..row_index]
+                    .iter()
+                    .any(|row| row.name == name)
+            );
+            assert!(
+                FloatSemanticOperation::for_float_operands(name, arity, result).is_some(),
+                "{name}"
             );
             for namespace in ["F32", "F64"] {
                 let row = resolve(namespace, name, ArithmeticDomain::Exact)

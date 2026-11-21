@@ -3169,7 +3169,9 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_meaning_survives_portable_round_trip_and_changes_program_identity() {
-        let meaning = numerics::intrinsics::FloatBuiltin::IS_NAN.intrinsic(numerics::intrinsics::FloatFormat::F64);
+        let meaning = numerics::intrinsics::FloatBuiltin::from_name("is_nan")
+            .unwrap()
+            .intrinsic(numerics::intrinsics::FloatFormat::F64);
         let module = module(meaning);
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();

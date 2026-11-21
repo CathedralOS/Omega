@@ -1,17 +1,14 @@
-# fma rounding
+# Fused and separately rounded multiply-add
 
-Compile-scope probe. Imports `omega::language::core::float_operations`.
-
-- `F32::fused_multiply_add`/`F64::fused_multiply_add` round once —
-  positive residual where `multiply_then_add` (two roundings)
-  cancels to exactly 0.
-- x86-64 requires `builder.x86_deployment_features =
-  X86DeploymentFeatures::AvxFma3` in build.omg — fused FMA is a
-  deployment-feature admission, not ambient.
-
-Compile-checked only (no ProcessExit provider):
+The program evaluates `(1 + epsilon) * (1 + epsilon) - (1 + 2 * epsilon)`
+in both binary32 and binary64. Here `epsilon` is the distance from one to
+the next larger representable value. Fused multiply-add must produce exactly
+`epsilon * epsilon`. Rounding the product first must produce zero. The program
+exits 0 when both precisions satisfy those checks and a second fused call
+preserves the first result.
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/fma_rounding/main.omg
-mbx run -p omega -- packages update --project samples/cli/probes/fma_rounding
+omega run --both samples/cli/probes/fma_rounding/build.omg < /dev/null
 ```
+
+The x86-64 build explicitly selects `X86DeploymentFeatures::AvxFma3`.

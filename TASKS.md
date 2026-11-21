@@ -105,7 +105,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **LIBRARY-RESPONSIBILITY-NAMES.** Migrate `std` to `system` and `alloc` to `allocation` across imports, registrations, sealed references, fixtures and docs. Preserve exact primitive ownership and the hosted, UEFI and explicit-storage customers. [Library names](wiki/spec/build/declarations.md#library-responsibilities-and-names)
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Complete the handoff from [source provider publication](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply) to [native admission](source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs). Bind external realizations and calling plans to the exact requirement, provider, target and published program.
-  - Finish provider-backed operator, opaque representation, constant and review cases, including float/FMA and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
+  - Finish provider-backed operator, opaque representation, constant and review cases, including the remaining floating-point and GUI customers. Check provider-aware evaluation of constants under the plan that selected them.
   - Preserve a rootless package's private `SelectedAnswer` choice for public `Answer::read() -> u32` in UEFI review. Recover the exact source contract without inventing a runnable entry.
   - Preserve the selected implementation's authored `reaches ReadCapability` and its checked effects independently of its requirement in [reviewed service rows](samples/cli/probes/reviewed_service_rows).
 

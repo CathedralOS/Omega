@@ -67,6 +67,18 @@ fn compare(source_text: &str) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
 }
 
 #[test]
+fn a_qualified_contract_call_keeps_its_entry_when_bodies_are_completed() {
+    compare(
+        r#"
+        machine Flags::identity(flag: bool) -> bool { flag }
+        machine check(flag: bool) -> bool
+        ensures result == Flags::identity(flag)
+        { flag }
+        "#,
+    );
+}
+
+#[test]
 fn call_results_keep_nested_calls_and_preceding_locals_without_runtime_body_rows() {
     let (full, selected) = compare(
         r#"

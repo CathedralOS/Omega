@@ -8,10 +8,7 @@ machine store_past_end(moment: @mut Moment, value: f64) {
     moment.differences[3] = value;
 }
 
-data Main {
-    moment: Moment;
-}
-
-machine Main::main(main: @mut Main) {
-    store_past_end(@mut main.moment, 1.0);
+machine entry_start() {
+    let mut moment: Moment;
+    store_past_end(@mut moment, 1.0);
 }
