@@ -125,9 +125,7 @@ pub fn prepare_compilation(
             )
             .map_err(|detail| terminal_check_tables::Refusal {
                 reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                machine: semantic_vocabulary::MachineId::new(1)
-                    .expect("nonzero diagnostic identity"),
-                concerns: terminal_check_tables::Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Program,
                 source_span: None,
                 detail: detail.to_owned(),
             })?;

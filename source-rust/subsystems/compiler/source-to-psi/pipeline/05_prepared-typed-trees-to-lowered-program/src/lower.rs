@@ -676,8 +676,10 @@ impl Lowering<'_> {
                 .get_mut(block)
                 .ok_or_else(|| Refusal {
                     reason: RefusalReason::ForeignIdentity,
-                    machine: self.id,
-                    concerns: Construct::Block(block),
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        self.id,
+                        Construct::Block(block),
+                    ),
                     source_span: None,
                     detail: String::from("a parameter block is missing"),
                 })?
@@ -959,8 +961,7 @@ impl<'a> Lowering<'a> {
             .and_then(|index| self.value_qualifications.get_mut(index))
             .ok_or_else(|| terminal_check_tables::Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: self.id,
-                concerns: Construct::Machine,
+                site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
                 source_span: None,
                 detail: "a qualification names a value outside this lowering".into(),
             })?;
@@ -1245,8 +1246,10 @@ impl<'a> Lowering<'a> {
     fn internal(&self, detail: &str) -> Refusal {
         Refusal {
             reason: RefusalReason::Unsupported,
-            machine: self.id,
-            concerns: self.current.map_or(Construct::Machine, Construct::Block),
+            site: terminal_check_tables::RefusalSite::Machine(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+            ),
             source_span: None,
             detail: format!("completion {detail}"),
         }
@@ -1260,8 +1263,7 @@ impl<'a> Lowering<'a> {
         let id = self.id;
         self.slots.get_mut(slot).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: id,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
@@ -1270,8 +1272,7 @@ impl<'a> Lowering<'a> {
     fn slot_type(&self, slot: usize) -> Checked<ValueType> {
         self.slot_types.get(slot).copied().ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
-            machine: self.id,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
         })

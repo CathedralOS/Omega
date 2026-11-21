@@ -153,34 +153,33 @@ pub(crate) struct Excess {
     pub outside: Vec<Permission>,
 }
 
-fn fault(machine: MachineId, detail: &str) -> terminal_check_tables::Refusal {
-    refusal(
-        RefusalReason::ForeignIdentity,
-        machine,
-        Construct::Machine,
-        detail,
-    )
+fn fault(
+    site: impl Into<terminal_check_tables::RefusalSite>,
+    detail: &str,
+) -> terminal_check_tables::Refusal {
+    terminal_check_tables::Refusal::at(RefusalReason::ForeignIdentity, site.into(), detail)
 }
 
 /// Canonical service rows are ordered, declared and closed under parents.
 /// Static header admission uses this same operation as executable calls.
 pub(crate) fn well_formed_reach(
     module: &TerminalModule,
-    machine: MachineId,
+    site: impl Into<terminal_check_tables::RefusalSite>,
     row: &[ServiceId],
 ) -> Checked<()> {
-    service_row(module, machine, row, true)
+    service_row(module, site, row, true)
 }
 
 fn service_row(
     module: &TerminalModule,
-    machine: MachineId,
+    site: impl Into<terminal_check_tables::RefusalSite>,
     row: &[ServiceId],
     parents: bool,
 ) -> Checked<()> {
+    let site = site.into();
     if row.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(fault(
-            machine,
+            site,
             "published service row is not strictly increasing",
         ));
     }
@@ -189,14 +188,14 @@ fn service_row(
             .interfaces.services
             .iter()
             .find(|declaration| declaration.id == *service)
-            .ok_or_else(|| fault(machine, "published row names an undeclared service"))?;
+            .ok_or_else(|| fault(site, "published row names an undeclared service"))?;
         if parents
             && declaration
                 .parents
                 .iter()
                 .any(|parent| row.binary_search(parent).is_err())
         {
-            return Err(fault(machine, "service reach row omits a boundary parent"));
+            return Err(fault(site, "service reach row omits a boundary parent"));
         }
     }
     Ok(())

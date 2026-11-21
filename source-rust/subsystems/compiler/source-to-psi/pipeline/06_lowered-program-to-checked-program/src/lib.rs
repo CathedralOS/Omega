@@ -72,6 +72,7 @@ mod operational;
 mod owned_cleanup;
 mod places;
 mod prove;
+mod publication;
 mod rankings;
 mod refinement;
 mod result_summaries;
@@ -79,7 +80,6 @@ mod reuse;
 mod static_contracts;
 mod static_reach;
 mod verdict;
-mod publication;
 pub use publication::{CheckedPublication, judge_publication};
 
 #[cfg(any(test, feature = "test-support"))]
@@ -386,8 +386,10 @@ impl Discharge {
                 )
                 .map_err(|error| Refusal {
                     reason: RefusalReason::Unsupported,
-                    machine,
-                    concerns: Construct::Obligation(obligation),
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        machine,
+                        Construct::Obligation(obligation),
+                    ),
                     source_span: None,
                     detail: format!("evidence encoding {error:?}"),
                 })?;
@@ -669,8 +671,7 @@ fn refusal(
 ) -> Refusal {
     Refusal {
         reason,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: detail.to_owned(),
     }
@@ -1100,8 +1101,7 @@ fn check_prepared_machine(
             {
                 let unestablished = Refusal {
                     reason: RefusalReason::Unestablished,
-                    machine: id,
-                    concerns: consumption.at,
+                    site: terminal_check_tables::RefusalSite::Machine(id, consumption.at),
                     source_span: None,
                     detail: format!(
                         "zeroed storage of a gated type is used before its requires holds: {}",
@@ -1660,8 +1660,7 @@ fn semantics_refusal(
 ) -> impl Fn(terminal_semantics::OperationSemanticError) -> Refusal {
     move |error| Refusal {
         reason: RefusalReason::Unsupported,
-        machine,
-        concerns: Construct::Operation(operation),
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Operation(operation)),
         source_span: None,
         detail: format!("operation semantics {error:?}"),
     }
@@ -2439,8 +2438,7 @@ fn unproved(
 ) -> Refusal {
     Refusal {
         reason: RefusalReason::Unproved(cause),
-        machine: id,
-        concerns: Construct::Obligation(obligation),
+        site: terminal_check_tables::RefusalSite::Machine(id, Construct::Obligation(obligation)),
         source_span: None,
         detail,
     }

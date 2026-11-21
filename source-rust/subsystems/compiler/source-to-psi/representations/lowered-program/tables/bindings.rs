@@ -106,8 +106,7 @@ pub fn intern_projection(
 ) -> crate::Checked<ExactPlaceId> {
     let missing = || crate::Refusal {
         reason: crate::RefusalReason::ForeignIdentity,
-        machine,
-        concerns: crate::Construct::Place(parent),
+        site: crate::RefusalSite::Machine(machine, crate::Construct::Place(parent)),
         source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     };
@@ -141,8 +140,7 @@ pub fn record_write(
 ) -> crate::Checked<()> {
     let place = places.get_mut(row.place).ok_or_else(|| crate::Refusal {
         reason: crate::RefusalReason::ForeignIdentity,
-        machine,
-        concerns: crate::Construct::Place(row.place),
+        site: crate::RefusalSite::Machine(machine, crate::Construct::Place(row.place)),
         source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     })?;

@@ -50,8 +50,7 @@ pub(crate) fn publish_write_frames(
 
     let problem = |machine, concerns, detail: String| Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail,
     };
@@ -1025,8 +1024,10 @@ impl Lowering<'_> {
             .get_mut(invocation)
             .ok_or(Refusal {
                 reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Invocation(invocation),
+                site: terminal_check_tables::RefusalSite::Machine(
+                    id,
+                    Construct::Invocation(invocation),
+                ),
                 source_span: None,
                 detail: String::from("invocation is past the end of this machine"),
             })?

@@ -549,9 +549,12 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
         }
         // The invocation may execute only through this call. Its outstanding
         // result cannot supply a checked body for compiler evaluation.
-        if body.blocks.iter().any(|block| matches!(
-            block.terminator, terminal_psi::Terminator::PendingNormalCompletion { .. }
-        )) {
+        if body.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                terminal_psi::Terminator::PendingNormalCompletion { .. }
+            )
+        }) {
             if header.supplies_checked_body {
                 return Err(invalid(machine, "an unfinished Build suffix claims to supply a checked callable body"));
             }
@@ -2074,12 +2077,15 @@ impl<'a> Roster<'a> {
     }
 
     fn locate(self, mut refused: Refusal) -> Refusal {
-        let names = self.names.get(refused.machine);
+        let terminal_check_tables::RefusalSite::Machine(machine, concerns) = refused.site else {
+            return refused;
+        };
+        let names = self.names.get(machine);
         if refused.source_span.is_none() {
             refused.source_span = self
                 .sources
-                .get(refused.machine)
-                .and_then(|sources| site_of(sources, refused.concerns))
+                .get(machine)
+                .and_then(|sources| site_of(sources, concerns))
                 .and_then(SourceOrigin::authored_span)
                 .or_else(|| names.and_then(|names| names.declared));
         }
@@ -2109,18 +2115,22 @@ fn source_of(
 }
 
 fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
-    match refused.reason {
-        RefusalReason::Unsupported => Ok(RouteVerdict::FallBack(refused)),
+    let (reason, site) = (refused.reason, refused.site);
+    match (reason, site) {
+        (RefusalReason::Unsupported, _) => Ok(RouteVerdict::FallBack(refused)),
         // Elaboration or discharge refused the closure outright because some
         // storage is used unestablished: a rejection of the program, with no
         // source correspondence to look its construct up in.
-        RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
+        (
+            RefusalReason::Unestablished,
+            terminal_check_tables::RefusalSite::Machine(machine, at),
+        ) => Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             violations: Vec::new(),
             unproved: Vec::new(),
             unestablished: vec![UnestablishedUse {
-                machine: refused.machine,
-                at: refused.concerns,
+                machine,
+                at,
                 site: refused.source_span.map(SourceOrigin::Authored),
                 detail: refused.detail,
                 declared: None,
@@ -2130,22 +2140,21 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         }),
         // A rule the source form breaks, whoever found it: the reader of
         // the typed trees, before anything was lowered.
-        RefusalReason::Violation => Ok(RouteVerdict::Rejected {
-            formations: Vec::new(),
-            violations: vec![RuleViolation {
-                machine: refused.machine,
-                site: refused.source_span,
-                statement: refused.detail,
-            }],
-            unproved: Vec::new(),
-            unestablished: Vec::new(),
-            conflicts: Vec::new(),
-            exceeded: Vec::new(),
-        }),
-        RefusalReason::Unproved(_)
-        | RefusalReason::NotConserved
-        | RefusalReason::Conflict
-        | RefusalReason::ForeignIdentity => Err(refused),
+        (RefusalReason::Violation, terminal_check_tables::RefusalSite::Machine(machine, _)) => {
+            Ok(RouteVerdict::Rejected {
+                formations: Vec::new(),
+                violations: vec![RuleViolation {
+                    machine,
+                    site: refused.source_span,
+                    statement: refused.detail,
+                }],
+                unproved: Vec::new(),
+                unestablished: Vec::new(),
+                conflicts: Vec::new(),
+                exceeded: Vec::new(),
+            })
+        }
+        _ => Err(refused),
     }
 }
 

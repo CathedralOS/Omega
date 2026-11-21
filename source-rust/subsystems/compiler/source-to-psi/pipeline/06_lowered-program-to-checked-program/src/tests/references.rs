@@ -846,9 +846,9 @@ machine entry() crashes none {
         panic!("missing lifetime evidence must refuse the selected call: {rejected:?}");
     };
     assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(refused.machine, caller);
+    assert_eq!(refused.site.in_machine().unwrap().0, caller);
     assert_eq!(
-        refused.concerns,
+        refused.site.in_machine().unwrap().1,
         terminal_check_tables::Construct::Operation(operation)
     );
     assert_eq!(refused.detail, detail);

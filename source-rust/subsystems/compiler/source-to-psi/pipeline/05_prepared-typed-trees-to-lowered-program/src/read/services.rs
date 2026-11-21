@@ -25,8 +25,7 @@ use crate::lowering::body::{
 pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         source_span: None,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         reason: RefusalReason::Unsupported,
         detail: detail.into(),
     }

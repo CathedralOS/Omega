@@ -191,8 +191,7 @@ impl Program<'_> {
         }
         let fail = |detail: &str| Refusal {
             source_span: None,
-            machine,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             reason: RefusalReason::ForeignIdentity,
             detail: detail.into(),
         };
@@ -400,8 +399,7 @@ impl Program<'_> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
             source_span: None,
-            machine,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             reason: RefusalReason::ForeignIdentity,
             detail,
         };

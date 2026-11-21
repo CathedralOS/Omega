@@ -10,8 +10,7 @@ fn refusal(id: MachineId, detail: String) -> Refusal {
     Refusal {
         source_span: None,
         reason: RefusalReason::Unsupported,
-        machine: id,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
         detail: format!("contract {detail}"),
     }
 }

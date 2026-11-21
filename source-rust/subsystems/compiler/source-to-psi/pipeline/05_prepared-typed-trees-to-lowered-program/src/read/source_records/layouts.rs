@@ -22,8 +22,7 @@ use super::{Program, malformed};
 fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         reason: RefusalReason::Unsupported,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.into(),
     }

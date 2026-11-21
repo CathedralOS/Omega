@@ -20,8 +20,7 @@ fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         source_span: None,
         reason: RefusalReason::Unsupported,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         detail: detail.into(),
     }
 }
@@ -206,8 +205,7 @@ impl<'t> Program<'t> {
                 return Err(Refusal {
                     source_span: None,
                     reason: RefusalReason::ForeignIdentity,
-                    machine,
-                    concerns: Construct::Machine,
+                    site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
                     detail: "equal callable identities lower to different lifetime binders"
                         .to_owned(),
                 });
@@ -238,8 +236,7 @@ impl<'t> Program<'t> {
                 return Err(Refusal {
                     source_span: None,
                     reason: RefusalReason::ForeignIdentity,
-                    machine,
-                    concerns: Construct::Machine,
+                    site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
                     detail: "equal callable identities lower to different contracts".to_owned(),
                 });
             }

@@ -75,8 +75,7 @@ impl BoundaryNamespace {
         declarations: Option<&crate::lowering::read::Program<'_>>,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
-            machine: context,
-            concerns: Construct::Machine,
+            site: terminal_check_tables::RefusalSite::Machine(context, Construct::Machine),
             reason: RefusalReason::Unsupported,
             source_span: None,
             detail: detail.to_owned(),

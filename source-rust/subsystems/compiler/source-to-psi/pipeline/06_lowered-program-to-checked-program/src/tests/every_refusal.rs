@@ -218,5 +218,6 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
     assert!(refused.iter().all(|refused| refused.detail.contains(
         "whole-referent restoration requires unqualified nonlinear owned storage without claims"
     )));
-    assert!(refused[0].machine < refused[1].machine, "{refused:#?}");
+    let machines: Vec<_> = refused.iter().map(|r| r.site.in_machine().unwrap().0).collect();
+    assert!(machines[0] < machines[1], "{refused:#?}");
 }

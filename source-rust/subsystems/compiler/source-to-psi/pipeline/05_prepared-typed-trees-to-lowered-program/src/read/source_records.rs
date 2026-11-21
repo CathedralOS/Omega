@@ -1139,8 +1139,7 @@ impl Program<'_> {
 fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
     Refusal {
         reason: RefusalReason::ForeignIdentity,
-        machine,
-        concerns: Construct::Machine,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.into(),
     }

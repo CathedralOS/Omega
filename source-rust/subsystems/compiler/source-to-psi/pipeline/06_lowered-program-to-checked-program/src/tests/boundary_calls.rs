@@ -1676,10 +1676,15 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .expect("the authored call's operational violation");
         let call = text.rfind("read(").expect("the authored boundary call");
         assert_eq!(site.span, source_text::Span::new(call, call + "read".len()));
-        let terminal_check_tables::Construct::Operation(operation) = refusal.concerns else {
+        let terminal_check_tables::Construct::Operation(operation) =
+            refusal.site.in_machine().unwrap().1
+        else {
             panic!("the boundary has a normal call operation");
         };
-        let origins = elaboration.sources.get(refusal.machine).unwrap();
+        let origins = elaboration
+            .sources
+            .get(refusal.site.in_machine().unwrap().0)
+            .unwrap();
         let full = origins
             .operations
             .get(operation)
@@ -2591,7 +2596,10 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
     // Portable publication needs a real source owner before the anonymous
     // specialization can even ask for a hermetic template identity.
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(refusal.concerns, terminal_check_tables::Construct::Machine);
+    assert_eq!(
+        refusal.site.in_machine().unwrap().1,
+        terminal_check_tables::Construct::Machine
+    );
     assert!(
         refusal
             .detail
