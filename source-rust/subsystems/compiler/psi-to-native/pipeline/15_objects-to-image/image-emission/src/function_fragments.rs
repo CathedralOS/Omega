@@ -2914,7 +2914,7 @@ mod production {
             )?;
             for attribution in rows {
                 semantic_code_attribution.push(ObjectCodeAttribution {
-                    machine: machine,
+                    machine,
                     text_offset: offset
                         .checked_add(attribution.code_offset)
                         .ok_or(Error::Overflow)?,
