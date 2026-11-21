@@ -5,7 +5,7 @@
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, IntegerMathTerm, PlaceId, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 
 /// What each name of a clause stands for where the clause is used. A clause
@@ -35,6 +35,42 @@ pub trait ClauseBindings {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Self::Error>;
+    /// The selectors already name values in the receiving scope. When every
+    /// selector is concrete, the ordinary field observation owns the read.
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        let fixed = path
+            .iter()
+            .map(|step| match step {
+                ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
+                ScalarReadProjection::Static(step) => Some(*step),
+                ScalarReadProjection::Index(index) => {
+                    let (_, literal) = index.integer_value()?;
+                    let index = match literal {
+                        semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                            u64::try_from(value).ok()?
+                        }
+                        semantic_vocabulary::IntegerValue::Signed(value) => {
+                            u64::try_from(value).ok()?
+                        }
+                    };
+                    Some(CanonicalStructuralPathSegment::FixedIndex(index))
+                }
+                ScalarReadProjection::Extent => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                Self::Error::from(
+                    "indexed clause needs a current observation of its selected storage",
+                )
+            })?;
+        self.field(ContentPlaceVersion::Current, root, &fixed, ty)
+    }
+
     /// A conservative set of values this same scalar cell may hold. Goal
     /// substitution can require its predicate for every alternative; ordinary
     /// substitution and knowledge publication never use this approximation.
@@ -338,6 +374,15 @@ impl<Error: From<&'static str>> ClauseBindings for GoalAlternatives<'_, Error> {
         self.select(key, scalar_type, values)
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Error> {
+        self.bindings.structural_read(root, path, ty)
+    }
+
     fn extent(
         &mut self,
         root: PlaceId,
@@ -599,7 +644,14 @@ fn bound_term<Error: From<&'static str>>(
                         .pop()
                         .ok_or(Error::from("clause computation lost a resolved operand"))?;
                 }
-                bindings.computed(term)?
+                match term {
+                    ScalarTerm::StructuralRead {
+                        root,
+                        path,
+                        scalar_type,
+                    } => bindings.structural_read(root, &path, scalar_type)?,
+                    other => bindings.computed(other)?,
+                }
             }
             Pending::Visit(term) => match term {
                 ScalarTerm::Value { id, scalar_type } => bindings.value(id, scalar_type)?,
@@ -634,16 +686,12 @@ fn bound_term<Error: From<&'static str>>(
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)
                 | ScalarTerm::IeeeFloatLiteral(_) => term,
-                ScalarTerm::StructuralRead { .. } => {
-                    return Err(Error::from(
-                        "clause structural read is outside the scalar subset",
-                    ));
-                }
                 mut term => {
                     let first = pending.len();
+                    let storage = matches!(term, ScalarTerm::StructuralRead { .. });
                     let operands = term.operands_mut();
                     let count = operands.len();
-                    if count == 0 {
+                    if count == 0 && !storage {
                         return Err(Error::from("clause term outside the scalar subset"));
                     }
                     // Move each operand once. Every temporary is replaced
