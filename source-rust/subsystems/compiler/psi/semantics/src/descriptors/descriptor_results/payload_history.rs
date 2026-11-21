@@ -775,7 +775,13 @@ fn payload_contract_at_cut(
                             }
                         }
                     }
-                    None => clear(&mut after.values),
+                    None => {
+                        let private = machine.private_observation_inputs.get(&current);
+                        clear_except(&mut after.values, |place| {
+                            private.is_some_and(|inputs| inputs.contains(place))
+                        });
+                    }
+
                 }
             } else if let Some(writes) = machine.payload_invalidations.get(&current) {
                 for query in writes {
@@ -1489,7 +1495,14 @@ fn observe_scalar(
 }
 
 fn clear(state: &mut PayloadContracts) {
-    for contract in state.values_mut() {
+    clear_except(state, |_| false)
+}
+
+fn clear_except(state: &mut PayloadContracts, preserves: impl Fn(&PlaceId) -> bool) {
+    for (place, contract) in &mut state.0 {
+        if preserves(place) {
+            continue;
+        }
         if contract.qualifications.is_empty()
             && contract.projected_qualifications.is_empty()
             && contract.scalar_observations.is_empty()

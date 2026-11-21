@@ -83,6 +83,7 @@ fn copy_graph() -> (Vec<StructuralTypeDeclaration>, DescriptorMachine) {
         payload_scalar_bindings: BTreeMap::new(),
         scalar_payload_writes: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
+        private_observation_inputs: Default::default(),
         unresolved_contents_writes: Default::default(),
         storage_derivations: Default::default(),
         calls: BTreeMap::new(),

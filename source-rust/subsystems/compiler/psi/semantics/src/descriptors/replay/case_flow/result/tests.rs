@@ -65,6 +65,7 @@ fn machine(id: u64, root: u64, successors: &[Vec<u32>]) -> DescriptorMachine {
         payload_scalar_bindings: BTreeMap::new(),
         scalar_payload_writes: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
+        private_observation_inputs: Default::default(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
