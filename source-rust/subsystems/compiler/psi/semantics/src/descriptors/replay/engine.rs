@@ -2192,6 +2192,9 @@ impl<'a> Replay<'a> {
         let position = transfer.position();
         let canonical = |location: &DescriptorLocation| {
             if position.is_some() {
+                if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                    return self.canonical_contents_packet(machine, before, location);
+                }
                 self.resolve_storage(machine, before, location, None)?
                     .slot_coordinate(location)
             } else {

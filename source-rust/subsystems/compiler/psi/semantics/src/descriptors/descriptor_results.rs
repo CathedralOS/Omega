@@ -439,6 +439,9 @@ pub fn call_origins_in(
     analysis.call_origins(caller.id, result.place)
 }
 
+pub type DescriptorReadQueries =
+    BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), DescriptorContentsQuery>;
+
 pub struct DescriptorMachine {
     pub id: MachineId,
     pub returns: Option<Vec<(DescriptorPosition, DescriptorLocation)>>,
@@ -453,10 +456,7 @@ pub struct DescriptorMachine {
         BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
-    pub contents_queries: BTreeMap<
-        (DescriptorPosition, DescriptorLocation, DescriptorLocation),
-        DescriptorContentsQuery,
-    >,
+    pub contents_queries: DescriptorReadQueries,
     pub contents_transfers: BTreeMap<DescriptorPosition, Vec<DescriptorContentsTransfer>>,
     pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
     pub payload_entry_predicates: Option<(PropositionContext, Vec<Proposition>)>,
