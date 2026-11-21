@@ -116,15 +116,15 @@ fn fixed_sample_configurations_through_l5() {
 fn current_import_files(main: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     vec![
         ("main.omg", main.to_vec()),
-        ("m/a.omg", include_bytes!("sample_baseline/fixtures/direct_file_imports/m/a.omg").to_vec()),
-        ("m/b.omg", include_bytes!("sample_baseline/fixtures/direct_file_imports/m/b.omg").to_vec()),
+        ("m/a.omg", include_bytes!("fixtures/direct_file_imports/m/a.omg").to_vec()),
+        ("m/b.omg", include_bytes!("fixtures/direct_file_imports/m/b.omg").to_vec()),
     ]
 }
 
 #[test]
 fn directory_import_and_its_missing_import_twin() {
-    let main = include_bytes!("sample_baseline/fixtures/direct_file_imports/main.omg");
-    let twin = include_bytes!("sample_baseline/fixtures/direct_file_imports/missing_import.omg");
+    let main = include_bytes!("fixtures/direct_file_imports/main.omg");
+    let twin = include_bytes!("fixtures/direct_file_imports/missing_import.omg");
     let main = std::str::from_utf8(main).unwrap().replace("\r\n", "\n");
     let twin = std::str::from_utf8(twin).unwrap().replace("\r\n", "\n");
     assert_eq!(main.replace("use m\\A;\n", ""), twin);
@@ -208,8 +208,8 @@ fn a_required_layout_without_a_target_reaches_preparation() {
 #[test]
 fn mismatched_expectations_report_where_compilation_actually_stopped() {
     let read = |bytes: &[u8]| std::str::from_utf8(bytes).unwrap().replace("\r\n", "\n");
-    let twin = read(include_bytes!("sample_baseline/fixtures/direct_file_imports/missing_import.omg"));
-    let main = read(include_bytes!("sample_baseline/fixtures/direct_file_imports/main.omg"));
+    let twin = read(include_bytes!("fixtures/direct_file_imports/missing_import.omg"));
+    let main = read(include_bytes!("fixtures/direct_file_imports/main.omg"));
     let refused = current_import_files(twin.as_bytes());
     let lowered = current_import_files(main.as_bytes());
 

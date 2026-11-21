@@ -1,4 +1,4 @@
-//! Runs the accept and reject fixtures under `fixtures/` against their expected dumps.
+//! Runs the accept and reject fixtures under `tests/fixtures/<feature>/` against their expected dumps.
 
 mod support;
 
@@ -6,15 +6,13 @@ use omega_lexer::lex;
 use std::path::{Path, PathBuf};
 use support::{dump_error, dump_tokens};
 
-fn get_fixture_directory(fixture_group: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("fixtures")
-        .join(fixture_group)
+fn fixtures() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
 #[test]
 fn accept_fixtures_lex_to_their_expected_tokens() {
-    let golden_report = golden::check_directory(&get_fixture_directory("accept"), "omg", |source_bytes| {
+    let golden_report = golden::check_features(&fixtures(), "accept", |_, source_bytes| {
         let tokens = lex(source_bytes).map_err(|lex_error| format!("an accept fixture was rejected:\n{}", dump_error(source_bytes, &lex_error)))?;
 
         spec_corpus::observe_handoff!(
@@ -41,7 +39,7 @@ fn accept_fixtures_lex_to_their_expected_tokens() {
 
 #[test]
 fn reject_fixtures_fail_with_their_expected_error() {
-    let golden_report = golden::check_directory(&get_fixture_directory("reject"), "omg", |source_bytes| match lex(source_bytes) {
+    let golden_report = golden::check_features(&fixtures(), "reject", |_, source_bytes| match lex(source_bytes) {
         Ok(tokens) => Err(format!("a reject fixture was accepted:\n{}", dump_tokens(source_bytes, &tokens))),
         Err(lex_error) => Ok(dump_error(source_bytes, &lex_error)),
     })

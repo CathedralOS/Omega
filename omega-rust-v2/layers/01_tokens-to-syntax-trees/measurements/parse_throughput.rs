@@ -195,17 +195,10 @@ fn main() {
 
 /// Reads the accept fixtures in stable filename order and preserves their file boundaries.
 fn read_fixtures(only_filter: Option<&str>) -> Vec<Vec<u8>> {
-    let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/accept");
+    let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
 
-    let mut fixture_paths: Vec<_> = match std::fs::read_dir(&fixture_directory) {
-        Ok(directory_entries) => directory_entries
-            .filter_map(|directory_entry| directory_entry.ok().map(|entry| entry.path()))
-            .filter(|fixture_path| {
-                fixture_path
-                    .extension()
-                    .is_some_and(|extension| extension == "omg")
-            })
-            .collect(),
+    let mut fixture_paths: Vec<_> = match golden::feature_inputs(&fixture_directory, "accept") {
+        Ok(paths) => paths,
         Err(read_error) => {
             eprintln!("could not read {}: {read_error}", fixture_directory.display());
             std::process::exit(1);
@@ -219,7 +212,6 @@ fn read_fixtures(only_filter: Option<&str>) -> Vec<Vec<u8>> {
                 .is_some_and(|file_name| file_name.to_string_lossy().contains(wanted_text))
         })
     });
-    fixture_paths.sort();
 
     let mut fixtures = Vec::new();
 

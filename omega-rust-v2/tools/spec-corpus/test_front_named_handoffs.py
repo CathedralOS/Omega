@@ -27,13 +27,13 @@ def inspect(**logs):
 class NamedRequirements(unittest.TestCase):
     def test_a_failed_parser_fixture_cannot_satisfy_either_side_of_a_handoff(self):
         target, test, _ = handoffs.GOLDEN_TESTS["L1"]
-        receipt = "OMEGA_GOLDEN_MATCH\tlayers/01_tokens-to-syntax-trees/fixtures/accept/right_shift.omg"
+        receipt = "OMEGA_GOLDEN_MATCH\tlayers/01_tokens-to-syntax-trees/tests/fixtures/operators/accept/right_shift.omg"
         for status in ("ok", "FAILED"):
             _, report = inspect(L1=libtest(f"tests/{target}.rs", (test, status, [receipt])))
             producer = next(r for r in report["handoff_rules"]["L1"] if r["rule"] == "right shift")
             consumer = next(r for r in report["handoff_rules"]["L0"] if r["rule"] == "R16")
-            self.assertEqual("accept/right_shift.omg" in producer["direct"], status == "ok")
-            self.assertEqual(any("accept/right_shift.omg" in item for item in consumer["consumer"]), status == "ok")
+            self.assertEqual("operators/accept/right_shift.omg" in producer["direct"], status == "ok")
+            self.assertEqual(any("operators/accept/right_shift.omg" in item for item in consumer["consumer"]), status == "ok")
 
     def test_unknown_contract_reference_is_not_silently_dropped(self):
         for cell in ("`unclosed", "byte_cases::missing", "`other_target::test`", "`one`, `one`"):
@@ -42,8 +42,8 @@ class NamedRequirements(unittest.TestCase):
 
     def test_l0_named_pair_and_exact_passing_emitter_are_individually_required(self):
         _, _, test = handoffs.GOLDEN_TESTS["L0"]
-        fixture = "reject/invalid_suffix_f16.omg"
-        marker = "OMEGA_GOLDEN_MATCH\tlayers/00_bytes-to-tokens/fixtures/" + fixture
+        fixture = "numbers/reject/invalid_suffix_f16.omg"
+        marker = "OMEGA_GOLDEN_MATCH\tlayers/00_bytes-to-tokens/tests/fixtures/" + fixture
         other = marker.replace("f16.omg", "usize.omg")
         is_file = Path.is_file
         for fault in (None, ".omg", ".expected", "missing marker", "duplicate", "wrong test", "FAILED"):
@@ -56,15 +56,15 @@ class NamedRequirements(unittest.TestCase):
                 with patch.object(Path, "is_file", lambda p: p.name != f"invalid_suffix_f16{fault}" and is_file(p)):
                     items, report = inspect(L0=log)
                 self.assertEqual(items["R11", fixture], fault is None)
-                self.assertEqual(items["R11", "reject/invalid_suffix_usize.omg"], fault not in {"wrong test", "FAILED"})
+                self.assertEqual(items["R11", "numbers/reject/invalid_suffix_usize.omg"], fault not in {"wrong test", "FAILED"})
                 row = next(r for r in report["handoff_rules"]["L0"] if r["rule"] == "R11")
                 self.assertEqual(fixture in row.get("refusals", []), fault is None)
                 self.assertEqual(any(f"unconfirmed named fixture: {fixture}" in e for e in report["measurement_errors"]), fault is not None)
 
     def test_reviewed_registration_cannot_recredit_a_missing_fixture_partner(self):
-        fixture = "reject/codepoint_escape.omg"  # R13 also registers this in reviewed_handoffs.tsv.
+        fixture = "quoted_literals/reject/codepoint_escape.omg"  # R13 also registers this in reviewed_handoffs.tsv.
         test = handoffs.GOLDEN_TESTS["L0"][2]
-        log = libtest("tests/golden_fixtures.rs", (test, "ok", ["OMEGA_GOLDEN_MATCH\tlayers/00_bytes-to-tokens/fixtures/" + fixture]))
+        log = libtest("tests/golden_fixtures.rs", (test, "ok", ["OMEGA_GOLDEN_MATCH\tlayers/00_bytes-to-tokens/tests/fixtures/" + fixture]))
         is_file = Path.is_file
         with patch.object(Path, "is_file", lambda p: p.name != "codepoint_escape.expected" and is_file(p)):
             items, report = inspect(L0=log)

@@ -622,33 +622,33 @@ language/generics.md:640), and the many examples that are fragments
 
 ## Rules and their fixtures
 
-Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
+Every fixture is a whole file under `tests/fixtures/<feature>/<accept|reject>/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
 error it must produce. 23 accept, 103 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
-| file, items | `empty`, `comments_only` | `top_level_expression`, `top_level_let_statement`, `stray_closing_brace`, `boundary_data` |
-| use, const | `use_and_const` | `use_with_glob`, `use_without_semicolon`, `public_use`, `const_without_value` |
-| data | `data` | `data_without_body`, `data_member_without_semicolon`, `data_case_without_name`, `stable_number_is_not_an_integer`, `attribute_list_unclosed`, `attribute_setting_without_value`, `dropped_without_by`, `semicolon_before_data_body` |
-| domain | `domains` | `domain_with_body`, `domain_composition_with_comma` |
-| trait, conformance | `traits_and_conformances` | `trait_requirement_with_body`, `trait_with_field`, `restriction_without_star`, `conformance_with_statement`, `conformance_without_body`, `hypothesis_without_semicolon` |
-| machine | `machines` | `missing_machine_params`, `missing_param_type`, `missing_result_type`, `machine_without_body_or_semicolon`, `operator_machine_with_unknown_operator`, `unclosed_params`, `unclosed_body` |
-| mathematical let | `math_let` | `math_let_without_type`, `public_math_let` |
-| generic parameters | `generic_params` | `generic_params_empty`, `generic_params_unclosed`, `const_param_without_type` |
-| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_value_starting_with_membership`, `generic_arg_greater_than`, `turbofish_in_type` |
-| types | `types`, `reference_to_reference`, `job_queue` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `logical_and_as_type`, `ampersand_reference_type` |
-| header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
-| statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
-| match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `block_as_initializer`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
-| patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
-| binary operators | `expressions_binary` | `missing_operand`, `two_operators`, `chained_relational_comparison`, `chained_equality_comparison`, `comparison_of_a_comparison`, `comparison_as_right_operand`, `range_written_as_mathematics` |
-| right shift | `right_shift` | `right_shift_with_space` |
-| prefixes, postfixes, primaries | `expressions_unary_postfix`, `reference_to_reference` | `logical_and_as_borrow`, `ampersand_borrow`, `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
-| casts | `casts` | `cast_then_arithmetic`, `cast_then_less_than` |
-| assembly | `assembly` | `asm_instructions_without_separator`, `asm_transition_without_target`, `asm_machine_holding_a_machine`, `asm_block_unclosed` |
-| no reserved words | `words_are_not_reserved` | covered by the rows above: each keyword test has a fixture on each side |
-| nesting limit | 128 nested data declarations parse on a 1 MB stack | 129 nested data declarations, `nesting_too_deep`, and 17 constructs at 100,000 levels in `tests/hostile_inputs.rs` |
+| file, items | `file_items/accept/empty`, `file_items/accept/comments_only` | `file_items/reject/top_level_expression`, `file_items/reject/top_level_let_statement`, `file_items/reject/stray_closing_brace`, `file_items/reject/boundary_data` |
+| use, const | `imports_and_constants/accept/use_and_const` | `imports_and_constants/reject/use_with_glob`, `imports_and_constants/reject/use_without_semicolon`, `imports_and_constants/reject/public_use`, `imports_and_constants/reject/const_without_value` |
+| data | `data/accept/data` | `data/reject/data_without_body`, `data/reject/data_member_without_semicolon`, `data/reject/data_case_without_name`, `data/reject/stable_number_is_not_an_integer`, `data/reject/attribute_list_unclosed`, `data/reject/attribute_setting_without_value`, `data/reject/dropped_without_by`, `data/reject/semicolon_before_data_body` |
+| domain | `domains/accept/domains` | `domains/reject/domain_with_body`, `domains/reject/domain_composition_with_comma` |
+| trait, conformance | `traits_and_conformances/accept/traits_and_conformances` | `traits_and_conformances/reject/trait_requirement_with_body`, `traits_and_conformances/reject/trait_with_field`, `traits_and_conformances/reject/restriction_without_star`, `traits_and_conformances/reject/conformance_with_statement`, `traits_and_conformances/reject/conformance_without_body`, `traits_and_conformances/reject/hypothesis_without_semicolon` |
+| machine | `machines/accept/machines` | `machines/reject/missing_machine_params`, `machines/reject/missing_param_type`, `machines/reject/missing_result_type`, `machines/reject/machine_without_body_or_semicolon`, `machines/reject/operator_machine_with_unknown_operator`, `machines/reject/unclosed_params`, `machines/reject/unclosed_body` |
+| mathematical let | `mathematics/accept/math_let` | `mathematics/reject/math_let_without_type`, `mathematics/reject/public_math_let` |
+| generic parameters | `generics/accept/generic_params` | `generics/reject/generic_params_empty`, `generics/reject/generic_params_unclosed`, `generics/reject/const_param_without_type` |
+| generic arguments | `generics/accept/generic_arguments` | `generics/reject/generic_args_empty`, `generics/reject/generic_args_unclosed`, `generics/reject/generic_arg_value_starting_with_type`, `generics/reject/generic_arg_value_starting_with_membership`, `generics/reject/generic_arg_greater_than`, `generics/reject/turbofish_in_type` |
+| types | `types/accept/types`, `types/accept/reference_to_reference`, `types/accept/job_queue` | `types/reject/array_type_without_length`, `types/reject/slice_type_unclosed`, `types/reject/type_missing_after_reference`, `types/reject/qualified_type_without_domain`, `types/reject/logical_and_as_type`, `types/reject/ampersand_reference_type` |
+| header clauses | `header_clauses/accept/clauses` | `header_clauses/reject/semicolon_before_body`, `header_clauses/reject/comma_before_body`, `header_clauses/reject/clause_without_predicate`, `header_clauses/reject/terminates_by_without_measure`, `header_clauses/reject/reaches_without_type`, `header_clauses/reject/registers_without_value`, `header_clauses/reject/clobbers_without_name`, `header_clauses/reject/record_literal_in_clause` |
+| statements | `statements/accept/statements` | `statements/reject/if_statement`, `statements/reject/if_statement_parenthesized`, `statements/reject/return_statement`, `statements/reject/compound_assignment`, `statements/reject/crash_statement`, `statements/reject/empty_statement`, `statements/reject/let_with_literal_pattern`, `statements/reject/let_without_semicolon`, `statements/reject/statement_after_tail`, `statements/reject/statement_after_nested_machine`, `statements/reject/transition_not_last` |
+| match, transition | `match_and_transition/accept/match_and_transition` | `match_and_transition/reject/missing_arm_comma`, `match_and_transition/reject/missing_arm_comma_in_transition`, `match_and_transition/reject/fat_arrow_arm`, `match_and_transition/reject/arm_without_result`, `match_and_transition/reject/block_as_initializer`, `match_and_transition/reject/match_without_arms`, `match_and_transition/reject/record_literal_as_subject`, `match_and_transition/reject/transition_as_expression` |
+| patterns | `patterns/accept/patterns` | `patterns/reject/record_pattern_rest_not_last`, `patterns/reject/field_pattern_as_without_name` |
+| binary operators | `operators/accept/expressions_binary` | `operators/reject/missing_operand`, `operators/reject/two_operators`, `operators/reject/chained_relational_comparison`, `operators/reject/chained_equality_comparison`, `operators/reject/comparison_of_a_comparison`, `operators/reject/comparison_as_right_operand`, `operators/reject/range_written_as_mathematics` |
+| right shift | `operators/accept/right_shift` | `operators/reject/right_shift_with_space` |
+| prefixes, postfixes, primaries | `expressions/accept/expressions_unary_postfix`, `types/accept/reference_to_reference` | `expressions/reject/logical_and_as_borrow`, `expressions/reject/ampersand_borrow`, `expressions/reject/unary_plus`, `expressions/reject/unclosed_call`, `expressions/reject/unclosed_index`, `expressions/reject/unclosed_parenthesis`, `expressions/reject/field_access_by_number`, `expressions/reject/path_ending_in_colons`, `expressions/reject/record_literal_missing_comma`, `expressions/reject/record_literal_omission_not_last`, `expressions/reject/selection_without_trait` |
+| casts | `casts/accept/casts` | `casts/reject/cast_then_arithmetic`, `casts/reject/cast_then_less_than` |
+| assembly | `assembly/accept/assembly` | `assembly/reject/asm_instructions_without_separator`, `assembly/reject/asm_transition_without_target`, `assembly/reject/asm_machine_holding_a_machine`, `assembly/reject/asm_block_unclosed` |
+| no reserved words | `words/accept/words_are_not_reserved` | covered by the rows above: each keyword test has a fixture on each side |
+| nesting limit | 128 nested data declarations parse on a 1 MB stack | 129 nested data declarations, `nesting/reject/nesting_too_deep`, and 17 constructs at 100,000 levels in `tests/hostile_inputs.rs` |
 
 Beyond the fixtures, `tests/hostile_inputs.rs` checks that the parser refuses
 without crashing or hanging: every recursive rule nested 100,000 deep on a

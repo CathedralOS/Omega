@@ -1,4 +1,7 @@
 //! Lower a prepared package into owned, target-neutral Psi declarations and machine bodies.
+//! [`lower_package`] takes the frozen trees and returns a [`LoweredPackage`]. The array extent
+//! programs in `tests/fixtures/array_extent/` run through the CLI. For the actual Psi parameter
+//! types and return operands, read `tests/handoff.rs`.
 //!
 //! Start with lowering/package.rs for package assembly. The declarations modules lower
 //! schemas and contracts, and the machines modules lower executable bodies. Downstream consumers read the owned records from the omega-psi crate.

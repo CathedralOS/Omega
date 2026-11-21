@@ -261,21 +261,21 @@ class LayerReportTests(unittest.TestCase):
         self.assertEqual(readiness_exit(self.report), 1)
 
     def test_fixture_evidence_must_come_from_its_comparison(self):
-        line = "OMEGA_GOLDEN_MATCH\tlayers/01_tokens-to-syntax-trees/fixtures/accept/right_shift.omg"
+        line = "OMEGA_GOLDEN_MATCH\tlayers/01_tokens-to-syntax-trees/tests/fixtures/operators/accept/right_shift.omg"
         handoff_evidence.record(self.report, "L1", "tests/golden_fixtures.rs", ("", "some_other_test"), line)
         self.assertFalse(self.report["handoff_observations"]["goldens"])
         self.assertTrue(self.report["measurement_errors"])
 
     def test_other_passing_fixtures_cannot_replace_the_reviewed_refusal(self):
-        witness = next(w for w in reviewed_comparisons.registrations() if w.comparison == "fixture/reject/codepoint_escape.omg")
+        witness = next(w for w in reviewed_comparisons.registrations() if w.comparison == "fixture/quoted_literals/reject/codepoint_escape.omg")
         report = {"last_layer": "L4", "measurement_errors": [], "handoff_observations": {"goldens": {
-            "L0/reject/newline_in_quoted.omg": witness.test}},
+            "L0/quoted_literals/reject/newline_in_quoted.omg": witness.test}},
             "suites": {"L0": {"tests": [{"target": witness.target, "test": witness.test, "status": "ok"}]}}}
         row = {"rule": witness.rule}
         with patch.object(reviewed_comparisons, "registrations", return_value=[witness]):
             reviewed_comparisons.apply(report, {"L0": [row]})
         self.assertFalse(row.get("refusals"))
-        self.assertIn("fixture/reject/codepoint_escape.omg", report["measurement_errors"][0])
+        self.assertIn("fixture/quoted_literals/reject/codepoint_escape.omg", report["measurement_errors"][0])
 
     def test_repeated_fixture_invocations_retain_both_inputs_and_outcomes(self):
         name = "a_different_selector_never_repairs_the_extracted_element"

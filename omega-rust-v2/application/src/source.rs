@@ -1,4 +1,4 @@
-//! Read and parse source files, then resolve an explicitly supplied package. Build a line index on failure.
+//! `read_file` lexes and parses one file. `check_files` resolves the package, runs the requested stage and formats its diagnostics.
 
 use omega_lexer::{LineIndex, SourceSpan};
 use std::{fmt, fs, path::Path};

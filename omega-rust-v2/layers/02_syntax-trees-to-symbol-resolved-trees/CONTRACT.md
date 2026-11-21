@@ -8,8 +8,8 @@ Run `mbx test --locked -p omega-resolver --tests` from the V2 workspace. To reso
 
 | Fixture root | Files to pass after `omega source resolve` | Expected result |
 | --- | --- | --- |
-| [Sibling machine](fixtures/accept/sibling_machine) | `combat/main.omg combat/scoring.omg` | The call selects `combat\score`. |
-| [Child machine](fixtures/reject/child_machine) | `combat/main.omg combat/ai/scoring.omg` | `combat/main.omg:2:5: resolver: unresolved name score` |
+| [Sibling machine](tests/fixtures/directory_lookup/sibling_machine) | `combat/main.omg combat/scoring.omg` | The call selects `combat\score`. |
+| [Child machine](tests/fixtures/directory_lookup/child_machine) | `combat/main.omg combat/ai/scoring.omg` | `combat/main.omg:2:5: resolver: unresolved name score` |
 
 ## Stage interface
 
@@ -51,4 +51,4 @@ An exported domain carries the carrier bound in its defining file. When a librar
 
 The directory and call tests exercise the same resolver as the stage and corpus tests. Stage fixtures exercise the lexer, parser and public resolver. Multi-file fixtures compare forward and reversed inputs. The provenance invariant checks that declaration references occur exactly once in the returned roster and that source, binder, argument and operator spans point back into the originating files. A 10,000-name expression exercises the iterative tree walk. [Stage fixtures](tests/stage.rs) · [Provenance checks](tests/support/mod.rs)
 
-The corpus test resolves each published spec fragment with an empty dependency graph and target vocabulary. It compares the result for each fragment with a checked-in expectation. A refusal records the expected first error. Many examples intentionally omit the surrounding declarations. A successful result here establishes name binding only. [Corpus test](tests/spec_corpus.rs) · [Expected results](fixtures/spec-outcomes.txt)
+The corpus test resolves each published spec fragment with an empty dependency graph and target vocabulary. It compares the result for each fragment with a checked-in expectation. A refusal records the expected first error. Many examples intentionally omit the surrounding declarations. A successful result here establishes name binding only. [Corpus test](tests/spec_corpus.rs) · [Expected results](tests/spec-outcomes.txt)

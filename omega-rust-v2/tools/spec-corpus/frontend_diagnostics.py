@@ -80,7 +80,7 @@ PREPARATION_PAYLOADS = ("TypeError", "PreparationRefusal")
 def preparation_phases(report):
     """Check each public failure variant against its producer assertion and its package CLI twin."""
     errors = report["measurement_errors"]
-    path = "layers/04_typed-trees-to-prepared-trees/src/preparation/mod.rs"
+    path = "layers/04_typed-trees-to-prepared-trees/src/preparation/rounds.rs"
     try:
         declared = diagnostic_kinds.kinds(path, "PreparationFailure", payload=PREPARATION_PAYLOADS)
     except (OSError, ValueError) as error:

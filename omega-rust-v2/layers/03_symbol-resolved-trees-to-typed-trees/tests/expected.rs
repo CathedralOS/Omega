@@ -14,14 +14,14 @@ fn types(values: &[ValueType]) -> String {
 }
 #[test]
 fn typed_fixtures_match_handwritten_expectations() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     for (directory, accepts, evaluation) in [
         ("accept", true, None),
         ("reject", false, None),
         ("prepared/accept", true, Some((7u8, 8u16))),
         ("prepared/reject", false, Some((255, 256))),
     ] {
-        let report = golden::check_directory_named(&root.join(directory), "omg", |_fixture, bytes| {
+        let report = golden::check_features(&root, directory, |_fixture, bytes| {
             let source = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
             let authored = |s: SourceSpan| std::str::from_utf8(s.slice(source.as_bytes()).unwrap()).unwrap();
             let mut lines = Vec::new();

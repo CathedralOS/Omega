@@ -1,6 +1,10 @@
 //! L3 types one resolved Omega stage. It checks declarations across the admitted files,
 //! selects calls and operators, and records the facts later layers must prove.
 //!
+//! The package CLI calls [`type_source_package`]. Preparation calls [`type_source_package_for_preparation`]
+//! for completed trees or a pending value request. Both entries live in `toolchain_declarations/source_package.rs`.
+//! For a computed width, follow `tests/expected.rs` and `tests/fixtures/computed_width/`.
+//!
 //! Start with `typing/type_stage.rs` for pass order. `declarations/` indexes the
 //! names supplied by L2. `type_system/` interprets annotations and specializes types.
 //! `expressions/` checks machine bodies. `contracts/` composes effects and evidence

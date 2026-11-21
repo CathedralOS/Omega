@@ -89,8 +89,8 @@ class TypingSitesTests(unittest.TestCase):
     def test_a_fixture_requires_its_original_source_bytes_location_reason_and_match(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "reject").mkdir()
-            path = root / "reject" / "value.omg"
+            (root / "numbers/reject").mkdir(parents=True)
+            path = root / "numbers/reject" / "value.omg"
             path.write_bytes("π\nbad".encode())
             path.with_suffix(".expected").write_bytes(b"refusal | 2:1 | bad | wrong type\n")
             for mutation in ("none", "omit", "duplicate", "wrong site", "lost text", "missing match"):
@@ -99,16 +99,16 @@ class TypingSitesTests(unittest.TestCase):
                     target = "tests/expected.rs"
                     result = {"test": GOLDEN_TEST, "status": "ok", "target": target}
                     report = {"measurement_errors": [], "suites": {"L3": {"tests": [result]}},
-                              "handoff_observations": {"goldens": {} if mutation == "missing match" else {"L3/reject/value.omg": GOLDEN_TEST}}}
+                              "handoff_observations": {"goldens": {} if mutation == "missing match" else {"L3/numbers/reject/value.omg": GOLDEN_TEST}}}
                     start = 4 if mutation == "wrong site" else 3
                     message = "other type" if mutation == "lost text" else "wrong type"
-                    marker = f"OMEGA_TYPING_RETURN\treject/value.omg\t{SOURCE}/a.rs\t11\t4\trefused\tgame\tfixture.omg\t{start}\t6\t10\t{message}"
+                    marker = f"OMEGA_TYPING_RETURN\tnumbers/reject/value.omg\t{SOURCE}/a.rs\t11\t4\trefused\tgame\tfixture.omg\t{start}\t6\t10\t{message}"
                     for _ in range({"omit": 0, "duplicate": 2}.get(mutation, 1)):
                         record_return(report, "L3", target, (target, GOLDEN_TEST), marker)
                     attach_witnesses(inventory, report, root)
                     self.assertEqual(report["measurement_errors"], [])
                     self.assertEqual(bool(inventory["errors"]), mutation != "none")
-                    self.assertEqual(inventory["rows"][0].get("fixtures", []), ["reject/value.omg"] if mutation == "none" else [])
+                    self.assertEqual(inventory["rows"][0].get("fixtures", []), ["numbers/reject/value.omg"] if mutation == "none" else [])
 
     def test_malformed_or_repeated_test_results_cannot_supply_stage_witnesses(self):
         target, test = "tests/x.rs", "check"

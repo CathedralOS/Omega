@@ -97,7 +97,7 @@ impl<'input, 'text> crate::PreparationRound<'input, 'text> {
             });
         }
         let mut round = Self::begin(source, slots, target).map_err(SponsoredPreparationError::Preparation)?;
-        round.state.resource_receipt = Some(PreparationResourceReceipt { grant, bound: bound.clone() });
+        round.record_resource_receipt(PreparationResourceReceipt { grant, bound: bound.clone() });
         Ok(round)
     }
 }

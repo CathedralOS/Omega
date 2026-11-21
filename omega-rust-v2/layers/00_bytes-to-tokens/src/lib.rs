@@ -1,6 +1,9 @@
 /*
     L0: the Omega lexer. Source bytes in, tokens out.
 
+    Start at lex in lexing/lexer.rs. L1 receives the tokens and the original bytes.
+    Open tests/golden_fixtures.rs and tests/fixtures/numbers/ to see what L0 emits.
+
     This is the first layer of Omega-V2. It cuts one source file into tokens
     and does nothing else: it decides where each token starts and ends, and it
     refuses files that break a lexical rule. It does not know what any word

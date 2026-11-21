@@ -41,27 +41,27 @@ fn plan(kind: ParseErrorKind) -> Plan {
     use ParseErrorKind as K;
     let case = match kind {
         K::UnexpectedToken => Case {
-            fixture: "const_without_value",
+            fixture: "imports_and_constants/reject/const_without_value",
             twin: |s| edit(s, &[("u32;", "u32 = 1;")]),
         },
         K::UnexpectedEnd => Case {
-            fixture: "unclosed_body",
+            fixture: "machines/reject/unclosed_body",
             twin: |s| edit(s, &[("go();\n", "go();\n}\n")]),
         },
         K::IfStatement => Case {
-            fixture: "if_statement",
+            fixture: "statements/reject/if_statement",
             twin: |s| edit(s, &[("if ready {\n        go();\n    }", "transition ready { true -> go(), false -> go() }")]),
         },
         K::MissingArmComma => Case {
-            fixture: "missing_arm_comma",
+            fixture: "match_and_transition/reject/missing_arm_comma",
             twin: |s| edit(s, &[("zero()\n", "zero(),\n")]),
         },
         K::SeparatorBeforeBody => Case {
-            fixture: "semicolon_before_body",
+            fixture: "header_clauses/reject/semicolon_before_body",
             twin: |s| edit(s, &[("n > 0;\n", "n > 0\n")]),
         },
         K::TransitionNotLast => Case {
-            fixture: "transition_not_last",
+            fixture: "statements/reject/transition_not_last",
             twin: |s| {
                 edit(
                     s,
@@ -73,7 +73,7 @@ fn plan(kind: ParseErrorKind) -> Plan {
             },
         },
         K::StatementAfterMachine => Case {
-            fixture: "statement_after_nested_machine",
+            fixture: "statements/reject/statement_after_nested_machine",
             twin: |s| {
                 edit(
                     s,
@@ -85,12 +85,12 @@ fn plan(kind: ParseErrorKind) -> Plan {
             },
         },
         K::ChainedComparison => Case {
-            fixture: "chained_equality_comparison",
+            fixture: "operators/reject/chained_equality_comparison",
             twin: |s| edit(s, &[("a == b != c", "(a == b) != c")]),
         },
         // The twin binds the free name and reduces the expression to one parenthesized group.
         K::NestingTooDeep => Case {
-            fixture: "nesting_too_deep",
+            fixture: "nesting/reject/nesting_too_deep",
             twin: |s| {
                 let deep = format!("{}a{}", "(".repeat(200), ")".repeat(200));
                 edit(s, &[("machine f()", "machine f(a: u32)"), (deep.as_str(), "(a)")])
@@ -170,14 +170,14 @@ fn measure(
     case: &Case,
     directory: &Path,
 ) -> Result<String, String> {
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../layers/01_tokens-to-syntax-trees/fixtures/reject");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../layers/01_tokens-to-syntax-trees/tests/fixtures");
     let read = |extension: &str| {
         let path = fixtures.join(format!("{}.{extension}", case.fixture));
         fs::read_to_string(&path).map_err(|error| format!("could not read {}: {error}", path.display()))
     };
     let bad = read("omg")?;
     let good = (case.twin)(&bad)?;
-    let file = format!("{}.omg", case.fixture);
+    let file = format!("{}.omg", Path::new(case.fixture).file_name().unwrap().to_str().unwrap());
     let tokens = omega_lexer::lex(bad.as_bytes()).map_err(|error| format!("negative twin stopped in the lexer: {error}"))?;
     let refusal = parse_file(bad.as_bytes(), &tokens)
         .err()

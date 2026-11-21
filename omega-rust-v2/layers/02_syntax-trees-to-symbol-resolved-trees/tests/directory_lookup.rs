@@ -3,10 +3,10 @@ use omega_parser::NodeKind;
 use omega_parser::parse_file;
 use omega_resolver::{NameRole, ParsedSource, StageSource, Symbol, SymbolResolvedTrees, resolve_stage};
 
-const SIBLING_CALLER: &str = include_str!("../fixtures/accept/sibling_machine/combat/main.omg");
-const SIBLING_DECLARATION: &str = include_str!("../fixtures/accept/sibling_machine/combat/scoring.omg");
-const CHILD_CALLER: &str = include_str!("../fixtures/reject/child_machine/combat/main.omg");
-const CHILD_DECLARATION: &str = include_str!("../fixtures/reject/child_machine/combat/ai/scoring.omg");
+const SIBLING_CALLER: &str = include_str!("fixtures/directory_lookup/sibling_machine/combat/main.omg");
+const SIBLING_DECLARATION: &str = include_str!("fixtures/directory_lookup/sibling_machine/combat/scoring.omg");
+const CHILD_CALLER: &str = include_str!("fixtures/directory_lookup/child_machine/combat/main.omg");
+const CHILD_DECLARATION: &str = include_str!("fixtures/directory_lookup/child_machine/combat/ai/scoring.omg");
 
 fn check_files(
     files: &[(&str, &str)],

@@ -35,6 +35,6 @@ fn spec_fragments_have_reviewed_resolution_outcomes() {
         };
         outcomes.push_str(&format!("{label}  {outcome}\n"));
     }
-    assert_eq!(outcomes, include_str!("../fixtures/spec-outcomes.txt"));
+    assert_eq!(outcomes, include_str!("spec-outcomes.txt"));
 }
 mod support;
