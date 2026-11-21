@@ -256,6 +256,41 @@ pub fn reference_inventory<'types>(
     root: StructuralTypeId,
     maximum_leaves: usize,
 ) -> Option<ReferenceInventory> {
+    collect_reference_inventory(types, root, maximum_leaves, false)
+}
+
+impl ReferenceInventory {
+    /// At a call, the caller can lend an intact shared array before its length
+    /// is known. The array itself must stay available until the call returns.
+    pub(crate) fn for_restoration(
+        types: &[StructuralTypeDeclaration],
+        body: &terminal_psi::TerminalMachine,
+        source: semantic_vocabulary::PlaceId,
+        path: &[StructuralPathSegment],
+        selected: StructuralTypeId,
+    ) -> Option<Self> {
+        let shared_input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &body.structural_parameters,
+            source,
+        )
+        .filter(|input| input.access == StructuralAccess::SharedBorrow)
+        .is_some_and(|input| {
+            crate::descriptor_results::descriptor_contents_query(
+                types, source, input.structural_type, path, None,
+            )
+            .and_then(|query| query.inline_steps(types, input.structural_type))
+            .is_some_and(|steps| steps.into_iter().all(|inline| inline))
+        });
+        collect_reference_inventory(types.iter(), selected, usize::MAX, shared_input)
+    }
+}
+
+fn collect_reference_inventory<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    maximum_leaves: usize,
+    shared_input: bool,
+) -> Option<ReferenceInventory> {
     let contains_reference = |root| {
         terminal_psi::structural_type_contains_reference_by(
             |id| types.clone().find(|row| row.id == id),
@@ -270,18 +305,22 @@ pub fn reference_inventory<'types>(
             continue;
         }
         let declaration = types.clone().find(|row| row.id == current)?;
+        if matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+            || (shared_input
+                && matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. }
+                    if length.literal().is_none()))
+        {
+            if output.len() + unknown_contents.len() == maximum_leaves {
+                return None;
+            }
+            unknown_contents.push(UnknownReferenceContents {
+                path,
+                structural_type: current,
+            });
+            continue;
+        }
         let fields: Vec<_> = match &declaration.shape {
             terminal_psi::StructuralTypeShape::ElementView { .. } => continue,
-            terminal_psi::StructuralTypeShape::TypeParameter => {
-                if output.len() + unknown_contents.len() == maximum_leaves {
-                    return None;
-                }
-                unknown_contents.push(UnknownReferenceContents {
-                    path,
-                    structural_type: current,
-                });
-                continue;
-            }
             terminal_psi::StructuralTypeShape::Reference { .. } => {
                 if output.len() + unknown_contents.len() == maximum_leaves {
                     return None;

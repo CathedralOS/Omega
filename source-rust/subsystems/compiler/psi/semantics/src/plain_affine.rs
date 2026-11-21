@@ -2345,7 +2345,7 @@ impl<'a> Analysis<'a> {
                 ));
             }
         };
-        let inventory = crate::reference_inventory(self.types.iter(), selected, usize::MAX).ok_or(
+        let inventory = crate::ReferenceInventory::for_restoration(self.types, body, source, path, selected).ok_or(
             Error::unsupported("reference closure has no complete contents inventory"),
         )?;
         for unknown in inventory.unknown_contents {
