@@ -28,6 +28,6 @@ jobs:
           sha256sum /tmp/omega
       - uses: actions/upload-artifact@v4
         with:
-          name: omega-12d969289cf3b6a9bfb5f9f4bd630058339ed06a
+          name: omega-77261159f151fc894e75fa22d984902409ac9bf5
           path: /tmp/omega
           retention-days: 1
