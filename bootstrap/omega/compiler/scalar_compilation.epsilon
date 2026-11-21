@@ -2742,12 +2742,20 @@ machine OmegaScalarCompiler::check_transition_target(
 }
 
 // Alpha code uses r0 for a scalar result and r1 only as an address scratch.
-// Checked cells occupy at most 16 MiB in [0x02000000, 0x03000000).
+// The checked backing window is above the downward-growing Alpha stack
+// (origin 0x10000000), disjoint from the tape/literals below 0x01000000.
+// Its end 0x60000000 remains within positive i32 arithmetic and AlphaV5 memory.
+// Layout and allocation use subtraction/division before addition/multiplication;
+// no source count, compound extent or accumulated arena can cross this window.
+machine omega_storage_base() -> i32 { return 536870912; }
+machine omega_storage_capacity() -> i32 { return 1073741824; }
+
+// Checked cells occupy [omega_storage_base(), base + capacity).
 // Every checked binding owns a bounded private arena region. Scalar cells
 // load their word; aggregate values are represented during emission by the
 // address of established copyable backing and copied at each value boundary.
 machine OmegaScalarCompiler::emit_value_load(&mut self, cell: i32) -> i32 {
-    transition self.tape.emit_imm(0, 33554432 + self.cell_offsets[cell], 0) {
+    transition self.tape.emit_imm(0, omega_storage_base() + self.cell_offsets[cell], 0) {
         1 -> value()
         _ -> return 0
     }
@@ -2761,15 +2769,15 @@ machine OmegaScalarCompiler::emit_value_load(&mut self, cell: i32) -> i32 {
 }
 // Address capture uses one word, even when this expression's eventual value fills a record.
 machine OmegaScalarCompiler::emit_save_address(&mut self, cell: i32) -> i32 {
-    return (self.tape.emit_imm(1, 33554432 + self.cell_offsets[cell], 0) == 1) &&
+    return (self.tape.emit_imm(1, omega_storage_base() + self.cell_offsets[cell], 0) == 1) &&
         (self.tape.emit_rr(11, 1, 0) == 1);
 }
 machine OmegaScalarCompiler::emit_restore_address(&mut self, cell: i32) -> i32 {
-    return (self.tape.emit_imm(0, 33554432 + self.cell_offsets[cell], 0) == 1) &&
+    return (self.tape.emit_imm(0, omega_storage_base() + self.cell_offsets[cell], 0) == 1) &&
         (self.tape.emit_rr(10, 0, 0) == 1);
 }
 machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
-    transition self.tape.emit_imm(1, 33554432 + self.cell_offsets[cell], 0) {
+    transition self.tape.emit_imm(1, omega_storage_base() + self.cell_offsets[cell], 0) {
         1 -> return self.emit_store_at(self.cell_types[cell], self.cell_sizes[cell])
         _ -> return 0
     }
@@ -5675,7 +5683,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
         }
     }
     state bounded(count: i32, stride: i32) {
-        transition (count > 0) && (count <= 16777216 / stride) {
+        transition (count > 0) && (count <= omega_storage_capacity() / stride) {
             true -> return ((count * stride + 7) / 8) * 8
             _ -> return 0
         }
@@ -5863,7 +5871,7 @@ machine OmegaScalarCompiler::check_case_value(&mut self, source: &[u8], expressi
 // Both bare cases and case literals begin with their checked ordinal. A literal
 // then establishes its active fields in authored order before returning the value.
 machine OmegaScalarCompiler::emit_case_value(&mut self, expression: i32) -> i32 {
-    let address: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    let address: i32 = omega_storage_base() + self.cell_offsets[49152 + expression];
     transition (self.tape.emit_imm(0, self.value_payloads[expression], 0) == 1) &&
         (self.tape.emit_imm(1, address, 0) == 1) &&
         (self.tape.emit_rr(11, 1, 0) == 1) &&
@@ -5903,7 +5911,7 @@ machine OmegaScalarCompiler::layout_case_payload(&mut self, source: &[u8], case_
         }
     }
     state extent(slot: i32, limit: i32, size: i32, kind: i32, extent: i32) {
-        transition (extent > 0) && (extent <= 16777216 - size) && (self.type_copy(source, kind) == 1) {
+        transition (extent > 0) && (extent <= omega_storage_capacity() - size) && (self.type_copy(source, kind) == 1) {
             true -> retain(slot, limit, size, kind, extent)
             _ -> unsupported(slot)
         }
@@ -6096,7 +6104,7 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
         }
     }
     state field_size(offset: i32, size: i32, slot: i32, extent: i32) {
-        transition (extent > 0) && (extent <= 16777216 - size) {
+        transition (extent > 0) && (extent <= omega_storage_capacity() - size) {
             true -> field_name(offset, size, slot, extent)
             _ -> unsupported()
         }
@@ -6219,7 +6227,7 @@ machine OmegaScalarCompiler::require_cell(
         _ -> extent(self.type_size(source, kind))
     }
     state extent(size: i32) {
-        transition (size > 0) && (size <= 16777216 - self.storage_size) {
+        transition (size > 0) && (size <= omega_storage_capacity() - self.storage_size) {
             true -> retain(size)
             _ -> unsupported()
         }
@@ -6669,7 +6677,7 @@ machine OmegaScalarCompiler::check_array_literal(
 
 machine OmegaScalarCompiler::emit_array_literal(&mut self, expression: i32) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
-    let home: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    let home: i32 = omega_storage_base() + self.cell_offsets[49152 + expression];
     transition true { true -> elements(row, home, self.index_plans[expression].stride, 0) }
     state elements(row: OmegaExpressionSyntax, home: i32, stride: i32, index: i32) {
         transition index < row.payload1 {
@@ -6866,7 +6874,7 @@ machine OmegaScalarCompiler::emit_zero_cell(&mut self, cell: i32) -> i32 {
     state emit(loop: i32) {
         self.emission_resource = 12;
         transition (self.tape.emit_imm(0, 0, 0) == 1) &&
-            (self.tape.emit_imm(1, 33554432 + self.cell_offsets[cell], 0) == 1) &&
+            (self.tape.emit_imm(1, omega_storage_base() + self.cell_offsets[cell], 0) == 1) &&
             (self.tape.emit_imm(5, self.cell_sizes[cell], 0) == 1) &&
             (self.tape.emit_imm(6, 8, 0) == 1) &&
             (self.tape.define_label(loop) == 1) &&
@@ -6887,7 +6895,7 @@ machine OmegaScalarCompiler::emit_place_address(&mut self, expression: i32) -> i
     }
     state address() {
         transition self.tape.emit_imm(0,
-            33554432 + self.cell_offsets[self.place_roots[expression]], 0) {
+            omega_storage_base() + self.cell_offsets[self.place_roots[expression]], 0) {
             1 -> root()
             _ -> return 0
         }
@@ -6968,7 +6976,7 @@ machine OmegaScalarCompiler::emit_record_literal(&mut self, expression: i32) -> 
     state field(row: OmegaStructLiteralSyntax, offset: i32) {
         transition offset < row.field_count {
             true -> value(row, offset, row.first_field + offset)
-            _ -> return self.tape.emit_imm(0, 33554432 + self.cell_offsets[49152 + expression], 0)
+            _ -> return self.tape.emit_imm(0, omega_storage_base() + self.cell_offsets[49152 + expression], 0)
         }
     }
     state value(row: OmegaStructLiteralSyntax, offset: i32, slot: i32) {
@@ -6978,7 +6986,7 @@ machine OmegaScalarCompiler::emit_record_literal(&mut self, expression: i32) -> 
         }
     }
     state store(row: OmegaStructLiteralSyntax, offset: i32, field: i32) {
-        transition (self.tape.emit_imm(1, 33554432 + self.cell_offsets[49152 + expression] +
+        transition (self.tape.emit_imm(1, omega_storage_base() + self.cell_offsets[49152 + expression] +
             self.field_offsets[field], 0) == 1) &&
             (self.emit_store_at(self.field_types[field], self.field_extents[field]) == 1) {
             true -> field(row, offset + 1)
@@ -7229,7 +7237,7 @@ machine OmegaScalarCompiler::check_index(
         }
     }
     state count(base: i32, removed: i32, kind: i32, size: i32) {
-        transition (size > 0) && (size <= 16777216 / self.index_plans[expression].stride) {
+        transition (size > 0) && (size <= omega_storage_capacity() / self.index_plans[expression].stride) {
             true -> authority(base, removed, kind, size)
             _ -> unsupported()
         }
@@ -7379,7 +7387,7 @@ machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i
     state layout(plan: OmegaFixedIndexPlan) {
         transition ((plan.schema == 1) || (plan.schema == 2)) &&
             (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
-            (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
+            (plan.extent > 0) && (plan.extent <= omega_storage_capacity() / plan.stride) &&
             (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
             (plan.parent_root == self.place_roots[plan.collection]) &&
             (plan.parent_offset == self.place_offsets[plan.collection]) &&
