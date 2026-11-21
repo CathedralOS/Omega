@@ -90,6 +90,7 @@ fn inherited_provider_methods_keep_the_declaring_application_and_result() {
     let source = "public boundary trait Reading<T> {
             machine read() -> T reaches none crashes none;
         }
+        public boundary trait OpenChild<T>: Reading<T> {}
         public boundary trait Narrow: Reading<u32> {}
         public NarrowSupply satisfies Narrow {
             machine read() -> u32 reaches none crashes none { 17u32 }
@@ -135,6 +136,36 @@ fn inherited_provider_methods_keep_the_declaring_application_and_result() {
 }
 
 #[test]
+fn selected_requirement_reach_keeps_its_receiver_arguments() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Reading<T> {
+            machine read() -> u64 reaches Reading<T> crashes none;
+        }
+        public Narrow satisfies Reading<u32> {
+            machine read() -> u64 reaches none crashes none { 17u64 }
+        }
+        public Wide satisfies Reading<u64> {
+            machine read() -> u64 reaches none crashes none { 29u64 }
+        }";
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let module = artifact.semantic_module();
+    let candidates = &module.interfaces.provider_candidates;
+    assert_eq!(candidates.len(), 2);
+    let mut applications = Vec::new();
+    for candidate in candidates {
+        let boundary = module.boundary_machine(candidate.boundary).unwrap();
+        let receiver = boundary.owning_service.unwrap();
+        assert_eq!(boundary.published_service_ceiling, [receiver]);
+        assert!(boundary.published_synchronous_entries.is_empty());
+        let selected = module.machine(candidate.candidate).unwrap();
+        assert_eq!(selected.contract.published_service_ceiling, [receiver]);
+        applications.push(receiver);
+    }
+    assert_ne!(applications[0], applications[1]);
+}
+
+#[test]
 fn const_service_terms_are_values_in_the_callers_scope() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = "public boundary trait Sensor<const Id: u64> {
@@ -163,7 +194,27 @@ fn const_service_terms_are_values_in_the_callers_scope() {
         .find(|service| service.id == entries[0])
         .unwrap();
     let identity = module.identities.text(receiving.identity).unwrap();
-    assert!(identity.contains("integer-const(17)"), "{identity}");
+    assert!(identity.contains("arguments(integer(17))"), "{identity}");
+}
+
+#[test]
+fn a_generic_call_forwards_the_callers_const_service_argument() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = "public boundary trait Sensor<const Id: u64> {
+            machine read() -> u64 reaches Sensor<Id> crashes none;
+        }
+        public machine poll<const K: u64>() -> u64 reaches Sensor<K> crashes none { Sensor::<K>::read() }
+        public machine first() -> u64 reaches Sensor<17u64> crashes none { poll::<17u64>() }
+        public machine second() -> u64 reaches Sensor<29u64> crashes none { poll::<29u64>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace(
+        "second() -> u64 reaches Sensor<29u64>",
+        "second() -> u64 reaches Sensor<17u64>",
+    );
+    let (files, root) = captured(package, &wrong);
+    assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
 }
 
 #[test]

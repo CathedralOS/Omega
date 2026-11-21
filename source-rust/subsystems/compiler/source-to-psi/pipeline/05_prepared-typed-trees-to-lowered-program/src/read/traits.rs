@@ -200,7 +200,13 @@ impl<'program> Program<'program> {
                 // A schema owns an open telescope. Closed calls independently
                 // project the same parent edges under their actual arguments.
                 let scope = AppliedTraitScope::abstract_scope(declaration);
-                self.require_boundary_parent_contract(context, &scope)?;
+                if declaration.type_parameters.is_empty()
+                    && declaration.lifetime_parameters.is_empty()
+                {
+                    self.require_boundary_parent_contract(context, &scope)?;
+                } else {
+                    Self::check_boundary_parents(typed, context, &scope)?;
+                }
             }
         } else {
             schema_shape(typed, context, declaration)?;
@@ -367,7 +373,22 @@ impl<'program> Program<'program> {
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
     ) -> Checked<()> {
-        let typed = self.typed;
+        if Self::check_boundary_parents(self.typed, context, scope)? {
+            let environment = scope.environment();
+            if !self.boundary_parent_contracts.contains(&environment) {
+                self.boundary_parent_contracts.push(environment);
+            }
+        }
+        Ok(())
+    }
+
+    /// A schema can check its inheritance with open parameters. Calling
+    /// policies are issued for the receiving application when it is supplied.
+    fn check_boundary_parents(
+        typed: &crate::source_state::TypedTrees,
+        context: MachineId,
+        scope: &AppliedTraitScope<'_>,
+    ) -> Checked<bool> {
         if !scope.declaration.is_boundary {
             return Err(services::unavailable(
                 context,
@@ -417,13 +438,7 @@ impl<'program> Program<'program> {
                 }
             }
         }
-        if needs_contract_owner {
-            let environment = scope.environment();
-            if !self.boundary_parent_contracts.contains(&environment) {
-                self.boundary_parent_contracts.push(environment);
-            }
-        }
-        Ok(())
+        Ok(needs_contract_owner)
     }
 
     pub(super) fn prepare_inherited_boundary_contracts(
@@ -441,7 +456,6 @@ impl<'program> Program<'program> {
             root.clone(),
         )
         .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
-        let mut required_headers = std::collections::HashSet::new();
         for parent in scopes.iter().skip(1) {
             let declaration = parent.declaration;
             if declaration.is_boundary {
@@ -449,6 +463,9 @@ impl<'program> Program<'program> {
                 // service, the declaring boundary owns each inherited contract.
                 if selected_calling.is_none() && !declaration.machines.is_empty() {
                     self.boundary_trait_declaration(context, declaration)?;
+                    let schema = self.static_contracts.schemas.iter()
+                        .find(|schema| schema.declaration == declaration.symbol)
+                        .ok_or_else(|| unavailable("inherited service lost its admitted declaration"))?;
                     for requirement in typed.trait_machine_signatures(declaration) {
                         let header = typed
                             .applied_callable_signature(parent, requirement.symbol)
@@ -458,7 +475,9 @@ impl<'program> Program<'program> {
                             .ok_or_else(|| {
                                 unavailable("inherited boundary call has no complete applied header")
                             })?;
-                        required_headers.insert(header.symbol);
+                        if !schema.requirements.iter().any(|row| row.declaration == header.symbol) {
+                            return Err(unavailable("inherited call is absent from the declaring service's contract"));
+                        }
                     }
                 }
                 continue;
@@ -491,22 +510,6 @@ impl<'program> Program<'program> {
                         ));
                     }
                 }
-            }
-        }
-        if !required_headers.is_empty() {
-            for (id, source) in self.declaration_sources.iter() {
-                if self
-                    .declaration_selections
-                    .get(id)
-                    .is_some_and(Option::is_none)
-                {
-                    required_headers.remove(&source.symbol);
-                }
-            }
-            if !required_headers.is_empty() {
-                return Err(unavailable(
-                    "inherited boundary call has no admitted declaration contract",
-                ));
             }
         }
         Ok(())
@@ -852,10 +855,10 @@ impl<'program> Program<'program> {
                     } else {
                         let mut closed = typed.closed_requirement_applications().filter(|closed| {
                             closed.template == applied_requirement.symbol
-                                && typed
-                                    .type_identity_text(closed.portable_trait_application_identity)
-                                    .as_deref()
-                                    == Some(application_identity.as_str())
+                                && typed.requirement_application_matches_contract_scope(
+                                    closed.signature.symbol,
+                                    application,
+                                )
                                 && closed.local_arguments.is_empty()
                         });
                         let selected = closed.next().ok_or_else(|| {
@@ -1093,11 +1096,11 @@ impl crate::source_state::references::TypedReferences for SignatureReferences<'_
         }
         if let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
             self.typed.type_reference_table.type_reference(reference)
-            && (!self.typed.symbols.symbols().nodes().is_valid(*symbol)
-                || (self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-                    && !self.binders.contains(symbol)))
+            && self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && !self.binders.contains(symbol)
         {
-            self.error = Some("static signature has an unresolved or out-of-scope type binder");
+            self.error = Some("static signature has an out-of-scope type binder");
             return false;
         }
         enter(&mut self.types, reference)

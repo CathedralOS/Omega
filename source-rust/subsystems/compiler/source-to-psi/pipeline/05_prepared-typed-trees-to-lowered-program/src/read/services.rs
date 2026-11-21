@@ -735,22 +735,24 @@ impl Program<'_> {
             .signature_invokes
             .span(signature.invokes)
             .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
-        let mut reach =
-            if crate::lowering::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
-                if signature.service_reach_is_installation_bound && source_owner != signature.symbol
-                {
-                    crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
-                } else {
-                    Some(finite_reach(self.typed, id, signature.service_reach_row)?)
-                }
+        // A concrete member determines open and installation-bound rows. A
+        // fixed ceiling on the requirement remains its own applied contract.
+        let reach =
+            if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
+                crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
             } else {
-                None
+                match crate::lowering::reach::authored_source_ceiling(
+                    self.typed,
+                    id,
+                    signature.symbol,
+                    signature.service_reach_row,
+                )? {
+                    None if source_owner != signature.symbol => {
+                        crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
+                    }
+                    declared => declared,
+                }
             };
-        // An open requirement defers to the implementation's published bound.
-        // Infer from its body only when that declaration also omits the bound.
-        if reach.is_none() && source_owner != signature.symbol {
-            reach = crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?;
-        }
         let policy = Policy {
             reach,
             invokes: Some(invocations(self.typed, id, authored, parameters)?),
@@ -1488,42 +1490,24 @@ impl<'t> Program<'t> {
         self.service(caller, scope)
     }
 
-    /// What `owner`'s header says about service reach: its `reaches` clause
-    /// as the services it names and their boundary parents, or `Inferred`
-    /// when it wrote none. One reader for a checked body, a requirement and
-    /// a boundary requirement.
-    ///
-    /// effects.md, "Declarations": "`reaches A + B` bounds service reach by
-    /// the named boundary services and their boundary parents"; "Boundary
-    /// traits supply identities that may be named in `reaches`"; "Ordinary
-    /// traits are not service identities." The typed trees keep one authored
-    /// row per written clause, with no target for `reaches none`, so a
-    /// clause is told from an omission by the row and never by an empty
-    /// set. `reaches <= Bound` contributes its written upper bound while
-    /// checking source; the selected installation still owes its exact row.
     pub(super) fn reach_ceiling(
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
-        requirement: bool,
+        row: ServiceReachRowId,
     ) -> Checked<crate::lowering::Ceiling> {
-        let typed = self.typed;
-        let Some(owner) = crate::lowering::reach::authored_ceiling_owner(typed, caller, owner)?
+        let Some(sources) =
+            crate::lowering::reach::authored_source_ceiling(self.typed, caller, owner, row)?
         else {
             return Ok(crate::lowering::Ceiling::Inferred);
         };
-        let mut named = Vec::new();
-        for row in typed.authored_service_reach_rows_for(owner) {
-            if row.installation_bound && !requirement {
-                continue;
-            }
-            named.extend(row.targets.iter().map(|target| target.service));
-        }
-        Ok(crate::lowering::Ceiling::Authored(self.named_row(
-            caller,
-            named,
-            crate::lowering::body::Axis::Reach,
-        )?))
+        let mut services = sources
+            .into_iter()
+            .map(|source| self.applied_source_service(caller, source))
+            .collect::<Checked<Vec<_>>>()?;
+        services.sort_unstable();
+        services.dedup();
+        Ok(crate::lowering::Ceiling::Authored(services))
     }
 
     /// Prepare each selected callable and its binder ceiling in the same
@@ -1555,10 +1539,12 @@ impl<'t> Program<'t> {
             let contract = typed
                 .retained_static_machine_contract(binding.parameter)
                 .ok_or_else(|| unserved("a static callback binding has no source requirement"))?;
-            let bound = match self.reach_ceiling(owner, contract.signature().symbol, true)? {
-                crate::lowering::Ceiling::Inferred => None,
-                crate::lowering::Ceiling::Authored(bound) => Some(bound),
-            };
+            let signature = contract.signature();
+            let bound =
+                match self.reach_ceiling(owner, signature.symbol, signature.service_reach_row)? {
+                    crate::lowering::Ceiling::Inferred => None,
+                    crate::lowering::Ceiling::Authored(bound) => Some(bound),
+                };
             let selected = typed
                 .machine_by_symbol(argument.symbol)
                 .or_else(|| {
@@ -1600,11 +1586,25 @@ impl<'t> Program<'t> {
         if rows.is_empty() && !bodyless {
             return Ok(crate::lowering::Ceiling::Inferred);
         }
-        let mut named = Vec::with_capacity(rows.len());
+        let mut entries = Vec::with_capacity(rows.len());
         for row in rows {
             match row.target {
-                Named::AppliedService(id) => named.push(crate::source_state::signature::ReachSubject::Service(id)),
-                Named::Service(requirement) => named.push(crate::source_state::signature::ReachSubject::Static(requirement)),
+                Named::AppliedService(service) => {
+                    entries.push(self.applied_source_service(caller, service)?);
+                }
+                Named::Service(symbol) => {
+                    let source = self
+                        .typed
+                        .service_reaches
+                        .id_for_symbol(symbol)
+                        .ok_or_else(|| {
+                            unavailable(
+                                caller,
+                                "the named effect does not select a boundary service",
+                            )
+                        })?;
+                    entries.push(self.applied_source_service(caller, source)?);
+                }
                 Named::Parameter { ordinal, symbol }
                     if symbol.is_valid()
                         && parameters
@@ -1648,69 +1648,11 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        Ok(crate::lowering::Ceiling::Authored(self.named_row(
-            caller,
-            named,
-            crate::lowering::body::Axis::Entries,
-        )?))
+        entries.sort_unstable();
+        entries.dedup();
+        Ok(crate::lowering::Ceiling::Authored(entries))
     }
 
-    /// The row a clause on `axis` writes by naming `named`: the one reading
-    /// of a written ceiling. Each name must be a boundary trait, whose
-    /// applied declaration is its service identity in the module's catalog.
-    /// A reach row is closed under boundary parents; an entry row is not
-    /// (`invokes_entry_ceiling.md`, "No parent closure").
-    ///
-    /// For reach a name that is not a boundary trait is a mistake of the
-    /// program ("Ordinary traits are not service identities"). For entries
-    /// it may be a valid requirement identity ("Route and direction decide
-    /// what a row may name, not declaration kind"), which the catalog has
-    /// no identity for yet, so it is not served.
-    fn named_row(
-        &mut self,
-        caller: MachineId,
-        named: Vec<crate::source_state::signature::ReachSubject>,
-        axis: crate::lowering::body::Axis,
-    ) -> Checked<Vec<ServiceId>> {
-        let typed = self.typed;
-        let mut row = Vec::with_capacity(named.len());
-        for service in named {
-            let id = match service {
-                crate::source_state::signature::ReachSubject::Service(id) => id,
-                crate::source_state::signature::ReachSubject::Static(symbol) => {
-                    typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| unavailable(caller, "the named effect does not select a boundary service"))?
-                }
-            };
-            row.push(self.applied_source_service(caller, id)?);
-        }
-        Ok(match axis {
-            crate::lowering::body::Axis::Reach => self.with_parents(row),
-            crate::lowering::body::Axis::Entries => {
-                row.sort_unstable();
-                row.dedup();
-                row
-            }
-        })
-    }
-
-    /// `services` and every boundary parent of one, strictly increasing.
-    /// effects.md: "parents(R) subset-of normalize(R)".
-    fn with_parents(&self, mut services: Vec<ServiceId>) -> Vec<ServiceId> {
-        let mut next = 0;
-        while let Some(service) = services.get(next).copied() {
-            next += 1;
-            if let Some((_, parents)) = self.services.get(service) {
-                for parent in parents {
-                    if !services.contains(parent) {
-                        services.push(*parent);
-                    }
-                }
-            }
-        }
-        services.sort_unstable();
-        services.dedup();
-        services
-    }
     /// Notes that a Build selection awaits a provider for `service`.
     pub(super) fn awaits(&mut self, service: ServiceId) {
         if !self.readiness.contains(&service) {

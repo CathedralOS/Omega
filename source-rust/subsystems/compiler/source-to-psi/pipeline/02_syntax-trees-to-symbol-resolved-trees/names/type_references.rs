@@ -1773,34 +1773,33 @@ mod value_expressions {
                     }
                     return;
                 }
-                let telescope = machine
-                    .data_definitions
-                    .iter()
-                    .find(|data| data.symbol == generic.base_symbol)
-                    .map(|data| {
-                        machine
-                            .data_type_parameters
-                            .span_or_empty(data.type_parameters)
-                    })
-                    .or_else(|| {
-                        if symbols.get(generic.base_symbol).kind != SymbolKind::TypeAlias {
-                            return None;
+                // A value argument resolves in the caller's lexical scope.
+                // Its position comes from the exact nominal header, including
+                // when the receiver of a requirement call is a trait.
+                let owner = generic.base_symbol;
+                let header = match symbols.get(owner).kind {
+                    SymbolKind::Data => machine
+                        .data_definitions
+                        .iter()
+                        .find(|data| data.symbol == owner)
+                        .map(|data| data.type_parameters),
+                    SymbolKind::Trait => machine
+                        .traits
+                        .iter()
+                        .find(|declaration| declaration.symbol == owner)
+                        .map(|declaration| declaration.type_parameters),
+                    SymbolKind::TypeAlias => {
+                        let mut aliases = machine.type_aliases.iter()
+                            .filter(|alias| alias.symbol == owner);
+                        match (aliases.next(), aliases.next()) {
+                            (Some(alias), None) => Some(alias.type_parameters),
+                            _ => None,
                         }
-                        let mut aliases = machine
-                            .type_aliases
-                            .iter()
-                            .filter(|alias| alias.symbol == generic.base_symbol);
-                        let alias = aliases.next()?;
-                        if aliases.next().is_some() {
-                            return None;
-                        }
-                        Some(
-                            machine
-                                .data_type_parameters
-                                .span_or_empty(alias.type_parameters),
-                        )
-                    });
-                if let Some(telescope) = telescope {
+                    }
+                    _ => None,
+                };
+                if let Some(header) = header {
+                    let telescope = machine.data_type_parameters.span_or_empty(header);
                     for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
                         if !matches!(
                             parameter.kind,
