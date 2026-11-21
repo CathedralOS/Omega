@@ -78,11 +78,10 @@ matching and does not reconstruct a full package review.
 Alias edges retain explicit build/product purpose. Checked and accepted sections
 also bind the admitted execution profile and requested product target where
 applicable. Matching source bytes permit acquisition reuse, not reuse of host
-build results or policy as product evidence. Purpose-specific scheduling and
-legacy migration follow [scoped execution](../build/scoped_execution.md#two-checked-contexts).
-A legacy edge remains product-only; a missing build edge requires an explicit
-declaration. A lock without purpose information cannot certify scoped execution,
-and migration must recheck the edges without inferring permission from imports.
+build results or policy as product evidence. Every recovered edge must declare its purpose. Regenerate a lock that lacks
+this information by reviewing the current declarations. Each scope obtains its
+authority from its own declared edges. See
+[scoped execution](../build/scoped_execution.md#two-checked-contexts).
 
 Use bounded deterministic diffable text with explicit outer and acceptance schema
 versions. Loading requires neither an old checkout nor a compiler invocation.

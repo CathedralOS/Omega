@@ -1,9 +1,5 @@
-// We render and recover complete source-closure text records through the
-// existing graph and binary field validators. Rendering checks retention limits
-// and binary field ceilings first; recovery parses under one monotone owned-byte
-// budget and verifies byte-for-byte canonical re-emission. Legacy version-1
-// records decode as product-only projections and edges so retained locks keep
-// their legacy product meaning rather than silently gaining build scope.
+//! The canonical package graph records a purpose on every edge. Recovery checks
+//! field limits, total allocation and byte-for-byte canonical re-emission.
 
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
@@ -23,10 +19,7 @@ use crate::declarations::dependencies::read::{
 };
 use target::TargetProfile;
 
-const TEXT_VERSION: &str = "3";
-const QUERY_TEXT_VERSION: &str = "4";
-const PURPOSE_TEXT_VERSION: &str = "2";
-const LEGACY_TEXT_VERSION: &str = "1";
+const TEXT_VERSION: usize = 5;
 
 impl CanonicalSourceClosureSubject {
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
@@ -44,65 +37,12 @@ impl CanonicalSourceClosureSubject {
             &mut Budget::new(usize::MAX),
         )?;
         let mut writer = Writer::new(limits.maximum_record_bytes, Budget::new(usize::MAX));
-        self.write_text(
-            &mut writer,
-            if self.catalog_dependencies.is_empty() {
-                PURPOSE_TEXT_VERSION
-            } else if self
-                .catalog_dependencies
-                .iter()
-                .any(|dependency| dependency.purpose != DependencyPurpose::Build)
-            {
-                QUERY_TEXT_VERSION
-            } else {
-                TEXT_VERSION
-            },
-        )?;
+        self.write_text(&mut writer)?;
         Ok(writer.finish()?.0)
     }
 
-    fn write_text(&self, writer: &mut Writer, version: &str) -> Result<(), Error> {
-        if !matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION)
-            && !self.catalog_dependencies.is_empty()
-        {
-            return Err(Error::new(
-                "legacy source-closure text cannot express catalog execution",
-            ));
-        }
-        if version != QUERY_TEXT_VERSION
-            && self
-                .catalog_dependencies
-                .iter()
-                .any(|dependency| dependency.purpose != DependencyPurpose::Build)
-        {
-            return Err(Error::new(
-                "legacy catalog text cannot express Product query dependencies",
-            ));
-        }
-        match version {
-            LEGACY_TEXT_VERSION => {
-                if self
-                    .package_dependency_projections
-                    .iter()
-                    .any(|projection| !projection.build().authored_dependencies().is_empty())
-                    || self
-                        .dependency_requests
-                        .iter()
-                        .any(|edge| edge.purpose != DependencyPurpose::Product)
-                {
-                    return Err(Error::new(
-                        "version-1 source-closure text cannot express build-purpose rows",
-                    ));
-                }
-                writer.row("omega-source-closure 1", &[])?;
-            }
-            PURPOSE_TEXT_VERSION => writer.row("omega-source-closure 2", &[])?,
-            TEXT_VERSION => writer.row("omega-source-closure 3", &[])?,
-            QUERY_TEXT_VERSION => writer.row("omega-source-closure 4", &[])?,
-            _ => {
-                return Err(Error::new("unsupported source-closure text version"));
-            }
-        }
+    fn write_text(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.number("omega-source-closure", TEXT_VERSION)?;
         writer.row(
             "target",
             &[self.target_profile().identity().as_str().as_bytes()],
@@ -125,14 +65,13 @@ impl CanonicalSourceClosureSubject {
             for request in projection.product().authored_dependencies() {
                 write_request(writer, Request::from(request))?;
             }
-            if version != LEGACY_TEXT_VERSION {
-                writer.number(
-                    "authored-build",
-                    projection.build().authored_dependencies().len(),
-                )?;
-                for request in projection.build().authored_dependencies() {
-                    write_request(writer, Request::from(request))?;
-                }
+
+            writer.number(
+                "authored-build",
+                projection.build().authored_dependencies().len(),
+            )?;
+            for request in projection.build().authored_dependencies() {
+                write_request(writer, Request::from(request))?;
             }
         }
         writer.number("edges", self.dependency_requests().len())?;
@@ -140,31 +79,25 @@ impl CanonicalSourceClosureSubject {
             writer.row("edge", &[])?;
             writer.row("requester", &[])?;
             write_key(writer, edge.requester())?;
-            if version != LEGACY_TEXT_VERSION {
-                writer.row("purpose", &[edge.purpose().name().as_bytes()])?;
-            }
+            writer.row("purpose", &[edge.purpose().name().as_bytes()])?;
             writer.number("ordinal", edge.dependency_index())?;
             write_request(writer, Request::from(edge.request()))?;
             writer.row("resolved-alias", &[edge.alias().as_str().as_bytes()])?;
             writer.row("selected", &[])?;
             write_source(writer, edge.selected())?;
         }
-        if matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION) {
-            writer.number("catalog-dependencies", self.catalog_dependencies.len())?;
-            for dependency in &self.catalog_dependencies {
-                writer.row("catalog-dependency", &[])?;
-                write_source(writer, &dependency.observer)?;
-                write_navigation(writer, &dependency.navigation)?;
-                writer.number("ordinal", dependency.ordinal)?;
-                if version == QUERY_TEXT_VERSION {
-                    writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
-                }
-                write_request(writer, Request::from(&dependency.request))?;
-                dependency
-                    .provider
-                    .write_text(writer, PURPOSE_TEXT_VERSION)?;
-            }
+
+        writer.number("catalog-dependencies", self.catalog_dependencies.len())?;
+        for dependency in &self.catalog_dependencies {
+            writer.row("catalog-dependency", &[])?;
+            write_source(writer, &dependency.observer)?;
+            write_navigation(writer, &dependency.navigation)?;
+            writer.number("ordinal", dependency.ordinal)?;
+            writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
+            write_request(writer, Request::from(&dependency.request))?;
+            dependency.provider.write_text(writer)?;
         }
+
         writer.row("end", &[])?;
         Ok(())
     }
@@ -184,25 +117,21 @@ impl CanonicalSourceClosureSubject {
             limits.maximum_record_bytes,
             Budget::new(maximum_owned_bytes),
         )?;
-        let (subject, version) = Self::read_text(&mut reader, limits, true)?;
+        let subject = Self::read_text(&mut reader, limits, true)?;
         reader.finish()?;
         let mut writer = Writer::verifying(limits.maximum_record_bytes, text, reader.budget);
-        subject.write_text(&mut writer, version)?;
+        subject.write_text(&mut writer)?;
         let (_, budget) = writer.finish()?;
         Ok((subject, budget.usage))
     }
 
-    fn read_text<'text>(
-        reader: &mut Reader<'text>,
+    fn read_text(
+        reader: &mut Reader<'_>,
         limits: Limits,
         allow_catalog: bool,
-    ) -> Result<(Self, &'text str), Error> {
+    ) -> Result<Self, Error> {
         reader.expect("omega-source-closure")?;
-        let version = reader.atom()?;
-        if !matches!(
-            version,
-            LEGACY_TEXT_VERSION | PURPOSE_TEXT_VERSION | TEXT_VERSION | QUERY_TEXT_VERSION
-        ) {
+        if reader.number(usize::MAX)? != TEXT_VERSION {
             return Err(Error::new(
                 "unexpected source-closure text field or version",
             ));
@@ -225,11 +154,7 @@ impl CanonicalSourceClosureSubject {
             packages.push(read_source(reader, limits)?);
             navigations.push(read_navigation(reader, limits)?);
             let product = read_authored_scope(reader, "authored", limits, &mut total_authored)?;
-            let build = if version != LEGACY_TEXT_VERSION {
-                read_authored_scope(reader, "authored-build", limits, &mut total_authored)?
-            } else {
-                Vec::new()
-            };
+            let build = read_authored_scope(reader, "authored-build", limits, &mut total_authored)?;
             projections.push(DependencyProjections::new(
                 ProjectedDependencies::from(product),
                 ProjectedDependencies::from(build),
@@ -242,16 +167,7 @@ impl CanonicalSourceClosureSubject {
             reader.expect("edge")?;
             reader.expect("requester")?;
             let requester = read_key(reader, limits)?;
-            let purpose = if version != LEGACY_TEXT_VERSION {
-                reader.expect("purpose")?;
-                match reader.string(64)?.as_str() {
-                    "product" => DependencyPurpose::Product,
-                    "build" => DependencyPurpose::Build,
-                    _ => return Err(Error::new("unknown text dependency purpose")),
-                }
-            } else {
-                DependencyPurpose::Product
-            };
+            let purpose = read_purpose(reader)?;
             reader.expect("ordinal")?;
             let dependency_index = reader.number(u32::MAX as usize)?;
             let request = read_request(reader, limits)?;
@@ -268,43 +184,33 @@ impl CanonicalSourceClosureSubject {
                 selected,
             });
         }
-        let mut catalog_dependencies = Vec::new();
-        if matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION) {
-            reader.expect("catalog-dependencies")?;
-            let count = reader.count(if allow_catalog {
-                limits.maximum_dependency_requests
-            } else {
-                0
-            })?;
-            catalog_dependencies = reader.budget.reserve(count)?;
-            for _ in 0..count {
-                reader.expect("catalog-dependency")?;
-                let observer = read_source(reader, limits)?;
-                let navigation = read_navigation(reader, limits)?;
-                reader.expect("ordinal")?;
-                let ordinal = reader.number(u32::MAX as usize)?;
-                let purpose = if version == QUERY_TEXT_VERSION {
-                    reader.expect("purpose")?;
-                    match reader.string(64)?.as_str() {
-                        "product" => DependencyPurpose::Product,
-                        "build" => DependencyPurpose::Build,
-                        _ => return Err(Error::new("unknown catalog dependency purpose")),
-                    }
-                } else {
-                    DependencyPurpose::Build
-                };
-                let request = read_request(reader, limits)?;
-                let (provider, _) = Self::read_text(reader, limits, false)?;
-                catalog_dependencies.push(super::super::CanonicalCatalogDependency {
-                    observer,
-                    navigation,
-                    purpose,
-                    ordinal,
-                    request,
-                    provider,
-                });
-            }
+
+        reader.expect("catalog-dependencies")?;
+        let count = reader.count(if allow_catalog {
+            limits.maximum_dependency_requests
+        } else {
+            0
+        })?;
+        let mut catalog_dependencies = reader.budget.reserve(count)?;
+        for _ in 0..count {
+            reader.expect("catalog-dependency")?;
+            let observer = read_source(reader, limits)?;
+            let navigation = read_navigation(reader, limits)?;
+            reader.expect("ordinal")?;
+            let ordinal = reader.number(u32::MAX as usize)?;
+            let purpose = read_purpose(reader)?;
+            let request = read_request(reader, limits)?;
+            let provider = Self::read_text(reader, limits, false)?;
+            catalog_dependencies.push(super::super::CanonicalCatalogDependency {
+                observer,
+                navigation,
+                purpose,
+                ordinal,
+                request,
+                provider,
+            });
         }
+
         reader.expect("end")?;
         reader.budget.usage.packages += packages.len() + catalog_dependencies.len();
         reader.budget.usage.authored_dependency_requests +=
@@ -322,7 +228,7 @@ impl CanonicalSourceClosureSubject {
         )?;
         let subject =
             subject.with_catalog_dependencies(catalog_dependencies, limits, &mut reader.budget)?;
-        Ok((subject, version))
+        Ok(subject)
     }
 }
 
@@ -345,4 +251,13 @@ fn read_authored_scope(
         authored.push(into_authored(read_request(reader, limits)?));
     }
     Ok(authored)
+}
+
+fn read_purpose(reader: &mut Reader<'_>) -> Result<DependencyPurpose, Error> {
+    reader.expect("purpose")?;
+    match reader.string(64)?.as_str() {
+        "product" => Ok(DependencyPurpose::Product),
+        "build" => Ok(DependencyPurpose::Build),
+        _ => Err(Error::new("unknown text dependency purpose")),
+    }
 }
