@@ -682,7 +682,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             .map_or(checked.terminal_entry(), |adapter| adapter.machine());
         let scope = input.require_native_providers(providers, native.bindings)?;
         let selected = providers.selection();
-        if scope.checked_entry() != Some(checked)
+        if scope.checked_entry() != checked
             || scope.reach().entry() != native_entry
             || scope.reach().target_context().target() != target_slot.owner.target_name()
             || scope.reach().target_context().terminal_psi() != checked.terminal_psi_identity()
@@ -717,9 +717,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             native_entry,
             selected_providers: scope.selected_provider_closure(),
             source_providers: *scope.source_provider_selection().identity_digest().as_bytes(),
-            source_native_bindings: scope
-                .source_native_bindings()
-                .ok_or("runtime execution has no admitted native bindings")?,
+            source_native_bindings: scope.source_native_bindings(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
             target_provider_proposals: Vec::new(),

@@ -13,8 +13,8 @@ mod calling_plans {
     use calling_conventions::{
         BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
     };
-    use provider_plans::{ServiceMethod, ServiceSchema};
     use program_entry_contracts::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
+    use provider_plans::{ServiceMethod, ServiceSchema};
 
     pub(crate) fn validate_paired_calling_plans(
         source: &SelectedProgramEntrySignature,
@@ -288,7 +288,7 @@ mod model {
     #[derive(Debug, Clone, Copy)]
     pub struct NativeProgramEntrySettlement<'entry> {
         pub checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
-        pub physical_adapter: Option<&'entry PhysicalProgramEntry>,
+        pub(super) physical_adapter: Option<&'entry PhysicalProgramEntry>,
         pub source: &'entry SelectedProgramEntrySignature,
         pub semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
         pub physical_calling_application: Option<&'entry BoundaryCallingApplication>,
@@ -403,6 +403,7 @@ mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ValidatedNativeProgramEntrySettlement {
+        pub(super) artifact: terminal_codec::TerminalArtifactIdentity,
         pub(crate) checked_entry: CheckedProgramEntryTerminalReceipt,
         pub(crate) physical_adapter: Option<PhysicalProgramEntry>,
         pub(crate) target: target::NativeTarget,
@@ -416,16 +417,32 @@ mod model {
     }
 
     impl ValidatedNativeProgramEntrySettlement {
-        pub(crate) fn bind_physical_adapter(
+        pub const fn artifact_identity(&self) -> terminal_codec::TerminalArtifactIdentity {
+            self.artifact
+        }
+
+        pub fn target_callable(&self) -> terminal_psi::TargetMachineCallable {
+            terminal_psi::TargetMachineCallable::Machine(
+                self.physical_adapter()
+                    .map_or(self.checked_entry().terminal_entry(), |adapter| {
+                        adapter.machine()
+                    }),
+            )
+        }
+
+        pub fn bind_physical_adapter(
             &mut self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            selected: &[provider_admission::SelectedProviderAdapter],
-        ) -> Result<(), &'static str> {
-            let application = self
-                .physical_calling_application()
-                .ok_or("physical adapter selected without a physical arrival contract")?;
-            self.physical_adapter =
-                Some(PhysicalProgramEntry::bind(artifact, application, selected)?);
+            providers: &selected_provider_plans::SelectedProviderPlanFacts,
+            adapters: &crate::SelectedProviderAdapters,
+        ) -> Result<(), String> {
+            if artifact.manifest().identity() != self.artifact {
+                return Err("physical adapter belongs to another canonical artifact".into());
+            }
+            adapters.require_selection(providers)?;
+            self.physical_adapter = Some(PhysicalProgramEntry::bind(
+                artifact, self, providers, adapters,
+            )?);
             Ok(())
         }
 
@@ -517,6 +534,7 @@ mod model {
         SourceMachineSubstitution,
         CanonicalArtifactReplay(String),
         TerminalPsiSubstitution,
+        PhysicalEntrySubstitution,
         TerminalEntrySubstitution,
         TerminalEntryMultiplicity(usize),
     }
@@ -526,11 +544,16 @@ mod model {
     impl std::error::Error for NativeProgramEntrySettlementError {}
 }
 mod physical_adapter {
+    use super::ValidatedNativeProgramEntrySettlement;
+    use psi_publication_records::CheckedProgramEntryTerminalReceipt;
     use semantic_vocabulary::MachineId;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct PhysicalProgramEntry {
-        terminal: terminal_psi::TerminalPsiIdentity,
+        pub(crate) provider_selection: selected_provider_plans::SelectedProviderClosureDigest,
+        artifact: terminal_codec::TerminalArtifactIdentity,
+        checked_entry: CheckedProgramEntryTerminalReceipt,
+        calling_application: [u8; 32],
         machine: MachineId,
         parameter_formals: Vec<u32>,
         candidate: terminal_psi::ProviderCandidateConformance,
@@ -538,7 +561,7 @@ mod physical_adapter {
 
     impl PhysicalProgramEntry {
         pub const fn terminal(&self) -> terminal_psi::TerminalPsiIdentity {
-            self.terminal
+            self.checked_entry.terminal_psi_identity()
         }
         pub const fn machine(&self) -> MachineId {
             self.machine
@@ -548,34 +571,86 @@ mod physical_adapter {
             &self.parameter_formals
         }
 
-        pub(crate) fn bind(
+        pub(super) fn belongs_to(
+            &self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            application: &calling_conventions::BoundaryCallingApplication,
-            selected: &[provider_admission::SelectedProviderAdapter],
-        ) -> Result<Self, &'static str> {
+            checked_entry: &CheckedProgramEntryTerminalReceipt,
+            application: Option<&calling_conventions::BoundaryCallingApplication>,
+        ) -> bool {
+            self.artifact == artifact.manifest().identity()
+                && self.checked_entry == *checked_entry
+                && application
+                    .is_some_and(|application| application.commitment == self.calling_application)
+        }
+
+        pub(super) fn bind(
+            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            entry: &ValidatedNativeProgramEntrySettlement,
+            providers: &selected_provider_plans::SelectedProviderPlanFacts,
+            adapters: &crate::SelectedProviderAdapters,
+        ) -> Result<Self, String> {
             let module = artifact.semantic_module();
-            let mut candidates = module.interfaces.provider_candidates.iter().filter(|candidate| {
-                module.identities.text(candidate.requirement_identity)
-                    == Some(application.requirement_identity.as_str())
-                    && module.calling_abi_identity(candidate.boundary).as_ref()
-                        == Ok(&application.abi)
-                    && selected.iter().any(|selection| {
-                        selection.requirement_identity == application.requirement_identity
-                            && module.identities.text(candidate.candidate_identity)
-                                == Some(selection.machine_identity.as_str())
-                            && module.identities.text(candidate.provider_identity)
-                                == Some(selection.provider_identity.as_str())
-                            && module
-                                .identities
-                                .text(candidate.provider_declaration.identity())
-                                == Some(selection.provider_declaration.as_str())
-                    })
-            });
+            let application = entry
+                .physical_calling_application()
+                .ok_or("physical adapter selected without a physical arrival contract")?;
+            let requirement = &application.requirement_identity;
+            let mut rows = adapters
+                .rows()
+                .iter()
+                .filter(|row| &row.requirement_identity == requirement);
+            let (Some(adapter), None) = (rows.next(), rows.next()) else {
+                return Err(
+                    "physical arrival requires exactly one selected checked adapter".into(),
+                );
+            };
+            let target = entry.source().target_slot().owner.target_name();
+            if module.program_entry_contract(target)?.entry
+                != entry.checked_entry().terminal_entry()
+            {
+                return Err("physical arrival belongs to another program entry".into());
+            }
+            let plan = providers
+                .plans()
+                .iter()
+                .find(|plan| {
+                    plan.target == target
+                        && plan.provider_declaration.as_deref()
+                            == Some(adapter.provider_declaration.as_str())
+                        && plan.identity_digest() == adapter.provider_plan_digest
+                })
+                .ok_or("physical adapter has no selected provider plan for this target")?;
+            target_provider_admission::validate_selected_service_schemas(
+                std::slice::from_ref(plan),
+                module,
+            )?;
+            let projected = target_provider_admission::selected_checked_invocation_rows(
+                std::slice::from_ref(plan),
+                module,
+            )?;
+            let row = projected
+                .iter()
+                .find(|row| {
+                    plan.identity_text(row.row.requirement_identity)
+                        == adapter.selected_requirement_identity
+                })
+                .ok_or("physical adapter lost its checked requirement row")?;
+            let mut candidates = row
+                .candidates
+                .iter()
+                .map(|candidate| candidate.conformance)
+                .filter(|candidate| {
+                    module.identities.text(candidate.requirement_identity)
+                        == Some(requirement.as_str())
+                        && module.identities.text(candidate.candidate_identity)
+                            == Some(adapter.machine_identity.as_str())
+                        && module.calling_abi_identity(candidate.boundary).as_ref()
+                            == Ok(&application.abi)
+                });
             let candidate = candidates
                 .next()
                 .ok_or("physical adapter has no exact selected checked conformance")?;
             if candidates.next().is_some() {
-                return Err("physical adapter selection is ambiguous");
+                return Err("physical adapter selection is ambiguous".into());
             }
             let machine = candidate.candidate;
             let body = module
@@ -587,12 +662,14 @@ mod physical_adapter {
             if boundary.scalar_parameters.len() != body.parameters.len()
                 || boundary.structural_parameters.len() != body.structural_parameters.len()
             {
-                return Err("physical adapter formals differ from its retained body");
+                return Err("physical adapter formals differ from its retained body".into());
             }
             if !boundary.has_valid_parameter_order()
                 || boundary.parameter_order.len() != application.plan.plan().call.parameters.len()
             {
-                return Err("physical adapter formals are not the complete arrival signature");
+                return Err(
+                    "physical adapter formals are not the complete arrival signature".into(),
+                );
             }
             terminal_semantics::validate_empty_erased_invocation_inputs(module, machine)?;
             let parameter_formals = boundary
@@ -605,10 +682,15 @@ mod physical_adapter {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if body.runtime_parameter_formals()? != parameter_formals {
-                return Err("physical adapter body changes the retained arrival parameter order");
+                return Err(
+                    "physical adapter body changes the retained arrival parameter order".into(),
+                );
             }
             Ok(Self {
-                terminal: artifact.view().identity(),
+                artifact: artifact.manifest().identity(),
+                checked_entry: entry.checked_entry().clone(),
+                provider_selection: adapters.selection_digest(),
+                calling_application: application.commitment,
                 machine,
                 parameter_formals,
                 candidate: candidate.clone(),
@@ -792,11 +874,17 @@ pub fn validate_native_program_entry_settlement(
     })?;
     if psi != checked_entry.terminal_psi_identity()
         || artifact.manifest().semantic() != checked_entry.terminal_psi_identity()
-        || program_entry
-            .physical_adapter
-            .is_some_and(|adapter| adapter.terminal() != psi)
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
+    }
+    if program_entry.physical_adapter().is_some_and(|adapter| {
+        !adapter.belongs_to(
+            artifact,
+            checked_entry,
+            program_entry.physical_calling_application(),
+        )
+    }) {
+        return Err(NativeProgramEntrySettlementError::PhysicalEntrySubstitution);
     }
     let selections =
         psi_target_layouts::terminal_target_context(artifact.view(), slot.owner.target_name());
@@ -828,6 +916,7 @@ pub fn validate_native_program_entry_settlement(
         )?;
     }
     Ok(ValidatedNativeProgramEntrySettlement {
+        artifact: artifact.manifest().identity(),
         checked_entry: checked_entry.clone(),
         physical_adapter: program_entry.physical_adapter.cloned(),
         target,

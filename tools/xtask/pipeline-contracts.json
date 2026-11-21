@@ -16263,14 +16263,15 @@
       "consumers": [
         "02 publish_provider_demand",
         "03 close_folded_entry",
-        "received provider installation and package admission"
+        "received provider installation and package admission",
+        "physical program entry binding"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "function:validate_selected_service_schemas#1",
       "kind": "checker",
-      "meaning": "Verify the complete selected service schema against the moduleâ€™s canonical declaration and application.",
+      "meaning": "Verify every selected service schema against the canonical declaration and application in the published program.",
       "producer": "provider plan correspondence",
-      "signature": "431b3e557d641bc75443923c4bdc283430505963898347e0ff9e6d2b0d57c82e"
+      "signature": "1213e6626d01dc09b97373b8abc263d9c7db93fbac407fadb988c12e833e1b5e"
     },
     {
       "consumers": [

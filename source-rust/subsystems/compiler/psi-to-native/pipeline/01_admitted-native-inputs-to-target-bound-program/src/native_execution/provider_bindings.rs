@@ -3,10 +3,9 @@ use super::PreparedNativeExecution;
 use diagnostics::Diagnostic;
 use provider_correspondence::CompilerIntrinsicPlanProvenance;
 use std::collections::BTreeSet;
+use target_bound_program::{NativeExecutionScope, ScopedProviderSelection};
 use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
-use verified_optimization_input::{
-    NativeExecutionScope, ScopedProviderSelection, TerminalNativeRealizationProposal,
-};
+use verified_optimization_input::TerminalNativeRealizationProposal;
 
 fn selected_intrinsic_provenance<'a>(
     proposal: &'a TerminalNativeRealizationProposal,
@@ -153,7 +152,13 @@ pub(super) fn bind(
         scope.reach().emitted_reach(),
         &direct,
     )?;
-    let checked = ScopedProviderSelection::bind(authorization, proposal, scope, verified)?;
+    let checked = ScopedProviderSelection::bind(
+        authorization,
+        proposal.scope_source(),
+        scope,
+        &proposal.providers().direct_boundary_leaves,
+        verified,
+    )?;
     let scope = checked.scope();
     let selection = checked.selection();
     let intrinsic_provenance = selected_intrinsic_provenance(proposal, selection)?;

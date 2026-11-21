@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Computing native entry reach imports the optimizer's complete provider proposal
-
-- Category: Knowledge crossing a boundary.
-- Where: [entry reach](source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs#L22), [scope binding](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs#L21), [scoped selection](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/scoped_provider_selection.rs#L7).
-- Saw: Stage 01 passes the optimizer's entire `TerminalNativeRealizationProposal` into root and private reach computation. The optimizer crate owns the checked scope and stores the provider adapters used to discover reachable machines.
-- Cost: Reading the target-bound entry and its allowed callees requires importing later optimizer and provider-admission types. Give entry reach the checked entry, adapter and callback facts it reads. Preserve refusal of a foreign parent artifact or target through both root and private lowering.
-- Reported: 2026-11-20, Codex, while moving builtin selection into the target-bound program.
-
 ### Interpreter admission runs native abstract optimization to obtain borrowed storage layouts
 
 - Category: Knowledge crossing a boundary.
