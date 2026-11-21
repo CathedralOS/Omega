@@ -839,9 +839,10 @@ mod tests {
             else {
                 panic!("the declaration must retain its executable initializer");
             };
-            assert_eq!(program.symbols.name(call.target_symbol), "reading");
+            let selected_machine = program.symbols.get(call.target_symbol).parent;
+            assert_eq!(program.symbols.name(selected_machine), "reading");
             assert_eq!(
-                program.symbols.get(call.target_symbol).parent,
+                program.symbols.get(selected_machine).parent,
                 program.symbols.get(declaration.symbol).parent,
             );
         }
