@@ -19627,7 +19627,18 @@
       "kind": "definition",
       "meaning": "Retain the accepted source and roster and publish one shared canonical Psi artifact for the fixed optimization selection.",
       "producer": "stage 07 checked source publication",
-      "signature": "af0f49c34a747b116f5cc4a8350d4c8462cc90d5bf56f24473b040cc6155fdd5"
+      "signature": "f34939e2e46c3152e881e3f26896a965193b622790ed64558a9e94d2a592c576"
+    },
+    {
+      "consumers": [
+        "source driver Product check"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:check#1",
+      "kind": "checker",
+      "meaning": "Admit declaration selections against the captured Product package scope and return the accepted source advisories.",
+      "producer": "stage 07 checked source publication",
+      "signature": "d921a864d9d2c156058f9d31b59d4773125dbb62433e6dae142f76d102acc30c"
     },
     {
       "consumers": [
