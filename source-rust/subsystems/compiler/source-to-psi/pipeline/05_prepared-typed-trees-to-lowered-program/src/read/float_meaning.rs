@@ -245,6 +245,106 @@ impl Program<'_> {
         Ok(Some(primitive))
     }
 
+    /// Named constants are materialized before this reader. Read the format
+    /// from the checked record, including the declaration attached to this
+    /// particular use. An equivalent authored record has the same meaning.
+    fn meaning_format(&self, id: MachineId, argument: ExpressionHandle) -> Checked<Format> {
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment;
+        use application_identity::const_value::decode_declaration_value;
+
+        let typed = self.typed;
+        let expressions = &typed.expression_table;
+        let unknown = || {
+            unavailable(
+                id,
+                "float semantic format outside the admitted core records",
+            )
+        };
+        let mut selected = match expressions.expression(argument) {
+            ExpressionNode::Name(name) if !name.static_application.is_valid() => {
+                name.resolved_symbol()
+            }
+            ExpressionNode::StructLiteral(_) => None,
+            _ => return Err(unknown()),
+        };
+        let source = expressions.source_span(argument);
+        for occurrence in expressions.authored_selection_occurrences(argument) {
+            let row = typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(unknown)?;
+            if row.kind() != StaticPathSegment || row.source_span() != source {
+                continue;
+            }
+            let Some(symbol) = row
+                .target()
+                .as_resolved()
+                .map(|target| target.selected_symbol())
+            else {
+                continue;
+            };
+            if typed.const_declaration_by_symbol(symbol).is_some()
+                && selected
+                    .replace(symbol)
+                    .is_some_and(|previous| previous != symbol)
+            {
+                return Err(unknown());
+            }
+        }
+        let selected = selected
+            .map(|symbol| {
+                typed
+                    .const_declaration_by_symbol(symbol)
+                    .ok_or_else(unknown)
+            })
+            .transpose()?;
+        let materialized = match expressions.expression(argument) {
+            ExpressionNode::Name(_) => selected.ok_or_else(unknown)?.materialized_initializer,
+            _ => argument,
+        };
+        let matches = |constant: &crate::source_state::constant::ConstDeclaration| {
+            self.meaning_type(constant.declared_type)
+                .and_then(|symbol| typed.core_vocabulary(symbol))
+                == Some(CoreVocabulary::FloatFormat)
+                && constant
+                    .evaluated_value
+                    .as_ref()
+                    .and_then(numeric_literals::EvaluatedConstant::encoding)
+                    .and_then(decode_declaration_value)
+                    .is_some_and(|value| {
+                        typed.canonical_const_materialization_matches(
+                            constant.declared_type,
+                            materialized,
+                            &value,
+                        )
+                    })
+        };
+        let format_of = |symbol| match typed.symbols.core_vocabulary(symbol) {
+            Some(CoreVocabulary::FloatBinary32) => Some(Format::Binary32),
+            Some(CoreVocabulary::FloatBinary64) => Some(Format::Binary64),
+            _ => None,
+        };
+        if let Some(constant) = selected {
+            if !matches(constant) {
+                return Err(unavailable(
+                    id,
+                    "float format record differs from its selected constant",
+                ));
+            }
+            if let Some(format) = format_of(constant.symbol) {
+                return Ok(format);
+            }
+        }
+        typed
+            .const_declarations()
+            .iter()
+            .find_map(|constant| {
+                let format = format_of(constant.symbol)?;
+                matches(constant).then_some(format)
+            })
+            .ok_or_else(unknown)
+    }
+
     fn meaning_application(
         &mut self,
         id: MachineId,
@@ -268,23 +368,7 @@ impl Program<'_> {
             }
             let operand = match *kind {
                 Kind::Format => {
-                    let ExpressionNode::Name(name) = typed.expression_table.expression(argument)
-                    else {
-                        return Err(unavailable(
-                            id,
-                            "float semantic format without its selected constant",
-                        ));
-                    };
-                    let format = match typed.core_vocabulary(name.symbol) {
-                        Some(CoreVocabulary::FloatBinary32) => Format::Binary32,
-                        Some(CoreVocabulary::FloatBinary64) => Format::Binary64,
-                        _ => {
-                            return Err(unavailable(
-                                id,
-                                "float semantic format outside the admitted core constants",
-                            ));
-                        }
-                    };
+                    let format = self.meaning_format(id, argument)?;
                     declared_format = Some(format);
                     Operand::Format(format)
                 }
