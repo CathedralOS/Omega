@@ -116,13 +116,14 @@ proposition cannot substitute for the carried identity.
 ## Scalar requires
 
 A requirement's scalar `requires` clauses, and its integer parameter ranges,
-are part of the contract the declaration retains. They are propositions in the
-crash routes' declaration-local scalar-formal namespace, in canonical order,
-naming no structural place or caller value. Each `BoundaryCall` carries one
-`ObligationId` per row at the same index, as an ordinary call's `requires`
-lane does. Verification instantiates the row at that call's scalar actuals and
-proves it from the caller's facts before the call. A clause that is wholly
-structural membership stays a structural domain requirement and has no row.
+are part of the contract the declaration retains. Each proposition may name
+the declaration's scalar inputs and scalar observations of its readable
+structural inputs, such as a record field or a view's length. Only inputs
+are in scope before the call. The rows appear in canonical order, with one
+`ObligationId` per row in the `BoundaryCall`, as in an ordinary call's
+`requires` lane. Verification substitutes the actual arguments and proves
+each row from the caller's facts. A clause that is wholly structural
+membership stays a structural domain requirement and has no scalar row.
 
 Selecting a provider does not remove or weaken these obligations. A checked
 candidate may be installed for the call only when its own requirements follow
