@@ -794,3 +794,14 @@ fn declaration_words_used_as_names_bind_like_any_other_name() {
         )
     );
 }
+
+#[test]
+fn a_conformance_array_extent_keeps_the_local_binder_first_in_scope() {
+    let source = "const N: u64 = 99; machine width(flag:bool)->u64 { 2 } trait T {} \
+                  Policy<const N: u64, const Routes: [u8; width(N > 1)]> satisfies T {}";
+    let stage = resolve(&[("app", "main.omg", source)]);
+    let local = source.find("Policy<const N").unwrap() + "Policy<const ".len();
+    assert_eq!(references(&stage, "main.omg", source, "N"), [format!("ConstParam@{local} | Const N")]);
+    assert_eq!(references(&stage, "main.omg", source, "width"), ["Machine width"]);
+    assert_eq!(references(&stage, "main.omg", source, "T"), ["Trait T"]);
+}
