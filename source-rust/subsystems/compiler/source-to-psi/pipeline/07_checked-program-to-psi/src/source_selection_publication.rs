@@ -1819,7 +1819,26 @@ impl<'source> Declarations<'source> {
                 {
                     return Ok(true);
                 }
-                scope = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                scope = if self.typed.symbols.get(scope).kind == SymbolKind::CallableContract {
+                    // The anonymous signature symbol belongs to the symbol-table root.
+                    // Its exact contract occurrence records the source scope it captures.
+                    let mut parents = self
+                        .contracts
+                        .get(&scope)
+                        .into_iter()
+                        .flatten()
+                        .map(|&handle| self.typed.runtime_callable_contract(handle).lexical_owner);
+                    let parent = parents
+                        .next()
+                        .ok_or_else(|| refused("callable scope has no retained contract"))?;
+                    self.valid(parent, "callable's enclosing source declaration")?;
+                    if parents.any(|other| other != parent) {
+                        return Err(refused(
+                            "callable scope has ambiguous retained lexical parents",
+                        ));
+                    }
+                    parent
+                } else if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
                     owner.symbol
                 } else if !follow_copied_parents
                     && let Some(template) = self
@@ -3018,6 +3037,50 @@ machine entry() reaches Input {}
                 formal,
                 StaticArgumentRole::ValueDependency,
             )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn callable_alias_capture_can_select_only_its_enclosing_type_binder() {
+        let source = accepted_source(
+            "public data KeyHash<K> = machine(key: @K) -> u64;
+             public data Sibling<K> = machine(value: @K) -> bool;
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let alias = |name| {
+            typed
+                .type_aliases()
+                .iter()
+                .find(|row| row.name.as_str() == name)
+                .unwrap()
+        };
+        let owner = alias("KeyHash");
+        let sibling = alias("Sibling");
+        let binder = |row: &crate::source_state::type_aliases::TypeAliasDefinition| {
+            typed
+                .data_type_parameters
+                .span_or_empty(row.type_parameters)[0]
+                .symbol
+        };
+        let crate::source_state::types::TypeReferenceNode::Callable { contract } =
+            typed.type_reference_table.type_reference(owner.expansion)
+        else {
+            panic!("KeyHash must retain its source callable");
+        };
+        let scope = typed.runtime_callable_contract(*contract).signature.symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        declarations
+            .local_binding(&mut questions, scope, binder(owner), owner.symbol)
+            .unwrap();
+        let error = declarations
+            .local_binding(&mut questions, scope, binder(sibling), sibling.symbol)
             .unwrap_err();
         assert!(
             error.message.contains("outside its actual lexical context"),
