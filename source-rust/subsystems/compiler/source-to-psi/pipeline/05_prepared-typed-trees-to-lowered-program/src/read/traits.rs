@@ -1093,11 +1093,11 @@ impl crate::source_state::references::TypedReferences for SignatureReferences<'_
         }
         if let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
             self.typed.type_reference_table.type_reference(reference)
-            && (!self.typed.symbols.symbols().nodes().is_valid(*symbol)
-                || (self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-                    && !self.binders.contains(symbol)))
+            && self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && !self.binders.contains(symbol)
         {
-            self.error = Some("static signature has an unresolved or out-of-scope type binder");
+            self.error = Some("static signature has an out-of-scope type binder");
             return false;
         }
         enter(&mut self.types, reference)
