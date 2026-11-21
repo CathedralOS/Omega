@@ -64,16 +64,16 @@ pub fn provider_invocation(
     if actuals.len() != declaration.structural_parameters.len()
         || slot_kind == DescriptorSlotKind::AccessOrigins
     {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     let mut arguments = Vec::with_capacity(actuals.len());
     let mut argument_contents = Vec::with_capacity(actuals.len());
     let mut invalidates_contents = false;
     for (actual, formal) in actuals.iter().zip(&declaration.structural_parameters) {
         if actual.access != formal.access {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        let root = *place_types.get(&actual.place)?;
+        let root = *place_types.get(&actual.place).array_trace(line!())?;
         arguments.push(descriptor_location(
             types,
             actual.place,
@@ -96,13 +96,13 @@ pub fn provider_invocation(
             BoundaryReferenceDestination::Parameter(position) => {
                 let formal = declaration
                     .structural_parameters
-                    .get(usize::try_from(position).ok()?)?;
+                    .get(usize::try_from(position).ok().array_trace(line!())?).array_trace(line!())?;
                 (formal.place, formal.structural_type)
             }
         };
-        let location = descriptor_location(types, place, root_type, &output.path, None)?;
+        let location = descriptor_location(types, place, root_type, &output.path, None).array_trace(line!())?;
         if !slot_kind
-            .owned_slots(types, place, root_type)?
+            .owned_slots(types, place, root_type).array_trace(line!())?
             .contains(&location)
         {
             continue;
@@ -112,10 +112,10 @@ pub fn provider_invocation(
             &declaration.structural_parameters,
             &output.dependencies,
         )
-        .ok()?;
+        .ok().array_trace(line!())?;
         let origins = vec![DescriptorStoredOrigin::Provider(DescriptorProviderOrigin {
             boundary: declaration.id,
-            output: DescriptorProviderOutput::Stored(u32::try_from(output_index).ok()?),
+            output: DescriptorProviderOutput::Stored(u32::try_from(output_index).ok().array_trace(line!())?),
             invocations: Vec::new(),
             projection: Projection::new(&[]),
             lifetime_dependencies,
@@ -123,7 +123,7 @@ pub fn provider_invocation(
         match output.destination {
             BoundaryReferenceDestination::Parameter(position) => {
                 effects.push(DescriptorStoredEffect {
-                    parameter: usize::try_from(position).ok()?,
+                    parameter: usize::try_from(position).ok().array_trace(line!())?,
                     steps: location
                         .path
                         .into_iter()
@@ -135,9 +135,9 @@ pub fn provider_invocation(
         }
     }
     let results = if !declaration.result_reference_regions.is_empty() {
-        super::public_result_slots(types, slot_kind, declaration, result?.place)?
+        super::public_result_slots(types, slot_kind, declaration, result.array_trace(line!())?.place).array_trace(line!())?
     } else if let Some(result) = result {
-        crate::boundary_result_slots(types, declaration, slot_kind, result).ok()?
+        crate::boundary_result_slots(types, declaration, slot_kind, result).ok().array_trace(line!())?
     } else {
         Vec::new()
     };
@@ -156,4 +156,12 @@ pub fn provider_invocation(
         argument_contents,
         result,
     })
+}
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
 }

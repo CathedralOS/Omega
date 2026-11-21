@@ -17,11 +17,11 @@ impl DescriptorSlotKind {
         let mut pending = vec![(formal.structural_type, Vec::new(), Vec::new())];
         while let Some((ty, prefix, mut ancestors)) = pending.pop() {
             if ancestors.contains(&ty) {
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             ancestors.push(ty);
             let inventory =
-                slot_inventory(self, DescriptorStorageScope::Owned, types, formal.place, ty)?;
+                slot_inventory(self, DescriptorStorageScope::Owned, types, formal.place, ty).array_trace(line!())?;
             let mut append = |path: Vec<DescriptorPathSegment>| {
                 origins.push(if prefix.is_empty() {
                     DescriptorStoredOrigin::IncomingSlot { position, path }
@@ -45,25 +45,33 @@ impl DescriptorSlotKind {
                     continue;
                 }
                 if formal.access != StructuralAccess::SharedBorrow
-                    || path.pop()? != DescriptorPathSegment::UnknownContents
+                    || path.pop().array_trace(line!())? != DescriptorPathSegment::UnknownContents
                 {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
-                let array = descriptor_location_type(types, ty, &path)?;
+                let array = descriptor_location_type(types, ty, &path).array_trace(line!())?;
                 let StructuralTypeShape::FixedArray { element, .. } =
-                    find_structural_type(types, array)?.shape
+                    find_structural_type(types, array).array_trace(line!())?.shape
                 else {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 };
                 let mut steps = prefix.clone();
                 steps.extend(path.into_iter().map(DescriptorContentsStep::Address));
                 steps.push(DescriptorContentsStep::any_element(element));
                 pending.push((element, steps, ancestors.clone()));
             }
-            if origins.len().checked_add(pending.len())? > 4096 {
-                return None;
+            if origins.len().checked_add(pending.len()).array_trace(line!())? > 4096 {
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
         }
         Some(origins)
     }
+}
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
 }

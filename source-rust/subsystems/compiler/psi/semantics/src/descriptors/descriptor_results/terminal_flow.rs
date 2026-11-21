@@ -221,7 +221,7 @@ fn adapt_flow(
         ..
     } = failure
     else {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     };
     let scalar_expressions =
         super::payload_predicates::TerminalScalarExpressions::new(machine);
@@ -232,7 +232,7 @@ fn adapt_flow(
         .collect::<Vec<_>>();
     scalar_formals.sort_unstable();
     let selector = |value| {
-        super::entry_selector(scalar_expressions.expression(value)?, |id| {
+        super::entry_selector(scalar_expressions.expression(value).array_trace(line!())?, |id| {
             scalar_formals.binary_search(&id).is_ok()
         })
     };
@@ -273,7 +273,7 @@ fn adapt_flow(
                     .iter()
                     .map(|place| (place.id, place.kind)),
             )
-            .ok()?,
+            .ok().array_trace(line!())?,
             machine.contract.requires.clone(),
         )),
         scalar_payload_writes: BTreeMap::new(),
@@ -293,7 +293,7 @@ fn adapt_flow(
         graph.places.push(DescriptorPlace {
             producer: None,
             place: place.id,
-            definition: terminal_definition(module, machine, place.id, place.kind)?,
+            definition: terminal_definition(module, machine, place.id, place.kind).array_trace(line!())?,
         });
         if let Some(ty) = machine.structural_place_type(place.id) {
             graph.place_types.insert(place.id, ty);
@@ -305,13 +305,13 @@ fn adapt_flow(
         .windows(2)
         .any(|pair| pair[0].place == pair[1].place)
     {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     let location = |root, path: &[StructuralPathSegment], field| {
         descriptor_location(
             &module.types.structural_types,
             root,
-            *graph.place_types.get(&root)?,
+            *graph.place_types.get(&root).array_trace(line!())?,
             path,
             field,
         )
@@ -325,7 +325,7 @@ fn adapt_flow(
             *failure_position = None;
             *failure_successor = None;
             *failure_detail = None;
-            let position = (block.id, u32::try_from(index).ok()?);
+            let position = (block.id, u32::try_from(index).ok().array_trace(line!())?);
             *failure_position = Some(position);
             if let Some(postconditions) = super::scalar_contracts::terminal_postconditions(
                 module,
@@ -403,7 +403,7 @@ fn adapt_flow(
                     crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
                         &module.types.structural_types,
                         *source,
-                        *graph.place_types.get(source)?,
+                        *graph.place_types.get(source).array_trace(line!())?,
                         &path,
                     )
                     && let Some(result) = operation.result.scalar_ref()
@@ -451,7 +451,7 @@ fn adapt_flow(
                         crate::descriptor_lifetimes::canonical_descriptor_location(
                             &module.types.structural_types,
                             root,
-                            *graph.place_types.get(&root)?,
+                            *graph.place_types.get(&root).array_trace(line!())?,
                             path,
                         ),
                     ),
@@ -467,7 +467,7 @@ fn adapt_flow(
                             crate::descriptor_lifetimes::canonical_descriptor_location(
                                 &module.types.structural_types,
                                 root,
-                                *graph.place_types.get(&root)?,
+                                *graph.place_types.get(&root).array_trace(line!())?,
                                 &selected,
                             ),
                         )
@@ -499,7 +499,7 @@ fn adapt_flow(
                             StructuralStorageUse::Projection(projection) => {
                                 crate::primitive_operation_projection_type(
                                     module.types.structural_types.iter(),
-                                    *graph.place_types.get(&root)?,
+                                    *graph.place_types.get(&root).array_trace(line!())?,
                                     projection,
                                 )
                                 .is_some()
@@ -530,21 +530,21 @@ fn adapt_flow(
                     .structural_places
                     .iter()
                     .filter(|row| row.id == result.place);
-                if rows.next()?.kind
+                if rows.next().array_trace(line!())?.kind
                     != (StructuralPlaceKind::OperationResult {
                         producer: operation.id,
                         structural_type: result.structural_type,
                     })
                     || rows.next().is_some()
                 {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
                 let index = graph
                     .places
                     .binary_search_by_key(&result.place, |row| row.place)
-                    .ok()?;
+                    .ok().array_trace(line!())?;
                 if graph.places[index].producer.replace(position).is_some() {
-                    return None;
+                    return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                 }
                 step.definitions
                     .push(DescriptorLocation::whole(result.place));
@@ -564,21 +564,21 @@ fn adapt_flow(
                 descriptor_contents_query(
                     &module.types.structural_types,
                     root,
-                    *graph.place_types.get(&root)?,
+                    *graph.place_types.get(&root).array_trace(line!())?,
                     path,
                     field,
                 )
             };
             let payload_query = |root, path: &[StructuralPathSegment], field| {
-                let mut query = value_query(root, path, field)?;
+                let mut query = value_query(root, path, field).array_trace(line!())?;
                 if let Some(index) = path.iter().position(|segment| {
                     matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
                 }) {
                     let collection = crate::runtime_structural_path_tip(
                         module.types.structural_types.iter(),
-                        *graph.place_types.get(&root)?,
+                        *graph.place_types.get(&root).array_trace(line!())?,
                         &path[..index],
-                    )?;
+                    ).array_trace(line!())?;
                     if matches!(collection.shape, StructuralTypeShape::FixedArray { .. }) {
                         // A later reference/view step names backing
                         // outside this array. Preserve that full query
@@ -586,7 +586,7 @@ fn adapt_flow(
                         if query
                             .inline_steps(
                                 &module.types.structural_types,
-                                *graph.place_types.get(&root)?,
+                                *graph.place_types.get(&root).array_trace(line!())?,
                             )
                             .is_none_or(|inline| inline[index..].contains(&false))
                         {
@@ -598,7 +598,7 @@ fn adapt_flow(
                         return descriptor_contents_query(
                             &module.types.structural_types,
                             root,
-                            *graph.place_types.get(&root)?,
+                            *graph.place_types.get(&root).array_trace(line!())?,
                             &path[..index],
                             None,
                         );
@@ -607,9 +607,9 @@ fn adapt_flow(
                 if field.is_none() {
                     let selected = crate::runtime_structural_path_tip(
                         module.types.structural_types.iter(),
-                        *graph.place_types.get(&root)?,
+                        *graph.place_types.get(&root).array_trace(line!())?,
                         path,
-                    )?;
+                    ).array_trace(line!())?;
                     match selected.shape {
                         StructuralTypeShape::ElementView { element, .. } => {
                             query
@@ -622,7 +622,7 @@ fn adapt_flow(
                                 selected.id,
                             ) =>
                         {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
                         _ => {}
                     }
@@ -633,10 +633,10 @@ fn adapt_flow(
             match &operation.kind {
                 OperationKind::DecomposeStructuralValue { subject } => {
                     if operation.result != terminal_psi::OperationResult::Unit {
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                     crate::nominal_cleanup::decomposition(module, machine.id, subject)
-                        .ok()?;
+                        .ok().array_trace(line!())?;
                     // Partitioning ownership does not write the value
                     // or any backing reached through its descriptors.
                 }
@@ -735,7 +735,7 @@ fn adapt_flow(
                     for argument in arguments {
                         let selected = crate::runtime_structural_path_tip(
                             module.types.structural_types.iter(),
-                            *graph.place_types.get(&argument.place)?,
+                            *graph.place_types.get(&argument.place).array_trace(line!())?,
                             &argument.path,
                         );
                         let mutation = selected
@@ -776,7 +776,7 @@ fn adapt_flow(
                 kind => {
                     let tag = crate::OperationSemanticTag::for_operation(kind);
                     let scalar = crate::operation_semantic_row(kind)
-                        .ok()?
+                        .ok().array_trace(line!())?
                         .goal_free_scalar_leaf()
                         .is_some()
                         || crate::ProofBearingScalarSemanticRow::ALL
@@ -800,7 +800,7 @@ fn adapt_flow(
             }
             let direct_call = match &operation.kind {
                 kind if terminal_psi::direct_call_parts(kind).is_some() => {
-                    let call = terminal_psi::direct_call_parts(kind)?;
+                    let call = terminal_psi::direct_call_parts(kind).array_trace(line!())?;
                     Some((call.callee, call.structural_arguments))
                 }
                 OperationKind::BoundaryCall {
@@ -829,24 +829,24 @@ fn adapt_flow(
                 graph.case_constructors.insert(
                     position,
                     vec![DescriptorCasePredicate {
-                        subject: DescriptorLocation::whole(result?.place).into(),
+                        subject: DescriptorLocation::whole(result.array_trace(line!())?.place).into(),
                         case: *result_case,
                     }],
                 );
-                let result_type = result?.structural_type;
-                let shape = &module.structural_type(result_type)?.shape;
+                let result_type = result.array_trace(line!())?.structural_type;
+                let shape = &module.structural_type(result_type).array_trace(line!())?.shape;
                 let cases = match shape {
                     StructuralTypeShape::Sum { cases }
                     | StructuralTypeShape::Mixed { cases, .. } => cases,
                     _ => return None,
                 };
-                terminal_psi::find_structural_case(cases, *result_case)?;
+                terminal_psi::find_structural_case(cases, *result_case).array_trace(line!())?;
                 for slot in slot_kind
                     .inventory(
                         &module.types.structural_types,
-                        result?.place,
-                        result?.structural_type,
-                    )?
+                        result.array_trace(line!())?.place,
+                        result.array_trace(line!())?.structural_type,
+                    ).array_trace(line!())?
                     .slots
                 {
                     if matches!(slot.path.first(), Some(crate::descriptors::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
@@ -867,10 +867,10 @@ fn adapt_flow(
                         subject.place,
                         &subject.path,
                         None,
-                    )?]);
+                    ).array_trace(line!())?]);
                 }
                 OperationKind::ReleaseReference { source, path } => {
-                    let source = location(*source, path, None)?;
+                    let source = location(*source, path, None).array_trace(line!())?;
                     step.replace_value_inputs([source.clone()]);
                     step.definitions.push(source);
                 }
@@ -879,18 +879,18 @@ fn adapt_flow(
                     let query = descriptor_contents_query(
                         &module.types.structural_types,
                         source.place,
-                        *graph.place_types.get(&source.place)?,
+                        *graph.place_types.get(&source.place).array_trace(line!())?,
                         &source.path,
                         None,
-                    )?;
+                    ).array_trace(line!())?;
                     step.replace_value_inputs([query.observation()]);
                 }
                 OperationKind::EstablishNativeCodeLayout { .. }
                     if slot_kind.tracks_views() =>
                 {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     let destination =
-                        native_code_layout_regions(&module.types.structural_types, result)?;
+                        native_code_layout_regions(&module.types.structural_types, result).array_trace(line!())?;
                     step.definitions.push(destination.clone());
                     graph.originations.entry(position).or_default().push((
                         destination,
@@ -901,7 +901,7 @@ fn adapt_flow(
                     ));
                 }
                 OperationKind::EstablishZeroedStructural {} => {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     graph.case_constructors.insert(
                         position,
                         zeroed_case_predicates(
@@ -915,7 +915,7 @@ fn adapt_flow(
                             &module.types.structural_types,
                             result.place,
                             result.structural_type,
-                        )?
+                        ).array_trace(line!())?
                         .slots
                     {
                         graph
@@ -933,23 +933,23 @@ fn adapt_flow(
                         destination,
                         DescriptorCallOrigin::Literal {
                             machine: machine.id,
-                            place: *destination_root(&operation.kind)?,
+                            place: *destination_root(&operation.kind).array_trace(line!())?,
                         },
                     ));
                 }
                 OperationKind::EstablishAccessReference { .. }
                     if slot_kind == DescriptorSlotKind::AccessOrigins =>
                 {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     let StructuralTypeShape::Reference {
                         referent: carrier, ..
                     } = find_structural_type(
                         &module.types.structural_types,
                         result.structural_type,
-                    )?
+                    ).array_trace(line!())?
                     .shape
                     else {
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     };
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
@@ -965,15 +965,15 @@ fn adapt_flow(
                 element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
-                    let destination = DescriptorLocation::whole(result?.place);
+                    let destination = DescriptorLocation::whole(result.array_trace(line!())?.place);
                     let (source_location, mut backing_projection, capture) =
                         captured_storage_source(
                             &module.types.structural_types,
                             source.place,
                             &source.path,
-                            *graph.place_types.get(&source.place)?,
+                            *graph.place_types.get(&source.place).array_trace(line!())?,
                             position,
-                        )?;
+                        ).array_trace(line!())?;
                     if let OperationKind::EstablishReference {
                         storage: Some(storage),
                         ..
@@ -982,11 +982,11 @@ fn adapt_flow(
                         let StructuralTypeShape::Reference { referent, .. } =
                             find_structural_type(
                                 &module.types.structural_types,
-                                result?.structural_type,
-                            )?
+                                result.array_trace(line!())?.structural_type,
+                            ).array_trace(line!())?
                             .shape
                         else {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         };
                         // The loan keeps the source address and its
                         // new presentation together. Dropping this
@@ -1012,7 +1012,7 @@ fn adapt_flow(
                         element_view_establish_pair_pattern!(source, element, ..) => {
                             crate::runtime_structural_path_tip(
                                 module.types.structural_types.iter(),
-                                *graph.place_types.get(&source.place)?,
+                                *graph.place_types.get(&source.place).array_trace(line!())?,
                                 &source.path,
                             )
                             .and_then(|collection| {
@@ -1043,7 +1043,7 @@ fn adapt_flow(
                             ..
                         ) => crate::runtime_structural_path_tip(
                             module.types.structural_types.iter(),
-                            *graph.place_types.get(&source.place)?,
+                            *graph.place_types.get(&source.place).array_trace(line!())?,
                             &source.path,
                         )
                         .is_some_and(|collection| {
@@ -1080,13 +1080,13 @@ fn adapt_flow(
                     let query = descriptor_contents_query(
                         &module.types.structural_types,
                         source.place,
-                        *graph.place_types.get(&source.place)?,
+                        *graph.place_types.get(&source.place).array_trace(line!())?,
                         &source.path,
                         None,
-                    )?;
+                    ).array_trace(line!())?;
                     let source = query.observation();
                     step.replace_value_inputs([source.clone()]);
-                    let destination = DescriptorLocation::whole(result?.place);
+                    let destination = DescriptorLocation::whole(result.array_trace(line!())?.place);
                     step.derivations.push((source.clone(), destination.clone()));
                     graph
                         .contents_queries
@@ -1099,7 +1099,7 @@ fn adapt_flow(
                 terminal_psi::structural_leaf_copy_pair_pattern!()
                 | OperationKind::MoveStructuralValue { .. }
                 | OperationKind::TransformContent { .. } => {
-                    let destination = DescriptorLocation::whole(result?.place);
+                    let destination = DescriptorLocation::whole(result.array_trace(line!())?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {
                             location(*source, path, None)
@@ -1112,7 +1112,7 @@ fn adapt_flow(
                             crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
                                 &module.types.structural_types,
                                 *source,
-                                *graph.place_types.get(source)?,
+                                *graph.place_types.get(source).array_trace(line!())?,
                                 path,
                             )
                         }
@@ -1132,7 +1132,7 @@ fn adapt_flow(
                         let query = super::contents::descriptor_contents_query_with(
                             &module.types.structural_types,
                             *source,
-                            *graph.place_types.get(source)?,
+                            *graph.place_types.get(source).array_trace(line!())?,
                             path,
                             None,
                             selector,
@@ -1142,15 +1142,15 @@ fn adapt_flow(
                             slot_kind,
                             position,
                             &mut graph.contents_queries,
-                            (query, *graph.place_types.get(source)?),
-                            (result?.place, result?.structural_type),
+                            (query, *graph.place_types.get(source).array_trace(line!())?),
+                            (result.array_trace(line!())?.place, result.array_trace(line!())?.structural_type),
                         );
                     } else {
                         step.may_escape = true;
                     }
                     if (is_descriptor(
                         module.types.structural_types.iter(),
-                        result?.structural_type,
+                        result.array_trace(line!())?.structural_type,
                     ) || module.types.structural_types.iter().any(|ty| {
                         ty.id == result.unwrap().structural_type
                             && matches!(ty.shape, StructuralTypeShape::Reference { .. })
@@ -1182,7 +1182,7 @@ fn adapt_flow(
                     field,
                     ..
                 } => {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     graph.contents_transfers.insert(
                         position,
                         descriptor_contents_transfers(
@@ -1190,7 +1190,7 @@ fn adapt_flow(
                             slot_kind,
                             DescriptorContentsOperand {
                                 root: *source,
-                                root_type: *graph.place_types.get(source)?,
+                                root_type: *graph.place_types.get(source).array_trace(line!())?,
                                 path,
                                 field: *field,
                             },
@@ -1202,7 +1202,7 @@ fn adapt_flow(
                             },
                             result.structural_type,
                             true,
-                        )?,
+                        ).array_trace(line!())?,
                     );
                     if let Some(source) = location(*source, path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
@@ -1222,9 +1222,9 @@ fn adapt_flow(
                 } => {
                     let value_type = crate::runtime_structural_path_tip(
                         module.types.structural_types.iter(),
-                        *graph.place_types.get(&value.place)?,
+                        *graph.place_types.get(&value.place).array_trace(line!())?,
                         &value.path,
-                    )?
+                    ).array_trace(line!())?
                     .id;
                     graph.contents_transfers.insert(
                         position,
@@ -1233,19 +1233,19 @@ fn adapt_flow(
                             slot_kind,
                             DescriptorContentsOperand {
                                 root: value.place,
-                                root_type: *graph.place_types.get(&value.place)?,
+                                root_type: *graph.place_types.get(&value.place).array_trace(line!())?,
                                 path: &value.path,
                                 field: None,
                             },
                             DescriptorContentsOperand {
                                 root: *destination,
-                                root_type: *graph.place_types.get(destination)?,
+                                root_type: *graph.place_types.get(destination).array_trace(line!())?,
                                 path,
                                 field: *field,
                             },
                             value_type,
                             false,
-                        )?,
+                        ).array_trace(line!())?,
                     );
                     if let (Some(destination), Some(source)) = (
                         location(*destination, path, *field),
@@ -1256,11 +1256,11 @@ fn adapt_flow(
                         if destination.path.is_empty()
                             && !is_descriptor(
                                 module.types.structural_types.iter(),
-                                *graph.place_types.get(&destination.root)?,
+                                *graph.place_types.get(&destination.root).array_trace(line!())?,
                             )
                             && !slot_kind.is_slot(
                                 &module.types.structural_types,
-                                *graph.place_types.get(&destination.root)?,
+                                *graph.place_types.get(&destination.root).array_trace(line!())?,
                             )
                         {
                             graph.originations.entry(position).or_default().push((
@@ -1275,10 +1275,10 @@ fn adapt_flow(
                         step.definitions.extend(slot_kind.overwritten_slots(
                             &module.types.structural_types,
                             *destination,
-                            *graph.place_types.get(destination)?,
+                            *graph.place_types.get(destination).array_trace(line!())?,
                             path,
                             *field,
-                        )?);
+                        ).array_trace(line!())?);
                         step.may_escape = true;
                     }
                 }
@@ -1289,7 +1289,7 @@ fn adapt_flow(
                     source,
                     ..
                 } => {
-                    let root_type = *graph.place_types.get(destination)?;
+                    let root_type = *graph.place_types.get(destination).array_trace(line!())?;
                     super::descriptor_leaf_store(
                         super::DescriptorStoreFlow {
                             position,
@@ -1307,42 +1307,42 @@ fn adapt_flow(
                         },
                         *source,
                         selector,
-                    )?;
+                    ).array_trace(line!())?;
                 }
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
                     step.scalar_value_stores
-                        .push((location(result?.place, &[], None)?, *value));
+                        .push((location(result.array_trace(line!())?.place, &[], None).array_trace(line!())?, *value));
                     if let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(result?.place, &[], None)?, value));
+                            .push((location(result.array_trace(line!())?.place, &[], None).array_trace(line!())?, value));
                     }
                 }
                 OperationKind::EstablishScalarArray { elements } => {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     for (ordinal, value) in elements.iter().enumerate() {
                         let path = crate::scalar_array_leaf_path(
                             module.types.structural_types.iter(),
                             result.structural_type,
-                            u64::try_from(ordinal).ok()?,
-                        )?;
+                            u64::try_from(ordinal).ok().array_trace(line!())?,
+                        ).array_trace(line!())?;
                         step.scalar_value_stores
-                            .push((location(result.place, &path, None)?, *value));
+                            .push((location(result.place, &path, None).array_trace(line!())?, *value));
                         if let Some(value) = scalar_expressions.expression(*value) {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
                                 .or_default()
-                                .push((location(result.place, &path, None)?, value));
+                                .push((location(result.place, &path, None).array_trace(line!())?, value));
                         }
                     }
                 }
                 OperationKind::EstablishStructuralArray { elements } => {
-                    let result = result?;
+                    let result = result.array_trace(line!())?;
                     let (element, stored) =
-                        match module.structural_type(result.structural_type)?.shape {
+                        match module.structural_type(result.structural_type).array_trace(line!())?.shape {
                             StructuralTypeShape::ElementView {
                                 element,
                                 access: None | Some(StructuralAccess::SharedBorrow),
@@ -1372,14 +1372,14 @@ fn adapt_flow(
                             || source.place == result.place
                             || crate::runtime_structural_path_tip(
                                 module.types.structural_types.iter(),
-                                *graph.place_types.get(&source.place)?,
+                                *graph.place_types.get(&source.place).array_trace(line!())?,
                                 &source.path,
-                            )?
+                            ).array_trace(line!())?
                             .id != element
                         {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
-                        let index = u64::try_from(index).ok()?;
+                        let index = u64::try_from(index).ok().array_trace(line!())?;
                         let destination = if stored {
                             DescriptorLocation {
                                 root: result.place,
@@ -1390,9 +1390,9 @@ fn adapt_flow(
                                 result.place,
                                 &[StructuralPathSegment::FixedIndex(index)],
                                 None,
-                            )?
+                            ).array_trace(line!())?
                         };
-                        let source = location(source.place, &source.path, None)?;
+                        let source = location(source.place, &source.path, None).array_trace(line!())?;
                         step.copy_value(source, destination);
                     }
                 }
@@ -1417,7 +1417,7 @@ fn adapt_flow(
                                 slot_kind,
                                 DescriptorContentsOperand {
                                     root: source.place,
-                                    root_type: *graph.place_types.get(&source.place)?,
+                                    root_type: *graph.place_types.get(&source.place).array_trace(line!())?,
                                     path: &selected,
                                     field: None,
                                 },
@@ -1429,10 +1429,10 @@ fn adapt_flow(
                                 },
                                 result.structural_type,
                                 false,
-                            )?,
+                            ).array_trace(line!())?,
                         );
                     } else if operation.result.scalar_ref().is_none() {
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                 }
                 OperationKind::EstablishRecord { fields }
@@ -1443,16 +1443,16 @@ fn adapt_flow(
                                 result_case, ..
                             } => {
                                 let shape =
-                                    &module.structural_type(result?.structural_type)?.shape;
+                                    &module.structural_type(result.array_trace(line!())?.structural_type).array_trace(line!())?.shape;
                                 let path = terminal_psi::structural_case_initializer_path(
                                     shape,
                                     *result_case,
                                     field_ordinal,
                                     field.field,
-                                )?;
-                                location(result?.place, &path, None)?
+                                ).array_trace(line!())?;
+                                location(result.array_trace(line!())?.place, &path, None).array_trace(line!())?
                             }
-                            _ => location(result?.place, &[], Some(field.field))?,
+                            _ => location(result.array_trace(line!())?.place, &[], Some(field.field)).array_trace(line!())?,
                         };
                         if let RecordFieldValue::Scalar { value, .. } = &field.value {
                             step.scalar_value_stores.push((destination.clone(), *value));
@@ -1481,10 +1481,10 @@ fn adapt_flow(
                 } => {
                     let contract = crate::references::callable_reference_result(
                         &module.types.structural_types,
-                        module.execution.callables.contract(*contract)?,
+                        module.execution.callables.contract(*contract).array_trace(line!())?,
                     )
                     .inspect_err(|detail| *failure_detail = Some(*detail))
-                    .ok()?;
+                    .ok().array_trace(line!())?;
                     // A public callable supplies result origins and access ceilings.
                     // Its unknown body supplies no stored-content summary. Invalidate
                     // only writable argument paths, retaining unrelated storage.
@@ -1497,7 +1497,7 @@ fn adapt_flow(
                         structural_arguments,
                         result,
                         &graph.place_types,
-                    )?;
+                    ).array_trace(line!())?;
                     for actual in structural_arguments
                         .iter()
                         .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
@@ -1507,7 +1507,7 @@ fn adapt_flow(
                             &graph.place_types,
                             actual,
                             slot_kind,
-                        )?);
+                        ).array_trace(line!())?);
                     }
                     if matches!(
                         call.target,
@@ -1519,7 +1519,7 @@ fn adapt_flow(
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }
-                    insert_invocation(&mut graph.calls, position, call)?;
+                    insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                 }
                 OperationKind::CallDynamic {
                     selector,
@@ -1537,12 +1537,12 @@ fn adapt_flow(
                         *slot,
                     );
                     let realizations =
-                        public_realizations(&module.execution.dynamic_dispatch, *interface, *slot)?;
+                        public_realizations(&module.execution.dynamic_dispatch, *interface, *slot).array_trace(line!())?;
                     let slot = module
                         .execution.dynamic_dispatch
-                        .interface(*interface)?
+                        .interface(*interface).array_trace(line!())?
                         .slots
-                        .get(usize::try_from(*slot).ok()?)?;
+                        .get(usize::try_from(*slot).ok().array_trace(line!())?).array_trace(line!())?;
                     let mut call = public_invocation(
                         operation.id,
                         &module.types.structural_types,
@@ -1552,7 +1552,7 @@ fn adapt_flow(
                         structural_arguments,
                         result,
                         &graph.place_types,
-                    )?;
+                    ).array_trace(line!())?;
                     let complete_contents =
                         call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
@@ -1574,7 +1574,7 @@ fn adapt_flow(
                                 &graph.place_types,
                                 actual,
                                 slot_kind,
-                            )?);
+                            ).array_trace(line!())?);
                         }
                     }
                     if matches!(
@@ -1588,10 +1588,10 @@ fn adapt_flow(
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }
-                    insert_invocation(&mut graph.calls, position, call)?;
+                    insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                 }
                 _ if direct_call.is_some() => {
-                    let (callee, structural_arguments) = direct_call?;
+                    let (callee, structural_arguments) = direct_call.array_trace(line!())?;
                     let returns_reference = result.is_some_and(|result| {
                         terminal_psi::structural_type_contains_reference_by(
                             |id| module.structural_type(id),
@@ -1610,11 +1610,11 @@ fn adapt_flow(
                             operation.required_contract,
                         )
                         .inspect_err(|detail| *failure_detail = Some(*detail))
-                        .ok()?
+                        .ok().array_trace(line!())?
                     } else {
                         crate::requirement_reference_result(module, callee)
                             .inspect_err(|detail| *failure_detail = Some(*detail))
-                            .ok()?
+                            .ok().array_trace(line!())?
                     };
                     let implemented = operation.required_contract.is_some();
                     if let Some(public) = public {
@@ -1631,7 +1631,7 @@ fn adapt_flow(
                             structural_arguments,
                             result,
                             &graph.place_types,
-                        )?;
+                        ).array_trace(line!())?;
                         call.retain_whole_scalar_result_address(module, &public);
                         let complete = call.arguments.iter().all(Option::is_some)
                             && call.argument_contents.iter().all(Option::is_some);
@@ -1644,7 +1644,7 @@ fn adapt_flow(
                                 &module.types.structural_types,
                                 position,
                                 structural_arguments,
-                            )?;
+                            ).array_trace(line!())?;
                             if matches!(
                                 call.target,
                                 DescriptorInvocationTarget::Public {
@@ -1671,7 +1671,7 @@ fn adapt_flow(
                                     &module.types.structural_types,
                                     result.place,
                                     result.structural_type,
-                                )?;
+                                ).array_trace(line!())?;
                                 let mut lifetime_dependencies = Vec::new();
                                 if !inventory.unknown_contents.is_empty() {
                                     for (position, formal) in public
@@ -1681,7 +1681,7 @@ fn adapt_flow(
                                         .enumerate()
                                     {
                                         let ty = module
-                                            .structural_type(formal.structural_type)?;
+                                            .structural_type(formal.structural_type).array_trace(line!())?;
                                         if formal.access != StructuralAccess::Owned
                                             && !ty.shape.is_view_descriptor()
                                         {
@@ -1703,7 +1703,7 @@ fn adapt_flow(
                                                 &module.types.structural_types,
                                                 formal,
                                                 position,
-                                            )?
+                                            ).array_trace(line!())?
                                         {
                                             lifetime_dependencies.push(DescriptorLifetimeDebt {
                                                 origin,
@@ -1714,15 +1714,15 @@ fn adapt_flow(
                                 }
                                 for packet in inventory.unknown_contents {
                                     let path = packet.location.path;
-                                    let (last, prefix) = path.split_last()?;
+                                    let (last, prefix) = path.split_last().array_trace(line!())?;
                                     if *last != DescriptorPathSegment::UnknownContents {
-                                        return None;
+                                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                                     }
                                     let structural_type = descriptor_location_type(
                                         &module.types.structural_types,
                                         result.structural_type,
                                         prefix,
-                                    )?;
+                                    ).array_trace(line!())?;
                                     let produced =
                                         crate::descriptors::replay::ProducedContents {
                                             producer: DescriptorInvocationSite {
@@ -1745,13 +1745,13 @@ fn adapt_flow(
                                 }
                             }
                         }
-                        insert_invocation(&mut graph.calls, position, call)?;
+                        insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                     } else {
-                        let inputs = operation.module_invocation()?;
+                        let inputs = operation.module_invocation().array_trace(line!())?;
                         if inputs.callee != callee
                             || inputs.structural_arguments != structural_arguments
                         {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
                         let call = graph.direct_invocation(
                             module,
@@ -1766,7 +1766,7 @@ fn adapt_flow(
                             },
                             result,
                             selector,
-                        )?;
+                        ).array_trace(line!())?;
                         if call.arguments.iter().any(Option::is_none) {
                             mark_opaque_call_occupancy(
                                 &graph.place_types,
@@ -1776,9 +1776,9 @@ fn adapt_flow(
                                 &module.types.structural_types,
                                 position,
                                 structural_arguments,
-                            )?;
+                            ).array_trace(line!())?;
                         }
-                        insert_invocation(&mut graph.calls, position, call)?;
+                        insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                     }
                 }
                 OperationKind::BoundaryCall {
@@ -1795,20 +1795,20 @@ fn adapt_flow(
                             })
                     {
                         let crate::AccessResultContract::View { ready, carrier, .. } =
-                            crate::access_result_contract(module, plan).ok()?
+                            crate::access_result_contract(module, plan).ok().array_trace(line!())?
                         else {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         };
-                        let result = result?;
-                        let shape = &module.structural_type(result.structural_type)?.shape;
+                        let result = result.array_trace(line!())?;
+                        let shape = &module.structural_type(result.structural_type).array_trace(line!())?.shape;
                         let path = terminal_psi::structural_case_initializer_path(
                             shape,
                             ready.id,
                             0,
-                            ready.fields.first()?.id,
-                        )?;
+                            ready.fields.first().array_trace(line!())?.id,
+                        ).array_trace(line!())?;
                         graph.originations.entry(position).or_default().push((
-                            location(result.place, &path, None)?,
+                            location(result.place, &path, None).array_trace(line!())?,
                             DescriptorCallOrigin::AccessFormation {
                                 machine: machine.id,
                                 operation: operation.id,
@@ -1857,7 +1857,7 @@ fn adapt_flow(
                             &module.types.structural_types,
                             position,
                             structural_arguments,
-                        )?;
+                        ).array_trace(line!())?;
                     }
                     let mut declarations = module
                         .interfaces.boundary_machines
@@ -1878,8 +1878,8 @@ fn adapt_flow(
                                 structural_arguments,
                                 result,
                                 &graph.place_types,
-                            )?,
-                        )?;
+                            ).array_trace(line!())?,
+                        ).array_trace(line!())?;
                     }
                 }
                 _ => {}
@@ -1889,7 +1889,7 @@ fn adapt_flow(
             if is_invocation && !graph.calls.contains_key(&position) {
                 graph.calls.insert(position, None);
             }
-            record_owned_consumption(module, machine, operation, &mut step)?;
+            record_owned_consumption(module, machine, operation, &mut step).array_trace(line!())?;
             // Borrowing a carrier slot makes a child resource, not
             // another spelling of the parent's permission. Payload
             // and residence still follow the captured address.
@@ -1911,13 +1911,13 @@ fn adapt_flow(
                 bindings: Vec::new(),
             });
             if graph.flow.insert(position, step).is_some() {
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
         }
         *failure_position = None;
         *failure_successor = None;
         *failure_detail = None;
-        let position = (block.id, u32::try_from(block.operations.len()).ok()?);
+        let position = (block.id, u32::try_from(block.operations.len()).ok().array_trace(line!())?);
         *failure_position = Some(position);
         let mut step = DescriptorFlowStep::default();
         let mut edge = |identity,
@@ -1928,7 +1928,7 @@ fn adapt_flow(
             *failure_successor = Some((identity, target));
             let result = (|| -> Result<(), &'static str> {
                 let block = exactly_one(machine.blocks.iter(), |block| block.id == target)
-                    .ok_or("descriptor arrival has no unique target block")?;
+                    .ok_or("descriptor arrival has no unique target block").array_trace(line!())?;
                 if arguments.len() != block.structural_parameters.len() {
                     return Err(
                         "descriptor arrival structural arity differs from target parameters",
@@ -1943,12 +1943,12 @@ fn adapt_flow(
                         }
                         block.parameters.iter().zip(arguments).map(|(parameter, actual)| {
                             let value = scalar_expressions.expression(*actual)
-                                .ok_or("descriptor arrival scalar operand has no current typed expression")?;
+                                .ok_or("descriptor arrival scalar operand has no current typed expression").array_trace(line!())?;
                             if value.scalar_type() != parameter.scalar_type {
                                 return Err("descriptor arrival scalar type differs from target parameter");
                             }
                             Ok((parameter.id, value))
-                        }).collect::<Result<Vec<_>, _>>()?
+                        }).collect::<Result<Vec<_>, _>>().array_trace(line!())?
                     }
                     ScalarArrival::CasePayload {
                         source,
@@ -1963,10 +1963,10 @@ fn adapt_flow(
                         }
                         let root = *graph.place_types.get(&source).ok_or(
                             "descriptor arrival case payload has no declared source type",
-                        )?;
+                        ).array_trace(line!())?;
                         let captured = super::scalar_contracts::case_payload_scalar_types(
                             &module.types.structural_types, root, path, case, fields,
-                        ).ok_or("descriptor arrival case payload fields have no exact scalar types")?;
+                        ).ok_or("descriptor arrival case payload fields have no exact scalar types").array_trace(line!())?;
                         if captured
                             .iter()
                             .zip(&block.parameters)
@@ -2010,7 +2010,7 @@ fn adapt_flow(
                             descriptor_contents_query(
                                 &module.types.structural_types, argument.place,
                                 *graph.place_types.get(&argument.place)
-                                    .ok_or("descriptor arrival structural source has no declared type")?,
+                                    .ok_or("descriptor arrival structural source has no declared type").array_trace(line!())?,
                                 &argument.path, None,
                             ),
                         )
@@ -2027,7 +2027,7 @@ fn adapt_flow(
                         argument.access,
                         parameter.access,
                     )
-                    .ok_or("descriptor arrival has no valid source-to-parameter binding")?;
+                    .ok_or("descriptor arrival has no valid source-to-parameter binding").array_trace(line!())?;
                     if binding.source.exact_location().is_none()
                         && let Some(index) = argument
                             .path
@@ -2035,7 +2035,7 @@ fn adapt_flow(
                             .position(|step| step.runtime_index().is_some())
                     {
                         let descriptor = location(argument.place, &argument.path[..index], None)
-                            .ok_or("descriptor arrival indexed source has no exact descriptor prefix")?;
+                            .ok_or("descriptor arrival indexed source has no exact descriptor prefix").array_trace(line!())?;
                         binding.captured_storage = Some((
                             descriptor,
                             Projection::new(&argument.path[index..]).at(position),
@@ -2043,7 +2043,7 @@ fn adapt_flow(
                     }
                     binding.source_access = crate::structural_projection_authority(
                         machine, &module.types.structural_types, argument,
-                    ).ok_or("descriptor arrival structural source has no exact projection authority")?;
+                    ).ok_or("descriptor arrival structural source has no exact projection authority").array_trace(line!())?;
                     bindings.push(binding);
                 }
                 step.successors.push(DescriptorFlowEdge {
@@ -2058,7 +2058,7 @@ fn adapt_flow(
             })();
             if let Err(detail) = result {
                 *failure_detail = Some(detail);
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             *failure_successor = None;
             Some(())
@@ -2075,7 +2075,7 @@ fn adapt_flow(
                 *target,
                 ScalarArrival::Values(arguments),
                 structural_arguments,
-            )?,
+            ).array_trace(line!())?,
             Terminator::Conditional {
                 when_true,
                 when_false,
@@ -2087,7 +2087,7 @@ fn adapt_flow(
                         successor.target,
                         ScalarArrival::Values(&successor.arguments),
                         &successor.structural_arguments,
-                    )?;
+                    ).array_trace(line!())?;
                 }
             }
             Terminator::StructuralCase {
@@ -2106,7 +2106,7 @@ fn adapt_flow(
                             fields: &case.payload_fields,
                         },
                         &case.structural_arguments,
-                    )?;
+                    ).array_trace(line!())?;
                 }
             }
             Terminator::PendingNormalCompletion { storage, .. } => {
@@ -2120,16 +2120,16 @@ fn adapt_flow(
                 if let Some(returns) = &mut graph.returns {
                     *failure_detail =
                         Some("descriptor structural return source has no declared type");
-                    let actual = machine.structural_place_type(*source)?;
+                    let actual = machine.structural_place_type(*source).array_trace(line!())?;
                     *failure_detail = Some(
                         "descriptor structural return has no declared structural result",
                     );
-                    let expected = machine.result.structural()?.structural_type;
+                    let expected = machine.result.structural().array_trace(line!())?.structural_type;
                     if actual != expected {
                         *failure_detail = Some(
                             "descriptor structural return source type differs from declared result",
                         );
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                     returns.push((position, DescriptorLocation::whole(*source)));
                 }
@@ -2187,7 +2187,7 @@ fn adapt_flow(
                         *failure_detail = Some(
                             "descriptor terminal invocation conflicts with an existing call at this site",
                         );
-                        insert_invocation(&mut graph.calls, position, call)?;
+                        insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                     }
                     None => {
                         graph.calls.insert(position, None);
@@ -2218,11 +2218,11 @@ fn adapt_flow(
                         cleanup,
                     )
                     .inspect_err(|reason| *failure_detail = Some(*reason))
-                    .ok()?;
+                    .ok().array_trace(line!())?;
                     *failure_detail = Some(
                         "descriptor terminal cleanup subject has no declared root type",
                     );
-                    let root = *graph.place_types.get(&cleanup.subject.place)?;
+                    let root = *graph.place_types.get(&cleanup.subject.place).array_trace(line!())?;
                     *failure_detail = Some(
                         "descriptor terminal cleanup subject has no exact projected type",
                     );
@@ -2230,17 +2230,17 @@ fn adapt_flow(
                         module.types.structural_types.iter(),
                         root,
                         &cleanup.subject.path,
-                    )?
+                    ).array_trace(line!())?
                     .id != cleanup.structural_type
                     {
                         *failure_detail = Some(
                             "descriptor terminal cleanup subject type differs from its declared carrier",
                         );
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                     *failure_detail =
                         Some("descriptor terminal cleanup action ordinal is out of range");
-                    let action_ordinal = u32::try_from(action_ordinal).ok()?;
+                    let action_ordinal = u32::try_from(action_ordinal).ok().array_trace(line!())?;
                     *failure_detail = Some(
                         "descriptor terminal cleanup has no exact invocation correspondence",
                     );
@@ -2255,7 +2255,7 @@ fn adapt_flow(
                         std::slice::from_ref(&cleanup.subject),
                         None,
                         std::iter::once(Some(root)),
-                    )?;
+                    ).array_trace(line!())?;
                     // A known cleanup requires the same exact actual
                     // correspondence as a source call. An opaque frame
                     // cannot replace its retained executable effects.
@@ -2265,7 +2265,7 @@ fn adapt_flow(
                         *failure_detail = Some(
                             "descriptor terminal cleanup has unresolved actual backing or contents",
                         );
-                        return None;
+                        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                     }
                     step.inputs.extend(
                         call.arguments
@@ -2277,7 +2277,7 @@ fn adapt_flow(
                     *failure_detail = Some(
                         "descriptor terminal cleanup conflicts with an existing call at this site",
                     );
-                    insert_invocation(&mut graph.calls, position, call)?;
+                    insert_invocation(&mut graph.calls, position, call).array_trace(line!())?;
                 }
             }
         }
@@ -2289,7 +2289,7 @@ fn adapt_flow(
             *failure_detail = Some(
                 "descriptor terminator successor count differs from reconstructed arrivals",
             );
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
         for ((identity, target), edge) in selected.into_iter().zip(&mut step.successors) {
             *failure_successor = Some((identity, target));
@@ -2297,7 +2297,7 @@ fn adapt_flow(
                 *failure_detail = Some(
                     "descriptor terminator successor target differs from reconstructed arrival",
                 );
-                return None;
+                return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
             }
             edge.edge = Some(identity);
             *failure_detail =
@@ -2305,12 +2305,12 @@ fn adapt_flow(
             let (_, cleanup) = block
                 .terminator
                 .cleanup_rosters()
-                .find(|(at, _)| *at == identity)?;
+                .find(|(at, _)| *at == identity).array_trace(line!())?;
             for action in cleanup {
                 *failure_detail =
                     Some("descriptor terminator cleanup has no exact disposal location");
                 edge.definitions
-                    .push(location(action.place(), action.path(), None)?);
+                    .push(location(action.place(), action.path(), None).array_trace(line!())?);
             }
             edge.definitions.sort();
             edge.definitions.dedup();
@@ -2330,11 +2330,11 @@ fn adapt_flow(
                     super::contents::descriptor_contents_query_with(
                         &module.types.structural_types,
                         *source,
-                        *graph.place_types.get(source)?,
+                        *graph.place_types.get(source).array_trace(line!())?,
                         path,
                         None,
                         |value| scalar_expressions.expression(value),
-                    )?,
+                    ).array_trace(line!())?,
                 ),
             };
             graph.case_successors.insert(
@@ -2382,17 +2382,17 @@ fn adapt_flow(
                         &module.types.structural_types,
                         parameter.place,
                         parameter.structural_type,
-                    )?;
+                    ).array_trace(line!())?;
                     step.inputs.extend(
                         inventory.slots.into_iter().map(|input| (Some(input), None)),
                     );
                     for contents in inventory.unknown_contents {
                         if contents.kind != super::UnknownContentsKind::Value {
-                            return None;
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
                         let mut carrier = contents.location;
-                        if carrier.path.pop()? != DescriptorPathSegment::UnknownContents {
-                            return None;
+                        if carrier.path.pop().array_trace(line!())? != DescriptorPathSegment::UnknownContents {
+                            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
                         }
                         // Handback owes the intact unknown value. It
                         // does not resolve or end a hidden referent.
@@ -2404,7 +2404,7 @@ fn adapt_flow(
         if graph.flow.insert(position, step).is_some() {
             *failure_detail =
                 Some("descriptor terminator repeats an existing storage-flow position");
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
     }
     graph.finish_index_literals()
@@ -2430,13 +2430,13 @@ pub(crate) fn captured_storage_source(
         .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
         .unwrap_or(path.len());
     let location =
-        descriptor_location(types, source, root_type, &path[..prefix_length], None)?;
+        descriptor_location(types, source, root_type, &path[..prefix_length], None).array_trace(line!())?;
     if prefix_length == path.len() {
         return Some((location, None, CapturedBacking::StorageAddress));
     }
-    let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
+    let prefix_type = descriptor_location_type(types, root_type, &location.path).array_trace(line!())?;
     let suffix = &path[prefix_length..];
-    let prefix_shape = &find_structural_type(types, prefix_type)?.shape;
+    let prefix_shape = &find_structural_type(types, prefix_type).array_trace(line!())?.shape;
     let capture = if matches!(prefix_shape, StructuralTypeShape::ByteSequence(_)) {
         CapturedBacking::ByteWindow
     } else if plain_owned_shape(types.iter(), prefix_type) {
@@ -2627,4 +2627,12 @@ fn selected_effects_machine(
         return None;
     }
     Some(target)
+}
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
 }

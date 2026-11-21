@@ -43,16 +43,16 @@ pub fn machine_invocation_for_signature(
     actual_root_types: impl IntoIterator<Item = Option<StructuralTypeId>>,
 ) -> Option<DescriptorInvocation> {
     if callee.structural_parameters.len() != actuals.len() {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     let mut arguments = Vec::with_capacity(actuals.len());
     let mut argument_contents = Vec::with_capacity(actuals.len());
     let mut actual_root_types = actual_root_types.into_iter();
     for (actual, formal) in actuals.iter().zip(callee.structural_parameters) {
         if actual.access != formal.access {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        let root = actual_root_types.next()??;
+        let root = actual_root_types.next().array_trace(line!())??;
         arguments.push(descriptor_location(
             types,
             actual.place,
@@ -69,13 +69,13 @@ pub fn machine_invocation_for_signature(
         ));
     }
     if actual_root_types.next().is_some() {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     let result = result.filter(|result| {
         slot_kind.tracks_returned_value(types, result.place, result.structural_type)
     });
     if let Some(result) = result {
-        let expected = callee.result?;
+        let expected = callee.result.array_trace(line!())?;
         if result.structural_type != expected.structural_type
             || result.multiplicity != expected.multiplicity
             || result.qualifications != expected.qualifications
@@ -84,7 +84,7 @@ pub fn machine_invocation_for_signature(
                 .iter()
                 .all(|row| result.projected_qualifications.contains(row))
         {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
     }
     Some(DescriptorInvocation {
@@ -111,9 +111,9 @@ impl DescriptorMachine {
         selector: impl Fn(ValueId) -> Option<ScalarTerm>,
     ) -> Option<DescriptorInvocation> {
         let inputs = invocation.inputs;
-        let callee = terminal_graph_machine(machines, inputs.callee)?;
+        let callee = terminal_graph_machine(machines, inputs.callee).array_trace(line!())?;
         if callee.parameters.len() != inputs.arguments.len() {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
         let owner = match invocation.site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
@@ -135,7 +135,7 @@ impl DescriptorMachine {
                 .structural_arguments
                 .iter()
                 .map(|actual| self.place_types.get(&actual.place).copied()),
-        )?;
+        ).array_trace(line!())?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
                 .parameters
@@ -159,17 +159,17 @@ pub fn public_invocation(
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
     if actuals.len() != slot.structural_parameter_count() {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     let mut arguments = Vec::with_capacity(actuals.len());
     let mut argument_contents = Vec::with_capacity(actuals.len());
     let mut invalidates_contents = false;
     for (index, actual) in actuals.iter().enumerate() {
-        let (_, access) = slot.structural_parameter(index)?;
+        let (_, access) = slot.structural_parameter(index).array_trace(line!())?;
         if actual.access != access {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        let root = *place_types.get(&actual.place)?;
+        let root = *place_types.get(&actual.place).array_trace(line!())?;
         arguments.push(descriptor_location(
             types,
             actual.place,
@@ -190,18 +190,18 @@ pub fn public_invocation(
     if let Some(result) = result {
         let declared_result = slot.result();
         let BoundaryMachineResult::Structural(expected) = declared_result.as_ref() else {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         };
         if result.structural_type != expected.structural_type
             || result.multiplicity != expected.multiplicity
             || result.qualifications != expected.qualifications
             || result.projected_qualifications != expected.projected_qualifications
         {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
-        results = public_result_slots(types, slot_kind, slot, result.place)?;
+        results = public_result_slots(types, slot_kind, slot, result.place).array_trace(line!())?;
     } else if matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_)) {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     Some(DescriptorInvocation {
         scalar_arguments: Vec::new(),
@@ -241,7 +241,7 @@ pub fn public_result_slots(
         result.multiplicity,
         slot.maximum_reference_leaves(),
     )
-    .ok()?;
+    .ok().array_trace(line!())?;
     for leaf in leaves {
         let selected_kind = matches!(
             (&leaf.kind, slot_kind),
@@ -259,17 +259,17 @@ pub fn public_result_slots(
             continue;
         }
         let path = leaf.path;
-        let leaf = descriptor_location(types, place, result.structural_type, &path, None)?;
+        let leaf = descriptor_location(types, place, result.structural_type, &path, None).array_trace(line!())?;
         let mut origins = Vec::new();
         for region in slot.reference_regions(&path) {
-            let region = region.ok()?;
+            let region = region.ok().array_trace(line!())?;
             let destination = descriptor_location(
                 types,
                 place,
                 result.structural_type,
                 &region.path,
                 None,
-            )?;
+            ).array_trace(line!())?;
             if destination.path != leaf.path {
                 continue;
             }
@@ -287,18 +287,18 @@ pub fn public_result_slots(
                     continue;
                 }
             };
-            let parameter = usize::try_from(index).ok()?;
-            let (formal, _) = slot.structural_parameter(parameter)?;
+            let parameter = usize::try_from(index).ok().array_trace(line!())?;
+            let (formal, _) = slot.structural_parameter(parameter).array_trace(line!())?;
             origins.push(public_input_origin(
                 types,
                 formal,
                 parameter,
                 place,
                 &region.source_path,
-            )?);
+            ).array_trace(line!())?);
         }
         if origins.is_empty() {
-            return None;
+            return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
         }
         results.push(DescriptorResultSlot {
             path: leaf.path,
@@ -341,7 +341,7 @@ fn public_input_origin(
     match supplying {
         Some((prefix, _)) => {
             let selected =
-                descriptor_location(types, scratch_place, formal, &path[..prefix], None)?;
+                descriptor_location(types, scratch_place, formal, &path[..prefix], None).array_trace(line!())?;
             Some(DescriptorStoredOrigin::IncomingContents {
                 position: parameter,
                 steps: selected
@@ -365,11 +365,11 @@ pub fn writable_descriptor_slots(
     actual: &terminal_psi::StructuralArgument,
     slot_kind: DescriptorSlotKind,
 ) -> Option<Vec<DescriptorLocation>> {
-    let ty = *place_types.get(&actual.place)?;
+    let ty = *place_types.get(&actual.place).array_trace(line!())?;
     let selected = descriptor_location(types, actual.place, ty, &actual.path, None);
     Some(
         slot_kind
-            .slots(types, actual.place, ty)?
+            .slots(types, actual.place, ty).array_trace(line!())?
             .into_iter()
             .filter(|slot| {
                 !slot.path.is_empty()
@@ -387,9 +387,9 @@ pub fn selected_stored_effects_row(
     interface: u32,
     slot: u32,
 ) -> Option<semantic_vocabulary::MachineId> {
-    let selected = catalog.table(table)?;
-    let declaration = catalog.interface(interface)?;
-    let signature = declaration.slots.get(usize::try_from(slot).ok()?)?;
+    let selected = catalog.table(table).array_trace(line!())?;
+    let declaration = catalog.interface(interface).array_trace(line!())?;
+    let signature = declaration.slots.get(usize::try_from(slot).ok().array_trace(line!())?).array_trace(line!())?;
     if selected.id != table
         || selected.interface != interface
         || declaration.id != interface
@@ -397,7 +397,7 @@ pub fn selected_stored_effects_row(
         || !signature.family_tuple.is_empty()
         || selected.rows.len() != declaration.slots.len()
     {
-        return None;
+        return { eprintln!("ARRAY STOP {}:{}", file!(), line!()); None };
     }
     catalog.row(table, slot)
 }
@@ -408,20 +408,28 @@ pub fn public_realizations(
     slot: u32,
 ) -> Option<Vec<MachineId>> {
     catalog
-        .interface(interface)?
+        .interface(interface).array_trace(line!())?
         .slots
-        .get(usize::try_from(slot).ok()?)?;
+        .get(usize::try_from(slot).ok().array_trace(line!())?).array_trace(line!())?;
     let mut realizations = Vec::new();
     for table in catalog
         .tables
         .iter()
         .filter(|table| table.interface == interface)
     {
-        if let Some(machine) = *table.rows.get(usize::try_from(slot).ok()?)?
+        if let Some(machine) = *table.rows.get(usize::try_from(slot).ok().array_trace(line!())?).array_trace(line!())?
             && !realizations.contains(&machine)
         {
             realizations.push(machine);
         }
     }
     Some(realizations)
+}
+
+trait ArrayTrace: Sized { fn array_trace(self, line: u32) -> Self; }
+impl<T> ArrayTrace for Option<T> {
+ fn array_trace(self, line: u32) -> Self { if self.is_none() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
+}
+impl<T,E> ArrayTrace for Result<T,E> {
+ fn array_trace(self, line: u32) -> Self { if self.is_err() {eprintln!("ARRAY STOP {}:{}",file!(),line);} self }
 }
