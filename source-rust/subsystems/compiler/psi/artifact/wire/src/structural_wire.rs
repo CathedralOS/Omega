@@ -1094,6 +1094,7 @@ pub(crate) mod structural_signature_wire {
             9 => StaticInterruptFinishCompletion,
             10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
             11 => NumericPrimitive,
+            12 => LayoutTargetFacts,
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

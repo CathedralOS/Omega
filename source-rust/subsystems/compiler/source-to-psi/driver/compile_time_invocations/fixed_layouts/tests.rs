@@ -158,3 +158,64 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     assert_eq!(receipt.machine_template(), Some(member.realization_machine));
     accounting.validate_charges().unwrap();
 }
+
+#[test]
+fn authored_policy_observes_only_its_invocations_issued_target() {
+    // The two targets use the same carriers. Only the profile bytes issued to
+    // this invocation distinguish their two legitimate placement sizes.
+    let program = AUTHORED
+        .replace(
+            "use omega\\language\\core\\LayoutTarget;",
+            r#"use omega\language\core\LayoutTarget;
+use omega\language\core\layout_target_facts;
+machine packet_size(target: @LayoutTarget) -> u64 reaches none terminates {
+    let facts = layout_target_facts(target);
+    transition facts.profile.len == 12 { true -> 16u64, _ -> 24u64 }
+}"#,
+        )
+        .replace("size_fixed: 16", "size_fixed: packet_size(@target)");
+    let mut source = with_reflection(&program);
+    let root = query_machine(&source, "main");
+    let scopes = ["linux_x86_64", "windows_x86_64"].map(|name| FixedLayoutTargetScope {
+        target: name.into(),
+        facts: Some(layout_plans::LayoutTargetFacts {
+            profile: name.into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        }),
+        entry_declarations: vec![root],
+        provider_declarations: Vec::new(),
+    });
+    let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
+    evaluate_fixed_layout_applications(
+        &mut source,
+        &scopes,
+        None,
+        None,
+        source_provenance::DependencyScope::Product,
+        &mut accounting,
+    )
+    .unwrap_or_else(|errors| panic!("{}", diagnostics::join_messages(&errors)));
+    let [plan] = source.plan_laid_layouts.as_slice() else {
+        panic!("one authored policy");
+    };
+    let observations: Vec<_> = plan
+        .target_layouts(&source)
+        .iter()
+        .map(|row| {
+            (
+                row.target_facts.profile.as_str(),
+                row.geometry.validated_layout.size,
+            )
+        })
+        .collect();
+    assert_eq!(
+        observations,
+        [("linux_x86_64", Some(16)), ("windows_x86_64", Some(24))]
+    );
+    assert_eq!(accounting.receipts().len(), 2);
+    accounting.validate_charges().unwrap();
+}

@@ -1894,12 +1894,20 @@ pub(crate) fn boundary(
     ),
     Diagnostic,
 > {
-    if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
-        if typed.symbols.sealed_intrinsic(symbol)
-            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
-        {
+    use language_core::sealed_intrinsics::SealedIntrinsic;
+    use terminal_psi::CheckedBoundaryExecution;
+
+    let intrinsic = match execution {
+        CheckedBoundaryExecution::LayoutTargetFacts => Some(SealedIntrinsic::LayoutTargetFacts),
+        CheckedBoundaryExecution::NumericPrimitive => {
+            Some(SealedIntrinsic::FloatOperationRequirement)
+        }
+        _ => None,
+    };
+    if let Some(intrinsic) = intrinsic {
+        if typed.symbols.sealed_intrinsic(symbol) != Some(intrinsic) {
             return Err(Diagnostic::error(
-                "numeric primitive publisher lost its exact catalog custody",
+                "primitive publisher lost its exact catalog declaration",
             ));
         }
         return top_level_boundary(

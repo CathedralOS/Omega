@@ -1697,10 +1697,21 @@ pub(crate) mod instance {
             &self.program
         }
 
-        pub(super) fn authorize_call_observation(&mut self, target: Option<&str>) {
+        pub(super) fn authorize_compiler_invocation(
+            &mut self,
+            target: Option<&str>,
+            issued: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
+        ) -> Result<(), TerminalInterpretError> {
+            self.execution
+                .as_mut()
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "issued target requires an unopened compiler invocation",
+                ))?
+                .issued_layout_target = issued;
             self.observation_admission = Some(crate::call_observations::ObservationAdmission {
                 target: target.map(str::to_owned),
             });
+            Ok(())
         }
 
         /// Select arguments of exact direct calls in an admitted compiler invocation.
@@ -3543,6 +3554,7 @@ pub(crate) mod program {
             &self,
             request: TerminalInstantiation<'_>,
             admitted: &evaluation_admission::AdmittedCompilerEvaluation,
+            issued_layout: Option<(&layout_plans::LayoutTargetFacts, &[usize])>,
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
             let refusal = || {
                 TerminalArtifactInterpretError::Execution(
@@ -3560,8 +3572,57 @@ pub(crate) mod program {
             {
                 return Err(refusal());
             }
+            let issued = if let Some((facts, indices)) = issued_layout {
+                if admitted.target() != Some(facts.profile.as_str())
+                    || indices.is_empty()
+                    || installation
+                        .target_layouts
+                        .as_ref()
+                        .is_some_and(|layouts| layouts.target_facts() != facts)
+                {
+                    return Err(refusal());
+                }
+                let entry = self.entry().map_err(|_| refusal())?;
+                let mut arguments = Vec::with_capacity(indices.len());
+                for &position in indices {
+                    let parameter = entry
+                        .structural_parameters
+                        .get(position)
+                        .ok_or_else(refusal)?;
+                    let input = request
+                        .structural_inputs
+                        .arguments
+                        .get(position)
+                        .ok_or_else(refusal)?;
+                    let declaration = self
+                        .module()
+                        .structural_type(parameter.structural_type)
+                        .ok_or_else(refusal)?;
+                    if parameter.access != terminal_psi::StructuralAccess::Owned
+                        || declaration.shape != terminal_psi::StructuralTypeShape::Opaque
+                        || self
+                            .module()
+                            .identities
+                            .text(declaration.declaration_identity)
+                            != Some("toolchain::LayoutTarget")
+                        || input.structural_type != parameter.structural_type
+                        || arguments.contains(input)
+                    {
+                        return Err(refusal());
+                    }
+                    arguments.push(input.clone());
+                }
+                Some(Box::new(crate::layout_target::IssuedLayoutTarget {
+                    facts: facts.clone(),
+                    arguments,
+                }))
+            } else {
+                None
+            };
             let mut instance = self.instantiate(request)?;
-            instance.authorize_call_observation(admitted.target());
+            instance
+                .authorize_compiler_invocation(admitted.target(), issued)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
             Ok(instance)
         }
 

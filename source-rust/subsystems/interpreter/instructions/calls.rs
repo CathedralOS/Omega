@@ -3478,6 +3478,15 @@ impl<'artifact> TerminalExecution<'artifact> {
             remaining_claims,
             effect,
         };
+        if boundary_declaration
+            .declaration
+            .as_ref()
+            .is_some_and(|row| {
+                row.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+            })
+        {
+            return self.complete_boundary_effect(operation, handler, pending);
+        }
         if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
             pending.awaiting_provider_readiness =
                 matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
@@ -3551,16 +3560,30 @@ impl<'artifact> TerminalExecution<'artifact> {
         } = pending;
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(boundary)?;
-        let returned = handler
-            .handle_effect_with_buffers(
-                &effect,
-                &mut boundary_arguments.buffers,
-                &mut boundary_arguments.storage_inputs.buffers,
-            )
-            .map_err(|rejection| TerminalInterpretError::EffectRejected {
-                operation: operation.id,
-                rejection,
-            })?;
+        let returned = if boundary_declaration
+            .declaration
+            .as_ref()
+            .is_some_and(|row| {
+                row.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+            }) {
+            self.issued_layout_target
+                .as_ref()
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "layout target facts require an issued compiler invocation argument",
+                ))?
+                .snapshot(&program.catalogs, boundary_declaration, &effect)?
+        } else {
+            handler
+                .handle_effect_with_buffers(
+                    &effect,
+                    &mut boundary_arguments.buffers,
+                    &mut boundary_arguments.storage_inputs.buffers,
+                )
+                .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                    operation: operation.id,
+                    rejection,
+                })?
+        };
         if let TerminalEffectResult::Crash(cause) = returned {
             let crash = self.admit_boundary_crash(boundary_declaration, &effect, cause)?;
             self.effects.push(effect);

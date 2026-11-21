@@ -266,10 +266,29 @@ impl<'input> ArtifactInvocation<'input> {
             },
             ..Default::default()
         };
-        let mut instance = if self.input.observed_calls.is_empty() {
+        let target_arguments: Vec<_> = self
+            .input
+            .inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                matches!(input, BuildTimeValue::LayoutTarget(_)).then_some(index)
+            })
+            .collect();
+        let issued = if target_arguments.is_empty() {
+            None
+        } else {
+            Some((
+                self.input
+                    .layout_target
+                    .ok_or("issued layout argument lost its immutable facts")?,
+                target_arguments.as_slice(),
+            ))
+        };
+        let mut instance = if issued.is_none() && self.input.observed_calls.is_empty() {
             program.instantiate(request)
         } else {
-            program.instantiate_compiler_evaluation(request, self.input.admission)
+            program.instantiate_compiler_evaluation(request, self.input.admission, issued)
         }
         .map_err(|error| format!("source invocation preparation: {error:?}"))?;
         if !self.input.observed_calls.is_empty() {

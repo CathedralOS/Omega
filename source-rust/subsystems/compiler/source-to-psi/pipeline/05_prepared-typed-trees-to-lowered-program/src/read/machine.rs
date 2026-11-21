@@ -2838,23 +2838,6 @@ impl<'t> Program<'t> {
     pub(super) fn boundary_signature(
         &mut self,
         id: MachineId,
-        signature: &'t StateSignature,
-    ) -> Checked<(Signature, MachineNames)> {
-        self.callable_signature(
-            id,
-            signature,
-            RequirementValues::Bound(&[]),
-            Declarer::Boundary {
-                declares_no_crash_route: signature.declares_no_crash_route,
-            },
-        )
-    }
-
-    /// A native leaf retains a genuine declaration header. This does not
-    /// register an executable machine or supply evidence for its behavior.
-    pub(super) fn native_provider_signature(
-        &mut self,
-        id: MachineId,
         signature: &StateSignature,
     ) -> Checked<(Signature, MachineNames)> {
         self.callable_signature(

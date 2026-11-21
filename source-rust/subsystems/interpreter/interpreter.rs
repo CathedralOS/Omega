@@ -41,6 +41,8 @@ mod boundary_storage_inputs;
 mod boundary_values;
 #[path = "embedding/call_observations.rs"]
 mod call_observations;
+#[path = "embedding/layout_target.rs"]
+mod layout_target;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
 #[path = "embedding/continuation.rs"]
 mod continuation;
