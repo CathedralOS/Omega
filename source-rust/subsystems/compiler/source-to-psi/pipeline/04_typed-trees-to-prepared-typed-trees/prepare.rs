@@ -36,7 +36,7 @@ pub fn prepare_with_selected_providers(
             "no product route yet: typed preparation: requested work: wire compatibility demands",
         )]);
     }
-    passes::specialization::prepare(&mut program, selected_providers)?;
+    passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
     Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))
