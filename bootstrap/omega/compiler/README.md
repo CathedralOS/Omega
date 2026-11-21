@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,906 lines / 1,135,006 bytes with SHA-256
-`5bac7e623513f302d90d08c3f0170cae412d2a570aebc5ba94bb0614410b1d21`.
+The manifest materializes 29,239 lines / 1,149,038 bytes with SHA-256
+`08022c0ac98af1a19cec5b5e14029faf4888d3584c4a13167f12d8a5aec13c14`.
 The manifest itself is 2,905 bytes, SHA-256
-`be1f10e981a3c4778eb6731d793149bc73e0889eed9af1a09ea3c23f80c9db8a`;
+`1dc4e01df92a5fc85b7c7eec1cc8ca5ff79a441e04c58518cad63beafbdda091`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -650,6 +650,15 @@ the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases.
 
+A data declaration can bind lifetimes and forward them through a named field
+type. In `source/library/std/calling.omg`, the `Rejected` case of
+`BoundaryPlanResult<'reason>` stores a `CallingPolicyRejection<'reason>`.
+The parser retains each binder and argument in source order. The checker
+rejects duplicate binders, unbound field lifetimes and applications with the
+wrong lifetime arity. A valid declaration with explicit data lifetimes still
+reports incomplete until the compiler checks loans carried through storage.
+See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
+
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
 `public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
@@ -865,7 +874,7 @@ names its entry with the final authored declaration-path member. Machine and
 termination-witness paths share the general path-member arena. A machine
 snapshots its declaration path before reading parameter types and clauses. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
-`Slice<T>` spelling, return types placed after clauses, generics, remaining
+`Slice<T>` spelling, return types placed after clauses, other generics, remaining
 machine-clause forms beyond the supported contracts, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
 other bodyless declarations, and other body forms
@@ -943,7 +952,7 @@ nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
 combined, exclusive, expression-bound, or multiple constraints; constrained
-slice elements, the `Slice<T>` spelling, generic types, rich array elements or
+slice elements, the `Slice<T>` spelling, generic type arguments, rich array elements or
 lengths; numbered identities;
 field relevance; other public roots; and every other unimplemented valid form
 stop as implementation-incomplete rather than becoming false Omega rejections.
