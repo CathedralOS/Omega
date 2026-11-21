@@ -79,6 +79,37 @@ fn portable_ids(
         .collect()
 }
 
+/// Psi represents the question by the selected declaration's telescope and Apply's
+/// ordered actuals. Check that this projection accounts for the prepared rows;
+/// do not decide whether a subject inhabits a universe here.
+fn check_application_memberships(
+    tree: &LoweringTree<'_>,
+    definition: Option<&DeclarationId>,
+    arguments: &[ValueType],
+    memberships: &[(&ValueType, &ValueType)],
+    site: &Site,
+) -> Result<(), LoweringError> {
+    let mut rows = memberships.iter().copied();
+    let parameters = definition.and_then(|id| tree.forest().generic_parameters.get(id));
+    if arguments.len() != parameters.map_or(0, |p| p.parameters.len()) {
+        return Err(LoweringError::new(site, "mathematical application disagrees with its generic telescope"));
+    }
+    if let (Some(id), Some(parameters)) = (definition, parameters) {
+        for (argument, parameter) in arguments.iter().zip(&parameters.parameters) {
+            if let Some(bound @ ValueType::Universe { .. }) = parameter.carrier.as_deref() {
+                let instantiated = bound.at_machine_application(id, arguments, &[], &[]);
+                if rows.next() != Some((argument, &instantiated)) {
+                    return Err(LoweringError::new(site, "universe membership disagrees with the mathematical argument or its bound"));
+                }
+            }
+        }
+    }
+    if rows.next().is_some() {
+        return Err(LoweringError::new(site, "universe membership has no corresponding mathematical binder"));
+    }
+    Ok(())
+}
+
 pub(super) enum TermScope<'a> {
     Parameters(&'a [usize]),
     Hypothesis {
@@ -93,6 +124,20 @@ pub(super) enum TermScope<'a> {
         binders: &'a [usize],
         fields: &'a [omega_typed::TypedField],
     },
+}
+
+/// A plain declaration identifies the contract only when the local package
+/// emits it without import, member selection or specialization.
+fn local_citation_target(tree: &TypedTree<'_>, machine: &DeclarationId) -> bool {
+    let forest = tree.forest();
+    let Some(sig) = forest.signatures.iter().find(|sig| sig.machine == *machine) else { return false };
+    let Some(target) = forest.trees().nth(sig.node.file) else { return false };
+    let unit = target.resolved();
+    let n = sig.node.node;
+    unit.declaration_at(n) == Some(machine)
+        && unit.file.nodes[0].children.contains(&n)
+        && unit.file.generic_parameters(n).next().is_none()
+        && unit.file.child(n, NodeKind::Body).is_some()
 }
 
 pub(super) fn lower_term(
@@ -125,6 +170,9 @@ pub(super) fn lower_term(
         let mut ty = None;
         let mut op = None;
         let mut application = None;
+        let mut squash = None;
+        let mut citation = None;
+        let mut memberships = Vec::new();
         let mut dependencies = Vec::new();
         let mut sort = None;
         let mut guarantee_obligation = false;
@@ -148,19 +196,12 @@ pub(super) fn lower_term(
                         argument_count,
                     } if application.is_none() => application = Some((definition, generic_arguments, *argument_count)),
                     ObligationKind::AdmitMathematicalAssumption(id) => dependencies.push(crate::identity::declaration(id, &site)?),
+                    ObligationKind::FormSquash { source, level } if squash.is_none() && o.site == site => squash = Some((source, level)),
                     ObligationKind::MathematicalFact { sort: result } if sort.is_none() => sort = Some(result),
-                    ObligationKind::RefineMathematicalCitation { machine, expected } => {
-                        return Err(LoweringError::new(
-                            &site,
-                            format!("Psi cannot cite machine `{}` as evidence of `{expected}` in a mathematical term", machine.path),
-                        ));
+                    ObligationKind::RefineMathematicalCitation { machine, expected } if citation.is_none() && o.site == site => {
+                        citation = Some((machine, expected));
                     }
-                    ObligationKind::UniverseMembership { .. } => {
-                        return Err(LoweringError::new(
-                            &site,
-                            "Psi cannot carry a universe membership check on a mathematical application",
-                        ));
-                    }
+                    ObligationKind::UniverseMembership { subject, sort } if syntax.kind == NodeKind::Call => memberships.push((subject, sort)),
                     _ => return Err(error("unsupported obligation in mathematical definition")),
                 },
                 _ => return Err(error("unsupported selection in mathematical definition")),
@@ -178,6 +219,38 @@ pub(super) fn lower_term(
         if let Some(sort) = sort {
             work.push(Work::Emit(MathematicalStep::FormProposition(type_expression(sort, &site)?)));
         }
+        if let Some((source, level)) = squash {
+            if is_callee
+                || syntax.kind != NodeKind::PathExpression
+                || !matches!(resolved.symbol(node), Some(Symbol::Builtin(name)) if name == "core\\Squash")
+                || !matches!(level, ValueType::LevelOf(ty) if ty.as_ref() == source)
+                || !matches!(ty, Some(ValueType::Universe { strict: true, level: at }) if at.as_ref() == level)
+                || sort.is_some_and(|sort| Some(sort) != ty)
+                || op.is_some()
+                || application.is_some()
+                || !dependencies.is_empty()
+            {
+                return Err(error("squash formation disagrees with its checked type or level"));
+            }
+            terms.push(MathematicalStep::Squash(type_expression(source, &site)?));
+            continue;
+        }
+        if let Some((machine, expected)) = citation {
+            if syntax.kind != NodeKind::PathExpression || !syntax.children.is_empty() || is_callee
+                || op.is_some() || application.is_some() || !dependencies.is_empty() || ty != Some(expected)
+                || machine.kind != NodeKind::Machine || !matches!(resolved.symbol(node), Some(Symbol::Declaration(id)) if id == machine)
+            {
+                return Err(error("mathematical citation disagrees with its selected machine or checked interface"));
+            }
+            if machine.package != site.package || !local_citation_target(tree, machine) {
+                return Err(error("mathematical citation needs a local non-template machine contract"));
+            }
+            terms.push(MathematicalStep::RefineCitation {
+                machine: crate::identity::declaration(machine, &site)?,
+                expected: type_expression(expected, &site)?,
+            });
+            continue;
+        }
         match (syntax.kind, syntax.children.as_slice(), op, application) {
             (NodeKind::Call, [callee, args], None, Some((definition, generic_arguments, argument_count)))
                 if file.nodes[*args].kind == NodeKind::Args && file.nodes[*args].children.len() == argument_count =>
@@ -187,6 +260,7 @@ pub(super) fn lower_term(
                 {
                     return Err(error("mathematical application disagrees with its selected declaration"));
                 }
+                check_application_memberships(tree, definition.as_ref(), generic_arguments, &memberships, &site)?;
                 let generic_arguments = generic_arguments
                     .iter()
                     .map(|ty| type_expression(ty, &site))

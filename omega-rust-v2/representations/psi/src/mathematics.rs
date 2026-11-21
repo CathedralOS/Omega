@@ -32,6 +32,36 @@ pub struct LogicalTheorem {
     pub ensures: Vec<ContractClause>,
 }
 
+/// A citation of a `LogicalTheorem` from a machine body. It executes nothing,
+/// reads no storage and yields no value; native lowering erases it.
+///
+/// The checker substitutes `subjects` for the theorem's formals and
+/// `arguments` for its binders. Under that substitution it must establish each
+/// `requirements` clause of the theorem (by position in
+/// `LogicalTheorem::requires`) and show that each cited argument's complete
+/// contract implies its hypothesis. Only then does the theorem's `ensures`
+/// hold at the same substitution after this operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TheoremApplication {
+    /// The cited `LogicalTheorem` of this package.
+    pub theorem: DeclarationId,
+    /// One argument per `LogicalTheorem::binders`, in order.
+    pub arguments: Vec<TheoremArgument>,
+    /// One value per `LogicalTheorem::parameters`, in order. Each is a proof
+    /// subject: the citation creates no runtime demand for it.
+    pub subjects: Vec<crate::ValueId>,
+    pub requirements: Vec<crate::CallRequirement>,
+}
+
+/// Evidence supplied for one theorem binder at a citation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TheoremArgument {
+    /// A checked machine cited for `TheoremBinder::Hypothesis`. It is
+    /// evidence, not a call target: the checker owes the refinement of the
+    /// hypothesis by this machine's whole contract at the citation's subjects.
+    Citation(DeclarationId),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TheoremBinder {
     /// A `machine` binder supplied only by evidence for this hypothesis.
@@ -76,12 +106,21 @@ pub enum MathematicalStep {
     /// A stored field of the data value being established.
     SelfField(DeclarationId),
     Declaration(DeclarationId),
+    /// A proof dependency, not a call or an admitted assumption. Under the
+    /// expected binders the checker must establish the selected contract's
+    /// premises and derive the expected conclusion from its guarantees.
+    RefineCitation {
+        machine: DeclarationId,
+        expected: TypeExpression,
+    },
     Integer {
         value: BigInt,
         carrier: Option<ScalarType>,
     },
     Boolean(bool),
     Predicate(PredicateOperator),
+    /// Witness-hidden existence over this type. Forms a term, not evidence of inhabitation.
+    Squash(TypeExpression),
     /// The preceding term forms a proposition at this sort. Its truth is still an obligation.
     FormProposition(TypeExpression),
     Apply {

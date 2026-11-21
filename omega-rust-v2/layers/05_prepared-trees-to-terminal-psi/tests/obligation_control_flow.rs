@@ -30,7 +30,7 @@ use PredicateOperator::{Equal, NotEqual};
 use PredicateStep::{Apply, Formal, Integer};
 use omega_lowering::{
     BlockTerminator, CallArgument, CallSite, CallTarget, CrashCause, IntegerPrimitive, LoweredMachine, MachineBody, OperationKind, Parameter,
-    PredicateOperator, PredicateStep, RankComparison, RankExpression, Site, TrappingIntegerPrimitive, ValueId,
+    PredicateOperator, PredicateStep, RankComparison, RankExpression, RankOperand, Site, TrappingIntegerPrimitive, ValueId,
 };
 use omega_typed::ObligationKind;
 use pipeline::{Lowered, operation_at, value_producer};
@@ -236,15 +236,16 @@ fn termination_names_the_ranked_machine_and_the_exact_terminal_edge_it_claims() 
                 .as_ref()
                 .unwrap_or_else(|| panic!("{source}: {path} publishes no ranking witness"));
             assert_eq!(witness.site, obligation.site, "{source}: the witness is the obligated clause");
-            assert_eq!(witness.rank, RankExpression::Operand(0), "{source}");
+            assert_eq!(witness.rank, RankExpression::Operand(RankOperand::Input(0)), "{source}");
             assert_eq!(witness.component, [machine.id], "{source}: a self-recursive component");
 
             let body = &machine.body;
             let [edge] = witness.edges.as_slice() else {
                 panic!("{source}: {path} claims {} edges", witness.edges.len())
             };
+            let omega_lowering::CallSite::Edge(call_edge) = edge.call else { panic!("expected terminal call") };
             assert_eq!(
-                lowered.spelling(edge_site(body, edge.edge)),
+                lowered.spelling(edge_site(body, call_edge)),
                 call,
                 "{source}: the claimed edge is the recursive call"
             );
@@ -258,7 +259,7 @@ fn termination_names_the_ranked_machine_and_the_exact_terminal_edge_it_claims() 
             };
             assert_eq!(
                 (*id, *callee, edge.target),
-                (edge.edge, CallTarget::Machine(machine.id), machine.id),
+                (call_edge, CallTarget::Machine(machine.id), machine.id),
                 "{source}"
             );
             let [CallArgument::Scalar(actual)] = arguments[..] else {
@@ -266,7 +267,7 @@ fn termination_names_the_ranked_machine_and_the_exact_terminal_edge_it_claims() 
             };
             assert_eq!(
                 edge.successor,
-                RankExpression::Operand(actual),
+                Some(RankExpression::Operand(RankOperand::Input(actual))),
                 "{source}: the successor is the actual argument"
             );
             assert_eq!(edge.comparison, comparison, "{source}");
@@ -284,7 +285,7 @@ fn termination_names_the_ranked_machine_and_the_exact_terminal_edge_it_claims() 
             // The exit to `leaf` stays unclaimed.
             for block in &body.blocks {
                 if let BlockTerminator::TerminalCall { id, callee, .. } = &block.terminator
-                    && *id != edge.edge
+                    && *id != call_edge
                 {
                     assert_eq!(
                         *callee,

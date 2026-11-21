@@ -7,10 +7,27 @@ pub struct LoweredTrait {
     pub declaration: DeclarationId,
     pub public: bool,
     pub boundary: bool,
+    /// A transparent bound inherits its base requirements; it declares no new slots.
+    pub restriction: Option<TraitRestriction>,
     pub parameters: Vec<crate::TemplateBinder>,
     pub dependent_requirements: Vec<crate::TemplateRequirement>,
     pub requirements: Vec<LoweredRequirement>,
     pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TraitRestriction {
+    pub base: crate::TemplateRequirementSlot,
+    /// Each clause constrains every base requirement. Omitted axes inherit.
+    pub all_members: Vec<MemberRestriction>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct MemberRestriction {
+    pub prohibits_block: bool,
+    pub prohibits_suspend: bool,
+    pub reach: Option<Vec<crate::TemplateRequirementSlot>>,
+    pub requires_termination: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -54,6 +71,8 @@ pub struct ConformanceMember {
 /// A boundary selection records the demand before Build installs a provider.
 #[derive(Debug, Eq, PartialEq)]
 pub struct MemberCallSelection {
+    /// The transparent bound used at this occurrence, distinct from the requirement owner.
+    pub restriction: Option<crate::TemplateRequirementSlot>,
     pub owner: crate::TemplateRequirementSlot,
     pub requirement: crate::TemplateRequirementSlot,
     /// The requirement's own closed arguments, one per binder in declaration order.
@@ -62,6 +81,10 @@ pub struct MemberCallSelection {
     pub static_arguments: Vec<crate::DeclarationTerm>,
     pub parameters: Vec<crate::ParameterType>,
     pub result: Option<TypeId>,
+    /// For a boundary view result with a represented input-relative lifetime,
+    /// index of the lifetime anchor in the ordered call operands. Not a claim
+    /// that the input contains the returned bytes or that a provider is admitted.
+    pub boundary_result_lifetime_input: Option<usize>,
     pub target: MemberRealization,
 }
 #[derive(Debug, Eq, PartialEq)]
@@ -81,7 +104,9 @@ pub enum CallTarget {
     /// Index of the applied requirement and its selected dispatch in this package.
     Member(usize),
     /// The current descriptor value selects the machine at run time. The
-    /// contract governs the arguments and result; no static callee substitutes.
+    /// contract governs the arguments and result, and the call owes the
+    /// contract's preconditions under its ordered arguments; no static callee
+    /// substitutes.
     Runtime {
         descriptor: crate::ValueId,
         contract: crate::CallableContractId,

@@ -1,11 +1,9 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod source;
 
-use omega_lowering::{MachineBody, OperationKind, OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection, ReferenceAccess, ValueOperand};
-
-const UNTRACED: &str = "parking this owner requires the backing or carry evidence of its embedded descriptors";
+use omega_lowering::{
+    EmbeddedLoanOrigin, MachineBody, OperationKind, OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection, ReferenceAccess, ValueOperand,
+};
 
 fn forward(package: &omega_lowering::LoweredPackage) -> &MachineBody {
     &package
@@ -87,22 +85,55 @@ fn an_ordinary_scope_stores_the_replacement_descriptor_into_the_original_home() 
 fn a_replaced_home_never_parks_with_its_first_descriptor() {
     for (initial, latest) in [("first", "second"), ("second", "first")] {
         let text = program(initial, latest, true);
-        // Parking is checked at the call operation, inside its `suspend` marker.
-        let err = source::refuse(
-            &[("replaced.omg", &text)],
-            "replaced.omg",
-            source::span_within(&text, "suspend wait()", "wait()"),
-            UNTRACED,
-        );
-        known_gap::report(&format!("suspend after replacing {initial} with {latest}"), "The parked record needs the latest descriptor's origin", &text, &err);
-        assert!(
-            err.site
-                .span
-                .slice(text.as_bytes())
-                .unwrap()
-                .ends_with(b"wait()")
-        );
+        let files = [("replaced.omg", text.as_str())];
+        let resolved = source::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let tree = prepared.typed().trees().next().unwrap();
+        let file = tree.resolved().file;
+        let mut inputs = Vec::new();
+        for node in 0..file.nodes.len() {
+            if let Some(construction) = tree.construction(node) {
+                let [input] = construction.initializers.as_slice() else { panic!("one initializer") };
+                assert_eq!(input.position, 0);
+                inputs.push(file.span(input.expression).slice(text.as_bytes()).unwrap());
+            }
+        }
+        assert_eq!(inputs, [initial.as_bytes(), latest.as_bytes()]);
+        let package = source::lower_prepared(&prepared, &files).unwrap();
+        drop(prepared);
+        drop(resolved);
+        let body = forward(&package);
+        let records = records(body);
+        let [(home, original), (rhs, installed)] = records.as_slice() else { panic!("two record results") };
+        assert_ne!(home, rhs);
+        assert_eq!(body.mutable_homes, [*home]);
+        let latest_slot = usize::from(latest == "second");
+        assert_eq!(*original, ValueOperand::CopyWhole(formal(body, 1 - latest_slot)));
+        assert_eq!(*installed, ValueOperand::CopyWhole(formal(body, latest_slot)));
+        let parked_origin = psi_handoff_consumer::parked_replacement_origin(&package).expect("one shared field in the parked destination");
+        let incoming = |slot| EmbeddedLoanOrigin { formal: formal(body, slot), path: vec![], reborrows: vec![] };
+        if latest == "second" {
+            spec_corpus::observe_handoff!(psi "psi-output/replaced-home-second", assert_eq!(*parked_origin, incoming(1)));
+        } else {
+            spec_corpus::observe_handoff!(psi "psi-output/replaced-home-first", assert_eq!(*parked_origin, incoming(0)));
+        }
     }
+}
+
+#[test]
+fn successive_crossings_snapshot_the_same_home_between_stores() {
+    let text = program("first", "second", true)
+        .replace(";h=", ";suspend wait();h=")
+        .replace(";suspend wait()}", ";suspend wait();h=Holder{r:first};suspend wait()}");
+    let package = source::lower(&[("snapshots.omg", &text)]).unwrap();
+    let body = forward(&package);
+    let [home] = body.mutable_homes.as_slice() else { panic!("one home") };
+    let origins: Vec<_> = body.suspension_sites.iter().map(|site| {
+        let [owner] = site.retained_owners.as_slice() else { panic!("one owner") };
+        let [loan] = owner.embedded_loans.as_slice() else { panic!("one embedded reference") };
+        (owner.place, loan.origin.formal)
+    }).collect();
+    assert_eq!(origins, [(*home, formal(body, 0)), (*home, formal(body, 1)), (*home, formal(body, 0))]);
 }
 
 #[test]

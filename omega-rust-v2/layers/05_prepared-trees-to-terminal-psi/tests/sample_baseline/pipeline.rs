@@ -150,6 +150,14 @@ pub fn lower(files: &[(&str, Vec<u8>)]) -> Result<omega_psi::LoweredPackage, Ref
 
 /// Lowers `(package, package-relative file, bytes)` sources together.
 pub fn lower_packages(files: &[(&str, &str, &[u8])]) -> Result<omega_psi::LoweredPackage, Refusal> {
+    lower_admitted(files, &[])
+}
+
+/// Lowers sources together with the direct dependency edges Build admitted for their packages.
+pub fn lower_admitted(
+    files: &[(&str, &str, &[u8])],
+    admitted: &[omega_resolver::Dependency],
+) -> Result<omega_psi::LoweredPackage, Refusal> {
     let refuse = |stage: &'static str, package: &str, file: &str, span: SourceSpan, reason: String| Refusal::locate(stage, package, file, span, reason, files);
     let mut token_files = Vec::new();
     for (package, path, bytes) in files {
@@ -177,7 +185,8 @@ pub fn lower_packages(files: &[(&str, &str, &[u8])]) -> Result<omega_psi::Lowere
             },
         });
     }
-    let resolved = omega_toolchain::resolve_source_package(&sources).map_err(|err| refuse("L2", &err.package, &err.file, err.span, err.message))?;
+    let resolved =
+        omega_toolchain::resolve_admitted_packages(&sources, admitted).map_err(|err| refuse("L2", &err.package, &err.file, err.span, err.message))?;
     let prepared = preparation::prepare(&resolved).map_err(|(stage, err)| refuse(stage, &err.package, &err.file, err.span, err.message))?;
     omega_lowering::lower_package(&prepared).map_err(|err| refuse("L5", &err.site.package, &err.site.file, err.site.span, err.message))
 }

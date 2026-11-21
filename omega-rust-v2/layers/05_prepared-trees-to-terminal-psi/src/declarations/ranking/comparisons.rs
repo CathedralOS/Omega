@@ -2,7 +2,7 @@
 //! different value id says nothing about order. Only use the actual operands
 //! and comparisons on paths that must have been taken to reach this call.
 use crate::{
-    ArithmeticPolicy, BlockId, BlockTerminator, IntegerPrimitive, MachineBody, OperationKind, RankComparison, RankExpression, ScalarLiteral, ValueId,
+    ArithmeticPolicy, BlockId, BlockTerminator, IntegerPrimitive, MachineBody, OperationKind, RankComparison, RankExpression, RankOperand, ScalarLiteral, ValueId,
     ValueOrigin,
 };
 use std::cmp::Ordering::{self, Equal, Greater, Less};
@@ -84,17 +84,23 @@ impl<'a> Comparisons<'a> {
         successor: &RankExpression<ValueId>,
     ) -> RankComparison {
         use RankExpression::{Operand, SaturatingDistance};
+        use RankOperand::Input;
+        // Only an input value can carry a step or a guard. A constant
+        // operand that differs between source and successor stays pending.
         if successor == source {
             return RankComparison::Preserving;
         }
         match (source, successor) {
-            (Operand(prev), Operand(next)) if self.positive_step(*next, *prev, IntegerPrimitive::Subtract) => RankComparison::Strict,
-            (Operand(prev), Operand(next)) => self.guarded_role(block, *next, *prev).unwrap_or(RankComparison::Pending),
+            (Operand(Input(prev)), Operand(Input(next))) if self.positive_step(*next, *prev, IntegerPrimitive::Subtract) => RankComparison::Strict,
+            (Operand(Input(prev)), Operand(Input(next))) => self.guarded_role(block, *next, *prev).unwrap_or(RankComparison::Pending),
             (
-                SaturatingDistance { cursor, limit },
                 SaturatingDistance {
-                    cursor: next,
-                    limit: same_limit,
+                    cursor: Input(cursor),
+                    limit: Input(limit),
+                },
+                SaturatingDistance {
+                    cursor: Input(next),
+                    limit: Input(same_limit),
                 },
             ) if limit == same_limit && self.positive_step(*next, *cursor, IntegerPrimitive::Add) => {
                 // At or beyond the limit both distances can be zero. Do not

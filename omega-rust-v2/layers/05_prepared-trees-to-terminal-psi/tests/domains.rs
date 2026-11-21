@@ -124,18 +124,30 @@ fn parenthesized_and_explicitly_sized_bounds_lower_to_the_same_predicate() {
 }
 
 #[test]
-fn unsupported_domain_forms_do_not_publish_plain_classifications() {
-    for (source, refused, message) in [
-        ("domain<T> T::Tag;", "T::Tag", "domain carrier requires a fixed scalar"),
-        (
-            "data Item { valid:bool; } domain Item::Tag;",
-            "Item::Tag",
-            "domain carrier requires a fixed scalar",
-        ),
-    ] {
-        let error = sources::refuse(&[("domain.omg", source)], "domain.omg", sources::unique_span(source, refused), message);
-        assert_eq!(error.site.file, "domain.omg");
-        assert_eq!(error.message, message);
+fn a_carrier_generic_domain_names_its_own_type_slot() {
+    use omega_psi::{TemplateBinder, TypeExpressionStep};
+    for (source, slot) in [("domain<T> T::Tag;", 0), ("domain<U,T> T::Tag;", 1)] {
+        let package = sources::lower(&[("domain.omg", source)]).unwrap();
+        let [family] = package.domain_templates.as_slice() else { panic!("expected one carrier family") };
+        assert!(package.domains.is_empty() && family.requires.is_empty() && family.index_binders.is_empty());
+        assert_eq!(family.declaration.path, "T::Tag");
+        assert_eq!(family.parameters.len(), slot + 1);
+        assert!(family.parameters.iter().all(|p| matches!(p, TemplateBinder::Type { multiplicity: None })));
+        spec_corpus::observe_handoff!(psi "psi-output/domain-family-carrier", assert_eq!(family.carrier.0,
+            [TypeExpressionStep::GenericParameter { owner: family.declaration.clone(), index: slot }]));
+    }
+}
+
+#[test]
+fn a_record_tag_names_its_exact_nominal_subject() {
+    let original = "data Item { valid:bool; } domain Item::Tag;";
+    for (source, name) in [(original, "Item"), ("data Item { valid:bool; } data Other { valid:bool; } domain Other::Tag;", "Other")] {
+        let package = sources::lower(&[("domain.omg", source)]).unwrap();
+        let [domain] = package.domains.as_slice() else { panic!("expected the record tag") };
+        let record = package.data.iter().find(|r| r.declaration.path == name).unwrap();
+        assert_eq!(domain.declaration.path, format!("{name}::Tag"));
+        assert!(domain.requires.is_empty() && domain.parameters.is_empty());
+        spec_corpus::observe_handoff!(psi "psi-output/record-tag-carrier", assert_eq!(package.types.get(domain.carrier), Some(&TypeShape::Nominal(record.id))));
     }
 }
 
@@ -278,12 +290,55 @@ fn inherited_subject_selects_the_named_parent_among_equal_predicates() {
 }
 
 #[test]
-fn inherited_subject_cast_still_requires_predicate_qualification_lowering() {
-    let text = "domain i32::Positive requires self > 0; domain i32::Positive::Small requires (self as -Positive) < 100;";
-    let cast = "self as -Positive";
-    let message = "unsupported contract predicate expression";
-    let error = sources::refuse(&[("domain.omg", text)], "domain.omg", sources::unique_span(text, cast), message);
-    assert_eq!(error.site.span.slice(text.as_bytes()), Some(cast.as_bytes()));
+fn inherited_subject_cast_reads_the_parent_qualified_value_in_the_child_predicate() {
+    use PredicateOperator::{Equal, GreaterThan, LessThan};
+    use PredicateStep::{Apply, Formal, Integer, Result, SelfValue};
+    // `-Positive` removes the declared domain but not the value: the child's
+    // clause compares its own subject, which still carries the parent.
+    let text = "domain i32::Positive requires self > 0; domain i32::Positive::Small requires (self as -Positive) < 100;
+                machine keep(x:i32 in Positive::Small)->i32 in Positive::Small {x}";
+    let package = sources::lower(&[("domain.omg", text)]).unwrap();
+    let [parent, child] = package.domains.as_slice() else {
+        panic!("expected parent and child declarations")
+    };
+    let Some(TypeShape::QualifiedScalar { domains, .. }) = package.types.get(child.carrier) else {
+        panic!("child subject lost its parent qualification")
+    };
+    assert_eq!(package.types.domain_set(*domains).unwrap(), std::slice::from_ref(&parent.declaration));
+    let [own] = child.requires.as_slice() else {
+        panic!("missing child predicate")
+    };
+    assert_eq!(own.site.span.slice(text.as_bytes()), Some(b"requires (self as -Positive) < 100".as_slice()));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/inherited-subject-cast",
+        assert_eq!(own.predicate, [SelfValue, Integer(100.into()), Apply(LessThan)]),
+    );
+    // A forwarder binds both the parent's clause and the child's cast-read clause.
+    let keep = &package.machines[0];
+    for (clauses, subject) in [
+        (&keep.contract.requires, Formal(0)),
+        (&keep.contract.ensures, Result),
+    ] {
+        assert_eq!(
+            clauses
+                .iter()
+                .map(|c| (&c.site, &c.predicate[..]))
+                .collect::<Vec<_>>(),
+            [
+                (&parent.requires[0].site, &[subject.clone(), Integer(0.into()), Apply(GreaterThan)][..]),
+                (&own.site, &[subject, Integer(100.into()), Apply(LessThan)][..]),
+            ]
+        );
+    }
+
+    // The same read applies to a qualified formal in a machine's own guarantee.
+    let text = "domain u16::Small; machine greater(left:u16 in Small, right:u16)->bool
+                ensures result == ((left as -Small) > right) { (left as -Small) > right }";
+    let package = sources::lower(&[("formal.omg", text)]).unwrap();
+    let [guarantee] = package.machines[0].contract.ensures.as_slice() else {
+        panic!("expected the authored guarantee")
+    };
+    assert_eq!(guarantee.predicate, [Result, Formal(0), Formal(1), Apply(GreaterThan), Apply(Equal)]);
 }
 
 #[test]
@@ -589,10 +644,54 @@ fn a_forwarded_predicate_binds_the_formal_and_result_and_is_required_at_each_cal
 }
 
 #[test]
-fn predicate_membership_cannot_be_added_with_only_a_tag_edge() {
-    let text = "domain u8::Positive requires self > 0u8; machine f(x:u8)->u8 in Positive {x as +Positive}";
-    let message = "adding a predicate-bearing domain requires a retained establishment proof";
-    let err = sources::refuse(&[("domain.omg", text)], "domain.omg", sources::unique_span(text, "x as +Positive"), message);
-    assert_eq!(err.site.span.slice(text.as_bytes()), Some("x as +Positive".as_bytes()));
-    assert_eq!(err.message, message);
+fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_memberships() {
+    for (source, cast, message) in [
+        ("domain u8::P requires true; domain u8::Tag; machine make(x:u8)->u8 { let q = x as +P +Tag; q as -P -Tag }",
+         "x as +P +Tag", "mixed predicate and tag establishment requires distinct completion origins"),
+        ("domain u8::P; domain u8::P::Child requires true; machine make(x:u8 in P)->u8 in P::Child {x as =P +P::Child}",
+         "x as =P +P::Child", "predicate completion does not support a domain requiring parent membership"),
+    ] {
+        sources::refuse(&[("limit.omg", source)], "limit.omg", sources::unique_span(source, cast), message);
+    }
+}
+
+#[test]
+fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
+    use omega_psi::{BlockTerminator, Parameter, PredicateCompletion, ReturnEdge, ScalarDomainInvariant};
+    let original = "domain u8::Positive requires self > 0u8; machine f(x:u8)->u8 in Positive {x as +Positive}";
+    let twin = "domain u8::Positive requires self > 0u8; domain u8::Other requires self > 0u8; machine f(x:u8,y:u8)->u8 in Other {y as +Other}";
+    for (text, cast, path, slot) in [(original, "x as +Positive", "u8::Positive", 0), (twin, "y as +Other", "u8::Other", 1)] {
+        let files = [("domain.omg", text)];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let debts: Vec<_> = prepared.typed().obligations.iter().filter_map(|o| match &o.kind {
+            omega_typed::ObligationKind::EstablishDomain(d) => Some((o.site.span.slice(text.as_bytes()), d.declaration.path.as_str(), d.arguments.len())),
+            _ => None,
+        }).collect();
+        assert_eq!(debts, [(Some(cast.as_bytes()), path, 0)]);
+        let pkg = sources::lower_prepared(&prepared, &files).unwrap();
+        drop(prepared);
+        let domain = pkg.domains.iter().find(|d| d.declaration.path == path).unwrap();
+        assert_eq!(domain.requires.len(), 1);
+        assert_eq!(domain.requires[0].predicate, [PredicateStep::SelfValue, PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)]);
+        let body = &pkg.machines[0].body;
+        let Parameter::Scalar(input) = body.parameters[slot] else { panic!("expected scalar formal") };
+        let [entry, arrival] = body.blocks.as_slice() else { panic!("expected one completion") };
+        let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("missing cast completion") };
+        assert_eq!(body.diagnostics.edges[edge.id.get() - 1].span.slice(text.as_bytes()), Some(cast.as_bytes()));
+        assert!(edge.scalar_qualification_changes.is_empty());
+        assert!(entry.scalar_domain_invariants.is_empty());
+        let [dest] = arrival.scalar_parameters[..] else { panic!("expected one destination") };
+        assert_ne!(input, dest);
+        assert_eq!(body.values[dest.index()].origin, omega_psi::ValueOrigin::BlockParameter(arrival.id));
+        assert!(matches!(pkg.types.get(body.values[input.index()].ty), Some(TypeShape::PrimitiveScalar(_))));
+        let Some(TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(body.values[dest.index()].ty) else { panic!("lost result domain") };
+        assert_eq!(pkg.types.domain_set(*domains).unwrap(), std::slice::from_ref(&domain.declaration));
+        assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == dest));
+        spec_corpus::observe_handoff!(psi "psi-output/predicate-cast-completion", assert_eq!(
+            (edge.target, edge.arguments.as_slice(), edge.predicate_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
+            (arrival.id, &[input][..], &[PredicateCompletion { argument_index: 0, domain: domain.declaration.clone() }][..],
+             &[ScalarDomainInvariant { subject: dest, domain: domain.declaration.clone() }][..])
+        ));
+    }
 }

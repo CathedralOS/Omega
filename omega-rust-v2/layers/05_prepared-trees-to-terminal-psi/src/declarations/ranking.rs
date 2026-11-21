@@ -4,16 +4,20 @@
 //! every body exists, the component pass reconstructs the actual call graph,
 //! checks that each claim names a real input and edge, and attaches one claim
 //! to every internal edge. It proves no comparison, bound or well-foundedness;
-//! those remain checker obligations. Unsupported shapes refuse.
+//! those remain checker obligations. So does a termination promise on a cycle
+//! that a member's missing `terminates by` leaves without a joint ranking:
+//! lowering publishes that component and leaves the verdict to the checker.
+//! Unsupported shapes refuse.
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
     BlockTerminator, CallArgument, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
-    RankExpression, RankOrder, RankRelation, RankedEdge, ScalarType, Site, TypeShape, ValueOrigin, site_at,
+    RankComparison, RankExpression, RankOperand, RankOrder, RankRelation, RankedEdge, ScalarType, Site, TypeShape, ValueOrigin, site_at,
 };
 mod calls;
 mod comparisons;
 use calls::{Invocation, RankedTransfer};
 use num_bigint::BigInt;
+use omega_prepared::{PreparedTrees, PreparedValue};
 use omega_resolved::Symbol;
 use omega_syntax::{NodeKind, TerminationClause};
 use omega_typed::{NodeSemantics, ObligationKind, TypedSignature, ValueType};
@@ -31,6 +35,7 @@ enum View {
 /// Lower one authored `terminates by` clause. Edge claims are attached by
 /// [`bind_component_edges`] once the bodies exist.
 pub(crate) fn authored(
+    prepared: &PreparedTrees<'_>,
     tree: &LoweringTree<'_>,
     sig: &TypedSignature,
     clause: usize,
@@ -75,13 +80,73 @@ pub(crate) fn authored(
         } => ScalarType::Integer { signed: false, width: *width },
         _ => return Err(refuse(clause, "ranking view has no unsigned natural carrier")),
     };
-    let formal = |node: usize| -> Result<usize, LoweringError> {
+    // An integer literal in the rank carrier: a bound endpoint or a constant
+    // rank operand, named by `what` in refusals.
+    let literal = |node: usize, what: &str| -> Result<BigInt, LoweringError> {
         let node = file.ungroup(node);
+        if file.nodes[node].kind != NodeKind::Literal {
+            return Err(refuse(node, &format!("{what} must be an integer literal")));
+        }
+        let mut value: Option<&BigInt> = None;
+        for record in tree.semantics_at(node) {
+            let candidate = match record {
+                NodeSemantics::Landing(l) if l.ty == witness.rank && l.value.is_integer() => Some(l.value.numer()),
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => match &e.ty {
+                    ValueType::Exact {
+                        value,
+                        fractional_origin: None,
+                    } if value.is_integer() => Some(value.numer()),
+                    ty if ty == &witness.rank => None,
+                    _ => return Err(refuse(node, &format!("{what} has a foreign carrier"))),
+                },
+                _ => return Err(refuse(node, &format!("unsupported typed {what} record"))),
+            };
+            if let Some(candidate) = candidate {
+                if value.is_some_and(|previous| previous != candidate) {
+                    return Err(refuse(node, &format!("{what} has conflicting values")));
+                }
+                value = Some(candidate);
+            }
+        }
+        value
+            .filter(|v| witness.rank.contains_integer(v))
+            .cloned()
+            .ok_or_else(|| refuse(node, &format!("{what} has no value in the rank carrier")))
+    };
+    let endpoint = |node: usize| literal(node, "rank bound endpoint");
+    // A rank operand is an immutable formal of the carrier or a closed
+    // integer constant. A named `const` contributes its prepared value, the
+    // same value its other uses read; the declaration adds no runtime input.
+    let operand = |node: usize| -> Result<RankOperand<usize>, LoweringError> {
+        let node = file.ungroup(node);
+        let symbol = resolved.symbol(node);
+        if file.nodes[node].kind == NodeKind::Literal {
+            return Ok(RankOperand::Constant(literal(node, "rank literal")?));
+        }
+        if let Some(Symbol::Declaration(id)) = symbol
+            && id.kind == NodeKind::Const
+        {
+            let (mut typed, mut named) = (false, false);
+            for record in tree.semantics_at(node) {
+                match record {
+                    NodeSemantics::Expression(e) if !typed && e.static_argument_slot.is_none() && e.ty == witness.rank => typed = true,
+                    NodeSemantics::Constant(constant) if !named && constant == id => named = true,
+                    _ => return Err(refuse(node, "unsupported typed ranking subject record")),
+                }
+            }
+            if !(typed && named) {
+                return Err(refuse(node, "ranking constant has no typed carrier"));
+            }
+            return match prepared.constant(id) {
+                Some(PreparedValue::Integer(value)) if witness.rank.contains_integer(value) => Ok(RankOperand::Constant(value.clone())),
+                _ => Err(refuse(node, "ranking constant has no prepared value in the rank carrier")),
+            };
+        }
         let Some(Symbol::Binding {
             span, kind: NodeKind::Param, ..
-        }) = resolved.symbol(node)
+        }) = symbol
         else {
-            return Err(refuse(node, "lowering only represents rank operands that name machine formals"));
+            return Err(refuse(node, "lowering only represents rank operands that name machine formals or integer constants"));
         };
         let index = sig
             .parameters
@@ -98,11 +163,11 @@ pub(crate) fn authored(
         if !typed {
             return Err(refuse(node, "ranking subject has no typed carrier"));
         }
-        Ok(index)
+        Ok(RankOperand::Input(index))
     };
     let subject = file.ungroup(measure);
     let rank = match (view, file.nodes[subject].kind, file.nodes[subject].children.as_slice()) {
-        (View::Descending, kind, _) if kind != NodeKind::Tuple => RankExpression::Operand(formal(subject)?),
+        (View::Descending, kind, _) if kind != NodeKind::Tuple => RankExpression::Operand(operand(subject)?),
         (View::BoundedDistance, NodeKind::Tuple, &[cursor, limit]) => {
             if tree
                 .semantics_at(subject)
@@ -111,42 +176,11 @@ pub(crate) fn authored(
                 return Err(refuse(subject, "unsupported typed ranking subject record"));
             }
             RankExpression::SaturatingDistance {
-                cursor: formal(cursor)?,
-                limit: formal(limit)?,
+                cursor: operand(cursor)?,
+                limit: operand(limit)?,
             }
         }
         _ => return Err(refuse(subject, "ranking subject does not match its view")),
-    };
-    let endpoint = |node: usize| -> Result<BigInt, LoweringError> {
-        let node = file.ungroup(node);
-        if file.nodes[node].kind != NodeKind::Literal {
-            return Err(refuse(node, "rank bound endpoint must be an integer literal"));
-        }
-        let mut value: Option<&BigInt> = None;
-        for record in tree.semantics_at(node) {
-            let candidate = match record {
-                NodeSemantics::Landing(l) if l.ty == witness.rank && l.value.is_integer() => Some(l.value.numer()),
-                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => match &e.ty {
-                    ValueType::Exact {
-                        value,
-                        fractional_origin: None,
-                    } if value.is_integer() => Some(value.numer()),
-                    ty if ty == &witness.rank => None,
-                    _ => return Err(refuse(node, "rank bound endpoint has a foreign carrier")),
-                },
-                _ => return Err(refuse(node, "unsupported typed rank bound record")),
-            };
-            if let Some(candidate) = candidate {
-                if value.is_some_and(|previous| previous != candidate) {
-                    return Err(refuse(node, "rank bound endpoint has conflicting values"));
-                }
-                value = Some(candidate);
-            }
-        }
-        value
-            .filter(|v| witness.rank.contains_integer(v))
-            .cloned()
-            .ok_or_else(|| refuse(node, "rank bound endpoint has no value in the rank carrier"))
     };
     let bounds = match bound {
         None => None,
@@ -212,13 +246,10 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
     let mut calls = vec![Vec::new(); machines.len()];
     for (position, machine) in machines.iter().enumerate() {
         let diagnostics = &machine.body.diagnostics;
+        // A runtime descriptor or boundary member is outside every local
+        // component, ranked caller or not. Its call stays in the body with its
+        // callable contract; the checker applies that contract's termination.
         let mut add = |callee: &crate::CallTarget, site: &Site, invocation| -> Result<(), LoweringError> {
-            if machine.contract.ranking.is_some() && matches!(callee, crate::CallTarget::Runtime { .. }) {
-                if matches!(invocation, Invocation::Terminal(_)) {
-                    return Err(LoweringError::new(site, "lowering cannot include an indirect terminal call in the caller's rank graph"));
-                }
-                return Err(LoweringError::new(site, "lowering cannot include an indirect call in the caller's rank graph"));
-            }
             if let Some(target) = local_target(callee, site)? {
                 calls[position].push((target, invocation));
             }
@@ -279,54 +310,43 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
     for (group, members) in groups.iter_mut().enumerate() {
         members.sort_unstable_by_key(|&m| machines[m].id.get());
         let cyclic = members.len() > 1 || successors[members[0]].contains(&members[0]);
-        let unranked = members
+        // Members without an authored rank stay in the component. Their own
+        // edges are the calls and transfers of their bodies; judging a
+        // promise that relies on them belongs to the checker.
+        let ranked: Vec<usize> = members
             .iter()
             .copied()
-            .find(|&m| machines[m].contract.ranking.is_none());
-        let ranked = members.iter().any(|&m| machines[m].contract.ranking.is_some());
-        for &m in members.iter() {
+            .filter(|&m| machines[m].contract.ranking.is_some())
+            .collect();
+        for &m in &ranked {
             if let Some(ranking) = &machines[m].contract.ranking {
                 check_entry_rank(&machines[m].body, &machines[m].parameter_types, ranking, &package.types)?;
             }
         }
         let identities: Vec<MachineId> = members.iter().map(|&m| machines[m].id).collect();
         if !cyclic {
-            if ranked {
+            if !ranked.is_empty() {
                 updates.push((members[0], identities, Vec::new()));
             }
             continue;
         }
-        if let Some(m) = unranked {
-            if ranked {
-                return Err(LoweringError::new(
-                    &machines[m].body.diagnostics.body,
-                    "lowering has no entry-rank mapping for this member of the recursive component",
-                ));
-            }
-            if let Some(&m) = members
-                .iter()
-                .find(|&&m| machines[m].contract.promises_termination)
-            {
-                return Err(LoweringError::new(
-                    &machines[m].body.diagnostics.body,
-                    "a cyclic terminating component requires a `terminates by` witness",
-                ));
-            }
+        // A cycle with no authored rank has no claim to attach. A termination
+        // promise on it stays in the machine contract over the same edges.
+        let Some(relation) = ranked
+            .first()
+            .and_then(|&m| machines[m].contract.ranking.as_ref())
+            .map(|r| r.relation)
+        else {
             continue;
-        }
-        let relation = machines[members[0]]
-            .contract
-            .ranking
-            .as_ref()
-            .map(|r| r.relation);
-        for &m in members.iter() {
+        };
+        for &m in &ranked {
             let machine = &machines[m];
             let ranking = machine
                 .contract
                 .ranking
                 .as_ref()
-                .expect("every member is ranked");
-            if Some(ranking.relation) != relation {
+                .expect("ranked members have a witness");
+            if ranking.relation != relation {
                 return Err(LoweringError::new(&ranking.site, "a recursive component requires one common rank relation"));
             }
             match has_block_cycle(&machine.body) {
@@ -343,46 +363,55 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
                 .source_rank(&machine.body.parameters)
                 .ok_or_else(|| LoweringError::new(&ranking.site, "ranking input is not a scalar formal"))?;
             let comparisons = comparisons::Comparisons::new(&machine.body);
+            // Preserve body order while checking identity in the call's own
+            // namespace. A member has few component edges, so a flat list of
+            // claimed call sites suffices.
+            let mut claimed = Vec::new();
             let mut edges = Vec::new();
             for &(target, invocation) in calls[m].iter().filter(|&&(target, _)| component[target] == group) {
-                let RankedTransfer { block, edge, forwarded_call, arguments, site: edge_site } = invocation.transfer(&machine.body, &package.types)?;
+                let RankedTransfer { block, call, forwarding_return, arguments, site: edge_site } = invocation.transfer(&machine.body, &package.types)?;
+                if claimed.contains(&call) {
+                    return Err(LoweringError::new(edge_site, "ranked edge identity is not unique"));
+                }
+                claimed.push(call);
                 let callee_machine = &machines[target];
-                let target_rank = callee_machine
-                    .contract
-                    .ranking
-                    .as_ref()
-                    .expect("every member is ranked");
                 if arguments.len() != callee_machine.parameter_types.len() {
                     return Err(LoweringError::new(edge_site, "ranked edge arguments disagree with the target's formals"));
                 }
-                let successor = target_rank
-                    .rank
-                    .try_map(|formal| match arguments.get(formal) {
-                        Some(CallArgument::Scalar(value))
-                            if machine
-                                .body
-                                .values
-                                .get(value.index())
-                                .is_some_and(|v| Some(&v.ty) == callee_machine.parameter_types.get(formal)) =>
-                        {
-                            Some(*value)
-                        }
-                        _ => None,
+                let successor = callee_machine
+                    .contract
+                    .ranking
+                    .as_ref()
+                    .map(|target_rank| {
+                        target_rank
+                            .rank
+                            .try_map(|formal| match arguments.get(formal) {
+                                Some(CallArgument::Scalar(value))
+                                    if machine
+                                        .body
+                                        .values
+                                        .get(value.index())
+                                        .is_some_and(|v| Some(&v.ty) == callee_machine.parameter_types.get(formal)) =>
+                                {
+                                    Some(*value)
+                                }
+                                _ => None,
+                            })
+                            .ok_or_else(|| LoweringError::new(edge_site, "ranked edge argument is not a scalar actual of the target rank"))
                     })
-                    .ok_or_else(|| LoweringError::new(edge_site, "ranked edge argument is not a scalar actual of the target rank"))?;
-                let comparison = comparisons.comparison(block, &source, &successor);
+                    .transpose()?;
+                // Without a target rank there is nothing to compare.
+                let comparison = successor
+                    .as_ref()
+                    .map_or(RankComparison::Pending, |successor| comparisons.comparison(block, &source, successor));
                 edges.push(RankedEdge {
                     block,
-                    edge,
-                    forwarded_call,
+                    call,
+                    forwarding_return,
                     target: callee_machine.id,
                     successor,
                     comparison,
                 });
-            }
-            edges.sort_unstable_by_key(|edge| edge.edge.get());
-            if edges.windows(2).any(|pair| pair[0].edge == pair[1].edge) {
-                return Err(LoweringError::new(&machine.body.diagnostics.body, "ranked edge identity is not unique"));
             }
             updates.push((m, identities.clone(), edges));
         }
@@ -399,14 +428,15 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
     Ok(())
 }
 
-/// Each rank input is an immutable scalar formal of exactly the relation carrier.
+/// Each rank input is an immutable scalar formal of exactly the relation
+/// carrier. Constant operands were checked against the carrier in the header.
 fn check_entry_rank(
     body: &MachineBody,
     parameter_types: &[crate::TypeId],
     ranking: &MachineRanking,
     types: &crate::TypeTable,
 ) -> Result<(), LoweringError> {
-    for formal in ranking.rank.operands() {
+    for formal in ranking.rank.inputs() {
         let scalar = match body.parameters.get(formal) {
             Some(Parameter::Scalar(value)) => body.values.get(value.index()),
             _ => None,

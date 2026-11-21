@@ -1,7 +1,9 @@
+#[path = "support/predicate_read.rs"]
+mod expected;
 #[path = "support/source.rs"]
 mod sources;
 
-use omega_lowering::{LoweredPackage, LoweringError, PredicateOperator, PredicateStep};
+use omega_lowering::{LoweredPackage, LoweringError, PredicateOperator, PredicateStep, TypeShape};
 
 fn lower(source: &str) -> Result<LoweredPackage, LoweringError> {
     sources::lower(&[("structural.omg", source)])
@@ -53,27 +55,85 @@ fn matrix_indices_retain_every_ordered_segment() {
 }
 
 #[test]
-fn runtime_selector_forms_no_fixed_index_path() {
+fn runtime_selector_reads_the_formal_array_under_the_selected_contract() {
+    use PredicateStep::{Apply, Formal, Integer};
     let source = "machine f(a:[u8;4], i:u64, b:u8)->u8 requires a[i] < 5 {b}";
-    sources::refuse(
-        &[("structural.omg", source)],
-        "structural.omg",
-        sources::span_within(source, "a[i]", "i"),
-        "contract index requires a fixed selector",
+    let package = lower(source).unwrap();
+    let [f] = package.machines.as_slice() else { panic!("expected f") };
+    assert_eq!(f.declaration.path, "f");
+    assert!(matches!(package.types.get(f.parameter_types[0]), Some(omega_psi::TypeShape::FixedArray { length: 4, .. })));
+    let [clause] = f.contract.requires.as_slice() else { panic!("no synthetic bounds premise") };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/predicate-array-read",
+        assert_eq!(clause.predicate, [Formal(0), Formal(1), expected::read("structural.omg", source, "a[i]"),
+            Integer(5.into()), Apply(PredicateOperator::LessThan)]),
     );
-    observed("contract-path/runtime-selector-refusal");
+
+    let literal = source.replace("a[i]", "a[1]");
+    let frozen = format!("const SECOND:u64=1; {}", source.replace("a[i]", "a[SECOND]"));
+    for fixed in [literal, frozen] {
+        let package = lower(&fixed).unwrap();
+        assert_eq!(package.machines[0].contract.requires[0].predicate, [Formal(0), PredicateStep::FixedIndex(1),
+            Integer(5.into()), Apply(PredicateOperator::LessThan)]);
+    }
 }
 
 #[test]
-fn out_of_bounds_selector_rejects_instead_of_redirecting() {
-    let source = "machine f(a:[u8;4], b:u8)->u8 requires a[4] < 5 {b}";
-    sources::refuse(
-        &[("structural.omg", source)],
-        "structural.omg",
-        sources::unique_span(source, "a[4]"),
-        "contract index is outside its fixed array",
-    );
-    observed("contract-path/out-of-bounds-refusal");
+fn matrix_runtime_selectors_bind_each_read_to_its_own_array_and_dimension() {
+    use PredicateStep::{Apply, Formal, Integer};
+    for (access, first, row, col) in [("a[i][j]", "a[i]", 1, 2), ("a[j][i]", "a[j]", 2, 1)] {
+        let source = format!("machine f(a:[[u8;3];2], i:u64, j:u64) requires {access} < 5 {{}}");
+        let package = lower(&source).unwrap();
+        let machine = &package.machines[0];
+        let Some(omega_psi::TypeShape::FixedArray { length: 2, element }) = package.types.get(machine.parameter_types[0]) else {
+            panic!("expected outer extent two")
+        };
+        assert!(matches!(package.types.get(*element), Some(omega_psi::TypeShape::FixedArray { length: 3, .. })));
+        assert_eq!(machine.contract.requires[0].predicate, [Formal(0), Formal(row),
+            expected::read("structural.omg", &source, first), Formal(col), expected::read("structural.omg", &source, access),
+            Integer(5.into()), Apply(PredicateOperator::LessThan)]);
+    }
+}
+
+/// Reading `a[4]` of a four-element formal makes the requirement invalid, but
+/// the lowered-form checker owns that verdict through the read's bounds
+/// precondition. Lowering keeps index 4 exactly, beside the formal's declared
+/// extent, instead of refusing, clamping or dropping it. The in-bounds twin
+/// `a[3]` differs only in that index, so a consumer can judge the bound from
+/// the Psi product alone, at the clause the checker would refuse.
+#[test]
+fn out_of_bounds_selector_reaches_the_checker_without_redirecting() {
+    use PredicateStep::{Apply, FixedIndex, Formal, Integer};
+    let lowered = |index: u64| {
+        let source = format!("machine f(a:[u8;4], b:u8)->u8 requires a[{index}] < 5 {{b}}");
+        let package = lower(&source).unwrap();
+        let machine = &package.machines[0];
+        let extent = match package.types.get(machine.parameter_types[0]) {
+            Some(TypeShape::FixedArray { length, .. }) => *length,
+            other => panic!("expected the fixed-array formal, found {other:?}"),
+        };
+        let [clause] = machine.contract.requires.as_slice() else {
+            panic!("expected one requirement")
+        };
+        let site = clause
+            .site
+            .span
+            .slice(source.as_bytes())
+            .map(String::from_utf8_lossy)
+            .map(String::from);
+        (extent, clause.predicate.clone(), site)
+    };
+    let expected = |index: u64| {
+        let path = vec![
+            Formal(0),
+            FixedIndex(index),
+            Integer(5.into()),
+            Apply(PredicateOperator::LessThan),
+        ];
+        (4, path, Some(format!("requires a[{index}] < 5")))
+    };
+    assert_eq!(lowered(3), expected(3));
+    spec_corpus::observe_handoff!(psi "psi-output/out-of-bounds-contract-index", assert_eq!(lowered(4), expected(4)));
 }
 
 #[test]

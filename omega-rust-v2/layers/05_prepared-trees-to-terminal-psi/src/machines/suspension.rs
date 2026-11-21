@@ -80,14 +80,19 @@ impl Keys {
         use OperationKind::*;
         let mut reads = Vec::new();
         match op {
-            Constant(_) | EstablishZeroedStructural => {}
+            Constant(_) | ConstructCallableDescriptor { .. } | EstablishZeroedStructural => {}
+            // An erased citation names its subjects without demanding them at runtime.
+            ApplyTheorem(_) => {}
             Boolean { operands, .. } | Integer { operands, .. } | EstablishScalarArray { elements: operands } => {
                 reads.extend(operands.iter().map(|v| v.index()))
             }
             TrappingInteger { left, right, .. } => reads.extend([left.index(), right.index()]),
-            ExactIntegerCast { operand } | RefineCallableDescriptor { source: operand, .. } => reads.push(operand.index()),
+            ExactIntegerCast { operand } | RefineCallableDescriptor { source: operand, .. } | EstablishPrimitiveLocal { value: operand } => {
+                reads.push(operand.index())
+            }
             Call { callee, arguments, .. } => self.call(*callee, arguments, &mut reads),
             ByteSequenceLength { source } | ElementViewLength { source } | ScalarBitRecast { source, .. } => reads.push(self.place(*source)),
+            MutableScalarBitRecast { lender, .. } => reads.push(self.place(*lender)),
             ByteSequenceRead { source, index, length, .. } | ElementViewRead { source, index, length, .. } => {
                 reads.extend([self.place(*source), index.index(), length.index()])
             }
@@ -293,11 +298,12 @@ impl<'a> Liveness<'a> {
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
     /// the original operands; this lookup only identifies their live backing.
-    fn borrow_backing(
+    fn borrow_backing<'members>(
         &self,
         place: &crate::ProjectedPlace,
         owners: &[crate::RetainedOwner],
         types: &LoweringTypes,
+        returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
         site: &Site,
     ) -> Result<bool, LoweringError> {
         let captured;
@@ -310,24 +316,41 @@ impl<'a> Liveness<'a> {
             place
         };
         let root = &self.body.places[place.root.index()];
-        if root.origin == crate::PlaceOrigin::Parameter
+        // A join parameter is an incoming loan when every arriving edge
+        // supplies one; the edge arguments identify which loan arrived.
+        let incoming = match root.origin {
+            crate::PlaceOrigin::Parameter => true,
+            crate::PlaceOrigin::BlockParameter(_) => self
+                .input_origins
+                .get_or_init(|| input_origins(self.body, returns))[place.root.index()]
+            .is_some(),
+            _ => false,
+        };
+        if incoming
             && let Some(TypeShape::NominalReference { referent, .. }) = types.get(root.ty)
             && let [crate::PlaceProjection::Referent, fields @ ..] = place.path.as_slice()
             && matches!(fields.first(), Some(crate::PlaceProjection::Field(_)))
         {
-            // The incoming loan is the provenance anchor. Only follow checked
-            // record fields here, not another descriptor stored in a field.
+            // The incoming loan is the provenance anchor. A later `Referent`
+            // crosses a descriptor stored in that record: the stored loan,
+            // not this incoming one, is the parent of what follows it.
             field_reborrows::check_backing(*referent, fields, types, self.data, site)?;
             return Ok(true);
         }
         if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
             return Ok(false);
         }
-        let owner = owners
+        // The owner row publishes who holds the root during the call and which
+        // paths have already moved out. Owned storage transferred whole has
+        // no row; its move operation names the destination. A loan that
+        // overlaps a hole or a transfer is a conflict the checker judges, as
+        // it does for the same call without a suspension. Only storage the
+        // ownership pass never tracks, such as a copyable record, stays unbacked.
+        if owners
             .binary_search_by_key(&place.root.index(), |owner| owner.place.index())
-            .ok()
-            .map(|i| &owners[i]);
-        if owner.is_some_and(|owner| owner.custody == crate::OwnedCustody::Caller && !super::ownership::overlaps_moved_path(&owner.moved, &place.path)) {
+            .is_ok()
+            || super::ownership::owned(root.ty, types, self.data)
+        {
             return Ok(true);
         }
         Err(LoweringError::new(site, "parked borrow has no live owned backing for its selected place"))
@@ -343,9 +366,11 @@ impl<'a> Liveness<'a> {
         returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
     ) -> Result<(Vec<ActivationValue>, Vec<crate::RetainedLoan>), LoweringError> {
         let mut held = vec![false; after.len()];
+        let mut borrowed_root = vec![false; self.body.places.len()];
         for arg in args {
             if let CallArgument::Borrow { place, .. } = arg {
-                self.borrow_backing(place, owners, types, site)?;
+                self.borrow_backing(place, owners, types, returns, site)?;
+                borrowed_root[place.root.index()] = true;
             }
             self.keys.operand(arg, |key| held[key] = true);
         }
@@ -361,12 +386,20 @@ impl<'a> Liveness<'a> {
             {
                 continue;
             }
+            // The call borrows from owned storage that moved out whole before
+            // it. That storage contributes no claim; the borrow operand and
+            // the move stay in Psi for the checker.
+            if borrowed_root[index] && !after[key] && super::ownership::owned(place.ty, types, self.data) {
+                continue;
+            }
             // At a join, retain the selected descriptor. The arriving edge
             // supplies its backing. Other arms need not remain live after it.
-            let has_backing = match place.origin {
+            // Traceability is not a carry verdict. A boundary result remains
+            // anchored at its producing call, with an input lifetime dependency.
+            let traceable = match place.origin {
                 crate::PlaceOrigin::Parameter => true,
                 crate::PlaceOrigin::Operation(id) if let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind => {
-                    self.borrow_backing(source, owners, types, site)?
+                    self.borrow_backing(source, owners, types, returns, site)?
                 }
                 crate::PlaceOrigin::BlockParameter(_) | crate::PlaceOrigin::Operation(_) => self
                     .input_origins
@@ -375,8 +408,8 @@ impl<'a> Liveness<'a> {
                 _ => false,
             };
             let access = match types.get(place.ty) {
-                Some(TypeShape::SharedByteView | TypeShape::SharedElementView { .. }) if has_backing => crate::ReferenceAccess::Shared,
-                Some(TypeShape::NominalReference { access, .. } | TypeShape::ScalarReference { access, .. }) if has_backing => *access,
+                Some(TypeShape::SharedByteView | TypeShape::SharedElementView { .. }) if traceable => crate::ReferenceAccess::Shared,
+                Some(TypeShape::NominalReference { access, .. } | TypeShape::ScalarReference { access, .. }) if traceable => *access,
                 _ => {
                     return Err(LoweringError::new(
                         site,

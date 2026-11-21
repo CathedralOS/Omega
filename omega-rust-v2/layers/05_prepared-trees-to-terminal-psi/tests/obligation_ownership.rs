@@ -1,13 +1,4 @@
-//! `BindLifetime` has no Psi witness. L3 records it where a borrow lands in a
-//! destination carrying an explicit region, and L4 prepares that package. The
-//! first stop is L5 machine instancing: a machine whose only binder is a region
-//! has no closed application, so it lowers neither as an instance nor as a
-//! template. The region-free twin, with the same borrow occurrence, lowers and
-//! returns that borrow. A locally constructed record with a region-bound
-//! reference field also has no path: `machines/construction.rs` admits shared
-//! reference fields only when the field has no lifetime.
-#[path = "support/known_gap.rs"]
-mod known_gap;
+//! Region slots express the promise; the returned descriptor supplies independent backing evidence.
 #[allow(dead_code)]
 #[path = "obligation_outputs/pipeline.rs"]
 mod pipeline;
@@ -15,76 +6,76 @@ mod pipeline;
 #[path = "support/source.rs"]
 mod sources;
 
-use omega_lowering::{OperationKind, OperationResult, ReturnEdge};
+use omega_lowering::{MachineRegion, OperationKind, OperationResult, Parameter, PlaceProjection, ReferenceAccess, ReturnEdge, ScalarType, TypeShape};
 use omega_typed::{ObligationKind, ValueType};
 
 #[test]
-fn an_explicit_region_binding_stops_at_the_machine_that_owns_the_region() {
+fn returned_borrow_binds_the_descriptor_to_the_declared_machine_region() {
     let bound = "data ByteCell {value:u8;} machine forward<'a>(input:@'a ByteCell)->@'a u8 {@input.value}";
-    let spelled = |site: &omega_lowering::Site| {
-        std::str::from_utf8(site.span.slice(bound.as_bytes()).unwrap())
-            .unwrap()
-            .to_owned()
-    };
-    let resolved = sources::resolve(&[(pipeline::FILE, bound)]);
-    let prepared = omega_preparation::prepare_source_package(&resolved).expect("typing and preparation accept the region binder");
-    let bindings: Vec<_> = prepared
-        .typed()
-        .obligations
-        .iter()
-        .filter(|o| matches!(o.kind, ObligationKind::BindLifetime { .. }))
-        .cloned()
-        .collect();
-    let [binding] = bindings.as_slice() else {
-        panic!("expected one lifetime binding, found {bindings:?}")
-    };
-    assert_eq!(spelled(&binding.site), "@input.value");
-    let ObligationKind::BindLifetime {
-        reference,
-        destination: ValueType::AtLifetime(inner, region),
-    } = &binding.kind
-    else {
-        panic!("expected a binding into an explicit region, found {:?}", binding.kind)
-    };
-    assert_eq!(inner.as_ref(), reference);
-    assert!(
-        matches!(region.as_ref(), ValueType::Parameter { owner, index: 0 } if owner.path == "forward"),
-        "{region:?}"
-    );
-
-    let error = sources::refuse_prepared(
-        &prepared,
-        &[(pipeline::FILE, bound)],
-        pipeline::FILE,
-        sources::unique_span(bound, "machine forward<'a>(input:@'a ByteCell)->@'a u8 {@input.value}"),
-        "open generic machine requires a closed application before lowering",
-    );
-    assert!(
-        error.site.span.get_start_offset() <= binding.site.span.get_start_offset() && binding.site.span.get_end_offset() <= error.site.span.get_end_offset(),
-        "the refusal names the machine that encloses the binding: {}",
-        spelled(&error.site)
-    );
-    known_gap::report(
-        "returned borrow into an explicit machine region",
-        "The machine needs its region binder in Psi and the BindLifetime at the returned borrow",
-        bound,
-        &error,
-    );
-    drop(prepared);
-    drop(resolved);
-
-    // Twin: the same borrow with the region elided owes no lifetime binding. It
-    // lowers, and the borrow retained at that occurrence is the returned loan.
+    let second = "data ByteCell {value:u8;} machine forward<'a,'b>(input:@'b ByteCell,other:@'a ByteCell)->@'b u8 {@input.value}";
+    // Same actual backing, different promise. Lowering must not change one to
+    // justify the other: the checker needs both facts to detect the mismatch.
+    let unrelated = second.replace("->@'b", "->@'a");
     let elided = bound.replace("<'a>", "").replace("@'a ", "@");
-    let lowered = pipeline::lower(&elided);
-    assert!(lowered.obligations("BindLifetime").is_empty(), "an elided region owes no binding");
-    let loans = lowered.obligations("ReturnBorrow");
-    let [returned] = loans.as_slice() else {
-        panic!("expected one returned loan, found {loans:?}")
-    };
-    assert_eq!(lowered.spelling(&returned.site), "@input.value");
-    let body = &lowered.machine("forward").body;
-    let borrow = pipeline::operation_at(body, &returned.site);
-    assert!(matches!(borrow.kind, OperationKind::BorrowPlace { .. }), "{:?}", borrow.kind);
-    assert!(matches!(pipeline::returns(body).as_slice(), [ReturnEdge::Structural { source, .. }] if borrow.result == OperationResult::Structural(*source)));
+    for source in [bound, second, &unrelated, &elided] {
+        let lowered = pipeline::lower(source);
+        let machine = lowered.machine("forward");
+        let body = &machine.body;
+        let loans = lowered.obligations("ReturnBorrow");
+        let [loan] = loans.as_slice() else { panic!("{loans:?}") };
+        assert_eq!(lowered.spelling(&loan.site), "@input.value");
+        let borrow = pipeline::operation_at(body, &loan.site);
+        let OperationResult::Structural(descriptor) = borrow.result else { panic!("{:?}", borrow.result) };
+        let OperationKind::BorrowPlace { source: backing, access } = &borrow.kind else { panic!("{:?}", borrow.kind) };
+        assert_eq!(Parameter::Structural(backing.root), body.parameters[0]);
+        assert_eq!(*access, ReferenceAccess::Shared);
+        assert_eq!(backing.path, [PlaceProjection::Referent, PlaceProjection::Field(lowered.package.data[0].fields[0].declaration.clone())]);
+        assert_eq!(lowered.package.data[0].fields[0].declaration.path, "ByteCell::value");
+        let returns = pipeline::returns(body);
+        let [ReturnEdge::Structural { source: returned, result }] = returns.as_slice() else { panic!("{returns:?}") };
+        assert_eq!(*returned, descriptor);
+        assert_eq!(Some(body.places[result.index()].ty), machine.result_type);
+        assert_eq!(body.places[result.index()].ty, body.places[descriptor.index()].ty);
+        assert_eq!(lowered.package.types.get(body.places[descriptor.index()].ty), Some(&TypeShape::ScalarReference {
+            access: ReferenceAccess::Shared,
+            referent: ScalarType::Integer { signed: false, width: 8 },
+        }));
+        assert_eq!(lowered.package.types.get(body.places[backing.root.index()].ty), Some(&TypeShape::NominalReference {
+            access: ReferenceAccess::Shared,
+            referent: lowered.package.data[0].id,
+        }));
+        assert!(machine.arguments.is_empty());
+        let bindings = lowered.obligations("BindLifetime");
+        if source == elided {
+            assert!(bindings.is_empty());
+            spec_corpus::observe_handoff!(psi "psi-output/elided-return-borrow", assert_eq!((machine.regions.as_slice(), body.lifetime_bindings.as_slice()), (&[][..], &[][..])));
+            continue;
+        }
+        let [binding] = bindings.as_slice() else { panic!("{bindings:?}") };
+        assert_eq!((&binding.site, binding.node), (&loan.site, loan.node));
+        let ObligationKind::BindLifetime { reference, destination: ValueType::AtLifetime(inner, region) } = &binding.kind else { panic!("{:?}", binding.kind) };
+        assert_eq!(inner.as_ref(), reference);
+        let ValueType::Parameter { owner, index } = region.as_ref() else { panic!("{region:?}") };
+        assert!(matches!(&loan.kind, ObligationKind::ReturnBorrow { machine } if machine == owner.as_ref()));
+        assert_eq!((&owner.package, &owner.path), (&machine.declaration.package, &machine.declaration.path));
+        assert_eq!(*index, usize::from(source == second));
+        if source == bound {
+            spec_corpus::observe_handoff!(psi "psi-output/region-bound-return", assert_eq!(
+                (machine.regions.as_slice(), body.lifetime_bindings.as_slice(), *returned, Parameter::Structural(backing.root)),
+                (&[MachineRegion { reference_parameters: vec![0], reference_result: true }][..], &[(descriptor, 0)][..], descriptor, body.parameters[0]),
+            ));
+        } else if source == second {
+            spec_corpus::observe_handoff!(psi "psi-output/second-region-return", assert_eq!(
+                (machine.regions.as_slice(), body.lifetime_bindings.as_slice()),
+                (&[MachineRegion { reference_parameters: vec![1], reference_result: false },
+                   MachineRegion { reference_parameters: vec![0], reference_result: true }][..], &[(descriptor, 1)][..]),
+            ));
+        } else {
+            spec_corpus::observe_handoff!(psi "psi-output/region-promise-not-backing", assert_eq!(
+                (machine.regions.as_slice(), body.lifetime_bindings.as_slice(), Parameter::Structural(backing.root)),
+                (&[MachineRegion { reference_parameters: vec![1], reference_result: true },
+                   MachineRegion { reference_parameters: vec![0], reference_result: false }][..], &[(*returned, 0)][..], body.parameters[0]),
+            ));
+        }
+    }
 }

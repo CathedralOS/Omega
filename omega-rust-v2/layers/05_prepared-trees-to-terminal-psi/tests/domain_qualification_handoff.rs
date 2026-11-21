@@ -193,34 +193,159 @@ fn inherited_use_forwards_both_atoms_with_the_predicate_owned_by_mark() {
 }
 
 #[test]
-fn an_applied_predicate_cannot_be_silently_dropped_from_the_forwarder() {
+fn an_applied_predicate_binds_its_closed_argument_at_each_forwarding_formal_and_result() {
+    use PredicateOperator::{And, GreaterThan, LessThan};
+    use PredicateStep::{Apply, Formal, Integer, Result, SelfValue, ValueIndex};
+    use omega_psi::{CallRequirement, CallSite, CallTarget, OperationKind};
+    // Forwarding `Bound<5>` owes `self > N` with N closed at 5 on entry and on
+    // the result, and a caller owes that entry clause at its call.
     let declaration = "domain<const N:u8> u8::Bound<N> requires self > N;";
-    let src = format!("{declaration} domain u8::Five = u8::Bound<5>; machine keep(x:u8 in Five)->u8 in Five {{x}}");
-    sources::refuse(
-        &[("predicate.omg", &src)],
-        "predicate.omg",
-        sources::unique_span(&src, declaration),
-        "applied scalar qualification requires a closed predicate-free domain application",
+    let src = format!(
+        "{declaration} domain u8::Five = u8::Bound<5>; machine keep(x:u8 in Five)->u8 in Five {{x}}
+         machine relay(y:u8 in Bound<5>)->u8 in Bound<5> {{keep(y)}}"
     );
+    let pkg = sources::lower(&[("predicate.omg", &src)]).unwrap();
+    let [bound] = pkg.domains.as_slice() else {
+        panic!("expected the indexed family")
+    };
+    let [clause] = bound.requires.as_slice() else {
+        panic!("expected the authored predicate")
+    };
+    // The catalog keeps the open predicate; only uses specialize it.
+    assert_eq!(clause.predicate, [SelfValue, ValueIndex(0), Apply(GreaterThan)]);
+    assert_eq!(clause.site.span.slice(src.as_bytes()), Some(b"requires self > N".as_slice()));
+    let set = forwarded(&pkg, "keep");
+    assert_eq!(
+        pkg.types.domain_atoms(set).unwrap().collect::<Vec<_>>(),
+        [(
+            &bound.declaration,
+            &[DeclarationTerm::StaticInteger {
+                carrier: BYTE,
+                value: 5.into()
+            }][..]
+        )]
+    );
+    let [keep, relay] = pkg.machines.as_slice() else {
+        panic!("expected both machines")
+    };
+    // `Five` and `Bound<5>` spell one qualified type.
+    assert_eq!(relay.parameter_types, keep.parameter_types);
+    assert_eq!(relay.result_type, keep.result_type);
+    let bound_at = |subject| (&clause.site, vec![subject, Integer(5.into()), Apply(GreaterThan)]);
+    let applied = [keep, relay]
+        .into_iter()
+        .flat_map(|m| [&m.contract.requires, &m.contract.ensures])
+        .flat_map(|clauses| clauses.iter().map(|c| (&c.site, c.predicate.clone())))
+        .collect::<Vec<_>>();
+    // Each list holds exactly the specialized domain predicate, owned by the family's clause.
+    spec_corpus::observe_handoff!(
+        psi "psi-output/applied-domain-predicate",
+        assert_eq!(applied, [Formal(0), Result, Formal(0), Result].map(bound_at)),
+    );
+    let [call] = relay.body.operations.as_slice() else {
+        panic!("expected the forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::Call { callee: CallTarget::Machine(callee), requirements, .. }
+            if *callee == keep.id && requirements == &[CallRequirement { site: CallSite::Operation(call.id), clause: 0 }]
+    ));
+
+    // Each binder reads its own head position, not its declaration position.
+    let src = "domain<const X:u8, const Y:u8> u8::Gap<Y,X> requires self > X && self < Y;
+               machine gap(x:u8 in Gap<9,2>)->u8 in Gap<9,2> {x}";
+    let pkg = sources::lower(&[("permuted.omg", src)]).unwrap();
+    assert_eq!(pkg.domains[0].index_binders, [1, 0]);
+    let m = &pkg.machines[0];
+    for (clauses, subject) in [(&m.contract.requires, Formal(0)), (&m.contract.ensures, Result)] {
+        let [applied] = clauses.as_slice() else {
+            panic!("expected the specialized predicate")
+        };
+        assert_eq!(
+            applied.predicate,
+            [
+                subject.clone(),
+                Integer(2.into()),
+                Apply(GreaterThan),
+                subject,
+                Integer(9.into()),
+                Apply(LessThan),
+                Apply(And)
+            ]
+        );
+    }
+}
+
+// Compare L3's occurrence-specific debts before dropping the prepared input. In the public
+// product follow the cast edge, not the alias table or just the declared return type.
+fn tag_cast(source: &str, cast: &str, expected: &[(&str, Option<u8>)]) -> (LoweredPackage, DomainSetId) {
+    let files = [("cast.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let debts: Vec<_> = prepared.typed().obligations.iter().filter_map(|o| match &o.kind {
+        omega_typed::ObligationKind::EstablishDomain(d) => {
+            assert_eq!(o.site.span.slice(source.as_bytes()), Some(cast.as_bytes()));
+            Some(d)
+        }
+        _ => None,
+    }).collect();
+    assert_eq!(debts.len(), expected.len());
+    for (path, index) in expected {
+        let debt = debts.iter().find(|d| d.declaration.path == *path).unwrap();
+        let args: Vec<_> = index.iter().map(|&n| omega_typed::ValueType::StaticInteger {
+            carrier: Box::new(omega_typed::ValueType::Integer { signed: false, width: Some(8) }), value: n.into(),
+        }).collect();
+        assert_eq!(debt.arguments, args);
+    }
+    let pkg = sources::lower_prepared(&prepared, &files).unwrap();
+    drop(prepared);
+    let body = &pkg.machines[0].body;
+    let [Parameter::Scalar(input)] = body.parameters[..] else { panic!("expected bare scalar") };
+    assert_eq!(pkg.types.get(body.values[input.index()].ty), Some(&TypeShape::PrimitiveScalar(BYTE)));
+    let [entry, arrival] = body.blocks.as_slice() else { panic!("expected one tag edge") };
+    let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("missing cast") };
+    assert_eq!(body.diagnostics.edges[edge.id.get() - 1].span.slice(source.as_bytes()), Some(cast.as_bytes()));
+    assert_eq!(edge.target, arrival.id);
+    assert_eq!(edge.arguments, [input]);
+    assert_eq!(edge.scalar_qualification_changes, [omega_psi::ScalarQualificationChange { argument_index: 0, direction: omega_psi::QualificationDirection::Add }]);
+    assert!(edge.predicate_completions.is_empty());
+    let [dest] = arrival.scalar_parameters[..] else { panic!("expected one destination") };
+    assert_eq!(body.values[dest.index()].origin, omega_psi::ValueOrigin::BlockParameter(arrival.id));
+    assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == dest));
+    let Some(TypeShape::QualifiedScalar { carrier: BYTE, domains }) = pkg.types.get(body.values[dest.index()].ty) else { panic!("expected qualified byte") };
+    let set = *domains;
+    (pkg, set)
 }
 
 #[test]
-fn transport_does_not_enable_tag_cast_establishment() {
-    for (source, cast) in [
-        (
-            "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; machine make(x:u8)->u8 in Five {x as +Five}",
-            "x as +Five",
-        ),
-        (
-            "domain u8::Parent; domain u8::Parent::Child; machine make(x:u8)->u8 in Parent::Child {x as +Parent +Parent::Child}",
-            "x as +Parent +Parent::Child",
-        ),
-    ] {
-        sources::refuse(
-            &[("cast.omg", source)],
-            "cast.omg",
-            sources::unique_span(source, cast),
-            "changing an applied or inherited scalar qualification is not supported",
-        );
+fn cast_adds_the_expanded_family_and_exact_index() {
+    let original = "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; machine make(x:u8)->u8 in Five {x as +Five}";
+    for n in [5, 6] {
+        let source = original.replace("Bound<5>", &format!("Bound<{n}>"));
+        let (pkg, set) = tag_cast(&source, "x as +Five", &[("u8::Bound", Some(n))]);
+        let [bound] = pkg.domains.as_slice() else { panic!("missing family") };
+        assert_eq!(bound.declaration.path, "u8::Bound");
+        let args = [DeclarationTerm::StaticInteger { carrier: BYTE, value: n.into() }];
+        spec_corpus::observe_handoff!(psi "psi-output/applied-domain-cast", assert_eq!(
+            pkg.types.domain_atoms(set).unwrap().collect::<Vec<_>>(), [(&bound.declaration, args.as_slice())]
+        ));
+    }
+}
+
+#[test]
+fn cast_adds_the_parent_and_the_selected_child() {
+    let original = "domain u8::Parent; domain u8::Parent::Child; machine make(x:u8)->u8 in Parent::Child {x as +Parent +Parent::Child}";
+    for child in ["Child", "Sibling"] {
+        let source = original.replace("Child", child);
+        let path = format!("u8::Parent::{child}");
+        let (pkg, set) = tag_cast(&source, &format!("x as +Parent +Parent::{child}"), &[("u8::Parent", None), (&path, None)]);
+        let [parent, child] = pkg.domains.as_slice() else { panic!("expected both domains") };
+        assert_eq!(parent.declaration.path, "u8::Parent");
+        assert_eq!(child.declaration.path, path);
+        let Some(TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(child.carrier) else { panic!("missing parent subject") };
+        assert_eq!(pkg.types.domain_set(*domains).unwrap(), std::slice::from_ref(&parent.declaration));
+        spec_corpus::observe_handoff!(psi "psi-output/inherited-domain-cast", assert_eq!(
+            pkg.types.domain_atoms(set).unwrap().collect::<Vec<_>>(), [(&parent.declaration, &[][..]), (&child.declaration, &[][..])]
+        ));
     }
 }

@@ -113,6 +113,21 @@ class RefusalAccountingTests(unittest.TestCase):
         refusal_evidence.apply(missing, [INVALID])
         self.assertIn("not observed in a passing test", missing["measurement_errors"][0])
 
+    def test_a_reclassified_case_keeps_its_name_only_with_the_exact_refusal(self):
+        row = INVALID._replace(gap="registry:owned element move")
+        key = "handoff/owned element move"
+        tests = [(row.target, row.test, "ok")]
+        matched = report(refused(row), tests)
+        refusal_evidence.apply(matched, [row])
+        self.assertEqual(matched["measurement_errors"], [])
+        self.assertEqual(matched["cases"][key]["status"], "intended rejection verified")
+        missing = report([], tests)
+        refusal_evidence.apply(missing, [row])
+        self.assertNotIn(key, missing["cases"])
+        self.assertTrue(missing["measurement_errors"])
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            refusal_evidence.validate([row, UNRESOLVED._replace(gap=row.gap)])
+
     def test_an_extra_occurrence_of_a_registered_message_is_not_absorbed(self):
         r = report(refused(INVALID, 2), [(INVALID.target, INVALID.test, "ok")])
         refusal_evidence.apply(r, [INVALID])

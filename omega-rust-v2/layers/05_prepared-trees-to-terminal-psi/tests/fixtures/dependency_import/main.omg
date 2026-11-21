@@ -1,0 +1,6 @@
+// A file name adds no namespace, so `other.omg` declares `other_v` in the
+// dependency's root namespace. Build registers that dependency as `kit`.
+use kit\other_v;
+machine entry() -> i32 {
+    other_v()
+}

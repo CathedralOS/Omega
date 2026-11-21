@@ -8,8 +8,9 @@ mod cleanup;
 pub(crate) use cleanup::OwnedCrossings;
 pub(super) use cleanup::{dispose_temporary, owned, schedule};
 
-/// An owned transfer and a borrow both need the entire selected subtree.
-pub(super) fn overlaps_moved_path(
+/// An owned transfer needs the entire selected subtree. A parked borrow that
+/// overlaps a hole stays in Psi for the checker to judge.
+fn overlaps_moved_path(
     moved: &[Vec<PlaceProjection>],
     selected: &[PlaceProjection],
 ) -> bool {
@@ -94,10 +95,10 @@ pub(super) fn move_value(
                 owner_ty
             }
             (PlaceProjection::Field(field), Some(TypeShape::Nominal(id))) => {
+                // A selected cleanup forbids partial moves, but L6 owns that
+                // verdict. Publish the exact path; the owner's declaration
+                // keeps its cleanup target for the checker to compare.
                 let owner = &expressions.data[id.get() - 1];
-                if owner.cleanup_target.is_some() {
-                    return Err(LoweringError::new(&site, "a field move cannot decompose a value with selected cleanup"));
-                }
                 active_case
                     .take()
                     .map_or(&owner.fields, |case| &case.fields)

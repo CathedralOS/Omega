@@ -1,12 +1,14 @@
 # Refusal: id, stage, package, file, byte start, byte end, line, byte column, occurrence, reason.
-# Other outcomes: id, psi or setup, observed result.
+# Psi products: id, psi, inspected property.
 standalone	psi	witness matched
 module-library	psi	witness matched
 cross-width	L2	root	main.omg	475	485	20	9	Main::main	a data carrier cannot own a machine
 rational-landing	L2	root	main.omg	720	730	25	9	Main::main	a data carrier cannot own a machine
+cross-width-v2	L2	root	main.omg	454	462	17	18	Wrapping	unresolved name Wrapping
+rational-landing-v2	L2	root	main.omg	699	707	23	26	Wrapping	unresolved name Wrapping
 direct-imports	L2	root	m/b.omg	4	7	1	5	m\a	unavailable import m\a
 direct-imports-v2	psi	witness matched
 missing-import-v2	L2	root	main.omg	65	66	4	30	A	unresolved name A
 abstract-premise	L1	root	main.omg	772	776	37	27	Trap	expected `;` (bytes 772..776)
 false-abstract-premise	L1	root	main.omg	773	777	37	27	Trap	expected `;` (bytes 773..777)
-import-from-dependency	setup	requires Build dependency alias kit -> dep (mod_kernel), selecting other.omg
+import-from-dependency	L2	root	main.omg	140	149	3	5	kit\other	unavailable import kit\other

@@ -1,3 +1,5 @@
+#[path = "support/boundary_result.rs"]
+mod boundary_result;
 #[path = "support/source.rs"]
 mod source;
 use omega_lowering::{CallSite, CallTarget, CompletionContinuation, OperationKind, OperationResult, Parameter};
@@ -321,21 +323,33 @@ fn a_join_can_forward_the_result_of_a_completed_local_call() {
 }
 
 #[test]
-fn a_boundary_view_has_no_local_return_to_identify_its_backing() {
+fn a_join_retains_the_boundary_completion_only_on_its_arriving_arm() {
+    use boundary_result::*;
+    use omega_lowering::{BlockTerminator, PlaceOrigin, ReturnEdge, ValueOperand::CopyWhole};
     let text = "boundary trait Device {machine view(p:@[u8])->@[u8] reaches Device crashes none;} machine relay(p:@[u8])->@[u8] reaches Device {Device::view(p)} machine inspect(bits:@[u8]) suspends{} machine forward(flag:bool,left:@[u8],other:@[u8]) suspends reaches Device {let right=relay(other); let chosen=match flag{true->left,false->right,}; suspend inspect(chosen)}";
-    let err = source::refuse(
-        &[("joined.omg", text)],
-        "joined.omg",
-        source::unique_span(text, "inspect(chosen)"),
-        "suspension needs the exact backing and carry evidence of the live structural place",
-    );
-    assert!(
-        err.site
-            .span
-            .slice(text.as_bytes())
-            .unwrap()
-            .ends_with(b"inspect(chosen)")
-    );
+    let pkg = source::lower(&[("joined.omg", text)]).unwrap();
+    let body = &machine(&pkg, "forward").body;
+    let joined = parked_view(&pkg, body);
+    let PlaceOrigin::BlockParameter(join) = body.places[joined.index()].origin else { panic!("selected join descriptor") };
+    assert_eq!(body.blocks[join.get() - 1].structural_parameters, [joined]);
+    let [Parameter::Scalar(flag), Parameter::Structural(left), Parameter::Structural(other)] = body.parameters[..] else { panic!("caller formals") };
+    let BlockTerminator::Conditional { condition, when_true, when_false } = &body.blocks[0].terminator else { panic!("view choice") };
+    assert_eq!(*condition, flag);
+    let [on_true, on_false] = [when_true, when_false].map(|arm| {
+        let BlockTerminator::Jump(edge) = &body.blocks[arm.target.get() - 1].terminator else { panic!("arrival") };
+        assert_eq!(edge.target, join);
+        let [CopyWhole(value)] = edge.structural_arguments[..] else { panic!("arriving view") };
+        value
+    });
+    let (callee, arguments) = producing_call(body, on_false);
+    let relay = machine(&pkg, "relay");
+    assert_eq!(callee, CallTarget::Machine(relay.id));
+    let BlockTerminator::Return { result: ReturnEdge::Structural { source, .. }, .. } = relay.body.blocks[0].terminator else { panic!("relay return") };
+    let (boundary_input, anchor) = lifetime_actual(&pkg, &relay.body, source);
+    let formal = relay.body.parameters.iter().position(|p| *p == Parameter::Structural(anchor)).unwrap();
+    spec_corpus::observe_handoff!(psi "psi-output/joined-boundary-view", assert_eq!(
+        (on_true, boundary_input, &arguments[formal]), (left, 0, &CopyWhole(other))
+    ));
 }
 
 #[test]

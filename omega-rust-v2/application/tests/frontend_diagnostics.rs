@@ -284,17 +284,20 @@ fn unavailable_target_for_a_required_extent() {
 }
 
 #[test]
-fn a_ranked_indirect_terminal_call_identifies_the_unsupported_edge() {
-    let good = "data Step=machine(x:u64)->u64 reaches none crashes none terminates;
-        machine run(f:Step,n:u64)->u64 terminates {transition {_ -> f(n),}}";
-    let bad = good.replace("terminates {transition", "terminates by n {transition");
+fn a_crashing_helper_cannot_supply_a_total_predicate_application() {
+    // A total predicate term needs a terminating helper with no crash route
+    // (wiki/spec/language/state_contracts.md). Changing only the helper's published
+    // ceiling to `Trap` moves the stop to the application inside the domain clause.
+    // The occurrence is the last `predicate()`, after `&&`, not the declaration's name.
+    let good = "machine predicate()->bool reaches none crashes none terminates {true}\r\ndomain i32::Guarded requires true && predicate();";
+    let bad = good.replace("crashes none", "crashes Trap");
     check(Case {
         stage: "L5",
         producer: "lowering",
         good: good.as_bytes(),
         bad: bad.as_bytes(),
-        occurrence: b"f(n)",
-        reason: "lowering cannot include an indirect terminal call in the caller's rank graph",
+        occurrence: b"predicate()",
+        reason: "predicate application requires a terminating helper with an empty crash ceiling",
     });
 }
 

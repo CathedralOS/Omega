@@ -1,3 +1,5 @@
+#[path = "support/predicate_read.rs"]
+mod expected;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -290,13 +292,215 @@ fn a_published_crash_route_prevents_a_total_predicate_application() {
 }
 
 #[test]
-fn runtime_selector_inside_a_fact_call_still_refuses_at_that_selector() {
+fn selected_read_supplies_the_helper_actual_not_an_outer_call_premise() {
     let source = "machine check(x:u8)->bool reaches none crashes none terminates {true}
                   machine guarded(a:[u8;2], i:u64) requires check(a[i]) {}";
+    let files = [("paths.omg", source)];
+    let package = {
+        let input = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&input).unwrap();
+        let typed = prepared.typed();
+        let [access] = typed.collection_accesses.as_slice() else { panic!("expected a single core read") };
+        let helper = typed.calls.iter().find(|c| c.site == expected::site("paths.omg", source, "check(a[i])")).unwrap();
+        assert_eq!(helper.use_site, CallUse::Fact);
+        assert_eq!(helper.operands[0].node, access.node);
+        assert_eq!(access.site, expected::site("paths.omg", source, "a[i]"));
+        assert_eq!(&access.machine, omega_toolchain::core_interface().collection(omega_toolchain::CollectionPrimitive::Read));
+        assert!(typed.obligations.iter().any(|o| o.node == access.node && o.site == access.site &&
+            matches!(&o.kind, ObligationKind::CallPrecondition(callee) if callee == &access.machine)));
+        sources::lower_prepared(&prepared, &files).unwrap()
+    };
+    let [check, guarded] = package.machines.as_slice() else { panic!("expected helper and clause owner") };
+    assert_eq!((check.declaration.path.as_str(), guarded.declaration.path.as_str()), ("check", "guarded"));
+    let [clause] = guarded.contract.requires.as_slice() else { panic!("expected just the authored clause") };
+    assert!(guarded.body.operations.is_empty());
+    spec_corpus::observe_handoff!(
+        psi "psi-output/predicate-call-array-read",
+        assert_eq!(clause.predicate, [PredicateStep::Formal(0), PredicateStep::Formal(1),
+            expected::read("paths.omg", source, "a[i]"), PredicateStep::MachineApplication {
+                callee: check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }],
+                result: ScalarType::Boolean, requirements: 0..0, progress: omega_psi::PredicateProgress::CheckPromise,
+                site: expected::site("paths.omg", source, "check(a[i])"),
+            }]),
+    );
+
+    let fixed = source.replace("a[i]", "a[1]");
+    let control = sources::lower(&[("paths.omg", &fixed)]).unwrap();
+    let [fixed_check, fixed_guarded] = control.machines.as_slice() else { panic!("expected helper and owner") };
+    assert_eq!(fixed_check.declaration, check.declaration);
+    assert_eq!(fixed_guarded.declaration, guarded.declaration);
+    assert_eq!(fixed_guarded.contract.requires[0].predicate, [PredicateStep::Formal(0), PredicateStep::FixedIndex(1),
+        PredicateStep::MachineApplication {
+            callee: fixed_check.declaration.clone(), operands: vec![ScalarType::Integer { signed: false, width: 8 }],
+            result: ScalarType::Boolean, requirements: 0..0, progress: omega_psi::PredicateProgress::CheckPromise,
+            site: expected::site("paths.omg", &fixed, "check(a[1])"),
+        }]);
+}
+
+// The abstract-premise sample states its premise as a call inside the callable
+// contract a static binder must satisfy. The alias, not a machine, owns that clause.
+const ALIAS_PREMISE: &str = "machine premise(kept:bool)->bool reaches none crashes none terminates {true}
+data Observer=machine(kept:bool)->bool
+    requires premise(kept);
+machine apply<const Observe:Observer>(kept:bool)->bool requires premise(kept) {Observe(kept)}";
+
+#[test]
+fn a_callable_alias_premise_keeps_its_helper_application_on_the_binder_interface() {
+    let files = [("alias.omg", ALIAS_PREMISE)];
+    let input = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&input).unwrap();
+    let alias_site = sources::span_within(ALIAS_PREMISE, "requires premise(kept);", "premise(kept)");
+    let own_site = sources::span_within(ALIAS_PREMISE, "requires premise(kept) {", "premise(kept)");
+    let typed_call = |span: &std::ops::Range<usize>| {
+        prepared
+            .typed()
+            .calls
+            .iter()
+            .find(|c| c.site.span.get_start_offset() == span.start && c.site.span.get_end_offset() == span.end)
+            .unwrap()
+    };
+    // L3 selects the helper as a fact. The alias clause has no calling machine.
+    let alias_call = typed_call(&alias_site);
+    assert_eq!(alias_call.use_site, CallUse::Fact);
+    assert_eq!(alias_call.caller, None);
+    assert_eq!(alias_call.machine.path, "premise");
+    assert_eq!(alias_call.result, ValueType::Bool);
+    assert_eq!(typed_call(&own_site).caller.as_ref().map(|id| id.path.as_str()), Some("apply"));
+    let premise = prepared
+        .typed()
+        .signatures
+        .iter()
+        .find(|sig| sig.machine == alias_call.machine)
+        .unwrap();
+    let [operand] = alias_call.operands.as_slice() else { panic!("expected kept") };
+    assert_eq!(operand.parameter.span, premise.parameters[0].0);
+    assert_eq!(operand.site.span.slice(ALIAS_PREMISE.as_bytes()), Some(b"kept".as_slice()));
+
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let [helper] = package.machines.as_slice() else {
+        panic!("only premise is closed")
+    };
+    let [template] = package.machine_templates.as_slice() else {
+        panic!("expected apply")
+    };
+    assert_eq!(template.declaration.path, "apply");
+    let [omega_psi::MachineTemplateBinder::Callable { requirement: None, signature }] = template.parameters.as_slice() else {
+        panic!("expected the structural Observer binder")
+    };
+    let application = |span: &std::ops::Range<usize>| PredicateStep::MachineApplication {
+        callee: helper.declaration.clone(),
+        operands: vec![ScalarType::Boolean],
+        result: ScalarType::Boolean,
+        requirements: 0..0,
+        progress: omega_psi::PredicateProgress::CheckPromise,
+        site: omega_psi::Site {
+            package: "app".into(),
+            file: "alias.omg".into(),
+            span: omega_psi::SourceSpan::new(span.start, span.end),
+        },
+    };
+    // Formal 0 is the callable's own `kept`; the template's clause names its own formal.
+    let [clause] = signature.requires.as_slice() else {
+        panic!("expected the alias premise")
+    };
+    assert_eq!(clause.predicate, [PredicateStep::Formal(0), application(&alias_site)]);
+    let [own] = template.signature.requires.as_slice() else {
+        panic!("expected the template premise")
+    };
+    assert_eq!(own.predicate, [PredicateStep::Formal(0), application(&own_site)]);
+}
+
+#[test]
+fn a_callable_alias_premise_on_a_crashing_helper_refuses_at_the_alias() {
+    let source = ALIAS_PREMISE.replace("crashes none", "crashes Trap");
     sources::refuse(
-        &[("paths.omg", source)],
-        "paths.omg",
-        sources::span_within(source, "a[i]", "i"),
-        "contract index requires a fixed selector",
+        &[("alias.omg", &source)],
+        "alias.omg",
+        sources::span_within(&source, "requires premise(kept);", "premise(kept)"),
+        "predicate application requires a terminating helper with an empty crash ceiling",
+    );
+}
+
+// The sample's helper omits its crash clause. L3 publishes an empty effect row
+// only for a private body whose operations and calls have no crash route.
+const INFERRED_ROW: &str = "machine trap(kept:bool)->bool crashes Trap {kept}
+machine premise(kept:bool)->bool {kept}
+machine witness(kept:bool)->bool requires premise(kept) {true}";
+
+fn premise_effect_row(prepared: &omega_prepared::PreparedTrees<'_>) -> Option<Vec<omega_typed::CrashCause>> {
+    let typed = prepared.typed();
+    let sig = typed
+        .signatures
+        .iter()
+        .find(|sig| sig.machine.path == "premise")
+        .unwrap();
+    // The signature keeps the authored interface, and none was written.
+    assert_eq!(sig.crash_ceiling, None);
+    typed
+        .machine_effects
+        .iter()
+        .find(|row| row.machine == sig.machine)
+        .unwrap()
+        .crash_ceiling
+        .clone()
+}
+
+#[test]
+fn a_private_helper_without_a_crash_clause_supplies_a_fact_from_its_effect_row() {
+    let files = [("row.omg", INFERRED_ROW)];
+    let input = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&input).unwrap();
+    assert_eq!(premise_effect_row(&prepared), Some(vec![]));
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let [premise, trap, witness] = package.machines.as_slice() else {
+        panic!("expected premise, trap and witness")
+    };
+    assert_eq!(
+        (
+            premise.declaration.path.as_str(),
+            trap.declaration.path.as_str(),
+            witness.declaration.path.as_str()
+        ),
+        ("premise", "trap", "witness")
+    );
+    // Psi keeps the authored interface. The checker still owes total denotation
+    // from the private body, whose lowered operations carry no crash route.
+    assert!(!premise.contract.has_empty_crash_ceiling);
+    assert!(premise.contract.crash_routes.is_empty());
+    let span = sources::unique_span(INFERRED_ROW, "premise(kept)");
+    assert_eq!(
+        witness.contract.requires[0].predicate,
+        [
+            PredicateStep::Formal(0),
+            PredicateStep::MachineApplication {
+                callee: premise.declaration.clone(),
+                operands: vec![ScalarType::Boolean],
+                result: ScalarType::Boolean,
+                requirements: 0..0,
+                progress: omega_psi::PredicateProgress::CheckPrivateBody,
+                site: omega_psi::Site {
+                    package: "app".into(),
+                    file: "row.omg".into(),
+                    span: omega_psi::SourceSpan::new(span.start, span.end),
+                },
+            }
+        ]
+    );
+}
+
+#[test]
+fn a_private_helper_calling_a_trapping_helper_supplies_no_fact() {
+    // Only the helper's body changes: it now calls a machine with a Trap route.
+    let source = INFERRED_ROW.replace("premise(kept:bool)->bool {kept}", "premise(kept:bool)->bool {trap(kept)}");
+    let files = [("row.omg", source.as_str())];
+    let input = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&input).unwrap();
+    assert_ne!(premise_effect_row(&prepared), Some(vec![]));
+    sources::refuse_prepared(
+        &prepared,
+        &files,
+        "row.omg",
+        sources::unique_span(&source, "premise(kept)"),
+        "predicate application requires a terminating helper with an empty crash ceiling",
     );
 }

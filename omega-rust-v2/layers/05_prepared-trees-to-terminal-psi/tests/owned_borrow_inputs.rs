@@ -49,13 +49,20 @@ fn a_disjoint_move_preserves_the_exact_owned_backing_of_either_borrowed_field() 
             );
             assert_eq!(matches!(site.call, CallSite::Edge(_)), terminal);
 
-            // Change only the earlier transfer. The later borrow has the same typed path.
+            // Change only the earlier transfer. The later borrow has the same
+            // typed path, and the owner row now records that path as moved.
+            // The checker, not lowering, decides that the loan has lost its backing.
             let text = text.replace(&format!("take(move p.{sibling})"), &format!("take(move p.{selected})"));
-            let error = prepare_borrow(&text, "p", selected, Access::Shared).unwrap_err();
-            assert_eq!(error.message, "parked borrow has no live owned backing for its selected place");
-            assert_eq!(error.site.file, "owned_borrow_inputs.omg");
-            let occurrence = error.site.span.slice(text.as_bytes()).unwrap();
-            assert!(occurrence.ends_with(format!("park(@p.{selected})").as_bytes()));
+            let package = prepare_borrow(&text, "p", selected, Access::Shared).unwrap();
+            let (site, argument) = parked_borrow(&package);
+            let CallArgument::Borrow { place: overlapping, .. } = argument else {
+                panic!("expected the original field borrow")
+            };
+            let [owner] = site.retained_owners.as_slice() else {
+                panic!("expected the partially moved caller-owned root")
+            };
+            assert_eq!((owner.place, owner.custody), (overlapping.root, OwnedCustody::Caller));
+            assert_eq!(owner.moved, [overlapping.path.clone()]);
         }
     }
 }

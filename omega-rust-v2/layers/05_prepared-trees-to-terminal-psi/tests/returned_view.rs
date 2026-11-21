@@ -1,8 +1,10 @@
+#[path = "support/boundary_result.rs"]
+mod boundary_result;
 #[path = "support/source.rs"]
 mod source;
 
 use omega_lowering::{BlockTerminator, Parameter, ReturnEdge};
-use psi_handoff_consumer::returned_view_backing;
+use psi_handoff_consumer::{recursive_view_backings, returned_view_backing};
 
 const MISSING_VIEW_EVIDENCE: &str = "suspension needs the exact backing and carry evidence of the live structural place";
 
@@ -70,46 +72,56 @@ fn only_an_actual_that_can_supply_the_return_needs_backing_at_the_later_crossing
         let text = format!(
             "boundary trait Device{{machine view(p:@[u8])->@[u8] reaches Device crashes none;}} machine pick(known:@[u8],external:@[u8])->@[u8] {{{selected}}} machine inspect(bytes:@[u8]) suspends {{}} machine forward(input:@[u8]) suspends reaches Device {{let external=Device::view(input); let selected=pick(input,external); suspend inspect(selected)}}"
         );
-        let files = [("selected_origin.omg", text.as_str())];
+        use boundary_result::*;
+        use omega_lowering::{CallTarget, ValueOperand::CopyWhole};
+        let pkg = source::lower(&[("selected_origin.omg", &text)]).unwrap();
+        let body = &machine(&pkg, "forward").body;
+        let pick = machine(&pkg, "pick");
+        let (target, actuals) = producing_call(body, parked_view(&pkg, body));
+        assert_eq!(target, CallTarget::Machine(pick.id));
+        let [CopyWhole(input), CopyWhole(external)] = actuals else { panic!("ordered pick operands") };
+        assert_eq!(body.parameters, [Parameter::Structural(*input)]);
+        let anchor = lifetime_actual(&pkg, body, *external);
+        let BlockTerminator::Return { result: ReturnEdge::Structural { source, .. }, .. } = pick.body.blocks[0].terminator else { panic!("normal return") };
+        let formal = pick.body.parameters.iter().position(|p| *p == Parameter::Structural(source)).unwrap();
         if selected == "external" {
-            let err = source::refuse(
-                &files,
-                "selected_origin.omg",
-                source::unique_span(&text, "inspect(selected)"),
-                MISSING_VIEW_EVIDENCE,
-            );
-            assert!(
-                err.site
-                    .span
-                    .slice(text.as_bytes())
-                    .unwrap()
-                    .ends_with(b"inspect(selected)")
-            );
+            spec_corpus::observe_handoff!(psi "psi-output/boundary-view-result", assert_eq!(
+                (formal, &actuals[formal], anchor), (1, &CopyWhole(*external), (0, *input))
+            ));
+        } else {
+            assert_eq!((formal, &actuals[formal]), (0, &CopyWhole(*input)));
+        }
+    }
+}
+
+#[test]
+fn a_caller_chosen_boundary_result_is_not_an_input_relative_loan() {
+    for selected in ["known", "external"] {
+        let text = format!(
+            "boundary trait Device{{machine view()->@[u8] reaches Device crashes none;}} machine pick(known:@[u8],external:@[u8])->@[u8] {{{selected}}} machine inspect(bytes:@[u8]) suspends {{}} machine forward(input:@[u8]) suspends reaches Device {{let external=Device::view(); let selected=pick(input,external); suspend inspect(selected)}}"
+        );
+        let files = [("no_anchor.omg", text.as_str())];
+        if selected == "external" {
+            source::refuse(&files, "no_anchor.omg", source::unique_span(&text, "inspect(selected)"), MISSING_VIEW_EVIDENCE);
         } else {
             let pkg = source::lower(&files).unwrap();
-            let forward = pkg
-                .machines
-                .iter()
-                .find(|m| m.declaration.path == "forward")
-                .unwrap();
-            let [site] = forward.body.suspension_sites.as_slice() else {
-                panic!("one crossing")
-            };
-            let [loan] = site.retained_loans.as_slice() else {
-                panic!("one selected view")
-            };
-            let omega_lowering::PlaceOrigin::Operation(id) = forward.body.places[loan.descriptor.index()].origin else {
-                panic!("completed pick result")
-            };
-            let pick = pkg
-                .machines
-                .iter()
-                .find(|m| m.declaration.path == "pick")
-                .unwrap();
-            assert!(
-                matches!(forward.body.operations[id.index()].kind,omega_lowering::OperationKind::Call {callee:omega_lowering::CallTarget::Machine(target),..} if target==pick.id)
-            );
+            assert_eq!(pkg.member_calls[0].boundary_result_lifetime_input, None);
+            assert_eq!(returned_view_backing(&pkg, "forward", "inspect", "pick"), Ok((0, 0)));
         }
+    }
+}
+
+#[test]
+fn a_boundary_lifetime_anchor_counts_scalar_positions_and_preserves_the_call_occurrence() {
+    use boundary_result::*;
+    for (selected, index) in [("a", 1), ("b", 2)] {
+        let text = format!("boundary trait Device{{machine view(n:u8,p:@[u16])->@[u8] reaches Device crashes none;}} machine inspect(bytes:@[u8]) suspends {{}} machine forward(n:u8,left:@[u16],right:@[u16]) suspends reaches Device {{let a=Device::view(n,left); let b=Device::view(n,right); suspend inspect({selected})}}");
+        let pkg = source::lower(&[("occurrence.omg", &text)]).unwrap();
+        let body = &machine(&pkg, "forward").body;
+        let result = parked_view(&pkg, body);
+        let (position, actual) = lifetime_actual(&pkg, body, result);
+        assert_ne!(body.places[actual.index()].ty, body.places[result.index()].ty);
+        assert_eq!((position, Parameter::Structural(actual)), (1, body.parameters[index]));
     }
 }
 
@@ -199,12 +211,228 @@ fn a_local_conformance_return_uses_the_selected_implementations_body() {
     );
 }
 
-#[test]
-fn a_recursive_result_cannot_supply_its_own_backing() {
-    let text = "machine cycle(v:@[u8])->@[u8]{cycle(v)} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8]) suspends {let selected=cycle(input); suspend inspect(selected)}";
-    let err = source::refuse(
-        &[("cycle.omg", text)],
+/// A recursive callee's view result is backed by the actuals at the formals its
+/// returns reach. Each case lists the caller's incoming formals that back it.
+const RECURSIVE_VIEWS: [(&str, &str, &[usize]); 5] = [
+    (
         "cycle.omg",
+        "machine cycle(v:@[u8])->@[u8]{cycle(v)} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8]) suspends {let selected=cycle(input); suspend inspect(selected)}",
+        &[0],
+    ),
+    (
+        "swap.omg",
+        "machine cycle(a:@[u8],b:@[u8])->@[u8]{cycle(b,a)} machine inspect(v:@[u8]) suspends{} machine forward(x:@[u8],y:@[u8]) suspends {let selected=cycle(x,y); suspend inspect(selected)}",
+        &[0, 1],
+    ),
+    (
+        "narrow.omg",
+        "machine cycle(a:@[u8],b:@[u8])->@[u8]{cycle(b,b)} machine inspect(v:@[u8]) suspends{} machine forward(x:@[u8],y:@[u8]) suspends {let selected=cycle(x,y); suspend inspect(selected)}",
+        &[1],
+    ),
+    (
+        "terminal.omg",
+        "machine cycle(a:@[u8],b:@[u8])->@[u8]{transition { _ -> cycle(b,b), }} machine inspect(v:@[u8]) suspends{} machine forward(x:@[u8],y:@[u8]) suspends {let selected=cycle(x,y); suspend inspect(selected)}",
+        &[1],
+    ),
+    (
+        "base.omg",
+        "machine cycle(v:@[u8],flag:bool)->@[u8] {transition flag {true -> v, false -> cycle(v,flag),}} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8],flag:bool) suspends {let selected=cycle(input,flag); suspend inspect(selected)}",
+        &[0],
+    ),
+];
+
+#[test]
+fn a_recursive_view_result_retains_the_completed_call_at_the_suspension() {
+    for (file, text, backings) in RECURSIVE_VIEWS {
+        let package = source::lower(&[(file, text)]).unwrap();
+        let machine = |path| {
+            package
+                .machines
+                .iter()
+                .find(|m| m.declaration.path == path)
+                .unwrap()
+        };
+        let (cycle, forward, inspect) = (machine("cycle"), machine("forward"), machine("inspect"));
+        let [completed, parked] = forward.body.operations.as_slice() else {
+            panic!("{file}: the recursive call completes before inspect parks")
+        };
+        let [site] = forward.body.suspension_sites.as_slice() else {
+            panic!("{file}: only inspect parks")
+        };
+        let [loan] = site.retained_loans.as_slice() else {
+            panic!("{file}: one retained view")
+        };
+        let omega_lowering::OperationKind::Call { callee, .. } = &completed.kind else {
+            panic!("{file}: completed call")
+        };
+        spec_corpus::observe_handoff!(
+            psi "psi-output/recursive-view-backing",
+            assert_eq!(
+                (
+                    forward.body.places[loan.descriptor.index()].origin,
+                    *callee,
+                    completed.result,
+                    site.call,
+                    site.callee,
+                    recursive_view_backings(&package, "forward", "cycle"),
+                ),
+                (
+                    omega_lowering::PlaceOrigin::Operation(completed.id),
+                    omega_lowering::CallTarget::Machine(cycle.id),
+                    omega_lowering::OperationResult::Structural(loan.descriptor),
+                    omega_lowering::CallSite::Operation(parked.id),
+                    omega_lowering::CallTarget::Machine(inspect.id),
+                    Ok(backings.to_vec()),
+                ),
+                "{file}",
+            ),
+        );
+        assert_eq!(
+            (loan.access, loan.needed_by_callee, loan.needed_after_completion),
+            (omega_lowering::ReferenceAccess::Shared, true, false)
+        );
+    }
+}
+
+#[test]
+fn the_consumer_reads_the_recursive_actuals_from_the_published_call() {
+    // Only replace the recursive call's actuals in Psi. The traced backing
+    // follows them, so the consumer reads the call rather than the source.
+    let (file, text, backings) = RECURSIVE_VIEWS[2];
+    let mut package = source::lower(&[(file, text)]).unwrap();
+    assert_eq!(recursive_view_backings(&package, "forward", "cycle"), Ok(backings.to_vec()));
+    let cycle = package
+        .machines
+        .iter_mut()
+        .find(|m| m.declaration.path == "cycle")
+        .unwrap();
+    let Parameter::Structural(a) = cycle.body.parameters[0] else {
+        panic!("first formal")
+    };
+    let [call] = cycle.body.operations.as_mut_slice() else {
+        panic!("one recursive call")
+    };
+    let omega_lowering::OperationKind::Call { arguments, .. } = &mut call.kind else {
+        panic!("recursive call")
+    };
+    *arguments = vec![omega_lowering::CallArgument::CopyWhole(a); 2];
+    assert_eq!(recursive_view_backings(&package, "forward", "cycle"), Ok(vec![0]));
+}
+
+/// One arm of the recursion returns the boundary completion `Device::view(v)`;
+/// the other calls `cycle` again on the same input. This is the exact program
+/// that stopped before the boundary selection recorded its lifetime input.
+const RELAYED_BOUNDARY: &str = "boundary trait Device{machine view(p:@[u8])->@[u8] reaches Device crashes none;} machine cycle(v:@[u8],flag:bool)->@[u8] reaches Device {transition flag {true -> Device::view(v), false -> cycle(v,flag),}} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8],flag:bool) suspends reaches Device {let selected=cycle(input,flag); suspend inspect(selected)}";
+
+#[test]
+fn a_recursive_relay_does_not_supply_a_boundary_views_backing() {
+    // Psi publishes the boundary invocation, the recursive back edge and the
+    // parked loan of the completed relay. The applied member names operand 0 as
+    // the result's lifetime anchor; that is a validity relation, not a claim
+    // that `v` holds the provider's bytes
+    // (wiki/spec/language/lifetimes.md#returned-views). So no caller input
+    // stands in for the provider backing: the retained loan names the relay's
+    // result, forward binds no lifetime, and the Psi-only reader of local
+    // returns declines the boundary arm instead of naming `input`.
+    use boundary_result::{machine, parked_view, producing_call};
+    use omega_lowering::{
+        CallSite, CallTarget, MemberRealization, ParameterType, PlaceOrigin, SuccessorEdge,
+        ValueOperand::{CopyWhole, Scalar},
+    };
+    let text = RELAYED_BOUNDARY;
+    let pkg = source::lower(&[("relayed_boundary.omg", text)]).unwrap();
+    let (cycle, forward, inspect) = (machine(&pkg, "cycle"), machine(&pkg, "forward"), machine(&pkg, "inspect"));
+
+    // cycle's two arms, read from the transition's successor blocks.
+    let [Parameter::Structural(v), Parameter::Scalar(flag)] = cycle.body.parameters[..] else {
+        panic!("cycle(v, flag)")
+    };
+    assert!(cycle.body.operations.is_empty(), "both arms are terminal calls");
+    let BlockTerminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &cycle.body.blocks[0].terminator
+    else {
+        panic!("transition on flag")
+    };
+    let arm = |edge: &SuccessorEdge| {
+        assert!(edge.structural_arguments.is_empty() && edge.arguments.is_empty());
+        match &cycle.body.blocks[edge.target.get() - 1].terminator {
+            BlockTerminator::TerminalCall {
+                callee, arguments, cleanup, ..
+            } if cleanup.is_empty() => (*callee, arguments.clone()),
+            other => panic!("cleanup-free terminal call expected: {other:?}"),
+        }
+    };
+    let [selection] = pkg.member_calls.as_slice() else {
+        panic!("one boundary member call")
+    };
+    assert_eq!(selection.requirement.declaration.path, "Device::view");
+    assert_eq!(
+        (selection.result, selection.parameters.as_slice()),
+        (cycle.result_type, [ParameterType::Structural(cycle.parameter_types[0])].as_slice())
+    );
+
+    // forward parks the completed relay, not its incoming view.
+    let [Parameter::Structural(input), Parameter::Scalar(selector)] = forward.body.parameters[..] else {
+        panic!("forward(input, flag)")
+    };
+    let retained = parked_view(&pkg, &forward.body);
+    let [relay, parked] = forward.body.operations.as_slice() else {
+        panic!("the relay completes before inspect parks")
+    };
+    let [site] = forward.body.suspension_sites.as_slice() else {
+        panic!("only inspect parks")
+    };
+    let (target, actuals) = producing_call(&forward.body, retained);
+    spec_corpus::observe_handoff!(psi "psi-output/recursive-boundary-view-relay", assert_eq!(
+        (
+            (*condition, arm(when_true), arm(when_false)),
+            (&selection.target, selection.boundary_result_lifetime_input),
+            (forward.body.places[retained.index()].origin, target, actuals),
+            (site.call, site.callee, site.activation.is_empty(), site.retained_owners.is_empty()),
+            (retained == input, forward.body.lifetime_bindings.is_empty()),
+            recursive_view_backings(&pkg, "forward", "cycle"),
+        ),
+        (
+            (
+                flag,
+                (CallTarget::Member(0), vec![CopyWhole(v)]),
+                (CallTarget::Machine(cycle.id), vec![CopyWhole(v), Scalar(flag)]),
+            ),
+            (&MemberRealization::Boundary { direction: None }, Some(0)),
+            (
+                PlaceOrigin::Operation(relay.id),
+                CallTarget::Machine(cycle.id),
+                [CopyWhole(input), Scalar(selector)].as_slice(),
+            ),
+            (CallSite::Operation(parked.id), CallTarget::Machine(inspect.id), true, true),
+            (false, true),
+            Err("unsupported view-returning terminator"),
+        )
+    ));
+}
+
+#[test]
+fn a_recursive_relay_of_a_caller_chosen_boundary_view_still_stops() {
+    // The relay above with a zero-input `Device::view()`. No input carries its
+    // result lifetime, so each caller chooses it
+    // (wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes). The
+    // selection records no lifetime input, the recursion has nothing to follow
+    // on that arm, and the crossing stops as it does for the direct result in
+    // a_caller_chosen_boundary_result_is_not_an_input_relative_loan.
+    let text = "boundary trait Device{machine view()->@[u8] reaches Device crashes none;} machine cycle(v:@[u8],flag:bool)->@[u8] reaches Device {transition flag {true -> Device::view(), false -> cycle(v,flag),}} machine inspect(v:@[u8]) suspends{} machine forward(input:@[u8],flag:bool) suspends reaches Device {let selected=cycle(input,flag); suspend inspect(selected)}";
+    assert_eq!(
+        text,
+        RELAYED_BOUNDARY
+            .replace("view(p:@[u8])", "view()")
+            .replace("Device::view(v)", "Device::view()"),
+        "the twin differs only in the boundary result's lifetime input"
+    );
+    let err = source::refuse(
+        &[("relayed_no_anchor.omg", text)],
+        "relayed_no_anchor.omg",
         source::unique_span(text, "inspect(selected)"),
         MISSING_VIEW_EVIDENCE,
     );

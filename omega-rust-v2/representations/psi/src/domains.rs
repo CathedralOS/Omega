@@ -1,20 +1,20 @@
 use crate::{ContractClause, DeclarationId, Site, TypeId};
 /// The predicates apply when a value establishes this particular named domain.
 #[derive(Debug, Eq, PartialEq)]
-pub struct LoweredDomain {
+pub struct LoweredDomain<C = TypeId> {
     pub parameters: Vec<crate::TemplateBinder>,
     /// Declaration binder slot supplied by each application argument, in head order.
     pub index_binders: Vec<usize>,
     pub declaration: DeclarationId,
-    /// Subject of `requires`; an inherited domain keeps its parent's qualification here.
-    pub carrier: TypeId,
+    /// Subject of `requires`: a concrete type or an open carrier recipe scoped by this declaration.
+    pub carrier: C,
     pub public: bool,
     pub requires: Vec<ContractClause>,
     pub site: Site,
 }
 
 /// One normalized constituent, including its ordered type/const arguments.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DomainAtom {
     pub declaration: DeclarationId,
     pub arguments: Vec<crate::DeclarationTerm>,

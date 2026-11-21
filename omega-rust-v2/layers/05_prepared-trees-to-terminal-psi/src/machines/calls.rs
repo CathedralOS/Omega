@@ -1,6 +1,6 @@
 use crate::lowering::applied_tree::LoweringTree;
 use omega_resolved::DeclarationId;
-use omega_typed::{AppliedOperand, CallUse, NodeSemantics, ObligationKind, PauseEffects, TypedSignature, ValueType};
+use omega_typed::{CallUse, NodeSemantics, ObligationKind, PauseEffects, TypedSignature, ValueType};
 
 use crate::{LoweringError, MachineId, site_at};
 
@@ -10,7 +10,9 @@ pub(crate) type LocalCallees<'a> = std::collections::HashMap<&'a DeclarationId, 
 pub(crate) struct Callees<'a> {
     pub local: LocalCallees<'a>,
     pub machine_pause: Vec<PauseEffects>,
-    pub members: std::collections::HashMap<crate::declarations::members::Key, (usize, &'a TypedSignature, usize)>,
+    pub members: std::collections::HashMap<crate::declarations::members::Key, (usize, &'a TypedSignature, usize, PauseEffects)>,
+    /// Local logical theorems, which a body cites by erased application.
+    pub theorems: std::collections::HashMap<&'a DeclarationId, super::theorem_citations::TheoremCallee<'a>>,
 }
 
 impl Callees<'_> {
@@ -28,11 +30,11 @@ impl Callees<'_> {
     }
 }
 
-#[derive(Clone, Copy)]
 pub(crate) struct Callee<'a> {
     pub machine: MachineId,
     pub signature: &'a TypedSignature,
     pub callbacks: &'a [crate::lowering::callbacks::Callback<'a>],
+    pub restricted_arguments: Vec<(omega_typed::RequirementSlot, DeclarationId)>,
     pub requirement_count: usize,
 }
 
@@ -47,22 +49,35 @@ pub(crate) fn record_acknowledgement(
     }
 }
 
-pub(crate) struct DirectCall<'a> {
+/// Once selection is complete, ordinary and terminal calls use the same
+/// operand lowering for static targets and runtime descriptors.
+pub(super) struct SelectedCall<'a> {
     pub acknowledgements: PauseEffects,
     pub callee: crate::CallTarget,
-    pub operands: &'a [AppliedOperand],
+    pub operands: Vec<(usize, &'a ValueType)>,
     pub requirement_count: usize,
-    pub signature: &'a TypedSignature,
 }
 
-pub(crate) fn select_direct_call<'a>(
+pub(super) fn select_call<'a>(
+    expressions: &super::expressions::Expressions<'a>,
+    node: usize,
+    expected: &ValueType,
+    body: &crate::MachineBody,
+) -> Result<SelectedCall<'a>, LoweringError> {
+    if let Some(call) = super::runtime_calls::select_runtime_call(expressions, node, expected, body)? {
+        return Ok(call);
+    }
+    select_direct_call(expressions.tree, expressions.signature, node, expected, expressions.types, expressions.callees)
+}
+
+fn select_direct_call<'a>(
     tree: &'a LoweringTree<'_>,
     caller: &TypedSignature,
     node: usize,
     expected: &ValueType,
     types: &crate::LoweringTypes,
     callees: &Callees<'a>,
-) -> Result<DirectCall<'a>, LoweringError> {
+) -> Result<SelectedCall<'a>, LoweringError> {
     let file = tree.resolved().file;
     let site = site_at(tree, node);
     let error = |message| LoweringError::new(&site, message);
@@ -70,6 +85,7 @@ pub(crate) fn select_direct_call<'a>(
     let mut typed_result = false;
     let mut precondition = None;
     let mut refinements = Vec::new();
+    let mut evidence = Vec::new();
     let mut crash_coverage = Vec::new();
     for record in tree.semantics_at(node) {
         match record {
@@ -82,6 +98,9 @@ pub(crate) fn select_direct_call<'a>(
                 typed_result = true;
             }
             NodeSemantics::Obligation(obligation) => match &obligation.kind {
+                ObligationKind::RefineEvidence { binder, implementation } if obligation.node == file.node_id(node) && obligation.site == site => {
+                    evidence.push((binder, implementation));
+                }
                 ObligationKind::RefineCallable {
                     formal: Some((owner, slot)),
                     contract,
@@ -120,11 +139,14 @@ pub(crate) fn select_direct_call<'a>(
     }
 
     let (target, signature, requirement_count, callbacks, possible) = if let Some(key) = crate::declarations::members::Key::from_call(call) {
-        let &(index, signature, count) = callees
+        let &(index, signature, count, pause) = callees
             .members
             .get(&key)
             .ok_or_else(|| error("selected member has no packaged applied requirement"))?;
-        if signature.pause.declared() != PauseEffects::default() {
+        if !evidence.is_empty() {
+            return Err(error("unexpected evidence refinement at member dispatch"));
+        }
+        if pause != PauseEffects::default() {
             return Err(error("member effect requires its selected suspension contract"));
         }
         (crate::CallTarget::Member(index), signature, count, &[][..], PauseEffects::default())
@@ -137,6 +159,17 @@ pub(crate) fn select_direct_call<'a>(
             .get(&call.machine)
             .and_then(|entries| entries.get(call.type_arguments.as_slice()))
             .ok_or_else(|| error("selected callee has no local machine identity"))?;
+        // The machine ID on the call leads to the ordered static arguments in Psi.
+        // Match the obligations to those exact selected pairs, including multiplicity.
+        for (bound, selected) in &callee.restricted_arguments {
+            let Some(index) = evidence.iter().position(|&pair| pair == (bound, selected)) else {
+                return Err(error("call lacks its selected evidence refinement"));
+            };
+            evidence.swap_remove(index);
+        }
+        if !evidence.is_empty() {
+            return Err(error("evidence refinement disagrees with the selected application"));
+        }
         (
             crate::CallTarget::Machine(callee.machine),
             callee.signature,
@@ -164,7 +197,13 @@ pub(crate) fn select_direct_call<'a>(
     if precondition != signature.requires.then_some(&call.machine) {
         return Err(error("selected call precondition records disagree with its callee contract"));
     }
-    crate::declarations::crash_routes::check_call_coverage(&site, signature, &crash_coverage)?;
+    // L3's occurrence obligations describe the invoked interface. For a
+    // closed routed binder that interface deferred crashes to the selection;
+    // the independently joined guarded-call rows supply its dependency.
+    let declared = tree.callback_routes.iter()
+        .find(|(invocation, _)| invocation.node == call.node)
+        .map_or(signature.crash_ceiling.as_deref(), |(invocation, _)| invocation.contract.crash_ceiling.as_deref());
+    crate::declarations::crash_routes::check_call_coverage(&site, declared, &crash_coverage)?;
     if signature.machine != call.machine || signature.result != call.result || !typed_result || &call.result != expected {
         return Err(error("selected call result disagrees with its normal continuation"));
     }
@@ -180,6 +219,7 @@ pub(crate) fn select_direct_call<'a>(
     if call.operands.len() != signature.parameters.len() {
         return Err(error("selected callee and operand list disagree"));
     }
+    let mut operands = Vec::with_capacity(call.operands.len());
     for (applied, (span, formal)) in call.operands.iter().zip(&signature.parameters) {
         let argument = applied.node.node;
         if argument >= file.nodes.len()
@@ -192,12 +232,13 @@ pub(crate) fn select_direct_call<'a>(
             return Err(error("selected operand disagrees with its argument occurrence or formal"));
         }
         if matches!(formal, ValueType::Callable(_)) && types.id_for(formal).is_ok() {
-            super::runtime_calls::check_forwarded_operand(tree, caller, applied)?;
+            super::runtime_calls::check_callable_operand(tree, caller, applied)?;
         } else if applied.callable.is_some()
             || !(types.can_forward_value(formal) || crate::lowering::types::contains_nominal_value(formal) || crate::lowering::types::place_reference(formal).is_some())
         {
             return Err(LoweringError::new(&applied.site, "call operand requires unsupported carrier lowering"));
         }
+        operands.push((argument, formal));
     }
 
     if (possible.block && !call.acknowledgements.block) || (possible.suspend && !call.acknowledgements.suspend) {
@@ -206,11 +247,10 @@ pub(crate) fn select_direct_call<'a>(
     if possible.block {
         return Err(error("selected blocking call requires effect lowering"));
     }
-    Ok(DirectCall {
+    Ok(SelectedCall {
         acknowledgements: call.acknowledgements,
         callee: target,
-        operands: &call.operands,
+        operands,
         requirement_count,
-        signature,
     })
 }

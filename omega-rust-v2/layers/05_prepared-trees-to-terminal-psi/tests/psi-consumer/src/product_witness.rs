@@ -40,7 +40,10 @@ pub fn branch_returns_formals(
     else {
         return Err("entry block does not branch".into());
     };
-    for (arm, edge, formal) in [("true", true_edge, when_true), ("false", false_edge, when_false)] {
+    for (arm, edge, formal) in [
+        ("true", true_edge, when_true),
+        ("false", false_edge, when_false),
+    ] {
         let input = structural_formal(body, formal)?;
         let block = body
             .blocks
@@ -136,16 +139,92 @@ pub fn transfer_leaves_sibling(
         other => return Err(format!("transfer {other:?} does not move {field}")),
     }
     match &call.kind {
-        OperationKind::Call { arguments, .. }
-            if matches!(arguments.as_slice(), [CallArgument::MoveWhole(place)] if transfer.result == omega_psi::OperationResult::Structural(*place)) => {}
+        OperationKind::Call { arguments, .. } if matches!(arguments.as_slice(), [CallArgument::MoveWhole(place)] if transfer.result == omega_psi::OperationResult::Structural(*place)) =>
+            {}
         other => return Err(format!("call {other:?} does not receive the transferred field")),
     }
     match body.blocks.first().map(|b| &b.terminator) {
-        Some(BlockTerminator::Return { cleanup, .. })
-            if matches!(cleanup.as_slice(), [CleanupAction::DiscardResidual { place, .. }] if names_field(place, root, sibling)) =>
-        {
+        Some(BlockTerminator::Return { cleanup, .. }) if matches!(cleanup.as_slice(), [CleanupAction::DiscardResidual { place, .. }] if names_field(place, root, sibling)) => {
             Ok(())
         }
         other => Err(format!("return cleanup {other:?}, expected only the residual {sibling}")),
     }
+}
+
+/// Whether any action disposes storage beneath `root`.
+fn disposes_beneath(
+    actions: &[CleanupAction],
+    root: PlaceId,
+) -> bool {
+    actions.iter().any(|action| match action {
+        CleanupAction::DiscardRoot(place) => *place == root,
+        CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => place.root == root,
+    })
+}
+
+/// The checker compares what each arrival at a join leaves of an owned formal.
+/// Read that comparison input from Psi alone: the entry branch reaches one block per
+/// arm, the arm moves exactly the named field of the first formal, its jump hands that
+/// claim to the shared join, and neither the branch edge nor the jump disposes any
+/// of the formal's remaining storage. Each arrival's moved field therefore fixes what
+/// survives it.
+pub fn join_arrivals_move_fields(
+    body: &MachineBody,
+    when_true: &str,
+    when_false: &str,
+) -> Witness {
+    let root = structural_formal(body, 0)?;
+    let Some(BlockTerminator::Conditional {
+        when_true: true_edge,
+        when_false: false_edge,
+        ..
+    }) = body.blocks.first().map(|b| &b.terminator)
+    else {
+        return Err("entry block does not branch".into());
+    };
+    let mut join = None;
+    for (arm, branch, field) in [
+        ("true", true_edge, when_true),
+        ("false", false_edge, when_false),
+    ] {
+        if disposes_beneath(&branch.cleanup, root) {
+            return Err(format!("{arm} branch edge disposes the formal: {:?}", branch.cleanup));
+        }
+        let block = body
+            .blocks
+            .get(branch.target.get() - 1)
+            .ok_or_else(|| format!("{arm} edge has no destination"))?;
+        let operations = body
+            .operations
+            .get(block.operations.clone())
+            .ok_or_else(|| format!("{arm} arm names missing operations"))?;
+        let moves: Vec<_> = operations
+            .iter()
+            .filter_map(|op| match &op.kind {
+                OperationKind::MoveStructural { source } if source.root == root => Some((source, op.result)),
+                _ => None,
+            })
+            .collect();
+        let [(source, claim)] = moves[..] else {
+            return Err(format!("{arm} arm moves {moves:?} from the formal, expected one transfer"));
+        };
+        if !names_field(source, root, field) {
+            return Err(format!("{arm} arm moves {source:?}, expected {field}"));
+        }
+        let BlockTerminator::Jump(arrival) = &block.terminator else {
+            return Err(format!("{arm} arm ends with {:?}, expected a jump to the join", block.terminator));
+        };
+        if !matches!(arrival.structural_arguments.as_slice(), [CallArgument::MoveWhole(place)] if claim == omega_psi::OperationResult::Structural(*place)) {
+            return Err(format!("{arm} arrival hands over {:?}, not its moved field", arrival.structural_arguments));
+        }
+        if disposes_beneath(&arrival.cleanup, root) {
+            return Err(format!("{arm} arrival disposes the formal: {:?}", arrival.cleanup));
+        }
+        match join {
+            None => join = Some(arrival.target),
+            Some(target) if target == arrival.target => {}
+            Some(target) => return Err(format!("arms reach {target:?} and {:?}, not one join", arrival.target)),
+        }
+    }
+    Ok(())
 }

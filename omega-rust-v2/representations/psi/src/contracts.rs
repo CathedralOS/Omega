@@ -1,6 +1,6 @@
 use crate::{DeclarationId, EdgeId, OperationId, Site};
 use num_bigint::BigInt;
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CallSite {
     Operation(OperationId),
     Edge(EdgeId),
@@ -30,7 +30,8 @@ pub struct CrashRoute {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractClause {
     /// Operands precede their operation in left-to-right order. The final
-    /// item produces the Boolean proposition.
+    /// item states the clause: a Boolean predicate or, in a logical theorem,
+    /// a strict proposition. Neither is a verdict.
     pub predicate: Vec<PredicateStep>,
     pub site: Site,
 }
@@ -86,14 +87,32 @@ pub enum PredicateStep {
         case: DeclarationId,
         field: DeclarationId,
     },
-    /// Selects the element at this exact in-bounds position of the preceding
-    /// owned fixed-array subject. Runtime selectors never form this segment.
+    /// Selects the element at this exact frozen position of the preceding
+    /// owned fixed-array subject. Lowering keeps a position past the declared
+    /// extent; the checker compares it with the subject's type and rejects it.
+    /// Runtime selectors never form this segment.
     FixedIndex(u64),
+    /// A by-copy core read, not a static path segment. Consume the preceding
+    /// owned fixed-array term and u64 selector term, in that order. The checker
+    /// instantiates the selected primitive's entire contract at this occurrence
+    /// with those actuals (including the receiver's declared extent); the
+    /// enclosing predicate cannot serve as evidence for its own formation.
+    FixedArrayRead {
+        callee: DeclarationId,
+        site: Site,
+    },
     /// Tests the case discriminator of the preceding structural subject.
     IsCase(DeclarationId),
+    /// Logical membership of the preceding subject in this domain application,
+    /// including the requirements of its ancestors; not evidence that it holds.
+    /// A nominal domain such as `Audio::Audible` has no arguments. Like
+    /// `requires x in D`, it states a fact and leaves the subject's declared
+    /// type unchanged. It supplies no routed provenance; a routed domain still
+    /// needs it.
+    InDomain(crate::DomainAtom),
     FixedArrayLength,
     ByteSequenceLength,
-    /// The live element count of the preceding shared element-view subject,
+    /// The live element count of the preceding element-view subject,
     /// never a byte count, fixed extent or a sibling view's count.
     ElementViewLength,
     Boolean(bool),

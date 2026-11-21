@@ -2,8 +2,9 @@
 
 The capture blocks reproduce the shape and records of a real run
 (target/layer-readiness/20261120T101628Z-efsw1wsf/L5.log). The fixed-sample
-capture, including its six compiler refusal receipts, is copied from
-target/diagnostics-sample.log.
+capture, including its nine compiler refusal receipts, is copied from
+target/diagnostics-sample.log. The
+import-from-dependency rows come from the run that supplied its Build-admitted `kit` edge.
 """
 import os
 from pathlib import Path
@@ -47,7 +48,7 @@ def libtest(target, *tests):
 
 
 SAMPLE_LINES = [
-    "OMEGA_EXPECTED\tsample\t10",
+    "OMEGA_EXPECTED\tsample\t12",
     f"OMEGA_SOURCE\thistorical_samples\t{REVISION}",
     "standalone\tpsi\twitness matched",
     "OMEGA_CASE\tsample\tstandalone\tL5\texecutable product inspected\twitness matched",
@@ -55,10 +56,16 @@ SAMPLE_LINES = [
     "OMEGA_CASE\tsample\tmodule-library\tL5\texecutable product inspected\twitness matched",
     "OMEGA_SAMPLE_REFUSAL\tcross-width\tL2\troot\tmain.omg\t475\t485\t20\t9\tMain::main\ta data carrier cannot own a machine",
     "cross-width\tL2\tmain.omg:20:9\ta data carrier cannot own a machine",
-    "OMEGA_CASE\tsample\tcross-width\tL2\tcompatibility blocked\tmain.omg:20:9 a data carrier cannot own a machine",
+    "OMEGA_CASE\tsample\tcross-width\tL2\tintended rejection verified\tmain.omg:20:9 a data carrier cannot own a machine",
     "OMEGA_SAMPLE_REFUSAL\trational-landing\tL2\troot\tmain.omg\t720\t730\t25\t9\tMain::main\ta data carrier cannot own a machine",
     "rational-landing\tL2\tmain.omg:25:9\ta data carrier cannot own a machine",
-    "OMEGA_CASE\tsample\trational-landing\tL2\tcompatibility blocked\tmain.omg:25:9 a data carrier cannot own a machine",
+    "OMEGA_CASE\tsample\trational-landing\tL2\tintended rejection verified\tmain.omg:25:9 a data carrier cannot own a machine",
+    "OMEGA_SAMPLE_REFUSAL\tcross-width-v2\tL2\troot\tmain.omg\t454\t462\t17\t18\tWrapping\tunresolved name Wrapping",
+    "cross-width-v2\tL2\tmain.omg:17:18\tunresolved name Wrapping",
+    "OMEGA_CASE\tsample\tcross-width-v2\tL2\tcompatibility blocked\tmain.omg:17:18 unresolved name Wrapping",
+    "OMEGA_SAMPLE_REFUSAL\trational-landing-v2\tL2\troot\tmain.omg\t699\t707\t23\t26\tWrapping\tunresolved name Wrapping",
+    "rational-landing-v2\tL2\tmain.omg:23:26\tunresolved name Wrapping",
+    "OMEGA_CASE\tsample\trational-landing-v2\tL2\tcompatibility blocked\tmain.omg:23:26 unresolved name Wrapping",
     "OMEGA_SAMPLE_REFUSAL\tdirect-imports\tL2\troot\tm/b.omg\t4\t7\t1\t5\tm\\a\tunavailable import m\\a",
     "direct-imports\tL2\tm/b.omg:1:5\tunavailable import m\\a",
     "OMEGA_CASE\tsample\tdirect-imports\tL2\tcompatibility blocked\tm/b.omg:1:5 unavailable import m\\a",
@@ -73,8 +80,9 @@ SAMPLE_LINES = [
     "OMEGA_SAMPLE_REFUSAL\tfalse-abstract-premise\tL1\troot\tmain.omg\t773\t777\t37\t27\tTrap\texpected `;` (bytes 773..777)",
     "false-abstract-premise\tL1\tmain.omg:37:27\texpected `;` (bytes 773..777)",
     "OMEGA_CASE\tsample\tfalse-abstract-premise\tL1\tcompatibility blocked\tmain.omg:37:27 expected `;` (bytes 773..777)",
-    "import-from-dependency\tsetup\trequires Build dependency alias kit -> dep (mod_kernel), selecting other.omg",
-    "OMEGA_CASE\tsample\timport-from-dependency\tsetup\tmissing context\trequires Build dependency alias kit -> dep (mod_kernel), selecting other.omg",
+    "OMEGA_SAMPLE_REFUSAL\timport-from-dependency\tL2\troot\tmain.omg\t140\t149\t3\t5\tkit\\other\tunavailable import kit\\other",
+    "import-from-dependency\tL2\tmain.omg:3:5\tunavailable import kit\\other",
+    "OMEGA_CASE\tsample\timport-from-dependency\tL2\tcompatibility blocked\tmain.omg:3:5 unavailable import kit\\other",
 ]
 
 SPEC_LINES = [
@@ -136,26 +144,29 @@ class L5RecordTests(unittest.TestCase):
         tests, counts = self.collect(sample(), contracts(), spec())
         self.assertEqual(self.report["measurement_errors"], [])
         self.assertEqual(counts, {"passed": 4, "failed": 1, "ignored": 0})
-        self.assertEqual(self.report["expected"], {"sample": 10, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
         self.assertEqual(self.report["cohort_sources"], {"spec_tree_at_head": "f" * 40, "historical_samples": REVISION})
         cases = self.report["cases"]
         self.assertEqual((cases["sample/cross-width"]["target"], cases["sample/cross-width"]["test"]), ("tests\\sample_baseline.rs", SAMPLE_TEST))
         self.assertEqual(cases["sample/cross-width"]["later_layers_not_reached"], ["L3", "L4", "L5"])
-        # Each of the six printed refusals is attached to its case with its exact bytes and position.
+        # Each of the nine printed refusals is attached to its case with its exact bytes and position.
         refusals = {key: case["compiler_refusal"] for key, case in cases.items() if "compiler_refusal" in case}
         self.assertEqual({key: (site["stage"], site["package"], site["file"], site["byte_start"], site["byte_end"],
                                 site["line"], site["byte_column"], site["occurrence_form"], site["occurrence"], site["reason"])
                           for key, site in refusals.items()}, {
             "sample/cross-width": ("L2", "root", "main.omg", 475, 485, 20, 9, "text", "Main::main", "a data carrier cannot own a machine"),
             "sample/rational-landing": ("L2", "root", "main.omg", 720, 730, 25, 9, "text", "Main::main", "a data carrier cannot own a machine"),
+            "sample/cross-width-v2": ("L2", "root", "main.omg", 454, 462, 17, 18, "text", "Wrapping", "unresolved name Wrapping"),
+            "sample/rational-landing-v2": ("L2", "root", "main.omg", 699, 707, 23, 26, "text", "Wrapping", "unresolved name Wrapping"),
             "sample/direct-imports": ("L2", "root", "m/b.omg", 4, 7, 1, 5, "text", "m\\a", "unavailable import m\\a"),
             "sample/missing-import-v2": ("L2", "root", "main.omg", 65, 66, 4, 30, "text", "A", "unresolved name A"),
             "sample/abstract-premise": ("L1", "root", "main.omg", 772, 776, 37, 27, "text", "Trap", "expected `;` (bytes 772..776)"),
             "sample/false-abstract-premise": ("L1", "root", "main.omg", 773, 777, 37, 27, "text", "Trap", "expected `;` (bytes 773..777)"),
+            "sample/import-from-dependency": ("L2", "root", "main.omg", 140, 149, 3, 5, "text", "kit\\other", "unavailable import kit\\other"),
         })
         self.assertTrue(all(site["after_static_evaluation"] is False for site in refusals.values()))
         self.assertEqual(cases["sample/abstract-premise"]["later_layers_not_reached"], ["L2", "L3", "L4", "L5"])
-        self.assertNotIn("compiler_refusal", cases["sample/import-from-dependency"])
+        self.assertEqual(cases["sample/import-from-dependency"]["later_layers_not_reached"], ["L3", "L4", "L5"])
         self.assertEqual((cases["spec/proofs/contracts.md:826"]["target"], cases["spec/proofs/contracts.md:826"]["test"]), ("tests\\spec_corpus.rs", SPEC_TEST))
         self.assertEqual(cases["handoff/call in a contract predicate"]["test"], PREDICATE_TEST)
         self.assertEqual(self.report["obligations"], {
@@ -200,8 +211,8 @@ class L5RecordTests(unittest.TestCase):
         self.assertEqual(self.report["cases"], {})
         self.assertEqual(self.report["expected"], {})
         self.assertTrue(all(error.startswith("L4: ") for error in self.report["measurement_errors"]))
-        # Ten case results, six refusal receipts and the expected count and source identity.
-        self.assertEqual(len(self.report["measurement_errors"]), 18)
+        # Twelve case results, nine refusal receipts and the expected count and source identity.
+        self.assertEqual(len(self.report["measurement_errors"]), 23)
 
     def test_duplicate_records_keep_the_first_observation(self):
         repeated = [
@@ -213,14 +224,14 @@ class L5RecordTests(unittest.TestCase):
         self.collect(sample(SAMPLE_LINES + SAMPLE_LINES[:4]), spec(SPEC_LINES + repeated))
         cases = self.report["cases"]
         self.assertEqual(cases["spec/proofs/contracts.md:826"]["status"], "executable product inspected")
-        self.assertEqual(self.report["expected"], {"sample": 10, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
         self.assertEqual(self.report["obligations"]["Borrow"], {"proofs/contracts.md:826": 1})
         self.assertNotIn("Move", self.report["obligations"])
         self.assertEqual(self.report["cohort_sources"]["historical_samples"], REVISION)
         self.errors_naming("duplicate result for spec/proofs/contracts.md:826", "duplicate result for sample/standalone",
                            *repeated[1:], *SAMPLE_LINES[:2])
         self.assertEqual(len(self.report["measurement_errors"]), 7)
-        self.assertEqual(sum(row["cohort"] == "sample" for row in cases.values()), 10)
+        self.assertEqual(sum(row["cohort"] == "sample" for row in cases.values()), 12)
 
     def test_unknown_or_malformed_records_are_reported_and_the_rest_preserved(self):
         bad_spec = [
@@ -251,7 +262,7 @@ class L5RecordTests(unittest.TestCase):
         self.errors_naming(*bad_spec, *bad_sample, *bad_fixtures)
         self.assertEqual(len(self.report["measurement_errors"]), len(bad_spec) + len(bad_sample) + len(bad_fixtures))
         self.assertEqual(self.report["cohort_sources"], {"spec_tree_at_head": "f" * 40, "historical_samples": REVISION})
-        self.assertEqual(self.report["expected"], {"sample": 10, "spec": 3})
+        self.assertEqual(self.report["expected"], {"sample": 12, "spec": 3})
         self.assertEqual(self.report["cases"]["sample/standalone"]["status"], "executable product inspected")
         self.assertEqual(len(self.report["package_fixtures"]), 2)
         self.assertEqual(self.report["obligations"]["VerifyLibraryImplementation"]["language/machine_values.md:44"], 1)
@@ -293,7 +304,7 @@ def receipt(label="cross-width", stage="L2", package="root", file="main.omg", st
     return "\t".join(["OMEGA_SAMPLE_REFUSAL", label, stage, package, file, start, end, row, column, occurrence, reason])
 
 
-def case(stage="L2", status="compatibility blocked", detail="main.omg:20:9 " + CROSS_REASON):
+def case(stage="L2", status="intended rejection verified", detail="main.omg:20:9 " + CROSS_REASON):
     return f"{CROSS_CASE}{stage}\t{status}\t{detail}"
 
 
@@ -322,7 +333,7 @@ class SampleRefusalTests(unittest.TestCase):
 
     def test_the_unchanged_receipts_attach_without_errors(self):
         self.assertEqual(self.outcome({}), [])
-        self.assertEqual(sum("compiler_refusal" in row for row in self.report["cases"].values()), 6)
+        self.assertEqual(sum("compiler_refusal" in row for row in self.report["cases"].values()), 9)
 
     def test_a_missing_receipt_is_reported_once(self):
         self.assertEqual(self.outcome({CROSS_RECEIPT: None}), ["sample/cross-width: missing the compiler's original refusal"])
@@ -394,7 +405,10 @@ class SampleRefusalTests(unittest.TestCase):
     def test_receipts_need_a_refused_case(self):
         self.assertEqual(self.outcome({}, [receipt(label="standalone")]),
                          ["sample/standalone: compiler refusal for a case reported as executable product inspected"])
-        self.assertEqual(self.outcome({}, [receipt(label="import-from-dependency")]),
+        # No fixed sample now stops at setup; substitute one missing-context result for the dependency case.
+        missing_context = {"OMEGA_SAMPLE_REFUSAL\timport-from-dependency\t": None,
+                           "OMEGA_CASE\tsample\timport-from-dependency\t": "OMEGA_CASE\tsample\timport-from-dependency\tsetup\tmissing context\trequires Build"}
+        self.assertEqual(self.outcome(missing_context, [receipt(label="import-from-dependency")]),
                          ["sample/import-from-dependency: compiler refusal for a case reported as missing context"])
         self.assertEqual(self.outcome({}, [receipt(label="no-such-sample")]),
                          ["sample/no-such-sample: compiler refusal for a sample without a case result"])

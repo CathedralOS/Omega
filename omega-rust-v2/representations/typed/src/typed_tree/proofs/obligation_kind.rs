@@ -26,6 +26,8 @@ pub enum ObligationKind {
     /// A recursive type edge changes the arguments of a declaration with static formation requirements.
     FormRecursiveApplication {
         declaration: DeclarationId,
+        /// The earlier occurrence of this declaration on the active formation path.
+        active_arguments: Vec<ValueType>,
         arguments: Vec<ValueType>,
     },
     Termination(DeclarationId),

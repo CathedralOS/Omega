@@ -30,6 +30,7 @@ pub(crate) struct BlockFlow {
     // can refer to its backing, including in nested expression/terminal dispatch.
     pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadPlace>,
     parameter: Option<crate::Parameter>,
+    scalar_domain_invariants: Vec<crate::ScalarDomainInvariant>,
 }
 
 impl BlockFlow {
@@ -47,6 +48,7 @@ impl BlockFlow {
             operation_start: 0,
             payload_bindings: Default::default(),
             parameter: None,
+            scalar_domain_invariants: Vec::new(),
         }
     }
 
@@ -65,6 +67,7 @@ impl BlockFlow {
         self.active = id;
         self.operation_start = body.operations.len();
         self.parameter = parameter;
+        self.scalar_domain_invariants.clear();
     }
 
     pub(super) fn close(
@@ -74,6 +77,7 @@ impl BlockFlow {
     ) {
         body.blocks.push(BranchBlock {
             id: self.active,
+            scalar_domain_invariants: self.scalar_domain_invariants.clone(),
             scalar_parameters: match self.parameter {
                 Some(crate::Parameter::Scalar(value)) => vec![value],
                 _ => Vec::new(),
@@ -129,20 +133,30 @@ impl BlockFlow {
         self.close(body, BlockTerminator::Jump(edge));
     }
 
-    pub(crate) fn change_scalar_qualification(
+    pub(super) fn change_scalar_qualification(
         &mut self,
         body: &mut MachineBody,
         source: ValueId,
         target_type: TypeId,
-        direction: crate::QualificationDirection,
+        change: super::casts::ScalarChange,
         site: Site,
     ) -> ValueId {
         let target = self.reserve();
         let mut edge = successor(body, target, vec![source], site);
-        edge.scalar_qualification_changes
-            .push(crate::ScalarQualificationChange { argument_index: 0, direction });
+        let domains = match change {
+            super::casts::ScalarChange::Ordinary(direction) => {
+                edge.scalar_qualification_changes.push(crate::ScalarQualificationChange { argument_index: 0, direction });
+                Vec::new()
+            }
+            super::casts::ScalarChange::PredicateCompletion(domains) => {
+                edge.predicate_completions.extend(domains.iter().cloned().map(|domain| crate::PredicateCompletion { argument_index: 0, domain }));
+                domains
+            }
+        };
         self.close(body, BlockTerminator::Jump(edge));
-        self.open_scalar_join(body, target, target_type)
+        let subject = self.open_scalar_join(body, target, target_type);
+        self.scalar_domain_invariants.extend(domains.into_iter().map(|domain| crate::ScalarDomainInvariant { subject, domain }));
+        subject
     }
 
     pub(crate) fn open_scalar_join(
@@ -549,6 +563,7 @@ pub(super) fn successor(
         target,
         arguments,
         scalar_qualification_changes: Vec::new(),
+        predicate_completions: Vec::new(),
         structural_arguments: Vec::new(),
         cleanup: Vec::new(),
     }

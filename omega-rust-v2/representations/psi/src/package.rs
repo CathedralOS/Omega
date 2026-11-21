@@ -20,8 +20,8 @@ pub struct LoweredOperator {
 }
 
 /// The effective bounds of an executable machine. Published
-/// defaults come from typing, just like explicit bounds. Crash alternatives are
-/// the published routes; an empty ceiling has none.
+/// defaults come from typing, just like explicit bounds. Selected callback
+/// contributions remain separate from the authored crash ceiling.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineContract {
     pub public: bool,
@@ -33,6 +33,9 @@ pub struct MachineContract {
     /// declared ceiling. Each call of this machine owes coverage of every route,
     /// identified by its index here, under that call's ordered arguments.
     pub crash_routes: Vec<crate::CrashRoute>,
+    /// Selected-binder contributions, separate from the authored crash ceiling.
+    /// Coverage and disproof under these actuals are checker obligations.
+    pub callback_crash_routes: Vec<CallbackCrashRoutes>,
     pub pause_bounds: DeclaredPauseBounds,
     /// Operational pause demand after closing the template's callback dependencies.
     pub realized_pause: crate::PauseEffects,
@@ -43,10 +46,32 @@ pub struct MachineContract {
     pub ranking: Option<crate::MachineRanking>,
 }
 
+/// One unconditional invocation of a closed static binder on entry formals.
+/// `binder` indexes this instance's static arguments. Route indices refer to
+/// the selected machine's published contract, never to the binder interface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallbackCrashRoutes {
+    pub binder: usize,
+    pub routes: std::ops::Range<usize>,
+    pub operand_formals: Vec<usize>,
+    pub invocation: crate::Site,
+}
+
+/// One explicit region binder, indexed by its ordinal in the owning machine.
+/// Slots describe a declared relation, not evidence of any particular backing.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct MachineRegion {
+    pub reference_parameters: Vec<usize>,
+    pub reference_result: bool,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct LoweredMachine {
+    pub regions: Vec<MachineRegion>,
     /// Ordered static arguments of this declaration instance.
     pub arguments: Vec<StaticArgument>,
+    /// Formation obligations on this instance, separate from authored requirements.
+    pub positive_widths: Vec<PositiveWidth>,
     pub operator: Option<LoweredOperator>,
     pub id: MachineId,
     pub declaration: DeclarationId,
@@ -57,9 +82,23 @@ pub struct LoweredMachine {
     pub body: MachineBody,
 }
 
+/// The indicated static integer argument must be a positive u64 at this use.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PositiveWidth {
+    pub argument: usize,
+    pub site: crate::Site,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum StaticArgument {
     Type(TypeId),
+    /// A static integer argument and its declared scalar carrier, matching
+    /// `DataArgument::Integer` and `DeclarationTerm::StaticInteger`. The
+    /// carrier needs no row in the package type table.
+    Integer {
+        carrier: crate::ScalarType,
+        value: num_bigint::BigInt,
+    },
     Conformance {
         declaration: DeclarationId,
         bound: crate::TemplateRequirementSlot,
@@ -98,6 +137,8 @@ pub struct LoweredPackage {
     pub data: Vec<LoweredData>,
     pub aliases: Vec<LoweredAlias>,
     pub domains: Vec<LoweredDomain>,
+    /// Carrier-generic families, not memberships of any concrete type.
+    pub domain_templates: Vec<LoweredDomain<crate::TypeExpression>>,
     pub domain_aliases: Vec<LoweredDomainAlias>,
     pub mathematics: Vec<crate::MathematicalDeclaration>,
     /// Proof-only theorems with logical hypotheses, ordered by declaration.

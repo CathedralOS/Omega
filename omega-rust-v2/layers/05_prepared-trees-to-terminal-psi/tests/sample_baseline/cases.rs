@@ -7,9 +7,27 @@ pub struct Case {
     pub id: &'static str,
     pub directory: &'static str,
     pub files: &'static [&'static str],
-    pub main_override: Option<&'static [u8]>,
+    /// Current-language files used instead of the pinned history. The
+    /// historical build still selects the configuration.
+    pub migrated: Option<&'static [(&'static str, &'static [u8])]>,
     pub configuration: &'static str,
+    /// Dependency packages that the root's pinned `build.omg` registers under an alias.
+    pub dependencies: &'static [Admitted],
     pub expectation: Expectation,
+}
+
+/// One direct dependency edge that the root's Build recipe admits. The harness never runs
+/// that recipe. It confirms the registration in both `build.omg` files and supplies the
+/// resulting package and alias edge to the production resolver profile.
+pub struct Admitted {
+    pub alias: &'static str,
+    /// The package identity the dependency's own `build.omg` declares.
+    pub package: &'static str,
+    /// The dependency's source directory, relative to the pinned samples root.
+    pub directory: &'static str,
+    pub files: &'static [&'static str],
+    /// The text in the dependency's `build.omg` that declares `package`.
+    pub configuration: &'static str,
 }
 
 impl Case {
@@ -31,13 +49,11 @@ pub enum Expectation {
     TrackCompatibility(Check),
     ExpectCheckerRefusal(Check),
     MustRefuse(&'static str),
-    MissingSetup(&'static str),
 }
 
 /// Where the configuration actually stopped, whatever the case expected.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Actual {
-    MissingSetup(&'static str),
     /// Psi was produced. The witness is absent when the case names no output check.
     Product { witness: Option<bool> },
     Refused(Refusal),
@@ -46,7 +62,6 @@ pub enum Actual {
 impl Actual {
     pub fn stage(&self) -> &'static str {
         match self {
-            Self::MissingSetup(_) => "setup",
             Self::Product { .. } => "L5",
             Self::Refused(refusal) => refusal.stage,
         }
@@ -55,7 +70,6 @@ impl Actual {
     /// The observation recorded after the case id in `observations.tsv`.
     pub fn row(&self) -> String {
         match self {
-            Self::MissingSetup(reason) => format!("setup\t{reason}"),
             Self::Product { witness: Some(true) } => "psi\twitness matched".into(),
             Self::Product { witness: Some(false) } => "psi\twitness absent".into(),
             Self::Product { witness: None } => "psi\tnot inspected".into(),
@@ -71,22 +85,37 @@ pub struct Observation {
 }
 
 impl Expectation {
+    /// Lowers files that all belong to the root package, which has no admitted dependency.
     pub fn observe(
         self,
         files: &[(&str, Vec<u8>)],
     ) -> Observation {
+        let sources: Vec<_> = files
+            .iter()
+            .map(|(path, bytes)| (super::pipeline::ROOT, *path, bytes.as_slice()))
+            .collect();
+        self.observe_admitted(&sources, &[])
+    }
+
+    /// Lowers `(package, file, bytes)` sources with the dependency edges Build admitted for them.
+    pub fn observe_admitted(
+        self,
+        sources: &[(&str, &str, &[u8])],
+        admitted: &[omega_resolver::Dependency],
+    ) -> Observation {
         let actual = match self {
-            Self::MissingSetup(reason) => Actual::MissingSetup(reason),
-            Self::MustRefuse(_) => match super::pipeline::lower(files) {
+            Self::MustRefuse(_) => match super::pipeline::lower_admitted(sources, admitted) {
                 Ok(_) => Actual::Product { witness: None },
                 Err(refusal) => Actual::Refused(refusal),
             },
-            Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => match super::pipeline::lower(files) {
-                Ok(product) => Actual::Product {
-                    witness: Some(check.matches(&product)),
-                },
-                Err(refusal) => Actual::Refused(refusal),
-            },
+            Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => {
+                match super::pipeline::lower_admitted(sources, admitted) {
+                    Ok(product) => Actual::Product {
+                        witness: Some(check.matches(&product)),
+                    },
+                    Err(refusal) => Actual::Refused(refusal),
+                }
+            }
         };
         let mismatch = match (self, &actual) {
             (Self::MustRefuse(expected), Actual::Refused(refusal)) if refusal.to_string() != expected => Some(format!("expected {expected}, got {refusal}")),
@@ -100,6 +129,11 @@ impl Expectation {
 }
 
 pub const MISSING_IMPORT: &str = "L2\tmain.omg:4:30\tunresolved name A";
+/// Ratified decision `no-data-code-attachment` retires `machine Main::main`.
+pub const CROSS_WIDTH_OWNER: &str = "L2\tmain.omg:20:9\ta data carrier cannot own a machine";
+pub const RATIONAL_LANDING_OWNER: &str = "L2\tmain.omg:25:9\ta data carrier cannot own a machine";
+pub const IMPORT_A: (&str, &[u8]) = ("m/a.omg", include_bytes!("../fixtures/direct_file_imports/m/a.omg"));
+pub const IMPORT_B: (&str, &[u8]) = ("m/b.omg", include_bytes!("../fixtures/direct_file_imports/m/b.omg"));
 /// The historical sample imports `m\a` by its filename. A filename names no namespace component.
 pub const FILE_IMPORT: &str = "L2\tm/b.omg:1:5\tunavailable import m\\a";
 
@@ -111,6 +145,8 @@ pub enum Check {
     Comparisons,
     IdentityCalls,
     Premise(bool),
+    /// The root's `entry` returns the result of calling `other_v` in the `mod_kernel` package.
+    DependencyCall,
 }
 
 fn returns_literal(
@@ -177,8 +213,34 @@ impl Check {
                 named("premise").is_some_and(|m| returns_literal(m, &ScalarLiteral::Boolean(value)))
                     && named("witness").is_some_and(|m| !m.contract.requires.is_empty())
             }
+            Self::DependencyCall => returns_dependency_call(product),
         }
     }
+}
+
+fn returns_dependency_call(package: &LoweredPackage) -> bool {
+    let owned = |owner: &str, name: &str| {
+        package
+            .machines
+            .iter()
+            .find(|m| m.declaration.package == owner && m.declaration.path == name)
+    };
+    let (Some(entry), Some(callee)) = (owned(super::pipeline::ROOT, "entry"), owned(DEPENDENCY, "other_v")) else {
+        return false;
+    };
+    let [block] = &entry.body.blocks[..] else { return false };
+    let BlockTerminator::Return {
+        result: ReturnEdge::Scalar(returned),
+        ..
+    } = block.terminator
+    else {
+        return false;
+    };
+    returns_literal(callee, &ScalarLiteral::Integer(7.into()))
+        && entry.body.operations.iter().any(|op| {
+            op.result == OperationResult::Scalar(returned)
+                && matches!(&op.kind, OperationKind::Call { callee: CallTarget::Machine(id), arguments, .. } if *id == callee.id && arguments.is_empty())
+        })
 }
 
 fn returns_nested_field(
@@ -231,86 +293,134 @@ const HOST_MAIN: &str = r"linux_x86_64\ProgramEntry, main)";
 const HOST_START: &str = r"linux_x86_64\ProgramEntry, entry_start)";
 const FREESTANDING: &str = "builder.freestanding = true;";
 const DIRECT: &str = "probes/direct_file_imports";
+pub const NONMAIN: &str = "probes/build_nonmain_module";
+const DEPENDENCY: &str = "mod_kernel";
+const DEPENDENCY_PACKAGE: &str = r#"Build::package(builder, "mod_kernel")"#;
+/// `probes/build_nonmain_module/build.omg` registers `dep` under the alias `kit`.
+pub const KIT: &[Admitted] = &[Admitted {
+    alias: "kit",
+    package: DEPENDENCY,
+    directory: "probes/build_nonmain_module/dep",
+    files: &["main.omg", "other.omg"],
+    configuration: DEPENDENCY_PACKAGE,
+}];
 
 pub const CASES: &[Case] = &[
     Case {
         id: "standalone",
         directory: "basics/standalone",
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: HOST_MAIN,
+        dependencies: &[],
         expectation: Expectation::MustLower(Check::EmptyMain),
     },
     Case {
         id: "module-library",
         directory: "probes/build_nonmain_module/dep",
         files: &["main.omg", "other.omg"],
-        main_override: None,
-        configuration: r#"Build::package(builder, "mod_kernel")"#,
+        migrated: None,
+        configuration: DEPENDENCY_PACKAGE,
+        dependencies: &[],
         expectation: Expectation::MustLower(Check::ModuleConstants),
     },
     Case {
         id: "cross-width",
         directory: "probes/cross_width_compare",
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: HOST_START,
-        expectation: Expectation::TrackCompatibility(Check::Comparisons),
+        dependencies: &[],
+        expectation: Expectation::MustRefuse(CROSS_WIDTH_OWNER),
     },
     Case {
         id: "rational-landing",
         directory: "probes/rational_arg_landing",
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: HOST_START,
+        dependencies: &[],
+        expectation: Expectation::MustRefuse(RATIONAL_LANDING_OWNER),
+    },
+    // The same programs with `Main::main` declared as the free machine `main`.
+    Case {
+        id: "cross-width-v2",
+        directory: "probes/cross_width_compare",
+        files: MAIN,
+        migrated: Some(&[("main.omg", include_bytes!("../fixtures/cross_width_compare/main.omg"))]),
+        configuration: HOST_START,
+        dependencies: &[],
+        expectation: Expectation::TrackCompatibility(Check::Comparisons),
+    },
+    Case {
+        id: "rational-landing-v2",
+        directory: "probes/rational_arg_landing",
+        files: MAIN,
+        migrated: Some(&[("main.omg", include_bytes!("../fixtures/rational_arg_landing/main.omg"))]),
+        configuration: HOST_START,
+        dependencies: &[],
         expectation: Expectation::TrackCompatibility(Check::IdentityCalls),
     },
     Case {
         id: "direct-imports",
         directory: DIRECT,
         files: IMPORTS,
-        main_override: None,
+        migrated: None,
         configuration: FREESTANDING,
+        dependencies: &[],
         expectation: Expectation::MustRefuse(FILE_IMPORT),
     },
     Case {
         id: "direct-imports-v2",
         directory: DIRECT,
         files: IMPORTS,
-        main_override: Some(include_bytes!("../fixtures/direct_file_imports/main.omg")),
+        migrated: Some(&[
+            ("main.omg", include_bytes!("../fixtures/direct_file_imports/main.omg")),
+            IMPORT_A,
+            IMPORT_B,
+        ]),
         configuration: FREESTANDING,
+        dependencies: &[],
         expectation: Expectation::MustLower(Check::NestedField),
     },
     Case {
         id: "missing-import-v2",
         directory: DIRECT,
         files: IMPORTS,
-        main_override: Some(include_bytes!("../fixtures/direct_file_imports/missing_import.omg")),
+        migrated: Some(&[
+            ("main.omg", include_bytes!("../fixtures/direct_file_imports/missing_import.omg")),
+            IMPORT_A,
+            IMPORT_B,
+        ]),
         configuration: FREESTANDING,
+        dependencies: &[],
         expectation: Expectation::MustRefuse(MISSING_IMPORT),
     },
     Case {
         id: "abstract-premise",
         directory: "facts/abstract_signature_call/local",
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: HOST_MAIN,
+        dependencies: &[],
         expectation: Expectation::TrackCompatibility(Check::Premise(true)),
     },
     Case {
         id: "false-abstract-premise",
         directory: "facts/abstract_signature_call/invalid_local",
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: HOST_MAIN,
+        dependencies: &[],
         expectation: Expectation::ExpectCheckerRefusal(Check::Premise(false)),
     },
     Case {
         id: "import-from-dependency",
-        directory: "probes/build_nonmain_module",
+        directory: NONMAIN,
         files: MAIN,
-        main_override: None,
+        migrated: None,
         configuration: r#"with_alias(@mut kit_dependency, "kit")"#,
-        expectation: Expectation::MissingSetup("requires Build dependency alias kit -> dep (mod_kernel), selecting other.omg"),
+        dependencies: KIT,
+        expectation: Expectation::TrackCompatibility(Check::DependencyCall),
     },
 ];

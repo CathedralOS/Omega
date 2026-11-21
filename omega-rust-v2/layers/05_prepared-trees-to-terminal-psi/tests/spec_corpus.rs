@@ -536,6 +536,7 @@ fn inspect_example(example: &spec_corpus::SpecExample) -> FragmentOutcome {
                 "language/effects.md:641" => Some(check_closed_callback),
                 "language/machines.md:33" => Some(check_explicit_mutable_argument),
                 "language/patterns.md:50" => Some(check_held_sum_dispatch),
+                "language/machine_values.md:44" => Some(check_byte_reader_factory),
                 _ => None,
             };
             if let Some(witness) = witness {
@@ -842,6 +843,57 @@ fn check_required_discharge_inputs(package: &LoweredPackage) {
     assert_eq!(read.result, OperationResult::Scalar(byte));
 }
 
+/// The reader alias declares one runtime contract with its own precondition;
+/// the factory's precondition stays on the factory, and it returns the
+/// descriptor it received under that same contract.
+fn check_byte_reader_factory(package: &LoweredPackage) {
+    use omega_lowering::{AliasTarget, Parameter};
+    let [contract] = package.callable_contracts.as_slice() else {
+        panic!("expected the ByteReader contract alone")
+    };
+    let [bound] = contract.requires.as_slice() else {
+        panic!("expected the reader's offset bound")
+    };
+    assert_eq!(
+        bound.predicate,
+        [
+            PredicateStep::Formal(0),
+            PredicateStep::Integer(256.into()),
+            PredicateStep::Apply(PredicateOperator::LessThan)
+        ]
+    );
+    let word = omega_lowering::TypeExpression(vec![omega_lowering::TypeExpressionStep::Scalar(ScalarType::Integer { signed: false, width: 32 })]);
+    let byte = omega_lowering::TypeExpression(vec![omega_lowering::TypeExpressionStep::Scalar(ScalarType::Integer { signed: false, width: 8 })]);
+    assert_eq!((contract.parameters.as_slice(), &contract.result), ([word].as_slice(), &Some(byte)));
+    assert!(contract.ensures.is_empty() && contract.crash_routes.is_empty());
+    assert_eq!((&contract.reach, &contract.crash_ceiling), (&Some(Vec::new()), &Some(Vec::new())));
+    let [alias] = package.aliases.as_slice() else {
+        panic!("expected only ByteReader")
+    };
+    let AliasTarget::Structural(reader_type) = alias.target else {
+        panic!("expected the closed runtime signature as a structural alias")
+    };
+    let runtime = Some(&TypeShape::Callable(omega_lowering::CallableContractId::from_index(0).unwrap()));
+    assert_eq!(package.types.get(reader_type), runtime);
+    let [open] = package.machines.as_slice() else {
+        panic!("expected open_reader")
+    };
+    let [ready] = open.contract.requires.as_slice() else {
+        panic!("expected the factory's own precondition")
+    };
+    assert_eq!(ready.predicate, [PredicateStep::Formal(0)]);
+    assert_eq!(package.types.get(open.parameter_types[0]), Some(&TypeShape::PrimitiveScalar(ScalarType::Boolean)));
+    assert_eq!((open.parameter_types[1], open.result_type), (reader_type, Some(reader_type)));
+    let [Parameter::Scalar(_), Parameter::Scalar(reader)] = open.body.parameters[..] else {
+        panic!("expected the flag and the descriptor")
+    };
+    assert!(open.body.operations.is_empty(), "returning the formal neither refines nor invokes it");
+    let [block] = open.body.blocks.as_slice() else {
+        panic!("expected one block")
+    };
+    assert!(matches!(block.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(returned), .. } if returned == reader));
+}
+
 fn check_closed_callback(package: &LoweredPackage) {
     let [template] = package.machine_templates.as_slice() else {
         panic!("expected public template alongside its instance")
@@ -891,6 +943,18 @@ fn check_machine_templates(
 ) {
     use omega_lowering::{MachineTemplateBinder, TemplateCallTarget, TypeExpressionStep};
     let first = &package.machine_templates[0];
+    if label == "language/modules.md:227" {
+        let [domain] = package.domains.as_slice() else { panic!("missing Audio::Audible") };
+        let [audio] = package.data.as_slice() else { panic!("missing Audio") };
+        let [player] = package.traits.as_slice() else { panic!("missing Player") };
+        let play = &player.requirements[0].declaration;
+        assert_eq!((audio.declaration.path.as_str(), domain.declaration.path.as_str(), play.path.as_str()), ("Audio", "Audio::Audible", "Player::play"));
+        assert_eq!(domain.carrier, audio.carrier);
+        assert_eq!(first.signature.requires[0].predicate, [PredicateStep::Formal(0), PredicateStep::InDomain(omega_psi::DomainAtom { declaration: domain.declaration.clone(), arguments: vec![] })]);
+        assert_eq!(first.body[0].target, TemplateCallTarget::Member { binder: 0, requirement: play.clone() });
+        assert_eq!(first.body[0].operands, [omega_psi::TemplateOperand::RecordField { formal: 0, field: audio.fields[0].declaration.clone() }]);
+        return;
+    }
     let callback = |m: &omega_lowering::MachineTemplate| {
         m.parameters
             .iter()
@@ -906,8 +970,8 @@ fn check_machine_templates(
     assert_eq!(first.result.is_some(), first.signature.result.is_some());
     match label {
         "language/effects.md:576" => {
-            assert_eq!(first.body[0].operands, [0]);
-            assert_eq!(first.result, Some(0));
+            assert_eq!(first.body[0].operands, [omega_psi::TemplateOperand::Formal(0)]);
+            assert_eq!(first.result, Some(omega_lowering::TemplateResult::Call(0)));
             assert!(requirement.is_none());
             assert_eq!(
                 bound.ensures[0].predicate,
@@ -940,7 +1004,7 @@ fn check_machine_templates(
             assert!(member.signature.terminates);
             let wrapper = &package.machine_templates[1];
             assert_eq!(wrapper.body[0].target, TemplateCallTarget::Declaration(first.declaration.clone()));
-            assert_eq!(wrapper.body[0].operands, [0]);
+            assert_eq!(wrapper.body[0].operands, [omega_psi::TemplateOperand::Formal(0)]);
             for (index, arg) in wrapper.body[0].arguments.iter().enumerate() {
                 assert_eq!(
                     arg.0,
@@ -1108,12 +1172,66 @@ fn check_radix_locals(package: &LoweredPackage) -> Result<(), String> {
     Ok(())
 }
 
-/// `let view: @f32 = @bits as @f32; let value: f32 = $view;`
-/// Psi has no float scalar and its only recast is between equal-width
-/// integers, so no lowered product can yet carry this fence.
+/// `let bits: u32 = 0x3F80_0000u32; let view: @f32 = @bits as @f32; let value: f32 = $view;`
+/// The local gets one primitive home, the view borrows that home, the recast
+/// keeps the same backing under a binary32 referent, and the float is read
+/// through the view. No operation converts or recomputes the bits.
 fn check_float_view_recast(package: &LoweredPackage) -> Result<(), String> {
-    only_machine(package)?;
-    Err("Psi has no reviewed witness for a u32-to-f32 shared view".into())
+    use omega_lowering::{IeeeFloatFormat, PlaceProjection, ReferenceAccess};
+    let body = &only_machine(package)?.body;
+    let [constant, home, borrow, recast, read] = body.operations.as_slice() else {
+        return Err(format!("expected constant, home, borrow, recast and read, found {:?}", body.operations));
+    };
+    let bits = ScalarType::Integer { signed: false, width: 32 };
+    let binary32 = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+    if constant.kind != OperationKind::Constant(ScalarLiteral::Integer(0x3F80_0000u32.into()))
+        || scalar_type(package, body, constant.result) != Some(&TypeShape::PrimitiveScalar(bits))
+    {
+        return Err(format!("expected the u32 initializer 0x3F80_0000, found {:?}", constant.kind));
+    }
+    let OperationResult::Scalar(initializer) = constant.result else {
+        return Err("the initializer is not a scalar".into());
+    };
+    let place = |result: OperationResult| match result {
+        OperationResult::Structural(place) => Ok(place),
+        _ => Err(format!("expected a place, found {result:?}")),
+    };
+    let shape = |result: OperationResult| place(result).map(|p| package.types.get(body.places[p.index()].ty));
+    if home.kind != (OperationKind::EstablishPrimitiveLocal { value: initializer }) || shape(home.result)? != Some(&TypeShape::PrimitiveScalar(bits)) {
+        return Err(format!("expected the u32 local's home, found {:?}", home.kind));
+    }
+    let home = place(home.result)?;
+    if !matches!(&borrow.kind, OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared } if source.root == home && source.path.is_empty())
+        || shape(borrow.result)?
+            != Some(&TypeShape::ScalarReference {
+                referent: bits,
+                access: ReferenceAccess::Shared,
+            })
+    {
+        return Err(format!("expected a shared borrow of the home, found {:?}", borrow.kind));
+    }
+    let borrowed = place(borrow.result)?;
+    if recast.kind
+        != (OperationKind::ScalarBitRecast {
+            source: borrowed,
+            source_referent: bits,
+            destination_referent: binary32,
+        })
+        || shape(recast.result)?
+            != Some(&TypeShape::ScalarReference {
+                referent: binary32,
+                access: ReferenceAccess::Shared,
+            })
+    {
+        return Err(format!("expected a u32-to-binary32 view of the borrow, found {:?}", recast.kind));
+    }
+    let view = place(recast.result)?;
+    if !matches!(&read.kind, OperationKind::ProjectedScalarRead { source } if source.root == view && source.path == [PlaceProjection::Referent])
+        || scalar_type(package, body, read.result) != Some(&TypeShape::PrimitiveScalar(binary32))
+    {
+        return Err(format!("expected a binary32 read through the view, found {:?}", read.kind));
+    }
+    Ok(())
 }
 
 /// `clear(@mut counter)` writes zero into the caller's own `Counter::value`.

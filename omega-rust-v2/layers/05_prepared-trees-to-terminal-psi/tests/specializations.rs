@@ -177,13 +177,81 @@ fn open_callback_calls_preserve_operands_and_reject_an_unlowered_body() {
     let pkg = sources::lower(&[("template.omg", source)]).unwrap();
     let m = &pkg.machine_templates[0];
     assert_eq!(m.body[0].target, omega_lowering::TemplateCallTarget::StaticBinder(0));
-    assert_eq!(m.body[0].operands, [1, 0]);
-    assert_eq!(m.result, Some(0));
+    assert_eq!(m.body[0].operands, [1, 0].map(omega_psi::TemplateOperand::Formal));
+    assert_eq!(m.result, Some(omega_lowering::TemplateResult::Call(0)));
     let bad = source.replace("F(b,a)", "F(b,a) + F(a,b)");
     let declaration = "machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + F(a,b)}";
     let message = "open generic machine requires a closed application before lowering";
     let err = sources::refuse(&[("template.omg", &bad)], "template.omg", sources::unique_span(&bad, declaration), message);
     assert_eq!(err.message, message);
+}
+
+/// L5 refuses the open template whose body sums two callback results (above), but its
+/// inputs are complete: typing records both binder invocations and the sum, and the same
+/// body lowers once a caller selects the callback. What is missing is a Psi form for an
+/// unspecialized body beyond the straight-line call list, not a typed or prepared input.
+#[test]
+fn an_open_callback_sum_has_complete_typed_inputs_and_lowers_once_closed() {
+    use omega_lowering::{ArithmeticPolicy, CallArgument, CallTarget, IntegerObligation, IntegerOperation, IntegerPrimitive, OperationResult};
+    let open = "data Combine=machine(x:u64,y:u64)->u64; machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + F(a,b)}";
+    let resolved = sources::resolve(&[("template.omg", open)]);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let typed = prepared.typed();
+    let u64 = omega_typed::ValueType::Integer {
+        signed: false,
+        width: Some(64),
+    };
+    let invocations: Vec<_> = typed
+        .indirect_calls
+        .iter()
+        .filter(|c| matches!(&c.entry, omega_typed::InvocationTarget::StaticParameter { owner, index: 0 } if owner.path == "flip"))
+        .map(|c| (c.caller.as_ref().map(|d| d.path.as_str()), c.site.span.slice(open.as_bytes()).unwrap()))
+        .collect();
+    assert_eq!(invocations, [(Some("flip"), &b"F(b,a)"[..]), (Some("flip"), &b"F(a,b)"[..])]);
+    let [sum] = typed.operations.as_slice() else { panic!("expected the one sum") };
+    assert_eq!(
+        (sum.token.as_str(), sum.operands.as_slice(), &sum.result),
+        ("+", [u64.clone(), u64.clone()].as_slice(), &u64)
+    );
+    assert_eq!(sum.site.span.slice(open.as_bytes()), Some(&b"F(b,a) + F(a,b)"[..]));
+
+    let closed = format!("{open} machine pick(x:u64,y:u64)->u64{{x}} machine run(a:u64,b:u64)->u64{{flip::<pick>(a,b)}}");
+    let pkg = sources::lower(&[("template.omg", &closed)]).unwrap();
+    assert!(pkg.machine_templates.is_empty());
+    let machine = |name: &str| {
+        pkg.machines
+            .iter()
+            .find(|m| m.declaration.path == name)
+            .unwrap()
+    };
+    let (flip, pick) = (machine("flip"), machine("pick"));
+    let [Parameter::Scalar(a), Parameter::Scalar(b)] = flip.body.parameters[..] else {
+        panic!("expected two scalar formals")
+    };
+    let [first, second, add] = flip.body.operations.as_slice() else {
+        panic!("expected two callback calls and their sum")
+    };
+    let result = |op: &omega_lowering::PsiOperation| match op.result {
+        OperationResult::Scalar(v) => v,
+        _ => panic!("expected a scalar result"),
+    };
+    for (op, order) in [(first, [b, a]), (second, [a, b])] {
+        assert!(
+            matches!(&op.kind, OperationKind::Call{callee: CallTarget::Machine(id), arguments, ..} if *id == pick.id && *arguments == order.map(CallArgument::Scalar))
+        );
+    }
+    assert_eq!(
+        add.kind,
+        OperationKind::Integer {
+            operation: IntegerOperation {
+                primitive: IntegerPrimitive::Add,
+                policy: ArithmeticPolicy::Exact,
+                obligations: vec![IntegerObligation::ResultFitsCarrier]
+            },
+            operands: vec![result(first), result(second)],
+        }
+    );
+    assert!(matches!(flip.body.blocks[0].terminator, BlockTerminator::Return{result: ReturnEdge::Scalar(v), ..} if v == result(add)));
 }
 
 #[test]
@@ -215,4 +283,24 @@ fn a_generic_machine_keeps_a_guarded_crash_distinct_from_an_unconditional_ceilin
         panic!("expected one route")
     };
     assert_eq!((route.cause, route.guard.as_ref()), (CrashCause::Trap, None));
+}
+
+#[test]
+fn a_closed_callback_under_a_premise_bearing_contract_refuses_at_the_contract() {
+    // The abstract-premise sample after replacing its V1 crash statement and its
+    // retired `requires machine` binder. Psi's closed callable selection has no
+    // slot for the bound's premise or for the selected machine's own premise.
+    let source = "machine premise(kept:bool)->bool {true}
+data Observer=machine(kept:bool)->bool
+    requires premise(kept);
+machine witness(kept:bool)->bool requires premise(kept) {premise(kept)}
+machine apply<const Observe:Observer>(kept:bool)->bool requires premise(kept) {Observe(kept)}
+machine run(kept:bool)->bool requires premise(kept) {apply::<witness>(kept)}";
+    let contract = "machine(kept:bool)->bool\n    requires premise(kept)";
+    sources::refuse(
+        &[("premise.omg", source)],
+        "premise.omg",
+        sources::unique_span(source, contract),
+        "static callback needs a local closed target and a supported structural contract",
+    );
 }

@@ -34,11 +34,6 @@ IDENTITY_CONTROL = "each_stage_reader_distinguishes_substituted_other_product"
 # "outside pipeline": neither the L5 contract nor lowering reads the product.
 GAP_TESTS = "tests/preparation_handoff_gaps.rs"
 PREPARATION_CONSUMERS = {
-    "A specialized field request": ("l5 refusal", "L5 needs the field extents for the applied record.",
-                                    ("nested_field_owner_arguments_stop_at_generic_data_lowering", ("specialized field owner arguments",))),
-    "A local declaration after": ("l5 refusal", "Lowering the enclosing generic machine is required to inspect the two constants in Psi.",
-                                  ("nested_helper_constants_stop_at_the_open_enclosing_template",
-                                   ("nested helper enclosing static argument via helper(input)", "nested helper enclosing static argument via invoke::<helper>(input)"))),
     "Proofs supplied by the checker": ("unmeasured", "L4's unit test supplies a checked invocation fact and observes its target dependencies. "
                                            "The public preparation round accepts such facts, but only L4 test code can construct one today. "
                                            "No L5 test observes those dependencies in Psi from the same prepared package.", None),

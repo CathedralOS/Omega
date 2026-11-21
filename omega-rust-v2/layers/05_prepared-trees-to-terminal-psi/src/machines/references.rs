@@ -10,6 +10,18 @@ pub(super) fn call_argument(
     formal: &ValueType,
     body: &MachineBody,
 ) -> Result<Option<CallArgument>, LoweringError> {
+    reference_operand(expressions, node, formal, body, None)
+}
+
+/// When forming a returned descriptor, consume the binding at the borrow
+/// itself, not merely a lifetime mentioned somewhere in the signature.
+pub(super) fn reference_operand(
+    expressions: &Expressions<'_>,
+    node: usize,
+    formal: &ValueType,
+    body: &MachineBody,
+    result_binding: Option<&ValueType>,
+) -> Result<Option<CallArgument>, LoweringError> {
     let Some((access, wanted)) = crate::lowering::types::place_reference(formal) else {
         return Ok(None);
     };
@@ -35,6 +47,8 @@ pub(super) fn call_argument(
         let occurrence = site_at(tree, operand);
         let mut typed = false;
         let mut borrowed = false;
+        let mut bound = false;
+        let mut returned = false;
         for record in tree.semantics_at(node) {
             match record {
                 NodeSemantics::Expression(e) if &e.ty == formal && e.static_argument_slot.is_none() => typed = true,
@@ -43,9 +57,14 @@ pub(super) fn call_argument(
                 {
                     borrowed = true
                 }
-                NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
+                NodeSemantics::Obligation(o) if !bound && matches!(&o.kind, ObligationKind::BindLifetime { reference, destination }
+                    if reference == formal && Some(destination) == result_binding) => bound = true,
+                NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => returned = true,
                 _ => return Err(LoweringError::new(&site_at(tree, node), "unsupported reference formation record")),
             }
+        }
+        if result_binding.is_some() && !(bound && returned) {
+            return Err(LoweringError::new(&site_at(tree, node), "returned reference lacks its region binding"));
         }
         if !typed || !borrowed {
             return Err(LoweringError::new(&site_at(tree, node), "shared borrow lacks its type or source obligation"));
@@ -253,7 +272,12 @@ fn select_place<'a>(
                 let Some(OperationResult::Structural(root)) = source else {
                     return Err(LoweringError::new(&site, "reference root has no structural place"));
                 };
-                if expressions.types.id_for(ty).ok() != Some(body.places[root.index()].ty) {
+                let carrier = if file.nodes[*binder_node].kind == NodeKind::Param {
+                    crate::declarations::regions::slot_carrier(ty, &expressions.signature.machine)
+                } else {
+                    ty
+                };
+                if expressions.types.id_for(carrier).ok() != Some(body.places[root.index()].ty) {
                     return Err(LoweringError::new(&site, "reference root disagrees with its place type"));
                 }
                 fields.reverse();
@@ -482,8 +506,11 @@ pub(super) fn mutable_place(
 }
 
 /// Whole-root discard suffices for a plain affine record of scalar leaves.
-/// References, refinements and nested affine children require their own evidence.
-fn plain_scalar_record(
+/// References, sums, carry policies and nested affine children require their own
+/// cleanup evidence. A `requires` clause does not change the cleanup, so it does
+/// not stop provisioning: the schema keeps the clause and the checker judges the
+/// binding's `ZeroValue` obligation against the all-zero value.
+fn zero_discardable_record(
     types: &crate::LoweringTypes,
     data: &[crate::LoweredData],
     root: crate::DataId,
@@ -510,7 +537,6 @@ fn plain_scalar_record(
             Some(crate::TypeShape::Nominal(id)) => {
                 let schema = &data[id.get() - 1];
                 if !schema.cases.is_empty()
-                    || !schema.requires.is_empty()
                     || schema.carry.is_some()
                     || !(schema.multiplicity == crate::Multiplicity::Copy || *id == root && schema.multiplicity == crate::Multiplicity::Affine)
                 {
@@ -553,11 +579,8 @@ pub(super) fn provision_local(
     let Some(crate::TypeShape::Nominal(id)) = expressions.types.get(ty) else {
         return Err(LoweringError::new(&site, "zero-initialized local requires a supported nominal record"));
     };
-    if !plain_scalar_record(expressions.types, data, *id) {
-        return Err(LoweringError::new(
-            &site,
-            "zero initialization requires record qualification or cleanup evidence",
-        ));
+    if !zero_discardable_record(expressions.types, data, *id) {
+        return Err(LoweringError::new(&site, "zero initialization requires cleanup evidence for this record"));
     }
     let value = body.push_operation(OperationOutput::Structural(ty), crate::OperationKind::EstablishZeroedStructural, site);
     let OperationResult::Structural(home) = value else { unreachable!() };

@@ -82,11 +82,60 @@ impl OwnedCrossings {
     }
 }
 
+/// Reaching values for freshly constructed writable records in one basic block.
+/// Keys identify storage, not the value moved into it. A projected write loses
+/// the whole-value witness; a writable alias loses the ability to track stores
+/// at this root at all. Never carry one predecessor's witness through a join.
+#[derive(Default)]
+pub(super) struct LocalContents(std::collections::BTreeMap<usize, Option<PlaceId>>);
+
+impl LocalContents {
+    pub(super) fn operand(&mut self, operand: &ValueOperand) {
+        if let ValueOperand::Borrow { place, access } = operand && *access != ReferenceAccess::Shared {
+            self.0.remove(&place.root.index());
+        }
+    }
+
+    pub(super) fn observe(&mut self, op: &crate::PsiOperation, mutable_homes: &[PlaceId]) {
+        if mutable_homes.is_empty() {
+            return;
+        }
+        match &op.kind {
+            OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
+                for field in fields {
+                    self.operand(&field.operand);
+                }
+                if matches!(op.kind, OperationKind::EstablishRecord { .. })
+                    && let OperationResult::Structural(place) = op.result
+                    && mutable_homes.contains(&place)
+                {
+                    self.0.insert(place.index(), Some(place));
+                }
+            }
+            OperationKind::BorrowPlace { source, access } if *access != ReferenceAccess::Shared => {
+                self.0.remove(&source.root.index());
+            }
+            OperationKind::Call { arguments, .. } => {
+                for arg in arguments {
+                    self.operand(arg);
+                }
+            }
+            OperationKind::StructuralStore { destination, value, .. } => {
+                if let Some(current) = self.0.get_mut(&destination.root.index()) {
+                    *current = (destination.path.is_empty() && !mutable_homes.contains(value)).then_some(*value);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Only a writable home can have its own fields replaced. A write through a
 /// reference changes its referent while preserving the descriptor itself.
 pub(super) struct Lineage<'a> {
     pub(super) operations: &'a [crate::PsiOperation],
     pub(super) mutable_homes: &'a [PlaceId],
+    pub(super) contents: &'a LocalContents,
 }
 
 /// An owner row describes custody of its storage. Each live descriptor in that
@@ -146,8 +195,7 @@ fn embedded_loans(
 /// record field initializer, a field-only transfer or copy, or a decomposed
 /// component each name exactly one source. A shared reborrow stays in the
 /// lineage and continues from its parent descriptor. Joins, call results,
-/// borrows of local storage and writable homes
-/// have no single unchanged source.
+/// borrows of local storage and intermediate writable sources have no traced origin.
 fn origin(
     mut place: PlaceId,
     path: &[PlaceProjection],
@@ -157,9 +205,13 @@ fn origin(
 ) -> Option<EmbeddedLoanOrigin> {
     let mut path = path.to_vec();
     let mut reborrows = Vec::new();
-    // Each step reaches a place established by an earlier operation.
-    for _ in 0..=context.places.len() {
-        if lineage.mutable_homes.contains(&place) {
+    // Only the initial lookup describes storage at *this crossing*. An
+    // initializer read an earlier value; never consult the current home there.
+    if lineage.mutable_homes.contains(&place) {
+        place = (*lineage.contents.0.get(&place.index())?)?;
+    }
+    for depth in 0..=context.places.len() {
+        if depth != 0 && lineage.mutable_homes.contains(&place) {
             return None;
         }
         match context.places.get(place.index())?.origin {

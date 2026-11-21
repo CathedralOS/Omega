@@ -1,6 +1,6 @@
 //! Rank claims cite actual control transfers, never just a callee or source span.
 use crate::{
-    BlockId, BlockTerminator, BranchBlock, CallArgument, CallSite, CallTarget, EdgeId, LoweringError, MachineBody, OperationId, OperationKind, OperationResult,
+    BlockId, BlockTerminator, BranchBlock, CallArgument, CallSite, CallTarget, EdgeId, LoweringError, MachineBody, OperationKind, OperationResult,
     PsiOperation, ReturnEdge, Site, TypeShape, TypeTable,
 };
 
@@ -13,8 +13,8 @@ pub(super) enum Invocation<'a> {
 
 pub(super) struct RankedTransfer<'a> {
     pub block: BlockId,
-    pub edge: EdgeId,
-    pub forwarded_call: Option<OperationId>,
+    pub call: CallSite,
+    pub forwarding_return: Option<EdgeId>,
     pub arguments: &'a [CallArgument],
     pub site: &'a Site,
 }
@@ -32,8 +32,8 @@ impl<'a> Invocation<'a> {
                 };
                 return Ok(RankedTransfer {
                     block: block.id,
-                    edge: *id,
-                    forwarded_call: None,
+                    call: CallSite::Edge(*id),
+                    forwarding_return: None,
                     arguments,
                     site: super::edge_site(body, id.get()),
                 });
@@ -49,17 +49,7 @@ impl<'a> Invocation<'a> {
                         .and_then(|v| types.get(v.ty))
                         .is_some_and(|t| matches!(t, TypeShape::PrimitiveScalar(_)))
                 };
-                // In this form there is no work to resume, parked activation,
-                // caller cleanup or borrowed backing to carry across iterations.
-                if let BlockTerminator::Return {
-                    id,
-                    result: ReturnEdge::Scalar(value),
-                    cleanup,
-                } = &block.terminator
-                    && block.operations.end == op.id.get()
-                    && op.result == OperationResult::Scalar(*value)
-                    && primitive(*value)
-                    && cleanup.is_empty()
+                if matches!(op.result, OperationResult::Scalar(value) if primitive(value))
                     && matches!(callee, CallTarget::Machine(_))
                     && arguments
                         .iter()
@@ -69,10 +59,15 @@ impl<'a> Invocation<'a> {
                         .iter()
                         .any(|s| s.call == CallSite::Operation(op.id))
                 {
+                    let forwarding_return = match &block.terminator {
+                        BlockTerminator::Return { id, result: ReturnEdge::Scalar(value), cleanup }
+                            if block.operations.end == op.id.get() && op.result == OperationResult::Scalar(*value) && cleanup.is_empty() => Some(*id),
+                        _ => None,
+                    };
                     return Ok(RankedTransfer {
                         block: block.id,
-                        edge: *id,
-                        forwarded_call: Some(op.id),
+                        call: CallSite::Operation(op.id),
+                        forwarding_return,
                         arguments,
                         site,
                     });
@@ -83,7 +78,7 @@ impl<'a> Invocation<'a> {
         };
         Err(LoweringError::new(
             site,
-            "ranked recursion needs a terminal call or a direct cleanup-free scalar tail transfer",
+            "ranked recursion needs a terminal call or a non-suspending direct scalar call",
         ))
     }
 }

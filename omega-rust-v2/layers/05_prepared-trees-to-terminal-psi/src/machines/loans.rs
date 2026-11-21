@@ -21,9 +21,11 @@ pub(super) fn descriptor(
     let resolved = tree.resolved();
     let file = resolved.file;
     let site = site_at(tree, node);
+    let region = crate::declarations::regions::direct(carrier, &expressions.signature.machine);
+    let reference = region.map_or(carrier, |(_, reference)| reference);
     let id = expressions
         .types
-        .id_for(carrier)
+        .id_for(reference)
         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
     match file.nodes[node].kind {
         NodeKind::PathExpression => {
@@ -46,14 +48,15 @@ pub(super) fn descriptor(
             Ok(value)
         }
         NodeKind::Borrow => {
-            let Some(crate::CallArgument::Borrow { place: source, access }) = references::call_argument(expressions, node, carrier, body)? else {
+            let destination = region.map(|_| carrier);
+            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, reference, body, destination)? else {
                 return Err(LoweringError::new(&site, "borrow has no original place"));
             };
-            Ok(Some(body.push_operation(
-                OperationOutput::Structural(id),
-                OperationKind::BorrowPlace { source, access },
-                site,
-            )))
+            let result = body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access }, site);
+            if let (Some((ordinal, _)), OperationResult::Structural(descriptor)) = (region, result) {
+                body.lifetime_bindings.push((descriptor, ordinal));
+            }
+            Ok(Some(result))
         }
         _ => Ok(None),
     }

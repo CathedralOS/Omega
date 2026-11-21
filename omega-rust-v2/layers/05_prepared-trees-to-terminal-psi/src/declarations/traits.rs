@@ -14,6 +14,7 @@ pub(crate) struct TraitSchema<'a> {
     pub declaration: &'a DeclarationId,
     public: bool,
     boundary: bool,
+    restriction: Option<crate::TraitRestriction>,
     site: Site,
     parameters: Vec<crate::TemplateBinder>,
     dependent_requirements: Vec<crate::TemplateRequirement>,
@@ -48,6 +49,51 @@ pub(crate) fn read_trait<'a>(
             .all(|b| matches!(b, crate::TemplateBinder::Type { .. }))
     {
         return Err(LoweringError::new(&site, "unsupported generic trait binder"));
+    }
+    if let Some(base) = prepared.typed().refinement_bases.get(declaration) {
+        if !parameters.is_empty() || !base.trait_arguments.is_empty() || file.nodes[node].has_boundary_modifier() {
+            return Err(LoweringError::new(&site, "restricted trait needs an ordinary unapplied base"));
+        }
+        let [parent, clauses @ ..] = file.nodes[node].children.as_slice() else {
+            return Err(LoweringError::new(&site, "restricted trait lacks its base"));
+        };
+        if !matches!(resolved.symbol(*parent), Some(omega_resolved::Symbol::Declaration(id)) if id == &base.declaration) {
+            return Err(LoweringError::new(&site_at(tree, *parent), "restricted trait base disagrees with its resolved declaration"));
+        }
+        let mut all_members = Vec::new();
+        for &child in clauses {
+            let clause = site_at(tree, child);
+            let checked = prepared.typed().refinements.iter()
+                .find(|r| r.schema == *declaration && r.site == clause && file.nodes[child].kind == NodeKind::Restriction)
+                .ok_or_else(|| LoweringError::new(&clause, "restriction lacks its checked wildcard clause"))?;
+            let axes = &file.nodes[child].children;
+            if axes.iter().any(|&n| match file.nodes[n].kind {
+                NodeKind::Blocks | NodeKind::Suspends => file.nodes[n].pause_flag() != Some(omega_syntax::PauseFlag::Explicit(false)),
+                NodeKind::Reaches | NodeKind::Terminates => false,
+                _ => true,
+            }) || axes.iter().filter(|&&n| file.nodes[n].kind == NodeKind::Reaches).count() > 1 {
+                return Err(LoweringError::new(&clause, "unsupported wildcard contract refinement"));
+            }
+            all_members.push(crate::MemberRestriction {
+                prohibits_block: checked.prohibits_block,
+                prohibits_suspend: checked.prohibits_suspend,
+                reach: checked.reach.as_deref().map(|r| super::members::reach(r, Clone::clone, &clause)).transpose()?,
+                requires_termination: checked.terminates,
+            });
+        }
+        return Ok(TraitSchema {
+            declaration,
+            public: resolved.is_exported(node),
+            boundary: false,
+            restriction: Some(crate::TraitRestriction {
+                base: crate::TemplateRequirementSlot { declaration: crate::identity::declaration(&base.declaration, &site)?, arguments: Vec::new() },
+                all_members,
+            }),
+            site,
+            parameters,
+            dependent_requirements: Vec::new(),
+            requirements: Vec::new(),
+        });
     }
     let mut dependent_requirements = Vec::new();
     for &child in &file.nodes[node].children {
@@ -147,6 +193,7 @@ pub(crate) fn read_trait<'a>(
         site,
         public: resolved.is_exported(node),
         boundary: file.nodes[node].has_boundary_modifier(),
+        restriction: None,
         parameters,
         dependent_requirements,
         requirements,
@@ -179,6 +226,11 @@ fn generic_requirement(
 }
 
 impl<'a> TraitSchema<'a> {
+    /// Bodyless ordinary requirements available to calls through a supplied record.
+    pub(super) fn unapplied_members(&self) -> impl Iterator<Item = &'a DeclarationId> {
+        self.requirements.iter().filter(|r| !self.boundary && self.parameters.is_empty() && r.indices.is_empty()).map(|r| &r.signature.machine)
+    }
+
     pub(crate) fn collect_carriers(
         &self,
         carriers: &mut Vec<(&'a ValueType, Site)>,
@@ -224,9 +276,9 @@ impl<'a> TraitSchema<'a> {
                 .then(|| id(&sig.result))
                 .transpose()?;
             for (index, (_, ty)) in sig.parameters.iter().enumerate() {
-                append_domain_predicates(&mut r.requires, ty, PredicateStep::Formal(index), domains);
+                append_domain_predicates(&mut r.requires, ty, PredicateStep::Formal(index), domains)?;
             }
-            append_domain_predicates(&mut r.ensures, &sig.result, PredicateStep::Result, domains);
+            append_domain_predicates(&mut r.ensures, &sig.result, PredicateStep::Result, domains)?;
             let reach = sig
                 .reach
                 .as_deref()
@@ -252,6 +304,7 @@ impl<'a> TraitSchema<'a> {
             declaration: crate::identity::declaration(self.declaration, &self.site)?,
             public: self.public,
             boundary: self.boundary,
+            restriction: self.restriction,
             parameters: self.parameters,
             dependent_requirements: self.dependent_requirements,
             requirements,

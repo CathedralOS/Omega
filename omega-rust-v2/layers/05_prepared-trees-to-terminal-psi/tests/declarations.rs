@@ -353,12 +353,60 @@ fn alias_assertion_survives_structural_and_generic_expansion() {
 #[test]
 fn alias_with_carry_stops_at_its_attributes() {
     let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
-    sources::refuse(
-        &[("alias.omg", source)],
+    let files = [("alias.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let typed = prepared.typed();
+    let (id, target) = typed.type_alias_targets.iter().find(|(id, _)| id.path == "Alias").unwrap();
+    assert_eq!(target, &omega_typed::ValueType::Integer { signed: false, width: Some(64) });
+    let properties = &typed.type_alias_properties[id];
+    assert_eq!(properties.multiplicity, Multiplicity::Copy);
+    assert_eq!(properties.carry, Some(omega_typed::Carry {
+        allows_suspension: false, requires_same_cpu: true, requires_same_thread: false, requires_stable_address: false,
+    }));
+    assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
+    sources::refuse_prepared(
+        &prepared,
+        &files,
         "alias.omg",
         sources::unique_span(source, "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]"),
         "transparent alias carry policy requires a checked relation to its expansion",
     );
+}
+
+#[test]
+fn parked_alias_uses_the_selected_nominal_carriers_carry() {
+    use omega_lowering::{OwnedCustody, Parameter};
+    for (selected, allowed) in [("Mobile", true), ("Fixed", false)] {
+        let source = format!("data Mobile [carry(suspension:allowed,cpu:any,thread:any,address:movable,)] {{key:u64;}}
+            data Fixed [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] {{key:u64;}}
+            data Alias = {selected};
+            data Held {{item:Alias;}}
+            machine wait() suspends {{}}
+            machine hold(x:Held)->Held suspends {{suspend wait();x}}");
+        let package = lower(&[("alias.omg", &source)]).unwrap();
+        let [alias] = package.aliases.as_slice() else { panic!("one alias") };
+        assert_eq!(alias.declaration.path, "Alias");
+        let target = package.data.iter().find(|d| d.declaration.path == selected).unwrap();
+        assert_eq!(package.data.len(), 3);
+        let held = package.data.iter().find(|d| d.declaration.path == "Held").unwrap();
+        let [item] = held.fields.as_slice() else { panic!("one live field") };
+        assert_eq!(item.declaration.path, "Held::item");
+        let body = &package.machines.iter().find(|m| m.declaration.path == "hold").unwrap().body;
+        let [crossing] = body.suspension_sites.as_slice() else { panic!("one suspension") };
+        let [owner] = crossing.retained_owners.as_slice() else { panic!("one retained owner") };
+        assert_eq!(body.parameters, [Parameter::Structural(owner.place)]);
+        assert_eq!(owner.custody, OwnedCustody::Caller);
+        assert!(owner.moved.is_empty());
+        spec_corpus::observe_handoff!(psi "psi-output/parked-alias-target-carry",
+            assert_eq!(
+                (&alias.target, package.types.get(owner.ty), package.types.get(item.carrier), target.carry.as_ref()),
+                (&AliasTarget::Declaration(target.declaration.clone()), Some(&TypeShape::Nominal(held.id)), Some(&TypeShape::Nominal(target.id)),
+                    Some(&omega_typed::Carry { allows_suspension: allowed, requires_same_cpu: !allowed,
+                        requires_same_thread: false, requires_stable_address: !allowed }))
+            ),
+        );
+    }
 }
 
 fn alias_expansion<'a>(

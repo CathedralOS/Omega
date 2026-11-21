@@ -49,15 +49,49 @@ fn fixed_sample_configurations_through_l5() {
     for (case, previous) in cases::CASES.iter().zip(expected) {
         let build = blob(case.directory, "build.omg");
         case.confirm_configuration(std::str::from_utf8(&build).unwrap());
-        let files = match case.main_override {
-            Some(main) => current_import_files(main),
+        let files: Vec<_> = match case.migrated {
+            Some(sources) => sources
+                .iter()
+                .map(|&(path, bytes)| (path, bytes.to_vec()))
+                .collect(),
             None => case
                 .files
                 .iter()
                 .map(|&path| (path, blob(case.directory, path)))
                 .collect(),
         };
-        let observation = case.expectation.observe(&files);
+        // The root's Build recipe registers each dependency; its own recipe names the package.
+        let mut sources: Vec<(&str, &str, Vec<u8>)> = files
+            .into_iter()
+            .map(|(path, bytes)| (pipeline::ROOT, path, bytes))
+            .collect();
+        let mut admitted = Vec::new();
+        for dependency in case.dependencies {
+            let recipe = blob(dependency.directory, "build.omg");
+            assert!(
+                std::str::from_utf8(&recipe)
+                    .unwrap()
+                    .contains(dependency.configuration),
+                "{}: dependency package declaration absent from pinned build.omg",
+                case.id
+            );
+            sources.extend(
+                dependency
+                    .files
+                    .iter()
+                    .map(|&path| (dependency.package, path, blob(dependency.directory, path))),
+            );
+            admitted.push(omega_resolver::Dependency {
+                requester: pipeline::ROOT,
+                alias: dependency.alias,
+                package: dependency.package,
+            });
+        }
+        let sources: Vec<_> = sources
+            .iter()
+            .map(|(package, path, bytes)| (*package, *path, bytes.as_slice()))
+            .collect();
+        let observation = case.expectation.observe_admitted(&sources, &admitted);
         let actual = &observation.actual;
         // Every refusal is reported with its location, whether or not the case expects it.
         if let cases::Actual::Refused(refusal) = actual {
@@ -70,7 +104,6 @@ fn fixed_sample_configurations_through_l5() {
                 let status = match actual {
                     cases::Actual::Product { .. } => "unexpected Psi product",
                     cases::Actual::Refused(_) => "inspection failed",
-                    cases::Actual::MissingSetup(_) => unreachable!("a missing configuration has no compiler expectation"),
                 };
                 println!(
                     "OMEGA_CASE\tsample\t{}\t{stage}\t{status}\t{}",
@@ -95,7 +128,6 @@ fn fixed_sample_configurations_through_l5() {
                 (cases::Expectation::MustRefuse(_), _) => "intended rejection verified",
                 (cases::Expectation::ExpectCheckerRefusal(_), cases::Actual::Product { .. }) => "expected L6 refusal unverified",
                 (_, cases::Actual::Product { .. }) => "executable product inspected",
-                _ if stage == "setup" => "missing context",
                 _ => "compatibility blocked",
             };
             println!(
@@ -116,9 +148,35 @@ fn fixed_sample_configurations_through_l5() {
 fn current_import_files(main: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     vec![
         ("main.omg", main.to_vec()),
-        ("m/a.omg", include_bytes!("fixtures/direct_file_imports/m/a.omg").to_vec()),
-        ("m/b.omg", include_bytes!("fixtures/direct_file_imports/m/b.omg").to_vec()),
+        (cases::IMPORT_A.0, cases::IMPORT_A.1.to_vec()),
+        (cases::IMPORT_B.0, cases::IMPORT_B.1.to_vec()),
     ]
+}
+
+/// A migrated twin replaces only the retired `Main::main` owner with the free
+/// machine `main` and its call. Every other byte comes from the pinned history.
+#[test]
+#[ignore = "reads the pinned sample revision from repository history"]
+fn migrated_samples_change_only_the_retired_machine_owner() {
+    for id in ["cross-width-v2", "rational-landing-v2"] {
+        let case = cases::CASES.iter().find(|case| case.id == id).unwrap();
+        let Some(&[("main.omg", migrated)]) = case.migrated else {
+            panic!("{id}: expected one migrated main.omg");
+        };
+        let object = format!("{REVISION}:samples/cli/{}/main.omg", case.directory);
+        let output = Command::new("git")
+            .args(["cat-file", "blob", &object])
+            .output()
+            .expect("start git");
+        assert!(output.status.success(), "cannot read {object}");
+        let historical = String::from_utf8(output.stdout).unwrap();
+        let (owner, call) = ("machine Main::main(", "    Main::main(@mut entry_storage);");
+        assert_eq!((historical.matches(owner).count(), historical.matches(call).count()), (1, 1), "{id}");
+        let expected = historical
+            .replace(owner, "machine main(")
+            .replace(call, "    main(@mut entry_storage);");
+        assert_eq!(std::str::from_utf8(migrated).unwrap(), expected, "{id}");
+    }
 }
 
 #[test]
@@ -135,6 +193,40 @@ fn directory_import_and_its_missing_import_twin() {
     );
     let refusal = pipeline::lower(&current_import_files(twin.as_bytes())).unwrap_err();
     assert_eq!(refusal.to_string(), cases::MISSING_IMPORT);
+}
+
+/// The lawful twin of `import-from-dependency`: it imports the declaration instead of a file.
+fn dependency_import_sources(main: &'static [u8]) -> [(&'static str, &'static str, &'static [u8]); 3] {
+    let [kit] = cases::KIT else { unreachable!() };
+    [
+        (pipeline::ROOT, "main.omg", main),
+        (kit.package, "main.omg", include_bytes!("fixtures/dependency_import/dep/main.omg")),
+        (kit.package, "other.omg", include_bytes!("fixtures/dependency_import/dep/other.omg")),
+    ]
+}
+
+#[test]
+fn a_build_admitted_alias_imports_a_dependency_declaration_and_its_absence_refuses() {
+    let [kit] = cases::KIT else { unreachable!() };
+    let edge = omega_resolver::Dependency {
+        requester: pipeline::ROOT,
+        alias: kit.alias,
+        package: kit.package,
+    };
+    let main = include_bytes!("fixtures/dependency_import/main.omg");
+    let sources = dependency_import_sources(main);
+    let product = pipeline::lower_admitted(&sources, &[edge]).expect("the admitted alias must lower");
+    assert!(
+        cases::Check::DependencyCall.matches(&product),
+        "expected entry to return the call to mod_kernel's other_v"
+    );
+    // The negative twin differs only in the Build admission: without the edge `kit` names nothing.
+    let refusal = pipeline::lower_admitted(&sources, &[]).unwrap_err();
+    assert_eq!(refusal.to_string(), "L2\tmain.omg:3:5\tunavailable import kit\\other_v");
+    // The historical program imports the file name. The admitted edge leaves `kit\other` unbound.
+    let historical = b"use kit\\other;\nmachine entry() -> i32 {\n    other_v()\n}\n";
+    let refusal = pipeline::lower_admitted(&dependency_import_sources(historical), &[edge]).unwrap_err();
+    assert_eq!(refusal.to_string(), "L2\tmain.omg:1:5\tunavailable import kit\\other");
 }
 
 #[test]

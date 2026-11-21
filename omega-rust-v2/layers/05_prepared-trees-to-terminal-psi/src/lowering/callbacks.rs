@@ -142,8 +142,8 @@ pub(crate) fn stored_ceilings<'a>(typed: &'a omega_typed::TypedTrees<'_>) -> Has
 /// Specialize the L3 pause formula of one instance: its fixed term united with,
 /// per callback binder, the selected closed callback's own demand intersected
 /// with that binder's term. A call can carry reach while retaining this envelope.
-/// `None` keeps unsupported routes closed: an unbound or unknown target, any
-/// blocking, and a runtime or stored descriptor that may pause. Only synchronous
+/// `None` keeps unsupported callback routes closed: an unbound or unknown target,
+/// a blocking callback, or a runtime or stored descriptor that may pause. Only synchronous
 /// suspension of known, locally selected targets is admitted.
 pub(crate) fn realized_pause(
     effects: &MachineEffects,
@@ -152,13 +152,14 @@ pub(crate) fn realized_pause(
     summaries: &HashMap<&DeclarationId, &MachineEffects>,
     stored: &HashMap<&omega_typed::Site, bool>,
 ) -> Option<PauseEffects> {
+    // Crash routes have their own invocation checks and instance dependency
+    // rows. A crash ceiling is not a pause demand.
     let known = |sig: &TypedSignature| {
         summaries.get(&sig.machine).copied().filter(|row| {
             !sig.pause.declared().block
                 && !row.pause.block
                 && row.reach.is_empty()
                 && sig.reach.as_ref().is_none_or(Vec::is_empty)
-                && sig.crash_ceiling.as_ref().is_none_or(Vec::is_empty)
         })
     };
     // A selected callback is closed, so its whole demand is its fixed term.
@@ -188,6 +189,7 @@ pub(crate) fn realized_pause(
     for (&slot, &bound) in &effects.callback_pause {
         realized.union(demand(slot)?.intersect(bound));
     }
-    // Blocking stays unsupported until it has its own lowering.
-    (!realized.block).then_some(realized)
+    // A declaration may publish a blocking envelope even if it is not called.
+    // The call consumer still refuses an actual crossing with that envelope.
+    Some(realized)
 }

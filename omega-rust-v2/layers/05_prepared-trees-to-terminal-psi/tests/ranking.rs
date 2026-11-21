@@ -5,8 +5,8 @@ mod sources;
 mod pending;
 
 use omega_lowering::{
-    BlockTerminator, CallArgument, IntegerPrimitive, LoweredMachine, LoweredPackage, LoweringError, MachineRanking, OperationKind, OperationResult, Parameter,
-    RankComparison, RankExpression, RankOrder, RankRelation, ScalarType, ValueId,
+    BlockTerminator, CallArgument, CallSite, IntegerPrimitive, LoweredMachine, LoweredPackage, LoweringError, MachineRanking, OperationKind, OperationResult, Parameter,
+    RankComparison, RankExpression, RankOperand, RankOrder, RankRelation, ScalarType, ValueId,
 };
 
 fn lower(source: &str) -> Result<LoweredPackage, LoweringError> {
@@ -93,11 +93,11 @@ fn countdown_claims_strict_descent(package: &LoweredPackage) {
     assert_eq!(witness.view.package, "@omega/toolchain");
     assert_eq!(witness.view.path, "language\\core\\Nat\\Descending");
     assert_eq!(witness.relation, NATURAL_U64);
-    assert_eq!(witness.rank, RankExpression::Operand(0));
+    assert_eq!(witness.rank, RankExpression::Operand(RankOperand::Input(0)));
     assert_eq!(witness.bounds, None);
     assert_eq!(witness.component, [count.id]);
     let n = formal(count, 0);
-    assert_eq!(witness.source_rank(&count.body.parameters), Some(RankExpression::Operand(n)));
+    assert_eq!(witness.source_rank(&count.body.parameters), Some(RankExpression::Operand(RankOperand::Input(n))));
     let decremented = operation_result(count, IntegerPrimitive::Subtract, n);
 
     // Two terminal transfers exist; only the one back into the component is claimed.
@@ -120,8 +120,8 @@ fn countdown_claims_strict_descent(package: &LoweredPackage) {
     let BlockTerminator::TerminalCall { id, callee, arguments, .. } = &block.terminator else {
         panic!("the claim must name a terminal call block")
     };
-    assert_eq!((*id, *callee), (edge.edge, omega_lowering::CallTarget::Machine(count.id)));
-    assert_eq!(edge.forwarded_call, None);
+    assert_eq!((edge.call, *callee), (CallSite::Edge(*id), omega_lowering::CallTarget::Machine(count.id)));
+    assert_eq!(edge.forwarding_return, None);
     assert_eq!(edge.target, count.id);
     assert_eq!(*arguments, [CallArgument::Scalar(decremented)]);
     assert_ne!(decremented, n);
@@ -130,7 +130,7 @@ fn countdown_claims_strict_descent(package: &LoweredPackage) {
         "canonical-ranking-view/consumer",
         assert_eq!(
             (&edge.successor, &edge.comparison),
-            (&RankExpression::Operand(decremented), &RankComparison::Strict)
+            (&Some(RankExpression::Operand(RankOperand::Input(decremented))), &RankComparison::Strict)
         )
     );
 }
@@ -156,14 +156,14 @@ fn a_mutual_handoff_preserves_while_the_return_edge_descends() {
         panic!("expected the handoff claim")
     };
     assert_eq!(handoff.target, second.id);
-    assert_eq!(handoff.successor, RankExpression::Operand(formal(first, 0)));
+    assert_eq!(handoff.successor, Some(RankExpression::Operand(RankOperand::Input(formal(first, 0)))));
     assert_eq!(handoff.comparison, RankComparison::Preserving);
     let [back] = ranking(second).edges.as_slice() else {
         panic!("expected the return claim")
     };
     let n = formal(second, 0);
     assert_eq!(back.target, first.id);
-    assert_eq!(back.successor, RankExpression::Operand(operation_result(second, IntegerPrimitive::Subtract, n)));
+    assert_eq!(back.successor, Some(RankExpression::Operand(RankOperand::Input(operation_result(second, IntegerPrimitive::Subtract, n)))));
     assert_eq!(back.comparison, RankComparison::Strict);
 }
 
@@ -179,7 +179,7 @@ fn a_bounded_distance_witness_substitutes_both_actual_successor_arguments() {
     let witness = ranking(climb);
     assert_eq!(witness.view.path, "language\\core\\Nat\\BoundedDistance");
     assert_eq!(witness.relation, NATURAL_U64);
-    assert_eq!(witness.rank, RankExpression::SaturatingDistance { cursor: 0, limit: 1 });
+    assert_eq!(witness.rank, RankExpression::SaturatingDistance { cursor: RankOperand::Input(0), limit: RankOperand::Input(1) });
     let bounds = witness.bounds.as_ref().unwrap();
     assert_eq!(
         (bounds.lower.clone(), bounds.upper.clone(), bounds.upper_inclusive),
@@ -193,10 +193,10 @@ fn a_bounded_distance_witness_substitutes_both_actual_successor_arguments() {
         "ranking-witnesses/consumer",
         assert_eq!(
             edge.successor,
-            RankExpression::SaturatingDistance {
-                cursor: operation_result(climb, IntegerPrimitive::Add, i),
-                limit,
-            }
+            Some(RankExpression::SaturatingDistance {
+                cursor: RankOperand::Input(operation_result(climb, IntegerPrimitive::Add, i)),
+                limit: RankOperand::Input(limit),
+            })
         )
     );
     assert_eq!(edge.comparison, RankComparison::Strict);
@@ -209,9 +209,9 @@ fn an_advancing_cursor_already_at_the_limit_does_not_decrease_distance() {
     }").unwrap();
     let climb = machine(&package, "climb");
     let [edge] = ranking(climb).edges.as_slice() else { panic!("expected one internal call") };
-    assert_eq!(edge.successor, RankExpression::SaturatingDistance {
-        cursor: operation_result(climb, IntegerPrimitive::Add, formal(climb, 0)), limit: formal(climb, 1),
-    });
+    assert_eq!(edge.successor, Some(RankExpression::SaturatingDistance {
+        cursor: RankOperand::Input(operation_result(climb, IntegerPrimitive::Add, formal(climb, 0))), limit: RankOperand::Input(formal(climb, 1)),
+    }));
     assert_eq!(edge.comparison, RankComparison::Preserving);
 }
 
@@ -237,51 +237,134 @@ fn an_acyclic_witness_keeps_its_bounds_and_claims_no_edges() {
     }
 }
 
-#[test]
-fn a_ranked_terminal_descriptor_call_refuses_at_the_invocation() {
-    let source = "data Step = machine(x:u64)->u64 reaches none crashes none terminates;
-        machine run(f:Step, n:u64)->u64 terminates {transition {_ -> f(n),}}";
-    let package = lower(source).unwrap();
-    let run = machine(&package, "run");
-    assert!(run.contract.promises_termination && run.contract.ranking.is_none());
-    let (edge, descriptor, contract, arguments) = run.body.blocks.iter().find_map(|block| match &block.terminator {
-        BlockTerminator::TerminalCall { id, callee: omega_lowering::CallTarget::Runtime { descriptor, contract }, arguments, .. } => {
-            Some((*id, *descriptor, *contract, arguments))
-        }
-        _ => None,
-    }).expect("the terminal edge invokes the descriptor");
-    assert_eq!(descriptor, formal(run, 0));
-    assert_eq!(arguments.as_slice(), [CallArgument::Scalar(formal(run, 1))]);
-    assert_eq!(package.types.get(run.parameter_types[0]), Some(&omega_lowering::TypeShape::Callable(contract)));
-    assert!(package.callable_contracts[contract.index()].terminates);
-    assert_eq!(run.body.diagnostics.edges[edge.get() - 1].span.slice(source.as_bytes()), Some(b"f(n)".as_slice()));
+/// The executable Psi of `run`: everything but source sites, which move when
+/// a clause is added to the header.
+fn executable(run: &LoweredMachine) -> impl PartialEq + std::fmt::Debug + '_ {
+    let body = &run.body;
+    (&body.blocks, &body.operations, &body.parameters, &body.places, &body.values, &body.suspension_sites, &body.call_acknowledgements)
+}
 
-    // The contract and call are unchanged. Adding a private rank, not merely
-    // promising termination, makes this otherwise acyclic caller refuse.
-    let ranked = source.replace("terminates {transition", "terminates by n {transition");
-    refuses_at(
-        &ranked,
-        sources::unique_span(&ranked, "f(n)"),
-        "lowering cannot include an indirect terminal call in the caller's rank graph",
+/// A descriptor call is applied through its callable contract, not ranked.
+/// Adding a private rank to the caller keeps the call exactly as the bare
+/// promise lowered it and claims no edge for it: the descriptor's target is
+/// outside every local component. The checker discharges the call's progress
+/// from `callable_contracts[contract].terminates`; a contract without
+/// `terminates` lowers the same way and gives that checker nothing to cite.
+fn ranked_descriptor_call(
+    unranked: &str,
+    clause: &str,
+    terminal: bool,
+) -> (LoweredPackage, omega_lowering::CallableContractId) {
+    let ranked = unranked.replace(clause, &clause.replace("terminates", "terminates by n"));
+    assert_ne!(ranked, unranked);
+    let promised = lower(unranked).unwrap();
+    let package = lower(&ranked).unwrap();
+    let (bare, run) = (machine(&promised, "run"), machine(&package, "run"));
+    assert!(bare.contract.promises_termination && bare.contract.ranking.is_none());
+    assert!(run.contract.promises_termination);
+    assert_eq!(executable(run), executable(bare));
+    let found: Vec<_> = if terminal {
+        run.body.blocks.iter().filter_map(|block| match &block.terminator {
+            BlockTerminator::TerminalCall { id, callee, arguments, .. } => {
+                Some((callee, arguments, &run.body.diagnostics.edges[id.get() - 1]))
+            }
+            _ => None,
+        }).collect()
+    } else {
+        run.body.operations.iter().filter_map(|op| match &op.kind {
+            OperationKind::Call { callee, arguments, .. } => Some((callee, arguments, &run.body.diagnostics.operations[op.id.index()])),
+            _ => None,
+        }).collect()
+    };
+    let [(omega_lowering::CallTarget::Runtime { descriptor, contract }, arguments, site)] = found.as_slice() else {
+        panic!("expected exactly one descriptor invocation: {found:?}")
+    };
+    assert_eq!(*descriptor, formal(run, 0));
+    assert_eq!(arguments.as_slice(), [CallArgument::Scalar(formal(run, 1))]);
+    assert_eq!(site.span.slice(ranked.as_bytes()), Some(b"f(n)".as_slice()));
+    assert_eq!(package.types.get(run.parameter_types[0]), Some(&omega_lowering::TypeShape::Callable(*contract)));
+    let witness = ranking(run);
+    assert_eq!((witness.relation, &witness.rank), (NATURAL_U64, &RankExpression::Operand(RankOperand::Input(1))));
+    let contract = *contract;
+
+    // Negative twin: the same ranked caller and call through a descriptor that
+    // promises no termination. Lowering still emits it; only the contract
+    // the checker must cite differs, and that checker has to refuse.
+    let silent = ranked.replace("crashes none terminates;", "crashes none;");
+    assert_ne!(silent, ranked);
+    let twin = lower(&silent).unwrap();
+    let silent_run = machine(&twin, "run");
+    assert!(ranking(silent_run).edges.is_empty());
+    let omega_lowering::TypeShape::Callable(silent_contract) = twin.types.get(silent_run.parameter_types[0]).unwrap() else {
+        panic!("expected a callable formal")
+    };
+    assert!(!twin.callable_contracts[silent_contract.index()].terminates);
+    (package, contract)
+}
+
+#[test]
+fn a_ranked_terminal_descriptor_call_stays_outside_the_component() {
+    let (package, contract) = ranked_descriptor_call(
+        "data Step = machine(x:u64)->u64 reaches none crashes none terminates;
+        machine run(f:Step, n:u64)->u64 terminates {transition {_ -> f(n),}}",
+        "terminates {transition",
+        true,
+    );
+    let run = machine(&package, "run");
+    let witness = ranking(run);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/ranked-descriptor-terminal-call",
+        assert_eq!(
+            (witness.component.as_slice(), witness.edges.as_slice(), package.callable_contracts[contract.index()].terminates),
+            ([run.id].as_slice(), [].as_slice(), true)
+        ),
     );
 }
 
 #[test]
-fn a_ranked_ordinary_descriptor_call_refuses_at_the_invocation() {
+fn a_ranked_ordinary_descriptor_call_stays_outside_the_component() {
+    let (package, contract) = ranked_descriptor_call(
+        "data Step = machine(x:u64)->u64 reaches none crashes none terminates;
+        machine run(f:Step,n:u64)->u64 terminates {let answer=f(n); answer}",
+        "terminates {let",
+        false,
+    );
+    let run = machine(&package, "run");
+    let witness = ranking(run);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/ranked-descriptor-ordinary-call",
+        assert_eq!(
+            (witness.component.as_slice(), witness.edges.as_slice(), package.callable_contracts[contract.index()].terminates),
+            ([run.id].as_slice(), [].as_slice(), true)
+        ),
+    );
+}
+
+#[test]
+fn a_descriptor_exit_from_a_ranked_cycle_claims_only_the_recursive_edge() {
+    // The descriptor is forwarded on the recursive edge as an ordinary actual;
+    // only that edge enters the component, and its rank substitutes the count.
     let source = "data Step = machine(x:u64)->u64 reaches none crashes none terminates;
-        machine run(f:Step,n:u64)->u64 terminates {let answer=f(n); answer}";
+        machine run(f:Step, n:u64)->u64 terminates by n {transition n == 0 {true -> f(n), false -> run(f, n - 1),}}";
     let package = lower(source).unwrap();
     let run = machine(&package, "run");
-    assert!(run.body.operations.iter().any(|operation| matches!(&operation.kind,
-        omega_lowering::OperationKind::Call { callee: omega_lowering::CallTarget::Runtime { descriptor, contract }, .. }
-            if *descriptor == formal(run, 0) && package.callable_contracts[contract.index()].terminates)));
-
-    let ranked = source.replace("terminates {let", "terminates by n {let");
-    refuses_at(
-        &ranked,
-        sources::unique_span(&ranked, "f(n)"),
-        "lowering cannot include an indirect call in the caller's rank graph",
-    );
+    let witness = ranking(run);
+    assert_eq!(witness.component, [run.id]);
+    let [edge] = witness.edges.as_slice() else { panic!("expected only the recursive edge") };
+    let block = &run.body.blocks[edge.block.get() - 1];
+    let BlockTerminator::TerminalCall { id, callee, arguments, .. } = &block.terminator else {
+        panic!("expected the recursive terminal call")
+    };
+    let next = operation_result(run, IntegerPrimitive::Subtract, formal(run, 1));
+    assert_eq!((edge.call, *callee), (CallSite::Edge(*id), omega_lowering::CallTarget::Machine(run.id)));
+    assert_eq!(edge.forwarding_return, None);
+    assert_eq!(*arguments, [CallArgument::Scalar(formal(run, 0)), CallArgument::Scalar(next)]);
+    assert_eq!((edge.target, &edge.successor, edge.comparison), (run.id, &Some(RankExpression::Operand(RankOperand::Input(next))), RankComparison::Strict));
+    let exits: Vec<_> = run.body.blocks.iter().filter(|block| matches!(&block.terminator,
+        BlockTerminator::TerminalCall { callee: omega_lowering::CallTarget::Runtime { descriptor, .. }, arguments, .. }
+            if *descriptor == formal(run, 0) && arguments.as_slice() == [CallArgument::Scalar(formal(run, 1))])).collect();
+    assert_eq!(exits.len(), 1);
+    assert_ne!(exits[0].id, edge.block);
 }
 
 #[test]
@@ -339,7 +422,7 @@ fn ranked_ordinary_call_binds_the_call_operation_forwarding_return_and_actual_ra
         assert_eq!(w.component, [count.id]);
         assert_eq!(w.relation, NATURAL_U64);
         let n = formal(count, 0);
-        assert_eq!(w.source_rank(&count.body.parameters), Some(RankExpression::Operand(n)));
+        assert_eq!(w.source_rank(&count.body.parameters), Some(RankExpression::Operand(RankOperand::Input(n))));
         let next = if actual == "n" { n } else {
             let value = operation_result(count, IntegerPrimitive::Subtract, n);
             let omega_lowering::ValueOrigin::Operation(def) = count.body.values[value.index()].origin else { panic!("expected subtraction") };
@@ -356,19 +439,19 @@ fn ranked_ordinary_call_binds_the_call_operation_forwarding_return_and_actual_ra
         let [edge] = w.edges.as_slice() else { panic!("expected only the in-component call") };
         spec_corpus::observe_handoff!(
             psi "psi-output/ordinary-rank-successor",
-            assert_eq!((edge.target, &edge.successor, edge.comparison), (count.id, &RankExpression::Operand(next), comparison)),
+            assert_eq!((edge.target, &edge.successor, edge.comparison), (count.id, &Some(RankExpression::Operand(RankOperand::Input(next))), comparison)),
         );
         let body = &count.body;
         let block = body.blocks.iter().find(|b| b.id == edge.block).unwrap();
         let op = body.operations[block.operations.clone()].last().unwrap();
-        spec_corpus::observe_handoff!(psi "psi-output/ordinary-rank-call", assert_eq!(edge.forwarded_call, Some(op.id)));
+        spec_corpus::observe_handoff!(psi "psi-output/ordinary-rank-call", assert_eq!(edge.call, CallSite::Operation(op.id)));
         assert_eq!(body.diagnostics.operations[op.id.index()], call_site);
         assert!(matches!(&op.kind, OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), arguments, .. }
             if *target == edge.target && arguments.as_slice() == [CallArgument::Scalar(next)]));
         let BlockTerminator::Return { id, result: omega_lowering::ReturnEdge::Scalar(returned), cleanup } = &block.terminator else {
             panic!("expected a forwarding return")
         };
-        assert_eq!(*id, edge.edge);
+        assert_eq!(edge.forwarding_return, Some(*id));
         assert_eq!(op.result, OperationResult::Scalar(*returned));
         assert_eq!(body.values[returned.index()].origin, omega_lowering::ValueOrigin::Operation(op.id));
         assert!(cleanup.is_empty());
@@ -379,16 +462,16 @@ fn ranked_ordinary_call_binds_the_call_operation_forwarding_return_and_actual_ra
 /// Check the claim against the actual forwarding call, not just the role tag.
 fn ordinary_rank_actual(caller: &LoweredMachine, callee: &LoweredMachine, role: RankComparison) -> ValueId {
     let [edge] = ranking(caller).edges.as_slice() else { panic!("expected one internal call") };
-    let RankExpression::Operand(slot) = ranking(callee).rank else { panic!("expected a scalar rank") };
+    let RankExpression::Operand(RankOperand::Input(slot)) = ranking(callee).rank else { panic!("expected a scalar rank") };
     let block = &caller.body.blocks[edge.block.get() - 1];
     let call = caller.body.operations[block.operations.clone()].last().unwrap();
     let OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), arguments, .. } = &call.kind else { panic!("expected call") };
     let CallArgument::Scalar(actual) = arguments[slot] else { panic!("expected scalar actual") };
-    assert_eq!(edge.forwarded_call, Some(call.id));
+    assert_eq!(edge.call, CallSite::Operation(call.id));
     assert_eq!((*target, edge.target, edge.comparison), (callee.id, callee.id, role));
-    assert_eq!(edge.successor, RankExpression::Operand(actual));
+    assert_eq!(edge.successor, Some(RankExpression::Operand(RankOperand::Input(actual))));
     assert!(matches!(&block.terminator, BlockTerminator::Return { id, result: omega_lowering::ReturnEdge::Scalar(v), cleanup }
-        if *id == edge.edge && call.result == OperationResult::Scalar(*v) && cleanup.is_empty()));
+        if edge.forwarding_return == Some(*id) && call.result == OperationResult::Scalar(*v) && cleanup.is_empty()));
     actual
 }
 
@@ -401,8 +484,8 @@ fn ordinary_equal_sibling_preserves_and_the_countdown_back_edge_is_strict() {
             let package = lower(&source).unwrap();
             let first = machine(&package, "first");
             let second = machine(&package, "second");
-            assert_eq!(ranking(first).rank, RankExpression::Operand(0));
-            assert_eq!(ranking(second).rank, RankExpression::Operand(1));
+            assert_eq!(ranking(first).rank, RankExpression::Operand(RankOperand::Input(0)));
+            assert_eq!(ranking(second).rank, RankExpression::Operand(RankOperand::Input(1)));
             assert_eq!(ordinary_rank_actual(first, second, RankComparison::Preserving), formal(first, slot));
             let guard = operation_result(first, IntegerPrimitive::Equal, formal(first, 0));
             let omega_lowering::ValueOrigin::Operation(eq) = first.body.values[guard.index()].origin else { panic!("expected equality") };
@@ -454,32 +537,134 @@ fn a_strict_self_loop_does_not_supply_descent_on_a_parallel_preserving_cycle() {
         assert_eq!(edges.len(), 2);
         for (value, role) in [(formal(count, 1), RankComparison::Preserving),
             (operation_result(count, IntegerPrimitive::Subtract, formal(count, 0)), RankComparison::Strict)] {
-            let edge = edges.iter().find(|e| e.successor == RankExpression::Operand(value)).unwrap();
+            let edge = edges.iter().find(|e| e.successor == Some(RankExpression::Operand(RankOperand::Input(value)))).unwrap();
             assert_eq!((edge.target, edge.comparison), (count.id, role));
             assert!(matches!(&count.body.blocks[edge.block.get() - 1].terminator, BlockTerminator::TerminalCall { id, arguments, .. }
-                if *id == edge.edge && arguments[0] == CallArgument::Scalar(value)));
+                if edge.call == CallSite::Edge(*id) && arguments[0] == CallArgument::Scalar(value)));
         }
     }
+}
+
+/// Check the prepared selections before inspecting L5's continuation and claim.
+fn lower_countdown_continuation(source: &str, cleanup: bool) -> LoweredPackage {
+    let files = [("ranking.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let typed = prepared.typed();
+    let [witness] = typed.ranking_witnesses.as_slice() else { panic!("expected count's rank") };
+    assert_eq!((witness.machine.package.as_str(), witness.machine.path.as_str()), ("app", "count"));
+    let clause = typed.obligations.iter().find(|o| o.node == witness.node && matches!(&o.kind,
+        omega_typed::ObligationKind::Termination(m) if m == &witness.machine)).unwrap();
+    let call = typed.calls.iter().find(|c| c.caller.as_ref() == Some(&witness.machine) && c.machine == witness.machine).unwrap();
+    assert_eq!(call.use_site, omega_typed::CallUse::Execution);
+    let [operand] = call.operands.as_slice() else { panic!("one countdown actual") };
+    assert_eq!(operand.site.span.slice(source.as_bytes()), Some(b"n - 1".as_slice()));
+    assert!(typed.obligations.iter().any(|o| o.site == operand.site && matches!(&o.kind,
+        omega_typed::ObligationKind::OperationContract { token, .. } if token == "-")));
+    if cleanup {
+        let [selection] = typed.cleanups.as_slice() else { panic!("Lease's cleanup selection") };
+        assert_eq!((selection.owner.path.as_str(), selection.machine.path.as_str()), ("Lease", "finish"));
+        assert!(typed.obligations.iter().any(|o| matches!(&o.kind,
+            omega_typed::ObligationKind::CleanupContract(m) if m == &selection.machine)));
+    } else {
+        assert!(typed.obligations.iter().any(|o| o.site.span.slice(source.as_bytes()) == Some(b"count(n - 1) + 1".as_slice()) && matches!(&o.kind,
+            omega_typed::ObligationKind::OperationContract { token, .. } if token == "+")));
+    }
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let count = machine(&package, "count");
+    let (block, op, _) = countdown_call(count, source);
+    assert_eq!(count.body.diagnostics.operations[op.id.index()], call.site);
+    let rank = ranking(count);
+    assert_eq!(rank.site, clause.site);
+    assert_eq!(rank.component, [count.id]);
+    assert_eq!(rank.relation, NATURAL_U64);
+    assert_eq!(rank.source_rank(&count.body.parameters), Some(RankExpression::Operand(RankOperand::Input(formal(count, 0)))));
+    assert_eq!(rank.edges[0].block, block.id);
+    package
+}
+
+/// Locate the authored call from the body, independently of the ranking claim.
+fn countdown_call<'a>(count: &'a LoweredMachine, source: &str) -> (&'a omega_lowering::BranchBlock, &'a omega_lowering::PsiOperation, ValueId) {
+    let next = operation_result(count, IntegerPrimitive::Subtract, formal(count, 0));
+    let site = sources::unique_span(source, "count(n - 1)");
+    let body = &count.body;
+    let mut calls = body.blocks.iter().flat_map(|block| body.operations[block.operations.clone()].iter().map(move |op| (block, op)))
+        .filter(|(_, op)| matches!(&op.kind, OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), arguments, .. }
+            if *target == count.id && arguments.as_slice() == [CallArgument::Scalar(next)]));
+    let (block, op) = calls.next().expect("recursive call with the decremented actual");
+    assert!(calls.next().is_none());
+    assert_eq!(body.diagnostics.operations[op.id.index()].span.slice(source.as_bytes()), Some(&source.as_bytes()[site]));
+    (block, op, next)
 }
 
 #[test]
 fn ranked_ordinary_call_with_work_after_it_is_not_a_tail_transfer() {
     let source = ORDINARY.replace("count(n - 1),", "count(n - 1) + 1,");
-    refuses_at(&source, sources::unique_span(&source, "count(n - 1)"), NON_TAIL);
+    let package = lower_countdown_continuation(&source, false);
+    let count = machine(&package, "count");
+    let (block, call, next) = countdown_call(count, &source);
+    let [claim] = ranking(count).edges.as_slice() else { panic!("one recursive invocation") };
+    let OperationResult::Scalar(result) = call.result else { panic!("scalar call result") };
+    let sum = operation_result(count, IntegerPrimitive::Add, result);
+    let omega_lowering::ValueOrigin::Operation(add) = count.body.values[sum.index()].origin else { panic!("sum definition") };
+    assert!(block.operations.contains(&add.index()) && call.id.index() < add.index());
+    let OperationKind::Integer { operation, operands } = &count.body.operations[add.index()].kind else { panic!("addition") };
+    let omega_lowering::ValueOrigin::Operation(one) = count.body.values[operands[1].index()].origin else { panic!("literal") };
+    assert_eq!(count.body.operations[one.index()].kind, OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(1.into())));
+    assert_eq!(operation.policy, omega_lowering::ArithmeticPolicy::Exact);
+    assert_eq!(operation.obligations, [omega_lowering::IntegerObligation::ResultFitsCarrier]);
+    let BlockTerminator::Return { result: omega_lowering::ReturnEdge::Scalar(returned), cleanup, .. } = &block.terminator else { panic!("scalar return") };
+    assert!(cleanup.is_empty());
+    spec_corpus::observe_handoff!(psi "psi-output/rank-before-add", assert_eq!(
+        (claim.block, claim.call, claim.forwarding_return, claim.target, &claim.successor, claim.comparison, *returned),
+        (block.id, CallSite::Operation(call.id), None, count.id, &Some(RankExpression::Operand(RankOperand::Input(next))), RankComparison::Strict, sum)
+    ));
+    let tail = lower(ORDINARY).unwrap();
+    ordinary_rank_actual(machine(&tail, "count"), machine(&tail, "count"), RankComparison::Strict);
 }
-
-const NON_TAIL: &str = "ranked recursion needs a terminal call or a direct cleanup-free scalar tail transfer";
 
 #[test]
 fn forwarding_the_call_result_with_cleanup_is_not_a_tail_transfer() {
     let source = "data Lease dropped by finish {mark:u8;}
         machine finish(x:Lease) {let Lease {mark as _}=x;}
         machine count(n:u64)->u64 terminates by n { let x=Lease {mark:0}; count(n - 1) }";
-    refuses_at(source, sources::unique_span(source, "count(n - 1)"), NON_TAIL);
+    let package = lower_countdown_continuation(source, true);
+    let count = machine(&package, "count");
+    let finish = machine(&package, "finish");
+    let (block, call, next) = countdown_call(count, source);
+    let [claim] = ranking(count).edges.as_slice() else { panic!("one in-component call, not finish") };
+    assert_eq!(ranking(count).component, [count.id]);
+    let BlockTerminator::Return { result: omega_lowering::ReturnEdge::Scalar(returned), cleanup, .. } = &block.terminator else { panic!("scalar return") };
+    let [omega_lowering::CleanupAction::Invoke { place, ty, target }] = cleanup.as_slice() else { panic!("selected nominal cleanup") };
+    let lease = count.body.operations[block.operations.start..call.id.index()].iter().find(|op| matches!(op.kind, OperationKind::EstablishRecord { .. })).unwrap();
+    assert!(place.path.is_empty());
+    assert_eq!(lease.result, OperationResult::Structural(place.root));
+    spec_corpus::observe_handoff!(psi "psi-output/rank-before-cleanup", assert_eq!(
+        (claim.block, claim.call, claim.forwarding_return, claim.target, &claim.successor, claim.comparison, call.result, *target, *ty),
+        (block.id, CallSite::Operation(call.id), None, count.id, &Some(RankExpression::Operand(RankOperand::Input(next))), RankComparison::Strict, OperationResult::Scalar(*returned), finish.id, finish.parameter_types[0])
+    ));
+    let tail = lower(&source.replace("let x=Lease {mark:0}; ", "")).unwrap();
+    ordinary_rank_actual(machine(&tail, "count"), machine(&tail, "count"), RankComparison::Strict);
 }
 
 #[test]
-fn unsupported_or_incomplete_ranked_components_refuse() {
+fn two_recursive_calls_before_one_return_have_distinct_rank_claims() {
+    let source = ORDINARY.replace("count(n - 1),", "count(n - 1) + count(n),");
+    let package = lower(&source).unwrap();
+    let count = machine(&package, "count");
+    let (block, first, decremented) = countdown_call(count, &source);
+    let second = count.body.operations[block.operations.clone()].iter().find(|op| matches!(&op.kind,
+        OperationKind::Call { callee: omega_lowering::CallTarget::Machine(id), arguments, .. }
+            if *id == count.id && arguments.as_slice() == [CallArgument::Scalar(formal(count, 0))])).unwrap();
+    let claims: Vec<_> = ranking(count).edges.iter().map(|c| (c.block, c.call, c.forwarding_return, &c.successor, c.comparison)).collect();
+    assert_eq!(claims, [
+        (block.id, CallSite::Operation(first.id), None, &Some(RankExpression::Operand(RankOperand::Input(decremented))), RankComparison::Strict),
+        (block.id, CallSite::Operation(second.id), None, &Some(RankExpression::Operand(RankOperand::Input(formal(count, 0)))), RankComparison::Preserving),
+    ]);
+}
+
+#[test]
+fn a_forwarded_ordinary_call_and_its_terminal_twin_expose_the_same_recursive_edge() {
     let ordinary = ORDINARY;
 
     // An ordinary call in Psi need not mean there is source work after it:
@@ -503,44 +688,167 @@ fn unsupported_or_incomplete_ranked_components_refuse() {
         panic!("expected one in-component edge")
     };
     assert_eq!((edge.target, edge.comparison), (count.id, RankComparison::Strict));
-    assert_eq!(edge.successor, RankExpression::Operand(operation_result(count, IntegerPrimitive::Subtract, formal(count, 0))));
+    assert_eq!(edge.successor, Some(RankExpression::Operand(RankOperand::Input(operation_result(count, IntegerPrimitive::Subtract, formal(count, 0))))));
+}
 
-    for (source, body, ranked_member, expected) in [
-        (
-            "machine first(n:u64)->u64 {transition {_ -> second(n),}}
-             machine second(n:u64)->u64 terminates by n {transition n == 0 {true -> 9, false -> first(n - 1),}}",
-            "{transition {_ -> second(n),}}",
-            Some("second"),
-            "lowering has no entry-rank mapping for this member of the recursive component",
-        ),
-        (
-            "machine count(n:u64)->u64 terminates {transition n == 0 {true -> 7, false -> count(n - 1),}}",
-            "{transition n == 0 {true -> 7, false -> count(n - 1),}}",
-            None,
-            "a cyclic terminating component requires a `terminates by` witness",
-        ),
-    ] {
-        let files = [("ranking.omg", source)];
-        let resolved = sources::resolve(&files);
-        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
-        let ranked: Vec<_> = prepared.typed().ranking_witnesses.iter().map(|w| w.machine.path.as_str()).collect();
-        assert_eq!(ranked, ranked_member.as_slice());
-        sources::refuse_prepared(&prepared, &files, "ranking.omg", sources::unique_span(source, body), expected);
-    }
+/// Machine paths of the authored entry ranks that preparation hands to L5.
+fn prepared_witnesses(source: &str) -> Vec<String> {
+    let files = [("ranking.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    prepared.typed().ranking_witnesses.iter().map(|w| w.machine.path.clone()).collect()
+}
 
-    let constant = "const K:u64 = 3; machine f(n:u64) terminates by K {}";
-    refuses_at(
-        constant,
-        sources::span_within(constant, "terminates by K", "K"),
-        "lowering only represents rank operands that name machine formals",
+/// The only terminal transfer from `caller` to `callee`: its block, edge and actual arguments.
+fn terminal_call<'a>(
+    caller: &'a LoweredMachine,
+    callee: &LoweredMachine,
+) -> (omega_lowering::BlockId, omega_lowering::EdgeId, &'a [CallArgument]) {
+    let mut found = caller.body.blocks.iter().filter_map(|block| match &block.terminator {
+        BlockTerminator::TerminalCall { id, callee: omega_lowering::CallTarget::Machine(target), arguments, .. } if *target == callee.id => {
+            Some((block.id, *id, arguments.as_slice()))
+        }
+        _ => None,
+    });
+    let call = found.next().expect("terminal call to the callee");
+    assert!(found.next().is_none());
+    call
+}
+
+#[test]
+fn an_unwitnessed_member_stays_in_the_ranked_component_without_a_target_rank() {
+    let source = "machine first(n:u64)->u64 {transition {_ -> second(n),}}
+         machine second(n:u64)->u64 terminates by n {transition n == 0 {true -> 9, false -> first(n - 1),}}";
+    // Preparation supplies one authored entry rank, for second only.
+    assert_eq!(prepared_witnesses(source), ["second"]);
+    let package = lower(source).unwrap();
+    let (first, second) = (machine(&package, "first"), machine(&package, "second"));
+    assert!(first.contract.ranking.is_none() && !first.contract.promises_termination);
+    assert!(second.contract.promises_termination);
+    let mut members = vec![first.id, second.id];
+    members.sort_unstable_by_key(|id| id.get());
+    let witness = ranking(second);
+    // The ranked member names the unranked one, so a checker sees the whole cycle.
+    spec_corpus::observe_handoff!(psi "psi-output/unwitnessed-member-component", assert_eq!(witness.component, members));
+    let (block, edge, arguments) = terminal_call(second, first);
+    assert_eq!(arguments, [CallArgument::Scalar(operation_result(second, IntegerPrimitive::Subtract, formal(second, 0)))]);
+    let [claim] = witness.edges.as_slice() else {
+        panic!("expected the claim on the transfer into first")
+    };
+    assert_eq!((claim.block, claim.call, claim.forwarding_return, claim.target), (block, CallSite::Edge(edge), None, first.id));
+    // first authored no entry rank, so the claim has no successor rank and selects no role.
+    spec_corpus::observe_handoff!(
+        psi "psi-output/unwitnessed-member-edge",
+        assert_eq!((&claim.successor, claim.comparison), (&None, RankComparison::Pending))
     );
+    // first's own edge back is its body's terminal transfer of its formal.
+    assert_eq!(terminal_call(first, second).2, [CallArgument::Scalar(formal(first, 0))]);
+
+    // Witnessing first as well supplies the target rank on the same edge.
+    let twin = lower(&source.replacen("->u64 {", "->u64 terminates by n {", 1)).unwrap();
+    let (first, second) = (machine(&twin, "first"), machine(&twin, "second"));
+    let [claim] = ranking(second).edges.as_slice() else {
+        panic!("expected the return claim")
+    };
+    assert_eq!(claim.target, first.id);
+    assert_eq!(
+        (&claim.successor, claim.comparison),
+        (&Some(RankExpression::Operand(RankOperand::Input(operation_result(second, IntegerPrimitive::Subtract, formal(second, 0))))), RankComparison::Strict)
+    );
+}
+
+#[test]
+fn a_terminating_cycle_without_a_witness_keeps_its_promise_and_self_edge() {
+    let source = "machine count(n:u64)->u64 terminates {transition n == 0 {true -> 7, false -> count(n - 1),}}";
+    assert!(prepared_witnesses(source).is_empty());
+    let package = lower(source).unwrap();
+    let count = machine(&package, "count");
+    // The promise reaches Psi without a witness; the checker judges it on this edge.
+    spec_corpus::observe_handoff!(
+        psi "psi-output/unwitnessed-terminating-cycle",
+        assert_eq!((count.contract.promises_termination, &count.contract.ranking), (true, &None))
+    );
+    let (_, _, arguments) = terminal_call(count, count);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/unwitnessed-terminating-self-edge",
+        assert_eq!(arguments, [CallArgument::Scalar(operation_result(count, IntegerPrimitive::Subtract, formal(count, 0)))])
+    );
+
+    // Without the promise the same cycle owes nothing; with a witness the edge is claimed.
+    let silent = lower(&source.replace(" terminates", "")).unwrap();
+    assert!(!machine(&silent, "count").contract.promises_termination);
+    let ranked = lower(&source.replace("terminates", "terminates by n")).unwrap();
+    let count = machine(&ranked, "count");
+    let [edge] = ranking(count).edges.as_slice() else {
+        panic!("expected the self-edge claim")
+    };
+    assert_eq!((edge.call, edge.forwarding_return, edge.comparison), (CallSite::Edge(terminal_call(count, count).1), None, RankComparison::Strict));
+}
+
+#[test]
+fn a_constant_rank_subject_publishes_its_prepared_value() {
+    let constant = "const K:u64 = 3; machine f(n:u64) terminates by K {}";
+    let package = lower(constant).unwrap();
+    let f = machine(&package, "f");
+    let witness = ranking(f);
+    assert_eq!(witness.relation, NATURAL_U64);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/constant-rank-subject",
+        assert_eq!(witness.rank, RankExpression::Operand(RankOperand::Constant(3.into())))
+    );
+    assert_eq!(witness.component, [f.id]);
+    assert!(witness.edges.is_empty()); // The acyclic body owes no comparison.
+
+    // The prepared value decides the rank; a literal subject is the same constant.
+    for (source, value) in [(constant.replace("= 3", "= 4"), 4), (constant.replace("by K", "by 3 -> omega\\language\\core\\Nat\\Descending"), 3)] {
+        let package = lower(&source).unwrap();
+        assert_eq!(ranking(machine(&package, "f")).rank, RankExpression::Operand(RankOperand::Constant(value.into())), "{source}");
+    }
+    // The formal twin names its input instead.
     let package = lower(&constant.replace("by K", "by n")).unwrap();
     let f = machine(&package, "f");
     let witness = ranking(f);
     assert_eq!(witness.relation, NATURAL_U64);
-    assert_eq!(witness.rank, RankExpression::Operand(0));
+    assert_eq!(witness.rank, RankExpression::Operand(RankOperand::Input(0)));
     assert_eq!(witness.component, [f.id]);
-    assert!(witness.edges.is_empty()); // Neither subject would owe a recursive comparison.
+    assert!(witness.edges.is_empty());
+
+    // A computed subject such as `K - n` still has no Psi rank form.
+    let computed = constant.replace("by K", "by K - n");
+    refuses_at(
+        &computed,
+        sources::unique_span(&computed, "K - n"),
+        "lowering only represents rank operands that name machine formals or integer constants",
+    );
+}
+
+#[test]
+fn a_constant_distance_limit_is_the_same_value_on_the_recursive_edge() {
+    let package = lower(
+        "const LIMIT:u64 = 10;
+         machine climb(i:u64)->u64 terminates by (i, LIMIT) -> omega\\language\\core\\Nat\\BoundedDistance {
+            transition i < LIMIT {true -> climb(i + 1), false -> i,}
+         }",
+    )
+    .unwrap();
+    let climb = machine(&package, "climb");
+    let witness = ranking(climb);
+    fn limit<Input>() -> RankOperand<Input> {
+        RankOperand::Constant(10.into())
+    }
+    assert_eq!(witness.rank, RankExpression::SaturatingDistance { cursor: RankOperand::Input(0), limit: limit() });
+    let [edge] = witness.edges.as_slice() else {
+        panic!("expected one internal edge claim")
+    };
+    assert_eq!(
+        edge.successor,
+        Some(RankExpression::SaturatingDistance {
+            cursor: RankOperand::Input(operation_result(climb, IntegerPrimitive::Add, formal(climb, 0))),
+            limit: limit(),
+        })
+    );
+    // Lowering recognizes no guard against a constant limit; the checker selects the role.
+    assert_eq!(edge.comparison, RankComparison::Pending);
 }
 
 #[test]
@@ -559,12 +867,15 @@ fn selected_cleanup_participates_in_the_recursive_component() {
     assert!(input.calls.iter().any(|c| c.caller.as_ref() == Some(&cleanup.machine)
         && c.machine == witness.machine
         && c.site.span.slice(source.as_bytes()) == Some(b"again(3)".as_slice())));
+    // finish needs no rank of its own to stay in the component. The claim on
+    // again's return edge stops instead: its cleanup invocation is not a
+    // supported ranked transfer.
     sources::refuse_prepared(
         &prepared,
         &files,
         "ranking.omg",
-        sources::unique_span(source, "{ let Lease {mark as _}=x; again(3); }"),
-        "lowering has no entry-rank mapping for this member of the recursive component",
+        sources::unique_span(source, "{ let lease=Lease {mark:0}; }"),
+        "ranked recursion needs a terminal call or a non-suspending direct scalar call",
     );
 
     // Removing the promise, not the cleanup, exposes both edges of the cycle.
@@ -572,10 +883,16 @@ fn selected_cleanup_participates_in_the_recursive_component() {
     let package = lower(&source.replace(" terminates by n", "")).unwrap();
     let again = machine(&package, "again");
     let finish = machine(&package, "finish");
-    assert!(again.body.blocks.iter().any(|block| matches!(&block.terminator,
-        BlockTerminator::Return { cleanup, .. } if matches!(cleanup.as_slice(),
-            [omega_lowering::CleanupAction::Invoke { target, ty, place }] if *target == finish.id
-                && *ty == finish.parameter_types[0] && place.path.is_empty()))));
+    let invokes_finish = |again: &LoweredMachine, finish: &LoweredMachine| {
+        again.body.blocks.iter().any(|block| matches!(&block.terminator,
+            BlockTerminator::Return { cleanup, .. } if matches!(cleanup.as_slice(),
+                [omega_lowering::CleanupAction::Invoke { target, ty, place }] if *target == finish.id
+                    && *ty == finish.parameter_types[0] && place.path.is_empty())))
+    };
+    assert!(invokes_finish(again, finish));
+    // A selected cleanup takes only its subject by value, so finish has no
+    // scalar formal that could map it into again's u64 rank.
+    assert!(matches!(finish.body.parameters.as_slice(), [Parameter::Structural(_)]));
     let literal = finish.body.operations.iter().find(|op| op.kind == OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(3.into())));
     let OperationResult::Scalar(three) = literal.expect("the rank at re-entry").result else {
         panic!("expected a scalar argument")
@@ -584,8 +901,12 @@ fn selected_cleanup_participates_in_the_recursive_component() {
         OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), arguments, .. }
             if *target == again.id && arguments.as_slice() == [CallArgument::Scalar(three)])));
 
+    // The lawful twin keeps the same cleanup edge; only the call back to again
+    // is gone. That edge now leaves the component, so it owes no rank claim.
     let ordinary = source.replace("again(3);", "");
     let package = lower(&ordinary).unwrap();
     let caller = machine(&package, "again");
+    assert!(invokes_finish(caller, machine(&package, "finish")));
     assert_eq!(ranking(caller).component, vec![caller.id]);
+    assert!(ranking(caller).edges.is_empty());
 }

@@ -1,6 +1,4 @@
 //! The declaring trait, requirement binders and implementation each retain their own identity.
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod source;
 use omega_lowering::{
@@ -178,19 +176,64 @@ fn generic_conformance_method_runs_the_selected_implementation_for_each_static_a
     assert_ne!(good_u8.id, good_bool.id);
 }
 
-#[test]
-fn a_const_valued_implementation_binder_is_refused_at_the_selected_implementation() {
-    let src = "trait Sized { machine pick<const N:u64>(x:u8)->u8; } \
+const SIZED: &str = "trait Sized { machine pick<const N:u64>(x:u8)->u8; } \
         Good satisfies Sized { machine pick<const M:u64>(x:u8)->u8 { x } } \
         machine run<const E:Sized>(x:u8)->u8 { E::pick::<4>(x) } \
         machine go(x:u8)->u8 { run::<Good>(x) }";
-    let error = source::refuse(
-        &[("sized.omg", src)],
-        "sized.omg",
-        source::unique_span(src, "machine pick<const M:u64>(x:u8)->u8 { x }"),
-        "selected implementation binders require a supported closed application",
+
+/// Follow both executable edges, then cross-check the result against the declaration row.
+fn sized_target<'a>(pkg: &'a LoweredPackage, root: &str) -> (&'a MemberCallSelection, &'a omega_lowering::LoweredMachine) {
+    let [op] = machine(pkg, root).body.operations.as_slice() else { panic!("missing wrapper call") };
+    let OperationKind::Call { callee: CallTarget::Machine(id), .. } = op.kind else { panic!("expected closed wrapper") };
+    let wrapper = &pkg.machines[id.get() as usize - 1];
+    let selection = only_member_call(pkg, wrapper);
+    let MemberRealization::Conformance { declaration, machine } = &selection.target else { panic!("expected Good") };
+    let implementation = &pkg.machines[machine.get() as usize - 1];
+    let [good] = pkg.conformances.as_slice() else { panic!("expected one conformance") };
+    let [row] = good.members.as_slice() else { panic!("expected pick") };
+    assert_eq!(declaration.path, "Good");
+    assert_eq!(selection.requirement.declaration.path, "Sized::pick");
+    assert_eq!(declaration, &good.declaration);
+    assert_eq!(selection.owner, good.implemented);
+    assert_eq!(selection.requirement, row.requirement);
+    assert_eq!(implementation.declaration, row.implementation);
+    assert_eq!(implementation.id, *machine);
+    (selection, implementation)
+}
+
+const U64: ScalarType = ScalarType::Integer { signed: false, width: 64 };
+
+#[test]
+fn selected_implementation_keeps_the_requirements_const_integer() {
+    let pkg = source::lower(&[("sized.omg", SIZED)]).unwrap();
+    let (selection, body) = sized_target(&pkg, "go");
+    spec_corpus::observe_handoff!(
+        psi "psi-output/selected-implementation-integer",
+        assert_eq!(
+            (selection.static_arguments.as_slice(), body.arguments.as_slice()),
+            ([DeclarationTerm::StaticInteger { carrier: U64, value: 4.into() }].as_slice(),
+             [StaticArgument::Integer { carrier: U64, value: 4.into() }].as_slice())
+        ),
     );
-    assert_eq!(error.message, "selected implementation binders require a supported closed application");
-    known_gap::report("const binder on selected implementation", "The member call needs the selected implementation and static argument", src, &error);
-    assert_eq!(error.site.file, "sized.omg");
+}
+
+#[test]
+fn another_const_integer_selects_a_different_body_of_the_same_implementation() {
+    let src = format!("{SIZED} machine run9<const E:Sized>(x:u8)->u8 {{ E::pick::<9>(x) }} \
+        machine other(x:u8)->u8 {{ run9::<Good>(x) }}");
+    let pkg = source::lower(&[("sized.omg", &src)]).unwrap();
+    let (first, four) = sized_target(&pkg, "go");
+    let (second, nine) = sized_target(&pkg, "other");
+    assert_eq!(first.requirement, second.requirement);
+    assert_eq!(four.declaration, nine.declaration);
+    assert_ne!(four.id, nine.id);
+    assert_eq!(second.static_arguments, [DeclarationTerm::StaticInteger { carrier: U64, value: 9.into() }]);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/selected-implementation-integer-control",
+        assert_eq!(
+            (four.arguments.as_slice(), nine.arguments.as_slice()),
+            ([StaticArgument::Integer { carrier: U64, value: 4.into() }].as_slice(),
+             [StaticArgument::Integer { carrier: U64, value: 9.into() }].as_slice())
+        ),
+    );
 }

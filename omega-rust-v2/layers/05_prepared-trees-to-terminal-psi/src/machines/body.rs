@@ -67,6 +67,7 @@ fn emit_body(
 
     let body_site = site_at(file, body);
     let mut block = MachineBody {
+        lifetime_bindings: Vec::new(),
         call_acknowledgements: Vec::new(),
         suspension_sites: Vec::new(),
         blocks: Vec::new(),
@@ -89,8 +90,9 @@ fn emit_body(
         if node.binder_name().is_none_or(|name| name.span != *span) || node.kind != NodeKind::Param || node.children.len() != 1 {
             return Err(LoweringError::new(&site, "parameter binder disagrees with the typed signature"));
         }
-        let parameter = match carrier {
-            carrier if crate::lowering::types::uses_structural_place(carrier) || crate::lowering::types::mutable_element_view(carrier).is_some() => {
+        let parameter = match crate::declarations::regions::slot_carrier(carrier, &signature.machine) {
+            carrier if crate::lowering::types::uses_structural_place(carrier)
+                || matches!(types.get(ty), Some(crate::TypeShape::MutableElementView { .. } | crate::TypeShape::MutableScalarElementView { .. })) => {
                 let place = PlaceId(next_id(block.places.len()));
                 block.places.push(Place {
                     ty,
@@ -125,6 +127,14 @@ fn emit_body(
             .collect(),
     };
     let mut flow = BlockFlow::entry();
+    let borrowed = if assembly {
+        Vec::new()
+    } else {
+        directly_borrowed_binders(resolved, file, body)
+    };
+    for (&binder, slot) in binders.iter().zip(expressions.bindings.iter_mut()) {
+        slot.1 = home_borrowed_scalar(prepared, file, types, &borrowed, binder, slot.1, &mut block);
+    }
     if assembly {
         super::assembly::machine(&expressions, declaration, &mut block, &mut flow, result_type)?;
         flow.finish(&mut block);
@@ -173,6 +183,7 @@ fn emit_body(
                 check_container(tree, statement)?;
                 let carrier = binding_carrier(tree, *binder)?;
                 let value = expressions.bind_local(*initializer, carrier, &mut block, &mut flow)?;
+                let value = home_borrowed_scalar(prepared, file, types, &borrowed, *binder, value, &mut block);
                 if let OperationResult::Structural(home) = value
                     && crate::lowering::types::contains_nominal_value(carrier)
                     && prepared
@@ -310,6 +321,69 @@ impl MachineBodyValues for MachineBody {
         self.values.push(Value { ty, origin });
         value
     }
+}
+
+/// Binders that some `@name` in this body borrows directly, sorted for lookup.
+/// Nested machines have their own bodies and are skipped.
+fn directly_borrowed_binders(
+    resolved: &omega_resolved::SymbolResolvedTree<'_>,
+    file: &IndexedSource<'_>,
+    body: usize,
+) -> Vec<usize> {
+    let mut pending = file.nodes[body].children.clone();
+    let mut binders = Vec::new();
+    while let Some(node) = pending.pop() {
+        if file.nodes[node].kind == NodeKind::Machine {
+            continue;
+        }
+        pending.extend(&file.nodes[node].children);
+        if file.nodes[node].kind != NodeKind::Borrow {
+            continue;
+        }
+        if let [operand] = *file.nodes[node].children.as_slice()
+            && let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(file.ungroup(operand))
+        {
+            binders.push(*binder_node);
+        }
+    }
+    binders.sort_unstable();
+    binders.dedup();
+    binders
+}
+
+/// A borrowed scalar needs addressable storage, so an immutable primitive
+/// local or formal that `@name` borrows gets one home for its original value.
+/// Every view of it borrows that home, and later reads observe the home.
+/// A mutable scalar local stays an SSA value: its assignments rebind the
+/// value, so it has no single home to lend and its borrow still refuses.
+fn home_borrowed_scalar(
+    prepared: &PreparedTrees<'_>,
+    file: &IndexedSource<'_>,
+    types: &LoweringTypes,
+    borrowed: &[usize],
+    binder: usize,
+    value: OperationResult,
+    body: &mut MachineBody,
+) -> OperationResult {
+    let OperationResult::Scalar(initializer) = value else {
+        return value;
+    };
+    let ty = body.values[initializer.index()].ty;
+    if borrowed.binary_search(&binder).is_err()
+        || !matches!(types.get(ty), Some(crate::TypeShape::PrimitiveScalar(_)))
+        || prepared
+            .typed()
+            .mutable_bindings
+            .contains(&file.node_id(binder))
+    {
+        return value;
+    }
+    use super::expressions::{EmitOperation, OperationOutput};
+    body.push_operation(
+        OperationOutput::Structural(ty),
+        crate::OperationKind::EstablishPrimitiveLocal { value: initializer },
+        site_at(file, binder),
+    )
 }
 
 pub(crate) fn next_id(current_count: usize) -> NonZeroUsize {

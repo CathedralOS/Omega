@@ -26,10 +26,14 @@ pub struct ActivationValue {
 /// A loan descriptor held by an incomplete call or its caller’s continuation.
 /// The descriptor names the value live at the crossing. Follow a block
 /// parameter through the arriving edge, or a completed call through its
-/// selected callee’s normal return and the corresponding actual operand.
+/// selected callee’s normal return. At a boundary member result, the producing
+/// invocation identifies the requirement whose provider must establish the
+/// returned backing. Its lifetime-related input does not establish containment.
 /// A named local borrow leads through its defining BorrowPlace to its backing.
 /// A direct borrow from an owner is identified by its argument position, access
-/// and projected place on the linked call. The retained owner keeps that storage live.
+/// and projected place on the linked call. The retained owner row of its root
+/// records custody and moved paths. A root moved out whole has no row; its
+/// move names the destination. The checker compares these with the loan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetainedLoan {
     pub descriptor: crate::PlaceId,

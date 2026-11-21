@@ -16,3 +16,64 @@ recast of a Boolean referent	checker-input	psi-output/differing-recast-carriers
 attributed data alias	product	psi-output/alias-multiplicity-assertion
 mathematical result on a logical hypothesis	product	psi-output/logical-hypothesis-result|psi-output/logical-hypothesis-result-subject
 compound use of a binding after a payload literal test	product	psi-output/compound-payload-binding
+mutable element-view read	checker-input	psi-output/mutable-element-read
+mutable element-view length contract	checker-input	psi-output/mutable-element-length-subject
+open width of a closed const-integer machine application	checker-input	psi-output/closed-width-sites|psi-output/closed-width-call|psi-output/closed-width-requirement|psi-output/closed-width-operation|psi-output/same-width-distinct-premises
+specialized field owner arguments	product	psi-output/specialized-field-extents
+recursive formation of const-indexed data	checker-input	psi-output/recursive-index-formation|psi-output/indexed-field-width
+const binder on selected implementation	product	psi-output/selected-implementation-integer|psi-output/selected-implementation-integer-control
+refined evidence through a restricted trait alias	checker-input	psi-output/restricted-base-bound|psi-output/restricted-evidence-dispatch
+establishment evidence in executable construction	checker-input	psi-output/establish-positive-one|psi-output/establish-positive-zero
+establishment evidence in an executable sum case	checker-input	psi-output/establish-mode-on
+construct a predicate-bearing record	checker-input	psi-output/positive-construction-goal
+independent predicate on a record with an omitted field	checker-input	psi-output/omitted-establishment-goal
+squash proposition as a theorem goal	checker-input	psi-output/squash-theorem-goal|psi-output/squash-projection-control
+machine cited as mathematical evidence	checker-input	psi-output/mathematical-citation|psi-output/mathematical-citation-control
+universe-bounded mathematical application	checker-input	psi-output/universe-bounded-application|psi-output/instantiated-mathematical-universe
+returned borrow into an explicit machine region	checker-input	psi-output/region-bound-return|psi-output/second-region-return|psi-output/region-promise-not-backing|psi-output/elided-return-borrow
+nested helper enclosing static argument via helper(input)	product	psi-output/nested-direct-capture|psi-output/nested-return-binder
+nested helper enclosing static argument via invoke::<helper>(input)	product	psi-output/nested-callback-capture|psi-output/nested-return-binder
+suspend after replacing first with second	checker-input	psi-output/replaced-home-second
+suspend after replacing second with first	checker-input	psi-output/replaced-home-first
+construct a runtime descriptor	checker-input	psi-output/named-descriptor-selection|psi-output/named-descriptor-delivery
+runtime callable with a loan formal	product	psi-output/loan-callable-contract|psi-output/runtime-loan-actual|psi-output/runtime-loan-edge
+ranked ordinary recursion with work after the call	checker-input	psi-output/rank-before-add
+ranked ordinary recursion with caller cleanup	checker-input	psi-output/rank-before-cleanup
+routed callback crash guard	checker-input	psi-output/callback-route-selection|psi-output/callback-route-guard|psi-output/callback-route-substitution
+runtime selector in a contract	checker-input	psi-output/predicate-array-read
+runtime selector in a predicate application argument	checker-input	psi-output/predicate-call-array-read
+domain on a non-scalar carrier	product	psi-output/domain-family-carrier|psi-output/record-tag-carrier
+published Audio::Audible record carrier	product	psi-output/published-audible-predicate|psi-output/published-audible-precondition|psi-output/published-audible-call
+establish a predicate-bearing domain by cast	checker-input	psi-output/predicate-cast-completion
+establish an applied or inherited scalar domain by cast	product	psi-output/applied-domain-cast|psi-output/inherited-domain-cast
+predicate-bearing array element domain	checker-input	psi-output/guarded-array-read|psi-output/array-element-predicate
+boundary view result at suspension	checker-input	psi-output/boundary-view-result
+joined boundary view at suspension	checker-input	psi-output/joined-boundary-view
+mutable view recast	checker-input	psi-output/recast-lender-path|psi-output/mutable-recast-handback
+cite a theorem from executable code	checker-input	psi-output/theorem-citation
+ranked terminal descriptor call	checker-input	psi-output/ranked-descriptor-terminal-call
+ranked ordinary descriptor call	checker-input	psi-output/ranked-descriptor-ordinary-call
+linear temporary discarded on exit	checker-input	psi-output/linear-temporary-discard
+linear local left at normal exit	checker-input	psi-output/linear-local-return-discard
+forward an indexed domain with a parameter-dependent predicate	product	psi-output/applied-domain-predicate
+qualification cast in an inherited domain predicate	product	psi-output/inherited-subject-cast
+embedded exclusive loan at normal exit	checker-input	psi-output/embedded-exclusive-loan-discard
+zero-initialize a qualified record	checker-input	psi-output/zero-value-record-predicate
+two transfers of one array element	checker-input	psi-output/repeated-element-transfer
+whole array after an element transfer	checker-input	psi-output/whole-array-after-element-transfer
+two moves of one record field	checker-input	psi-output/duplicate-field-transfer
+join with different moved fields	checker-input	psi-output/join-arrival-transfers
+decomposition of a value with selected cleanup	checker-input	psi-output/hooked-field-move
+nominal reference match result before a parked field reborrow	checker-input	psi-output/joined-field-reborrow
+parked field reborrow through a reference stored in a borrowed record	checker-input	psi-output/stored-field-reborrow
+carry check for a parked loan of a suspension-forbidden field	checker-input	psi-output/parked-field-carry
+backing owner and field loan in one suspending call	checker-input	psi-output/parked-loan-callee-custody
+overlap of moved and borrowed subtrees at suspension	checker-input	psi-output/parked-loan-moved-overlap
+moving a field while its loan is parked	checker-input	psi-output/parked-named-loan-moved-source
+unwitnessed member of a ranked component	checker-input	psi-output/unwitnessed-member-component|psi-output/unwitnessed-member-edge
+terminating cycle without a witness	checker-input	psi-output/unwitnessed-terminating-cycle|psi-output/unwitnessed-terminating-self-edge
+ranking subject outside the formals	checker-input	psi-output/constant-rank-subject
+recursive view result at suspension	checker-input	psi-output/recursive-view-backing
+out-of-bounds fixed index in a contract	checker-input	psi-output/out-of-bounds-contract-index
+restoration through a recomputed selector	checker-input	psi-output/recomputed-selector-fill
+recursive relay of a boundary view at suspension	checker-input	psi-output/recursive-boundary-view-relay

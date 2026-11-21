@@ -311,31 +311,53 @@ fn explicit_discard_keeps_statement_order_operand_order_and_call_requirements() 
 }
 
 #[test]
-fn explicit_discard_releases_affine_storage_and_refuses_a_linear_claim_at_the_operand() {
+fn explicit_discard_publishes_the_same_discard_for_an_affine_and_a_linear_temporary() {
+    // Only the declared multiplicity differs. The checker judges the discard
+    // against it: affine storage may be discarded, linear storage may not.
     let source = "data Handle {} machine caller(){_ = Handle{};}";
-    let package = lower(source).unwrap();
-    let body = &package.machines[0].body;
-    let [operation] = body.operations.as_slice() else {
-        panic!("discarded construction expected")
-    };
-    let OperationResult::Structural(place) = operation.result else {
-        panic!("owned result expected")
-    };
-    let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else {
-        panic!("disposal must precede the continuation")
-    };
-    assert_eq!(edge.cleanup, [omega_lowering::CleanupAction::DiscardRoot(place)]);
-    assert!(matches!(&body.blocks[edge.target.get()-1].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
     let linear = source.replace("Handle {}", "Handle [linear] {}");
-    let error = sources::refuse(
-        &[("calls.omg", &linear)],
-        "calls.omg",
-        sources::unique_span(&linear, "Handle{}"),
-        "normal exit needs an authorized disposition for owned storage",
-    );
-    assert_eq!(error.message, "normal exit needs an authorized disposition for owned storage");
-    assert_eq!(error.site.file, "calls.omg");
-    assert_eq!(error.site.span.slice(linear.as_bytes()), Some(b"Handle{}".as_slice()));
+    for (text, multiplicity) in [
+        (source, omega_lowering::Multiplicity::Affine),
+        (linear.as_str(), omega_lowering::Multiplicity::Linear),
+    ] {
+        let package = lower(text).unwrap();
+        let body = &package.machines[0].body;
+        let [operation] = body.operations.as_slice() else {
+            panic!("discarded construction expected")
+        };
+        let OperationResult::Structural(place) = operation.result else {
+            panic!("owned result expected")
+        };
+        let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else {
+            panic!("disposal must precede the continuation")
+        };
+        assert_eq!(
+            body.diagnostics.edges[edge.id.get() - 1]
+                .span
+                .slice(text.as_bytes()),
+            Some(b"Handle{}".as_slice())
+        );
+        let Some(omega_lowering::TypeShape::Nominal(id)) = package.types.get(body.places[place.index()].ty) else {
+            panic!("nominal temporary expected")
+        };
+        let data = &package.data[id.get() - 1];
+        assert_eq!(
+            (data.declaration.path.as_str(), data.cleanup_target, data.carry.is_none()),
+            ("Handle", None, true)
+        );
+        if multiplicity == omega_lowering::Multiplicity::Linear {
+            spec_corpus::observe_handoff!(
+                psi "psi-output/linear-temporary-discard",
+                assert_eq!((edge.cleanup.as_slice(), data.multiplicity), ([omega_lowering::CleanupAction::DiscardRoot(place)].as_slice(), multiplicity)),
+            );
+        } else {
+            assert_eq!(
+                (edge.cleanup.as_slice(), data.multiplicity),
+                ([omega_lowering::CleanupAction::DiscardRoot(place)].as_slice(), multiplicity)
+            );
+        }
+        assert!(matches!(&body.blocks[edge.target.get()-1].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
+    }
 }
 
 #[test]

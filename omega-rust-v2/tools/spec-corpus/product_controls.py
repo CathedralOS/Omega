@@ -7,6 +7,8 @@ CONTROLS = {
        for change in ("replace-unrestricted", "dispose-live") for witness in ("vacancy", "moved-place")},
     **{f"residual/Pair::{field}/{change}": "residual_cleanup_on_the_transferred_field_fails_the_sibling_witness"
        for field in ("left", "right") for change in ("transferred-field", "whole-root", "omitted")},
+    **{f"join-arrival/{change}": "a_normalized_or_redirected_arm_fails_the_join_arrival_witness"
+       for change in ("disposed-remainder", "same-field")},
 }
 
 

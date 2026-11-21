@@ -2,9 +2,27 @@
 mod source;
 
 use omega_lowering::{BlockTerminator, CallArgument, CallSite, LoweredPackage, MachineBody, OperationKind, PlaceProjection};
-use psi_handoff_consumer::check_parked_owner_borrow;
+use omega_lowering::{OwnedCustody, ReferenceAccess};
+use psi_handoff_consumer::{ParkedFieldLoan, ParkedLoanBacking, check_parked_owner_borrow, parked_field_loans};
 
-const NO_BACKING: &str = "parked borrow has no live owned backing for its selected place";
+fn field_loan(
+    slot: Option<usize>,
+    retained: Option<(bool, bool)>,
+    path: &[&str],
+    backing: ParkedLoanBacking,
+) -> ParkedFieldLoan {
+    ParkedFieldLoan {
+        slot,
+        retained,
+        access: ReferenceAccess::Shared,
+        path: path.iter().map(|step| step.to_string()).collect(),
+        backing,
+    }
+}
+
+fn moved(path: &[&str]) -> ParkedLoanBacking {
+    ParkedLoanBacking::Moved(path.iter().map(|step| step.to_string()).collect())
+}
 
 fn forward_body(package: &mut LoweredPackage) -> &mut MachineBody {
     &mut package.machines.iter_mut().find(|m| m.declaration.path == "forward").unwrap().body
@@ -78,7 +96,7 @@ fn a_parked_call_borrows_the_selected_field_without_transferring_its_owner() {
 
 #[test]
 fn a_named_field_loan_keeps_its_source_while_the_call_or_continuation_needs_it() {
-    use omega_lowering::{CallSite, OwnedCustody, Parameter, PlaceOrigin, ReferenceAccess};
+    use omega_lowering::{CallSite, Parameter, PlaceOrigin};
     for (body_text, callee, continuation) in [
         ("suspend inspect(loan);", true, false),
         ("suspend tick(); observe(loan);", false, true),
@@ -121,21 +139,30 @@ fn a_named_field_loan_keeps_its_source_while_the_call_or_continuation_needs_it()
                 matches!(&body.operations[id.index()].kind,OperationKind::Call{arguments,..} if matches!(&arguments[..],[CallArgument::Borrow{place,..}] if place.root==loan.descriptor && place.path==[PlaceProjection::Referent]))
             );
         }
+        let slot = callee.then_some(0);
+        assert_eq!(
+            parked_field_loans(&pkg, "forward"),
+            Ok(vec![field_loan(slot, Some((callee, continuation)), &["Holder::token"], ParkedLoanBacking::Intact)])
+        );
+
+        // Moving the borrowed field instead of its sibling changes only the
+        // owner's hole. Lowering publishes the crossing as it does without a
+        // suspension; the checker decides whether the live loan permits the move.
         let unavailable = text.replace("take(move h.other)", "take(move h.token)");
-        let call = if callee { "inspect(loan)" } else { "tick()" };
-        let err = source::refuse(
-            &[("named_owner.omg", &unavailable)],
-            "named_owner.omg",
-            source::span_within(&unavailable, &format!("suspend {call}"), call),
-            NO_BACKING,
+        let pkg = source::lower(&[("named_owner.omg", &unavailable)]).unwrap();
+        spec_corpus::observe_handoff!(
+            psi "psi-output/parked-named-loan-moved-source",
+            assert_eq!(
+                parked_field_loans(&pkg, "forward"),
+                Ok(vec![field_loan(slot, Some((callee, continuation)), &["Holder::token"], moved(&["Holder::token"]))])
+            ),
         );
-        assert!(
-            err.site
-                .span
-                .slice(unavailable.as_bytes())
-                .unwrap()
-                .ends_with(call.as_bytes())
-        );
+        let pure = unavailable
+            .replace(" suspends", "")
+            .replace("suspend tick(); ", "")
+            .replace("suspend inspect(loan);", "observe(loan);");
+        let pkg = source::lower(&[("named_owner.omg", &pure)]).unwrap();
+        assert!(pkg.machines.iter().all(|machine| machine.body.suspension_sites.is_empty()));
     }
 }
 
@@ -237,35 +264,143 @@ fn a_parked_field_reborrow_traces_to_the_same_incoming_loan_named_or_inline() {
     }
 }
 
+/// Token forbids suspension, so the checker must reject parking a loan of
+/// `h.token` whether the call borrows it inline or through a named reborrow.
+/// Lowering publishes the crossing instead of judging it: the parked loan leads
+/// to the Token schema and its declared prohibition. The allowed twin differs
+/// only in that axis, and a floor on Holder stays on the path for the checker.
+/// The same holds when the record arrives through a join or behind a
+/// descriptor stored in the incoming record.
 #[test]
 fn naming_a_field_reborrow_cannot_hide_forbidden_backing() {
+    use omega_lowering::{Carry, TypeShape};
+    use psi_handoff_consumer::{ParkedFieldReborrow, parked_field_loan_carry, parked_field_reborrow};
+    let carry = |allows_suspension| Carry {
+        allows_suspension,
+        requires_same_cpu: true,
+        requires_same_thread: false,
+        requires_stable_address: true,
+    };
+    let (forbidden, allowed) = (carry(false), carry(true));
     for (binding, actual) in [("", "@h.token"), ("let loan:@Token=@h.token;", "loan")] {
+        for (permission, file, expected) in [("forbidden", "forbidden.omg", &forbidden), ("allowed", "allowed.omg", &allowed)] {
+            let text = format!(
+                "data Token [carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{v:u8;}} data Holder{{token:Token;}}
+             machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
+            );
+            let mut package = source::lower(&[(file, &text)]).unwrap();
+            if permission == "forbidden" {
+                spec_corpus::observe_handoff!(
+                    psi "psi-output/parked-field-carry",
+                    assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", None), ("Token", Some(&forbidden))])),
+                );
+            }
+            assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", None), ("Token", Some(expected))]));
+
+            // The reader observes which schema on the loan's path holds the restriction.
+            let token = package.data.iter().position(|d| d.declaration.path == "Token").unwrap();
+            let holder = package.data.iter().position(|d| d.declaration.path == "Holder").unwrap();
+            package.data[holder].carry = package.data[token].carry.take();
+            assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", Some(expected)), ("Token", None)]));
+        }
+
         let text = format!(
-            "data Token [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)]{{v:u8;}} data Holder{{token:Token;}}
+            "data Token{{v:u8;}} data Holder [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)]{{token:Token;}}
              machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
         );
-        source::refuse(
-            &[("forbidden.omg", &text)],
-            "forbidden.omg",
-            source::unique_span(&text, &format!("inspect({actual})")),
-            "parked field reborrow has suspension-forbidden backing",
-        );
+        let package = source::lower(&[("holder_floor.omg", &text)]).unwrap();
+        assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", Some(&forbidden)), ("Token", None)]));
+    }
+
+    // A joined record and a descriptor stored in the incoming record keep the
+    // same handoff. The reborrow reader recovers the exact loan path down to a
+    // field whose type is inspect's formal referent, and that Token schema
+    // keeps the declared restriction. Each twin differs only in the suspension
+    // axis; the records on the path declare no floor of their own.
+    let joined = (
+        "data Holder{token:Token;}",
+        "flag:bool,left:@Holder,right:@Holder",
+        "let h=match flag{true->left,false->right,};",
+    );
+    let stored = ("data Inner{token:Token;} data Holder{inner:@Inner;}", "h:@Holder", "");
+    let reborrow = |incoming: Vec<usize>, crossings: &[&str], projection: &str| ParkedFieldReborrow {
+        incoming,
+        crossings: crossings.iter().map(|c| vec![c.to_string()]).collect(),
+        projection: vec![projection.to_string()],
+    };
+    for ((records, formals, join), binding, actual, path) in [
+        (joined, "let loan:@Token=@h.token;", "loan", reborrow(vec![1, 2], &[], "Holder::token")),
+        (stored, "", "@h.inner.token", reborrow(vec![0], &["Holder::inner"], "Inner::token")),
+        (stored, "let loan:@Token=@h.inner.token;", "loan", reborrow(vec![0], &["Holder::inner"], "Inner::token")),
+    ] {
+        for (permission, file, expected) in [("forbidden", "forbidden.omg", &forbidden), ("allowed", "allowed.omg", &allowed)] {
+            let text = format!(
+                "data Token [carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{v:u8;}} {records}
+             machine inspect(t:@Token) suspends{{}} machine forward({formals}) suspends{{{join}{binding} suspend inspect({actual});}}"
+            );
+            let package = source::lower(&[(file, &text)]).unwrap();
+            assert_eq!(parked_field_reborrow(&package, "forward", "inspect").as_ref(), Ok(&path), "{text}");
+            let inspect = package.machines.iter().find(|m| m.declaration.path == "inspect").unwrap();
+            let Some(TypeShape::NominalReference { referent, .. }) = package.types.get(inspect.parameter_types[0]) else {
+                panic!("token formal")
+            };
+            let carries: Vec<_> = package
+                .data
+                .iter()
+                .map(|d| (d.declaration.path.as_str(), d.carry.as_ref()))
+                .collect();
+            let token = &package.data[referent.get() - 1];
+            assert_eq!((token.declaration.path.as_str(), token.carry.as_ref()), ("Token", Some(expected)), "{text}");
+            assert!(carries.iter().all(|(name, carry)| *name == "Token" || carry.is_none()), "{carries:?}");
+        }
     }
 }
 
 #[test]
-fn a_named_field_reborrow_cannot_pick_one_of_two_incoming_loans() {
-    let text = "data Token{v:u8;} data Holder{token:Token;} machine inspect(t:@Token) suspends{} machine forward(flag:bool,left:@Holder,right:@Holder) suspends{let h=match flag{true->left,false->right,}; let loan:@Token=@h.token; suspend inspect(loan);}";
-    source::refuse(
-        &[("joined_field.omg", text)],
-        "joined_field.omg",
-        source::unique_span(text, "match flag{true->left,false->right,}"),
-        "interior match requires a supported result carrier: Match",
-    );
+fn a_named_field_reborrow_through_a_joined_reference_names_the_arriving_loan() {
+    use psi_handoff_consumer::{ParkedFieldReborrow, parked_field_reborrow};
+    for (positive, negative, formals) in [("left", "right", [1, 2]), ("right", "left", [2, 1])] {
+        let text = format!(
+            "data Token{{v:u8;}} data Holder{{token:Token;}} machine inspect(t:@Token) suspends{{}}
+             machine forward(flag:bool,left:@Holder,right:@Holder) suspends{{let h=match flag{{true->{positive},false->{negative},}}; let loan:@Token=@h.token; suspend inspect(loan);}}"
+        );
+        let mut package = source::lower(&[("joined_field.omg", &text)]).unwrap();
+        let expected = |incoming: [usize; 2]| {
+            Ok(ParkedFieldReborrow {
+                incoming: incoming.to_vec(),
+                crossings: Vec::new(),
+                projection: vec!["Holder::token".to_string()],
+            })
+        };
+        spec_corpus::observe_handoff!(
+            psi "psi-output/joined-field-reborrow",
+            assert_eq!(parked_field_reborrow(&package, "forward", "inspect"), expected(formals)),
+        );
+
+        // Exchanging the two arriving loans changes which one the parked borrow holds.
+        let body = forward_body(&mut package);
+        let [
+            _,
+            omega_lowering::Parameter::Structural(left),
+            omega_lowering::Parameter::Structural(right),
+        ] = body.parameters[..]
+        else {
+            panic!("expected the incoming loans");
+        };
+        for block in &mut body.blocks {
+            if let BlockTerminator::Jump(edge) = &mut block.terminator
+                && let [CallArgument::CopyWhole(loan)] = edge.structural_arguments.as_mut_slice()
+            {
+                *loan = if *loan == left { right } else { left };
+            }
+        }
+        assert_eq!(parked_field_reborrow(&package, "forward", "inspect"), expected([formals[1], formals[0]]));
+    }
 }
 
 #[test]
-fn an_incoming_record_is_not_the_backing_of_an_unknown_loan_stored_in_it() {
+fn a_reborrow_through_a_reference_stored_in_an_incoming_record_names_the_stored_loan() {
+    use psi_handoff_consumer::{ParkedFieldReborrow, parked_field_reborrow};
     for (binding, actual) in [
         ("", "@h.inner.token"),
         ("let loan:@Token=@h.inner.token;", "loan"),
@@ -273,61 +408,144 @@ fn an_incoming_record_is_not_the_backing_of_an_unknown_loan_stored_in_it() {
         let text = format!(
             "data Token{{v:u8;}} data Inner{{token:Token;}} data Holder{{inner:@Inner;}} machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
         );
-        source::refuse(
-            &[("unknown.omg", &text)],
-            "unknown.omg",
-            source::unique_span(&text, &format!("inspect({actual})")),
-            "suspension needs the exact backing and carry evidence of the live structural place",
+        let mut package = source::lower(&[("unknown.omg", &text)]).unwrap();
+        // h lends the storage of Holder::inner; the @Inner stored there is the parent of Inner::token.
+        spec_corpus::observe_handoff!(
+            psi "psi-output/stored-field-reborrow",
+            assert_eq!(
+                parked_field_reborrow(&package, "forward", "inspect"),
+                Ok(ParkedFieldReborrow {
+                    incoming: vec![0],
+                    crossings: vec![vec!["Holder::inner".to_string()]],
+                    projection: vec!["Inner::token".to_string()],
+                })
+            ),
+        );
+
+        // Without the crossing, Inner::token would be read as a field of h's own record.
+        let body = forward_body(&mut package);
+        let captured = body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                OperationKind::BorrowPlace { source, .. } => Some(&mut source.path),
+                OperationKind::Call { arguments, .. } => match arguments.as_mut_slice() {
+                    [CallArgument::Borrow { place, .. }] if place.path.len() > 1 => Some(&mut place.path),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .expect("the captured place");
+        assert_eq!(captured.remove(2), PlaceProjection::Referent);
+        assert_eq!(
+            parked_field_reborrow(&package, "forward", "inspect"),
+            Err("each step must select a field of the reached record or cross a stored descriptor")
         );
     }
 }
 
 #[test]
-fn transferring_the_backing_owner_in_the_same_call_leaves_no_parked_field_loan() {
-    for (params, args) in [
-        ("t:@Token,h:Holder", "@h.token,move h"),
-        ("h:Holder,t:@Token", "move h,@h.token"),
+fn a_same_call_owner_transfer_publishes_the_field_loan_beside_callee_custody() {
+    use omega_lowering::{Parameter, PlaceOrigin};
+    for (params, args, borrow, owner) in [
+        ("t:@Token,h:Holder", "@h.token,move h", 0, 1),
+        ("h:Holder,t:@Token", "move h,@h.token", 1, 0),
     ] {
         let text = format!(
             "data Token{{v:u8;}} data Holder{{token:Token;}} machine park({params}) suspends{{}} machine forward(h:Holder) suspends{{suspend park({args})}}"
         );
-        let err = source::refuse(
-            &[("simultaneous.omg", &text)],
-            "simultaneous.omg",
-            source::unique_span(&text, &format!("park({args})")),
-            NO_BACKING,
+        let mut pkg = source::lower(&[("simultaneous.omg", &text)]).unwrap();
+        // The callee receives the owner and a loan into its field in one call.
+        // Psi records both; whether they may coexist is the checker's judgment.
+        spec_corpus::observe_handoff!(
+            psi "psi-output/parked-loan-callee-custody",
+            assert_eq!(
+                parked_field_loans(&pkg, "forward"),
+                Ok(vec![field_loan(Some(borrow), None, &["Holder::token"], ParkedLoanBacking::Callee(owner))])
+            ),
         );
-        assert!(
-            err.site
-                .span
-                .slice(text.as_bytes())
-                .unwrap()
-                .ends_with(format!("park({args})").as_bytes())
+        // `move h` transfers h into a fresh place before the call. h keeps no
+        // row; the fresh place's row gives the moving formal custody, and the
+        // crossing retains no separate loan or scalar.
+        let body = forward_body(&mut pkg);
+        let [Parameter::Structural(h)] = body.parameters[..] else { panic!("one owned formal") };
+        let site = &body.suspension_sites[0];
+        assert!(site.retained_loans.is_empty() && site.activation.is_empty());
+        let [row] = site.retained_owners.as_slice() else { panic!("one owner row") };
+        let PlaceOrigin::Operation(transfer) = body.places[row.place.index()].origin else {
+            panic!("the moved place comes from the transfer")
+        };
+        assert!(matches!(&body.operations[transfer.index()].kind, OperationKind::MoveStructural { source } if source.root == h && source.path.is_empty()));
+        assert!(row.moved.is_empty() && row.embedded_loans.is_empty() && row.ty == body.places[h.index()].ty);
+        forward_body(&mut pkg).suspension_sites[0].retained_owners[0].custody = OwnedCustody::Caller;
+        assert_eq!(parked_field_loans(&pkg, "forward"), Err("the moved root reaches no callee custody at the crossing"));
+        forward_body(&mut pkg).suspension_sites[0].retained_owners[0].custody = OwnedCustody::CalleeArgument(borrow);
+        assert_eq!(
+            parked_field_loans(&pkg, "forward"),
+            Err("callee custody names an argument that does not move the owner")
+        );
+
+        // Moving a second holder instead leaves the borrowed owner with the caller.
+        let twin = text
+            .replace("forward(h:Holder)", "forward(h:Holder,g:Holder)")
+            .replace("move h", "move g");
+        let pkg = source::lower(&[("simultaneous.omg", &twin)]).unwrap();
+        assert_eq!(
+            parked_field_loans(&pkg, "forward"),
+            Ok(vec![field_loan(Some(borrow), None, &["Holder::token"], ParkedLoanBacking::Intact)])
+        );
+        let owners = &forward_body_of(&pkg).suspension_sites[0].retained_owners;
+        assert_eq!(
+            owners.iter().map(|row| row.custody).collect::<Vec<_>>(),
+            [OwnedCustody::Caller, OwnedCustody::CalleeArgument(owner)]
         );
     }
+
+    // An earlier whole transfer to another machine leaves no row for h at the
+    // crossing. Lowering still publishes the borrow of h.token for the checker.
+    let earlier = "data Token{v:u8;} data Holder{token:Token;} machine consume(h:Holder){} machine park(t:@Token) suspends{} machine forward(h:Holder) suspends{consume(move h); suspend park(@h.token)}";
+    let pkg = source::lower(&[("simultaneous.omg", earlier)]).unwrap();
+    let site = &forward_body_of(&pkg).suspension_sites[0];
+    assert!(site.retained_owners.is_empty() && site.retained_loans.is_empty() && site.activation.is_empty());
+    assert_eq!(parked_field_loans(&pkg, "forward"), Err("the moved root reaches no callee custody at the crossing"));
 }
 
 #[test]
-fn a_borrow_and_a_moved_subtree_cannot_contain_one_another_at_suspension() {
-    for (take_ty, taken, borrow_ty, borrowed) in [
-        ("Pair", "h.pair", "Token", "h.pair.first"),
-        ("Token", "h.pair.first", "Pair", "h.pair"),
+fn a_borrow_and_a_moved_subtree_that_contain_one_another_both_reach_the_crossing() {
+    for (take_ty, taken, borrow_ty, borrowed, path, hole) in [
+        ("Pair", "h.pair", "Token", "h.pair.first", &["Holder::pair", "Pair::first"][..], &["Holder::pair"][..]),
+        ("Token", "h.pair.first", "Pair", "h.pair", &["Holder::pair"][..], &["Holder::pair", "Pair::first"][..]),
     ] {
         let text = format!(
             "data Token{{v:u8;}} data Pair{{first:Token;second:Token;}} data Holder{{pair:Pair;other:Token;}} machine consume(t:{take_ty}){{}} machine park(t:@{borrow_ty}) suspends{{}} machine forward(h:Holder) suspends{{consume(move {taken}); suspend park(@{borrowed})}}"
         );
-        let err = source::refuse(
-            &[("nested_overlap.omg", &text)],
-            "nested_overlap.omg",
-            source::unique_span(&text, &format!("park(@{borrowed})")),
-            NO_BACKING,
+        let pkg = source::lower(&[("nested_overlap.omg", &text)]).unwrap();
+        spec_corpus::observe_handoff!(
+            psi "psi-output/parked-loan-moved-overlap",
+            assert_eq!(parked_field_loans(&pkg, "forward"), Ok(vec![field_loan(Some(0), None, path, moved(hole))])),
         );
-        assert!(
-            err.site
-                .span
-                .slice(text.as_bytes())
-                .unwrap()
-                .ends_with(format!("park(@{borrowed})").as_bytes())
+        // Moving the disjoint sibling leaves the selected subtree intact.
+        let twin = text
+            .replace(&format!("consume(t:{take_ty})"), "consume(t:Token)")
+            .replace(&format!("move {taken}"), "move h.other");
+        let pkg = source::lower(&[("nested_overlap.omg", &twin)]).unwrap();
+        assert_eq!(parked_field_loans(&pkg, "forward"), Ok(vec![field_loan(Some(0), None, path, ParkedLoanBacking::Intact)]));
+        assert_eq!(
+            forward_body_of(&pkg).suspension_sites[0].retained_owners[0].moved,
+            [vec![PlaceProjection::Field(field(&pkg, "Holder", "Holder::other"))]]
         );
     }
+}
+
+fn forward_body_of(package: &LoweredPackage) -> &MachineBody {
+    &package.machines.iter().find(|m| m.declaration.path == "forward").unwrap().body
+}
+
+fn field(
+    package: &LoweredPackage,
+    data: &str,
+    path: &str,
+) -> omega_lowering::DeclarationId {
+    let data = package.data.iter().find(|item| item.declaration.path == data).unwrap();
+    data.fields.iter().find(|item| item.declaration.path == path).unwrap().declaration.clone()
 }

@@ -22,11 +22,7 @@ pub(crate) fn folded_exact_operator<'a>(
     }) else {
         return Ok(None);
     };
-    let ValueType::Exact {
-        value,
-        fractional_origin: None,
-    } = folded
-    else {
+    let ValueType::Exact { value, fractional_origin } = folded else {
         return Err(unsupported_node(file, node, "exact operator has no integer value"));
     };
     if !value.is_integer() {
@@ -45,6 +41,12 @@ pub(crate) fn folded_exact_operator<'a>(
                 _ => return Err(unsupported_node(file, child, "exact operator carries an unsupported typed record")),
             }
         }
+    }
+    // Typing records a landing only after checking fractional history: an
+    // implicit integer landing refuses it and an explicit `as` acknowledges it.
+    // Without a landing, nothing has admitted that history.
+    if fractional_origin.is_some() && !landed {
+        return Err(unsupported_node(file, node, "exact operator has no integer value"));
     }
     let value = value.numer();
     if inherited.is_some_and(|outer| outer != value) {
@@ -74,6 +76,18 @@ impl LoweredInteger {
                 right: operands[1],
             },
         }
+    }
+}
+
+/// Index formation uses the same primitive contract, but has no runtime trap edge.
+pub(crate) fn index_operation(
+    operation: &TypedOperation,
+    obligation: &TypingObligation,
+    owner: &omega_resolved::DeclarationId,
+) -> Result<IntegerOperation, LoweringError> {
+    match lower_integer(operation, &[obligation], owner)? {
+        LoweredInteger::Ordinary(op) => Ok(op),
+        LoweredInteger::Trapping(_) => Err(LoweringError::new(&operation.site, "index operation needs a static formation contract")),
     }
 }
 

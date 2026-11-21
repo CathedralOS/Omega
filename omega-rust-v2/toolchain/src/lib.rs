@@ -45,7 +45,17 @@ pub fn check_source_identity(
 }
 
 pub fn resolve_source_package<'text>(sources: &[StageSource<'text, '_>]) -> Result<SourcePackage<'text>, NameError> {
-    resolve_package(sources, None)
+    resolve_package(sources, &[], None)
+}
+
+/// Resolve source packages with the direct dependency edges that Build admitted for them.
+/// Each source package also receives its `omega` edge to the toolchain. The resolver refuses
+/// an admitted edge that gives an alias a second package, including a retargeted `omega`.
+pub fn resolve_admitted_packages<'text>(
+    sources: &[StageSource<'text, '_>],
+    admitted: &[Dependency<'_>],
+) -> Result<SourcePackage<'text>, NameError> {
+    resolve_package(sources, admitted, None)
 }
 
 /// Resolve target names from the same compiler-owned catalog used in typing.
@@ -54,10 +64,11 @@ pub fn resolve_source_package_with_assembly<'text>(
     sources: &[StageSource<'text, '_>],
     catalog: std::sync::Arc<omega_typed::AssemblyTypes>,
 ) -> Result<SourcePackage<'text>, NameError> {
-    resolve_package(sources, Some(catalog))
+    resolve_package(sources, &[], Some(catalog))
 }
 fn resolve_package<'text>(
     sources: &[StageSource<'text, '_>],
+    admitted: &[Dependency<'_>],
     assembly: Option<std::sync::Arc<omega_typed::AssemblyTypes>>,
 ) -> Result<SourcePackage<'text>, NameError> {
     for source in sources {
@@ -73,6 +84,7 @@ fn resolve_package<'text>(
             alias: "omega",
             package: TOOLCHAIN_PACKAGE,
         })
+        .chain(admitted.iter().copied())
         .collect();
     let mut instructions = Vec::new();
     let mut registers = Vec::new();

@@ -17,17 +17,17 @@ language/generics.md:367  L5 data templates TinyBytes | domains u64::AtMost
 language/generics.md:510  L5 trait declarations ByteScanner
 language/generics.md:767  L5 machine templates apply_one, visit_one
 language/lifetimes.md:20  L5 schema only Message
-language/machine_values.md:44  L5 open gap: no Psi lowering for carrier runtime callable machine(u32) -> u8 | reader
 language/machines.md:33  L5 lowered clear, example | schemas Counter
-language/modules.md:227  L5 open gap: domain carrier requires a fixed scalar | Audio::Audible
 language/patterns.md:50  L5 lowered inspect, targets_one_user | schemas Command, Command::Operation
 language/some_packages.md:15  L5 data templates Reader | aliases ReadInto
 language/state_contracts.md:74  L5 machine templates invoke
 language/state_contracts.md:88  L5 alias only WaitForValue
-layouts/recasts.md:18  L5 open gap: machine-wrapped fragment refused: local binding requires a supported copyable carrier | @bits as @f32
 proofs/contracts.md:826  L5 lowered area, get
 proofs/mathematical_bindings.md:199  L5 data templates Witness
 proofs/mathematical_bindings.md:263  L5 mathematical declarations choose
 proofs/mathematical_bindings.md:63  L5 mathematical declarations compose, greater_than
 resources/bounded_input.md:38  L5 schema only LineReadResult
 resources/carry.md:6  L5 schema only PerCpuLease
+language/modules.md:227  L5 machine templates preview
+language/machine_values.md:44  L5 lowered open_reader | aliases ByteReader
+layouts/recasts.md:18  L5 fragment only: unsupported Psi declaration: Let | let bits: u32 = 0x3F80_0000u32;

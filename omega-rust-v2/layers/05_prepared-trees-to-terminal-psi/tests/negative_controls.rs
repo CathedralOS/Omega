@@ -9,6 +9,7 @@
 //! | swapped equal-typed scalars | `member_calls::boundary_demand_preserves_the_requirement_and_authored_argument_interleave` |
 //! | restoration turned into replacement | `loans::exclusive_move_and_replacement_retain_both_exact_paths` |
 //! | residual cleanup redirected or dropped | `ownership::transferring_a_field_to_a_call_does_not_dispose_the_argument_twice` |
+//! | arm remainder disposed or arm transfer redirected before a join | `ownership::transferring_an_owned_match_result_uses_the_join_parameter` |
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, LoweredPackage, MachineBody, OperationKind, StructuralStoreDisposition};
@@ -162,5 +163,58 @@ fn residual_cleanup_on_the_transferred_field_fails_the_sibling_witness() {
                 product_witness::transfer_leaves_sibling(apply, &field, &sibling),
             );
         }
+    }
+}
+
+/// The checker compares what each arm leaves of `p` at the join. A product that
+/// quietly disposes an arm's remainder before arriving, or that moves the same
+/// field in both arms, would hide that disagreement, so the arrival witness must reject both.
+#[test]
+fn a_normalized_or_redirected_arm_fails_the_join_arrival_witness() {
+    let source = format!("{PAIR} machine select(p:Pair,flag:bool)->Token{{let chosen=match flag{{true->move p.left,false->move p.right,}};chosen}}");
+    for corruption in ["disposed-remainder", "same-field"] {
+        let mut package = sources::lower(&[("join.omg", &source)]).unwrap();
+        let select = body_mut(&mut package, "select");
+        product_witness::join_arrivals_move_fields(select, "Pair::left", "Pair::right").expect("actual product");
+        let BlockTerminator::Conditional { when_true, when_false, .. } = &select.blocks[0].terminator else {
+            panic!("entry branch")
+        };
+        let (true_arm, false_arm) = (when_true.target.get() - 1, when_false.target.get() - 1);
+        // Each arm's own transfer: its operation ordinal, moved place and claim type.
+        let transfer = |body: &MachineBody, block: usize| {
+            body.operations[body.blocks[block].operations.clone()]
+                .iter()
+                .find_map(|op| match (&op.kind, op.result) {
+                    (OperationKind::MoveStructural { source }, omega_lowering::OperationResult::Structural(claim)) => {
+                        Some((op.id.index(), source.clone(), body.places[claim.index()].ty))
+                    }
+                    _ => None,
+                })
+                .expect("arm transfer")
+        };
+        let (_, left, _) = transfer(select, true_arm);
+        let (false_move, right, ty) = transfer(select, false_arm);
+        match corruption {
+            // Dispose `p.right`, the true arm's remainder, on its arriving edge.
+            "disposed-remainder" => {
+                let BlockTerminator::Jump(arrival) = &mut select.blocks[true_arm].terminator else {
+                    panic!("true arm jumps to the join")
+                };
+                arrival.cleanup.push(CleanupAction::DiscardResidual { place: right, ty });
+            }
+            // Make the false arm move `p.left` as the true arm does.
+            _ => {
+                let OperationKind::MoveStructural { source } = &mut select.operations[false_move].kind else {
+                    panic!("false arm transfer")
+                };
+                *source = left;
+            }
+        }
+        let select = &*select;
+        rejects(
+            &format!("join-arrival/{corruption}"),
+            select,
+            product_witness::join_arrivals_move_fields(select, "Pair::left", "Pair::right"),
+        );
     }
 }

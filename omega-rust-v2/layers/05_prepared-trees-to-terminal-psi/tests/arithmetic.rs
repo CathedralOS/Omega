@@ -280,6 +280,73 @@ fn landed_exact_operator_supplies_its_signed_constant_to_the_comparison() {
     assert_eq!(compare.kind, greater(vec![x, scalar_result(negate)]));
 }
 
+/// `language/numeric_values.md` admits `((5 / 2) * 2) as u32` as 5: the cast
+/// acknowledges the fractional `5 / 2` and lands the exact final value. The
+/// historical `rational_arg_landing` sample passes `(7 / 2 * 2) as i32` to a
+/// call the same way. Without the cast, typing refuses the same calculation.
+#[test]
+fn explicit_cast_lands_an_acknowledged_fractional_calculation_as_its_exact_constant() {
+    let u32_type = TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 32 });
+    let i32_type = TypeShape::PrimitiveScalar(ScalarType::Integer { signed: true, width: 32 });
+    let package = lower(
+        "machine exact() -> u32 { ((5 / 2) * 2) as u32 }
+         machine identity(value: i32) -> i32 { value }
+         machine anonymous() -> i32 { identity((7 / 2 * 2) as i32) }",
+    );
+    let machine = |name: &str| {
+        package
+            .machines
+            .iter()
+            .find(|machine| machine.declaration.path == name)
+            .unwrap_or_else(|| panic!("missing machine {name}"))
+    };
+    let body = &machine("exact").body;
+    let [constant] = body.operations.as_slice() else {
+        panic!("expected one landed constant, got {:?}", body.operations);
+    };
+    assert_eq!(constant.kind, OperationKind::Constant(ScalarLiteral::Integer(5.into())));
+    assert_eq!(
+        package
+            .types
+            .get(body.values[scalar_result(constant).index()].ty),
+        Some(&u32_type)
+    );
+    assert_eq!(sole_return(body), ReturnEdge::Scalar(scalar_result(constant)));
+
+    let identity = machine("identity").id;
+    let body = &machine("anonymous").body;
+    let [constant, call] = body.operations.as_slice() else {
+        panic!("expected the landed argument and its call, got {:?}", body.operations);
+    };
+    assert_eq!(constant.kind, OperationKind::Constant(ScalarLiteral::Integer(7.into())));
+    assert_eq!(
+        package
+            .types
+            .get(body.values[scalar_result(constant).index()].ty),
+        Some(&i32_type)
+    );
+    let OperationKind::Call {
+        callee: omega_lowering::CallTarget::Machine(callee),
+        arguments,
+        ..
+    } = &call.kind
+    else {
+        panic!("expected a call to identity, got {:?}", call.kind);
+    };
+    assert_eq!(*callee, identity);
+    assert_eq!(arguments.as_slice(), [omega_lowering::CallArgument::Scalar(scalar_result(constant))]);
+
+    let implicit = "machine implicit() -> u32 { (5 / 2) * 2 }";
+    let error = omega_preparation::prepare_source_package(&sources::resolve(&[("arithmetic.omg", implicit)])).unwrap_err();
+    assert!(
+        error
+            .message
+            .starts_with("fractional intermediate at bytes 29..34 yields 5"),
+        "{}",
+        error.message
+    );
+}
+
 #[test]
 fn exact_integer_cast_preserves_the_source_operand_and_destination_carrier() {
     let package = lower("machine narrow(first:u16, selected:u16)->u8{selected as u8}");

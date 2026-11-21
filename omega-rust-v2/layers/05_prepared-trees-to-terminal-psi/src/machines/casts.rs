@@ -2,19 +2,20 @@ use crate::{LoweringError, LoweringTypes, QualificationDirection, ScalarType};
 use omega_resolved::DeclarationId;
 use omega_typed::{Access, ObligationKind, TypedOperation, TypingObligation, ValueType};
 
-/// Inputs to the shared-view compatibility judgment, not a judgment result.
+/// Inputs to the scalar view compatibility judgment, not a judgment result.
 /// Semantic integer widths and Boolean validity do not specify storage layout.
-pub(super) struct SharedScalarRecast<'a> {
+pub(super) struct ScalarRecast<'a> {
+    pub access: crate::ReferenceAccess,
     pub source: &'a ValueType,
     pub source_referent: ScalarType,
     pub destination_referent: ScalarType,
 }
 
-pub(super) fn shared_scalar_recast<'a>(
+pub(super) fn scalar_recast<'a>(
     operation: &'a TypedOperation,
     obligations: &[&TypingObligation],
     machine: &DeclarationId,
-) -> Result<SharedScalarRecast<'a>, LoweringError> {
+) -> Result<ScalarRecast<'a>, LoweringError> {
     let error = |message| LoweringError::new(&operation.site, message);
     let [source] = operation.operands.as_slice() else {
         return Err(error("recast requires one source view"));
@@ -26,16 +27,18 @@ pub(super) fn shared_scalar_recast<'a>(
     if operation.token != "as" || from_access != to_access {
         return Err(error("recast cannot change access authority"));
     }
-    match from_access {
-        Access::Shared => {}
-        Access::Mut => return Err(error("mutable recast needs source handback evidence that Psi cannot carry")),
+    let access = match from_access {
+        Access::Shared => crate::ReferenceAccess::Shared,
+        Access::Mut => crate::ReferenceAccess::Mutable,
         Access::Write => return Err(error("write-only views admit no recast")),
-    }
+    };
     let scalar = |referent: &ValueType| {
         if matches!(referent, ValueType::Integer { width: Some(0), .. }) {
             return Err(error("recast requires positive referent widths"));
         }
-        crate::lowering::types::scalar_carrier(referent).map_err(|_| error("recast requires unqualified scalar referents"))
+        // A recast only views stored bits, so an IEEE float referent is a
+        // stored scalar like any integer; nothing here computes on it.
+        crate::lowering::types::stored_scalar(referent).map_err(|_| error("recast requires unqualified scalar referents"))
     };
     let source_referent = scalar(from)?;
     let destination_referent = scalar(to)?;
@@ -53,7 +56,8 @@ pub(super) fn shared_scalar_recast<'a>(
     if !recast {
         return Err(error("recast lacks its typed representation obligation"));
     }
-    Ok(SharedScalarRecast {
+    Ok(ScalarRecast {
+        access,
         source,
         source_referent,
         destination_referent,
@@ -63,7 +67,12 @@ pub(super) fn shared_scalar_recast<'a>(
 pub(super) struct ScalarCast<'a> {
     pub operand_type: &'a ValueType,
     pub convert_integer: bool,
-    pub change: Option<QualificationDirection>,
+    pub change: Option<ScalarChange>,
+}
+
+pub(super) enum ScalarChange {
+    Ordinary(QualificationDirection),
+    PredicateCompletion(Vec<omega_psi::DeclarationId>),
 }
 
 /// L3 has resolved each named domain and accounted for the written entries.
@@ -92,16 +101,26 @@ pub(super) fn scalar_cast<'a>(
         .iter()
         .filter(|atom| !before.contains(atom))
         .collect::<Vec<_>>();
-    if added
-        .iter()
-        .any(|member| types.has_domain_predicate(&member.declaration))
-    {
-        return Err(error("adding a predicate-bearing domain requires a retained establishment proof"));
-    }
     let removes = before.iter().any(|atom| !after.contains(atom));
     let change = match (added.is_empty(), removes) {
-        (false, false) => Some(QualificationDirection::Add),
-        (true, true) => Some(QualificationDirection::Erase),
+        (false, false) => {
+            let mut predicates = Vec::new();
+            for atom in &added {
+                match types.predicate_requires_parent(&atom.declaration) {
+                    None => continue,
+                    Some(true) => return Err(error("predicate completion does not support a domain requiring parent membership")),
+                    Some(false) => predicates.push(crate::identity::declaration(&atom.declaration, &operation.site)?),
+                }
+            }
+            Some(if predicates.is_empty() {
+                ScalarChange::Ordinary(QualificationDirection::Add)
+            } else if predicates.len() == added.len() {
+                ScalarChange::PredicateCompletion(predicates)
+            } else {
+                return Err(error("mixed predicate and tag establishment requires distinct completion origins"));
+            })
+        }
+        (true, true) => Some(ScalarChange::Ordinary(QualificationDirection::Erase)),
         (true, false) => None,
         (false, true) => return Err(error("Psi has no specified edge for simultaneous domain removal and addition")),
     };

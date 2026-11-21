@@ -1185,7 +1185,7 @@ fn changing_recursive_widths_retain_the_next_application_for_verification() {
     let stage = check(&[("recursive.omg", code)]).unwrap();
     assert!(stage.obligations.iter().any(|proof|
         proof.site.span.slice(code.as_bytes()) == Some(b"Link<3>") &&
-        matches!(&proof.kind, omega_typer::ObligationKind::FormRecursiveApplication{declaration,arguments} if declaration.path=="Link" && arguments[0].to_string()=="4")));
+        matches!(&proof.kind, omega_typer::ObligationKind::FormRecursiveApplication{declaration,active_arguments,arguments} if declaration.path=="Link" && active_arguments[0].to_string()=="3" && arguments[0].to_string()=="4")));
     let zero = "data Link<const N:u64>{next:@Link<N-1>;value:u<N>;} machine caller(x:Link<1>){}";
     let error = check(&[("recursive.omg", zero)]).unwrap_err();
     assert_eq!(error.file, "recursive.omg");

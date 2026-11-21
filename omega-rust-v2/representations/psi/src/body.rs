@@ -12,7 +12,7 @@ impl BlockId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct EdgeId(pub NonZeroUsize);
 
 impl EdgeId {
@@ -47,7 +47,7 @@ impl PlaceId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct OperationId(pub NonZeroUsize);
 
 impl OperationId {
@@ -126,6 +126,15 @@ pub enum OperationKind {
         arguments: Vec<CallArgument>,
         requirements: Vec<crate::CallRequirement>,
     },
+    /// Construct a descriptor for this packaged machine under `contract`.
+    /// The checker must establish the machine's refinement of the contract.
+    ConstructCallableDescriptor {
+        machine: crate::MachineId,
+        contract: crate::CallableContractId,
+    },
+    /// An erased proof application of a logical theorem. Its result is always
+    /// `OperationResult::Unit`; see `TheoremApplication`.
+    ApplyTheorem(Box<crate::TheoremApplication>),
     /// The same descriptor under the destination contract. The checker judges
     /// that the source value's contract refines `contract`; no target changes.
     RefineCallableDescriptor {
@@ -157,6 +166,17 @@ pub enum OperationKind {
         source_referent: crate::ScalarType,
         destination_referent: crate::ScalarType,
     },
+    /// Same-backing exclusive scalar view. `lender` is the input descriptor
+    /// and identifies the loan to which valid storage is owed at handback,
+    /// including obligations of the underlying declared place. The result
+    /// carries this debt even when forwarded. Immediate established use needs
+    /// compatible geometry, exclusive custody and validity in both directions;
+    /// this operation neither proves those facts nor performs restoration.
+    MutableScalarBitRecast {
+        lender: PlaceId,
+        source_referent: crate::ScalarType,
+        destination_referent: crate::ScalarType,
+    },
     /// Take the live value through an exclusive loan. The source path must be
     /// re-established before the loan can be released.
     BorrowedMove {
@@ -183,11 +203,19 @@ pub enum OperationKind {
         obligation: crate::BoundsObligationId,
         path: Vec<crate::ElementLeafStep>,
     },
+    /// Zero every leaf of fresh storage for the result's nominal record. The
+    /// operation carries the binding's `ZeroValue` obligation: the checker judges
+    /// each default-domain clause of that schema, and of each schema it contains,
+    /// for the all-zero value. Lowering neither discharges nor assumes them.
     EstablishZeroedStructural,
+    /// Owes every default-domain clause of the result's nominal schema at
+    /// this operation, with `self` formed from this case and its payload.
     EstablishCase {
         case: crate::DeclarationId,
         fields: Vec<FieldInitializer>,
     },
+    /// Owes every default-domain clause of the result's nominal schema at
+    /// this operation, with `self` formed from these field operands.
     EstablishRecord {
         fields: Vec<FieldInitializer>,
     },
@@ -233,6 +261,14 @@ pub enum OperationKind {
     },
     EstablishScalarArray {
         elements: Vec<ValueId>,
+    },
+    /// Home an initialized primitive local so it can be borrowed. The result
+    /// is an unrestricted, unqualified, claim-free place of the value's exact
+    /// primitive type; every shared view of the local borrows this one home.
+    /// Later reads of the local are `PrimitiveScalarRead`s of the home, not
+    /// equality with `value`.
+    EstablishPrimitiveLocal {
+        value: ValueId,
     },
     /// Each place supplies one complete element, in source order. An owned
     /// element transfers once and continues beneath `FixedIndex(ordinal)`.
@@ -348,6 +384,9 @@ pub enum ReturnEdge {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct MachineBody {
+    /// The descriptor at each explicit binding occurrence and its destination
+    /// ordinal in `LoweredMachine::regions`. The checker judges the relation.
+    pub lifetime_bindings: Vec<(PlaceId, usize)>,
     pub call_acknowledgements: Vec<crate::CallAcknowledgement>,
     pub suspension_sites: Vec<crate::SuspensionSite>,
     pub blocks: Vec<crate::BranchBlock>,

@@ -1,5 +1,11 @@
-//! A reborrow can inherit backing from a known incoming loan. The projected
-//! subject and the type-wide floors on its path still constrain suspension.
+//! A reborrow can inherit backing from a known incoming loan. The path from its
+//! referent to the selected subject may cross plain record fields and explicit
+//! `Referent` steps. Crossing a descriptor stored in a reached record makes
+//! that stored loan the parent of the rest of the path, so its own referent's
+//! floors apply from there on. Lowering does not judge carry here: the
+//! published schemas keep the subject's restrictions and the type-wide floors
+//! on its path, and the checker rejects a crossing that a suspension-forbidden
+//! live value cannot make.
 use crate::{DataId, LoweredData, LoweringError, LoweringTypes, PlaceProjection, Site, TypeShape};
 
 pub(super) fn check_backing(
@@ -10,32 +16,26 @@ pub(super) fn check_backing(
     site: &Site,
 ) -> Result<(), LoweringError> {
     let unknown = || LoweringError::new(site, "suspension needs the exact backing and carry evidence of the live structural place");
-    let record = |id: DataId| {
-        let schema = &data[id.get() - 1];
-        if schema
-            .carry
-            .as_ref()
-            .is_some_and(|carry| !carry.allows_suspension)
-        {
-            Err(LoweringError::new(site, "parked field reborrow has suspension-forbidden backing"))
-        } else {
-            Ok(schema)
-        }
-    };
+    let record = |id: DataId| &data[id.get() - 1];
     let mut subject = data[referent.get() - 1].carrier;
     for step in path {
-        let (Some(TypeShape::Nominal(id)), PlaceProjection::Field(field)) = (types.get(subject), step) else {
-            return Err(unknown());
+        subject = match (types.get(subject), step) {
+            (Some(TypeShape::Nominal(id)), PlaceProjection::Field(field)) => {
+                record(*id)
+                    .fields
+                    .iter()
+                    .find(|f| f.declaration == *field)
+                    .ok_or_else(unknown)?
+                    .carrier
+            }
+            // The reached field stores a descriptor; crossing it continues in
+            // that loan's referent record.
+            (Some(TypeShape::NominalReference { referent, .. }), PlaceProjection::Referent) => data[referent.get() - 1].carrier,
+            _ => return Err(unknown()),
         };
-        let selected = record(*id)?
-            .fields
-            .iter()
-            .find(|f| f.declaration == *field)
-            .ok_or_else(unknown)?;
-        subject = selected.carrier;
     }
     // A descriptor within the selected subject or an unknown active case
-    // needs more evidence than the incoming record field alone supplies.
+    // needs more evidence than the path to it supplies.
     let mut pending = vec![subject];
     let mut seen = std::collections::BTreeSet::new();
     while let Some(ty) = pending.pop() {
@@ -46,7 +46,7 @@ pub(super) fn check_backing(
             Some(TypeShape::PrimitiveScalar(_)) => {}
             Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
             Some(TypeShape::Nominal(id)) => {
-                let schema = record(*id)?;
+                let schema = record(*id);
                 if !schema.cases.is_empty() {
                     return Err(unknown());
                 }

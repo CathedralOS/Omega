@@ -1,7 +1,7 @@
 use super::{formal, lower, machine, ordinary_rank_actual, ranking};
 use omega_lowering::{
     ArithmeticPolicy, BlockId, BlockTerminator, CallArgument, CallRequirement, CallSite, CallTarget, IntegerObligation, IntegerPrimitive, LoweredMachine,
-    OperationKind, PredicateOperator, PredicateStep, RankComparison, RankExpression, ScalarLiteral, ValueId, ValueOrigin,
+    OperationKind, PredicateOperator, PredicateStep, RankComparison, RankExpression, RankOperand, ScalarLiteral, ValueId, ValueOrigin,
 };
 
 fn definition(
@@ -75,7 +75,10 @@ fn parameter_step_retains_entry_premise_call_requirement_and_exact_subtraction()
         );
         let witness = ranking(count);
         assert_eq!(witness.component, [count.id]);
-        assert_eq!(witness.source_rank(&count.body.parameters), Some(RankExpression::Operand(n)));
+        assert_eq!(
+            witness.source_rank(&count.body.parameters),
+            Some(RankExpression::Operand(RankOperand::Input(n)))
+        );
         let next = ordinary_rank_actual(count, count, comparison);
         let OperationKind::Integer { operation, operands } = definition(count, next) else {
             panic!("expected subtraction result")
@@ -93,7 +96,7 @@ fn parameter_step_retains_entry_premise_call_requirement_and_exact_subtraction()
         }
 
         let edge = &witness.edges[0];
-        let op = edge.forwarded_call.unwrap();
+        let CallSite::Operation(op) = edge.call else { panic!("expected ordinary call") };
         let OperationKind::Call { arguments, requirements, .. } = &count.body.operations[op.index()].kind else {
             panic!("expected call")
         };
@@ -127,7 +130,7 @@ fn a_false_recursive_requirement_remains_attached_to_the_actual_call() {
     .unwrap();
     let count = machine(&package, "count");
     let next = ordinary_rank_actual(count, count, RankComparison::Pending);
-    let call = ranking(count).edges[0].forwarded_call.unwrap();
+    let CallSite::Operation(call) = ranking(count).edges[0].call else { panic!("expected ordinary call") };
     let OperationKind::Call { arguments, requirements, .. } = &count.body.operations[call.index()].kind else {
         panic!("expected call")
     };
@@ -160,7 +163,10 @@ fn terminal_rank_and_positive_guard_keep_their_distinct_zero_definitions() {
     let witness = ranking(count);
     assert_eq!(witness.component, [count.id]);
     let n = formal(count, 0);
-    assert_eq!(witness.source_rank(&count.body.parameters), Some(RankExpression::Operand(n)));
+    assert_eq!(
+        witness.source_rank(&count.body.parameters),
+        Some(RankExpression::Operand(RankOperand::Input(n)))
+    );
     let [edge] = witness.edges.as_slice() else {
         panic!("expected recursive edge")
     };
@@ -168,13 +174,16 @@ fn terminal_rank_and_positive_guard_keep_their_distinct_zero_definitions() {
         panic!("expected terminal call")
     };
     assert_eq!(
-        (*id, *callee, edge.target, edge.forwarded_call),
-        (edge.edge, CallTarget::Machine(count.id), count.id, None)
+        (edge.call, *callee, edge.target, edge.forwarding_return),
+        (CallSite::Edge(*id), CallTarget::Machine(count.id), count.id, None)
     );
     let [CallArgument::Scalar(actual)] = arguments[..] else {
         panic!("expected rank argument")
     };
-    assert_eq!((edge.comparison, &edge.successor), (RankComparison::Pending, &RankExpression::Operand(actual)));
+    assert_eq!(
+        (edge.comparison, &edge.successor),
+        (RankComparison::Pending, &Some(RankExpression::Operand(RankOperand::Input(actual))))
+    );
     let OperationKind::Integer { operation, operands } = guard(count, edge.block, true) else {
         panic!("expected positive guard")
     };

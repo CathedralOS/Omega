@@ -25,7 +25,7 @@ CLI_CASES = {
     "unavailable_target_for_a_required_extent": ("L4", "preparation (target input)"),
     "a_carry_annotated_alias_stops_at_its_attributes": ("L5", "lowering"),
     "a_transparent_alias_cannot_change_its_targets_multiplicity": ("L3", "typer"),
-    "a_ranked_indirect_terminal_call_identifies_the_unsupported_edge": ("L5", "lowering"),
+    "a_crashing_helper_cannot_supply_a_total_predicate_application": ("L5", "lowering"),
 }
 # Each stop must carry the controls that separate it from its neighbouring layer.
 CONTROLS = {
@@ -34,7 +34,7 @@ CONTROLS = {
 }
 # L5 CLI refusals must agree with the layer test that pins the same message and span.
 LAYER_WITNESSES = {
-    "a_ranked_indirect_terminal_call_identifies_the_unsupported_edge": ("ranking", "a_ranked_terminal_descriptor_call_refuses_at_the_invocation"),
+    "a_crashing_helper_cannot_supply_a_total_predicate_application": ("predicate_call_handoff", "a_published_crash_route_prevents_a_total_predicate_application"),
     "a_carry_annotated_alias_stops_at_its_attributes": ("declarations", "alias_with_carry_stops_at_its_attributes"),
 }
 

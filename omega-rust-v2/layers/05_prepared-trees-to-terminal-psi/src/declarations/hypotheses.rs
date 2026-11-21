@@ -62,17 +62,14 @@ pub(crate) fn lower(
     if !effects.invokes.is_empty() || !effects.reach.is_empty() || effects.fixed_pause != Default::default() || !effects.callback_pause.is_empty() {
         return Err(refuse("a logical theorem cannot reach services, pause or invoke callbacks"));
     }
-    // Citations are erased proof applications. Until they are lowered as such,
-    // an executable or static-argument use must not acquire a runtime target.
+    // A body's citation lowers to an erased `ApplyTheorem`. A static argument
+    // would select the theorem as a runtime target, which it never has.
     if let Some(call) = typed
         .calls
         .iter()
-        .find(|call| call.machine == sig.machine && call.use_site != CallUse::Fact)
+        .find(|call| call.machine == sig.machine && call.use_site == CallUse::StaticArgument)
     {
-        return Err(LoweringError::new(
-            &call.site,
-            "a logical theorem citation requires erased proof-application lowering",
-        ));
+        return Err(LoweringError::new(&call.site, "a logical theorem cannot be a static machine argument"));
     }
     if let Some(selection) = typed
         .obligations

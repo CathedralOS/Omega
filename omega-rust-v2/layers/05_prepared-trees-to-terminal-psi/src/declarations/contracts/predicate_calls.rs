@@ -43,7 +43,7 @@ pub(super) fn application<'a>(
     let call = selected.ok_or_else(|| refuse("predicate application has no selected fact call"))?;
     let caller = match owner {
         ClauseOwner::Machine(sig) => Some(&sig.machine),
-        ClauseOwner::Subject(_) | ClauseOwner::Domain(..) | ClauseOwner::IndexedData(..) | ClauseOwner::Template(_) => None,
+        ClauseOwner::Callable(..) | ClauseOwner::Subject(_) | ClauseOwner::Domain(..) | ClauseOwner::IndexedData(..) | ClauseOwner::Template(_) => None,
         _ => return Err(refuse("unsupported predicate application owner")),
     };
     if !typed || proved != guarantee.is_some() || total_guard != crash_guard || call.caller.as_ref() != caller || &call.result != ty {
@@ -79,7 +79,14 @@ pub(super) fn application<'a>(
     {
         return Err(unsupported());
     }
-    if !sig.crash_ceiling.as_ref().is_some_and(Vec::is_empty) {
+    // L3's effect row retains an authored ceiling. For a private body without a
+    // clause it is empty only when every operation and call is route-free.
+    let crash_free = forest
+        .machine_effects
+        .iter()
+        .find(|effects| effects.machine == sig.machine)
+        .is_some_and(|effects| effects.crash_ceiling.as_ref().is_some_and(Vec::is_empty));
+    if !crash_free {
         return Err(refuse("predicate application requires a terminating helper with an empty crash ceiling"));
     }
     let progress = if sig.terminates {

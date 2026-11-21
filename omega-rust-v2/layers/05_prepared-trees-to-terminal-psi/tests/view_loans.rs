@@ -142,6 +142,8 @@ fn a_different_selector_never_repairs_the_extracted_element() {
         (",i:u64,j:u64", "i", "j"),
         (",i:u64", "i", "0"),
         (",i:u64", "0", "i"),
+        // The same operation over a different operand is not congruent.
+        (",i:u64,j:u64", "i+1", "j+1"),
     ] {
         let src = format!("{CELL} machine edit(p:@mut [Cell]{params}) {{let old=move p[{taken}]; p[{written}]=move old;}}");
         let destination = format!("p[{written}]");
@@ -241,14 +243,81 @@ fn reusing_a_computed_selector_repairs_the_window_with_separate_bounds_obligatio
 }
 
 #[test]
-fn recomputing_a_selector_does_not_establish_that_it_repairs_the_active_window() {
+fn recomputing_a_selector_from_the_same_values_repairs_the_active_window() {
     let src = format!("{CELL} machine edit(p:@mut [Cell],i:u64) {{let old=move p[i+1]; p[i+1]=move old;}}");
-    sources::refuse(
-        &[("view.omg", &src)],
-        "view.omg",
-        sources::span_within(&src, "p[i+1]=move old", "p[i+1]"),
-        UNPROVED_SELECTOR,
+    let pkg = sources::lower(&[("view.omg", &src)]).unwrap();
+    let body = &pkg.machines[0].body;
+    let [Parameter::Structural(view), Parameter::Scalar(i)] = body.parameters[..] else {
+        panic!("expected a view descriptor and a scalar selector");
+    };
+    // Each occurrence evaluates its own i+1: the same operation over i and an equal literal.
+    let sums: Vec<_> = body
+        .operations
+        .iter()
+        .filter_map(|op| match (&op.kind, op.result) {
+            (OperationKind::Integer { operation, operands }, OperationResult::Scalar(sum)) => Some((operation, operands.as_slice(), sum)),
+            _ => None,
+        })
+        .collect();
+    let [(first, [a, one], taken_sum), (second, [b, other], written_sum)] = sums[..] else {
+        panic!("expected one binary integer operation per occurrence, saw {sums:?}");
+    };
+    assert_eq!(first.primitive, omega_lowering::IntegerPrimitive::Add);
+    assert_eq!(first, second);
+    assert_eq!((*a, *b), (i, i));
+    let literal = |value: ValueId| match &body.values[value.index()].origin {
+        omega_lowering::ValueOrigin::Operation(op) => match &body.operations[op.index()].kind {
+            OperationKind::Constant(literal) => Some(literal.clone()),
+            _ => None,
+        },
+        _ => None,
+    };
+    assert_ne!(one, other, "each occurrence evaluates its own literal");
+    assert_eq!(literal(*one), Some(omega_lowering::ScalarLiteral::Integer(1.into())));
+    assert_eq!(literal(*one), literal(*other));
+    let [(taken, _)] = moves(body)[..] else {
+        panic!("filling the vacancy extracts nothing else");
+    };
+    let [(written, _, disposition)] = stores(body)[..] else {
+        panic!("one repairing store");
+    };
+    let (taken, taken_length) = element(taken, view);
+    let (written, written_length) = element(written, view);
+    // Lowering hands the checker both evaluations, never a merged selector.
+    assert_eq!((taken.selector, written.selector), (taken_sum, written_sum));
+    assert_ne!(written.selector, taken.selector);
+    assert_ne!(written.obligation, taken.obligation);
+    assert_ne!(written_length, taken_length);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/recomputed-selector-fill",
+        assert_eq!(*disposition, StructuralStoreDisposition::FillVacancy),
     );
+    for block in &body.blocks {
+        match &block.terminator {
+            BlockTerminator::Return { cleanup, .. } => assert!(cleanup.is_empty()),
+            BlockTerminator::Jump(edge) => assert!(edge.cleanup.is_empty()),
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn an_authored_selector_premise_stops_before_the_checker_can_use_it() {
+    // Each requirement decides the relation, and each body is valid under it:
+    // equal selectors repair the vacancy, distinct ones displace a sibling and
+    // repair the vacancy later. Lowering chooses the store without judging premises.
+    for (requirement, body, destination) in [
+        ("i == j", "let old=move p[i]; p[j]=move old;", "p[j]=move old"),
+        ("i != j", "let old=move p[i]; p[j]=move c; p[i]=move old;", "p[j]=move c"),
+    ] {
+        let src = format!("{CELL} machine edit(p:@mut [Cell],c:Cell,i:u64,j:u64) requires {requirement} {{{body}}}");
+        sources::refuse(
+            &[("view.omg", &src)],
+            "view.omg",
+            sources::span_within(&src, destination, "p[j]"),
+            UNPROVED_SELECTOR,
+        );
+    }
 }
 
 #[test]

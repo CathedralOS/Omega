@@ -1,6 +1,7 @@
 """A missing consumer keeps its reason without becoming consumer evidence."""
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import handoff_evidence
 from check_layer_readiness import readiness_exit
@@ -8,7 +9,15 @@ from check_layer_readiness import readiness_exit
 ROOT = Path(__file__).absolute().parent.parent.parent
 L4_CONTRACT = ROOT / "layers" / handoff_evidence.DOCUMENTS["L4"][0]
 L5 = ROOT / "layers" / "05_prepared-trees-to-terminal-psi"
-FIELD, HELPER, PROOF, RECEIPT = handoff_evidence.PREPARATION_CONSUMERS
+# The classifier fixtures exercise two pinned reasons (one with siblings),
+# independent of which real products have since acquired Psi comparisons.
+FIELD, HELPER, PROOF, RECEIPT = "Fixture field", "Fixture helper", "Fixture proof", "Fixture receipt"
+FIXTURE_REASONS = {
+    FIELD: ("l5 refusal", "field not consumed", ("field_pin", ("fixture field",))),
+    HELPER: ("l5 refusal", "helper not consumed", ("helper_pin", ("fixture direct", "fixture indirect"))),
+    PROOF: ("unmeasured", "proof not measured", None),
+    RECEIPT: ("outside pipeline", "receipt outside pipeline", None),
+}
 
 
 def row(prefix, line, consumer=(), outside=()):
@@ -49,6 +58,7 @@ def scopes(rows):
     return {(stage, r["line"]): r.get("consumer_scope") for stage, entries in rows.items() for r in entries}
 
 
+@patch.dict(handoff_evidence.PREPARATION_CONSUMERS, FIXTURE_REASONS, clear=True)
 class ConsumerScopeTests(unittest.TestCase):
     def test_full_run_separates_l5_refusals_from_unmeasured_and_non_pipeline_consumers(self):
         rows = outlines(later_l3=False)
@@ -135,6 +145,8 @@ class ConsumerScopeTests(unittest.TestCase):
         gap, = [g for g in handoff_evidence.unverified_contracts(rows, "L5") if g["stage"] == "L4" and g["line"] == 9]
         self.assertEqual(gap["missing"], ["L5 outcome for registered input"])
 
+
+class CurrentConsumerRegistrations(unittest.TestCase):
     def test_each_reason_names_one_current_contract_entry(self):
         rules = handoff_evidence.document_rules("L4", L4_CONTRACT.read_text(encoding="utf-8"))
         for prefix in handoff_evidence.PREPARATION_CONSUMERS:

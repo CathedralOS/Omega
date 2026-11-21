@@ -225,6 +225,6 @@ fn applied_case_payload_uses_its_concrete_argument() {
             .iter()
             .find(|s| s.carrier == body.places[place.index()].ty)
             .unwrap();
-        assert_eq!(schema.type_arguments, [body.values[v.index()].ty]);
+        assert_eq!(schema.type_arguments, [omega_psi::DataArgument::Type(body.values[v.index()].ty)]);
     }
 }

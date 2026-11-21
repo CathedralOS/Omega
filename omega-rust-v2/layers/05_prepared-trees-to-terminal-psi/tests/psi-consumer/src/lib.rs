@@ -113,6 +113,32 @@ pub fn returned_reborrow(body: &omega_psi::MachineBody) -> Option<&omega_psi::Pr
     }
 }
 
+/// Pairs `(earlier, later)` of transfers out of one root whose paths are equal
+/// or one is a prefix of the other, read from a straight-line body's ordered
+/// operations alone. This shows that the published checker input locates a
+/// repeated transfer. It is not the checker's verdict: it ignores branches,
+/// refills and every other ownership rule.
+pub fn overlapping_transfers(body: &omega_psi::MachineBody) -> Vec<(omega_psi::OperationId, omega_psi::OperationId)> {
+    let [block] = body.blocks.as_slice() else {
+        panic!("the reader replays one straight-line block")
+    };
+    let mut moved: Vec<(&omega_psi::ProjectedPlace, omega_psi::OperationId)> = Vec::new();
+    let mut pairs = Vec::new();
+    for op in &body.operations[block.operations.clone()] {
+        let omega_psi::OperationKind::MoveStructural { source } = &op.kind else {
+            continue;
+        };
+        if let Some((_, earlier)) = moved
+            .iter()
+            .find(|(path, _)| path.root == source.root && (path.path.starts_with(&source.path) || source.path.starts_with(&path.path)))
+        {
+            pairs.push((*earlier, op.id));
+        }
+        moved.push((source, op.id));
+    }
+    pairs
+}
+
 /// Follow the returned place to its defining transfer and read precisely what survives on that edge.
 pub fn returned_move<'a>(
     body: &'a omega_psi::MachineBody,
@@ -169,15 +195,24 @@ mod joined_loans;
 pub use joined_loans::check_joined_loan;
 
 mod returned_view;
-pub use returned_view::returned_view_backing;
+pub use returned_view::{recursive_view_backings, returned_view_backing};
 
 mod parked_handles;
 pub use parked_handles::check_parked_handles;
 
 mod embedded_fields;
-pub use embedded_fields::{check_incoming_fields, check_constructed_field};
+pub use embedded_fields::{check_constructed_field, check_incoming_fields, discarded_loan_fields, parked_replacement_origin};
 
 mod parked_owner_borrows;
-pub use parked_owner_borrows::check_parked_owner_borrow;
+pub use parked_owner_borrows::{ParkedFieldLoan, ParkedLoanBacking, check_parked_owner_borrow, parked_field_loan_carry, parked_field_loans};
+
+mod parked_field_reborrows;
+pub use parked_field_reborrows::{ParkedFieldReborrow, parked_field_reborrow};
 
 pub mod product_witness;
+
+mod theorem_citations;
+pub use theorem_citations::{CitationObligations, theorem_citations};
+
+mod hooked_transfers;
+pub use hooked_transfers::{HookedFieldTransfer, hooked_field_transfers};

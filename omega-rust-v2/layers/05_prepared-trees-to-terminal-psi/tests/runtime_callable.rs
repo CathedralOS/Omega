@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -97,6 +95,12 @@ fn integer(width: u64) -> TypeExpression {
 
 fn byte() -> TypeExpression {
     integer(8)
+}
+
+fn shared_byte_reference() -> TypeExpression {
+    let mut ty = byte();
+    ty.0.push(TypeExpressionStep::Reference(omega_lowering::TemplateAccess::Shared));
+    ty
 }
 
 fn calls(machine: &LoweredMachine) -> Vec<(&CallTarget, &[CallArgument])> {
@@ -497,34 +501,192 @@ fn the_invocation_after_a_join_uses_the_arriving_descriptor() {
     ));
 }
 
-#[test]
-fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
-    // A loan formal needs custody lowering the contract cannot yet state.
-    let loan = "data Lend = machine(x:@u8)->u8 reaches none crashes none; machine keep(f:Lend) {}";
-    let error = sources::refuse(
-        &[("runtime_callable.omg", loan)],
-        "runtime_callable.omg",
-        sources::span_within(loan, "keep(f:Lend)", "f"),
-        "no Psi lowering for carrier runtime callable machine(@u8) -> u8",
-    );
-    assert_eq!(error.site.span.slice(loan.as_bytes()), Some(b"f".as_slice()));
-    known_gap::report("runtime callable with a loan formal", "The callable interface needs the formal's access and custody", loan, &error);
+/// The published reader alias of machine_values.md, followed by a caller that
+/// invokes the reader under its own bound on the offset.
+const READER: &str = "data ByteReader = machine(offset: u32) -> u8
+    requires offset < 256
+    reaches none crashes none;
 
-    // Constructing a descriptor from a named machine is not forwarding.
+machine open_reader(ready: bool, reader: ByteReader) -> ByteReader
+requires ready
+{
+    reader
+}
+
+machine read(reader: ByteReader, offset: u32) -> u8
+requires offset < 256
+{
+    reader(offset)
+}";
+
+#[test]
+fn a_runtime_contract_publishes_its_precondition_for_every_call_through_it() {
+    use omega_lowering::{PredicateOperator, PredicateStep};
+    let package = lower(READER);
+    let [contract] = &package.callable_contracts[..] else {
+        panic!("one alias declares one contract, found {:?}", package.callable_contracts)
+    };
+    let id = CallableContractId::from_index(0).unwrap();
+    // The precondition names the contract's own formal, not a caller's.
+    let [bound] = contract.requires.as_slice() else {
+        panic!("expected the authored precondition, found {:?}", contract.requires)
+    };
+    assert_eq!(bound.predicate, [PredicateStep::Formal(0), PredicateStep::Integer(256.into()), PredicateStep::Apply(PredicateOperator::LessThan)]);
+    assert_eq!(bound.site.span.slice(READER.as_bytes()), Some(b"requires offset < 256".as_slice()));
+    assert!(contract.ensures.is_empty() && contract.crash_routes.is_empty());
+    assert_eq!((contract.parameters.as_slice(), &contract.result), ([integer(32)].as_slice(), &Some(byte())));
+    assert_eq!((&contract.reach, &contract.crash_ceiling), (&Some(Vec::new()), &Some(Vec::new())));
+    assert!(spelling(&package, id, READER).starts_with(b"machine(offset: u32) -> u8"));
+
+    // The alias, the factory's formal and result, and the invoked formal are one contract.
+    let [reader] = &package.aliases[..] else { panic!("expected only ByteReader") };
+    assert_eq!(reader.declaration.path, "ByteReader");
+    let AliasTarget::Structural(ty) = reader.target else {
+        panic!("a closed runtime signature is a structural alias, found {:?}", reader.target)
+    };
+    assert_eq!(contract_of(&package, ty), id);
+    let open = machine(&package, "open_reader");
+    assert_eq!(contract_of(&package, open.parameter_types[1]), id);
+    assert_eq!(contract_of(&package, open.result_type.unwrap()), id);
+    let [ready] = open.contract.requires.as_slice() else { panic!("expected the factory's own precondition") };
+    assert_eq!(ready.predicate, [PredicateStep::Formal(0)]);
+    assert!(refinements(open).is_empty() && calls(open).is_empty(), "returning the formal forwards its descriptor");
+    let omega_lowering::BlockTerminator::Return {
+        result: omega_lowering::ReturnEdge::Scalar(returned),
+        ..
+    } = open.body.blocks[0].terminator
+    else {
+        panic!("expected the factory to return a descriptor")
+    };
+    assert_eq!(returned, scalar_parameter(open, 1));
+
+    // The invocation names the contract, whose precondition governs its argument.
+    let read = machine(&package, "read");
+    let [(callee, arguments)] = calls(read)
+        .try_into()
+        .unwrap_or_else(|c: Vec<_>| panic!("expected one call, found {}", c.len()));
+    assert_eq!(*callee, CallTarget::Runtime { descriptor: scalar_parameter(read, 0), contract: id });
+    assert_eq!(arguments, [CallArgument::Scalar(scalar_parameter(read, 1))]);
+
+    // Without the clause the same contract publishes no precondition and nothing else changes.
+    let open_contract = READER.replacen("\n    requires offset < 256", "", 1);
+    let twin = lower(&open_contract);
+    let [unbounded] = &twin.callable_contracts[..] else { panic!("expected one contract") };
+    assert!(unbounded.requires.is_empty());
+    assert_eq!(
+        (&unbounded.parameters, &unbounded.result, &unbounded.ensures, &unbounded.reach, &unbounded.crash_ceiling, &unbounded.crash_routes),
+        (&contract.parameters, &contract.result, &contract.ensures, &contract.reach, &contract.crash_ceiling, &contract.crash_routes)
+    );
+    assert_eq!(calls(machine(&twin, "read")), calls(read));
+}
+
+#[test]
+fn loan_formal_is_part_of_the_descriptor_contract_not_a_loan_of_the_descriptor() {
+    let loan = "data Lend = machine(x:@u8)->u8 reaches none crashes none; machine keep(f:Lend) {}";
+    let scalar = loan.replace("x:@u8", "x:u8");
+    let parameter = |source: &str| {
+        let package = lower(source);
+        let keep = machine(&package, "keep");
+        let descriptor = scalar_parameter(keep, 0);
+        assert_eq!(keep.body.values[descriptor.index()].ty, keep.parameter_types[0]);
+        let contract = contract_of(&package, keep.parameter_types[0]);
+        let [alias] = package.aliases.as_slice() else { panic!("one callable alias") };
+        assert_eq!(alias.declaration.path, "Lend");
+        assert_eq!(alias.target, AliasTarget::Structural(keep.parameter_types[0]));
+        let signature = &source["data Lend = ".len()..source.find(';').unwrap()];
+        assert_eq!(spelling(&package, contract, source), signature.as_bytes());
+        let row = &package.callable_contracts[contract.index()];
+        assert_eq!(row.result, Some(byte()));
+        assert!(calls(keep).is_empty());
+        row.parameters.clone()
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/loan-callable-contract",
+        assert_eq!((parameter(loan), parameter(&scalar)), (vec![shared_byte_reference()], vec![byte()])));
+}
+
+#[test]
+fn runtime_calls_reborrow_the_selected_referent_in_its_declared_slot() {
+    use omega_lowering::{BlockTerminator, PlaceProjection, ProjectedPlace, ReferenceAccess};
+    let source = "data Use = machine(before:u8, x:@u8, after:u8)->u8 reaches none crashes none; machine apply(f:Use, g:Use, left:@u8, right:@u8, a:u8, b:u8, flag:bool)->u8 {let n:u8=f(a,right,b); transition flag {true -> g(b,left,n), false -> n,}}";
+    let package = lower(source);
+    let apply = machine(&package, "apply");
+    let contract = contract_at(&package, source.find("machine(").unwrap());
+    assert_eq!(package.callable_contracts[contract.index()].parameters, [byte(), shared_byte_reference(), byte()]);
+    let target = |slot| CallTarget::Runtime { descriptor: scalar_parameter(apply, slot), contract };
+    let scalar = |slot| CallArgument::Scalar(scalar_parameter(apply, slot));
+    let reborrow = |slot: usize| {
+        let Parameter::Structural(root) = apply.body.parameters[slot] else { panic!("reference formal") };
+        CallArgument::Borrow { place: ProjectedPlace { root, path: vec![PlaceProjection::Referent] }, access: ReferenceAccess::Shared }
+    };
+    let [(callee, arguments)]: [_; 1] = calls(apply).try_into().expect("one ordinary invocation");
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-loan-actual",
+        assert_eq!((*callee, arguments), (target(0), [scalar(4), reborrow(3), scalar(5)].as_slice())));
+    let n = apply.body.operations.iter().find_map(|op| match (&op.kind, op.result) {
+        (OperationKind::Call { .. }, OperationResult::Scalar(result)) => Some(result),
+        _ => None,
+    }).unwrap();
+    let edge = apply.body.blocks.iter().find_map(|block| match &block.terminator {
+        BlockTerminator::TerminalCall { callee, arguments, .. } => Some((*callee, arguments.as_slice())),
+        _ => None,
+    }).expect("terminal invocation");
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-loan-edge",
+        assert_eq!(edge, (target(1), [scalar(5), reborrow(2), CallArgument::Scalar(n)].as_slice())));
+}
+
+#[test]
+fn a_named_machine_constructs_the_descriptor_delivered_to_the_callee() {
+    // The original grouped operand, then the same selection with a competing
+    // machine present, then change only the selected name.
     let construction = format!(
         "{} machine action(x:u8)->u8 reaches none crashes none {{x}}
          machine run(f:Step, value:u8)->u8 {{f(value)}}
          machine start(value:u8)->u8 {{run((action), value)}}",
         alias("Step")
     );
-    let error = sources::refuse(
-        &[("runtime_callable.omg", &construction)],
-        "runtime_callable.omg",
-        sources::unique_span(&construction, "(action)"),
-        "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported",
-    );
-    assert_eq!(error.site.span.slice(construction.as_bytes()), Some(b"(action)".as_slice()));
-    known_gap::report("construct a runtime descriptor", "The descriptor needs the selected named machine", &construction, &error);
+    let competing = format!("{} {construction} machine second(x:u8)->u8 reaches none crashes none {{0u8}}", alias("Decoy"));
+    let changed = competing.replace("(action)", "(second)");
+    for (source, selected, step) in [(&construction, "action", 0), (&competing, "action", 1), (&changed, "second", 1)] {
+        let files = [("runtime_callable.omg", source.as_str())];
+        let (package, refinement_site) = {
+            let resolved = sources::resolve(&files);
+            let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+            let typed = prepared.typed();
+            let call = typed.calls.iter().find(|c| c.machine.path == "run").unwrap();
+            let Some(omega_typed::InvocationTarget::Declaration(slot)) = &call.operands[0].callable else {
+                panic!("expected a selected declaration for the first argument")
+            };
+            let mut constructions = typed.obligations.iter().filter_map(|o| match &o.kind {
+                omega_typed::ObligationKind::RefineCallable { formal: None, selection, contract } => Some((selection, contract, &o.site)),
+                _ => None,
+            });
+            let (selection, bound, site) = constructions.next().unwrap();
+            assert!(constructions.next().is_none());
+            assert_eq!((&slot.declaration, slot.declaration.path.as_str()), (selection.machine.as_ref(), selected));
+            assert!(selection.arguments.is_empty() && selection.enclosing_arguments.is_empty() && slot.trait_arguments.is_empty());
+            assert_eq!(bound.contract.span.get_start_offset(), declared(source, step));
+            assert_eq!(bound.contract.span.slice(source.as_bytes()), Some(SIGNATURE.as_bytes()));
+            (sources::lower_prepared(&prepared, &files).unwrap(), site.clone())
+        };
+        let (start, run) = (machine(&package, "start"), machine(&package, "run"));
+        let [make, call] = start.body.operations.as_slice() else { panic!("expected construction then direct call") };
+        let OperationResult::Scalar(descriptor) = make.result else { panic!("not a scalar descriptor") };
+        let contract = contract_at(&package, declared(source, step));
+        assert_eq!(contract_of(&package, start.body.values[descriptor.index()].ty), contract);
+        assert_eq!(start.body.diagnostics.operations[make.id.index()], refinement_site);
+        let occurrence = refinement_site.span;
+        assert_eq!(occurrence.get_start_offset(), source.find(&format!("({selected})")).unwrap() + 1);
+        assert_eq!(occurrence.slice(source.as_bytes()), Some(selected.as_bytes()));
+        spec_corpus::observe_handoff!(psi "psi-output/named-descriptor-selection", assert_eq!(
+            make.kind, OperationKind::ConstructCallableDescriptor { machine: machine(&package, selected).id, contract }
+        ));
+        let OperationKind::Call { callee, arguments, .. } = &call.kind else { panic!("expected direct call") };
+        spec_corpus::observe_handoff!(psi "psi-output/named-descriptor-delivery", assert_eq!(
+            (callee, arguments.as_slice()),
+            (&CallTarget::Machine(run.id), [CallArgument::Scalar(descriptor), CallArgument::Scalar(scalar_parameter(start, 0))].as_slice())
+        ));
+        let runtime = CallTarget::Runtime { descriptor: scalar_parameter(run, 0), contract };
+        assert_eq!(calls(run), [(&runtime, [CallArgument::Scalar(scalar_parameter(run, 1))].as_slice())]);
+    }
 }
 
 #[test]

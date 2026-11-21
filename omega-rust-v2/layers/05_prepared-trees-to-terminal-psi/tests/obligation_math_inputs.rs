@@ -1,41 +1,35 @@
 //! Preparation hands three mathematical obligations to lowering. The tests
-//! identify each one at its authored occurrence, then inspect the Psi or the
-//! first refusal from lowering that same package.
+//! identify each one at its authored occurrence, then inspect the Psi from
+//! lowering that same package.
 //!
 //! - `FormSquash`: L3 records it where `core\Squash::<T>` is used as a
 //!   proposition (`expressions/type_expression.rs`). A theorem goal reaches the
-//!   contract predicate reader, which refuses the row at that goal
-//!   (`src/declarations/contracts.rs`, `records`).
+//!   mathematical term reader with the checked source type and its level.
 //! - `RefineMathematicalCitation`: L3 records it where a machine stands for
 //!   evidence of a function interface (`expressions/mathematical_application.rs`).
-//!   As an argument of a mathematical application it reaches the term reader,
-//!   which refuses the row at the cited name (`src/declarations/mathematics.rs`).
+//!   A mathematical term retains the cited machine and the expected type for the checker.
 //! - `UniverseMembership`: L3 records it for every argument of a binder bounded
 //!   by a universe. At a mathematical application (`call_arguments.rs`,
-//!   `validate_call_bindings`) the term reader refuses it at the application.
+//!   `validate_call_bindings`) the term reader matches it to the applied
+//!   argument and the instantiated bound on the selected declaration.
 //!   At a type application in a signature (`type_system/formation.rs`) no L5
 //!   reader looks at the row, and Psi carries the applied argument and the
 //!   template bound that decide it. That route is compared, not pinned.
 //!
-//! For each refusal, a nearby source without that obligation lowers successfully.
-#[path = "support/known_gap.rs"]
-mod known_gap;
+//! Each case has a nearby source without that obligation as its control.
 #[allow(dead_code)]
 #[path = "obligation_outputs/pipeline.rs"]
 mod pipeline;
-#[path = "support/preparation.rs"]
-mod preparation;
 #[allow(dead_code)]
 #[path = "support/source.rs"]
 mod sources;
 
 use omega_lowering::{
-    LoweringError, MathematicalBody, MathematicalDeclaration, MathematicalStep as Term, PredicateStep as Step, ScalarType, Site, TypeExpression,
+    MathematicalBody, MathematicalDeclaration, MathematicalStep as Term, PredicateStep as Step, ScalarType, Site, TypeExpression,
     TypeExpressionStep as Ty,
 };
 use omega_psi::TemplateBinder;
-use omega_typed::{ObligationKind, TypingObligation, ValueType};
-use tree_handoff_consumer::obligation_report;
+use omega_typed::{ObligationKind, ValueType};
 
 const TRUST: &str = "boundary let trusted(value:u8):core\\Strict<0>;";
 const THEOREM: &str = "machine theorem<machine Step>(x:u8,z:u8) requires machine Step(y:u8) requires y != 0 ensures y > z; requires trusted(x) requires x != 0 ensures Step::ensures(x) {}";
@@ -51,27 +45,6 @@ fn observed(label: &str) {
 /// The theorem package of `tests/hypotheses.rs` with its goal replaced.
 fn proof(goal: &str) -> String {
     format!("{TRUST} {} {LEMMA}", THEOREM.replace("Step::ensures(x)", goal))
-}
-
-/// Prepare one source, copy its obligations, lower the same trees and return the refusal.
-fn refusal(source: &str, span: std::ops::Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
-    let files = [(pipeline::FILE, source)];
-    let resolved = sources::resolve(&files);
-    let prepared = preparation::prepare(&resolved).unwrap_or_else(|(stage, error)| panic!("{stage} stopped before L5: {error:?}\n{source}"));
-    let obligations = prepared.typed().obligations.clone();
-    let error = sources::refuse_prepared(&prepared, &files, pipeline::FILE, span, message);
-    (obligations, error)
-}
-
-fn of_kind<'a>(
-    obligations: &'a [TypingObligation],
-    kind: &str,
-) -> Vec<&'a TypingObligation> {
-    assert!(obligation_report::KINDS.contains(&kind), "unknown obligation kind {kind}");
-    obligations
-        .iter()
-        .filter(|obligation| obligation_report::name(&obligation.kind) == kind)
-        .collect()
 }
 
 fn spelled<'s>(
@@ -112,23 +85,17 @@ fn mathematics<'a>(
 
 /// A theorem goal `core\Squash::<T>` owes `FormSquash { T, level(T) }` at the
 /// goal, which is also the site of its strict fact and of the theorem's own
-/// guarantee. L5 lowers the theorem's binders, hypothesis and both requirements,
-/// then refuses at that goal because no predicate record accepts the squash.
+/// guarantee. L5 emits the proposition and strict sort, not a proof.
 /// Twins change only `T`. The control keeps the theorem and replaces only the
 /// goal by `Step::ensures(x)`: it owes no squash and lowers to its hypothesis
 /// guarantee.
 #[test]
-fn a_squash_goal_reaches_its_theorem_and_stops_at_that_goal() {
-    let mut first = None;
-    for inhabited in ["u8", "bool"] {
+fn a_squash_goal_preserves_its_source_and_sort_on_the_theorem() {
+    for (inhabited, carrier) in [("u8", ScalarType::Integer { signed: false, width: 8 }), ("bool", ScalarType::Boolean)] {
         let goal = format!("core\\Squash::<{inhabited}>");
         let source = proof(&goal);
-        let (obligations, error) = refusal(
-            &source, sources::unique_span(&source, &goal),
-            "Psi cannot form a squash proposition in a contract predicate",
-        );
-
-        let squashes = of_kind(&obligations, "FormSquash");
+        let lowered = pipeline::lower(&source);
+        let squashes = lowered.obligations("FormSquash");
         let [squash] = squashes.as_slice() else {
             panic!("{goal}: expected one squash, found {squashes:?}")
         };
@@ -138,32 +105,32 @@ fn a_squash_goal_reaches_its_theorem_and_stops_at_that_goal() {
         };
         assert_eq!(squashed.to_string(), inhabited, "{goal}: the squashed source");
         assert_eq!(level, &ValueType::LevelOf(Box::new(squashed.clone())), "{goal}: the level of that source");
-        let facts = of_kind(&obligations, "MathematicalFact");
+        let facts = lowered.obligations("MathematicalFact");
         assert!(
             facts.iter().any(|fact| fact.site == squash.site
                 && matches!(&fact.kind, ObligationKind::MathematicalFact { sort: ValueType::Universe { strict: true, level: at } } if at.as_ref() == level)),
             "{goal}: the goal is a strict proposition at the squash level: {facts:?}"
         );
-        let guarantees = of_kind(&obligations, "ProveGuarantee");
+        let guarantees = lowered.obligations("ProveGuarantee");
         assert!(
             guarantees.iter().any(|g| matches!(&g.kind,
                 ObligationKind::ProveGuarantee { machine, predicate } if machine.path == "theorem" && predicate == &squash.site)),
             "{goal}: the theorem owes the squash goal: {guarantees:?}"
         );
 
-        assert_eq!(error.message, "Psi cannot form a squash proposition in a contract predicate", "{goal}");
-        assert_eq!(error.site, squash.site, "{goal}: L5 stops at the squash goal itself");
-        if first.is_none() {
-            first = Some((source, error));
-        }
+        let [theorem] = lowered.package.theorems.as_slice() else { panic!("expected the proof-only theorem") };
+        let [clause] = theorem.ensures.as_slice() else { panic!("expected its one guarantee") };
+        assert_eq!(theorem.declaration.path, "theorem");
+        assert_eq!(theorem.requires.len(), 2);
+        assert_eq!(lowered.spelling(&clause.site), format!("ensures {goal}"));
+        let source_type = Ty::Scalar(carrier);
+        spec_corpus::observe_handoff!(psi "psi-output/squash-theorem-goal", assert_eq!(
+            clause.predicate, [Step::MathematicalTerm(vec![
+                Term::Squash(TypeExpression(vec![source_type.clone()])),
+                Term::FormProposition(TypeExpression(vec![source_type, Ty::LevelOf, Ty::Universe { strict: true }]))
+            ])]
+        ));
     }
-    let (source, error) = first.expect("one refused squash goal");
-    known_gap::report(
-        "squash proposition as a theorem goal",
-        "The theorem goal needs a Psi proposition that squashes the source FormSquash names at its level",
-        &source,
-        &error,
-    );
 
     let control = proof("Step::ensures(x)");
     let lowered = pipeline::lower(&control);
@@ -175,68 +142,76 @@ fn a_squash_goal_reaches_its_theorem_and_stops_at_that_goal() {
     let [goal] = theorem.ensures.as_slice() else {
         panic!("expected one theorem goal")
     };
-    assert_eq!(
-        goal.predicate,
-        [
-            Step::Formal(0),
-            Step::HypothesisGuarantee {
-                hypothesis: 0,
-                operand_count: 1
-            }
-        ]
-    );
+    spec_corpus::observe_handoff!(psi "psi-output/squash-projection-control", assert_eq!(
+        goal.predicate, [Step::Formal(0), Step::HypothesisGuarantee { hypothesis: 0, operand_count: 1 }]
+    ));
+}
+
+/// Equal universe bounds do not make the two theorem parameters interchangeable.
+#[test]
+fn a_squash_goal_keeps_the_selected_type_binder_even_under_equal_bounds() {
+    for (name, index) in [("A", 1), ("B", 2)] {
+        let source = proof(&format!("core\\Squash::<{name}>"))
+            .replace("<machine Step>", "<u:core\\Level,A:core\\Type<u>,B:core\\Type<u>,machine Step>");
+        let lowered = pipeline::lower(&source);
+        let [theorem] = lowered.package.theorems.as_slice() else { panic!("expected the proof-only theorem") };
+        let subject = Ty::GenericParameter { owner: theorem.declaration.clone(), index };
+        assert_eq!(theorem.ensures[0].predicate, [Step::MathematicalTerm(vec![
+            Term::Squash(TypeExpression(vec![subject.clone()])),
+            Term::FormProposition(TypeExpression(vec![subject, Ty::LevelOf, Ty::Universe { strict: true }]))
+        ])]);
+    }
 }
 
 /// A machine named where a mathematical parameter expects `u8 -> core\Squash<u8>`
 /// owes `RefineMathematicalCitation { lemma, that interface }` at the name
-/// inside the application. L5 lowers the boundary assumption and then refuses
-/// the citing definition at that name. The control passes the definition's
-/// own parameter of the same interface instead: it owes no citation and lowers
-/// to the application of the assumption.
+/// inside the application. This is a checker input, not a proof: in particular
+/// the expected arrow does not restrict its input to `y>0`.
 #[test]
-fn a_machine_cited_as_evidence_stops_at_the_citation_inside_its_definition() {
+fn a_machine_citation_retains_its_selected_contract_and_expected_evidence_type() {
     const CITED: &str = "machine lemma(y:u8) requires y>0 ensures y==y {}";
     const CONSUME: &str = "boundary let consume(evidence:u8 -> core\\Squash<u8>):bool;";
     let citing = |argument: &str| format!("{CITED} {CONSUME} let checked(e:u8 -> core\\Squash<u8>):bool = consume({argument});");
-    let byte = ValueType::Integer { signed: false, width: Some(8) };
-
-    let source = citing("lemma");
-    let (obligations, error) = refusal(
-        &source, sources::span_within(&source, "consume(lemma)", "lemma"),
-        r"Psi cannot cite machine `lemma` as evidence of `(u8 -> core\Squash<u8>)` in a mathematical term",
-    );
-    let applications = of_kind(&obligations, "MathematicalApplication");
-    let [application] = applications.as_slice() else {
-        panic!("expected one application, found {applications:?}")
-    };
-    assert_eq!(spelled(&application.site, &source), "consume(lemma)");
-    assert!(matches!(&application.kind,
-        ObligationKind::MathematicalApplication { definition: Some(id), generic_arguments, argument_count: 1 }
+    let byte = Ty::Scalar(ScalarType::Integer { signed: false, width: 8 });
+    let sibling = " machine other(y:u8) requires y>0 ensures y==y {}";
+    for (source, selected, inner) in [
+        (citing("lemma"), "lemma", byte.clone()),
+        (citing("lemma") + sibling, "lemma", byte.clone()),
+        (citing("other") + sibling, "other", byte.clone()),
+        (citing("lemma").replace("Squash<u8>", "Squash<bool>"), "lemma", Ty::Scalar(ScalarType::Boolean)),
+    ] {
+        let lowered = pipeline::lower(&source);
+        let applications = lowered.obligations("MathematicalApplication");
+        let [application] = applications.as_slice() else { panic!("expected one application") };
+        assert_eq!(spelled(&application.site, &source), format!("consume({selected})"));
+        assert!(matches!(&application.kind, ObligationKind::MathematicalApplication { definition: Some(id), generic_arguments, argument_count: 1 }
             if id.path == "consume" && generic_arguments.is_empty()));
-    let citations = of_kind(&obligations, "RefineMathematicalCitation");
-    let [citation] = citations.as_slice() else {
-        panic!("expected one citation, found {citations:?}")
-    };
-    assert_eq!(spelled(&citation.site, &source), "lemma");
-    assert!(within(&citation.site, &application.site), "the citation is the argument, not the declaration");
-    let ObligationKind::RefineMathematicalCitation { machine, expected } = &citation.kind else {
-        unreachable!()
-    };
-    assert_eq!((machine.package.as_str(), machine.path.as_str()), (pipeline::PACKAGE, "lemma"));
-    assert!(
-        matches!(expected, ValueType::Function(input, output)
-            if input.as_ref() == &byte && matches!(output.as_ref(), ValueType::Squash(inner) if inner.as_ref() == &byte)),
-        "the citation names the parameter interface: {expected:?}"
-    );
+        let citations = lowered.obligations("RefineMathematicalCitation");
+        let [citation] = citations.as_slice() else { panic!("expected one citation") };
+        assert_eq!(spelled(&citation.site, &source), selected);
+        assert!(within(&citation.site, &application.site));
+        let ObligationKind::RefineMathematicalCitation { machine, expected } = &citation.kind else { unreachable!() };
+        assert_eq!((machine.package.as_str(), machine.path.as_str()), (pipeline::PACKAGE, selected));
+        let typed_byte = ValueType::Integer { signed: false, width: Some(8) };
+        let carrier = if inner == byte { typed_byte.clone() } else { ValueType::Bool };
+        assert_eq!(*expected, ValueType::Function(Box::new(typed_byte), Box::new(ValueType::Squash(Box::new(carrier)))));
 
-    assert_eq!(error.message, r"Psi cannot cite machine `lemma` as evidence of `(u8 -> core\Squash<u8>)` in a mathematical term");
-    assert_eq!(error.site, citation.site, "L5 stops at the cited machine");
-    known_gap::report(
-        "machine cited as mathematical evidence",
-        "The definition needs a Psi step that cites the machine against the evidence interface RefineMathematicalCitation names",
-        &source,
-        &error,
-    );
+        let machine = lowered.machine(selected);
+        let [premise] = machine.contract.requires.as_slice() else { panic!("missing machine premise") };
+        assert_eq!(premise.predicate, [Step::Formal(0), Step::Integer(0.into()), Step::Apply(omega_psi::PredicateOperator::GreaterThan)]);
+        let [conclusion] = machine.contract.ensures.as_slice() else { panic!("missing machine guarantee") };
+        assert_eq!(conclusion.predicate, [Step::Formal(0), Step::Formal(0), Step::Apply(omega_psi::PredicateOperator::Equal)]);
+        let consume = mathematics(&lowered, "consume");
+        let checked = mathematics(&lowered, "checked");
+        assert_eq!(checked.assumptions, [consume.declaration.clone()]);
+        spec_corpus::observe_handoff!(psi "psi-output/mathematical-citation", assert_eq!(checked.body,
+            MathematicalBody::Definition(vec![
+                Term::Declaration(consume.declaration.clone()),
+                Term::RefineCitation { machine: machine.declaration.clone(), expected: TypeExpression(vec![byte.clone(), inner, Ty::Squash, Ty::Function]) },
+                Term::Apply { generic_arguments: vec![], argument_count: 1, assumptions: vec![consume.declaration.clone()] },
+            ])
+        ));
+    }
 
     let control = citing("e");
     let lowered = pipeline::lower(&control);
@@ -249,7 +224,7 @@ fn a_machine_cited_as_evidence_stops_at_the_citation_inside_its_definition() {
     let consume = mathematics(&lowered, "consume");
     let checked = mathematics(&lowered, "checked");
     assert_eq!(consume.body, MathematicalBody::BoundaryAssumption);
-    assert_eq!(
+    spec_corpus::observe_handoff!(psi "psi-output/mathematical-citation-control", assert_eq!(
         checked.body,
         MathematicalBody::Definition(vec![
             Term::Declaration(consume.declaration.clone()),
@@ -260,28 +235,22 @@ fn a_machine_cited_as_evidence_stops_at_the_citation_inside_its_definition() {
                 assumptions: vec![consume.declaration.clone()],
             },
         ])
-    );
+    ));
 }
 
 /// `id::<core\Type<n>>(x)` with `A:core\Type<n+1>` owes
 /// `UniverseMembership { core\Type<n>, core\Type<n+1> }` at the application,
-/// beside the application that selects the same argument. L5 lowers `id` with
-/// its universe bound, then refuses `f` at that application. Twins change both
-/// levels. The control removes the universe binder from `id`: the application
-/// owes no membership and lowers to the plain head and argument.
+/// beside the application that selects the same argument. Both levels must
+/// survive in Psi; neither the bound nor the argument alone is the question.
 #[test]
-fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
-    let mut first = None;
+fn a_universe_bounded_application_retains_the_member_and_its_binders_sort() {
+    let universe_type = |n: u8| TypeExpression(vec![Ty::Level(n.into()), Ty::Universe { strict: false }]);
     for (bound, subject) in [(1u8, 0u8), (2, 1)] {
         let universe = format!("core\\Type<{subject}>");
         let application = format!("id::<{universe}>(x)");
         let source = format!("let id<A:core\\Type<{bound}>>(x:A):A=x; let f(x:{universe}):{universe} = {application};");
-        let (obligations, error) = refusal(
-            &source, sources::unique_span(&source, &application),
-            "Psi cannot carry a universe membership check on a mathematical application",
-        );
-
-        let memberships = of_kind(&obligations, "UniverseMembership");
+        let lowered = pipeline::lower(&source);
+        let memberships = lowered.obligations("UniverseMembership");
         let [membership] = memberships.as_slice() else {
             panic!("{application}: expected one membership, found {memberships:?}")
         };
@@ -290,7 +259,7 @@ fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
             unreachable!()
         };
         assert_eq!((member.to_string(), sort.to_string()), (universe.clone(), format!("core\\Type<{bound}>")));
-        let applications = of_kind(&obligations, "MathematicalApplication");
+        let applications = lowered.obligations("MathematicalApplication");
         let [applied] = applications.as_slice() else {
             panic!("{application}: expected one application, found {applications:?}")
         };
@@ -303,19 +272,18 @@ fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
             applied.kind
         );
 
-        assert_eq!(error.message, "Psi cannot carry a universe membership check on a mathematical application", "{application}");
-        assert_eq!(error.site, membership.site, "{application}: L5 stops at the membership");
-        if first.is_none() {
-            first = Some((source, error));
-        }
+        let id = mathematics(&lowered, "id");
+        let f = mathematics(&lowered, "f");
+        assert!(within(&membership.site, &f.site));
+        spec_corpus::observe_handoff!(psi "psi-output/universe-bounded-application", assert_eq!(
+            (&id.generic_bounds, &f.body),
+            (&vec![universe_type(bound)], &MathematicalBody::Definition(vec![
+                Term::Declaration(id.declaration.clone()),
+                Term::Parameter(0),
+                Term::Apply { generic_arguments: vec![universe_type(subject)], argument_count: 1, assumptions: vec![] },
+            ]))
+        ));
     }
-    let (source, error) = first.expect("one refused application");
-    known_gap::report(
-        "universe-bounded mathematical application",
-        "The application needs the UniverseMembership of its explicit argument in Psi beside the selected head",
-        &source,
-        &error,
-    );
 
     let control = "let id(x:core\\Type<0>):core\\Type<0> = x; let f(x:core\\Type<0>):core\\Type<0> = id(x);";
     let lowered = pipeline::lower(control);
@@ -335,6 +303,34 @@ fn a_universe_bounded_application_stops_at_its_membership_in_the_definition() {
             },
         ])
     );
+}
+
+/// A level supplied at slot zero instantiates the universe bound at slot one.
+/// Keep the declared reference, not a bound baked in from either call.
+#[test]
+fn a_mathematical_universe_bound_retains_its_level_binder_at_two_applications() {
+    let source = r"let id<L:core\Level,A:core\Type<L>>(x:A):A=x; let f(x:core\Type<1>):core\Type<1> = id::<2,core\Type<1>>(x); let g(x:core\Type<0>):core\Type<0> = id::<1,core\Type<0>>(x);";
+    let lowered = pipeline::lower(source);
+    let id = mathematics(&lowered, "id");
+    let memberships = lowered.obligations("UniverseMembership");
+    assert_eq!(memberships.len(), 2);
+    for (name, bound, subject) in [("f", 2u8, 1u8), ("g", 1, 0)] {
+        let caller = mathematics(&lowered, name);
+        let row = memberships.iter().find(|r| within(&r.site, &caller.site)).unwrap();
+        let ObligationKind::UniverseMembership { subject: member, sort } = &row.kind else { unreachable!() };
+        assert_eq!((member.to_string(), sort.to_string()), (format!(r"core\Type<{subject}>"), format!(r"core\Type<{bound}>")));
+        let bounds = vec![TypeExpression(vec![Ty::LevelKind]), TypeExpression(vec![
+            Ty::GenericParameter { owner: id.declaration.clone(), index: 0 }, Ty::Universe { strict: false },
+        ])];
+        let arguments = vec![TypeExpression(vec![Ty::Level(bound.into())]), TypeExpression(vec![Ty::Level(subject.into()), Ty::Universe { strict: false }])];
+        spec_corpus::observe_handoff!(psi "psi-output/instantiated-mathematical-universe", assert_eq!(
+            (&id.generic_bounds, &caller.body),
+            (&bounds, &MathematicalBody::Definition(vec![
+                Term::Declaration(id.declaration.clone()), Term::Parameter(0),
+                Term::Apply { generic_arguments: arguments, argument_count: 1, assumptions: vec![] },
+            ]))
+        ));
+    }
 }
 
 /// `Box<core\Type<n>>` in a boundary signature, with `A:core\Type<n+1>` on
@@ -424,7 +420,7 @@ fn recursive_field_substitution_preserves_the_next_closed_application() {
         let at_signature: Vec<_> = rows.into_iter().filter(|row| within(&row.site, &pick.site)).collect();
         let [row] = at_signature.as_slice() else { panic!("expected one recursive obligation in pick") };
         assert_eq!(lowered.spelling(&row.site), applied);
-        let ObligationKind::FormRecursiveApplication { declaration, arguments } = &row.kind else { unreachable!() };
+        let ObligationKind::FormRecursiveApplication { declaration, arguments, .. } = &row.kind else { unreachable!() };
         assert_eq!((&declaration.package, &declaration.path), (&template.declaration.package, &template.declaration.path));
         assert_eq!(arguments.as_slice(), expected);
     }

@@ -90,25 +90,60 @@ fn an_indexed_operand_keeps_its_domain_when_the_extent_is_computed() {
 
 #[test]
 fn array_reads_cannot_acquire_a_domain_or_bypass_its_predicate() {
+    use omega_lowering::{
+        OperationKind, OperationResult, PredicateOperator::GreaterThan, PredicateStep::{Apply, Integer, Result, SelfValue}, ScalarType,
+    };
+
     let source = "domain u8::Mark; machine f(a:[u8;4],i:u64)->u8 in Mark{a[i]}";
     let package = source::resolve(&[("mark.omg", source)]);
     let error = omega_preparation::prepare_source_package(&package).unwrap_err();
     assert!(error.message.contains("expected u8 in app\\u8::Mark, found u8"), "{error:?}");
     let guarded = "domain u8::Mark requires self > 0u8; machine f(a:[u8 in Mark;4],i:u64)->u8 in Mark{a[i]}";
-    // The unsupported carrier belongs to the array formal, not the indexed read or scalar result.
-    let error = source::refuse_with_cli_message(
-        &[("guarded.omg", guarded)],
-        "guarded.omg",
-        source::span_within(guarded, "f(a:", "a"),
-        "no Psi lowering for carrier u8 in app\\u8::Mark",
-        "no Psi lowering for carrier u8 in root\\u8::Mark",
-    );
-    assert!(
-        error
-            .message
-            .contains("no Psi lowering for carrier u8 in app\\u8::Mark"),
-        "{error:?}"
-    );
+    let files = [("guarded.omg", guarded)];
+    let resolved = source::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let trees = prepared.typed();
+    let sig = trees.signatures.iter().find(|s| s.machine.path == "f").unwrap();
+    assert_eq!(sig.parameters[0].1, omega_typed::ValueType::Array(Box::new(sig.result.clone()), 4));
+    let [mark] = sig.result.domains() else { panic!("expected one prepared membership") };
+    let access = trees.collection_accesses.iter().find(|a| a.site.file == "guarded.omg").unwrap();
+    assert_eq!((&access.element, &access.result), (&sig.result, &sig.result));
+    let package = source::lower_prepared(&prepared, &files).unwrap();
+    let [domain] = package.domains.as_slice() else { panic!("expected Mark") };
+    let [f] = package.machines.as_slice() else { panic!("expected f") };
+    let Some(TypeShape::FixedArray { element, length: 4 }) = package.types.get(f.parameter_types[0]) else { panic!("expected four elements") };
+    let Some(TypeShape::QualifiedScalar { domains, carrier }) = package.types.get(*element) else { panic!("expected qualified element") };
+    assert_eq!(*carrier, ScalarType::Integer { signed: false, width: 8 });
+    assert_eq!(mark.declaration.path, "u8::Mark");
+    assert_eq!(domain.declaration.path, mark.declaration.path);
+    let [theory] = domain.requires.as_slice() else { panic!("one domain requirement") };
+    let [guarantee] = f.contract.ensures.as_slice() else { panic!("one scalar result guarantee") };
+    spec_corpus::observe_handoff!(psi "psi-output/array-element-predicate", assert_eq!(
+        (&theory.predicate[..], &guarantee.predicate[..]),
+        (&[SelfValue, Integer(0.into()), Apply(GreaterThan)][..], &[Result, Integer(0.into()), Apply(GreaterThan)][..])
+    ));
+    let body = &f.body;
+    let [Parameter::Structural(array), Parameter::Scalar(index)] = body.parameters[..] else { panic!("expected array and index") };
+    let [read] = body.operations.as_slice() else { panic!("expected only the indexed read") };
+    let OperationKind::PrimitiveScalarRead { source, path } = &read.kind else { panic!("expected scalar read") };
+    let [step] = path.as_slice() else { panic!("expected one selector") };
+    let OperationResult::Scalar(value) = read.result else { panic!("expected scalar leaf") };
+    let [bound] = body.diagnostics.bounds.as_slice() else { panic!("expected index obligation") };
+    assert_eq!(step.obligation.get(), 1);
+    assert_eq!(bound.span.get_start_offset()..bound.span.get_end_offset(), source::span_within(guarded, "a[i]", "i"));
+    let BlockTerminator::Return { result: ReturnEdge::Scalar(returned), .. } = body.blocks[0].terminator else { panic!("expected scalar return") };
+    spec_corpus::observe_handoff!(psi "psi-output/guarded-array-read", assert_eq!(
+        (*source, step.selector, body.values[value.index()].ty, package.types.domain_set(*domains), f.result_type, returned),
+        (array, index, *element, Some(std::slice::from_ref(&domain.declaration)), Some(*element), value)
+    ));
+
+    // Remove only the predicate: the type still carries Mark, but no result proof is due.
+    let tag = guarded.replace(" requires self > 0u8", "");
+    let twin = source::lower(&[("tag.omg", &tag)]).unwrap();
+    assert_eq!(twin.types, package.types);
+    assert_eq!(twin.domains[0].declaration, domain.declaration);
+    assert!(twin.domains[0].requires.is_empty());
+    assert!(twin.machines[0].contract.ensures.is_empty());
 }
 
 #[test]

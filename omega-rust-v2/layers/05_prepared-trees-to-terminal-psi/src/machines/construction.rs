@@ -68,6 +68,7 @@ pub(super) fn select<'a>(
         return Err(error("construction disagrees with the destination type"));
     }
     let mut typed = false;
+    let mut establish_data = false;
     let mut omitted = Vec::new();
     for record in tree.semantics_at(node) {
         match record {
@@ -79,12 +80,10 @@ pub(super) fn select<'a>(
             }) if origin == &site => omitted.push(Input::Zero(field, ty)),
             NodeSemantics::Obligation(TypingObligation {
                 kind: ObligationKind::EstablishData(owner),
-                ..
-            }) => {
-                return Err(LoweringError::new(
-                    &site,
-                    format!("lowering cannot establish the data predicate for `{}` at construction", owner.path),
-                ));
+                node: occurrence,
+                site: origin,
+            }) if !establish_data && owner == &construction.owner && occurrence == &tree.resolved().file.node_id(node) && origin == &site => {
+                establish_data = true;
             }
             _ => return Err(error("construction requires additional establishment evidence")),
         }
@@ -99,7 +98,7 @@ pub(super) fn select<'a>(
     plan_fields(
         expressions,
         carrier,
-        schema(expressions, ty, &construction.owner, &site)?,
+        schema(expressions, ty, &construction.owner, establish_data, &site)?,
         &construction.owner,
         construction.case.as_ref(),
         construction
@@ -115,6 +114,7 @@ pub(super) fn schema<'a>(
     expressions: &'a Expressions<'_>,
     ty: TypeId,
     owner: &DeclarationId,
+    establish_data: bool,
     site: &Site,
 ) -> Result<&'a LoweredData, LoweringError> {
     let error = |message| LoweringError::new(site, message);
@@ -128,7 +128,12 @@ pub(super) fn schema<'a>(
     if schema.carrier != ty || schema.declaration != crate::identity::declaration(owner, site)? {
         return Err(error("construction owner disagrees with the selected data schema"));
     }
-    if !schema.requires.is_empty() || schema.carry.is_some() {
+    // The operation's structural result selects this schema. All its clauses
+    // are goals over the selected case and ordered field operands, not facts.
+    if schema.requires.is_empty() == establish_data {
+        return Err(error("construction obligation disagrees with its data predicates"));
+    }
+    if schema.carry.is_some() {
         return Err(error("constructor local requires predicate or cleanup evidence"));
     }
     Ok(schema)
@@ -257,6 +262,22 @@ fn plan_fields<'a, 'z, T>(
                 let literal = match ty {
                     ValueType::Bool => ScalarLiteral::Boolean(false),
                     ValueType::Integer { width: Some(_), .. } => ScalarLiteral::Integer(0.into()),
+                    // `..` supplies no borrowed reference (data_and_literals.md,
+                    // explicit field omission), and a reference to one referent has
+                    // no zero that borrows nothing. A view's zero is the empty view,
+                    // so only a slice referent stays an open lowering form.
+                    _ if ty
+                        .reference_parts()
+                        .is_some_and(|(_, referent)| !matches!(referent, ValueType::Slice(_))) =>
+                    {
+                        return Err(LoweringError::new(
+                            site,
+                            format!(
+                                "omitted field `{}` of type `{ty}` needs a borrowed reference, which `..` never supplies",
+                                id.path
+                            ),
+                        ));
+                    }
                     _ => {
                         return Err(LoweringError::new(
                             site,

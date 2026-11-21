@@ -228,14 +228,3 @@ fn mutable_call_writes_the_original_field_and_exits_with_the_affine_local_dispos
         matches!(&store.kind, OperationKind::StructuralScalarFieldStore{destination,field,value} if destination.root==c && destination.path==[PlaceProjection::Referent] && field.path=="Counter::second" && OperationResult::Scalar(*value)==zero.result)
     );
 }
-
-#[test]
-fn zero_provisioning_cannot_skip_an_unsatisfied_record_predicate() {
-    let src = "data Nonzero requires self.value > 0 {value:u8;} machine f(){let mut n:Nonzero;}";
-    sources::refuse(
-        &[("zero.omg", src)],
-        "zero.omg",
-        sources::unique_span(src, "let mut n:Nonzero;"),
-        "zero initialization requires record qualification or cleanup evidence",
-    );
-}

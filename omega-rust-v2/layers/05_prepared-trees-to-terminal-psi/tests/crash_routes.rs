@@ -238,29 +238,76 @@ fn a_nominal_member_keeps_the_selected_crash_guard_and_actual_under_an_empty_cei
     }
 }
 
+fn sole_direct_call(machine: &LoweredMachine) -> (omega_lowering::MachineId, &[CallArgument]) {
+    let [op] = machine.body.operations.as_slice() else { panic!("expected one operation") };
+    let OperationKind::Call { callee: CallTarget::Machine(id), arguments, .. } = &op.kind else { panic!("expected direct invocation") };
+    (*id, arguments)
+}
+
 #[test]
-fn a_routed_callback_selection_is_refused_before_its_guard_is_lost() {
+fn a_closed_callback_keeps_the_selected_route_at_its_invocation() {
     let routed = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x}
                   data ByteStep=machine(x:u8)->u8;
                   machine apply<const F:ByteStep>(v:u8)->u8{F(v)}
                   machine outer(a:u8)->u8{apply::<guarded>(a)}";
-    // The selected callback's crash ceiling reaches outer through apply. The header
-    // check refuses outer's effects, before its body or the specialized apply lowers.
-    let error = sources::refuse(
-        &[("route.omg", routed)],
-        "route.omg",
-        sources::unique_span(routed, "machine outer(a:u8)->u8{apply::<guarded>(a)}"),
-        "machine requires contract or effects lowering",
-    );
-    assert!(
-        [
-            "a callback crash route requires indirect invocation coverage",
-            "machine requires contract or effects lowering",
-        ]
-        .contains(&error.message.as_str()),
-        "{error:?}"
-    );
-    // Without the route the same selection lowers to a direct call.
     let unrouted = routed.replace(" crashes Trap x == 0", "");
-    sources::lower(&[("route.omg", &unrouted)]).unwrap_or_else(|error| panic!("{unrouted}: {error:?}"));
+    for (source, has_route) in [(routed, true), (unrouted.as_str(), false)] {
+        let package = lower(source);
+        let (outer, apply, guarded) = (machine(&package, "outer"), machine(&package, "apply"), machine(&package, "guarded"));
+        let (instance, outer_args) = sole_direct_call(outer);
+        let (target, inner_args) = sole_direct_call(apply);
+        let [omega_lowering::StaticArgument::Callable(binding)] = apply.arguments.as_slice() else { panic!("missing binder") };
+        assert!(!binding.empty_crash_ceiling);
+        psi_handoff_consumer::product_witness::call_reads_formals(&outer.body, outer_args, &[0]).unwrap();
+        psi_handoff_consumer::product_witness::call_reads_formals(&apply.body, inner_args, &[0]).unwrap();
+        spec_corpus::observe_handoff!(psi "psi-output/callback-route-selection",
+            assert_eq!((instance, binding.machine, target), (apply.id, guarded.id, guarded.id)));
+        assert!(apply.contract.crash_routes.is_empty() && !apply.contract.has_empty_crash_ceiling);
+        if has_route {
+            let [dependency] = apply.contract.callback_crash_routes.as_slice() else { panic!("missing selected dependency") };
+            let [route] = guarded.contract.crash_routes.as_slice() else { panic!("missing callback route") };
+            spec_corpus::observe_handoff!(psi "psi-output/callback-route-guard",
+                assert_eq!((dependency.binder, dependency.routes.clone(), dependency.operand_formals.as_slice(),
+                            spelling(source, &dependency.invocation), route.cause, guard(route)),
+                           (0, 0..1, &[0][..], "F(v)", CrashCause::Trap, &[Formal(0), Integer(0.into()), Apply(Equal)][..])));
+        } else {
+            assert!(guarded.contract.crash_routes.is_empty() && apply.contract.callback_crash_routes.is_empty());
+        }
+    }
+}
+
+#[test]
+fn callback_routes_distinguish_swapped_actuals_and_sibling_selections() {
+    let source = "machine first(x:u8,y:u8)->u8 crashes Trap x == 7 {x}
+                  machine second(x:u8,y:u8)->u8 crashes Abort y != 3 crashes Trap x == 0 {y}
+                  data Step=machine(x:u8,y:u8)->u8;
+                  machine flip<const G:Step,const F:Step>(a:u8,b:u8)->u8{F(b,a)}
+                  machine one(i:u8,j:u8)->u8{flip::<second,first>(i,j)}
+                  machine two(i:u8,j:u8)->u8{flip::<first,second>(j,i)}";
+    let package = lower(source);
+    for (caller, selected, order, cause, predicate) in [
+        ("one", "first", [0,1], CrashCause::Trap, [Formal(0), Integer(7.into()), Apply(Equal)]),
+        ("two", "second", [1,0], CrashCause::Abort, [Formal(1), Integer(3.into()), Apply(NotEqual)]),
+    ] {
+        let outer = machine(&package, caller);
+        let (instance, actuals) = sole_direct_call(outer);
+        psi_handoff_consumer::product_witness::call_reads_formals(&outer.body, actuals, &order).unwrap();
+        let flip = package.machines.iter().find(|m| m.id == instance).unwrap();
+        assert_eq!(flip.declaration.path, "flip");
+        let (target, inner) = sole_direct_call(flip);
+        psi_handoff_consumer::product_witness::call_reads_formals(&flip.body, inner, &[1,0]).unwrap();
+        let callback = machine(&package, selected);
+        let [dependency] = flip.contract.callback_crash_routes.as_slice() else { panic!("missing dependency") };
+        let omega_lowering::StaticArgument::Callable(binding) = &flip.arguments[dependency.binder] else { panic!("not a binder") };
+        assert_eq!(dependency.binder, 1, "the unused, equally typed G contributes no route");
+        assert_eq!(dependency.routes, 0..if selected == "second" { 2 } else { 1 });
+        let routes = &callback.contract.crash_routes[dependency.routes.clone()];
+        if selected == "second" {
+            assert_eq!((routes[1].cause, guard(&routes[1])), (CrashCause::Trap, &[Formal(0), Integer(0.into()), Apply(Equal)][..]));
+        }
+        let route = &routes[0];
+        spec_corpus::observe_handoff!(psi "psi-output/callback-route-substitution",
+            assert_eq!((binding.machine, target, dependency.operand_formals.as_slice(), route.cause, guard(route)),
+                       (callback.id, callback.id, &[1,0][..], cause, predicate.as_slice())));
+    }
 }

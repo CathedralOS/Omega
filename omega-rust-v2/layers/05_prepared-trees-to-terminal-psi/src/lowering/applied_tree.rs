@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use omega_typed::{
-    MachineApplication, NodeSemantics, ObligationKind, TypedCall, TypedExpression, TypedNumericLanding, TypedOperation, TypedTree, TypingObligation,
+    MachineApplication, NodeSemantics, ObligationKind, TypedCall, TypedExpression, TypedNumericLanding, TypedOperation, TypedTree, TypingObligation, ValueType,
 };
 
 use crate::{LoweringError, site_at};
@@ -11,14 +11,31 @@ use crate::{LoweringError, site_at};
 pub(crate) struct LoweringTree<'a> {
     template: &'a TypedTree<'a>,
     records: Option<Vec<(usize, AppliedRecord<'a>)>>,
+    pub(super) positive_widths: Vec<crate::PositiveWidth>,
+    /// Resolved binder node, ordered argument slot, and checked static integer.
+    integer_binders: Vec<(usize, usize, ValueType)>,
+    pub(crate) callback_routes: Vec<(&'a omega_typed::IndirectCall, crate::CallbackCrashRoutes)>,
+    pub(crate) guarded_rows: Vec<usize>,
 }
 
 impl<'a> LoweringTree<'a> {
     pub(crate) fn plain(template: &'a TypedTree<'a>) -> Self {
-        Self { template, records: None }
+        Self {
+            template,
+            records: None,
+            positive_widths: Vec::new(),
+            integer_binders: Vec::new(),
+            callback_routes: Vec::new(),
+            guarded_rows: Vec::new(),
+        }
+    }
+
+    pub(crate) fn integer_binding(&self, binder: usize) -> Option<(usize, &ValueType)> {
+        self.integer_binders.iter().find(|(node, _, _)| *node == binder).map(|(_, slot, arg)| (*slot, arg))
     }
 
     pub(crate) fn for_application(
+        typed: &omega_typed::TypedStage,
         template: &'a TypedTree<'a>,
         signature: &omega_typed::TypedSignature,
         application: &MachineApplication,
@@ -29,7 +46,16 @@ impl<'a> LoweringTree<'a> {
         }
         let declaration = signature.node.node;
         let file = template.resolved().file;
+        let integer_binders = file.generic_parameters(declaration)
+            .zip(&application.arguments)
+            .enumerate()
+            .filter(|(_, ((_, _, kind), arg))| *kind == omega_syntax::NodeKind::ConstParam && matches!(arg, ValueType::StaticInteger { .. }))
+            .map(|(slot, ((_, binder, _), arg))| (binder, slot, arg.clone()))
+            .collect();
+        let mut positive_widths = Vec::new();
         let mut records = Vec::new();
+        let mut callback_routes = Vec::new();
+        let mut guarded_rows = Vec::new();
         let mut node = declaration;
         while node < file.nodes[declaration].end {
             if node != declaration && file.nodes[node].kind == omega_syntax::NodeKind::Machine {
@@ -51,6 +77,19 @@ impl<'a> LoweringTree<'a> {
                     records.push((node, AppliedRecord::Borrowed(record)));
                     continue;
                 }
+                if let NodeSemantics::Obligation(o) = record
+                    && let ObligationKind::PositiveWidth(width) = &o.kind
+                {
+                    let ValueType::Parameter { owner, index } = width else {
+                        return Err(LoweringError::new(&o.site, "computed machine width needs a closed formation operand"));
+                    };
+                    if owner != &application.machine || !matches!(application.arguments.get(*index), Some(ValueType::StaticInteger { carrier, .. })
+                        if matches!(carrier.as_ref(), ValueType::Integer { signed: false, width: Some(64) })) {
+                        return Err(LoweringError::new(&o.site, "machine width lacks its selected integer argument"));
+                    }
+                    positive_widths.push(crate::PositiveWidth { argument: *index, site: o.site.clone() });
+                    continue;
+                }
                 // Generic result types can carry a loan. A result made only of scalar bits
                 // cannot transport any storage identity across this return.
                 if let NodeSemantics::Obligation(o) = record
@@ -67,6 +106,14 @@ impl<'a> LoweringTree<'a> {
                     let selected = binding
                         .lower_call(call, application)
                         .ok_or_else(|| LoweringError::new(&call.site, "static call disagrees with its selected callable contract"))?;
+                    if binding.selection.crash_ceiling.as_ref().is_some_and(|c| !c.is_empty()) {
+                        let (routes, rows) = crate::declarations::crash_routes::closed_callback_routes(typed, application, binding, call)?;
+                        let operand_formals = crate::declarations::machine_templates::tail_binder_formals(template, signature, node, *index, binding.bound)?;
+                        callback_routes.push((call, crate::CallbackCrashRoutes {
+                            binder: *index, routes, operand_formals, invocation: call.site.clone(),
+                        }));
+                        guarded_rows.extend(rows);
+                    }
                     records.push((node, AppliedRecord::SelectedCallback(Box::new(selected))));
                     continue;
                 }
@@ -81,6 +128,10 @@ impl<'a> LoweringTree<'a> {
         Ok(Self {
             template,
             records: Some(records),
+            integer_binders,
+            positive_widths,
+            callback_routes,
+            guarded_rows,
         })
     }
 

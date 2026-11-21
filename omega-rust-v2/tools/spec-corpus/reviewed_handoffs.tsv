@@ -226,3 +226,5 @@ L4	A specialized initializer may invoke the exact machine	consumer	L4	tests/prep
 L4	A specialized initializer may invoke the exact machine	refusals	L4	tests/prepared_callback_handoff.rs	the_selected_field_slot_cannot_supply_a_refinement	specialized-callback-field/selected-refusal
 L4	A local declaration after a tail expression or transition	consumer	L4	tests/prepared_callback_handoff.rs	nested_helper_applications_close_distinct_array_parameters	nested-helpers-and-tail-expressions/resumed-extents
 L4	An evaluation request identifies its expression	consumer	L5	tests/frozen_constants.rs	returned_nominal_has_the_frozen_declaration_slots_and_active_case	frozen-nominal-slots/consumer
+L4	A specialized field request carries the declarations that own	consumer	L5	tests/preparation_handoff_gaps.rs	nested_field_owner_arguments_select_the_returned_field_arrays	specialized-owner-layout/psi-field-reads
+L4	A local declaration after a tail expression or transition	consumer	L5	tests/preparation_handoff_gaps.rs	nested_helpers_preserve_the_enclosing_binder_and_both_frozen_returns	nested-helpers-and-tail-expressions/frozen-returns

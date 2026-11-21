@@ -108,11 +108,14 @@ pub(crate) fn lower_predicate(
             predicate.push(PredicateStep::Integer(value.clone()));
             continue;
         }
-        if current.kind == NodeKind::Call
-            && tree
-                .semantics_at(node)
-                .any(|row| matches!(row, NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::MathematicalApplication{..})))
-        {
+        let mathematical_call = current.kind == NodeKind::Call
+            && tree.semantics_at(node).any(|row| {
+                matches!(row, NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::MathematicalApplication { .. }))
+            });
+        let squash_fact = node == root && current.kind == NodeKind::PathExpression
+            && matches!(tree.resolved().symbol(node), Some(Symbol::Builtin(name)) if name == "core\\Squash")
+            && super::hypotheses::strict_fact(owner, tree, node);
+        if mathematical_call || squash_fact {
             let signature = signature.ok_or_else(|| unsupported("mathematical contract application requires machine formals"))?;
             let params = file
                 .child(signature.node.node, NodeKind::Params)
@@ -161,15 +164,13 @@ pub(crate) fn lower_predicate(
             }
         }
         if current.kind == NodeKind::Index {
-            let (base, receiver, index) = fixed_index(prepared, tree, node, ty, inherited, guarantee.filter(|_| node == root).map(|sig| &sig.machine))?;
-            work.push(Step::Emit(PredicateStep::FixedIndex(index)));
-            work.push(Step::Visit {
-                node: base,
-                ty: receiver,
-                inherited: None,
-            });
+            index_terms(prepared, tree, node, ty, inherited, guarantee.filter(|_| node == root).map(|sig| &sig.machine), &mut work)?;
             continue;
         }
+        let closed_integer = match (owner, tree.resolved().symbol(node)) {
+            (ClauseOwner::Machine(_), Some(Symbol::Binding { kind: NodeKind::ConstParam, binder_node, .. })) => tree.integer_binding(*binder_node),
+            _ => None,
+        };
         let static_slot = match (owner, tree.resolved().symbol(node)) {
             (
                 ClauseOwner::Domain(scope, _, _),
@@ -181,7 +182,7 @@ pub(crate) fn lower_predicate(
             ) => file
                 .generic_parameters(scope)
                 .position(|(_, binder, _)| binder == *binder_node),
-            _ => None,
+            _ => closed_integer.map(|(slot, _)| slot),
         };
         let semantic = records(
             tree,
@@ -200,11 +201,34 @@ pub(crate) fn lower_predicate(
         let landing = semantic.landing.or(inherited);
 
         match (current.kind, current.children.as_slice()) {
-            (NodeKind::Binary, [subject, _]) if let Some(test) = semantic.case_test => {
-                work.push(Step::Emit(PredicateStep::IsCase(crate::identity::declaration(
-                    &test.domain.declaration,
-                    &site,
-                )?)));
+            (NodeKind::Binary, [subject, _]) if let Some(test) = semantic.membership => {
+                let domain = &test.domain.declaration;
+                let declaration = crate::identity::declaration(domain, &site)?;
+                let typed = prepared.typed();
+                // A domain test names a packaged, parameterless, non-alias domain
+                // whose carrier is exactly the tested subject's type, on a scalar
+                // (`volume in u8::Audible`) or record (`track in Audio::Audible`).
+                // Anything else is refused rather than published unchecked.
+                if domain.kind != NodeKind::Case
+                    && (typed.domain_carriers.get(domain) != Some(&test.subject)
+                        || typed.generic_parameters.get(domain).is_some_and(|g| !g.parameters.is_empty())
+                        || typed.domain_alias_members.contains_key(domain))
+                {
+                    return Err(unsupported("membership needs its packaged domain and exact subject"));
+                }
+                work.push(Step::Emit(if domain.kind == NodeKind::Case {
+                    PredicateStep::IsCase(declaration)
+                } else {
+                    PredicateStep::InDomain(omega_psi::DomainAtom {
+                        declaration,
+                        arguments: test
+                            .domain
+                            .arguments
+                            .iter()
+                            .map(|argument| super::type_expression::declaration_term(argument, &site))
+                            .collect::<Result<_, _>>()?,
+                    })
+                }));
                 work.push(Step::Visit {
                     node: *subject,
                     ty: &test.subject,
@@ -281,6 +305,36 @@ pub(crate) fn lower_predicate(
                     inherited: None,
                 });
             }
+            (NodeKind::Cast, [operand, ..])
+                if semantic.constant.is_none()
+                    && landing.is_none()
+                    && let Some(operation) = semantic.operation =>
+            {
+                // A cast denotes its operand's value: `-D` discards no fact and `=D`
+                // keeps the domain. Removing or keeping domains on the same carrier
+                // therefore reads the operand's own term. Adding a domain would owe
+                // its establishment at this occurrence, and a carrier change owes
+                // an exact conversion; a predicate step can state neither.
+                let [source] = operation.operands.as_slice() else {
+                    return Err(unsupported("contract predicate cast requires one source value"));
+                };
+                let target = &operation.result;
+                if operation.token != "as"
+                    || matches!(source, ValueType::Reference(..))
+                    || source.carrier() != target.carrier()
+                    || target
+                        .domains()
+                        .iter()
+                        .any(|atom| !source.domains().contains(atom))
+                {
+                    return Err(unsupported("a contract predicate cast can only keep or remove domains on the same carrier"));
+                }
+                work.push(Step::Visit {
+                    node: *operand,
+                    ty: source,
+                    inherited: None,
+                });
+            }
             (NodeKind::Paren, [inner]) if semantic.operation.is_none() && semantic.constant.is_none() => {
                 work.push(Step::Visit {
                     node: *inner,
@@ -301,6 +355,10 @@ pub(crate) fn lower_predicate(
             (NodeKind::PathExpression, []) if semantic.operation.is_none() && landing.is_none() => {
                 let resolved = tree.resolved();
                 let term = match resolved.symbol(node) {
+                    Some(Symbol::Binding { kind: NodeKind::ConstParam, .. }) if semantic.constant.is_none()
+                        && let Some((_, ValueType::StaticInteger { carrier, value })) = closed_integer && carrier.as_ref() == ty => {
+                        PredicateStep::Integer(value.clone())
+                    }
                     Some(Symbol::Binding { kind: NodeKind::Param, .. }) if semantic.constant.is_none() && matches!(owner, ClauseOwner::Theorem(..)) => {
                         super::hypotheses::parameter(owner, tree, node, ty).ok_or_else(|| unsupported("contract binding is not a formal of this theorem or hypothesis"))?
                     }
@@ -318,7 +376,9 @@ pub(crate) fn lower_predicate(
                                     .position(|(candidate, carrier)| candidate == span && carrier == ty)
                             }),
                         }
-                        .filter(|_| is_contract_operand(ty) || crate::lowering::types::byte_view_access(ty).is_some())
+                        .filter(|_| {
+                            is_contract_operand(ty) || crate::lowering::types::byte_view_access(ty).is_some() || crate::lowering::types::scalar_element_view(ty).is_some()
+                        })
                         .ok_or_else(|| unsupported("contract binding is not a supported formal of this machine"))?;
                         PredicateStep::Formal(formal)
                     }
@@ -423,7 +483,7 @@ fn selects_from(
 /// Classify one selected field by the typed roster that owns it. Record fields
 /// stay single segments; a payload field also retains its owning case. The
 /// case is a path segment only and never stands for a membership test.
-fn field_segment(
+pub(super) fn field_segment(
     prepared: &PreparedTrees<'_>,
     tree: &LoweringTree<'_>,
     node: usize,
@@ -490,18 +550,23 @@ fn field_segment(
     })
 }
 
-/// An element of an owned fixed array selected by a frozen in-bounds index.
-/// The typed read, its shared borrow and the indexing precondition must all be
-/// present; the precondition is the bounds condition checked here on the
-/// fixed selector, so the segment itself is never out of bounds.
-fn fixed_index<'a>(
+/// An element of an owned fixed array. Both forms require the typed core
+/// selection, its shared borrow and the indexing precondition. A frozen
+/// selector becomes a `FixedIndex` path segment that keeps the exact index even
+/// past the declared extent: the lowered-form checker owns the read's bounds
+/// precondition and compares the index with the extent in the receiver's Psi
+/// type, so lowering never redirects or drops an out-of-bounds selector. A
+/// runtime selector is never a path segment; it becomes a `FixedArrayRead` of
+/// the receiver and selector terms whose contract the checker instantiates.
+fn index_terms<'a>(
     prepared: &PreparedTrees<'_>,
     tree: &'a LoweringTree<'_>,
     node: usize,
     element: &ValueType,
     inherited: Option<&BigInt>,
     guarantee: Option<&DeclarationId>,
-) -> Result<(usize, &'a ValueType, u64), LoweringError> {
+    work: &mut Vec<Step<'a>>,
+) -> Result<(), LoweringError> {
     let file = tree.resolved().file;
     let site = site_at(tree, node);
     let refuse = |message: &str| LoweringError::new(&site, message);
@@ -518,7 +583,7 @@ fn fixed_index<'a>(
             _ => None,
         })
         .ok_or_else(|| refuse("contract index has no typed receiver"))?;
-    let ValueType::Array(inner, length) = receiver else {
+    let ValueType::Array(inner, _) = receiver else {
         return Err(refuse("contract index requires an owned fixed-array receiver"));
     };
     if inner.as_ref() != element {
@@ -534,6 +599,8 @@ fn fixed_index<'a>(
         match record {
             NodeSemantics::CollectionAccess(selected)
                 if access.is_none()
+                    && selected.node == file.node_id(node)
+                    && selected.site == site
                     && selected.primitive == CollectionPrimitive::Read
                     && &selected.element == element
                     && &selected.result == element
@@ -541,7 +608,7 @@ fn fixed_index<'a>(
             {
                 access = Some(selected)
             }
-            NodeSemantics::Obligation(row) => match &row.kind {
+            NodeSemantics::Obligation(row) if row.node == file.node_id(node) && row.site == site => match &row.kind {
                 ObligationKind::CallPrecondition(machine) if precondition.is_none() => precondition = Some(machine),
                 ObligationKind::Borrow { access: Access::Shared, place } if !borrow && place == &base_site => borrow = true,
                 ObligationKind::ProveGuarantee { machine, predicate } if !obligation && Some(machine) == guarantee && predicate == &site => obligation = true,
@@ -551,9 +618,9 @@ fn fixed_index<'a>(
             _ => return Err(refuse("unsupported typed contract index record")),
         }
     }
-    if !typed || !borrow || obligation != guarantee.is_some() || access.is_none_or(|selected| precondition != Some(&selected.machine)) {
+    let Some(selected) = access.filter(|s| typed && borrow && obligation == guarantee.is_some() && precondition == Some(&s.machine)) else {
         return Err(refuse("contract index has no complete typed read and access obligation"));
-    }
+    };
     let (_, path) = prepared.typed().place_path(file.node_id(node));
     let projection = Projection::Index(file.node_id(selector));
     if path
@@ -562,12 +629,19 @@ fn fixed_index<'a>(
     {
         return Err(refuse("contract index disagrees with its typed place projection"));
     }
-    let value = fixed_selector(prepared, tree, selector)?;
-    let index = u64::try_from(value)
-        .ok()
-        .filter(|index| index < length)
-        .ok_or_else(|| refuse("contract index is outside its fixed array"))?;
-    Ok((base, receiver, index))
+    if file.nodes[selector].kind == NodeKind::Literal || tree.semantics_at(selector).any(|row| matches!(row, NodeSemantics::Constant(_))) {
+        let value = fixed_selector(prepared, tree, selector)?;
+        let index = u64::try_from(value).map_err(|_| refuse("contract index has no u64 selector value"))?;
+        work.push(Step::Emit(PredicateStep::FixedIndex(index)));
+    } else {
+        work.push(Step::Emit(PredicateStep::FixedArrayRead {
+            callee: crate::identity::declaration(&selected.machine, &site)?,
+            site,
+        }));
+        work.push(Step::Visit { node: selector, ty: &selected.selector_carriers[0], inherited: None });
+    }
+    work.push(Step::Visit { node: base, ty: receiver, inherited: None });
+    Ok(())
 }
 
 /// A literal or frozen constant selector. Every value record on the selector
@@ -630,7 +704,8 @@ enum Step<'a> {
 
 #[derive(Default)]
 struct Records<'a> {
-    case_test: Option<&'a omega_typed::TypedMembership>,
+    /// A case test or a domain test such as `track in Audio::Audible`.
+    membership: Option<&'a omega_typed::TypedMembership>,
     field: Option<&'a DeclarationId>,
     operation: Option<&'a omega_typed::TypedOperation>,
     constant: Option<&'a DeclarationId>,
@@ -666,11 +741,13 @@ fn records<'a>(
             NodeSemantics::Membership(test)
                 if kind == NodeKind::Binary
                     && carrier == &ValueType::Bool
-                    && test.domain.declaration.kind == NodeKind::Case
-                    && test.domain.arguments.is_empty()
-                    && result.case_test.is_none() =>
+                    && match test.domain.declaration.kind {
+                        NodeKind::Case => test.domain.arguments.is_empty(),
+                        kind => kind == NodeKind::Domain,
+                    }
+                    && result.membership.is_none() =>
             {
-                result.case_test = Some(test)
+                result.membership = Some(test)
             }
             NodeSemantics::Field(field) if kind == NodeKind::FieldAccess && result.field.is_none() => result.field = Some(field),
             NodeSemantics::Operation(op) if result.operation.is_none() => result.operation = Some(op),
@@ -698,7 +775,7 @@ fn records<'a>(
                 total_guard = true;
             }
             NodeSemantics::Obligation(row) if matches!(row.kind, ObligationKind::FormSquash { .. }) => {
-                return Err(LoweringError::new(&site, "Psi cannot form a squash proposition in a contract predicate"));
+                return Err(LoweringError::new(&site, "contract squash requires a strict theorem clause"));
             }
             NodeSemantics::Call(call) => {
                 return Err(LoweringError::new(
@@ -722,8 +799,11 @@ fn records<'a>(
     Ok(result)
 }
 
+/// A qualified scalar formal or result names its own value, as its entry and
+/// result domain predicates already do. Typing admits it only where a
+/// qualified operand is accepted, such as a cast that removes its domains.
 fn is_contract_operand(ty: &ValueType) -> bool {
-    crate::lowering::types::uses_structural_place(ty) || is_scalar(ty)
+    crate::lowering::types::uses_structural_place(ty) || is_scalar(ty) || matches!(ty, ValueType::Qualified(base, _) if is_scalar(base))
 }
 
 fn is_scalar(ty: &ValueType) -> bool {

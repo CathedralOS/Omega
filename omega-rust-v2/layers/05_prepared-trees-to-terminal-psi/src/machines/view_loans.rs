@@ -64,13 +64,15 @@ pub(super) fn relate(
     }
 }
 
-/// Classify only equality of an SSA value and equality or inequality of literal indices.
+/// Classify only congruent selectors as the same and unequal literal indices
+/// as disjoint. Every other pair, including selectors that only an authored
+/// premise or arithmetic would relate, stays unproved.
 fn compare_selectors(
     body: &MachineBody,
     left: ValueId,
     right: ValueId,
 ) -> Relation {
-    if left == right {
+    if congruent(body, left, right) {
         return Relation::Same;
     }
     let literal = |value: ValueId| {
@@ -91,6 +93,53 @@ fn compare_selectors(
             }
         }
         _ => Relation::Unproved,
+    }
+}
+
+/// Two scalar values are congruent when they are the same SSA value, or when
+/// the same pure scalar operation produced each of them from congruent
+/// operands. Equal literals are the operand-free case. These operations read
+/// no storage, so an unchanged operand value is the whole input; a load, a
+/// call or a block parameter never matches another occurrence. The checker
+/// re-derives the same equality from these operations
+/// (`wiki/spec/terminal-psi/fact_validity.md#equality-relations`).
+fn congruent(
+    body: &MachineBody,
+    left: ValueId,
+    right: ValueId,
+) -> bool {
+    if left == right {
+        return true;
+    }
+    if body.values[left.index()].ty != body.values[right.index()].ty {
+        return false;
+    }
+    let operation = |value: ValueId| match &body.values[value.index()].origin {
+        crate::ValueOrigin::Operation(op) => Some(&body.operations[op.index()].kind),
+        _ => None,
+    };
+    let (Some(a), Some(b)) = (operation(left), operation(right)) else {
+        return false;
+    };
+    let all = |a: &[ValueId], b: &[ValueId]| a.len() == b.len() && a.iter().zip(b).all(|(a, b)| congruent(body, *a, *b));
+    match (a, b) {
+        (OperationKind::Constant(a), OperationKind::Constant(b)) => a == b,
+        (OperationKind::Boolean { primitive: p, operands: a }, OperationKind::Boolean { primitive: q, operands: b }) => p == q && all(a, b),
+        (OperationKind::ExactIntegerCast { operand: a }, OperationKind::ExactIntegerCast { operand: b }) => congruent(body, *a, *b),
+        (
+            OperationKind::TrappingInteger {
+                primitive: p,
+                left: a,
+                right: c,
+            },
+            OperationKind::TrappingInteger {
+                primitive: q,
+                left: b,
+                right: d,
+            },
+        ) => p == q && congruent(body, *a, *b) && congruent(body, *c, *d),
+        (OperationKind::Integer { operation: p, operands: a }, OperationKind::Integer { operation: q, operands: b }) => p == q && all(a, b),
+        _ => false,
     }
 }
 
