@@ -33,6 +33,8 @@ fn header_matches_boundary(
             .map(|formal| formal.scalar_type)
             .eq(boundary.scalar_parameters.iter().copied())
         && header.structural_parameters == boundary.structural_parameters
+        && terminal_psi::StructuralDomainRequirement::declared_roots(&header.structural_parameters)
+            .eq(boundary.requires.iter().cloned())
         && boundary.result.matches_machine_result(&header.result)
         && header.proof.requires == boundary.scalar_requires
         && header
@@ -93,8 +95,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 "native conformance changed its required public header",
             ));
         }
-        if !required.requires.is_empty()
-            || !required.normal_qualifications.is_empty()
+        if !required.normal_qualifications.is_empty()
             || !required.scalar_domain_requirements.is_empty()
             || !required.reference_outputs.is_empty()
             || !required.content_guarantees.is_empty()

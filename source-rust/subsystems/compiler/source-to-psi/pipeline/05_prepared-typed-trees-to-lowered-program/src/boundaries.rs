@@ -150,19 +150,7 @@ impl BoundaryNamespace {
                     });
                 }
             }
-            let requires = header
-                .structural_parameters
-                .iter()
-                .flat_map(|parameter| {
-                    parameter
-                        .qualifications
-                        .iter()
-                        .map(move |domain| StructuralDomainRequirement {
-                            argument_index: parameter.position,
-                            path: Vec::new(),
-                            domain: *domain,
-                        })
-                })
+            let requires = StructuralDomainRequirement::declared_roots(&header.structural_parameters)
                 .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
             let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
