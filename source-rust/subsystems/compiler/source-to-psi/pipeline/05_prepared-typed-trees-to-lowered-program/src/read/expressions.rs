@@ -223,6 +223,9 @@ impl<'t> Program<'t> {
             return self.member(id, slots, member, source, Access::Read);
         }
         let expected = match node {
+            // A constant supplies its declared carrier through the ordinary
+            // value reader. Only a local slot needs its storage or borrow type.
+            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => false,
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 if slots[slot].borrowed.is_none() {
