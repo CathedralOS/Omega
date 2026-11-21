@@ -2357,9 +2357,9 @@ impl<'t> Program<'t> {
                 "declared requirement needs its complete trait application",
             ));
         }
-        // Substituting a type does not establish an original parameter's
-        // storage, multiplicity or static-value obligations. Only ordinary
-        // unconstrained type parameters are served by this applied context.
+        // The trait header has checked the constant carrier. Both a static
+        // value and an unconstrained type have already been substituted in
+        // the requirement above; an implementation binder owes separate proof.
         if span(
             |span| typed.data_type_parameters.span(span),
             definition.type_parameters,
@@ -2371,6 +2371,7 @@ impl<'t> Program<'t> {
             !matches!(
                 parameter.kind,
                 crate::source_state::data::TypeParameterKind::Type
+                    | crate::source_state::data::TypeParameterKind::Const { .. }
             ) || parameter.bounds != crate::source_state::data::DataProperties::default()
         }) {
             return Err(unserved("applied trait parameter eligibility"));
