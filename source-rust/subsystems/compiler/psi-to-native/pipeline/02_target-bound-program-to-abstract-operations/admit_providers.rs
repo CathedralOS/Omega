@@ -1,17 +1,16 @@
 //! Check provider admission against the selected abstract program and its authorized Psi.
-use provider_admission::{
-    AdmittedNativeProviders, NativeProviderSettlement,
-    PreparedSourceEvaluatedBindings, ProviderAdmissionRequest,
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, admit_native_providers,
-    prepare_source_evaluated_bindings, realization_error,
-};
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
+use provider_admission::{
+    AdmittedNativeProviders, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
+    ProviderAdmissionRequest, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
+    admit_native_providers, prepare_source_evaluated_bindings, realization_error,
+};
+use provider_realization::native_execution::PreparedNativeExecution;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeSet;
 use terminal_codec::CanonicalTerminalArtifact;
-use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::TerminalNativeRealizationProposal;
 
 pub struct RetainedNativeProviderInputs<'input> {

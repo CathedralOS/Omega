@@ -11,7 +11,11 @@ pub(super) fn complete(
     receipts: &mut Vec<EvaluationReceipt>,
 ) -> Result<Option<AdmittedScalarApplications>, Vec<Diagnostic>> {
     // Scalar conditions must be discharged even when no reachable code reads a scalar.
-    let conditions = &artifact.semantic_module().scalars.scalar_applications.conditions;
+    let conditions = &artifact
+        .semantic_module()
+        .scalars
+        .scalar_applications
+        .conditions;
     if demand.is_empty() && conditions.is_empty() {
         return Ok(None);
     }

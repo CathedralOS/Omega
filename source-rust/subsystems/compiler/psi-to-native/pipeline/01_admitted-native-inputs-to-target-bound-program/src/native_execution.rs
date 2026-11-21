@@ -38,7 +38,9 @@ impl PreparedNativeExecution {
             terminal_codec::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
                 .validate_all()
                 .map_err(|error| {
-                    vec![Diagnostic::error(format!("canonical operation evidence: {error}"))]
+                    vec![Diagnostic::error(format!(
+                        "canonical operation evidence: {error}"
+                    ))]
                 })?;
         }
         Ok(Self { checked, providers })

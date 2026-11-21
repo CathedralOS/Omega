@@ -49,7 +49,8 @@ pub(crate) fn settle<'execution>(
             .selected_provider_plans
             .selected_requirement_row(requirement)
             .is_some()
-            || compiler_builtins.iter()
+            || compiler_builtins
+                .iter()
                 .any(|builtin| builtin.boundary() == row.boundary)
         {
             return Err(refuse(

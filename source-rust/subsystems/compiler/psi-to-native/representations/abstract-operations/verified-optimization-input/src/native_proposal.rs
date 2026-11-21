@@ -77,10 +77,13 @@ impl TerminalNativeRealizationProposal {
     /// Target callable named by the checked program entry and its optional physical adapter.
     pub fn target_program_entry(&self) -> terminal_psi::TargetMachineCallable {
         let entry = self.program_entry();
-        terminal_psi::TargetMachineCallable::Machine(entry.physical_adapter().map_or(
-            entry.checked_entry().terminal_entry(),
-            |adapter| adapter.machine(),
-        ))
+        terminal_psi::TargetMachineCallable::Machine(
+            entry
+                .physical_adapter()
+                .map_or(entry.checked_entry().terminal_entry(), |adapter| {
+                    adapter.machine()
+                }),
+        )
     }
 
     pub fn settle_scoped_boundary_applications(

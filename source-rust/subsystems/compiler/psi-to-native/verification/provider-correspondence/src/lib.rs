@@ -5,8 +5,8 @@ mod bodies;
 mod boundary;
 pub mod callbacks;
 pub mod external_providers;
-pub mod intrinsic_selection;
 mod installation_reach;
+pub mod intrinsic_selection;
 pub use installation_reach::{InstallationReachRow, resolve_installation_reach};
 
 pub use bodies::{
