@@ -1431,8 +1431,7 @@ struct Declarations<'source> {
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<DeclarationIdentity>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
-    callable_occurrences:
-        HashMap<(source_text::SourceSpan, SelectionPurpose, String), SelectionDeclarationId>,
+    callable_declarations: HashMap<(SelectionPurpose, String), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
@@ -1538,7 +1537,7 @@ impl<'source> Declarations<'source> {
             ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
-            callable_occurrences: HashMap::new(),
+            callable_declarations: HashMap::new(),
             sources: Vec::new(),
             core_operators: BTreeMap::new(),
         })
@@ -1729,19 +1728,21 @@ impl<'source> Declarations<'source> {
             purpose,
             callable_identity,
         };
-        // Re-reading the same written callable at the same structural meaning
-        // reuses its declaration. Another generic application at that source
-        // occurrence can select a different callable contract.
-        let id = if let Some(meaning) = &declaration.callable_identity {
+        // A specialization may retain the same written callable span and contract
+        // under a different declaring path. Use the dictionary's complete
+        // identity, which includes that path, occurrence and applied contract.
+        let id = if declaration.callable_identity.is_some() {
             match self
-                .callable_occurrences
-                .entry((span, purpose, meaning.clone()))
+                .callable_declarations
+                .entry((purpose, declaration.identity.clone()))
             {
                 std::collections::hash_map::Entry::Occupied(entry) => {
                     let id = *entry.get();
-                    if output.declarations.get(id) != Some(&declaration) {
+                    if output.declarations.get(id) != Some(&declaration)
+                        || self.source_span(id)? != span
+                    {
                         return Err(refused(
-                            "one callable source occurrence has competing declarations",
+                            "one callable declaration identity has competing source evidence",
                         ));
                     }
                     self.ids.insert(symbol, id)?;
@@ -1994,7 +1995,7 @@ mod symbol_rows_tests {
         };
         let count = typed.symbols.symbols().nodes().len();
         let mut declarations = Declarations {
-            callable_occurrences: HashMap::new(),
+            callable_declarations: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(count),
@@ -2669,6 +2670,61 @@ machine entry() { repeat(0); }
             validate(&missing_head)
                 .unwrap_err()
                 .contains("folded selection lost its original caller, target or actual head")
+        );
+    }
+
+    #[test]
+    fn specialized_callbacks_keep_their_declaring_paths_at_a_shared_source_span() {
+        let source = accepted_source(
+            r#"
+public data Observe = machine(value: u64) -> u64 reaches none crashes none;
+machine prepare() reaches none crashes none {}
+machine read(value: u64) -> u64 reaches none crashes none { value }
+public machine choose<machine Prepare>(operation: Observe, value: u64) -> u64
+requires machine Prepare() crashes none;
+{ Prepare(); operation(value) }
+machine entry() -> u64 crashes none { choose::<prepare>(read, 47u64) }
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        psi_authorization::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+
+        let typed = source.source();
+        let mut occurrences = HashMap::new();
+        for (handle, contract) in typed.runtime_callable_contracts.iter() {
+            let symbol = contract.signature.symbol;
+            if typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+                continue;
+            }
+            let span = typed.symbols.symbol_provenance_source_span(symbol).unwrap();
+            let occurrence = typed.normalized_hermetic_symbol_identity(symbol).unwrap();
+            let meaning = typed
+                .runtime_callable_contract_identity(handle, &[])
+                .unwrap();
+            let identity = callable_declaration_path(&occurrence, &meaning);
+            if let Some((id, _)) = prepared
+                .questions
+                .declarations
+                .iter()
+                .find(|(_, row)| row.identity == identity)
+            {
+                let ids = occurrences
+                    .entry((span, meaning))
+                    .or_insert_with(std::collections::BTreeSet::new);
+                ids.insert(id);
+            }
+        }
+        assert!(
+            occurrences
+                .values()
+                .any(|declarations| declarations.len() > 1),
+            "the applied and abstract owners must both be represented at the same source occurrence"
         );
     }
 
@@ -3480,7 +3536,7 @@ mod core_catalog_tests {
     fn core_operator_declarations_keep_their_actual_applied_signatures() {
         let typed = TypedTrees::default();
         let mut declarations = Declarations {
-            callable_occurrences: HashMap::new(),
+            callable_declarations: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(0),
