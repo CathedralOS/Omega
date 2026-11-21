@@ -896,6 +896,52 @@ machine fill(board: @mut Board, value: u32) {
     }
 }
 
+/// The first caller reads cell zero. After a call that may write the board,
+/// the recursive caller reads cell one. Each arrival must establish its own
+/// disjunct even when the body never needs the other cell's entry snapshot.
+#[test]
+fn recursive_arrivals_prove_their_observed_input_alternative() {
+    let source = r"
+public data Board { cells: [u32; 2]; }
+public machine entry(board: @mut Board) -> u32 {
+    fill(board, 1u32);
+    transition board.cells[0] == 1u32 { true -> report(board, 3u32), false -> 6u32 }
+}
+machine report(board: @mut Board, remaining: u32) -> u32
+WRITTEN
+terminates by remaining
+{
+    fill(board, remaining);
+    transition board.cells[1] == 0u32 && remaining > 0u32 {
+        true -> report(board, remaining - 1u32),
+        false -> 7u32
+    }
+}
+machine fill(board: @mut Board, value: u32) {
+    board.cells[0] = value;
+    board.cells[1] = value;
+}
+";
+    let written = "requires board.cells[0] == 1u32 || board.cells[1] == 0u32";
+    for (header, helpers) in [("", &["fill", "report"][..]), (written, &["fill"][..])] {
+        let verdict = judge_source_arrivals(&source.replace("WRITTEN", header), helpers);
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("each arrival establishes one input alternative: {verdict:?}");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+    let wrong = source
+        .replace("WRITTEN", written)
+        .replace("board.cells[1] == 0u32 &&", "board.cells[1] == 2u32 &&");
+    let RouteVerdict::Rejected { unproved, .. } = judge_source_arrivals(&wrong, &["fill"]) else {
+        panic!("the recursive edge establishes neither disjunct");
+    };
+    assert!(unproved.iter().any(|row| matches!(
+        row.kind,
+        ObligationKind::ArrivalInvariant { .. } | ObligationKind::CallRequirement { .. }
+    )));
+}
+
 /// A written disjunctive requirement whose second disjunct names a field the
 /// caller never read. The caller may prove the first disjunct, but an
 /// unstated disjunct is never taken as true: a looser guard refuses.

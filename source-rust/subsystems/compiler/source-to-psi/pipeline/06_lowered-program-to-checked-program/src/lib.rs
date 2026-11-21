@@ -1164,26 +1164,10 @@ fn fill_knowledge<'a>(
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
-        // A clause over a field of a record formal is about what that field
-        // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here. Each
-        // conjunct of a clause holds on its own, so only the conjuncts that
-        // name such a field are dropped: an inferred input condition joins
-        // facts about every field the caller knew, and one about a field this
-        // body never reads must not discard the bound it does need. A
-        // disjunction stays whole, since dropping one of its alternatives
-        // would assume more than the clause says.
-        let mut conjuncts = vec![proposition];
-        while let Some(conjunct) = conjuncts.pop() {
-            if let Proposition::Conjunction(parts) = conjunct {
-                conjuncts.extend(parts);
-                continue;
-            }
-            let stated = match substitute(conjunct, &mut storage.at_entry(references, tables)) {
-                Ok(stated) => stated,
-                Err(Unbound::Unproved(_)) => continue,
-                Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-            };
+        let premises =
+            entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
+                .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        for stated in premises {
             push_knowledge(
                 tables,
                 stated,
@@ -1762,10 +1746,43 @@ impl Unbound {
     }
 }
 
+use terminal_semantics::substitution::clauses::substitute_sufficient_clause;
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
-    substitute_sufficient_clause as sufficient_goal,
 };
+
+/// Express a machine input contract in the same vocabulary when assuming it
+/// at entry and when proving it is forwarded intact. An observable field has
+/// an SSA identity. An unread field still names its original entry snapshot.
+fn entry_snapshot_conjuncts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Vec<Proposition>, Unbound> {
+    storage_conjuncts(clause, bindings, |unread| Some(unread.clone()))
+}
+
+/// A conjunction admits independent projections. A disjunction must remain
+/// whole even if only one of its alternatives mentions an unread field.
+fn storage_conjuncts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+    unobserved: fn(&Proposition) -> Option<Proposition>,
+) -> Result<Vec<Proposition>, Unbound> {
+    let mut pending = vec![clause];
+    let mut stated = Vec::new();
+    while let Some(part) = pending.pop() {
+        if let Proposition::Conjunction(parts) = part {
+            pending.extend(parts);
+            continue;
+        }
+        match substitute(part, bindings) {
+            Ok(part) => stated.push(part),
+            Err(Unbound::Unproved(_)) => stated.extend(unobserved(part)),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(stated)
+}
 
 /// States a clause the checker must prove: a goal, never a premise.
 ///
@@ -1783,10 +1800,29 @@ pub(crate) fn substitute_goal(
     clause: &Proposition,
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Result<Proposition, Unbound> {
+    // A single reaching alternative may decide the whole disjunction. Keep
+    // that correlation before trying the branches this arrival can observe.
+    match substitute_sufficient_clause(clause, bindings) {
+        Err(Unbound::Unproved(_))
+            if matches!(
+                clause,
+                Proposition::Conjunction(_) | Proposition::Disjunction(_)
+            ) =>
+        {
+            goal_from_observed_parts(clause, bindings)
+        }
+        result => result,
+    }
+}
+
+fn goal_from_observed_parts(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Proposition, Unbound> {
     let (parts, conjunction) = match clause {
         Proposition::Conjunction(parts) => (parts, true),
         Proposition::Disjunction(parts) => (parts, false),
-        _ => return sufficient_goal(clause, bindings),
+        _ => return substitute_sufficient_clause(clause, bindings),
     };
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
@@ -1796,12 +1832,11 @@ pub(crate) fn substitute_goal(
     let mut kept = Vec::with_capacity(parts.len());
     let mut unstated = None;
     for part in parts {
-        match substitute_goal(part, bindings) {
+        match goal_from_observed_parts(part, bindings) {
             Ok(part) if part == deciding => return Ok(deciding),
             Ok(part) if part == unit => {}
             Ok(part) => kept.push(part),
             // A conjunct is owed whatever the others say.
-            Err(unbound) if conjunction => unstated = unstated.or(Some(unbound)),
             Err(Unbound::Unproved(detail)) => {
                 unstated = unstated.or(Some(Unbound::Unproved(detail)))
             }

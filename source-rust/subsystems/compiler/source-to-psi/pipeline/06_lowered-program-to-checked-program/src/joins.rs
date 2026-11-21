@@ -100,7 +100,7 @@ pub(crate) fn prepare<'a>(
             .iter()
             .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
             .collect::<Vec<_>>();
-        let predicate = crate::checking::substitute(
+        let premises = crate::checking::storage_conjuncts(
             &invariant.predicate,
             &mut storage.at_join(
                 references,
@@ -111,8 +111,10 @@ pub(crate) fn prepare<'a>(
                 ProgramPoint::BlockEntry(header.id),
                 Construct::Block(header.id),
             )?,
+            |_| None,
         )
         .map_err(|error| error.refusal(id, Construct::Block(header.id)))?;
+        let predicate = connective(premises, true);
         push_knowledge(
             tables,
             predicate.clone(),
@@ -927,15 +929,54 @@ pub(crate) fn arrival_goal<'a>(
         );
         refused
     };
-    let stated = crate::checking::sufficient_goal(predicate, &mut bindings).map_err(explain)?;
+    let stated = crate::checking::substitute_goal(predicate, &mut bindings).map_err(explain)?;
     // The original contract remains an arrival goal after its header's
     // storage observations have been stated over exact logical values.
     let original = invariants
         .iter()
         .find(|row| row.machine == id && row.header == target);
     if let Some(original) = original {
-        let original = crate::checking::sufficient_goal(&original.predicate, &mut bindings)
-            .map_err(explain)?;
+        // The entry-to-head transfer can forward a whole requirement even
+        // when no scalar read names one of its fields. On any changed input,
+        // the ordinary binders must reestablish the contract at this edge.
+        let forwarded = if structural.iter().all(|actual| {
+            actual.path.is_empty()
+                && lowered
+                    .signature_structural_parameter(actual.place)
+                    .is_some()
+        }) && bindings.preserves_entry_storage(edge)?
+        {
+            let roots = join
+                .structural_parameters
+                .iter()
+                .zip(structural)
+                .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+                .collect();
+            let incoming =
+                terminal_semantics::substitution::substitute_proposition_structural_places(
+                    &rename(&original.predicate, &renaming),
+                    &roots,
+                );
+            lowered
+                .contract
+                .requires
+                .contains(&incoming)
+                .then_some(incoming)
+        } else {
+            None
+        };
+        let original = match forwarded {
+            Some(incoming) => connective(
+                crate::checking::entry_snapshot_conjuncts(
+                    &incoming,
+                    &mut storage.at_entry(references, tables),
+                )
+                .map_err(explain)?,
+                true,
+            ),
+            None => crate::checking::substitute_goal(&original.predicate, &mut bindings)
+                .map_err(explain)?,
+        };
         Ok(connective(vec![stated, original], true))
     } else {
         Ok(stated)
