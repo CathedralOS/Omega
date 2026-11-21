@@ -13,6 +13,7 @@ pub struct AdmittedRuntimeInput<'input> {
     artifact: &'input AuthorizedTerminalArtifact,
     entry: MachineId,
     boundaries: &'input [terminal_psi::BoundaryMachineDeclaration],
+    borrowed_storage: &'input runtime_abi::NativeBorrowedStorageLayouts,
     target: Option<&'input TerminalTargetContext>,
     scalar_applications: Option<&'input AdmittedScalarApplications>,
     native_scope: Option<&'input crate::NativeExecutionScope>,
@@ -26,6 +27,7 @@ impl VerifiedPsiOptimizationInput {
             artifact: &self.context.artifact,
             entry: self.plan.entry,
             boundaries: &self.plan.boundary_machines,
+            borrowed_storage: self.borrowed_storage.layouts(),
             target: self.target_context.as_ref(),
             scalar_applications: self.scalar_applications.as_ref(),
             native_scope: self.native_execution_scope.as_deref(),
@@ -34,6 +36,10 @@ impl VerifiedPsiOptimizationInput {
 }
 
 impl AdmittedRuntimeInput<'_> {
+    pub(super) fn borrowed_storage(&self) -> &runtime_abi::NativeBorrowedStorageLayouts {
+        self.borrowed_storage
+    }
+
     pub(super) fn require_native_providers(
         &self,
         providers: &crate::ScopedProviderSelection,

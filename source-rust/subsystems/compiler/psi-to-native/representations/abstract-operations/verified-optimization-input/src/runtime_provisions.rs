@@ -302,7 +302,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
             installation: installation.cloned(),
             host,
             host_requirements,
-            borrowed_storage_layouts: Default::default(),
+            borrowed_storage_layouts: input.borrowed_storage().clone(),
         })
     }
 }
@@ -388,12 +388,15 @@ impl<A> TerminalRuntimeHostProvisions<A> {
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
         &self.borrowed_storage_layouts
     }
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.borrowed_storage_layouts = layouts;
-        self
+
+    pub fn require_borrowed_storage_layouts(
+        &self,
+        candidate: &runtime_abi::NativeBorrowedStorageLayouts,
+    ) -> Result<(), &'static str> {
+        if candidate != &self.borrowed_storage_layouts {
+            return Err("borrowed storage geometry differs from the admitted runtime input");
+        }
+        Ok(())
     }
 }
 
@@ -459,6 +462,7 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
         }
         let scalar_applications =
             capture_scalar_applications(input, artifact.identity(), target, host.installation())?;
+        host.require_borrowed_storage_layouts(input.borrowed_storage())?;
         Ok(Self {
             identity: artifact.identity(),
             manifest: input.manifest_identity(),
@@ -485,14 +489,6 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
     }
     pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions<A> {
         &self.host
-    }
-
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.host = self.host.with_borrowed_storage_layouts(layouts);
-        self
     }
 
     pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
@@ -622,14 +618,6 @@ impl<A> NativeRuntimePlan<A> {
 
     pub fn target_provider_proposals(&self) -> &[TerminalTargetProviderProposal] {
         &self.target_provider_proposals
-    }
-
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.host_provisions.borrowed_storage_layouts = layouts;
-        self
     }
 
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {

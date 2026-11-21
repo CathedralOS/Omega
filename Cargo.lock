@@ -1833,6 +1833,7 @@ dependencies = [
  "psi-entry-memory",
  "resolver-execution",
  "retained-image-runtime",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",

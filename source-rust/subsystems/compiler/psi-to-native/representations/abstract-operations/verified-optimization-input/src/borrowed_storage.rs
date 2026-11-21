@@ -9,13 +9,14 @@ use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{BoundaryMachineResult, StructuralAccess, StructuralTypeShape};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BorrowedStorageInputs {
+pub struct AdmittedBorrowedStorage {
+    layouts: NativeBorrowedStorageLayouts,
     catalog: StructuralTypeCatalog,
     roots: Vec<StructuralTypeId>,
 }
 
-impl BorrowedStorageInputs {
-    pub fn of(plan: &AbstractOperationPlan) -> Self {
+impl AdmittedBorrowedStorage {
+    pub fn from_plan(plan: &AbstractOperationPlan) -> Result<Self, &'static str> {
         let mut results: Vec<_> = plan
             .boundary_machines
             .iter()
@@ -72,25 +73,38 @@ impl BorrowedStorageInputs {
         }
         roots.sort_unstable();
         roots.dedup();
-        Self {
-            catalog: plan.structural_types.clone(),
+        let catalog = plan.structural_types.clone();
+        let layouts = Self::resolve(&catalog, &roots)?;
+        Ok(Self {
+            layouts,
             roots,
-        }
+            catalog,
+        })
     }
 
-    pub fn layouts(&self) -> Result<NativeBorrowedStorageLayouts, &'static str> {
-        if self.roots.is_empty() {
+    pub fn layouts(&self) -> &NativeBorrowedStorageLayouts {
+        &self.layouts
+    }
+
+    pub(crate) fn replay(&self) -> Result<NativeBorrowedStorageLayouts, &'static str> {
+        Self::resolve(&self.catalog, &self.roots)
+    }
+
+    fn resolve(
+        catalog: &StructuralTypeCatalog,
+        roots: &[StructuralTypeId],
+    ) -> Result<NativeBorrowedStorageLayouts, &'static str> {
+        if roots.is_empty() {
             return Ok(NativeBorrowedStorageLayouts::default());
         }
-        let geometry = NativeGeometry::with_owned_sequence_bounds(
-            &self.catalog,
-            self.catalog.owned_sequence_bounds(),
-        )
-        .map_err(|_| "borrowed storage declarations have non-dense structural identities")?;
+        let geometry =
+            NativeGeometry::with_owned_sequence_bounds(catalog, catalog.owned_sequence_bounds())
+                .map_err(
+                    |_| "borrowed storage declarations have non-dense structural identities",
+                )?;
         // A reachable opaque type may have no native representation. Consumers
         // requiring that recipe must refuse the borrow when its row is absent.
-        let layouts = self
-            .roots
+        let layouts = roots
             .iter()
             .filter_map(|root| geometry.borrowed_storage(*root))
             .collect();
