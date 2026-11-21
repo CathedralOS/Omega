@@ -1262,7 +1262,7 @@ pub enum ExpressionKind {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,
         /// The condition the cast must establish, for a diagnostic.
-        stated: terminal_check_tables::program::CastCondition,
+        stated: terminal_check_tables::program::EstablishedCondition,
     },
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.

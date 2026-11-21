@@ -306,9 +306,10 @@ fn a_private_rank_range_must_hold_on_arrival() {
     for range in ["1..=cap", "0..cap"] {
         let invalid = bounded.replace("0..=cap", range);
         assert!(
-            unproved(&invalid)
-                .iter()
-                .any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. })),
+            unproved(&invalid).iter().any(|row| matches!(
+                row.kind,
+                ObligationKind::ArrivalInvariant { .. }
+            ) && row.statement.contains("declared rank range")),
             "{range}"
         );
     }

@@ -82,6 +82,10 @@ impl Lowering<'_> {
         let upper = self.rank_expression(&range.upper, inputs)?;
         let source = range.lower.source;
         let established = self.block(source);
+        self.sources.predicate_establishments.push((
+            established,
+            terminal_check_tables::program::EstablishedCondition::RankRange,
+        ));
         let scalar_type = ScalarType::Integer(rank.integer_type);
         let mut bind = |position| -> Checked<ScalarTerm> {
             let id = self.value(
