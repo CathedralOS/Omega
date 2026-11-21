@@ -6023,21 +6023,34 @@ pub(crate) mod selected_operands {
         /// arena for type and value arguments. A type binder cannot accept a
         /// value, including when substitution would erase the argument.
         pub fn type_argument_names_value(&self, reference: types::TypeReferenceHandle) -> bool {
+            use crate::source_state::data::TypeParameterKind;
             use symbols::SymbolKind;
-            match self.type_reference_table.type_reference(reference) {
-                types::TypeReferenceNode::ConstExpression(_) => true,
-                types::TypeReferenceNode::Named { symbol, .. } => {
-                    self.static_const_literal_from_type_reference(reference).is_some()
-                        || self.symbols.symbols().nodes().is_valid(*symbol)
-                            && matches!(
-                                self.symbols.get(*symbol).kind,
-                                SymbolKind::Const
-                                    | SymbolKind::Parameter
-                                    | SymbolKind::Machine
-                                    | SymbolKind::MachineParameter
-                                    | SymbolKind::ConformanceParameter
+            let symbol = match self.type_reference_table.type_reference(reference) {
+                types::TypeReferenceNode::ConstExpression(_) => return true,
+                types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                _ => return false,
+            };
+            if !self.symbols.symbols().nodes().is_valid(symbol) {
+                return self
+                    .static_const_literal_from_type_reference(reference)
+                    .is_some();
+            }
+            match self.symbols.get(symbol).kind {
+                SymbolKind::TypeParameter => {
+                    self.data_type_parameter_by_symbol(symbol)
+                        .is_some_and(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
                             )
+                        })
                 }
+                SymbolKind::Const
+                | SymbolKind::Parameter
+                | SymbolKind::Local
+                | SymbolKind::Machine
+                | SymbolKind::MachineParameter
+                | SymbolKind::ConformanceParameter => true,
                 _ => false,
             }
         }

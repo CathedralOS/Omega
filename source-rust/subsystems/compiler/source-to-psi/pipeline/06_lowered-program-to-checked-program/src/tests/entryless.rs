@@ -125,12 +125,21 @@ fn transparent_data_aliases_form_in_their_own_binder_scope() {
 
 #[test]
 fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
-    let Err(error) = super::boundary_calls::try_typed(
-        "public data Erased<T> = u32; public data Invalid = Erased<17u64>;",
-    ) else {
-        panic!("an unused parameter still requires a type argument");
-    };
-    assert!(error.message.contains("requires a type but was supplied a value"), "{error:?}");
+    for uses in [
+        "public data Invalid = Erased<17u64>;",
+        "machine keep<const Count: u64>(value: Erased<Count>) -> u32 { value }",
+    ] {
+        let source = format!("public data Erased<T> = u32; {uses}");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("an unused parameter still requires a type argument: {uses}");
+        };
+        assert!(
+            error
+                .message
+                .contains("requires a type but was supplied a value"),
+            "{error:?}"
+        );
+    }
 }
 
 #[test]
