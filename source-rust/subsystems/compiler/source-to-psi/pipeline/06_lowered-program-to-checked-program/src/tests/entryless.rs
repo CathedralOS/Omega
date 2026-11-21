@@ -240,6 +240,7 @@ fn declared_callback_lifetime_aliases_publish_without_an_entry() {
         "public data Visit<'item,T> = machine(item: @'item T) -> u64;
          public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;
          public data Forward<'enclosing,T> = Visit<'enclosing,T>;
+         public data Both<'outer,T> = machine<'call>(stored: @'outer T, passed: @'call T) -> u64;
          public data Borrowed<'item,T> = @'item T;",
         false,
     );
