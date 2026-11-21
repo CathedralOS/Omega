@@ -1085,6 +1085,18 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
 }
 
 #[test]
+fn machine_requirements_cannot_reclassify_type_parameters() {
+    for contract in [
+        "requires machine F(value: u32) -> u32;",
+        "requires machine F satisfies Visitor::visit;",
+    ] {
+        let source = format!("machine apply<F>(value: F) {contract} {{}}");
+        let error = crate::tests::parse_tokenized_error(&source, "F was declared as a type");
+        crate::tests::expect_error(&error, "`F` is not a machine parameter");
+    }
+}
+
+#[test]
 fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
     let source = r#"
         data Device {}
