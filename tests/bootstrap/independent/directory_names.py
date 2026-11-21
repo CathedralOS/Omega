@@ -30,6 +30,7 @@ def cases():
     yield from data_lifetime_cases(packet)
     yield from trait_static_parameter_cases(packet)
     yield from invokes_cases(packet)
+    yield from quoted_byte_cases(packet)
 
     # A callee in another file owns its parameter's element type and count.
     paths = ["main.omg", "later/api.omg"]
@@ -151,6 +152,7 @@ def cases():
     yield from record_bound_cases(encode)
     yield from parameter_order_cases(encode)
     yield from record_reference_cases(encode)
+    yield from evaluated_guard_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from sum_equality_cases(encode)
     yield from storage_window_cases(encode)
@@ -201,6 +203,45 @@ def invokes_cases(packet):
     paths = ["main.omg", "clock.omg", *(f"targets/{target}/wait.omg" for target, _ in services)]
     wire, rows = packet(sources, paths)
     yield "invokes-production-clock", wire, struct.pack("<BII", 0, 2, rows[1][1] + clock.index(b"boundary trait Clock"))
+
+
+def quoted_byte_cases(packet):
+    # Read through the descriptor at runtime, including an empty view with no byte to read.
+    first = (b"machine first(s:@[u8])->u8{transition s.len>0{true->yes(s),_->0}"
+             b"machine yes(s:@[u8])->u8 requires s.len>0{s[0]}}")
+    for name, literal, expected in [
+        ("ascii", b'"."', 46), ("empty", b'""', 0), ("nul", br'"\0"', 0),
+        ("tab", br'"\t"', 9), ("hex", br'"\xFF"', 255), ("utf8", '"é"'.encode(), 195),
+        ("escaped-quote", br'"\""', 34), ("backslash", br'"\\"', 92),
+        ("carriage-return", br'"\r"', 13), ("newline", br'"\n"', 10),
+    ]:
+        source = b"machine main()->u8{first(" + literal + b")}" + first
+        yield "quoted-image-" + name, packet([source], ["main.omg"])[0], expected
+
+    caller = b'machine main()->u8{read("A")}'
+    later = first + b'machine read(s:@[u8])->u8{first("B")}'
+    yield "quoted-image-cross-unit", packet([caller, later], ["main.omg", "later.omg"])[0], 66
+    index = b"machine read(s:@[u8],i:u64)->u8 requires i<s.len{s[i]}"
+    yield "quoted-image-required-length", packet([b'machine main()->u8{read("ab",1)}' + index], ["main.omg"])[0], 98
+
+    # Both complete product helpers use their original contracts and nested machines.
+    definitions = (ROOT / "source/application/construction/build_sources.omg").read_bytes()
+    helpers = (declaration(definitions, b"machine same_build_path(") + b"\n\n" +
+               declaration(definitions, b"machine build_path_valid(") + b"\n")
+    for name, path, yes in [("valid-path", b"alpha/build.omg", True),
+                            ("traversal", b"alpha/../build.omg", False),
+                            ("empty-component", b"alpha//build.omg", False)]:
+        arms = b"true -> 42, _ -> 7" if yes else b"true -> 7, _ -> 42"
+        main = b'machine main() -> u8 crashes Trap { transition build_path_valid("' + path + b'") { ' + arms + b" } }"
+        yield "quoted-image-original-" + name, packet([helpers + main], ["main.omg"])[0], 42
+
+    for name, source, at, status in [
+        ("short", b'machine main()->u8{read("ab",2)}' + index, b"machine main", 2),
+        ("invalid-escape", br'machine main()->u8{first("\q")}' + first, br"\q", 1),
+        ("immutable", b'data Cell{value:u8;}machine main()->u8{write("a")}machine write(x:@mut Cell)->u8{x.value=7;42}', b'"a"', 2),
+    ]:
+        wire, rows = packet([source], ["main.omg"])
+        yield "quoted-image-" + name, wire, struct.pack("<BII", 0, status, rows[0][1] + source.index(at))
 
 
 def declaration(definitions, header):
@@ -453,6 +494,45 @@ machine main()->u8{
     yield "source-unit-missing-referent", wire, struct.pack("<BII", 0, 2, rows[1][1] + missing.index(b"unit:@Missing"))
     wire, _, _, rows = packet(record=unit.replace(b"public data", b"data", 1))
     yield "source-unit-hidden-referent", wire, struct.pack("<BII", 0, 1, rows[0][1])
+
+
+def evaluated_guard_cases(encode):
+    array = (b"machine main()->u8{let bytes:[u8;1]=[42];choose(@bytes[..],0)}"
+             b"machine inspect(bytes:@[u8])->bool{bytes.len>0}")
+    signature = b"machine choose(bytes:@[u8],i:u64)->u8 "
+    transfer = b"{transition inspect(bytes){true->read(bytes,i),_ ->0}"
+    read = b"machine read(bytes:@[u8],i:u64)->u8 requires i<bytes.len {bytes[i]}}"
+    cases = [
+        ("guard-call-preserved-slice", signature + b"requires i<bytes.len " + transfer + read + array, 42),
+        ("guard-call-without-bound", signature + transfer + read + array, (2, b"machine choose")),
+    ]
+    header = (b"data Cell{value:u8;}"
+              b"machine dirty(c:@mut Cell)->bool{c.value=2;true}"
+              b"machine drive(stable:@Cell,other:@mut Cell)->u8 {"
+              b"transition stable.value<2 {true->choose(stable,other),_ ->7}"
+              b"machine choose(stable:@Cell,other:@mut Cell)->u8 requires stable.value<2 {")
+    use = (b"transition dirty(other){true->use(stable),_ ->7}}"
+           b"machine use(stable:@Cell)->u8 requires stable.value<2 {42}}"
+           b"machine main()->u8{let mut left:Cell;let mut right:Cell;drive(@left,@mut right)}")
+    cases.append(("guard-call-disjoint-write", header + use, 42))
+    overlap = (b"data Cell{value:u8;}machine dirty(c:@mut Cell)->bool{c.value=2;true}"
+               b"machine drive(c:@mut Cell)->u8{transition c.value<2{true->choose(c),_ ->7}"
+               b"machine choose(c:@mut Cell)->u8 requires c.value<2 {"
+               b"transition dirty(c){true->use(c),_ ->7}}"
+               b"machine use(c:@mut Cell)->u8 requires c.value<2 {42}}"
+               b"machine main()->u8{let mut cell:Cell;drive(@mut cell)}")
+    cases.append(("guard-call-overlapping-write", overlap, (2, b"machine drive")))
+    # A left conjunct was true before dirty wrote its referent. The target
+    # must not recover it from the Boolean value of the whole condition.
+    old = overlap.replace(b" requires c.value<2 {transition dirty(c)",
+                          b" {transition c.value<2 && dirty(c)")
+    cases.append(("guard-call-stale-conjunct", old, (2, b"machine drive")))
+    for name, source, expected in cases:
+        packet, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, anchor = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(anchor))
+        yield name, packet, expected
 
 
 def nominal_sum_cases(encode):

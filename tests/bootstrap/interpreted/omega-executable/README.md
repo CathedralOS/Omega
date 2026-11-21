@@ -194,7 +194,7 @@ top of the bound member closure, never part of the manifested members.
 | `controls_e.epsilon` | 2,795 | `881feab7746fe17185dfa163629b13c788274891f43c9ab7d72d1f07a3272d72` |
 | `controls_f.epsilon` | 4,465 | `17c38612a596bd23ec8bee9f48a43e9bf6591595ba7ec819122acd9692033fc2` |
 | `controls_g.epsilon` | 3,175 | `c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137` |
-| `controls_h.epsilon` | 3,247 | `f3c997c53733618e973160555d3e3427a2bb7bd013e5c7180b72a719a102359f` |
+| `controls_h.epsilon` | 4,385 | `87738a1eb03678fb979c48b2770c91a9d03a2f0539c19a49101233b6e786d5c3` |
 | `controls_i.epsilon` | 3,754 | `5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4` |
 | `controls_j.epsilon` | 5,581 | `203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5` |
 
