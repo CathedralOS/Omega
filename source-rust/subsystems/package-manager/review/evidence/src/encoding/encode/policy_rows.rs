@@ -95,7 +95,10 @@ pub fn restricted_build_request_acceptance_text(
             encoder,
             package,
             target,
-            PackagePolicyRowKind::RestrictedBuildRequest,
+            (
+                PackagePolicyRowKind::RestrictedBuildRequest,
+                crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS,
+            ),
             true,
             true,
             &|encoder| baseline::restricted_build::request(encoder, &request),

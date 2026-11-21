@@ -147,14 +147,6 @@ framework or a list of unimplemented features.
 - Cost: An indirect call in the provider needs the actual machine passed by its caller. The original report reached native stack planning. A later run on the #4790 CLI checked the modernized source, then stopped at a repeated stage-07 selection before either engine could exercise the remaining paths. Recheck both consumers with the same selected call.
 - Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
 
-### Package review recovery cannot verify structural parameter indices
-
-- Category: A verdict with nothing behind it.
-- Where: [recovered borrow and qualification indices](source-rust/subsystems/package-manager/review/evidence/src/encoding/recovery/policy/public_api/traits.rs#L64), [public trait validation](source-rust/subsystems/package-manager/review/evidence/src/record/public_policy/validation/declarations.rs#L75).
-- Saw: Recovery reads a parameter number from each returned borrow and each qualification. It checks ordering and domain identity, and accepts a number beyond the entire formal list. The policy holds each formal's type name, while source checking knows which formals use structural storage.
-- Cost: A recovered policy can describe a borrow or qualification on a nonexistent parameter. Retain the checked structural parameter list so recovery can validate both kinds of index.
-- Reported: 2026-11-18, Codex, while restoring package review for stored machine calls.
-
 ### Case splits rebuild unchanged proof facts
 
 - Category: Verifying costs more than writing

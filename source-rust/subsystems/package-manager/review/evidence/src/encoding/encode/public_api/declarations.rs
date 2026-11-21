@@ -34,6 +34,7 @@ use crate::record::PackageReviewDomainSemanticRole;
 pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyTraitShape,
+    baseline_schema: u16,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
@@ -68,6 +69,24 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.parameters,
                 requirement.return_type.as_ref()
             );
+            let positions = requirement.structural_parameter_positions();
+            if positions.is_some()
+                != (baseline_schema == crate::encoding::PACKAGE_POLICY_BASELINE_VERSION)
+            {
+                return Err(PackageReviewEncodingError::new(
+                    "public requirement structural parameters disagree with its policy version",
+                ));
+            }
+            if let Some(positions) = positions {
+                encoder.sequence_field(
+                    "structural_parameter_positions",
+                    positions,
+                    |encoder, position| {
+                        encoder.u32(*position);
+                        Ok(())
+                    },
+                )?;
+            }
             encode_callable_behavior_tail!(encoder, requirement, optional)?;
             encoder.field("returned_borrow_origins", |encoder| {
                 encoder.sequence(

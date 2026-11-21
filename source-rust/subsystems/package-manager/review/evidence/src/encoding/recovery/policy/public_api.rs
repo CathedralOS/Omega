@@ -12,9 +12,10 @@ use crate::record::PackagePolicyPublicApi;
 
 pub(in crate::encoding::recovery) fn public_api(
     reader: &mut Reader<'_>,
+    schema_version: u16,
 ) -> Result<PackagePolicyPublicApi, Error> {
     Ok(PackagePolicyPublicApi {
-        traits: reader.sequence(1, traits::trait_shape)?,
+        traits: reader.sequence(1, |reader| traits::trait_shape(reader, schema_version))?,
         conformances: reader.sequence(1, traits::conformance_shape)?,
         domains: reader.sequence(1, domains::domain_shape)?,
         propositions: reader.sequence(1, declarations::proposition_shape)?,

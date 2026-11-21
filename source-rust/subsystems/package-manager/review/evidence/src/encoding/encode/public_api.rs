@@ -11,8 +11,11 @@ pub(super) use signatures::{formal, type_parameter};
 pub(in crate::encoding) fn public_api(
     encoder: &mut Encoder,
     api: &PackagePolicyPublicApi,
+    baseline_schema: u16,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.sequence_field("traits", &api.traits, declarations::trait_shape)?;
+    encoder.sequence_field("traits", &api.traits, |encoder, shape| {
+        declarations::trait_shape(encoder, shape, baseline_schema)
+    })?;
     encoder.field("conformances", |encoder| {
         encoder.sequence(&api.conformances, declarations::conformance_shape)
     })?;

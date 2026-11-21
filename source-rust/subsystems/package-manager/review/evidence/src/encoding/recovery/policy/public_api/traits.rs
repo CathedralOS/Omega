@@ -19,6 +19,7 @@ use crate::record::{
 
 pub(in crate::encoding::recovery) fn trait_shape(
     reader: &mut Reader<'_>,
+    schema_version: u16,
 ) -> Result<PackagePolicyTraitShape, Error> {
     Ok(PackagePolicyTraitShape {
         identity: nominal(reader)?,
@@ -27,12 +28,13 @@ pub(in crate::encoding::recovery) fn trait_shape(
         type_parameters: reader.sequence(3, type_parameter)?,
         conformance_bounds: reader.sequence(62, conformance_bound)?,
         parents: reader.sequence(58, trait_parent)?,
-        requirements: reader.sequence(112, trait_requirement)?,
+        requirements: reader.sequence(112, |reader| trait_requirement(reader, schema_version))?,
     })
 }
 
 pub(in crate::encoding::recovery) fn trait_requirement(
     reader: &mut Reader<'_>,
+    schema_version: u16,
 ) -> Result<PackagePolicyTraitRequirement, Error> {
     Ok(PackagePolicyTraitRequirement {
         identity: nominal(reader)?,
@@ -43,6 +45,13 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         conformance_bounds: reader.sequence(62, conformance_bound)?,
         parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
+        structural_parameter_positions: if schema_version
+            == crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
+        {
+            None
+        } else {
+            Some(reader.sequence(4, |reader| reader.u32())?)
+        },
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.option(|reader| reader.sequence(9, crash_route))?,
         service_reach: reader.option(|reader| reader.sequence(41, nominal))?,

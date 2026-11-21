@@ -192,12 +192,21 @@ impl Program<'_> {
         }
         returned_parameters.sort_unstable();
         returned_parameters.dedup();
+        if signature.parameters.len() != parameter_types.len() {
+            return Err("public requirement source and lowered parameter counts differ".to_owned());
+        }
         let mut parameter_qualifications = Vec::new();
-        let mut structural_index = 0u32;
+        let mut structural_parameter_positions = Vec::new();
         for (position, value) in signature.parameters.iter().enumerate() {
             if !signature.is_place(position) {
                 continue;
             }
+            let structural_index = u32::try_from(structural_parameter_positions.len())
+                .map_err(|_| "public requirement structural namespace exceeds u32")?;
+            structural_parameter_positions.push(
+                u32::try_from(position)
+                    .map_err(|_| "public requirement parameter position exceeds u32")?,
+            );
             for domain in value.qualification().domains.members() {
                 let definition = self
                     .typed
@@ -212,12 +221,10 @@ impl Program<'_> {
                 }
                 parameter_qualifications.push((structural_index, domain.declaration));
             }
-            structural_index = structural_index
-                .checked_add(1)
-                .ok_or("public requirement structural namespace exceeds u32")?;
         }
         Ok(RequirementReviewMetadata {
             parameter_types,
+            structural_parameter_positions,
             result_type: source.return_type.is_valid().then_some(result),
             lifetime_parameter_count,
             service_reach,
