@@ -4,6 +4,7 @@ mod opaque_storage;
 mod qualifications;
 mod queries;
 pub mod quotients;
+pub mod representation_views;
 mod structural;
 pub mod structural_path_encoding;
 pub mod values;

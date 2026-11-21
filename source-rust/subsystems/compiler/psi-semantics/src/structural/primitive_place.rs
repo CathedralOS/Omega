@@ -860,7 +860,7 @@ fn walk_primitive_projection_with_lookup<'a>(
             {
                 return None;
             }
-            let view = crate::references::reference_views::representation_view_declaration(
+            let view = terminal_psi::types::representation_views::declaration(
                 declarations.clone(),
                 *structural_type,
                 *stored_scalar,

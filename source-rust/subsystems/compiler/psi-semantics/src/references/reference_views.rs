@@ -1,8 +1,10 @@
 use crate::descriptors::descriptor_results::descriptor_value_access;
-use crate::exactly_one::exactly_one;
 use crate::runtime_structural_path_tip;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use terminal_psi::types::representation_views::{
+    reference_storage_byte_width, reference_storage_view_is_compatible, scalar_reference_view_is_total,
+};
 
 pub fn shared_descriptor_copy_matches<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -183,22 +185,6 @@ pub fn is_shared_reference_carrier<'types>(
         }
     }
     false
-}
-
-pub fn representation_view_declaration<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    view: StructuralTypeId,
-    stored: Option<ScalarType>,
-) -> Option<&'types StructuralTypeDeclaration> {
-    let declaration = exactly_one(types, |declaration| declaration.id == view)?;
-    match (stored, &declaration.shape) {
-        (Some(stored), StructuralTypeShape::PrimitiveScalar(logical))
-            if reference_storage_view_is_compatible(stored, *logical) => {}
-        (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
-        }
-        _ => return None,
-    }
-    Some(declaration)
 }
 
 pub fn reference_source_storage_path<'types, 'path>(
@@ -471,42 +457,6 @@ pub fn reference_byte_field_compatible<'types, 'domains>(
         && (*access == terminal_psi::StructuralAccess::SharedBorrow
             || required.implies(predicates))
 }
-pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
-    match stored {
-        ScalarType::Integer(integer) if !integer.is_address() => {
-            let bits = integer.bits()?;
-            (bits % 8 == 0)
-                .then(|| u8::try_from(bits / 8).ok())
-                .flatten()
-        }
-        ScalarType::Callable(_) => Some(8),
-        ScalarType::Boolean => Some(1),
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
-        _ => None,
-    }
-}
-
-pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarType) -> bool {
-    if reference_storage_byte_width(stored).is_none() {
-        return false;
-    }
-    if scalar_reference_view_is_total(stored, logical) {
-        return true;
-    }
-    let (ScalarType::Integer(stored), ScalarType::Integer(logical)) = (stored, logical) else {
-        return false;
-    };
-    if logical.is_address() || logical.bits() < stored.bits() {
-        return false;
-    }
-    match (stored.sign(), logical.sign()) {
-        (IntegerSign::Signed, IntegerSign::Unsigned) => false,
-        (IntegerSign::Unsigned, IntegerSign::Signed) => logical.bits() > stored.bits(),
-        _ => true,
-    }
-}
-
 pub fn reference_storage_export_byte_width(
     logical: ScalarType,
     access: StructuralAccess,
@@ -615,23 +565,6 @@ pub(super) fn storage_scalars_satisfy<'types>(
 }
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, StructuralTypeShape};
 
-use crate::scalars::scalar_representation_view::{integer_bits, integer_from_bits};
-use crate::{ScalarRepresentationViewPair, ScalarViewValue};
-
-pub fn scalar_reference_view_is_total(source: ScalarType, target: ScalarType) -> bool {
-    if source == target {
-        return true;
-    }
-    if let (ScalarType::Integer(source), ScalarType::Integer(target)) = (source, target) {
-        return !source.is_address()
-            && !target.is_address()
-            && source.bits() == target.bits()
-            && source.bits().is_some_and(|bits| bits <= 64);
-    }
-    ScalarRepresentationViewPair::classify(source, target)
-        .is_some_and(|pair| !pair.requires_landing())
-}
-
 /// Whether a reference with `access` may present `stored` scalar storage as
 /// `presented` (wiki/spec/layouts/recasts.md#shared-and-mutable-views).
 ///
@@ -677,44 +610,6 @@ pub fn borrowed_field_presentation(
         return Some(terminal_psi::StructuralFieldType::Structural(expected.id));
     }
     Some(presentation)
-}
-
-pub fn scalar_reference_view_value(
-    source: ScalarType,
-    target: ScalarType,
-    value: ScalarViewValue,
-) -> Option<ScalarViewValue> {
-    if !scalar_reference_view_is_total(source, target) {
-        return None;
-    }
-    if source == target {
-        return match (source, value) {
-            (ScalarType::Boolean, ScalarViewValue::Boolean(_)) => Some(value),
-            (ScalarType::Integer(integer), ScalarViewValue::Integer(value))
-                if integer.admits(value) =>
-            {
-                Some(ScalarViewValue::Integer(value))
-            }
-            (ScalarType::IeeeFloat(format), ScalarViewValue::IeeeFloat(value))
-                if value.format() == format =>
-            {
-                Some(ScalarViewValue::IeeeFloat(value))
-            }
-            _ => None,
-        };
-    }
-    if let (
-        ScalarType::Integer(source),
-        ScalarType::Integer(target),
-        ScalarViewValue::Integer(value),
-    ) = (source, target, value)
-    {
-        return Some(ScalarViewValue::Integer(integer_from_bits(
-            target,
-            integer_bits(source, value)?,
-        )?));
-    }
-    ScalarRepresentationViewPair::classify(source, target)?.view(value)
 }
 
 pub fn shared_byte_descriptor_storage_matches(

@@ -1,3 +1,4 @@
+//! The scalar types that can share storage, and how to read their bits.
 use semantic_vocabulary::{
     IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, ScalarType,
 };
@@ -22,9 +23,8 @@ pub enum ScalarRepresentationViewPair {
 
 impl ScalarRepresentationViewPair {
     pub fn classify(source: ScalarType, target: ScalarType) -> Option<Self> {
-        let fixed = |integer: IntegerType, bits: u16| {
-            !integer.is_address() && integer.bits() == Some(bits)
-        };
+        let fixed =
+            |integer: IntegerType, bits: u16| !integer.is_address() && integer.bits() == Some(bits);
         match (source, target) {
             (ScalarType::IeeeFloat(format), ScalarType::Integer(integer))
                 if fixed(integer, format_bits(format)) =>
@@ -99,7 +99,7 @@ const fn format_bits(format: IeeeFloatFormat) -> u16 {
     }
 }
 
-pub(crate) fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
+fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
     let width = integer.bits()?;
     if !integer.admits(value) || width > 64 {
         return None;
@@ -115,7 +115,7 @@ pub(crate) fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<
     })
 }
 
-pub(crate) fn integer_from_bits(integer: IntegerType, bits: u64) -> Option<IntegerValue> {
+fn integer_from_bits(integer: IntegerType, bits: u64) -> Option<IntegerValue> {
     let width = u32::from(integer.bits()?);
     if width > 64 {
         return None;
@@ -134,4 +134,92 @@ pub(crate) fn integer_from_bits(integer: IntegerType, bits: u64) -> Option<Integ
             IntegerValue::Signed(i128::from(((bits << shift) as i64) >> shift))
         }
     })
+}
+
+pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
+    match stored {
+        ScalarType::Integer(integer) if !integer.is_address() => {
+            let bits = integer.bits()?;
+            (bits % 8 == 0)
+                .then(|| u8::try_from(bits / 8).ok())
+                .flatten()
+        }
+        ScalarType::Callable(_) => Some(8),
+        ScalarType::Boolean => Some(1),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
+        _ => None,
+    }
+}
+
+pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarType) -> bool {
+    if reference_storage_byte_width(stored).is_none() {
+        return false;
+    }
+    if scalar_reference_view_is_total(stored, logical) {
+        return true;
+    }
+    let (ScalarType::Integer(stored), ScalarType::Integer(logical)) = (stored, logical) else {
+        return false;
+    };
+    if logical.is_address() || logical.bits() < stored.bits() {
+        return false;
+    }
+    match (stored.sign(), logical.sign()) {
+        (IntegerSign::Signed, IntegerSign::Unsigned) => false,
+        (IntegerSign::Unsigned, IntegerSign::Signed) => logical.bits() > stored.bits(),
+        _ => true,
+    }
+}
+
+pub fn scalar_reference_view_is_total(source: ScalarType, target: ScalarType) -> bool {
+    if source == target {
+        return true;
+    }
+    if let (ScalarType::Integer(source), ScalarType::Integer(target)) = (source, target) {
+        return !source.is_address()
+            && !target.is_address()
+            && source.bits() == target.bits()
+            && source.bits().is_some_and(|bits| bits <= 64);
+    }
+    ScalarRepresentationViewPair::classify(source, target)
+        .is_some_and(|pair| !pair.requires_landing())
+}
+
+pub fn scalar_reference_view_value(
+    source: ScalarType,
+    target: ScalarType,
+    value: ScalarViewValue,
+) -> Option<ScalarViewValue> {
+    if !scalar_reference_view_is_total(source, target) {
+        return None;
+    }
+    if source == target {
+        return match (source, value) {
+            (ScalarType::Boolean, ScalarViewValue::Boolean(_)) => Some(value),
+            (ScalarType::Integer(integer), ScalarViewValue::Integer(value))
+                if integer.admits(value) =>
+            {
+                Some(ScalarViewValue::Integer(value))
+            }
+            (ScalarType::IeeeFloat(format), ScalarViewValue::IeeeFloat(value))
+                if value.format() == format =>
+            {
+                Some(ScalarViewValue::IeeeFloat(value))
+            }
+            _ => None,
+        };
+    }
+    if let (
+        ScalarType::Integer(source),
+        ScalarType::Integer(target),
+        ScalarViewValue::Integer(value),
+    ) = (source, target, value)
+    {
+        return Some(ScalarViewValue::Integer(integer_from_bits(
+            target,
+            integer_bits(source, value)?,
+        )?));
+    }
+    ScalarRepresentationViewPair::classify(source, target)?.view(value)
 }

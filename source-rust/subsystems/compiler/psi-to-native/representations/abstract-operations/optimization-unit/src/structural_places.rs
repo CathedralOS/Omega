@@ -616,7 +616,7 @@ pub(crate) fn descended_type(
         StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
-        } => terminal_semantics::representation_view_declaration(
+        } => terminal_psi::types::representation_views::declaration(
             unit.structural_types.iter(),
             *structural_type,
             *stored_scalar,
