@@ -1515,6 +1515,56 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
 }
 
 #[test]
+fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
+    let text = r#"
+        boundary trait Output {}
+        machine measure<T>(value: @T) -> u64 { 41u64 }
+        machine layer<machine Pick,T>(value: @T) -> u64
+        requires machine Pick(value: @T) -> u64;
+        { Pick(value) }
+        machine invoke<machine Read,T>(value: @T) -> u64
+        requires machine Read(value: @T) -> u64 reaches none;
+        { Read(value) }
+        machine entry<T>(value: @T) -> u64 {
+            invoke::<layer<measure<T>,T>>(value)
+        }
+    "#;
+    let form = callback_form(text).unwrap();
+    assert!(
+        form.static_reach_applications
+            .iter()
+            .flat_map(|row| &row.arguments)
+            .any(|argument| !argument.arguments.is_empty())
+    );
+    let mut wrong = form.clone();
+    let argument = wrong
+        .static_reach_applications
+        .iter_mut()
+        .flat_map(|row| &mut row.arguments)
+        .find(|argument| !argument.arguments.is_empty())
+        .unwrap();
+    argument.arguments[0].conformance = argument.conformance;
+    assert!(
+        judge(Ok(wrong)).is_err(),
+        "a different checked application cannot close the callback"
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let effectful = text.replace(
+        "machine measure<T>(value: @T) -> u64",
+        "machine measure<T>(value: @T) -> u64 reaches Output",
+    );
+    let form = callback_form(&effectful).expect("the effectful nested callback lowers");
+    let refusal = crate::checking::static_contracts::admit(&form).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Conflict, "{refusal:?}");
+    assert_eq!(
+        refusal.detail,
+        "implementation exceeds the static requirement's authored service ceiling"
+    );
+}
+
+#[test]
 fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
     let verdict = judge(callback_form(
         r#"
