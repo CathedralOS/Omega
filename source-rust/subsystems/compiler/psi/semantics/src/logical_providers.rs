@@ -1,6 +1,9 @@
 //! Close chosen provider bodies over accepted canonical declarations.
 //! ABI planning consumes these exact choices and cannot select replacements.
 
+#[path = "logical_providers/fixed_image.rs"]
+mod fixed_image;
+
 use crate::provider_candidates::{
     CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions,
 };
@@ -161,7 +164,15 @@ pub struct ChosenProviderRow {
     pub requirement: String,
     pub machine: String,
     pub machine_package: Option<PackageKeyIdentity>,
-    pub candidate_positions: Vec<usize>,
+    pub realization: LogicalRealization,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LogicalRealization {
+    /// Positions in the proved body-candidate table, including each closed application.
+    Checked(Vec<usize>),
+    /// Position in the checked external-conformance table of this exact module.
+    External(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,12 +222,35 @@ fn selected_logical_providers(
         let provider = text(module, choice.provider_identity)?;
         let owner = text(module, choice.provider_declaration)?;
         let mut package = None::<Option<PackageKeyIdentity>>;
-        let mut query_rows = Vec::with_capacity(schema.surface.methods.len());
+        let plan_name = satisfies_plan_name(
+            target, schema.surface.identity_text(schema.surface.trait_name), provider,
+        );
+        let mut rows = Vec::with_capacity(schema.surface.methods.len());
         for method in &schema.surface.methods {
             let requirement = schema.surface.identity_text(method.requirement_identity);
             let begin = chosen.partition_point(|row| row.requirement < requirement);
             let end = begin + chosen[begin..].partition_point(|row| row.requirement == requirement);
             let selected = &chosen[begin..end];
+            let external = fixed_image::selected(module, choice, requirement)?;
+            if let Some((position, declaration)) = external {
+                if !selected.is_empty() {
+                    return Err(format!("chosen provider `{provider}` has both a checked body and a sealed external supply for `{requirement}`").into());
+                }
+                let row_package = declaration.realization_package;
+                if package.is_some_and(|previous| previous != row_package) {
+                    return Err(
+                        "chosen map needs an unrepresented cross-package adapter closure".into(),
+                    );
+                }
+                package = Some(row_package);
+                rows.push(ChosenProviderRow {
+                    requirement: requirement.to_owned(),
+                    machine: text(module, declaration.realization.callable)?.to_owned(),
+                    machine_package: row_package,
+                    realization: LogicalRealization::External(position),
+                });
+                continue;
+            }
             let first =
                 selected
                     .first()
@@ -244,40 +278,33 @@ fn selected_logical_providers(
                 );
             }
             package = Some(row_package);
-            query_rows.push(CheckedProviderRow {
+            let query = CheckedProviderRow {
                 requirement,
                 declared_requirement: requirement,
                 machine: first.source_callable,
                 machine_package: row_package,
+            };
+            let mut matches = selected_candidate_positions(
+                CheckedProviderQuery {
+                    name: &plan_name,
+                    declaration: owner,
+                    provider,
+                    surface: &schema.surface,
+                    rows: std::slice::from_ref(&query),
+                },
+                module,
+            )?;
+            let positions = matches
+                .pop()
+                .filter(|positions| !positions.is_empty())
+                .ok_or("chosen plan does not rejoin the canonical checked candidate")?;
+            rows.push(ChosenProviderRow {
+                requirement: requirement.to_owned(),
+                machine: first.source_callable.to_owned(),
+                machine_package: row_package,
+                realization: LogicalRealization::Checked(positions),
             });
         }
-        let positions = selected_candidate_positions(
-            CheckedProviderQuery {
-                name: &satisfies_plan_name(
-                    target,
-                    schema.surface.identity_text(schema.surface.trait_name),
-                    provider,
-                ),
-                declaration: owner,
-                provider,
-                surface: &schema.surface,
-                rows: &query_rows,
-            },
-            module,
-        )?;
-        if positions.len() != query_rows.len() || positions.iter().any(Vec::is_empty) {
-            return Err("chosen plan does not rejoin every canonical checked candidate".into());
-        }
-        let rows = query_rows
-            .into_iter()
-            .zip(positions)
-            .map(|(row, candidate_positions)| ChosenProviderRow {
-                requirement: row.requirement.to_owned(),
-                machine: row.machine.to_owned(),
-                machine_package: row.machine_package,
-                candidate_positions,
-            })
-            .collect();
         let mut covered = Vec::new();
         for &boundary in reached {
             let declaration = module

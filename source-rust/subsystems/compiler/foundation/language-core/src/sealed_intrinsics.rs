@@ -597,6 +597,23 @@ pub struct BundledDeclaration {
 pub struct SealedIntrinsicCatalog;
 
 impl SealedIntrinsicCatalog {
+    /// Retrieve the unique exact member that supplies this catalog operation.
+    /// Families of member names never establish an exact canonical declaration.
+    pub fn exact_declaration(intrinsic: SealedIntrinsic) -> Option<BundledDeclaration> {
+        let mut matches = ROWS.iter().filter(|row| row.intrinsic == intrinsic);
+        let (Some(row), None) = (matches.next(), matches.next()) else {
+            return None;
+        };
+        let SealedDeclaration::Exact(declaration) = row.declaration else {
+            return None;
+        };
+        Some(BundledDeclaration {
+            file: Path::new(row.file),
+            declaration,
+            source: row.source,
+        })
+    }
+
     /// Returns the operation the site's declaration is sealed to, or `None`
     /// when no row matches every part of the site.
     pub fn match_declaration(
