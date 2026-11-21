@@ -18,6 +18,17 @@ use target::TargetProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
 fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
+    let (returned, inputs) = run_project_build(path, targets);
+    returned.open_product(Some(&inputs)).unwrap()
+}
+
+fn run_project_build(
+    path: &Path,
+    targets: &[TargetProfile],
+) -> (
+    project_build::ReturnedPlanningStage,
+    package_compilation::PackageCompilationInputs,
+) {
     static LIBRARY: OnceLock<()> = OnceLock::new();
     LIBRARY.get_or_init(|| {
         package_compilation::toolchain_library::configure(
@@ -54,7 +65,7 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
     let inputs = graph
         .join_source_result(subject, &mut returned.source_result().unwrap())
         .unwrap();
-    returned.open_product(Some(&inputs)).unwrap()
+    (returned, inputs)
 }
 
 #[test]
@@ -870,4 +881,114 @@ machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passth
             }
         }
     }
+}
+
+#[test]
+fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
+    use provider_acceptance::{
+        AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
+        accepted_service_schema_digest,
+    };
+    use provider_plans::ServiceSchema;
+    use semantic_vocabulary::TerminalAuthorityDisposition;
+
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-receiver-policy",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::package(builder, "receiver_review"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+public boundary trait TimeHost {
+    machine ticks() -> u64 reaches none crashes none;
+    machine frequency() -> u64 reaches none crashes none;
+}
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs.clone()).unwrap();
+    let stage = product.product_stage(&[target]).unwrap();
+    let (declarations, _) = source_compiler::review_package(
+        stage.source(),
+        target.target_name(),
+        &mut Default::default(),
+    )
+    .unwrap();
+    let checked = declarations.accepted().unwrap();
+    let source = checked.source();
+    let service = source
+        .traits()
+        .iter()
+        .find(|decl| {
+            decl.name.as_str() == "TimeHost"
+                && source.symbols.symbol_package_identity(decl.symbol) == Some(inputs.root())
+        })
+        .unwrap();
+    let declaration = source.symbols.display_path(service.symbol, "::");
+    let schema = ServiceSchema::from_declaration(checked.slot_schema(service.symbol).unwrap());
+    let role = AcceptedSemanticBindingRole::TimeHostService;
+    let digest = accepted_service_schema_digest(role, &schema);
+    let binding =
+        AcceptedSemanticBinding::new_service(role, inputs.root(), declaration, digest).unwrap();
+    let ticks = schema
+        .declaration
+        .methods
+        .iter()
+        .find(|row| row.name == "ticks")
+        .unwrap();
+    let review = |requirement: &str| {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let grant = ServiceTerminalAuthorityPermission::new(
+            digest,
+            identities.intern(requirement),
+            TerminalAuthorityDisposition::from_classes([]),
+        );
+        let accepted = binding
+            .clone()
+            .with_terminal_authority_permissions(vec![grant], &identities.build())
+            .unwrap();
+        let bound = inputs
+            .clone()
+            .with_accepted_semantic_bindings(vec![accepted])
+            .unwrap();
+        let product = settled.open_product(bound).unwrap();
+        product
+            .product_stage(&[target])
+            .unwrap()
+            .review_policy(target)
+    };
+    let checked = review(schema.identity_text(ticks.requirement_identity)).unwrap();
+    let [service] = checked.policy.terminal_permissions.services.as_slice() else {
+        panic!("expected one receiver permission service")
+    };
+    assert_eq!(
+        service
+            .methods
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect::<Vec<_>>(),
+        schema.declaration.methods.iter().map(|method| method.name.as_str()).collect::<Vec<_>>()
+    );
+    assert_eq!(service.methods.len(), 2);
+    let frequency = &service.methods.iter().find(|method| method.name == "frequency").unwrap().requirement;
+    assert!(checked.policy.callables.callables().iter().any(|callable| callable.identity() == frequency));
+    let host = checked.policy.public_api.traits.iter().find(|item| item.identity == service.service).unwrap();
+    assert!(host.requirements.iter().any(|requirement| &requirement.identity == frequency));
+    let method = service.methods.iter().find(|method| method.name == "ticks").unwrap();
+    let [grant] = service.permissions.as_slice() else {
+        panic!("only the supplied permission belongs to the receiver")
+    };
+    assert_eq!(grant.requirement, method.requirement);
+    assert!(grant.permitted.classes().is_empty());
+    assert!(review("unrelated::ticks").is_err());
 }

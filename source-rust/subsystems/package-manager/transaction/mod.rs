@@ -36,9 +36,9 @@ use crate::resolution::graph::{
     GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
 };
 use crate::resolution::source::{
-    AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
+    AcquiredBuildSource, BuildSourceAcquisitions,
 };
-use crate::review::{CompileResolvedPackageReviewsError, PackageReviewExecutor};
+use crate::review::CompileResolvedPackageReviewsError;
 use crate::review::{PackageChangeReview, review_package_change_reusing};
 use build_evaluation_result::CompileFailure;
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
@@ -304,9 +304,9 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
 
     pub fn complete_source_resolution(
         self,
-        resolved: ResolvedBuildSources,
+        resolved: crate::project::ResolvedPackageProject,
     ) -> Result<PreparedPackageCommand<'workspace, 'storage>, PackageCommandError> {
-        let closure = resolved.into_source_closure();
+        let closure = resolved.sources.into_source_closure();
         let root = closure
             .custody(closure.graph().root())
             .ok_or_else(|| failure("resolved command has no root source custody"))?;
@@ -352,6 +352,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             None
         };
         Ok(PreparedPackageCommand {
+            builds: resolved.builds,
             preparation: self,
             closure,
             proposal,
@@ -396,12 +397,14 @@ pub struct PackageCommandPreparation<'workspace, 'storage> {
 }
 
 pub struct PreparedPackageCommand<'workspace, 'storage> {
+    builds: crate::project::PackageReviewBuilds,
     preparation: PackageCommandPreparation<'workspace, 'storage>,
     closure: ResolvedPackageSourceClosure,
     proposal: Option<PendingPackageChange>,
 }
 
 pub struct PackageCommandReviewRequest<'request> {
+    builds: &'request crate::project::PackageReviewBuilds,
     identity: &'request Arc<CommandReviewIdentity>,
     source_closure: &'request ResolvedPackageSourceClosure,
     target: TargetProfile,
@@ -421,7 +424,6 @@ impl PackageCommandReviewRequest<'_> {
         self,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
-        execute: &mut PackageReviewExecutor<'_>,
     ) -> Result<PackageCommandReview, PackageCommandError> {
         let review = review_package_change_reusing(
             self.source_closure.clone(),
@@ -430,7 +432,7 @@ impl PackageCommandReviewRequest<'_> {
             session,
             self.build_snapshot,
             source_bindings,
-            execute,
+            self.builds,
         )
         .map_err(PackageCommandError::from_package_change)?;
         Ok(PackageCommandReview {
@@ -450,6 +452,7 @@ impl PreparedPackageCommand<'_, '_> {
             .targets
             .iter()
             .map(|&target| PackageCommandReviewRequest {
+                builds: &self.builds,
                 identity: &self.preparation.identity,
                 source_closure: &self.closure,
                 target,
@@ -489,6 +492,7 @@ impl PreparedPackageCommand<'_, '_> {
             preparation,
             closure,
             proposal,
+            builds: _,
         } = self;
         let PackageCommandPreparation {
             transaction,

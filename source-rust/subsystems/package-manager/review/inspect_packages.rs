@@ -23,7 +23,7 @@ use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
 };
 use crate::resolution::source::{
-    AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
+    AcquiredBuildSource, BuildSourceAcquisitions,
 };
 use crate::review::CompileResolvedPackageReviewsError;
 use source_acquisition::PrimaryGitChoices;
@@ -265,15 +265,16 @@ impl PreparedPackageInspection<'_> {
 
     pub fn complete_source_resolution(
         &self,
-        resolved: ResolvedBuildSources,
+        resolved: crate::project::ResolvedPackageProject,
     ) -> Result<PackageInspectionSources, PackageInspectionError> {
-        let closure = resolved.into_source_closure();
+        let closure = resolved.sources.into_source_closure();
         if closure.source_requests().root().request() != &self.root_request() {
             return Err(failure(
                 "executed inspection sources belong to another project",
             ));
         }
         Ok(PackageInspectionSources {
+            builds: resolved.builds,
             closure,
             identity: Arc::clone(&self.identity),
         })
@@ -285,7 +286,6 @@ impl PreparedPackageInspection<'_> {
         sources: Result<&PackageInspectionSources, &PackageInspectionError>,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
-        execute: &mut crate::review::PackageReviewExecutor<'_>,
     ) -> Result<(), PackageInspectionError> {
         if self.targets.get(self.completed_targets) != Some(&target) {
             return Err(failure(
@@ -306,7 +306,6 @@ impl PreparedPackageInspection<'_> {
                 self.build_snapshot.as_ref(),
                 session,
                 source_bindings,
-                execute,
             ),
             Err(error) => Err(failure(error)),
         };

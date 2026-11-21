@@ -28,18 +28,38 @@ struct ResolvedProject {
     inputs: PackageCompilationInputs,
 }
 
-impl ResolvedProject {
-    fn settle(
-        self,
-        session: &mut PackageBuildSession,
-    ) -> Result<ResolvedBuildSources, PackageCommandError> {
-        let evaluated = self.root.complete(Some(&self.inputs)).map_err(|failure| {
-            let error = PackageCommandError::from(failure);
-            session.record_source_completion(error.source_completion_accounting().clone());
-            error.with_source_completion_accounting(session.source_completion_accounting().clone())
+/// Settled Build executions from one package transaction. Each Product opens
+/// against the exact source graph its Build acquired, with its occurrence's
+/// target handoffs and semantic bindings.
+pub(crate) struct PackageReviewBuilds(Vec<project_build::SettledDependency>);
+
+/// A resolved package graph and the original Build returns that produced it.
+pub struct ResolvedPackageProject {
+    pub(crate) sources: ResolvedBuildSources,
+    pub(crate) builds: PackageReviewBuilds,
+}
+
+impl PackageReviewBuilds {
+    pub(crate) fn product(
+        &self,
+        inputs: &PackageCompilationInputs,
+    ) -> Result<project_build::PlannedProduct, build_evaluation_result::CompileFailure> {
+        let source = inputs.source_inputs();
+        let mut matching = self.0.iter().filter(|settled| {
+            settled.inputs().root() == inputs.root() && settled.inputs().source_inputs() == source
+        });
+        let build = matching.next().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review has no settled Build for its exact acquired sources",
+            )]
         })?;
-        session.record_source_completion(evaluated.source_completion_accounting);
-        Ok(self.sources)
+        if matching.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "package review has multiple Build executions for the same source occurrence",
+            )]
+            .into());
+        }
+        build.open_product(inputs.clone())
     }
 }
 
@@ -49,7 +69,7 @@ pub fn resolve_build_sources(
     acquired: AcquiredBuildSource,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
     snapshot: Option<BuildSnapshotRequest>,
-) -> Result<ResolvedBuildSources, PackageCommandError> {
+) -> Result<ResolvedPackageProject, PackageCommandError> {
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
@@ -70,7 +90,29 @@ pub fn resolve_build_sources(
     let project = result.map_err(|error| {
         error.with_source_completion_accounting(host.session.source_completion_accounting().clone())
     })?;
-    project.settle(host.session)
+    let root = project
+        .root
+        .settle_dependency(project.inputs)
+        .map_err(|failure| {
+            let error = PackageCommandError::from(failure);
+            host.session
+                .record_source_completion(error.source_completion_accounting().clone());
+            error.with_source_completion_accounting(
+                host.session.source_completion_accounting().clone(),
+            )
+        })?;
+    host.session
+        .record_source_completion(root.evaluated().source_completion_accounting.clone());
+    let mut builds: Vec<_> = host
+        .settled
+        .into_iter()
+        .map(|dependency| dependency.build)
+        .collect();
+    builds.push(root);
+    Ok(ResolvedPackageProject {
+        sources: project.sources,
+        builds: PackageReviewBuilds(builds),
+    })
 }
 
 struct SettledSource {

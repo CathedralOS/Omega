@@ -2,8 +2,8 @@
 //! A bound pass recovers evidence against the final inputs and shares the invocation's
 //! accounting with the discovery pass.
 
-use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
+use package_compilation::build_execution::BuildSnapshotRequest;
 #[path = "passes_occurrences.rs"]
 mod occurrences;
 
@@ -17,7 +17,7 @@ use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
 use occurrences::TargetEntryDiscovery;
-pub use occurrences::{PackageReviewExecutor, PackageReviewPass, RetainedPackageReviews};
+use occurrences::{PackageReviewPass, RetainedPackageReviews};
 
 pub(crate) use crate::build_session::PackageSourceBindings;
 
@@ -31,10 +31,10 @@ pub(crate) fn review_resolved_packages(
     candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: &mut PackageReviewExecutor<'_>,
+    builds: &crate::project::PackageReviewBuilds,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
-    let result = review_candidate(candidate, source_bindings, execute);
+    let result = review_candidate(candidate, source_bindings, builds);
     let accounting = match &result {
         Ok(compiled) => compiled.source_completion_accounting(),
         Err(error) => error
@@ -49,7 +49,7 @@ pub(crate) fn review_resolved_packages(
 fn review_candidate(
     candidate: CandidateReview<'_, '_>,
     source_bindings: &mut PackageSourceBindings,
-    execute: &mut PackageReviewExecutor<'_>,
+    builds: &crate::project::PackageReviewBuilds,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateReview {
         target_closure,
@@ -78,7 +78,7 @@ fn review_candidate(
                 TargetEntryDiscovery::Dependencies,
                 None,
                 source_bindings,
-                execute,
+                builds,
             )
         })?
     };
@@ -111,7 +111,7 @@ fn review_candidate(
             TargetEntryDiscovery::Disabled,
             Some(&preliminary),
             source_bindings,
-            execute,
+            builds,
         )
     })
     .map_err(|error| error.with_source_completion_accounting(accounting))
@@ -147,7 +147,7 @@ fn review_pass(
     discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
-    execute: &mut PackageReviewExecutor<'_>,
+    builds: &crate::project::PackageReviewBuilds,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
@@ -179,5 +179,5 @@ fn review_pass(
         discovery,
         prior,
     )?;
-    execute(plan, source_bindings)
+    plan.review(source_bindings, builds)
 }

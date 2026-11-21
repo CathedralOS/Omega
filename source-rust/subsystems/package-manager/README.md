@@ -206,23 +206,18 @@ dependency bindings. Saved Psi hosts can open a separately pinned application
 lock and recover its reviewed providers through
 [`ReviewedHostPackages`](dependencies/reviewed_host_packages.rs).
 
-Candidate review derives the exact dependency-first Product and Build
-occurrence roster. `PackageReviewPass::recover_cached` first recovers discovery
-evidence and repeats the lookup with consumer-scoped bindings when required.
-The persistent cache key includes the package, compiler, target, execution
-profile, entry, complete compilation inputs and Build snapshot. Recovery checks
-lineage and resolution and re-derives source consumption from the retained
-units and current inputs. Complete reviews use the existing policy comparison,
-consent and lock encodings. The closure permits at most 64 MiB of canonical
-policy data. [Review passes](review/candidate/passes.rs)
-and [occurrence recovery](review/candidate/passes_occurrences.rs).
+Candidate review visits the Product and Build occurrences in dependency order.
+Each occurrence opens a Product from the Build that resolved its sources.
+The compiler checks the declarations a package publishes, including unused
+exports, and selects providers for the requested target. A consumer whose
+semantic bindings change during discovery is checked with the settled bindings.
+[Review passes](review/candidate/passes.rs)
 
-A cache miss identifies the package occurrence and target that require a fresh
-review. The current project Build and source compilation APIs still need to
-issue the complete checked policy, provider nominations and generated handoff
-for that occurrence. The previous scheduler and projection are preserved under
-[`v1-project-admission`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-admission) and
-[`v1-project-review`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-review).
+A cached review must match the package, compiler, target, execution profile,
+entry, compilation inputs and Build snapshot. Recovery rejoins its source
+commitment, Build observations, restricted requests and target handoff to the
+current occurrence. The closure retains up to 64 MiB of canonical policy data.
+[Occurrence review](review/candidate/passes_occurrences.rs)
 
 Acquisition binds each returned package declaration and dependency ledger to
 the same immutable capture that admitted its Build. A staged Build can name
