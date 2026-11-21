@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 29,434 lines / 1,159,224 bytes with SHA-256
-`7f10ad4d2ab558be08ed285ded681c6da8546279f183ba20aa7a1d0cbd63aef4`.
+The manifest materializes 29,650 lines / 1,170,024 bytes with SHA-256
+`b4fe2af05f4c75957002b913d7601aad47fab7113a089868f95b2f51ecbf5e2a`.
 The manifest itself is 2,905 bytes, SHA-256
-`af604a71d162f2f9fe2326f4d1226babf6ebf39afb25b149eba88a166193b34f`;
+`100e4831ca1f8541d6cfd2794d57822d8b5c6c472964e599b920c2e93d692cd0`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -709,7 +709,18 @@ The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
 
-A nongeneric ordinary `trait` retains each bodyless machine signature in
+An ordinary `trait` retains its ordered typed static parameters. For example,
+`trait Calling<const Policy: CallingPolicy> {}` preserves the parameter name
+and declared type. The parser rejects repeated parameter names and the retired
+`Policy satisfies CallingPolicy` binder. The compiler still reports incomplete
+for an ordinary trait until it can check and publish its contract.
+[Typed static parameters](../../../wiki/spec/language/generics.md#typed-static-parameters)
+govern the source spelling. The installed `std/calling.omg` still uses the
+retired binder. Its migration belongs to `TYPED-STATIC-PARAMETERS` in
+[TASKS.md](../../../TASKS.md), alongside the product compiler's checks on callers
+such as `Calling<LinuxX86_64CallingPolicy>`.
+
+An ordinary `trait` retains each bodyless machine signature in
 its declaring trait's range. `ConsoleByteOperations` and
 `PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
 traits in a separate table from boundary services. Executable construction
@@ -719,8 +730,11 @@ A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,
 source span and ordered requirements. A requirement's name, parameters, return
 type, predicates and effect clauses retain their original spans and handles.
-Requirement names may repeat across overloads. Reaches, crash and blocking
-clauses use the ordinary machine-header parser. Bare `terminates` on a
+Requirement names may repeat across overloads. Reach, invocation, crash and
+blocking clauses use the ordinary machine-header parser. Each `invokes Entry`
+on a free machine or trait requirement owns a distinct binding-name span. The
+rows preserve source order. Checking an entry ceiling needs the binding and
+its direction, so this compiler currently returns `Incomplete` on such contracts. Bare `terminates` on a
 requirement retains the public eventual-termination guarantee. The checker resolves a memberless service to its exact declaration, including
 its package and module. An ordinary call contributes its callee's published
 reach. An omitted ceiling infers that reach through every checked call. An
