@@ -6151,7 +6151,7 @@ fn indexed_place(
             }
             ScalarReadProjection::Referent => Segment::Referent,
             ScalarReadProjection::Extent => Segment::Extent,
-            ScalarReadProjection::Index(term) => index_segment(storage, tables, term)?,
+            ScalarReadProjection::Index(term) => index_segment(storage, tables, &actual, term)?,
         };
         actual.segments.push(segment);
     }
@@ -6161,6 +6161,7 @@ fn indexed_place(
 fn index_segment(
     storage: &Storage<'_>,
     tables: &MachineTables,
+    parent: &Lineage,
     term: &ScalarTerm,
 ) -> Result<Segment, crate::checking::Unbound> {
     use crate::checking::Unbound;
@@ -6187,7 +6188,36 @@ fn index_segment(
         .ok_or(Unbound::Unproved(
             "contract selector is outside the collection index range",
         ))?;
-        Segment::FixedIndex(position)
+        let extent = match storage.projection_type(parent, Construct::Machine) {
+            Some(owner) => match storage
+                .declaration(owner, Construct::Machine)
+                .map_err(Unbound::Refused)?
+                .shape
+            {
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } => Some(length),
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) => Some(capacity),
+                _ => None,
+            },
+            None => None,
+        };
+        match extent {
+            Some(length) if position < length => Segment::FixedIndex(position),
+            Some(_) => {
+                return Err(Unbound::Unproved(
+                    "contract selector is outside the actual collection extent",
+                ));
+            }
+            None => Segment::RuntimeIndex {
+                selector: value.ok_or(Unbound::Unproved(
+                    "the view has no captured selector for the contract index",
+                ))?,
+            },
+        }
     } else if let Some(selector) = value {
         Segment::RuntimeIndex { selector }
     } else {
@@ -7357,6 +7387,7 @@ impl<'a> AtJoin<'_, 'a> {
                 index_segment(
                     self.inputs.storage,
                     self.inputs.tables,
+                    &leaf,
                     &ScalarTerm::value(actual, row.scalar_type),
                 )?
             } else {
