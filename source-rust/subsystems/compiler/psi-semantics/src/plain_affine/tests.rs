@@ -440,13 +440,46 @@ fn an_unread_linear_value_survives_an_internal_edge_to_a_crash() {
     for mode in [None, Some(claims::Mode::Verify)] {
         let error = analyze(&machine, &types, true, None, None, mode).unwrap_err();
         assert_eq!(error.site(), Some(Site::Edge(id(2))));
-        let expected = if mode.is_some() {
-            "a normal return leaves an untransferred logical claim"
-        } else {
-            "normal edge cannot implicitly dispose storage without an authorized disposition"
-        };
-        assert!(matches!(error, Error::Unsupported { detail, .. } if detail == expected));
+        assert!(matches!(
+            error,
+            Error::Unsupported {
+                detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                ..
+            }
+        ));
     }
+}
+
+#[test]
+fn a_returned_value_settles_its_claim_only_when_the_return_transfers_it() {
+    let machine = returning_relay(true);
+    let types = transfer_only_types(true);
+    let storage = verify(&machine, &types).unwrap();
+    assert!(storage.cleanup.is_empty() && storage.unavailable.is_empty());
+
+    // Storage can return the value. Follow its claim to the returning block
+    // and check what the return owes before and after it hands that claim back.
+    let (mut flow, mut claims) = claims::Flow::new(&machine, &types, claims::Mode::Verify).unwrap();
+    let terminal_psi::Terminator::Jump {
+        target,
+        structural_arguments,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("the relay passes its owned argument to the returning block")
+    };
+    flow.successor(&mut claims, &machine, *target, structural_arguments)
+        .unwrap();
+    assert!(matches!(
+        claims.require_empty_return(),
+        Err(Error::Unsupported {
+            detail: "a normal return leaves an untransferred logical claim",
+            ..
+        })
+    ));
+    flow.terminal(&mut claims, &machine.blocks[1].terminator, true)
+        .unwrap();
+    claims.require_empty_return().unwrap();
 }
 
 #[test]
