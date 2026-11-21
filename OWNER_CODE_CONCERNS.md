@@ -179,14 +179,6 @@ framework or a list of unimplemented features.
 - Cost: Work grows quadratically with record width at a dependency mount. Build the checked field correspondence once per reached type and reuse it, preserving the duplicate-ID refusal. The count follows from the loops; elapsed-time impact is unmeasured.
 - Reported: 2026-11-20, Codex, while auditing the cost of resuming checked records.
 
-### The portable service check stops before comparing targets
-
-- Category: Tests that pin the bug.
-- Where: [selected Windows provider](source/library/std/build.omg#L89), [provider declaration](source/library/std/targets/windows_x86_64/filesystem/provider.omg#L26), [adapter scan](tools/xtask/src/portable_services.rs#L407), [post-merge check](.github/workflows/post-merge-check.yml#L89).
-- Saw: `check-portable-services` exits 1 on the qualified selection `targets\windows_x86_64\filesystem\FilesystemWindowsProvider`. The scanner looks for that spelling among local declaration names. The declaration it needs is `FilesystemWindowsProvider` in the selected module.
-- Cost: Both the enforcing and observe commands stop before comparing any service rows. Resolve the selected module and declaration together, then exercise two modules with the same local provider name.
-- Reported: 2026-11-20, Codex, while checking the cross-target filesystem report.
-
 ### A saved-Psi compile request reserves space for parsed source
 
 - Category: Knowledge crossing a boundary.

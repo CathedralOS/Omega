@@ -329,7 +329,7 @@ pub fn collect_rows(std_root: &Path) -> Result<Vec<Row>, String> {
     let selections = provider_selections(&strip_comments(&build));
     let mut families = Vec::with_capacity(HOSTED_TARGETS.len());
     for target in HOSTED_TARGETS {
-        families.push(Family::load(&family_files(std_root, target)?)?);
+        families.push(Family::load(std_root, target)?);
     }
     let mut rows = Vec::new();
     for (service, providers) in &selections {
@@ -344,9 +344,9 @@ pub fn collect_rows(std_root: &Path) -> Result<Vec<Row>, String> {
         let mut table: BTreeMap<String, Vec<BTreeSet<String>>> = BTreeMap::new();
         for (index, provider) in providers.iter().enumerate() {
             let family = &families[index];
-            let block = family.providers.get(provider.as_str()).ok_or_else(|| {
+            let block = family.provider(provider).ok_or_else(|| {
                 format!(
-                    "{service}: provider `{provider}` selected for {} has no `{provider} satisfies {service} {{` block in that target's files",
+                    "{service}: cannot find selected provider `{provider}` in the adapter sources for {}",
                     HOSTED_TARGETS[index]
                 )
             })?;
@@ -466,40 +466,72 @@ struct Family {
     /// Machine name, or `Trait::member` for a machine that satisfies one,
     /// -> indices into `bodies`. A name defined twice is followed to both.
     machines: HashMap<String, Vec<usize>>,
-    providers: HashMap<String, String>,
+    /// Package-relative module path and declaration name, without the source filename.
+    providers: HashMap<PathBuf, String>,
 }
 
 impl Family {
-    fn load(files: &[PathBuf]) -> Result<Self, String> {
+    fn load(std_root: &Path, target: &str) -> Result<Self, String> {
         let mut family = Family::default();
-        for path in files {
-            let text = strip_comments(&read(path)?);
-            for (kind, body) in split_toplevel(&text) {
-                match kind {
-                    TopLevel::Machine(name) => {
-                        let index = family.bodies.len();
-                        family
-                            .machines
-                            .entry(name.to_string())
-                            .or_default()
-                            .push(index);
-                        if let Some(qualified) = satisfied_member(body) {
-                            family
-                                .machines
-                                .entry(qualified.to_string())
-                                .or_default()
-                                .push(index);
-                        }
-                        family.bodies.push(body.to_string());
-                    }
-                    TopLevel::Provider(name) => {
-                        family.providers.insert(name.to_string(), body.to_string());
-                    }
-                    TopLevel::Other => {}
-                }
-            }
+        for path in family_files(std_root, target)? {
+            let text = strip_comments(&read(&path)?);
+            let relative = path.strip_prefix(std_root).map_err(|_| {
+                format!(
+                    "adapter source {} lies outside {}",
+                    path.display(),
+                    std_root.display()
+                )
+            })?;
+            family.add_source(relative, &text)?;
         }
         Ok(family)
+    }
+
+    fn add_source(&mut self, file: &Path, text: &str) -> Result<(), String> {
+        for (kind, body) in split_toplevel(text) {
+            match kind {
+                TopLevel::Machine(name) => {
+                    let index = self.bodies.len();
+                    self.machines
+                        .entry(name.to_string())
+                        .or_default()
+                        .push(index);
+                    if let Some(qualified) = satisfied_member(body) {
+                        self.machines
+                            .entry(qualified.to_string())
+                            .or_default()
+                            .push(index);
+                    }
+                    self.bodies.push(body.to_string());
+                }
+                TopLevel::Provider(name) => {
+                    let qualified = file.with_file_name(name);
+                    if let std::collections::hash_map::Entry::Vacant(entry) =
+                        self.providers.entry(qualified)
+                    {
+                        entry.insert(body.to_string());
+                    } else {
+                        return Err(format!(
+                            "duplicate provider `{name}` in the module containing {}",
+                            file.display()
+                        ));
+                    }
+                }
+                TopLevel::Other => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn provider(&self, name: &str) -> Option<&str> {
+        let mut path = PathBuf::new();
+        for part in name.split('\\') {
+            if ident(part) != Some(part) {
+                return None;
+            }
+            path.push(part);
+        }
+        self.providers.get(&path).map(String::as_str)
     }
 
     /// Facts of a provider member and every machine it reaches within
@@ -918,35 +950,46 @@ mod tests {
             machine posix_permission_bits(x: u32) -> u32\n    satisfies Target::bits {\n    x\n}\n\
             P satisfies S {\n    machine go(x: u64) -> u64 {\n        helper(x) + errno_kind(1) + Target::bits(2)\n    }\n}\n";
         let mut family = Family::default();
-        for (kind, body) in split_toplevel(text) {
-            match kind {
-                TopLevel::Machine(name) => {
-                    let index = family.bodies.len();
-                    family
-                        .machines
-                        .entry(name.to_string())
-                        .or_default()
-                        .push(index);
-                    if let Some(q) = satisfied_member(body) {
-                        family
-                            .machines
-                            .entry(q.to_string())
-                            .or_default()
-                            .push(index);
-                    }
-                    family.bodies.push(body.to_string());
-                }
-                TopLevel::Provider(name) => {
-                    family.providers.insert(name.to_string(), body.to_string());
-                }
-                TopLevel::Other => {}
-            }
-        }
+        family.add_source(Path::new("helpers.omg"), text).unwrap();
         assert!(family.machines.contains_key("Target::bits"));
-        let members = provider_members(&family.providers["P"]);
+        let members = provider_members(family.provider("P").unwrap());
         assert_eq!(members.len(), 1);
         let got: Vec<String> = family.member_facts(members[0].1).into_iter().collect();
         assert_eq!(got, ["limit < 4096"]);
+    }
+
+    #[test]
+    fn provider_selection_uses_the_module_and_the_local_name() {
+        let mut family = Family::default();
+        for (file, result) in [
+            ("root.omg", "Root"),
+            ("targets/windows/filesystem/provider.omg", "Windows"),
+            ("targets/posix/other_file.omg", "Posix"),
+        ] {
+            let source = format!("Adapter satisfies S {{\n    machine go() {{ {result} }}\n}}\n");
+            family.add_source(Path::new(file), &source).unwrap();
+        }
+        for (selection, result) in [
+            ("Adapter", "Root"),
+            (r"targets\windows\filesystem\Adapter", "Windows"),
+            (r"targets\posix\Adapter", "Posix"),
+        ] {
+            let block = family.provider(selection).unwrap();
+            assert!(
+                provider_members(block)[0].1.contains(result),
+                "{selection}: {block}"
+            );
+        }
+        assert!(family.provider(r"targets\missing\Adapter").is_none());
+        assert!(family.provider("targets/posix/Adapter").is_none());
+        assert!(
+            family
+                .add_source(
+                    Path::new("another_root_file.omg"),
+                    "Adapter satisfies S {\n}\n"
+                )
+                .is_err()
+        );
     }
 
     #[test]
