@@ -2,7 +2,8 @@
 mod source;
 
 use omega_lowering::{
-    EmbeddedLoanOrigin, MachineBody, OperationKind, OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection, ReferenceAccess, ValueOperand,
+    EmbeddedLoanOrigin, EmbeddedLoanSource, MachineBody, OperationKind, OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection, ReferenceAccess,
+    ValueOperand,
 };
 
 fn forward(package: &omega_lowering::LoweredPackage) -> &MachineBody {
@@ -111,7 +112,14 @@ fn a_replaced_home_never_parks_with_its_first_descriptor() {
         assert_eq!(*original, ValueOperand::CopyWhole(formal(body, 1 - latest_slot)));
         assert_eq!(*installed, ValueOperand::CopyWhole(formal(body, latest_slot)));
         let parked_origin = psi_handoff_consumer::parked_replacement_origin(&package).expect("one shared field in the parked destination");
-        let incoming = |slot| EmbeddedLoanOrigin { formal: formal(body, slot), path: vec![], reborrows: vec![] };
+        let incoming = |slot| EmbeddedLoanOrigin {
+            arrival: vec![],
+            source: EmbeddedLoanSource::Formal {
+                formal: formal(body, slot),
+                path: vec![],
+            },
+            reborrows: vec![],
+        };
         if latest == "second" {
             spec_corpus::observe_handoff!(psi "psi-output/replaced-home-second", assert_eq!(*parked_origin, incoming(1)));
         } else {
@@ -131,7 +139,9 @@ fn successive_crossings_snapshot_the_same_home_between_stores() {
     let origins: Vec<_> = body.suspension_sites.iter().map(|site| {
         let [owner] = site.retained_owners.as_slice() else { panic!("one owner") };
         let [loan] = owner.embedded_loans.as_slice() else { panic!("one embedded reference") };
-        (owner.place, loan.origin.formal)
+        let [origin] = loan.origins.as_slice() else { panic!("one origin") };
+        let EmbeddedLoanSource::Formal { formal, .. } = &origin.source else { panic!("a formal origin") };
+        (owner.place, *formal)
     }).collect();
     assert_eq!(origins, [(*home, formal(body, 0)), (*home, formal(body, 1)), (*home, formal(body, 0))]);
 }
@@ -236,8 +246,11 @@ fn a_projected_descriptor_store_is_the_parked_fields_origin() {
     let control = source::lower(&[("case.omg", FIELD_CONTROL)]).unwrap();
     let body = forward(&control);
     assert_eq!(
-        psi_handoff_consumer::parked_replacement_origin(&control).map(|origin| origin.formal),
-        Some(formal(body, 1))
+        psi_handoff_consumer::parked_replacement_origin(&control).map(|origin| origin.source.clone()),
+        Some(EmbeddedLoanSource::Formal {
+            formal: formal(body, 1),
+            path: vec![]
+        })
     );
 }
 
@@ -254,7 +267,7 @@ fn the_field_store_reader_rejects_a_redirected_store_or_origin() {
                 }
             }
         } else {
-            f.body.suspension_sites[0].retained_owners[0].embedded_loans[0].origin.formal = first;
+            f.body.suspension_sites[0].retained_owners[0].embedded_loans[0].origins[0].source = EmbeddedLoanSource::Formal { formal: first, path: vec![] };
         }
     };
     for store_first in [true, false] {

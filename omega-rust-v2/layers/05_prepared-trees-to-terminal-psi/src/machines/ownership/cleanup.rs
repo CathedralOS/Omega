@@ -365,7 +365,6 @@ pub(in crate::machines) fn schedule(
                 state.establish(parameter);
             }
         }
-        let mut contents = parked::LocalContents::default();
         for ordinal in block.operations.clone() {
             let site = &body.diagnostics.operations[ordinal];
             let context = CleanupContext {
@@ -374,18 +373,12 @@ pub(in crate::machines) fn schedule(
                 data,
                 site,
             };
-            contents.observe(&body.operations[ordinal], &body.mutable_homes);
             // Snapshot ownership before this call consumes its arguments.
             if let OperationKind::Call { callee, arguments, .. } = &body.operations[ordinal].kind
                 && callees.may_park(*callee)
             {
-                let lineage = parked::Lineage {
-                    operations: &body.operations[..ordinal],
-                    contents: &contents,
-                    mutable_homes: &body.mutable_homes,
-                };
                 let call = crate::CallSite::Operation(body.operations[ordinal].id);
-                crossings.record(call, &state, arguments, &context, &lineage)?;
+                crossings.record(call, &state, arguments, &context)?;
             }
             let op = &mut body.operations[ordinal];
             match &mut op.kind {
@@ -495,15 +488,7 @@ pub(in crate::machines) fn schedule(
                 let site = &body.diagnostics.edges[id.get() - 1];
                 if callees.may_park(*callee) {
                     let context = CleanupContext { places: &body.places, types, data, site };
-                    for arg in arguments.iter() {
-                        contents.operand(arg);
-                    }
-                    let lineage = parked::Lineage {
-                        operations: &body.operations[..block.operations.end],
-                        contents: &contents,
-                        mutable_homes: &body.mutable_homes,
-                    };
-                    crossings.record(crate::CallSite::Edge(*id), &state, arguments, &context, &lineage)?;
+                    crossings.record(crate::CallSite::Edge(*id), &state, arguments, &context)?;
                 }
                 state.consume_arguments(arguments, &CleanupContext { places: &body.places, types, data, site })?;
                 *cleanup = dispositions(&state, &body.places, types, data, site)?;
@@ -513,6 +498,13 @@ pub(in crate::machines) fn schedule(
         }
     }
     crossings.sort_by_call();
+    let context = CleanupContext {
+        places: &body.places,
+        types,
+        data,
+        site: &body.diagnostics.body,
+    };
+    crossings.trace(body, &context)?;
     Ok(crossings)
 }
 

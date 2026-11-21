@@ -215,6 +215,9 @@ pub use element_writes::{ElementWrite, element_writes};
 mod field_stores;
 pub use field_stores::{StoredDescriptor, parked_field_stores};
 
+mod parked_arrivals;
+pub use parked_arrivals::{Arrival, ArrivalSource, ParkedDescriptor, parked_descriptor_arrivals};
+
 mod write_only;
 pub use write_only::{WriteOnlyStore, closed_copy_storage, write_only_stores};
 

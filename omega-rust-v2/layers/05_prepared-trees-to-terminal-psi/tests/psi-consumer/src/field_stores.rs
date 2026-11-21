@@ -8,7 +8,7 @@
 //! loan of `second`. This reader replays the home's construction and stores in
 //! body order and compares the result with each published embedded loan.
 use omega_psi::{
-    CallSite, LoweredPackage, OperationId, OperationKind, Parameter, PlaceId, PlaceProjection, StructuralStoreDisposition, ValueOperand,
+    CallSite, EmbeddedLoanSource, LoweredPackage, OperationId, OperationKind, Parameter, PlaceId, PlaceProjection, StructuralStoreDisposition, ValueOperand,
 };
 
 use super::machine;
@@ -85,7 +85,14 @@ pub fn parked_field_stores(
             .iter()
             .position(|p| *p == Parameter::Structural(*source))
             .ok_or("this reader expects a descriptor copied from an incoming formal")?;
-        if loan.origin.formal != *source || !loan.origin.path.is_empty() || !loan.origin.reborrows.is_empty() {
+        let [origin] = loan.origins.as_slice() else {
+            return Err("the published embedded loan names a different source than the reaching store");
+        };
+        let incoming = EmbeddedLoanSource::Formal {
+            formal: *source,
+            path: Vec::new(),
+        };
+        if origin.source != incoming || !origin.arrival.is_empty() || !origin.reborrows.is_empty() {
             return Err("the published embedded loan names a different source than the reaching store");
         }
         rows.push(StoredDescriptor {

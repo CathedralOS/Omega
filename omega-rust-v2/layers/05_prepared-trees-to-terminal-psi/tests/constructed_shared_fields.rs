@@ -1,7 +1,7 @@
 #[path = "support/source.rs"]
 mod source;
 
-use omega_lowering::{EmbeddedLoanOrigin, Parameter};
+use omega_lowering::{EmbeddedLoanOrigin, EmbeddedLoanSource, Parameter};
 use psi_handoff_consumer::check_constructed_field;
 
 #[test]
@@ -46,11 +46,11 @@ fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
         let Parameter::Structural(other) = body.parameters[1 - slot] else {
             panic!("other input descriptor")
         };
-        body.suspension_sites[0].retained_owners[0].embedded_loans[0].origin = EmbeddedLoanOrigin {
+        body.suspension_sites[0].retained_owners[0].embedded_loans[0].origins = vec![EmbeddedLoanOrigin {
+            arrival: Vec::new(),
             reborrows: Vec::new(),
-            formal: other,
-            path: vec![],
-        };
+            source: EmbeddedLoanSource::Formal { formal: other, path: vec![] },
+        }];
         assert_eq!(check_constructed_field(&package, slot), Err("wrong initializer origin"));
     }
 }
@@ -97,11 +97,12 @@ fn parking_a_reborrow_preserves_its_formation_and_its_incoming_parent() {
     else {
         panic!("one stored reborrow")
     };
-    let [definition] = loan.origin.reborrows.as_slice() else {
+    let [origin] = loan.origins.as_slice() else { panic!("one origin") };
+    let [definition] = origin.reborrows.as_slice() else {
         panic!("one reborrow formation")
     };
-    assert_eq!(loan.origin.formal, cell);
-    assert!(loan.origin.path.is_empty());
+    assert_eq!(origin.source, EmbeddedLoanSource::Formal { formal: cell, path: vec![] });
+    assert!(origin.arrival.is_empty());
     let op = &body.operations[definition.index()];
     let OperationKind::BorrowPlace { source, access } = &op.kind else {
         panic!("borrow operation")

@@ -52,14 +52,59 @@ pub enum OwnedCustody {
     CalleeArgument(usize),
 }
 
-/// The descriptor at this path arrived with the structural formal. An empty
-/// path selects the formal itself. Each subsequent shared reborrow names the
-/// operation that formed it, ordered from that incoming loan to the stored one.
+/// Where the body forms a writable loan of an owner's storage whose captured
+/// place is the descriptor or one of its enclosing fields. The site does not
+/// say when the loan ends or what its holders write: the checker judges both
+/// from the loan's uses and each receiving callee's contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WritableLoanSite {
+    /// A named loan, the result of this `BorrowPlace`.
+    Borrow(OperationId),
+    /// The borrow operand at `argument` of this call, which may be the parked
+    /// call itself.
+    Call { call: CallSite, argument: usize },
+}
+
+/// What one origin of a parked descriptor is.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EmbeddedLoanSource {
+    /// The descriptor arrived with this structural formal, at `path` inside
+    /// it. An empty path selects the formal itself.
+    Formal {
+        formal: crate::PlaceId,
+        path: Vec<crate::PlaceProjection>,
+    },
+    /// Whatever a holder of this loan, or of a loan derived from it, wrote at
+    /// `path` below the loan's captured place while the loan lived.
+    Written {
+        loan: WritableLoanSite,
+        path: Vec<crate::PlaceProjection>,
+    },
+}
+
+/// One way the descriptor can reach the crossing. Each subsequent shared
+/// reborrow names the operation that formed it, ordered from the source to
+/// the stored descriptor.
+///
+/// `arrival` lists the join edges this origin enters, nearest the crossing
+/// first. Walking back from the crossing, the descriptor is followed through
+/// the newest store into the owner's storage at a prefix of its path, and
+/// through each value that supplied it. A writable loan formed on the way at
+/// that prefix, including an operand of the parked call, adds a `Written`
+/// origin, and the walk continues past it, because the loan's holders may
+/// write nothing. The newest store ends the walk: an owner can store only
+/// while no writable loan of the stored place is live, and the checker judges
+/// that store, so a loan formed before it cannot write after it in an accepted
+/// program. A block with one predecessor adds no edge. At a join, the stored
+/// contents continue into each predecessor and a block parameter continues
+/// into each edge's argument. When every predecessor supplies the same
+/// origins, they pass through without an edge; otherwise each predecessor
+/// edge prefixes its own.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmbeddedLoanOrigin {
-    pub formal: crate::PlaceId,
-    pub path: Vec<crate::PlaceProjection>,
-    pub reborrows: Vec<crate::OperationId>,
+    pub arrival: Vec<crate::EdgeId>,
+    pub source: EmbeddedLoanSource,
+    pub reborrows: Vec<OperationId>,
 }
 
 /// One live reference or view descriptor stored inside a retained owner.
@@ -72,7 +117,13 @@ pub struct EmbeddedLoan {
     /// The descriptor's own type, a reference or view shape.
     pub ty: TypeId,
     pub access: crate::ReferenceAccess,
-    pub origin: EmbeddedLoanOrigin,
+    /// Every origin the descriptor may hold at the crossing, ordered by
+    /// `arrival`, edge by edge, a shorter arrival before its extensions.
+    /// Origins with the same `arrival` keep the order the walk meets them:
+    /// each writable loan, newest first, then the formal origin, if one has
+    /// that arrival. The checker judges each origin's lifetime,
+    /// aliasing and carry, and which loans' holders can write.
+    pub origins: Vec<EmbeddedLoanOrigin>,
 }
 
 /// The owned root with exactly these subtrees removed. The checker composes

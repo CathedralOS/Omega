@@ -7,10 +7,14 @@
 mod source;
 
 use omega_lowering::{
-    BlockTerminator, CallArgument, CallSite, LoweredPackage, MachineBody, OperationKind, OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection,
-    ProjectedPlace, ReferenceAccess, StructuralStoreDisposition, TypeShape,
+    BlockTerminator, CallArgument, CallSite, CallTarget, EdgeId, EmbeddedLoanOrigin, EmbeddedLoanSource, LoweredPackage, MachineBody, OperationKind,
+    OperationResult, Parameter, PlaceId, PlaceOrigin, PlaceProjection, ProjectedPlace, ReferenceAccess, StructuralStoreDisposition, TypeShape,
+    WritableLoanSite,
 };
-use psi_handoff_consumer::{ExclusiveOrigin, ReturnedExclusive, StoreKind, parked_windows, returned_exclusive, window_stores, write_only_stores};
+use psi_handoff_consumer::{
+    Arrival, ArrivalSource, ExclusiveOrigin, ReturnedExclusive, StoreKind, parked_descriptor_arrivals, parked_windows, returned_exclusive, window_stores,
+    write_only_stores,
+};
 
 fn lower(text: &str) -> LoweredPackage {
     source::lower(&[("case.omg", text)]).unwrap()
@@ -440,12 +444,16 @@ fn embedded_origins(package: &LoweredPackage) -> Vec<(Vec<String>, usize)> {
         .embedded_loans
         .iter()
         .map(|loan| {
+            let [origin] = loan.origins.as_slice() else { panic!("one origin") };
+            let EmbeddedLoanSource::Formal { formal, path } = &origin.source else {
+                panic!("a formal origin")
+            };
             let position = f
                 .parameters
                 .iter()
-                .position(|p| *p == Parameter::Structural(loan.origin.formal))
+                .position(|p| *p == Parameter::Structural(*formal))
                 .expect("an incoming formal");
-            assert!(loan.origin.path.is_empty() && loan.origin.reborrows.is_empty());
+            assert!(origin.arrival.is_empty() && path.is_empty() && origin.reborrows.is_empty());
             (spell(&loan.path), position)
         })
         .collect()
@@ -454,7 +462,8 @@ fn embedded_origins(package: &LoweredPackage) -> Vec<(Vec<String>, usize)> {
 /// Inside one block, a home's descriptor comes from the newest store at a
 /// prefix of its path: a whole or parent store replaces earlier field stores,
 /// and `A::r` and `B::r` are different fields. A join, a store in an earlier
-/// block or a writable alias leaves no single origin, so the crossing refuses.
+/// block and a store after a writable loan are in
+/// `a_parked_home_names_every_origin_that_reaches_its_descriptor`.
 #[test]
 fn a_parked_home_names_the_newest_store_at_each_descriptor_prefix() {
     let origins = |text: String| embedded_origins(&lower(&text));
@@ -494,17 +503,1090 @@ fn a_parked_home_names_the_newest_store_at_each_descriptor_prefix() {
         )),
         [row(&["H::a", "A::r"], 0), row(&["H::b", "B::r"], 1)]
     );
-    const UNTRACED: &str = "parking this owner requires the backing or carry evidence of its embedded descriptors";
+}
+
+/// The three programs of the former gap `parked home descriptor without one
+/// reaching store`, byte for byte: `h.r` assigned a join of two formals, a
+/// store before an unrelated branch, and a full field store after a call that
+/// lent `h` with write access.
+fn original_programs() -> [String; 3] {
+    let forward = "machine forward(first:@u8,second:@u8) suspends";
     let branch = "machine forward(first:@u8,second:@u8,c:bool) suspends";
-    for text in [
+    [
         format!("{HOLDER} {branch} {{let mut h=Holder{{r:first}};h.r=match c {{true -> second, false -> first,}};suspend wait()}}"),
         format!("{HOLDER} {branch} {{let mut h=Holder{{r:first}};h.r=second;let n=match c {{true -> 1u8, false -> 2u8,}};suspend wait()}}"),
         format!(
             "data Holder{{r:@u8;}} machine poke(h:@mut Holder) {{}} machine wait() suspends {{}} {forward} {{let mut h=Holder{{r:first}};poke(@mut h);h.r=second;suspend wait()}}"
         ),
-    ] {
-        refusal(&text, "suspend wait()", "wait()", UNTRACED);
+    ]
+}
+
+/// The one embedded loan of the one parked owner of `forward`, which is its writable home.
+fn parked_home_loan(package: &LoweredPackage) -> (PlaceId, &omega_lowering::EmbeddedLoan) {
+    let f = body(package, "forward");
+    let [site] = &f.suspension_sites[..] else { panic!("one parked call") };
+    let [owner] = &site.retained_owners[..] else { panic!("one parked owner") };
+    let [home] = f.mutable_homes[..] else { panic!("one writable home") };
+    assert_eq!(owner.place, home);
+    let [loan] = &owner.embedded_loans[..] else {
+        panic!("one embedded descriptor")
+    };
+    assert_eq!(spell(&loan.path), ["Holder::r"]);
+    (home, loan)
+}
+
+fn origins_mut(package: &mut LoweredPackage) -> &mut Vec<EmbeddedLoanOrigin> {
+    &mut body_mut(package, "forward").suspension_sites[0].retained_owners[0].embedded_loans[0].origins
+}
+
+fn incoming(
+    body: &MachineBody,
+    target: omega_lowering::BlockId,
+) -> Vec<(EdgeId, Vec<CallArgument>)> {
+    let mut edges: Vec<_> = body
+        .blocks
+        .iter()
+        .flat_map(|block| match &block.terminator {
+            BlockTerminator::Jump(edge) => vec![edge],
+            BlockTerminator::Conditional { when_true, when_false, .. } => vec![when_true, when_false],
+            _ => vec![],
+        })
+        .filter(|edge| edge.target == target)
+        .map(|edge| (edge.id, edge.structural_arguments.clone()))
+        .collect();
+    edges.sort_by_key(|(id, _)| id.get());
+    edges
+}
+
+fn formal_source(formal: PlaceId) -> EmbeddedLoanSource {
+    EmbeddedLoanSource::Formal { formal, path: vec![] }
+}
+
+fn single(formal: PlaceId) -> Vec<EmbeddedLoanOrigin> {
+    vec![EmbeddedLoanOrigin {
+        arrival: vec![],
+        source: formal_source(formal),
+        reborrows: vec![],
+    }]
+}
+
+/// The position of the formal a replayed origin names.
+fn replayed_formal(arrival: &Arrival) -> usize {
+    match arrival.source {
+        ArrivalSource::Formal { position, .. } => position,
+        ArrivalSource::Written { .. } => panic!("a formal origin"),
     }
+}
+
+/// A descriptor whose value depends on the path taken keeps every origin
+/// (lifetimes.md#carried-loan-transport: an unresolved selection retains all
+/// possible sources), each with the join edges it arrives through. A store in
+/// an earlier block that every path passes reaches the crossing unchanged.
+/// After a call lent `h` with write access, the store `h.r = second` replaces
+/// whatever the call's loan left. L6 judges lifetime and aliasing.
+#[test]
+fn a_parked_home_names_every_origin_that_reaches_its_descriptor() {
+    let [joined, dominating, after_call] = original_programs();
+
+    // `h.r = match c {...}`: the store in the join block installs the block
+    // parameter, and each arriving edge copies its own formal into it.
+    let package = lower(&joined);
+    let f = body(&package, "forward");
+    let (first, second) = (formal(f, 0), formal(f, 1));
+    let join = f
+        .blocks
+        .iter()
+        .find(|block| !block.structural_parameters.is_empty())
+        .expect("the match result joins");
+    let [selected] = join.structural_parameters[..] else {
+        panic!("one joined descriptor")
+    };
+    let (home, loan) = parked_home_loan(&package);
+    let stored: Vec<_> = join
+        .operations
+        .clone()
+        .filter_map(|ordinal| match &f.operations[ordinal].kind {
+            OperationKind::StructuralStore { destination, value, .. } => Some((destination.root, spell(&destination.path), *value)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stored, [(home, vec!["Holder::r".to_string()], selected)]);
+    let [(left, left_value), (right, right_value)] = &incoming(f, join.id)[..] else {
+        panic!("two arrivals")
+    };
+    assert_eq!(
+        (left_value.as_slice(), right_value.as_slice()),
+        ([CallArgument::CopyWhole(second)].as_slice(), [CallArgument::CopyWhole(first)].as_slice())
+    );
+    let expected = vec![
+        EmbeddedLoanOrigin {
+            arrival: vec![*left],
+            ..single(second).remove(0)
+        },
+        EmbeddedLoanOrigin {
+            arrival: vec![*right],
+            ..single(first).remove(0)
+        },
+    ];
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-join-arrivals", assert_eq!(loan.origins, expected));
+    let replayed = parked_descriptor_arrivals(&package, "forward").unwrap();
+    assert_eq!(
+        replayed
+            .iter()
+            .map(|row| row
+                .arrivals
+                .iter()
+                .map(|a| (a.edges.clone(), replayed_formal(a)))
+                .collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        [vec![(vec![*left], 1), (vec![*right], 0)]]
+    );
+
+    // Corrupted rows: the reader replays the edges and rejects each change.
+    let check = |change: &dyn Fn(&mut Vec<EmbeddedLoanOrigin>)| {
+        let mut package = lower(&joined);
+        change(origins_mut(&mut package));
+        parked_descriptor_arrivals(&package, "forward").map(|_| ())
+    };
+    assert_eq!(check(&|o| drop(o.pop())), Err("a possible arrival is missing"));
+    assert_eq!(check(&|o| o.clear()), Err("a possible arrival is missing"));
+    assert_eq!(
+        check(&|o| {
+            let source = o[0].source.clone();
+            o[0].source = o[1].source.clone();
+            o[1].source = source;
+        }),
+        Err("an origin is associated with another predecessor")
+    );
+    // The joined parameter is not an incoming formal.
+    assert_eq!(check(&|o| o[0].source = formal_source(selected)), Err("an arrival names a different origin"));
+    assert_eq!(check(&|o| o.reverse()), Err("arrivals are out of edge order"));
+    // A corrupted product: swapping the edge arguments leaves the rows naming the other predecessor.
+    let mut swapped = lower(&joined);
+    let f = body_mut(&mut swapped, "forward");
+    for block in &mut f.blocks {
+        if let BlockTerminator::Jump(edge) = &mut block.terminator
+            && let [CallArgument::CopyWhole(place)] = edge.structural_arguments.as_mut_slice()
+        {
+            *place = if *place == first { second } else { first };
+        }
+    }
+    assert_eq!(
+        parked_descriptor_arrivals(&swapped, "forward").map(|_| ()),
+        Err("an origin is associated with another predecessor")
+    );
+
+    // `h.r = second;` before an unrelated `match`: both arrivals at the parked
+    // block carry the same store, so the origin has no edge.
+    let package = lower(&dominating);
+    let f = body(&package, "forward");
+    let second = formal(f, 1);
+    let [site] = &f.suspension_sites[..] else { panic!("one parked call") };
+    let CallSite::Operation(call) = site.call else {
+        panic!("an ordinary parked call")
+    };
+    let parked = f
+        .blocks
+        .iter()
+        .find(|block| block.operations.contains(&call.index()))
+        .unwrap();
+    assert_eq!(incoming(f, parked.id).len(), 2, "the parked call follows a join");
+    let store = f
+        .operations
+        .iter()
+        .position(|op| matches!(&op.kind, OperationKind::StructuralStore { value, .. } if *value == second))
+        .expect("the store of second");
+    assert!(f.blocks[0].operations.contains(&store), "the store is in the entry block");
+    let (_, loan) = parked_home_loan(&package);
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-dominating-store", assert_eq!(loan.origins, single(second)));
+    assert!(parked_descriptor_arrivals(&package, "forward").is_ok());
+    let mut changed = lower(&dominating);
+    let first = formal(body(&changed, "forward"), 0);
+    origins_mut(&mut changed)[0].source = formal_source(first);
+    assert_eq!(
+        parked_descriptor_arrivals(&changed, "forward").map(|_| ()),
+        Err("an arrival names a different origin")
+    );
+
+    // `poke(@mut h); h.r = second;`: the store replaces whatever the call left.
+    let package = lower(&after_call);
+    let f = body(&package, "forward");
+    let (home, loan) = parked_home_loan(&package);
+    let order: Vec<_> = f
+        .operations
+        .iter()
+        .map(|op| match &op.kind {
+            OperationKind::EstablishRecord { .. } => "establish",
+            OperationKind::Call { arguments, .. }
+                if arguments
+                    == &[CallArgument::Borrow {
+                        place: ProjectedPlace { root: home, path: vec![] },
+                        access: ReferenceAccess::Mutable,
+                    }] =>
+            {
+                "lend h"
+            }
+            OperationKind::StructuralStore { destination, value, .. } if destination.root == home && *value == formal(f, 1) => "store second",
+            OperationKind::Call { arguments, .. } if arguments.is_empty() => "park",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(order, ["establish", "lend h", "store second", "park"]);
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-store-after-writable-call", assert_eq!(loan.origins, single(formal(f, 1))));
+    assert!(parked_descriptor_arrivals(&package, "forward").is_ok());
+    // A corrupted product: without the store into h, the call's loan is a writer the rows omit.
+    let mut redirected = lower(&after_call);
+    let f = body_mut(&mut redirected, "forward");
+    let first = formal(f, 0);
+    for op in &mut f.operations {
+        if let OperationKind::StructuralStore { destination, .. } = &mut op.kind {
+            destination.root = first;
+        }
+    }
+    assert_eq!(
+        parked_descriptor_arrivals(&redirected, "forward").map(|_| ()),
+        Err("a possible writer is missing")
+    );
+}
+
+/// Each parked descriptor as `(owner path, [(join edges, formal, path in formal, reborrows)])`.
+type Summary = Vec<(Vec<String>, Vec<(usize, usize, Vec<String>, usize)>)>;
+
+fn published_summary(package: &LoweredPackage) -> Summary {
+    let f = body(package, "forward");
+    let position = |place: PlaceId| {
+        f.parameters
+            .iter()
+            .position(|p| *p == Parameter::Structural(place))
+            .unwrap()
+    };
+    f.suspension_sites
+        .iter()
+        .flat_map(|site| &site.retained_owners)
+        .flat_map(|owner| &owner.embedded_loans)
+        .map(|loan| {
+            let origins = loan
+                .origins
+                .iter()
+                .map(|o| {
+                    let EmbeddedLoanSource::Formal { formal, path } = &o.source else {
+                        panic!("a formal origin")
+                    };
+                    (o.arrival.len(), position(*formal), spell(path), o.reborrows.len())
+                })
+                .collect();
+            (spell(&loan.path), origins)
+        })
+        .collect()
+}
+
+/// Positive controls around the original programs. Nested fields, sibling
+/// fields, nested and agreeing joins, later replacements, a home read or moved
+/// elsewhere, an owner chosen by `match`, a terminal crossing and two
+/// crossings all name their origins. A field lent by itself leaves its
+/// sibling known. A loan formed after the crossing, or before a store that
+/// replaces the field, is no writer there. The Psi-only reader replays each one.
+#[test]
+fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
+    let row = |path: &[&str], origins: &[(usize, usize, &[&str], usize)]| {
+        (
+            path.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            origins
+                .iter()
+                .map(|&(edges, formal, inner, reborrows)| (edges, formal, inner.iter().map(|s| s.to_string()).collect(), reborrows))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let r = &["Holder::r"][..];
+    let f2 = "machine forward(first:@u8,second:@u8) suspends";
+    let f3 = "machine forward(first:@u8,second:@u8,c:bool) suspends";
+    let join = "match c {true -> second, false -> first,}";
+    let wait = "machine wait() suspends {}";
+    let both: &[(usize, usize, &[&str], usize)] = &[(1, 1, &[], 0), (1, 0, &[], 0)];
+    let cases: Vec<(String, Summary)> = vec![
+        // The writable borrow happens after the crossing, within its block or after a join.
+        (
+            format!("{HOLDER} machine keep(h:@mut Holder) {{}} {f3} {{let mut h=Holder{{r:first}};h.r=second;suspend wait();let k=@mut h;keep(k)}}"),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        (
+            format!(
+                "{HOLDER} machine keep(h:@mut Holder) {{}} {f3} {{let mut h=Holder{{r:first}};h.r=second;suspend wait();let n=match c {{true -> 1u8, false -> 2u8,}};let k=@mut h;keep(k)}}"
+            ),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        (
+            format!("data Inner{{r:@u8;}} data Outer{{i:Inner;}} {wait} {f3} {{let mut o=Outer{{i:Inner{{r:first}}}};o.i.r={join};suspend wait()}}"),
+            vec![row(&["Outer::i", "Inner::r"], both)],
+        ),
+        (
+            format!(
+                "{HOLDER} machine keep(h:@mut Holder) {{}} machine relay(h:@mut Holder)->@mut Holder {{h}} {f3} {{let mut h=Holder{{r:first}};h.r=second;transition c {{true -> suspend wait(), false -> keep(relay(@mut h)),}}}}"
+            ),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        // The direct twin of a refused program below: both fields are replaced after the loan.
+        (
+            format!(
+                "data H{{a:@u8;b:@u8;}} machine poke(h:@mut H) {{}} {wait} {f2} {{let mut h=H{{a:first,b:first}};poke(@mut h);h.a=second;h.b=first;suspend wait()}}"
+            ),
+            vec![
+                row(&["H::a"], &[(0, 1, &[], 0)]),
+                row(&["H::b"], &[(0, 0, &[], 0)]),
+            ],
+        ),
+        (
+            format!(
+                "data A{{r:@u8;}} data H{{a:A;b:A;}} machine pokeb(b:@mut A) {{}} {wait} {f2} {{let mut h=H{{a:A{{r:first}},b:A{{r:first}}}};pokeb(@mut h.b);h.b.r=second;suspend wait()}}"
+            ),
+            vec![
+                row(&["H::a", "A::r"], &[(0, 0, &[], 0)]),
+                row(&["H::b", "A::r"], &[(0, 1, &[], 0)]),
+            ],
+        ),
+        (
+            format!(
+                "{HOLDER} machine forward(first:@u8,second:@u8,c:bool,d:bool) suspends {{let mut h=Holder{{r:first}};h.r=match c {{true -> match d {{true -> second, false -> first,}}, false -> first,}};suspend wait()}}"
+            ),
+            vec![row(r, &[(2, 1, &[], 0), (2, 0, &[], 0), (1, 0, &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r=match c {{true -> second, false -> second,}};suspend wait()}}"),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r={join};h.r=first;suspend wait()}}"),
+            vec![row(r, &[(0, 0, &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r={join};h=Holder{{r:second}};suspend wait()}}"),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};let n=match c {{true -> 1u8, false -> 2u8,}};suspend wait()}}"),
+            vec![row(r, &[(0, 0, &[], 0)])],
+        ),
+        (
+            format!(
+                "data H{{a:@u8;b:@u8;}} {wait} machine forward(first:@u8,second:@u8,c:bool,d:bool) suspends {{let mut h=H{{a:first,b:first}};h.a={join};h.b=match d {{true -> first, false -> second,}};suspend wait()}}"
+            ),
+            vec![
+                row(&["H::a"], both),
+                row(&["H::b"], &[(1, 0, &[], 0), (1, 1, &[], 0)]),
+            ],
+        ),
+        // A shared borrow of the home kept across the park does not hide stores; two parks see the same arrivals.
+        (
+            format!(
+                "data Holder{{r:@u8;}} machine look(h:@Holder) {{}} {wait} {f3} {{let mut h=Holder{{r:first}};h.r={join};let b=@h;suspend wait();look(b)}}"
+            ),
+            vec![row(r, both)],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r={join};suspend wait();suspend wait()}}"),
+            vec![row(r, both), row(r, both)],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r={join};transition{{_ -> suspend wait(),}}}}"),
+            vec![row(r, both)],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let h=match c {{true -> Holder{{r:second}}, false -> Holder{{r:first}},}};suspend wait()}}"),
+            vec![row(r, both)],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h=match c {{true -> Holder{{r:second}}, false -> Holder{{r:first}},}};suspend wait()}}"),
+            vec![row(r, both)],
+        ),
+        // Reading `h.r` reborrows the descriptor it holds at the read, not later.
+        (
+            format!("{HOLDER} {f2} {{let mut h=Holder{{r:first}};let x=h.r;h.r=second;let g=Holder{{r:x}};suspend wait()}}"),
+            vec![row(r, &[(0, 1, &[], 0)]), row(r, &[(0, 0, &[], 1)])],
+        ),
+        (
+            format!("{HOLDER} {f3} {{let mut h=Holder{{r:first}};h.r={join};let mut g=Holder{{r:first}};g.r=h.r;suspend wait()}}"),
+            vec![row(r, both), row(r, &[(1, 1, &[], 1), (1, 0, &[], 1)])],
+        ),
+        (
+            format!("data Holder{{r:@u8;}} data Box{{h:Holder;}} {wait} {f3} {{let mut h=Holder{{r:first}};h.r={join};let b=Box{{h:move h}};suspend wait()}}"),
+            vec![row(&["Box::h", "Holder::r"], both)],
+        ),
+        (
+            format!(
+                "data Cell{{r:@u8;}} {HOLDER} machine forward(x:Cell,y:Cell,c:bool) suspends {{let mut h=Holder{{r:x.r}};h.r=match c {{true -> y.r, false -> x.r,}};suspend wait()}}"
+            ),
+            vec![
+                row(&["Cell::r"], &[(0, 0, &["Cell::r"], 0)]),
+                row(&["Cell::r"], &[(0, 1, &["Cell::r"], 0)]),
+                row(r, &[(1, 1, &["Cell::r"], 1), (1, 0, &["Cell::r"], 1)]),
+            ],
+        ),
+        // A lending call before the store is no writer at the crossing, whatever it returns or keeps.
+        (
+            format!(
+                "data Holder{{r:@u8;}} machine poke(h:@mut Holder, s:@u8) {{}} {wait} {f2} {{let mut h=Holder{{r:first}};poke(@mut h, second);h.r=second;suspend wait()}}"
+            ),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+        (
+            format!(
+                "data Holder{{r:@u8;}} machine poke(h:@mut Holder)->u8 {{1u8}} {wait} {f2} {{let mut h=Holder{{r:first}};let n=poke(@mut h);h.r=second;suspend wait()}}"
+            ),
+            vec![row(r, &[(0, 1, &[], 0)])],
+        ),
+    ];
+    for (text, expected) in &cases {
+        let package = lower(text);
+        assert_eq!(&published_summary(&package), expected, "{text}");
+        let rows: Summary = parked_descriptor_arrivals(&package, "forward")
+            .unwrap_or_else(|error| panic!("{text}: {error}"))
+            .iter()
+            .map(|row| {
+                (
+                    spell(&row.path),
+                    row.arrivals
+                        .iter()
+                        .map(|a| {
+                            let ArrivalSource::Formal { position, path } = &a.source else {
+                                panic!("{text}: a formal origin")
+                            };
+                            (a.edges.len(), *position, spell(path), a.reborrows.len())
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        assert_eq!(&rows, expected, "{text}");
+    }
+}
+
+/// The archived programs of the former gap `parked descriptor after an unreplaced
+/// writable loan`, byte for byte (`a_writable_loan_leaves_a_parked_descriptor_unknown_until_a_store_replaces_it`).
+const UNREPLACED_ORIGINALS: [&str; 4] = [
+    "data H{a:@u8;b:@u8;} machine poke(h:@mut H) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mut h=H{a:first,b:first};poke(@mut h);h.a=second;suspend wait()}",
+    "data A{r:@u8;} data H{a:A;b:A;} machine pokeb(b:@mut A) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mut h=H{a:A{r:first},b:A{r:first}};pokeb(@mut h.b);suspend wait()}",
+    "data Holder{r:@u8;} machine poke(h:@mut Holder) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};h.r=second;poke(@mut h);suspend wait()}",
+    "data Holder{r:@u8;} machine wait(h:@mut Holder) suspends {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};h.r=second;suspend wait(@mut h)}",
+];
+
+/// The archived programs of the former gap `parked descriptor behind a writable
+/// loan that can outlive its operation`, byte for byte
+/// (`a_writable_loan_that_can_outlive_its_operation_hides_later_stores`).
+const OUTLIVING_ORIGINALS: [&str; 5] = [
+    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mut Holder) {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};h.r=second;suspend wait();let k=@mut h;keep(k);suspend wait()}",
+    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mut Holder) {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};let m=@mut h;keep(m);h.r=second;suspend wait()}",
+    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mut Holder)->@mut Holder {h} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};let m=keep(@mut h);h.r=second;suspend wait()}",
+    "data Holder{r:@u8;} machine wait() suspends {} data Sink{v:u8;} machine poke(h:@mut Holder, s:@mut Sink) {} machine forward(first:@u8,second:@u8) suspends {let mut h=Holder{r:first};let mut s=Sink{v:1u8};poke(@mut h, @mut s);h.r=second;suspend wait()}",
+    "data Holder{r:@u8;} machine wait() suspends {} data Cell{v:u8;} machine poke(h:@mut Holder, c:@mut Cell) {} machine forward(first:@u8,second:@u8,c:@mut Cell) suspends {let mut h=Holder{r:first};poke(@mut h, c);h.r=second;suspend wait()}",
+];
+
+/// One origin as `(join edges, source, path, reborrows)`. A source is `f<n>`
+/// for the incoming formal at position `n`, `borrow` for a named writable
+/// loan and `<callee>#<argument>` for a call's writable operand, where a
+/// boundary or selected member call is `member`.
+type Origin = (usize, String, Vec<String>, usize);
+
+fn o(
+    edges: usize,
+    source: &str,
+    path: &[&str],
+    reborrows: usize,
+) -> Origin {
+    (edges, source.to_string(), path.iter().map(|s| s.to_string()).collect(), reborrows)
+}
+
+fn d(
+    path: &[&str],
+    origins: Vec<Origin>,
+) -> (Vec<String>, Vec<Origin>) {
+    (path.iter().map(|s| s.to_string()).collect(), origins)
+}
+
+fn callee_name(
+    package: &LoweredPackage,
+    callee: &CallTarget,
+) -> String {
+    match callee {
+        CallTarget::Machine(id) => package
+            .machines
+            .iter()
+            .find(|machine| machine.id == *id)
+            .expect("callee")
+            .declaration
+            .path
+            .clone(),
+        CallTarget::Member(_) => "member".into(),
+        CallTarget::Runtime { .. } => "runtime".into(),
+    }
+}
+
+/// Names a writable loan site after checking that it forms a writable loan:
+/// a `BorrowPlace`, or a writable borrow operand at that call position.
+fn site_name(
+    package: &LoweredPackage,
+    f: &MachineBody,
+    loan: WritableLoanSite,
+) -> String {
+    let writable = |operand: Option<&CallArgument>| matches!(operand, Some(CallArgument::Borrow { access, .. }) if *access != ReferenceAccess::Shared);
+    match loan {
+        WritableLoanSite::Borrow(id) => {
+            assert!(matches!(f.operations[id.index()].kind, OperationKind::BorrowPlace { access, .. } if access != ReferenceAccess::Shared));
+            "borrow".into()
+        }
+        WritableLoanSite::Call {
+            call: CallSite::Operation(id),
+            argument,
+        } => {
+            let OperationKind::Call { callee, arguments, .. } = &f.operations[id.index()].kind else {
+                panic!("a call")
+            };
+            assert!(writable(arguments.get(argument)));
+            format!("{}#{argument}", callee_name(package, callee))
+        }
+        WritableLoanSite::Call {
+            call: CallSite::Edge(edge),
+            argument,
+        } => {
+            let (callee, arguments) = f
+                .blocks
+                .iter()
+                .find_map(|block| match &block.terminator {
+                    BlockTerminator::TerminalCall { id, callee, arguments, .. } if *id == edge => Some((callee, arguments)),
+                    _ => None,
+                })
+                .expect("a terminal call");
+            assert!(writable(arguments.get(argument)));
+            format!("{}#{argument}", callee_name(package, callee))
+        }
+        WritableLoanSite::Call { call, .. } => panic!("no call at {call:?}"),
+    }
+}
+
+/// Every embedded descriptor of every parked owner of `machine`, in site,
+/// owner and declaration order, as the producer published it.
+fn writer_summary(
+    package: &LoweredPackage,
+    machine: &str,
+) -> Vec<(Vec<String>, Vec<Origin>)> {
+    let f = body(package, machine);
+    let position = |place: PlaceId| {
+        f.parameters
+            .iter()
+            .position(|p| *p == Parameter::Structural(place))
+            .expect("an incoming formal")
+    };
+    f.suspension_sites
+        .iter()
+        .flat_map(|site| &site.retained_owners)
+        .flat_map(|owner| &owner.embedded_loans)
+        .map(|loan| {
+            let origins = loan
+                .origins
+                .iter()
+                .map(|origin| {
+                    let (source, path) = match &origin.source {
+                        EmbeddedLoanSource::Formal { formal, path } => (format!("f{}", position(*formal)), path),
+                        EmbeddedLoanSource::Written { loan, path } => (site_name(package, f, *loan), path),
+                    };
+                    (origin.arrival.len(), source, spell(path), origin.reborrows.len())
+                })
+                .collect();
+            (spell(&loan.path), origins)
+        })
+        .collect()
+}
+
+/// The same descriptors as the Psi-only reader replays them.
+fn replayed_summary(
+    package: &LoweredPackage,
+    machine: &str,
+) -> Result<Vec<(Vec<String>, Vec<Origin>)>, &'static str> {
+    let f = body(package, machine);
+    Ok(parked_descriptor_arrivals(package, machine)?
+        .iter()
+        .map(|row| {
+            let origins = row
+                .arrivals
+                .iter()
+                .map(|arrival| {
+                    let (source, path) = match &arrival.source {
+                        ArrivalSource::Formal { position, path } => (format!("f{position}"), path),
+                        ArrivalSource::Written { loan, path } => (site_name(package, f, *loan), path),
+                    };
+                    (arrival.edges.len(), source, spell(path), arrival.reborrows.len())
+                })
+                .collect();
+            (spell(&row.path), origins)
+        })
+        .collect())
+}
+
+/// Each program lowers, publishes `expected` and the Psi-only reader replays the same rows.
+fn writers_agree(
+    machine: &str,
+    cases: &[(String, Vec<(Vec<String>, Vec<Origin>)>)],
+) {
+    for (text, expected) in cases {
+        let package = lower(text);
+        assert_eq!(&writer_summary(&package, machine), expected, "{text}");
+        assert_eq!(
+            &replayed_summary(&package, machine).unwrap_or_else(|error| panic!("{text}: {error}")),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+const POKE: &str = "machine poke(h:@mut Holder) {}";
+
+/// A call operand that lends the home, or a field enclosing the descriptor,
+/// with write access is a possible writer. The descriptor at the crossing may
+/// hold whatever a holder of that loan wrote, or still the earlier contents,
+/// since the callee may write nothing. Lowering names the call and operand
+/// and keeps walking; L6 judges the callee's effect and the loan's lifetime
+/// (`wiki/spec/terminal-psi/loans.md#restoration-and-publication`). This
+/// holds for a body that writes and one that does not, a store before the
+/// call, a sibling the store left alone, a field lent by itself, the parked
+/// call's own operand, a loan on one arm, two loans in a row and a later read.
+/// A store after the call replaces every earlier writer
+/// (`parked_descriptor_arrivals_follow_fields_joins_and_reads`).
+#[test]
+fn a_writable_call_operand_is_a_possible_writer_of_a_parked_descriptor() {
+    let f2 = "machine forward(first:@u8,second:@u8) suspends";
+    let f3 = "machine forward(first:@u8,second:@u8,c:bool) suspends";
+    let r = &["Holder::r"][..];
+    let cases = vec![
+        (
+            format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);suspend wait()}}"),
+            vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        // A local mutator that replaces the record through its loan.
+        (
+            format!(
+                "{HOLDER} machine poke(h:@mut Holder, s:@u8) {{$h=Holder{{r:s}};}} {f2} {{let mut h=Holder{{r:first}};poke(@mut h, second);suspend wait()}}"
+            ),
+            vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        // A local mutator that writes only a scalar sibling of the descriptor.
+        (
+            format!(
+                "data Cell{{v:u8;}} data Holder{{r:@u8;c:Cell;}} machine wait() suspends {{}} machine poke(h:@mut Holder) {{h.c.v=2u8;}} {f2} {{let mut h=Holder{{r:first,c:Cell{{v:1u8}}}};poke(@mut h);suspend wait()}}"
+            ),
+            vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        // The parked callee may write through its own operand while parked.
+        (
+            format!(
+                "data Holder{{r:@u8;}} machine wait(h:@mut Holder) suspends {{}} {f2} {{let mut h=Holder{{r:first}};transition{{_ -> suspend wait(@mut h),}}}}"
+            ),
+            vec![d(r, vec![o(0, "wait#0", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        (
+            format!(
+                "{HOLDER} {POKE} machine skip() {{}} {f3} {{let mut h=Holder{{r:first}};match c {{true -> poke(@mut h), false -> skip(),}};suspend wait()}}"
+            ),
+            vec![d(
+                r,
+                vec![o(1, "poke#0", r, 0), o(1, "f0", &[], 0), o(1, "f0", &[], 0)],
+            )],
+        ),
+        (
+            format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);poke(@mut h);suspend wait()}}"),
+            vec![d(
+                r,
+                vec![o(0, "poke#0", r, 0), o(0, "poke#0", r, 0), o(0, "f0", &[], 0)],
+            )],
+        ),
+        // Reading `h.r` after the call reborrows whatever the loan left there.
+        (
+            format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);let x=h.r;let g=Holder{{r:x}};suspend wait()}}"),
+            vec![
+                d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)]),
+                d(r, vec![o(0, "poke#0", r, 1), o(0, "f0", &[], 1)]),
+            ],
+        ),
+    ];
+    writers_agree("forward", &cases);
+
+    // The archived programs of the former gap, which each refused at the crossing.
+    let expected = vec![
+        vec![
+            d(&["H::a"], vec![o(0, "f1", &[], 0)]),
+            d(&["H::b"], vec![o(0, "poke#0", &["H::b"], 0), o(0, "f0", &[], 0)]),
+        ],
+        vec![
+            d(&["H::a", "A::r"], vec![o(0, "f0", &[], 0)]),
+            d(&["H::b", "A::r"], vec![o(0, "pokeb#0", &["A::r"], 0), o(0, "f0", &[], 0)]),
+        ],
+        vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f1", &[], 0)])],
+        vec![d(r, vec![o(0, "wait#0", r, 0), o(0, "f1", &[], 0)])],
+    ];
+    let published: Vec<_> = UNREPLACED_ORIGINALS
+        .iter()
+        .map(|text| {
+            let package = lower(text);
+            (writer_summary(&package, "forward"), replayed_summary(&package, "forward"))
+        })
+        .collect();
+    let expected: Vec<_> = expected
+        .into_iter()
+        .map(|rows| (rows.clone(), Ok(rows)))
+        .collect();
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-unreplaced-writable-loan-originals", assert_eq!(published, expected));
+
+    // The exact Psi of the first program: the call, its operand and the path
+    // below the loan, then the construction's formal.
+    let package = lower(&cases[0].0);
+    let f = body(&package, "forward");
+    let (home, loan) = parked_home_loan(&package);
+    let poke = f
+        .operations
+        .iter()
+        .find(|op| {
+            matches!(&op.kind, OperationKind::Call { arguments, .. } if arguments
+                == &[CallArgument::Borrow { place: ProjectedPlace { root: home, path: vec![] }, access: ReferenceAccess::Mutable }])
+        })
+        .expect("the lending call");
+    let expected = vec![
+        EmbeddedLoanOrigin {
+            arrival: vec![],
+            source: EmbeddedLoanSource::Written {
+                loan: WritableLoanSite::Call {
+                    call: CallSite::Operation(poke.id),
+                    argument: 0,
+                },
+                path: loan.path.clone(),
+            },
+            reborrows: vec![],
+        },
+        single(formal(f, 0)).remove(0),
+    ];
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-writable-call-operand", assert_eq!(loan.origins, expected));
+
+    // Two loans in a row: the newest is listed first.
+    let package = lower(&cases[5].0);
+    let (_, loan) = parked_home_loan(&package);
+    let calls: Vec<_> = loan
+        .origins
+        .iter()
+        .filter_map(|origin| match origin.source {
+            EmbeddedLoanSource::Written {
+                loan: WritableLoanSite::Call {
+                    call: CallSite::Operation(id), ..
+                },
+                ..
+            } => Some(id.index()),
+            _ => None,
+        })
+        .collect();
+    assert!(matches!(calls[..], [newer, older] if newer > older), "{calls:?}");
+}
+
+/// The record does not depend on what the callee is or returns: an empty
+/// unit machine, a scalar result, a result that can keep the loan, a second
+/// writable operand, a boundary member and a selected local member each
+/// publish the same writer, the call and its operand. Lowering reads no
+/// callee body, result shape or provider, so it decides neither the callee's
+/// effect nor when the loan ends; L6 judges both from the callee's contract.
+#[test]
+fn every_kind_of_callee_publishes_the_same_writer() {
+    let f2 = "machine forward(first:@u8,second:@u8) suspends";
+    let r = &["Holder::r"][..];
+    let same = |callee: &str| {
+        vec![d(
+            r,
+            vec![o(0, &format!("{callee}#0"), r, 0), o(0, "f0", &[], 0)],
+        )]
+    };
+    let cases = vec![
+        (
+            format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);suspend wait()}}"),
+            same("poke"),
+        ),
+        (
+            format!("{HOLDER} machine poke(h:@mut Holder)->u8 {{1u8}} {f2} {{let mut h=Holder{{r:first}};let n=poke(@mut h);suspend wait()}}"),
+            same("poke"),
+        ),
+        (
+            format!("{HOLDER} machine keep(h:@mut Holder)->@mut Holder {{h}} {f2} {{let mut h=Holder{{r:first}};let m=keep(@mut h);suspend wait()}}"),
+            same("keep"),
+        ),
+        (
+            format!(
+                "{HOLDER} data Sink{{v:u8;}} machine poke(h:@mut Holder, s:@mut Sink) {{}} {f2} {{let mut h=Holder{{r:first}};let mut s=Sink{{v:1u8}};poke(@mut h, @mut s);suspend wait()}}"
+            ),
+            same("poke"),
+        ),
+        (
+            format!(
+                "{HOLDER} boundary trait Sink {{ machine poke(h:@mut Holder) reaches Sink crashes none; }} machine forward(first:@u8,second:@u8) suspends reaches Sink {{let mut h=Holder{{r:first}};Sink::poke(@mut h);suspend wait()}}"
+            ),
+            same("member"),
+        ),
+    ];
+    writers_agree("forward", &cases);
+    let local = format!(
+        "{HOLDER} trait Poke {{ machine poke(h:@mut Holder); }} machine p(h:@mut Holder) {{}} Local satisfies Poke {{ Poke::poke=p; }} machine use_it<const E:Poke>(first:@u8) suspends {{let mut h=Holder{{r:first}};E::poke(@mut h);suspend wait()}} {f2} {{suspend use_it::<Local>(first)}}"
+    );
+    writers_agree("use_it", &[(local, same("member"))]);
+}
+
+/// A named writable loan of the home is a possible writer at every later
+/// crossing it reaches, whether its holder passes it on, keeps it across the
+/// crossing, replaces the record through it or was chosen on one arm. A store
+/// through the loan is not a store into the home: the borrow stays the
+/// origin and L6 reads the store through it. A store into the home after any loan
+/// replaces it: an owner can store only while no writable loan of the place
+/// is live, which L6 checks at the store, so lowering does not ask when the
+/// loan ended. The same holds for a call whose result or second writable
+/// operand could keep the loan.
+#[test]
+fn a_named_writable_loan_is_a_possible_writer_until_a_store_replaces_it() {
+    let f2 = "machine forward(first:@u8,second:@u8) suspends";
+    let f3 = "machine forward(first:@u8,second:@u8,c:bool) suspends";
+    let keep = "machine keep(h:@mut Holder) {}";
+    let r = &["Holder::r"][..];
+    let cases = vec![
+        (
+            format!("{HOLDER} {keep} {f2} {{let mut h=Holder{{r:first}};let m=@mut h;keep(m);suspend wait()}}"),
+            vec![d(r, vec![o(0, "borrow", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {keep} {f2} {{let mut h=Holder{{r:first}};let m=@mut h;suspend wait();keep(m)}}"),
+            vec![d(r, vec![o(0, "borrow", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        (
+            format!("{HOLDER} {f2} {{let mut h=Holder{{r:first}};let m=@mut h;$m=Holder{{r:second}};suspend wait()}}"),
+            vec![d(r, vec![o(0, "borrow", r, 0), o(0, "f0", &[], 0)])],
+        ),
+        (
+            format!(
+                "{HOLDER} {keep} {f3} {{let mut h=Holder{{r:first}};let mut g=Holder{{r:second}};let m=match c {{true -> @mut h, false -> @mut g,}};keep(m);suspend wait()}}"
+            ),
+            vec![
+                d(r, vec![o(1, "borrow", r, 0), o(1, "f0", &[], 0), o(1, "f0", &[], 0)]),
+                d(r, vec![o(1, "f1", &[], 0), o(1, "borrow", r, 0), o(1, "f1", &[], 0)]),
+            ],
+        ),
+    ];
+    writers_agree("forward", &cases);
+
+    // The archived programs of the former gap: a loan named after the first
+    // crossing, and a store after a named loan, a call that returns the loan
+    // and a call with a second writable operand, lent or moved in.
+    let stored = || vec![d(r, vec![o(0, "f1", &[], 0)])];
+    let expected = vec![
+        vec![
+            d(r, vec![o(0, "f1", &[], 0)]),
+            d(r, vec![o(0, "borrow", r, 0), o(0, "f1", &[], 0)]),
+        ],
+        stored(),
+        stored(),
+        stored(),
+        stored(),
+    ];
+    let published: Vec<_> = OUTLIVING_ORIGINALS
+        .iter()
+        .map(|text| {
+            let package = lower(text);
+            (writer_summary(&package, "forward"), replayed_summary(&package, "forward"))
+        })
+        .collect();
+    let expected: Vec<_> = expected
+        .into_iter()
+        .map(|rows| (rows.clone(), Ok(rows)))
+        .collect();
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-outliving-writable-loan-originals", assert_eq!(published, expected));
+
+    // The exact Psi of the first program, and the loan kept across the
+    // crossing in the second stays a retained loan of the activation.
+    let package = lower(&cases[0].0);
+    let f = body(&package, "forward");
+    let (home, loan) = parked_home_loan(&package);
+    let borrow = f
+        .operations
+        .iter()
+        .find(|op| {
+            matches!(&op.kind, OperationKind::BorrowPlace { source, access: ReferenceAccess::Mutable } if *source == ProjectedPlace { root: home, path: vec![] })
+        })
+        .expect("the named loan");
+    let expected = vec![
+        EmbeddedLoanOrigin {
+            arrival: vec![],
+            source: EmbeddedLoanSource::Written {
+                loan: WritableLoanSite::Borrow(borrow.id),
+                path: loan.path.clone(),
+            },
+            reborrows: vec![],
+        },
+        single(formal(f, 0)).remove(0),
+    ];
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-named-writable-loan", assert_eq!(loan.origins, expected));
+    let package = lower(&cases[1].0);
+    let f = body(&package, "forward");
+    let [site] = &f.suspension_sites[..] else { panic!("one parked call") };
+    let OperationResult::Structural(named) = f
+        .operations
+        .iter()
+        .find(|op| matches!(op.kind, OperationKind::BorrowPlace { .. }))
+        .expect("the named loan")
+        .result
+    else {
+        panic!("a loan place")
+    };
+    assert!(
+        site.retained_loans
+            .iter()
+            .any(|kept| kept.descriptor == named && kept.needed_after_completion)
+    );
+    let package = lower(OUTLIVING_ORIGINALS[1]);
+    let f = body(&package, "forward");
+    let (_, loan) = parked_home_loan(&package);
+    spec_corpus::observe_handoff!(psi "psi-output/parked-descriptor-store-after-named-loan", assert_eq!(loan.origins, single(formal(f, 1))));
+}
+
+/// The Psi-only reader replays writers from the operations alone. It rejects
+/// each corrupted row, and each corrupted product whose rows were left alone:
+/// a lending operand made shared, a named loan made shared, and the lent
+/// place moved to another storage.
+#[test]
+fn the_arrival_reader_rejects_a_changed_writer() {
+    let f2 = "machine forward(first:@u8,second:@u8) suspends";
+    let call = format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);suspend wait()}}");
+    let twice = format!("{HOLDER} {POKE} {f2} {{let mut h=Holder{{r:first}};poke(@mut h);poke(@mut h);suspend wait()}}");
+    let named = format!("{HOLDER} machine keep(h:@mut Holder) {{}} {f2} {{let mut h=Holder{{r:first}};let m=@mut h;keep(m);suspend wait()}}");
+    let rows = |text: &str, change: &dyn Fn(&mut Vec<EmbeddedLoanOrigin>)| {
+        let mut package = lower(text);
+        change(origins_mut(&mut package));
+        parked_descriptor_arrivals(&package, "forward").map(|_| ())
+    };
+    let product = |text: &str, change: &dyn Fn(&mut MachineBody)| {
+        let mut package = lower(text);
+        change(body_mut(&mut package, "forward"));
+        parked_descriptor_arrivals(&package, "forward").map(|_| ())
+    };
+    let site = |o: &mut EmbeddedLoanOrigin, change: &dyn Fn(&mut WritableLoanSite, &mut Vec<PlaceProjection>)| {
+        let EmbeddedLoanSource::Written { loan, path } = &mut o.source else {
+            panic!("a writer")
+        };
+        change(loan, path);
+    };
+    assert!(parked_descriptor_arrivals(&lower(&call), "forward").is_ok());
+    assert_eq!(rows(&call, &|o| drop(o.remove(0))), Err("a possible writer is missing"));
+    assert_eq!(rows(&call, &|o| drop(o.pop())), Err("an arrival names a different origin"));
+    assert_eq!(rows(&call, &|o| o.swap(0, 1)), Err("an arrival lists its writers out of walk order"));
+    assert_eq!(
+        rows(&call, &|o| o.insert(0, o[0].clone())),
+        Err("a published writer forms no writable loan of this storage")
+    );
+    assert_eq!(
+        rows(&call, &|o| site(&mut o[0], &|_, path| path.clear())),
+        Err("a writer names a different loan")
+    );
+    assert_eq!(
+        rows(&call, &|o| site(&mut o[0], &|loan, _| {
+            let WritableLoanSite::Call { argument, .. } = loan else { unreachable!() };
+            *argument = 1;
+        })),
+        Err("a writer names a different loan")
+    );
+    assert_eq!(
+        rows(&call, &|o| site(&mut o[0], &|loan, _| {
+            let WritableLoanSite::Call {
+                call: CallSite::Operation(id), ..
+            } = *loan
+            else {
+                unreachable!()
+            };
+            *loan = WritableLoanSite::Borrow(id);
+        })),
+        Err("a writer names a different loan")
+    );
+    assert!(parked_descriptor_arrivals(&lower(&twice), "forward").is_ok());
+    assert_eq!(rows(&twice, &|o| o.swap(0, 1)), Err("an arrival lists its writers out of walk order"));
+    assert!(parked_descriptor_arrivals(&lower(&named), "forward").is_ok());
+    assert_eq!(rows(&named, &|o| drop(o.remove(0))), Err("a possible writer is missing"));
+
+    let shared_operand = |f: &mut MachineBody| {
+        for op in &mut f.operations {
+            if let OperationKind::Call { arguments, .. } = &mut op.kind {
+                for argument in arguments {
+                    if let CallArgument::Borrow { access, .. } = argument {
+                        *access = ReferenceAccess::Shared;
+                    }
+                }
+            }
+        }
+    };
+    assert_eq!(
+        product(&call, &shared_operand),
+        Err("a published writer forms no writable loan of this storage")
+    );
+    let other_storage = |f: &mut MachineBody| {
+        let first = formal(f, 0);
+        for op in &mut f.operations {
+            if let OperationKind::Call { arguments, .. } = &mut op.kind
+                && let [CallArgument::Borrow { place, .. }] = arguments.as_mut_slice()
+            {
+                place.root = first;
+            }
+        }
+    };
+    assert_eq!(product(&call, &other_storage), Err("a published writer forms no writable loan of this storage"));
+    let shared_borrow = |f: &mut MachineBody| {
+        for op in &mut f.operations {
+            if let OperationKind::BorrowPlace { access, .. } = &mut op.kind {
+                *access = ReferenceAccess::Shared;
+            }
+        }
+    };
+    assert_eq!(
+        product(&named, &shared_borrow),
+        Err("a published writer forms no writable loan of this storage")
+    );
+}
+
+/// Lowering emits no cycle inside a body. Given one by hand, the Psi-only
+/// reader stops with a refusal rather than walk around it.
+#[test]
+fn the_arrival_reader_refuses_a_cycle() {
+    let [_, dominating, _] = original_programs();
+    let mut package = lower(&dominating);
+    let f = body_mut(&mut package, "forward");
+    let Parameter::Scalar(condition) = f.parameters[2] else {
+        panic!("the Boolean formal")
+    };
+    let next = EdgeId(std::num::NonZeroUsize::new(f.diagnostics.edges.len() + 1).unwrap());
+    let arm = f
+        .blocks
+        .iter()
+        .position(|block| block.id.get() != 1 && matches!(block.terminator, BlockTerminator::Jump(_)))
+        .unwrap();
+    let id = f.blocks[arm].id;
+    let placeholder = BlockTerminator::Return {
+        id: next,
+        result: omega_lowering::ReturnEdge::Unit,
+        cleanup: vec![],
+    };
+    let BlockTerminator::Jump(exit) = std::mem::replace(&mut f.blocks[arm].terminator, placeholder) else {
+        unreachable!()
+    };
+    f.blocks[arm].terminator = BlockTerminator::Conditional {
+        condition,
+        when_true: omega_lowering::SuccessorEdge {
+            selected_case: None,
+            requires_adjacency: false,
+            id: next,
+            target: id,
+            arguments: vec![],
+            scalar_qualification_changes: vec![],
+            domain_completions: vec![],
+            structural_arguments: vec![],
+            cleanup: vec![],
+        },
+        when_false: exit,
+    };
+    assert_eq!(parked_descriptor_arrivals(&package, "forward").map(|_| ()), Err("this reader refuses a cycle"));
 }
 
 /// A window names only its own lender. A store through another `@mut` lender
@@ -647,7 +1729,9 @@ fn replacing_a_copy_record_through_a_write_only_loan_preserves_its_value_and_des
         panic!("the incoming value is a record")
     };
     let observed = write_only_stores(&package, "f").expect("read the store through the write-only loan");
-    let [written] = observed.as_slice() else { panic!("exactly one write through the formal") };
+    let [written] = observed.as_slice() else {
+        panic!("exactly one write through the formal")
+    };
     assert_eq!(written.formal, 0);
     assert_eq!(written.crossing, 0);
     assert_eq!(written.path, [PlaceProjection::Referent]);

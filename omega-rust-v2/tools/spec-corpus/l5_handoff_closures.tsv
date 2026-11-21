@@ -117,3 +117,6 @@ reading a stored exclusive reference	checker-input	psi-output/stored-exclusive-t
 copy record replacement through a write-only loan	checker-input	psi-output/write-only-copy-record
 float comparison in a contract	product	psi-output/float-contract-requirement|psi-output/float-contract-requirement-consumer
 anonymous rational comparison in a contract predicate	product	psi-output/exact-predicate|psi-output/exact-predicate-consumer
+parked home descriptor without one reaching store	checker-input	psi-output/parked-descriptor-join-arrivals|psi-output/parked-descriptor-dominating-store|psi-output/parked-descriptor-store-after-writable-call
+parked descriptor after an unreplaced writable loan	checker-input	psi-output/parked-descriptor-unreplaced-writable-loan-originals
+parked descriptor behind a writable loan that can outlive its operation	checker-input	psi-output/parked-descriptor-outliving-writable-loan-originals

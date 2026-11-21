@@ -1,5 +1,8 @@
 use super::{CallArgument, CleanupContext, Frontier, LiveRoot, LoweringError, PlaceProjection, TypeId, TypeShape};
-use crate::{EmbeddedLoanOrigin, OperationKind, OperationResult, PlaceId, PlaceOrigin, ReferenceAccess, ValueOperand};
+use crate::{
+    BlockTerminator, CallSite, CleanupAction, EdgeId, EmbeddedLoanOrigin, EmbeddedLoanSource, MachineBody, OperationKind, OperationResult, PlaceId,
+    PlaceOrigin, PsiOperation, ReferenceAccess, SuccessorEdge, ValueOperand, WritableLoanSite,
+};
 
 const UNTRACED_DESCRIPTOR: &str = "parking this owner requires the backing or carry evidence of its embedded descriptors";
 
@@ -47,13 +50,14 @@ impl OwnedCrossings {
         }
     }
 
+    /// Records the owners live at one parked call. Their embedded descriptors
+    /// get their origins from `trace` once the body's whole graph is known.
     pub(super) fn record(
         &mut self,
         call: crate::CallSite,
         state: &Frontier,
         arguments: &[CallArgument],
         context: &CleanupContext<'_>,
-        lineage: &Lineage<'_>,
     ) -> Result<(), LoweringError> {
         let mut owners = Vec::new();
         for root in &state.0 {
@@ -61,7 +65,7 @@ impl OwnedCrossings {
                 continue;
             }
             let ty = context.places[root.place.index()].ty;
-            let embedded_loans = embedded_loans(root, ty, context, lineage, &mut self.embeds)?;
+            let embedded_loans = embedded_loans(root, ty, context, &mut self.embeds)?;
             owners.push(crate::RetainedOwner {
                 place: root.place,
                 ty,
@@ -90,103 +94,52 @@ impl OwnedCrossings {
         }
         Ok(())
     }
-}
 
-/// Reaching values for freshly constructed writable records in one basic block.
-/// Keys identify storage, not the value moved into it. Each home keeps the
-/// whole value it last received and, after it, each store into one of its
-/// fields, oldest first. A writable alias loses the ability to track stores at
-/// this root at all. Never carry one predecessor's witness through a join.
-#[derive(Default)]
-pub(super) struct LocalContents(std::collections::BTreeMap<usize, Option<Contents>>);
-
-#[derive(Clone)]
-pub(super) struct Contents {
-    whole: PlaceId,
-    stores: Vec<(Vec<PlaceProjection>, PlaceId)>,
-}
-
-impl Contents {
-    /// The value that supplies `path` of the home, with the rest of the path
-    /// inside it: the newest store at a prefix of `path`, otherwise the whole value.
-    fn reaching(
-        &self,
-        path: &[PlaceProjection],
-    ) -> (PlaceId, Vec<PlaceProjection>) {
-        for (stored, value) in self.stores.iter().rev() {
-            if path.starts_with(stored) {
-                return (*value, path[stored.len()..].to_vec());
+    /// Names every origin of each recorded descriptor from the finished body,
+    /// the same blocks, edges and operations the checker reads. A descriptor
+    /// whose origins lowering cannot all name refuses its crossing.
+    pub(super) fn trace(
+        &mut self,
+        body: &MachineBody,
+        context: &CleanupContext<'_>,
+    ) -> Result<(), LoweringError> {
+        let sites = &mut self.sites;
+        if sites
+            .iter()
+            .all(|(_, owners)| owners.iter().all(|owner| owner.embedded_loans.is_empty()))
+        {
+            return Ok(());
+        }
+        let mut arrivals = Arrivals::new(body, context);
+        for (call, owners) in sites.iter_mut() {
+            let site = match *call {
+                CallSite::Operation(id) => &body.diagnostics.operations[id.index()],
+                CallSite::Edge(id) => &body.diagnostics.edges[id.get() - 1],
+                CallSite::Cleanup(_) => context.site,
+            };
+            let refuse = || LoweringError::new(site, UNTRACED_DESCRIPTOR);
+            let crossing = arrivals.crossing(*call).ok_or_else(refuse)?;
+            for owner in owners.iter_mut() {
+                for loan in &mut owner.embedded_loans {
+                    loan.origins = arrivals
+                        .origins(&crossing, owner.place, &loan.path, loan.ty)
+                        .ok_or_else(refuse)?;
+                }
             }
         }
-        (self.whole, path.to_vec())
+        Ok(())
     }
-}
-
-impl LocalContents {
-    pub(super) fn operand(&mut self, operand: &ValueOperand) {
-        if let ValueOperand::Borrow { place, access } = operand && *access != ReferenceAccess::Shared {
-            self.0.remove(&place.root.index());
-        }
-    }
-
-    pub(super) fn observe(&mut self, op: &crate::PsiOperation, mutable_homes: &[PlaceId]) {
-        if mutable_homes.is_empty() {
-            return;
-        }
-        match &op.kind {
-            OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
-                for field in fields {
-                    self.operand(&field.operand);
-                }
-                if matches!(op.kind, OperationKind::EstablishRecord { .. })
-                    && let OperationResult::Structural(place) = op.result
-                    && mutable_homes.contains(&place)
-                {
-                    self.0.insert(place.index(), Some(Contents { whole: place, stores: Vec::new() }));
-                }
-            }
-            OperationKind::BorrowPlace { source, access } if *access != ReferenceAccess::Shared => {
-                self.0.remove(&source.root.index());
-            }
-            OperationKind::Call { arguments, .. } => {
-                for arg in arguments {
-                    self.operand(arg);
-                }
-            }
-            OperationKind::StructuralStore { destination, value, .. } => {
-                if let Some(current) = self.0.get_mut(&destination.root.index()) {
-                    if mutable_homes.contains(value) || destination.path.contains(&PlaceProjection::Referent) {
-                        *current = None;
-                    } else if destination.path.is_empty() {
-                        *current = Some(Contents { whole: *value, stores: Vec::new() });
-                    } else if let Some(contents) = current {
-                        contents.stores.push((destination.path.clone(), *value));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Only a writable home can have its own fields replaced. A write through a
-/// reference changes its referent while preserving the descriptor itself.
-pub(super) struct Lineage<'a> {
-    pub(super) operations: &'a [crate::PsiOperation],
-    pub(super) mutable_homes: &'a [PlaceId],
-    pub(super) contents: &'a LocalContents,
 }
 
 /// An owner row describes custody of its storage. Each live descriptor in that
 /// storage also needs its backing, traced to the incoming formal it came from,
 /// and a transfer out of the owner is a recorded hole. An intact sum or
 /// nonempty fixed array holding descriptors, callable descriptors and
-/// descriptors without a single traced origin keep the crossing unsupported.
+/// exclusive descriptors in local storage keep the crossing unsupported.
 fn embedded_loans(
     root: &LiveRoot,
     ty: TypeId,
     context: &CleanupContext<'_>,
-    lineage: &Lineage<'_>,
     embeds: &mut Embeds,
 ) -> Result<Vec<crate::EmbeddedLoan>, LoweringError> {
     let refuse = || LoweringError::new(context.site, UNTRACED_DESCRIPTOR);
@@ -223,104 +176,221 @@ fn embedded_loans(
         if !formal && access != ReferenceAccess::Shared {
             return Err(refuse());
         }
-        let origin = origin(root.place, &path, ty, context, lineage).ok_or_else(refuse)?;
-        loans.push(crate::EmbeddedLoan { path, ty, access, origin });
+        loans.push(crate::EmbeddedLoan {
+            path,
+            ty,
+            access,
+            origins: Vec::new(),
+        });
     }
     Ok(loans)
 }
 
-/// Follows the descriptor at `path` inside `place` back through the earlier
-/// operations that established it until it reaches an incoming formal. A
-/// record field initializer, a field-only transfer or copy, or a decomposed
-/// component each name exactly one source. A shared reborrow stays in the
-/// lineage and continues from its parent descriptor. Joins, call results,
-/// borrows of local storage and intermediate writable sources have no traced origin.
-fn origin(
-    mut place: PlaceId,
-    path: &[PlaceProjection],
-    mut expected: TypeId,
-    context: &CleanupContext<'_>,
-    lineage: &Lineage<'_>,
-) -> Option<EmbeddedLoanOrigin> {
-    let mut path = path.to_vec();
-    let mut reborrows = Vec::new();
-    // Only the initial lookup describes storage at *this crossing*. An
-    // initializer read an earlier value; never consult the current home there.
-    if lineage.mutable_homes.contains(&place) {
-        (place, path) = lineage.contents.0.get(&place.index())?.as_ref()?.reaching(&path);
+/// A position in the body: before operation ordinal `end` of block `block`.
+/// The end of a block's range is after its last operation, where its
+/// terminator evaluates its edge arguments.
+#[derive(Clone, Copy)]
+struct Point {
+    block: usize,
+    end: usize,
+}
+
+/// The parked call, its position and its own operands.
+struct Crossing<'a> {
+    call: CallSite,
+    at: Point,
+    arguments: &'a [CallArgument],
+}
+
+/// A join the trace enters: a writable home's contents at the start of
+/// `block`, or a block parameter. `ty` is the descriptor type the origin must
+/// have, which a shared reborrow changes to its parent's.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Visit {
+    Home {
+        home: PlaceId,
+        path: Vec<PlaceProjection>,
+        ty: TypeId,
+        block: usize,
+    },
+    Parameter {
+        place: PlaceId,
+        path: Vec<PlaceProjection>,
+        ty: TypeId,
+        block: usize,
+    },
+}
+
+impl Visit {
+    fn block(&self) -> usize {
+        match self {
+            Self::Home { block, .. } | Self::Parameter { block, .. } => *block,
+        }
     }
-    for depth in 0..=context.places.len() {
-        if depth != 0 && lineage.mutable_homes.contains(&place) {
+}
+
+/// Every origin a trace found. `None` in its place means lowering cannot name them all.
+type Found = Option<Vec<EmbeddedLoanOrigin>>;
+
+/// What one operation does to a home's descriptor at a path.
+enum Effect {
+    None,
+    Unknown,
+    /// The newest store at a prefix of the path: its value, and the rest of the path inside it.
+    Store(PlaceId, Vec<PlaceProjection>),
+}
+
+/// Backward trace of descriptor origins over one finished body.
+struct Arrivals<'a> {
+    body: &'a MachineBody,
+    context: &'a CleanupContext<'a>,
+    /// The block of each operation ordinal.
+    block_of: Vec<usize>,
+    /// `(edge, source block)` for each successor edge, grouped by target block
+    /// through `starts` and in edge order within each group.
+    incoming: Vec<(EdgeId, usize)>,
+    starts: Vec<usize>,
+    stack: Vec<Visit>,
+    /// Joins already traced, with their origins.
+    memo: Vec<(Visit, Vec<EmbeddedLoanOrigin>)>,
+}
+
+impl<'a> Arrivals<'a> {
+    fn new(
+        body: &'a MachineBody,
+        context: &'a CleanupContext<'a>,
+    ) -> Self {
+        let mut block_of = vec![usize::MAX; body.operations.len()];
+        let mut incoming = Vec::new();
+        for (index, block) in body.blocks.iter().enumerate() {
+            for ordinal in block.operations.clone() {
+                block_of[ordinal] = index;
+            }
+            for edge in successors(&block.terminator) {
+                incoming.push((edge.target.get() - 1, edge.id, index));
+            }
+        }
+        incoming.sort_unstable_by_key(|&(target, edge, _)| (target, edge.get()));
+        let mut starts = vec![0; body.blocks.len() + 1];
+        for &(target, _, _) in &incoming {
+            starts[target + 1] += 1;
+        }
+        for index in 0..body.blocks.len() {
+            starts[index + 1] += starts[index];
+        }
+        let incoming = incoming
+            .into_iter()
+            .map(|(_, edge, source)| (edge, source))
+            .collect();
+        Self {
+            body,
+            context,
+            block_of,
+            incoming,
+            starts,
+            stack: Vec::new(),
+            memo: Vec::new(),
+        }
+    }
+
+    fn crossing(
+        &self,
+        call: CallSite,
+    ) -> Option<Crossing<'a>> {
+        match call {
+            CallSite::Operation(id) => {
+                let OperationKind::Call { arguments, .. } = &self.body.operations.get(id.index())?.kind else {
+                    return None;
+                };
+                Some(Crossing {
+                    call,
+                    at: self.point(id.index())?,
+                    arguments,
+                })
+            }
+            CallSite::Edge(id) => self
+                .body
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(index, block)| match &block.terminator {
+                    BlockTerminator::TerminalCall { id: edge, arguments, .. } if *edge == id => Some(Crossing {
+                        call,
+                        at: Point {
+                            block: index,
+                            end: block.operations.end,
+                        },
+                        arguments,
+                    }),
+                    _ => None,
+                }),
+            CallSite::Cleanup(_) => None,
+        }
+    }
+
+    fn point(
+        &self,
+        ordinal: usize,
+    ) -> Option<Point> {
+        let block = *self.block_of.get(ordinal)?;
+        (block != usize::MAX).then_some(Point { block, end: ordinal })
+    }
+
+    fn end_of(
+        &self,
+        block: usize,
+    ) -> Point {
+        Point {
+            block,
+            end: self.body.blocks[block].operations.end,
+        }
+    }
+
+    /// Every origin of the descriptor at `path` inside the owner `root` at the crossing.
+    fn origins(
+        &mut self,
+        crossing: &Crossing<'_>,
+        root: PlaceId,
+        path: &[PlaceProjection],
+        ty: TypeId,
+    ) -> Option<Vec<EmbeddedLoanOrigin>> {
+        // The parked callee may write through its own writable operand while
+        // it is parked; that loan is the nearest possible origin.
+        let mut found = Vec::new();
+        lent(crossing.call, crossing.arguments, root, path, &mut found)?;
+        if !found.is_empty() && !self.body.mutable_homes.contains(&root) {
             return None;
         }
-        match context.places.get(place.index())?.origin {
+        found.extend(self.value(root, path.to_vec(), ty, crossing.at)?);
+        Some(found)
+    }
+
+    /// The origins of the descriptor at `path` inside `place`, read at `at`
+    /// when `place` is a writable home.
+    fn value(
+        &mut self,
+        place: PlaceId,
+        mut path: Vec<PlaceProjection>,
+        ty: TypeId,
+        at: Point,
+    ) -> Found {
+        if self.body.mutable_homes.contains(&place) {
+            return self.home(place, &path, ty, at);
+        }
+        match self.body.places.get(place.index())?.origin {
             PlaceOrigin::Parameter => {
-                if field_type(context.places[place.index()].ty, &path, context)? != expected {
+                if field_type(self.body.places[place.index()].ty, &path, self.context)? != ty {
                     return None;
                 }
-                reborrows.reverse();
-                return Some(EmbeddedLoanOrigin {
-                    formal: place,
-                    path,
-                    reborrows,
-                });
+                Some(vec![EmbeddedLoanOrigin {
+                    arrival: Vec::new(),
+                    source: EmbeddedLoanSource::Formal { formal: place, path },
+                    reborrows: Vec::new(),
+                }])
             }
-            PlaceOrigin::Operation(id) => {
-                let op = lineage.operations.get(id.index())?;
-                if op.result != OperationResult::Structural(place) {
-                    return None;
-                }
-                match &op.kind {
-                    OperationKind::EstablishRecord { fields } => {
-                        let Some(PlaceProjection::Field(name)) = path.first() else {
-                            return None;
-                        };
-                        let field = fields.iter().find(|field| &field.field == name)?;
-                        place = match field.operand {
-                            ValueOperand::CopyWhole(source) => source,
-                            // A descriptor itself is copied; an aggregate holding it may move.
-                            ValueOperand::MoveWhole(source) if path.len() > 1 => source,
-                            _ => return None,
-                        };
-                        path.remove(0);
-                    }
-                    OperationKind::MoveStructural { source } | OperationKind::CopyStructural { source } => place = rebase(source, &mut path)?,
-                    OperationKind::BorrowPlace {
-                        source,
-                        access: ReferenceAccess::Shared,
-                    } if path.is_empty() && context.places[place.index()].ty == expected => {
-                        let referent = source
-                            .path
-                            .iter()
-                            .position(|step| *step == PlaceProjection::Referent)?;
-                        let parent = &source.path[..referent];
-                        if source.path[referent + 1..].contains(&PlaceProjection::Referent) {
-                            return None;
-                        }
-                        expected = field_type(context.places.get(source.root.index())?.ty, parent, context)?;
-                        if !matches!(
-                            context.types.get(expected),
-                            Some(
-                                TypeShape::ScalarReference {
-                                    access: ReferenceAccess::Shared,
-                                    ..
-                                } | TypeShape::NominalReference {
-                                    access: ReferenceAccess::Shared,
-                                    ..
-                                }
-                            )
-                        ) {
-                            return None;
-                        }
-                        reborrows.push(id);
-                        path = parent.to_vec();
-                        place = source.root;
-                    }
-                    _ => return None,
-                }
-            }
+            PlaceOrigin::Operation(id) => self.operation(id.index(), place, path, ty),
             PlaceOrigin::Component { operation, position } => {
-                let OperationKind::DecomposeRecord { source, fields, .. } = &lineage.operations.get(operation.index())?.kind else {
+                let OperationKind::DecomposeRecord { source, fields, .. } = &self.body.operations.get(operation.index())?.kind else {
                     return None;
                 };
                 let component = fields.get(position)?;
@@ -328,12 +398,342 @@ fn origin(
                     return None;
                 }
                 path.insert(0, PlaceProjection::Field(component.field.clone()));
-                place = rebase(source, &mut path)?;
+                let root = rebase(source, &mut path)?;
+                let at = self.point(operation.index())?;
+                self.value(root, path, ty, at)
             }
-            PlaceOrigin::BlockParameter(_) | PlaceOrigin::Result => return None,
+            PlaceOrigin::BlockParameter(block) => self.join(Visit::Parameter {
+                place,
+                path,
+                ty,
+                block: block.get() - 1,
+            }),
+            PlaceOrigin::Result => None,
         }
     }
-    None
+
+    /// Follows the operation that established `place`. A record field
+    /// initializer, a field-only transfer or copy each name exactly one
+    /// source. A shared reborrow continues from its parent descriptor and
+    /// records itself. Call results, borrows of local storage and every other
+    /// operation have no traced origin.
+    fn operation(
+        &mut self,
+        ordinal: usize,
+        place: PlaceId,
+        mut path: Vec<PlaceProjection>,
+        ty: TypeId,
+    ) -> Found {
+        let body = self.body;
+        let op = body.operations.get(ordinal)?;
+        if op.result != OperationResult::Structural(place) {
+            return None;
+        }
+        let at = self.point(ordinal)?;
+        match &op.kind {
+            OperationKind::EstablishRecord { fields } => {
+                let Some(PlaceProjection::Field(name)) = path.first() else {
+                    return None;
+                };
+                let field = fields.iter().find(|field| &field.field == name)?;
+                let source = match field.operand {
+                    ValueOperand::CopyWhole(source) => source,
+                    // A descriptor itself is copied; an aggregate holding it may move.
+                    ValueOperand::MoveWhole(source) if path.len() > 1 => source,
+                    _ => return None,
+                };
+                path.remove(0);
+                self.value(source, path, ty, at)
+            }
+            OperationKind::MoveStructural { source } | OperationKind::CopyStructural { source } => {
+                let root = rebase(source, &mut path)?;
+                self.value(root, path, ty, at)
+            }
+            OperationKind::BorrowPlace {
+                source,
+                access: ReferenceAccess::Shared,
+            } if path.is_empty() && body.places[place.index()].ty == ty => {
+                let referent = source
+                    .path
+                    .iter()
+                    .position(|step| *step == PlaceProjection::Referent)?;
+                let parent = &source.path[..referent];
+                if source.path[referent + 1..].contains(&PlaceProjection::Referent) {
+                    return None;
+                }
+                let expected = field_type(body.places.get(source.root.index())?.ty, parent, self.context)?;
+                if !matches!(
+                    self.context.types.get(expected),
+                    Some(
+                        TypeShape::ScalarReference {
+                            access: ReferenceAccess::Shared,
+                            ..
+                        } | TypeShape::NominalReference {
+                            access: ReferenceAccess::Shared,
+                            ..
+                        }
+                    )
+                ) {
+                    return None;
+                }
+                let mut origins = self.value(source.root, parent.to_vec(), expected, at)?;
+                for origin in &mut origins {
+                    origin.reborrows.push(op.id);
+                }
+                Some(origins)
+            }
+            _ => None,
+        }
+    }
+
+    /// The descriptor at `path` of a writable home just before `at`: each
+    /// writable loan formed at a prefix of the path, newest first, then the
+    /// newest store at a prefix of the path or the home's establishment,
+    /// searched backward through each predecessor.
+    fn home(
+        &mut self,
+        home: PlaceId,
+        path: &[PlaceProjection],
+        ty: TypeId,
+        at: Point,
+    ) -> Found {
+        let mut found = Vec::new();
+        let block = &self.body.blocks[at.block];
+        let earlier = 'walk: {
+            for ordinal in (block.operations.start..at.end).rev() {
+                let op = &self.body.operations[ordinal];
+                if op.result == OperationResult::Structural(home) {
+                    break 'walk self.operation(ordinal, home, path.to_vec(), ty)?;
+                }
+                match effect(op, home, path, &mut found) {
+                    Effect::None => {}
+                    Effect::Unknown => return None,
+                    Effect::Store(value, rest) => {
+                        break 'walk self.value(value, rest, ty, Point { block: at.block, end: ordinal })?;
+                    }
+                }
+            }
+            self.join(Visit::Home {
+                home,
+                path: path.to_vec(),
+                ty,
+                block: at.block,
+            })?
+        };
+        found.extend(earlier);
+        Some(found)
+    }
+
+    /// Enters `visit`'s block through each predecessor edge. Predecessors that
+    /// agree pass their origins through; otherwise each edge prefixes its own.
+    /// Lowering emits no cycle inside a body. A walk that comes back to a join
+    /// it is still tracing would need unboundedly many arrivals, so it refuses.
+    fn join(
+        &mut self,
+        visit: Visit,
+    ) -> Found {
+        if let Some((_, known)) = self.memo.iter().find(|(seen, _)| *seen == visit) {
+            return Some(known.clone());
+        }
+        if self.stack.contains(&visit) {
+            return None;
+        }
+        let block = visit.block();
+        // A home is established inside the body, never before its entry.
+        if block == 0 && matches!(visit, Visit::Home { .. }) {
+            return None;
+        }
+        self.stack.push(visit.clone());
+        let mut found = Vec::with_capacity(self.starts[block + 1] - self.starts[block]);
+        for index in self.starts[block]..self.starts[block + 1] {
+            let (edge, source) = self.incoming[index];
+            let Some(arrived) = self.arrive(&visit, edge, source) else {
+                self.stack.pop();
+                return None;
+            };
+            found.push((edge, arrived));
+        }
+        self.stack.pop();
+        let ((_, first), rest) = found.split_first()?;
+        let origins = if rest.iter().all(|(_, arrived)| arrived == first) {
+            first.clone()
+        } else {
+            let mut origins = Vec::new();
+            for (edge, arrived) in found {
+                for mut origin in arrived {
+                    origin.arrival.insert(0, edge);
+                    origins.push(origin);
+                }
+            }
+            origins
+        };
+        self.memo.push((visit, origins.clone()));
+        Some(origins)
+    }
+
+    fn arrive(
+        &mut self,
+        visit: &Visit,
+        edge: EdgeId,
+        source: usize,
+    ) -> Found {
+        let body = self.body;
+        let successor = successors(&body.blocks[source].terminator).find(|successor| successor.id == edge)?;
+        let end = self.end_of(source);
+        match visit {
+            Visit::Home { home, path, ty, .. } => {
+                // The edge itself may move, lend or clean up the home before the join.
+                if successor
+                    .structural_arguments
+                    .iter()
+                    .any(|arg| touches(arg, *home, path))
+                    || successor.cleanup.iter().any(|action| cleans(action, *home))
+                {
+                    return None;
+                }
+                self.home(*home, path, *ty, end)
+            }
+            Visit::Parameter { place, path, ty, block } => {
+                let position = body.blocks[*block]
+                    .structural_parameters
+                    .iter()
+                    .position(|parameter| parameter == place)?;
+                let argument = match successor.structural_arguments.get(position)? {
+                    ValueOperand::CopyWhole(argument) => *argument,
+                    ValueOperand::MoveWhole(argument) if !path.is_empty() => *argument,
+                    _ => return None,
+                };
+                self.value(argument, path.clone(), *ty, end)
+            }
+        }
+    }
+}
+
+fn successors(terminator: &BlockTerminator) -> impl Iterator<Item = &SuccessorEdge> {
+    let (first, second) = match terminator {
+        BlockTerminator::Jump(edge) => (Some(edge), None),
+        BlockTerminator::Conditional { when_true, when_false, .. } => (Some(when_true), Some(when_false)),
+        _ => (None, None),
+    };
+    first.into_iter().chain(second)
+}
+
+fn overlaps(
+    a: &[PlaceProjection],
+    b: &[PlaceProjection],
+) -> bool {
+    a.starts_with(b) || b.starts_with(a)
+}
+
+/// Whether an operand moves the home or lends a part of it overlapping `path` with write access.
+fn touches(
+    operand: &ValueOperand,
+    home: PlaceId,
+    path: &[PlaceProjection],
+) -> bool {
+    match operand {
+        ValueOperand::MoveWhole(place) => *place == home,
+        ValueOperand::Borrow { place, access } => *access != ReferenceAccess::Shared && place.root == home && overlaps(&place.path, path),
+        ValueOperand::CopyWhole(_) | ValueOperand::Scalar(_) => false,
+    }
+}
+
+fn cleans(
+    action: &CleanupAction,
+    home: PlaceId,
+) -> bool {
+    match action {
+        CleanupAction::DiscardRoot(place) => *place == home,
+        CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => place.root == home,
+    }
+}
+
+/// A writable loan whose captured place is the descriptor or one of its
+/// enclosing fields: an origin naming where the loan is formed and the path
+/// from its captured place to the descriptor.
+fn written(
+    loan: WritableLoanSite,
+    captured: &[PlaceProjection],
+    path: &[PlaceProjection],
+) -> EmbeddedLoanOrigin {
+    EmbeddedLoanOrigin {
+        arrival: Vec::new(),
+        source: EmbeddedLoanSource::Written {
+            loan,
+            path: path[captured.len()..].to_vec(),
+        },
+        reborrows: Vec::new(),
+    }
+}
+
+/// Adds the writable loans that `arguments` of `call` form at a prefix of
+/// `path` in `home`, in argument order. A move of the home, or a writable loan
+/// below the descriptor, is not followed.
+fn lent(
+    call: CallSite,
+    arguments: &[CallArgument],
+    home: PlaceId,
+    path: &[PlaceProjection],
+    found: &mut Vec<EmbeddedLoanOrigin>,
+) -> Option<()> {
+    for (argument, operand) in arguments.iter().enumerate() {
+        if let ValueOperand::Borrow { place, access } = operand
+            && *access != ReferenceAccess::Shared
+            && place.root == home
+            && path.starts_with(&place.path)
+        {
+            found.push(written(WritableLoanSite::Call { call, argument }, &place.path, path));
+        } else if touches(operand, home, path) {
+            return None;
+        }
+    }
+    Some(())
+}
+
+/// A store through a reference held in the home, and a store below the
+/// descriptor, are not followed, and neither are a move out of an
+/// overlapping part or a consuming decomposition. A writable loan at a prefix
+/// of the path, a named borrow or a call operand, adds its origin to `found`
+/// and the walk continues: the loan's holders may write nothing. Lowering
+/// never forms a writable loan in a constructor field or on an edge, so the
+/// trace does not follow one there.
+fn effect(
+    op: &PsiOperation,
+    home: PlaceId,
+    path: &[PlaceProjection],
+    found: &mut Vec<EmbeddedLoanOrigin>,
+) -> Effect {
+    let unknown = |hit: bool| if hit { Effect::Unknown } else { Effect::None };
+    match &op.kind {
+        OperationKind::StructuralStore { destination, value, .. } if destination.root == home => {
+            if destination.path.contains(&PlaceProjection::Referent) {
+                Effect::Unknown
+            } else if path.starts_with(&destination.path) {
+                Effect::Store(*value, path[destination.path.len()..].to_vec())
+            } else {
+                unknown(destination.path.starts_with(path))
+            }
+        }
+        OperationKind::BorrowPlace { source, access } if *access != ReferenceAccess::Shared && source.root == home => {
+            if path.starts_with(&source.path) {
+                found.push(written(WritableLoanSite::Borrow(op.id), &source.path, path));
+                Effect::None
+            } else {
+                unknown(source.path.starts_with(path))
+            }
+        }
+        OperationKind::MoveStructural { source } | OperationKind::DecomposeRecord { source, .. } => {
+            unknown(source.root == home && overlaps(&source.path, path))
+        }
+        OperationKind::Call { arguments, .. } => match lent(CallSite::Operation(op.id), arguments, home, path, found) {
+            Some(()) => Effect::None,
+            None => Effect::Unknown,
+        },
+        OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
+            unknown(fields.iter().any(|field| touches(&field.operand, home, path)))
+        }
+        _ => Effect::None,
+    }
 }
 
 /// Prefixes a field-only source path and returns its root.

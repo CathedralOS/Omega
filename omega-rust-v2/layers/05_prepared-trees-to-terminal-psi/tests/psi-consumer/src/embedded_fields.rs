@@ -1,4 +1,4 @@
-use omega_psi::{EmbeddedLoanOrigin, LoweredPackage, OwnedCustody, Parameter, PlaceProjection, ReferenceAccess, TypeShape};
+use omega_psi::{EmbeddedLoanOrigin, EmbeddedLoanSource, LoweredPackage, OwnedCustody, Parameter, PlaceProjection, ReferenceAccess, TypeShape};
 
 /// Follow the declared fields of each incoming owner independently of the suspension rows.
 pub fn check_incoming_fields(
@@ -53,12 +53,12 @@ pub fn check_incoming_fields(
             ) || loan.path != path
                 || loan.ty != ty
                 || loan.access != ReferenceAccess::Shared
-                || loan.origin
-                    != (EmbeddedLoanOrigin {
+                || loan.origins
+                    != [EmbeddedLoanOrigin {
+                        arrival: Vec::new(),
                         reborrows: Vec::new(),
-                        formal,
-                        path,
-                    })
+                        source: EmbeddedLoanSource::Formal { formal, path },
+                    }]
             {
                 return Err("wrong embedded loan");
             }
@@ -79,6 +79,7 @@ pub fn parked_replacement_origin(package: &LoweredPackage) -> Option<&EmbeddedLo
     let [site] = body.suspension_sites.as_slice() else { return None };
     let [owner] = site.retained_owners.as_slice() else { return None };
     let [loan] = owner.embedded_loans.as_slice() else { return None };
+    let [origin] = loan.origins.as_slice() else { return None };
     let holder = package.data.iter().find(|d| d.declaration.path == "Holder")?;
     let [field] = holder.fields.as_slice() else { return None };
     let wait = CallTarget::Machine(super::machine(package, "wait")?.id);
@@ -99,7 +100,7 @@ pub fn parked_replacement_origin(package: &LoweredPackage) -> Option<&EmbeddedLo
     {
         return None;
     }
-    Some(&loan.origin)
+    Some(origin)
 }
 
 /// Read a constructed field's actual operand and compare it with the parked occurrence.
@@ -139,12 +140,12 @@ pub fn check_constructed_field(
     if loan.path != [PlaceProjection::Field(field.field.clone())]
         || loan.ty != body.places[formal.index()].ty
         || loan.access != ReferenceAccess::Shared
-        || loan.origin
-            != (EmbeddedLoanOrigin {
+        || loan.origins
+            != [EmbeddedLoanOrigin {
+                arrival: Vec::new(),
                 reborrows: Vec::new(),
-                formal: *formal,
-                path: vec![],
-            })
+                source: EmbeddedLoanSource::Formal { formal: *formal, path: vec![] },
+            }]
     {
         return Err("wrong initializer origin");
     }

@@ -200,13 +200,13 @@ fn identical_descriptor_types_keep_their_own_incoming_formal_and_nested_path() {
     let [first, second] = body.suspension_sites[0].retained_owners.as_mut_slice() else {
         panic!("two owners")
     };
-    std::mem::swap(&mut first.embedded_loans[0].origin, &mut second.embedded_loans[1].origin);
+    std::mem::swap(&mut first.embedded_loans[0].origins, &mut second.embedded_loans[1].origins);
     assert_eq!(psi_handoff_consumer::check_incoming_fields(&package, paths), Err("wrong embedded loan"));
 }
 
 #[test]
 fn moving_one_record_before_wait_leaves_only_the_sibling_descriptor() {
-    use omega_lowering::{BlockTerminator, CleanupAction, EmbeddedLoanOrigin, Parameter, PlaceProjection};
+    use omega_lowering::{BlockTerminator, CleanupAction, EmbeddedLoanOrigin, EmbeddedLoanSource, Parameter, PlaceProjection};
     for (gone, live) in [("left", "right"), ("right", "left")] {
         let text = format!(
             "data Holder{{r:@u8;}} data Pair{{left:Holder;right:Holder;}} machine take(h:Holder){{}} machine wait() suspends{{}} machine forward(p:Pair) suspends{{take(move p.{gone});suspend wait()}}"
@@ -232,12 +232,15 @@ fn moving_one_record_before_wait_leaves_only_the_sibling_descriptor() {
         assert_eq!(owner.place, formal);
         assert!(matches!(&loan.path[..], [PlaceProjection::Field(a), PlaceProjection::Field(r)] if a.path == format!("Pair::{live}") && r.path == "Holder::r"));
         assert_eq!(
-            loan.origin,
-            EmbeddedLoanOrigin {
+            loan.origins,
+            [EmbeddedLoanOrigin {
+                arrival: Vec::new(),
                 reborrows: Vec::new(),
-                formal,
-                path: loan.path.clone()
-            }
+                source: EmbeddedLoanSource::Formal {
+                    formal,
+                    path: loan.path.clone()
+                },
+            }]
         );
         let BlockTerminator::Return { cleanup, .. } = &body.blocks.last().unwrap().terminator else {
             panic!("return after wait")
