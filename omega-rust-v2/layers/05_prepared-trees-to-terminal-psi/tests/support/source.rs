@@ -53,6 +53,7 @@ fn package_command_reference(files: &[(&str, &str)], original: &LoweringError) -
     Ok(error.message)
 }
 
+#[allow(dead_code)] // Handoff tests that enter with a prepared product do not lower source.
 pub fn lower(files: &[(&str, &str)]) -> Result<LoweredPackage, LoweringError> {
     let package = resolve(files);
     let prepared = prepare_source_package(&package).expect("the source reaches L5 after preparation");

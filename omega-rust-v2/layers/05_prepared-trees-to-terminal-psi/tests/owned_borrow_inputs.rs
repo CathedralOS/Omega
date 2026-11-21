@@ -62,7 +62,7 @@ fn a_disjoint_move_preserves_the_exact_owned_backing_of_either_borrowed_field() 
                 panic!("expected the partially moved caller-owned root")
             };
             assert_eq!((owner.place, owner.custody), (overlapping.root, OwnedCustody::Caller));
-            assert_eq!(owner.moved, [overlapping.path.clone()]);
+            assert_eq!(owner.moved, std::slice::from_ref(&overlapping.path));
         }
     }
 }

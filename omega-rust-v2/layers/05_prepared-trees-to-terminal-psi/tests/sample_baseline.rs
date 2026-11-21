@@ -1,6 +1,8 @@
 //! Compatibility observations use pinned Git objects so editing a sample cannot change the result.
 #[path = "sample_baseline/cases.rs"]
 mod cases;
+#[path = "support/control_flow.rs"]
+mod control_flow;
 #[path = "sample_baseline/pipeline.rs"]
 mod pipeline;
 
@@ -410,4 +412,20 @@ fn an_unqualified_counter_preserves_the_two_samples_arithmetic_witnesses() {
         let product = pipeline::lower(&[("main.omg", control.into_bytes())]).unwrap();
         assert!(witness.matches(&product));
     }
+}
+
+#[test]
+fn a_passing_main_witness_cannot_hide_an_unowned_operation_in_another_machine() {
+    let files = [("main.omg", b"machine main(){} machine helper()->u8{7u8}".to_vec())];
+    let mut product = pipeline::lower(&files).unwrap();
+    let expectation = cases::Expectation::MustLower(cases::Check::EmptyMain);
+    assert!(expectation.observe(&files).mismatch.is_none());
+    let helper = product.machines.iter_mut().find(|m| m.declaration.path == "helper").unwrap();
+    assert_eq!(helper.body.operations.len(), 1);
+    helper.body.blocks[0].operations = 0..0;
+
+    assert!(cases::Check::EmptyMain.matches(&product));
+    let observed = expectation.inspect_lowering(Ok(product));
+    assert_eq!(observed.actual.stage(), "L5");
+    assert_eq!(observed.mismatch.as_deref(), Some("machine helper: operation belongs to no reachable block"));
 }

@@ -568,3 +568,20 @@ fn control_flow_invariant_detects_unowned_and_multiply_owned_operations() {
     when_false.target = when_true.target;
     assert_eq!(sources::control_flow::check_operation_ownership(body), Err("block has no path from the entry"));
 }
+
+#[test]
+fn a_unit_result_cannot_define_a_scalar_or_structural_result_slot() {
+    let mut package = lower("data Cell{v:u8;} machine make()->Cell{Cell{v:7u8}}").unwrap();
+    let body = &mut package.machines[0].body;
+    let scalar = body.operations.iter().position(|op| matches!(op.result, OperationResult::Scalar(_))).expect("field initializer");
+    let place = body.operations.iter().position(|op| matches!(op.result, OperationResult::Structural(_))).expect("constructed cell");
+    for (index, diagnostic) in [
+        (scalar, "scalar origin names an operation that does not return that value"),
+        (place, "place origin names an operation that does not return that place"),
+    ] {
+        let result = std::mem::replace(&mut body.operations[index].result, OperationResult::Unit);
+        assert_eq!(sources::control_flow::check_operation_ownership(body), Err(diagnostic));
+        body.operations[index].result = result;
+    }
+    assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
+}

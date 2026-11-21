@@ -203,7 +203,7 @@ fn a_machine_citation_retains_its_selected_contract_and_expected_evidence_type()
         assert_eq!(conclusion.predicate, [Step::Formal(0), Step::Formal(0), Step::Apply(omega_psi::PredicateOperator::Equal)]);
         let consume = mathematics(&lowered, "consume");
         let checked = mathematics(&lowered, "checked");
-        assert_eq!(checked.assumptions, [consume.declaration.clone()]);
+        assert_eq!(checked.assumptions, std::slice::from_ref(&consume.declaration));
         spec_corpus::observe_handoff!(psi "psi-output/mathematical-citation", assert_eq!(checked.body,
             MathematicalBody::Definition(vec![
                 Term::Declaration(consume.declaration.clone()),
@@ -393,9 +393,9 @@ fn recursive_field_substitution_preserves_the_next_closed_application() {
     let byte = ScalarType::Integer { signed: false, width: 8 };
     let typed_byte = ValueType::Integer { signed: false, width: Some(8) };
     for (field_args, use_args, actuals, slots, successor) in [
-        ("B,A", "u8,bool", [byte.clone(), ScalarType::Boolean], [1, 0], Some([ValueType::Bool, typed_byte.clone()])),
-        ("B,A", "bool,u8", [ScalarType::Boolean, byte.clone()], [1, 0], Some([typed_byte, ValueType::Bool])),
-        ("A,B", "u8,bool", [byte.clone(), ScalarType::Boolean], [0, 1], None),
+        ("B,A", "u8,bool", [byte, ScalarType::Boolean], [1, 0], Some([ValueType::Bool, typed_byte.clone()])),
+        ("B,A", "bool,u8", [ScalarType::Boolean, byte], [1, 0], Some([typed_byte, ValueType::Bool])),
+        ("A,B", "u8,bool", [byte, ScalarType::Boolean], [0, 1], None),
     ] {
         let applied = format!("Link<{use_args}>");
         let source = format!(r"data Link<A:core\Type<0>,B:core\Type<0>>{{next:@Link<{field_args}>;}} boundary let pick(x:{applied}):u8;");
@@ -405,7 +405,7 @@ fn recursive_field_substitution_preserves_the_next_closed_application() {
         assert_eq!(template.declaration.path, "Link");
         let head = Ty::Named { declaration: template.declaration.clone(), argument_count: 2 };
         let [first, second] = actuals.map(Ty::Scalar);
-        assert_eq!(pick.signature.0, [first, second, head.clone(), Ty::Scalar(byte.clone()), Ty::Function]);
+        assert_eq!(pick.signature.0, [first, second, head.clone(), Ty::Scalar(byte), Ty::Function]);
 
         let [field] = template.fields.as_slice() else { panic!("expected the recursive field") };
         assert_eq!(field.declaration.path, "Link::next");

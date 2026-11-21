@@ -52,3 +52,17 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 | --- | --- | --- |
 | `sample/import-from-dependency` | Admitted dependency → L2 declaration lookup | With the dependency registered, importing a file by name still fails; importing its public declaration reaches an inter-package Psi call. Removing the alias isolates the dependency requirement. |
 | `sample/cross-width-v2`<br>`sample/rational-landing-v2` | L2 visible names → package compilation | Both omit an import and stop at Wrapping on the hits field. Removing only that qualification in the baseline lets L5 inspect the three comparisons and the three identity calls respectively. The original sample sources remain pinned. |
+
+## Decisions newly measured before the first autonomous wave
+
+The next baseline had 33 blocking cases. Five of the original 31 had met their expectation. The seven cases below account for the rest of the change. All twelve programs behind these seven already stopped on the preceding compiler. Preserve those inputs when measuring the next repair.
+
+| Case | Fact the consumer needs | Control |
+| --- | --- | --- |
+| `handoff/restoration requiring transitive selector equality` | The store disposition and both captured selectors, with the premises that justify comparing them. | `i == k` and `k == j` versus a missing second premise. |
+| `handoff/non-scalar field operand of a formal record` | The carrier and transfer of the selected structural field at a template call. | Pass the array field itself versus its scalar sibling. |
+| `handoff/nested scalar field operand of a formal record` | The complete path from the formal through its nested record to the scalar leaf. | Read `track.tag.id` versus a scalar directly on `track`. |
+| `handoff/projected field operand beside a sibling with cleanup or linear use` | The selected scalar read and any ownership obligations that remain on the formal. | Change only the unselected sibling to a type with cleanup or a linear-use requirement. |
+| `handoff/non-exact computed ranking subject` | The arithmetic meaning and admissibility of the subject used for the well-founded relation. | Change the subtraction mode or expression shape while keeping the same formal and constant. |
+| `handoff/add a tag child and a predicate domain in one cast` | The parent membership required by the child and the separate predicate debt on the same arrival. | Replace the child with a tag that has no parent. |
+| `handoff/add an applied domain and a domain of the other origin in one cast` | Each added domain’s complete application and its establishment origin. | Keep the family fixed and vary its index, then remove only the other domain. |

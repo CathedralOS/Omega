@@ -132,18 +132,26 @@ impl Expectation {
         sources: &[(&str, &str, &[u8])],
         admitted: &[omega_resolver::Dependency],
     ) -> Observation {
-        let actual = match self {
-            Self::MustRefuse(_) => match super::pipeline::lower_admitted(sources, admitted) {
-                Ok(_) => Actual::Product { witness: None },
-                Err(refusal) => Actual::Refused(refusal),
-            },
-            Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => {
-                match super::pipeline::lower_admitted(sources, admitted) {
-                    Ok(product) => Actual::Product {
-                        witness: Some(check.matches(&product)),
-                    },
-                    Err(refusal) => Actual::Refused(refusal),
+        self.inspect_lowering(super::pipeline::lower_admitted(sources, admitted))
+    }
+
+    pub(super) fn inspect_lowering(self, lowered: Result<LoweredPackage, Refusal>) -> Observation {
+        let actual = match lowered {
+            Err(refusal) => Actual::Refused(refusal),
+            Ok(product) => {
+                for machine in &product.machines {
+                    if let Err(reason) = super::control_flow::check_operation_ownership(&machine.body) {
+                        return Observation {
+                            actual: Actual::Product { witness: None },
+                            mismatch: Some(format!("machine {}: {reason}", machine.declaration.path)),
+                        };
+                    }
                 }
+                let witness = match self {
+                    Self::MustRefuse(_) => None,
+                    Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => Some(check.matches(&product)),
+                };
+                Actual::Product { witness }
             }
         };
         let mismatch = match (self, &actual) {
