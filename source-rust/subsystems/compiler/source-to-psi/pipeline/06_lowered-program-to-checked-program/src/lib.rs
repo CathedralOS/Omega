@@ -2247,7 +2247,7 @@ fn stated_goal<'a>(
             obligation,
             component,
             edge,
-            rankings::Comparison::Published,
+            rankings::Comparison::Claimed,
         ),
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }

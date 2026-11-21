@@ -236,6 +236,9 @@ impl ReplayScope<'_> {
         discharges: &arena::IdTable<MachineId, crate::checking::MachineDischarge>,
     ) -> Checked<()> {
         for machine in &mut self.elaboration.module.machines {
+            if machine.ranked_scc.is_none() {
+                continue;
+            }
             let discharge =
                 terminal_check_tables::row(discharges, machine.id, machine.id, Construct::Machine)?;
             crate::checking::rankings::publish_comparisons(machine, discharge)?;

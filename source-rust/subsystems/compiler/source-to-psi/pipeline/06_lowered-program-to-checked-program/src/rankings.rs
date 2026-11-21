@@ -554,7 +554,10 @@ pub(super) fn settle_comparisons(
             let Some(Ok(Discharged::FiniteIntegerRanking(checked))) =
                 &mut decided[slot(well_founded)]
             else {
-                unreachable!()
+                return Err(foreign(
+                    machine.id,
+                    "settling a rank comparison lost its checked finite relation",
+                ));
             };
             for (_, index, _) in weak.values() {
                 checked.bindings.edges[*index].comparison =
@@ -595,9 +598,6 @@ pub(crate) fn publish_comparisons(
     machine: &mut TerminalMachine,
     discharge: &crate::checking::MachineDischarge,
 ) -> Checked<()> {
-    if machine.ranked_scc.is_none() {
-        return Ok(());
-    }
     for verdict in discharge.verdicts.values() {
         let Ok(crate::checking::Discharged::FiniteIntegerRanking(relation)) = verdict else {
             continue;
@@ -645,7 +645,7 @@ pub(crate) fn well_founded(
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Comparison {
-    Published,
+    Claimed,
     Preserving,
     Equal,
 }
