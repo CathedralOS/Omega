@@ -1,0 +1,47 @@
+name: Verify named UEFI image providers
+on:
+  push:
+    branches: [work/observe-named-uefi-providers]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Retrieve the exact product compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 44928164369 --repo "$GITHUB_REPOSITORY" --name named-uefi-compiler --dir /tmp/compiler
+          echo "7266a48b2b0ffbd270efebe0c1f5a3cc9bcd5e40cf3bb4457ca7582d812ac42f  /tmp/compiler/omega" | sha256sum --check
+          chmod +x /tmp/compiler/omega
+      - name: Publish the actual source packages and exercise their controls
+        run: OMEGA_LIBRARY_ROOT="$PWD/source/library" python3 .github/observe-named-uefi.py /tmp/compiler/omega
+  correspondence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Check both fixed-image operations on UEFI and all four hosted targets
+        run: |
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/mbx" test --locked -p provider-correspondence --lib sealed_execution_tests
