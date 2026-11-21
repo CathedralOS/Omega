@@ -209,7 +209,10 @@ fn a_generic_call_forwards_the_callers_const_service_argument() {
     let (files, root) = captured(package, source);
     compile(product(files, root, package, &[]).unwrap(), None).unwrap();
 
-    let wrong = source.replace("second() -> u64 reaches Sensor<29u64>", "second() -> u64 reaches Sensor<17u64>");
+    let wrong = source.replace(
+        "second() -> u64 reaches Sensor<29u64>",
+        "second() -> u64 reaches Sensor<17u64>",
+    );
     let (files, root) = captured(package, &wrong);
     assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
 }

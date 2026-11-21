@@ -1778,14 +1778,19 @@ mod value_expressions {
                 // when the receiver of a requirement call is a trait.
                 let owner = generic.base_symbol;
                 let header = match symbols.get(owner).kind {
-                    SymbolKind::Data => machine.data_definitions.iter()
+                    SymbolKind::Data => machine
+                        .data_definitions
+                        .iter()
                         .find(|data| data.symbol == owner)
                         .map(|data| data.type_parameters),
-                    SymbolKind::Trait => machine.traits.iter()
+                    SymbolKind::Trait => machine
+                        .traits
+                        .iter()
                         .find(|declaration| declaration.symbol == owner)
                         .map(|declaration| declaration.type_parameters),
                     SymbolKind::TypeAlias => {
-                        let mut aliases = machine.type_aliases.iter().filter(|alias| alias.symbol == owner);
+                        let mut aliases = machine.type_aliases.iter()
+                            .filter(|alias| alias.symbol == owner);
                         match (aliases.next(), aliases.next()) {
                             (Some(alias), None) => Some(alias.type_parameters),
                             _ => None,
