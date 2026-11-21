@@ -145,7 +145,7 @@ def apply(report, rows=None, execute=None, fixtures=FIXTURES):
                        f"check exists. {row['justification']} Observed {row['message']} at {row['file']}."),
             "registered_refusal": "limitation", "refusal_reason": row["message"],
             "spec": row["spec"], "contract": row["contract"], "fixture": row["fixture"],
-            "fixture_locations": [{"package": "app", "file": row["file"], "byte_start": start, "byte_end": end,
+            "fixture_locations": [{"package": "root", "file": row["file"], "byte_start": start, "byte_end": end,
                                    "line": line, "byte_column": column,
                                    "occurrence": source[start:end].decode("utf-8")}],
         }

@@ -67,6 +67,8 @@ class PackageCaseTests(unittest.TestCase):
         self.assertEqual(observed["measurement_errors"], [])
         case = observed["cases"]["handoff/float literal result"]
         self.assertEqual((case["status"], case["measured_by"], case["stage"]), ("open gap", "package command", "L5"))
+        # The source command compiles its input files together as package root.
+        self.assertEqual(case["fixture_locations"][0]["package"], "root")
         # Line and column come from the fixture bytes, not from the registry.
         self.assertEqual({k: case["fixture_locations"][0][k] for k in ("line", "byte_column", "occurrence")},
                          {"line": 1, "byte_column": 24, "occurrence": "1.0"})

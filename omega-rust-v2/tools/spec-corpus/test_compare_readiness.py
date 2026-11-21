@@ -66,6 +66,19 @@ SPEC_REFUSAL = {"cohort": "spec", "stage": "L2", "status": "recorded refusal",
                 "after_static_evaluation": False, "later_layers_not_reached": ["L3", "L4", "L5"],
                 "expectation_check": {"verdict": "recorded refusal", "frontend": "matched", "lowering": "none", "semantic": "none"}}
 
+# Programs behind one case. A refused L5 fixture records its exact package; a successful one does not.
+ACCESS_REASON = "unsupported domain member: Access"
+OTHER_SITE = {**ACCESS_SITE, "byte_start": 164, "byte_end": 175}
+THIRD_SITE = {**ACCESS_SITE, "byte_start": 165, "byte_end": 176}
+BLOCKS, PASSES = "open gap", "intended rejection verified"
+# Trimmed verbatim from target/layer-readiness/20261121T111131Z-pxf_dgd1 and 20261121T114344Z-wxz4b6lj:
+# report fields, three cases and every fixture row their tests emitted (suites keep only their exit).
+FIXTURES = Path(__file__).with_name("fixtures") / "compare_readiness"
+ALIAS = "handoff/carry policy on a transparent data alias"
+FLOAT = "handoff/arithmetic on float reads"
+# target/l5-loop-01/wave1-replay.json, case 7_0_0: the earlier alias program replayed on the later compiler.
+WAVE1_ALIAS_SHA = "ba29e38372749c25a2239c156b898e34162bdd134c7bfeca72cba44e9cf7b956"
+
 IMPORT = "sample/import-from-dependency"
 OMITTED = "handoff/omitted reference field without a backing value"
 ACCESS = "handoff/access plan evaluation at its domain"
@@ -77,6 +90,18 @@ SPEC = "spec/build/assumed_binding_contracts.md:27"
 def report(cases, **fields):
     return {"revision": "e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9", "fingerprint": "f9dacd6ac942", "last_layer": "L5",
             "measurement_errors": [], "suites": {"L5": {"exit": 0}}, "expected": {}, "cases": copy.deepcopy(cases), **fields}
+
+
+def program(text, location=ACCESS_SITE):
+    return {"target": ACCESS_TEST["target"], "test": ACCESS_TEST["test"], "files": "access_plan.omg",
+            "outcome": f"refused: {ACCESS_REASON} at access_plan.omg", "location": location,
+            "replay": {"entry": "source", "message": ACCESS_REASON, "files": [["access_plan.omg", text]]}}
+
+
+def measured(status, fixtures):
+    case = {**ACCESS_BEFORE, "status": status, "refusal_reason": ACCESS_REASON,
+            "fixture_locations": [fixture["location"] for fixture in fixtures]}
+    return report({ACCESS: case}, package_fixtures=copy.deepcopy(fixtures))
 
 
 def grouped(before, after):
@@ -92,7 +117,8 @@ class ReadinessComparisonTests(unittest.TestCase):
         self.assertEqual(placed, {OMITTED: "removed-blocker"})
         self.assertEqual(groups["unblocked"], [])
         text = compare.markdown(report({OMITTED: OMITTED_BLOCKED}), report({}), groups, [])
-        self.assertIn("No longer blocking while still measured: 0. Blockers no longer measured: 1.", text)
+        self.assertIn("| No longer blocking while still measured | 0 | — |", text)
+        self.assertIn("| Blocked before and no longer measured | 1 | — |", text)
         self.assertIn("not a repair", text)
         self.assertIn("app/zero_field.omg:1:64 bytes 63..82", text)
         # The returning measurement is the only case the comparison credits as no longer blocking.
@@ -112,7 +138,10 @@ class ReadinessComparisonTests(unittest.TestCase):
         groups, placed, _ = grouped(report({IMPORT: IMPORT_BEFORE}), report({IMPORT: IMPORT_AFTER}))
         self.assertEqual(placed, {IMPORT: "stop-changed"})
         changes = {field: (old, new) for field, old, new in groups["stop-changed"][0]["changes"]}
-        self.assertEqual(set(changes), {"status", "stage", "reason", "locations"})
+        # Neither report records the sample's program, and the comparison says so.
+        self.assertEqual(set(changes), {"status", "stage", "reason", "locations", "inputs"})
+        self.assertEqual(changes["inputs"], (None, None))
+        self.assertEqual(compare.value_text("inputs", None), "not recorded")
         self.assertEqual(changes["stage"], ("setup", "L2"))
         self.assertEqual(changes["reason"][1], "unavailable import kit\\other")
         self.assertEqual(compare.value_text("locations", changes["locations"][1]), 'root/main.omg:3:5 bytes 140..149 "kit\\\\other"')
@@ -121,7 +150,7 @@ class ReadinessComparisonTests(unittest.TestCase):
         groups, placed, _ = grouped(report({RANKED: RANKED_BEFORE}), report({RANKED: RANKED_AFTER}))
         self.assertEqual(placed, {RANKED: "stop-changed"})
         changes = {field: (old, new) for field, old, new in groups["stop-changed"][0]["changes"]}
-        self.assertEqual(set(changes), {"status", "reason"})
+        self.assertEqual(set(changes), {"status", "reason", "inputs"})
         self.assertEqual(changes["reason"], ("every member of a ranked recursive component requires its own `terminates by` witness",
                                              "lowering has no entry-rank mapping for this member of the recursive component"))
 
@@ -133,12 +162,12 @@ class ReadinessComparisonTests(unittest.TestCase):
         moved["fixture_locations"][0]["byte_start"] = 164
         groups, placed, _ = grouped(report({ACCESS: ACCESS_BEFORE}), report({ACCESS: moved}))
         self.assertEqual(placed, {ACCESS: "stop-changed"})
-        self.assertEqual([field for field, _, _ in groups["stop-changed"][0]["changes"]], ["locations"])
+        self.assertEqual([field for field, _, _ in groups["stop-changed"][0]["changes"]], ["locations", "inputs"])
         # Control: the same text and site under a renamed emitting test.
         renamed = {**ACCESS_AFTER, "test": "an_access_plan_stops_elsewhere"}
         groups, placed, _ = grouped(report({ACCESS: ACCESS_BEFORE}), report({ACCESS: renamed}))
         self.assertEqual(placed[ACCESS], "witness-changed")
-        self.assertEqual([field for field, _, _ in groups["witness-changed"][0]["changes"]], ["test"])
+        self.assertEqual([field for field, _, _ in groups["witness-changed"][0]["changes"]], ["test", "inputs"])
         # A duplicated identical site is still one stop.
         doubled = {**ACCESS_BEFORE, "fixture_locations": [ACCESS_SITE, ACCESS_SITE]}
         _, placed, unchanged = grouped(report({ACCESS: ACCESS_BEFORE}), report({ACCESS: doubled}))
@@ -160,7 +189,8 @@ class ReadinessComparisonTests(unittest.TestCase):
             return grouped(before, after)[1][ACCESS]
         self.assertEqual(group([original, fixture("extra source", other_site)]), "fixtures-added")
         self.assertEqual(group([original, fixture("original source", other_site)]), "stop-changed")
-        self.assertEqual(group([fixture("replacement source", ACCESS_SITE), fixture("extra source", other_site)]), "stop-changed")
+        # Every earlier program is gone, so the stops belong to different programs.
+        self.assertEqual(group([fixture("replacement source", ACCESS_SITE), fixture("extra source", other_site)]), "input-replaced")
         self.assertEqual(group([original]), "stop-changed")
 
     def test_stops_read_the_producers_structured_fields(self):
@@ -191,8 +221,8 @@ class ReadinessComparisonTests(unittest.TestCase):
     def test_tab_separated_rows_round_trip_and_omit_an_empty_final_column(self):
         before = report({OMITTED: OMITTED_BLOCKED, IMPORT: IMPORT_BEFORE, ACCESS: ACCESS_BEFORE})
         after = report({IMPORT: IMPORT_AFTER, ACCESS: {**ACCESS_AFTER, "detail": ACCESS_AFTER["detail"] + "\tand\nmore 100%"}})
-        groups, _ = compare.compare(before, after)
-        text = compare.tsv(before, after, groups)
+        groups, unchanged = compare.compare(before, after)
+        text = compare.tsv(before, after, groups, unchanged)
         lines = text.split("\n")
         self.assertEqual(lines[0], "group\tcase\tfield\tbefore\tafter")
         self.assertIn(f"removed-blocker\t{OMITTED}\tstatus\tchecker input blocked", lines)
@@ -203,6 +233,7 @@ class ReadinessComparisonTests(unittest.TestCase):
                          [{"group": "removed-blocker", "case": OMITTED, "field": "status", "before": "checker input blocked", "after": ""}])
         self.assertTrue(any(row["group"] == "text-only" and row["after"].endswith("\tand\nmore 100%") for row in rows))
         self.assertEqual(sum(row["group"] == "report" for row in rows), 6)
+        self.assertEqual(sum(row["group"] == "accounting" for row in rows), 6)
 
     def test_the_command_reads_directories_and_refuses_unreadable_input(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -219,6 +250,114 @@ class ReadinessComparisonTests(unittest.TestCase):
             with redirect_stdout(StringIO()), patch("sys.stderr", StringIO()) as errors:
                 self.assertEqual(compare.main([str(first), str(second)]), 2)
             self.assertIn("has no case results", errors.getvalue())
+
+    def test_the_first_wave_alias_was_measured_on_a_different_program(self):
+        # The pair behind target/l5-loop-01/first-wave-comparison.md, which reported a changed
+        # first stop for the alias. The later report pins a different program under that key.
+        captured = json.loads((FIXTURES / "first_wave.json").read_text(encoding="utf-8"))
+        before, after = captured["20261121T111131Z-pxf_dgd1"], captured["20261121T114344Z-wxz4b6lj"]
+        groups, placed, unchanged = grouped(before, after)
+        self.assertEqual(placed, {ALIAS: "input-replaced", RANKED: "unblocked", FLOAT: "witness-changed"})
+        self.assertEqual(groups["stop-changed"], [])
+        alias = {field: (old, new) for field, old, new in groups["input-replaced"][0]["changes"]}
+        old_inputs, new_inputs = alias["inputs"]
+        [old_source], [new_source] = old_inputs, new_inputs
+        # wave1-replay.json replayed exactly this earlier program (case 7_0_0, same digest)
+        # and found the L3 refusal that neither report records for it.
+        self.assertEqual(compare.source_digest(old_source), WAVE1_ALIAS_SHA)
+        self.assertNotEqual(old_source, new_source)
+        self.assertEqual(alias["earlier inputs in the later report"], ({old_source}, {old_source: set()}))
+        # The renamed float test measured the same program; the ranked closure records no later program.
+        self.assertNotIn("inputs", [field for field, _, _ in groups["witness-changed"][0]["changes"]])
+        self.assertEqual(dict((f, (o, n)) for f, o, n in groups["unblocked"][0]["changes"])["inputs"][1], None)
+        names = ("20261121T111131Z-pxf_dgd1", "20261121T114344Z-wxz4b6lj")
+        self.assertEqual(compare.markdown(before, after, groups, unchanged, True, names), (FIXTURES / "first_wave.md").read_text(encoding="utf-8"))
+        self.assertEqual(compare.tsv(before, after, groups, unchanged), (FIXTURES / "first_wave.tsv").read_text(encoding="utf-8"))
+
+    def test_the_same_program_keeps_regressions_stop_changes_and_repairs(self):
+        same = program("original source")
+        moved = program("original source", OTHER_SITE)
+        # A moved stop on the same program is a stop change and needs no input row.
+        groups, placed, _ = grouped(measured(BLOCKS, [same]), measured(BLOCKS, [moved]))
+        self.assertEqual(placed, {ACCESS: "stop-changed"})
+        self.assertEqual([field for field, _, _ in groups["stop-changed"][0]["changes"]], ["locations"])
+        # The same program going from an intended rejection to a gap is a regression.
+        groups, placed, unchanged = grouped(measured(PASSES, [same]), measured(BLOCKS, [same]))
+        self.assertEqual(placed, {ACCESS: "regression"})
+        self.assertIn(("Regressions of previously passing cases", None, 1), compare.accounting(groups, unchanged))
+        # And the reverse is credited, because every earlier program is still recorded.
+        groups, placed, unchanged = grouped(measured(BLOCKS, [same]), measured(PASSES, [same]))
+        self.assertEqual(placed, {ACCESS: "unblocked"})
+        self.assertIn("No longer blocking: 1 with every earlier program still recorded, 0 where",
+                      compare.markdown(measured(BLOCKS, [same]), measured(PASSES, [same]), groups, unchanged))
+
+    def test_different_programs_are_never_regressions_stop_changes_or_repairs(self):
+        old, new = program("original source"), program("replacement source")
+        for was, now in [(PASSES, BLOCKS), (BLOCKS, PASSES), (BLOCKS, BLOCKS)]:
+            before, after = measured(was, [old]), measured(now, [new])
+            groups, placed, unchanged = grouped(before, after)
+            # Even an identical stop on another program is not an unchanged blocker.
+            self.assertEqual((placed, unchanged), ({ACCESS: "input-replaced"}, []), (was, now))
+            rows = compare.accounting(groups, unchanged)
+            self.assertEqual(sum(x or 0 for _, x, _ in rows), compare.side(before)["blocking"])
+            self.assertEqual(sum(y or 0 for _, _, y in rows), compare.side(after)["blocking"])
+            changes = dict((field, (a, b)) for field, a, b in groups["input-replaced"][0]["changes"])
+            self.assertEqual(changes["blocks"], (was == BLOCKS, now == BLOCKS))
+
+    def test_partly_retained_programs_credit_only_what_a_retained_program_shows(self):
+        kept, dropped, added = program("kept source"), program("dropped source", OTHER_SITE), program("added source", OTHER_SITE)
+        def place(was, before, now, after):
+            return grouped(measured(was, before), measured(now, after))
+        # The retained program stops where it did; the other site now belongs to another program.
+        groups, placed, _ = place(BLOCKS, [kept, dropped], BLOCKS, [kept, added])
+        self.assertEqual(placed, {ACCESS: "input-replaced"})
+        earlier = dict((f, (a, b)) for f, a, b in groups["input-replaced"][0]["changes"])["earlier inputs in the later report"]
+        self.assertEqual({source[1][0][1] for source in earlier[0]}, {"dropped source"})
+        # A retained program whose stop moved is same-input evidence of a changed stop.
+        _, placed, _ = place(BLOCKS, [kept, dropped], BLOCKS, [program("kept source", THIRD_SITE), added])
+        self.assertEqual(placed, {ACCESS: "stop-changed"})
+        # An earlier program is gone, so passing now is not a repair; blocking now stays a regression.
+        self.assertEqual(place(BLOCKS, [kept, dropped], PASSES, [kept, added])[1], {ACCESS: "input-replaced"})
+        self.assertEqual(place(PASSES, [kept, dropped], BLOCKS, [kept, added])[1], {ACCESS: "regression"})
+        # Keeping every earlier program and adding one is still an added fixture.
+        groups, placed, _ = place(BLOCKS, [kept], BLOCKS, [kept, added])
+        self.assertEqual(placed, {ACCESS: "fixtures-added"})
+
+    def test_missing_or_incomplete_program_evidence_is_reported_as_not_recorded(self):
+        old = program("original source")
+        unrecorded = {**old, "replay": {key: value for key, value in old["replay"].items() if key != "files"}}
+        truncated = {**old, "replay": {**old["replay"], "files": [["access_plan.omg"]]}}
+        elsewhere = {**old, "test": "another_test"}
+        for later in (unrecorded, truncated, elsewhere):
+            groups, placed, unchanged = grouped(measured(BLOCKS, [old]), measured(PASSES, [later]))
+            self.assertEqual(placed, {ACCESS: "unblocked"})
+            entry = groups["unblocked"][0]
+            self.assertEqual([(f, b) for f, _, b in entry["changes"] if f == "inputs"], [("inputs", None)])
+            text = compare.markdown(measured(BLOCKS, [old]), measured(PASSES, [later]), groups, unchanged)
+            self.assertIn("No longer blocking: 0 with every earlier program still recorded, 1 where a report does not record the program.", text)
+            self.assertIn("→ not recorded", text)
+        # An earlier program that the later report still compiles under another test is named with its outcome.
+        before = measured(BLOCKS, [old])
+        after = measured(BLOCKS, [program("replacement source")])
+        after["package_fixtures"].append({**old, "test": "kept_elsewhere", "outcome": "refused: another reason at access_plan.omg",
+                                          "replay": {**old["replay"], "message": "another reason"}})
+        groups, _, _ = grouped(before, after)
+        changes = dict((f, (a, b)) for f, a, b in groups["input-replaced"][0]["changes"])
+        self.assertIn("refused: another reason at access_plan.omg in tests/formation_handoff.rs::kept_elsewhere",
+                      compare.value_text("earlier inputs in the later report", changes["earlier inputs in the later report"][1]))
+
+    def test_repeated_and_reordered_fixture_rows_render_identically(self):
+        kept, dropped, added = program("kept source"), program("dropped source", OTHER_SITE), program("added source", OTHER_SITE)
+        before, after = measured(BLOCKS, [kept, dropped]), measured(BLOCKS, [kept, added])
+        noisy_before = measured(BLOCKS, [dropped, kept, dropped, kept])
+        noisy_after = measured(BLOCKS, [added, added, kept])
+        rendered = []
+        for pair in ((before, after), (noisy_before, noisy_after)):
+            groups, unchanged = compare.compare(*pair)
+            rendered.append((compare.markdown(*pair, groups, unchanged), compare.tsv(*pair, groups, unchanged)))
+        self.assertEqual(rendered[0], rendered[1])
+        rows = rendered[0][1].splitlines()
+        self.assertEqual(len(rows), len(set(rows)))
 
     @unittest.skipUnless(os.environ.get("OMEGA_FAULT_EVIDENCE"), "set OMEGA_FAULT_EVIDENCE to replay a recorded readiness run")
     def test_replaying_the_recorded_l5_log_changes_no_case_it_produces(self):

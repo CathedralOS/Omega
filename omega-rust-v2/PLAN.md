@@ -659,8 +659,9 @@ To see what changed between two runs, use `python tools/spec-corpus/compare_read
 - **Disappeared cases:** listed apart, and never counted as no longer blocking. The comparison cannot say why a case left the run; read its test.
 - **New blockers:** split into newly measured cases and regressions of previously passing cases.
 - **Cases still blocked:** compared by status, stage, typing phase, reason, distinct source locations, emitting test and expected verdict. Explanatory prose and run timestamps are not compared.
+- **Different programs:** a refused L5 fixture records the exact source package it compiled. When both reports record the programs behind a case and they differ, the case is listed apart and is never counted as a regression, a changed stop or a repair. A program recorded in both reports still counts as same-input evidence. A successful fixture records no source, so the comparison says when a program is not recorded.
 
-The command also says when the two runs measured different layer ranges or either run had incomplete measurements. `--verbose` lists text-only changes and unchanged blockers. `--tsv` prints one tab-separated `group case field before after` row per changed field; a row whose final column is empty omits it. The comparison exits 0 whenever it can read both reports and is not a readiness gate.
+A table splits each report's blockers into these groups, and its rows add up to that report's blocking count. The command also says when the two runs measured different layer ranges or either run had incomplete measurements. `--verbose` lists text-only changes and unchanged blockers. `--tsv` prints the same table as `accounting` rows and one tab-separated `group case field before after` row per changed field; a row whose final column is empty omits it. The comparison exits 0 whenever it can read both reports and is not a readiness gate.
 
 The [L5 handoff evidence](layers/05_prepared-trees-to-terminal-psi/LOCK_EVIDENCE.md) records what the tests distinguish for each responsibility and where lowering or rule-level evidence is still missing.
 
