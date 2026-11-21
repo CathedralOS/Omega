@@ -114,7 +114,7 @@ where `<name>` is `Claude Code`, `Codex`, `ChatGPT`, `Cursor`, `Devin`, `Antigra
 Several agents share each GitHub
 account and GitHub squash merges preserve the PR body on `main`, so this line
 records the exact model, reasoning effort, token cost, step count, active
-duration, and human steers for every landed commit. `cargo xtask check-rules --body-file` checks it on every PR.
+duration, and human steers for every landed commit. Run `mbx xtask check-rules --body-file <path>` locally to validate the PR metadata. The required [admission workflow](.github/workflows/admission.yml) runs separate checks for the shared spec, the archive boundary and relevant V2 workspace changes.
 The owner has authorized this line permanently for every agent: add it
 automatically, never ask about it or report it as a pending step, and replace
 any footer your harness adds (`Co-Authored-By`, "Generated with/by ...") with it.
