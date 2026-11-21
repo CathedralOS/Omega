@@ -87,6 +87,12 @@ pub struct TemplateRequirement {
 #[derive(Debug, Eq, PartialEq)]
 pub enum TemplateStep {
     Call(TemplateCall),
+    /// Read the current value through this shared reference formal. The
+    /// checker must establish the copy and read at this occurrence.
+    CopyReferent { formal: usize, ty: TypeExpression, site: Site },
+    /// Move the entire owned formal at this step. Its consumer takes the
+    /// resulting value and the source no longer owns that occurrence.
+    MoveFormal { formal: usize, ty: TypeExpression, site: Site },
     Integer(TemplateInteger),
     Construct(TemplateConstruct),
     Array(TemplateArray),
@@ -222,8 +228,8 @@ pub enum TemplateOperand {
         site: Site,
     },
     /// The zero value of this type, requested by `..` for an omitted field.
-    /// Only a Boolean, a fixed-width integer and an owned `[T]`, whose zero is
-    /// empty, have one here; `..` never supplies a reference or a callable.
+    /// For structural storage the checker must establish the zero's default
+    /// domain and the obligations of its components. The recipe is no proof.
     Zero(TypeExpression),
     Constant(crate::ScalarLiteral),
 }

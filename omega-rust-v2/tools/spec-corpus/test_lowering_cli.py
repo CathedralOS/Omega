@@ -35,6 +35,7 @@ class ReplayTests(unittest.TestCase):
                              manifest_path=str(cli.ROOT / 'application/Cargo.toml'), executable=str(self.exe))
         self.artifacts = [dict(self.artifact, target=dict(name='other', kind=['bin'])), self.artifact]
         self.outputs = {'prepare': (0, b'', b''), 'lower': (1, b'', DIAGNOSTIC)}
+        self.package_options = []
         self.packages = []
         self.env = {'key': 'value'}
 
@@ -47,7 +48,7 @@ class ReplayTests(unittest.TestCase):
             self.assertEqual(cwd, cli.ROOT)
             stdout = '\n'.join(map(json.dumps, self.artifacts)).encode()
             return subprocess.CompletedProcess(args, 0, stdout, b'build log')
-        self.assertEqual(args, [str(self.exe), 'source', args[2], '--', 'z.omg', PATH])
+        self.assertEqual(args, [str(self.exe), 'source', args[2], *self.package_options, '--', 'z.omg', PATH])
         self.assertEqual(cwd.parent, self.directory)
         self.assertEqual((cwd / PATH).read_bytes(), SOURCE.encode())
         self.assertEqual((cwd / 'z.omg').read_bytes(), b'')
@@ -132,6 +133,14 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(self.calls, 0)
         self.assertIn('unsafe package path', errors[0])
         self.assertEqual(ledger['dispositions'], {'unverified': 1})
+
+    def test_build_owned_entry_uses_the_materialized_package_root(self):
+        built = fixture()
+        built['replay']['entry'] = 'package'
+        self.package_options = ['--package-root', '.']
+        ledger, errors = self.measure(built)
+        self.assertEqual(errors, [])
+        self.assertEqual(ledger['dispositions'], {'verified': 1})
 
     def test_prepared_entry_must_reproduce_its_refusal_from_source(self):
         prepared = fixture()

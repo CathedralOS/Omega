@@ -61,6 +61,20 @@ pub fn evaluate_ieee_clause(
             },
             PredicateStep::IeeeFloat(bits) => PredicateValue::Bits(*bits),
             PredicateStep::Boolean(value) => PredicateValue::Bool(*value),
+            PredicateStep::IeeeArithmetic { operation, format, semantics: omega_psi::FloatSemantics::Ieee754NearestEvenV1 } => {
+                use omega_psi::FloatOperation::*;
+                let PredicateValue::Bits(last) = stack.pop()? else { return None };
+                let result = match operation {
+                    Negate => super::floats::apply(*operation, *format, &[last])?,
+                    Add | Subtract | Multiply | Divide => {
+                        let PredicateValue::Bits(first) = stack.pop()? else { return None };
+                        super::floats::apply(*operation, *format, &[first, last])?
+                    }
+                    _ => return None,
+                };
+                let super::FloatScalar::Bits(bits) = result else { return None };
+                PredicateValue::Bits(bits)
+            }
             PredicateStep::IeeeComparison { kind, format } => {
                 let right = stack.pop()?;
                 let left = stack.pop()?;

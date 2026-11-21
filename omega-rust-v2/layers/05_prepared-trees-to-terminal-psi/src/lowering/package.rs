@@ -30,6 +30,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     let mut data_templates = Vec::new();
     let mut conformances = Vec::new();
     let mut signatures = Vec::new();
+    let mut catalog_declarations = Vec::new();
     let library_trees: Vec<_> = typed
         .library
         .filter(|_| !typed.external_completions.is_empty())
@@ -56,6 +57,10 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                     .copied()
                     .filter(|sig| sig.node == file.node_id(child))
                     .ok_or_else(|| LoweringError::new(&site_at(tree, child), "machine has no local typed signature"))?;
+                if sig.catalog_supplied {
+                    catalog_declarations.push(crate::identity::declaration(id, &sig.site)?);
+                    continue;
+                }
                 // A theorem with logical hypotheses publishes no executable machine.
                 if file.child(child, NodeKind::Hypothesis).is_some() {
                     theorems.push((sig, tree, crate::declarations::hypotheses::header(prepared, tree, sig)?));
@@ -226,6 +231,13 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                 );
             }
             for record in tree.semantics_at(node) {
+                // Restoring an indexed hole can branch on two captured selectors
+                // even when the source contains no Boolean expression.
+                if file.nodes[node].kind == NodeKind::Index && matches!(record,
+                    omega_typed::NodeSemantics::Obligation(row) if matches!(row.kind, omega_typed::ObligationKind::RestoreBorrowed { .. })
+                ) {
+                    carriers.push((&ValueType::Bool, site_at(tree, node)));
+                }
                 if let omega_typed::NodeSemantics::Instruction(i) = record {
                     carriers.extend(i.operands.iter().filter_map(|o| match o {
                         omega_typed::TypedInstructionOperand::Value { ty, .. } | omega_typed::TypedInstructionOperand::Register { ty, .. } => {
@@ -520,7 +532,9 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
         }
     }
+    catalog_declarations.sort_unstable();
     let mut package = LoweredPackage {
+        catalog_declarations,
         member_calls,
         conformances,
         callable_contracts,

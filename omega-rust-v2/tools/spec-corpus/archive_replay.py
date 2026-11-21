@@ -68,10 +68,6 @@ Program = namedtuple("Program", "digest rows files argv original decode role")
 Inputs = namedtuple("Inputs", "key cohort pairs holes")
 
 
-def normal_argv(action, names):
-    return ["source", action, "--", *names]
-
-
 def program_files(rows, recorded_digest=None):
     files = lowering_cli.program(rows)  # path safety, collisions and device names
     digest = lowering_cli.program_digest(rows)
@@ -91,7 +87,7 @@ def native_program(row, fixture):
         if not isinstance(check, dict) or not isinstance(check.get("args"), list):
             raise ValueError(f"no recorded {action} command")
         argv[action] = check["args"][1:]
-        if argv[action] != normal_argv(action, names):
+        if argv[action] != lowering_cli.source_argv(action, names, replay.get('entry')):
             raise ValueError(f"the {action} command was not a normal package command over these files")
         expected = check.get("expected_stderr")
         observed = (check.get("exit"), check.get("stdout"), check.get("stderr"))
@@ -112,7 +108,7 @@ def package_program(record, role, expected):
     argv, results = record.get("argv"), record.get("results")
     if not isinstance(argv, dict) or not isinstance(results, dict) or set(argv) != set(ACTIONS) or set(results) != set(ACTIONS):
         raise ValueError(f"the archived {role} lacks its prepare and lower commands")
-    if any(argv[action] != normal_argv(action, names) for action in ACTIONS):
+    if any(argv[action] != lowering_cli.source_argv(action, names, "source") for action in ACTIONS):
         raise ValueError(f"the archived {role} commands were not normal package commands over these files")
     original = {action: tuple(results[action]) for action in ACTIONS}
     lower = original["lower"]

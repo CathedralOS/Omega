@@ -167,7 +167,8 @@ fn emit_body(
             return Err(unsupported_node(file, node, "nested declaration has no Psi machine"));
         }
     }
-    for (index, &statement) in statements.iter().enumerate() {
+    let mut statements_iter = statements.iter().copied().enumerate().peekable();
+    while let Some((index, statement)) = statements_iter.next() {
         let node = &file.nodes[statement];
         if matches!(node.kind, NodeKind::Tail | NodeKind::Discard | NodeKind::ExpressionStatement)
             && let [expression] = node.children.as_slice()
@@ -218,7 +219,10 @@ fn emit_body(
                 }
                 if super::view_loans::selects_view_element(&expressions, place) {
                     let before_return = index + 1 == statements.len() && result_type.is_none();
-                    super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow, before_return)?;
+                    let next = statements_iter.peek().map(|(position, statement)| (*statement, position + 1 == statements.len() && result_type.is_none()));
+                    if super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow, before_return, next)? {
+                        statements_iter.next();
+                    }
                     continue;
                 }
                 let Some(Symbol::Binding {

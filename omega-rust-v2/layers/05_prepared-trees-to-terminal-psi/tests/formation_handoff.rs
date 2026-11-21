@@ -431,15 +431,7 @@ fn executable_constructions_select_their_own_default_domain_goals() {
     }
 }
 
-const ACCESS_PLAN: &str = "use omega\\language\\core;
-                  use omega\\language\\core\\reflect;
-                  use omega\\language\\core\\access;
-                  domain i32::Locked access Rule;
-                  Rule satisfies AccessPolicy {
-                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
-                          new_plan::<'t>(@schema, Issuance::Unrestricted{})
-                      }
-                  }";
+const ACCESS_PLAN: &str = include_str!("fixtures/domain_access/unrestricted/access_plan.omg");
 
 /// The domain's access clause carries the selected plan machine for evaluation.
 /// Lowering reports the pending result at the selected policy's own clause.
@@ -447,7 +439,8 @@ const ACCESS_PLAN: &str = "use omega\\language\\core;
 fn an_access_plan_stops_at_its_own_policy_clause() {
     let file = "access_plan.omg";
     let source = ACCESS_PLAN;
-    let (obligations, error) = refusal(file, source, sources::unique_span(source, "access Rule"), "domain access policy needs the package owner for its semantic schema");
+    let (obligations, error) = sources::refuse_built_fixture("domain_access/unrestricted", file, source,
+        sources::unique_span(source, "access Rule"), r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
     let plans: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))
@@ -462,6 +455,32 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
     assert_eq!(spelled(&obligation.site, file, source), "access Rule");
     assert_eq!(error.site, obligation.site);
     known_gap::report("access plan evaluation at its domain", "The selected policy must supply its validated access plan", source, &error);
+}
+
+/// A selected policy and its conformance can be checked independently of the
+/// pending domain row. Changing the source selection changes the member body.
+#[test]
+fn selected_policy_definition_uses_the_prepared_selection() {
+    let source = ACCESS_PLAN;
+    let other_source = source.replace("Rule", "OtherPolicy");
+    let mut first = sources::resolve(&[("access_plan.omg", source)]);
+    let mut other = sources::resolve(&[("access_plan.omg", &other_source)]);
+    first.bind_package_key("app", [1; 32]).unwrap();
+    other.bind_package_key("app", [2; 32]).unwrap();
+    let first = prepare_source_package(&first).unwrap();
+    let other = prepare_source_package(&other).unwrap();
+    let [selected] = first.typed().access_policies.as_slice() else { panic!("one policy") };
+    let [different] = other.typed().access_policies.as_slice() else { panic!("one different policy") };
+    let policy = omega_lowering::lower_selected_policy_definition(&first, selected).unwrap();
+    assert_eq!(policy.domain.path, "i32::Locked");
+    assert_eq!(policy.conformance.declaration.path, "Rule");
+    assert_eq!(policy.plan.declaration.path, "Rule::plan");
+    assert_eq!(policy.conformance.members[0].implementation, policy.plan.declaration);
+    assert_eq!(policy.site, selected.site);
+    let error = omega_lowering::lower_selected_policy_definition(&first, different).unwrap_err();
+    assert_eq!(error.message, "access policy selection is absent from the prepared package");
+    let other_policy = omega_lowering::lower_selected_policy_definition(&other, different).unwrap();
+    assert_eq!(other_policy.plan.declaration.path, "OtherPolicy::plan");
 }
 
 /// The exact identity the toolchain exports for `name` under `language\core\`,

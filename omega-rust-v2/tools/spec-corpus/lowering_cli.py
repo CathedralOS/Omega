@@ -93,12 +93,17 @@ def materialize(root, files):
             out.write(data)
 
 
+def source_argv(action, files, entry):
+    options = ['--package-root', '.'] if entry == 'package' else []
+    return ['source', action, *options, '--', *files]
+
+
 def compare(exe, directory, env, files, expected, row):
     with TemporaryDirectory(dir=directory, prefix='lowering-cli-') as temp:
         root = Path(temp)
         materialize(root, files)
         for action, code, stderr in [('prepare', 0, ''), ('lower', 1, expected)]:
-            args = [str(exe), 'source', action, '--', *files]
+            args = [str(exe), *source_argv(action, files, row['entry'])]
             check = row[action] = {'args': args, 'expected_exit': code, 'expected_stdout': '',
                                    'expected_stderr': stderr, 'matched': False}
             try:
@@ -129,7 +134,7 @@ def finish(report, directory, environment):
         row = dict(fixture_index=index, target=fixture['target'], test=fixture['test'], entry=entry, origin_status=origin)
         rows.append(row)
         try:
-            if entry not in ('source', 'prepared'):
+            if entry not in ('source', 'prepared', 'package'):
                 raise ValueError('missing source replay or invalid entry')
             if origin != 'observed':
                 row['status'] = 'native origin not credited'

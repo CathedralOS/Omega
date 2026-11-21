@@ -15,24 +15,37 @@ use crate::{StaticValueDemand, TypeError, TypedStage, TypedTrees, TypingEnvironm
 use omega_resolved::SymbolResolvedTrees;
 use omega_toolchain::CoreInterface;
 
+/// Which compilation owns the standard declarations in this pass.
+#[derive(Clone, Copy)]
+pub(crate) enum LibraryContext {
+    Standalone,
+    Import(&'static CheckedLibrary),
+    Define(&'static CoreInterface),
+}
+
 pub(crate) fn type_admitted_stage<'text>(
     resolved: &SymbolResolvedTrees<'text>,
     library: Option<&'static CheckedLibrary>,
     environment: &TypingEnvironment<'_>,
 ) -> Result<crate::TypedTrees<'text>, TypeError> {
-    type_stage_inner(resolved, library, environment, false).map(|(trees, _)| trees)
+    let context = library.map_or(LibraryContext::Standalone, LibraryContext::Import);
+    type_stage_inner(resolved, context, environment, false).map(|(trees, _)| trees)
 }
 
 pub(crate) fn type_stage_inner<'text>(
     resolved: &SymbolResolvedTrees<'text>,
-    library: Option<&'static CheckedLibrary>,
+    context: LibraryContext,
     environment: &TypingEnvironment<'_>,
     allow_pending: bool,
 ) -> Result<(TypedTrees<'text>, Vec<StaticValueDemand>), TypeError> {
     let mut output = TypedStage::default();
-    let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
+    let (mut catalog, definition, library_execution) = match context {
+        LibraryContext::Import(library) => (library.import(&mut output), None, Some(&library.execution)),
+        LibraryContext::Define(core) => (DeclarationCatalog::default(), Some(core), None),
+        LibraryContext::Standalone => (DeclarationCatalog::default(), None, None),
+    };
     catalog.assembly = environment.target;
-    if library.is_none() {
+    if matches!(context, LibraryContext::Standalone) {
         catalog.ranking_views = environment.ranking_views.into();
         catalog.access_plan_requirement = environment.access_plan_requirement;
     }
@@ -41,11 +54,11 @@ pub(crate) fn type_stage_inner<'text>(
         environment,
         &mut catalog,
         &mut output,
-        None,
-        library.map(|lib| &lib.execution),
+        definition,
+        library_execution,
         allow_pending,
     )?;
-    if library.is_none() && !output.collection_accesses.is_empty() {
+    if matches!(context, LibraryContext::Standalone) && !output.collection_accesses.is_empty() {
         output.library = Some(crate::standard_library());
     }
     catalog.publish_declarations(&mut output);

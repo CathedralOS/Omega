@@ -71,7 +71,7 @@ def decode_replay(fields, fixture):
             entry = entry.removesuffix('+expected-v1')
         fields = [entry, *fields[1:boundary]]
     entry, message, selected, reference, root_message, *sources = fields
-    if entry not in {"source", "prepared"} or len(sources) < 2 or len(sources) % 2:
+    if entry not in {"source", "prepared", "package"} or len(sources) < 2 or len(sources) % 2:
         raise ValueError("incomplete lowering replay inputs")
     message, selected, *sources = (unescape(field).decode("utf-8") for field in [message, selected, *sources])
     root_message = unescape(root_message).decode("utf-8")

@@ -18,6 +18,8 @@ pub struct TypedSignature {
     pub node: omega_resolved::TreeNodeId,
     pub site: Site,
     pub machine: DeclarationId,
+    /// The defining toolchain selected a fixed catalog operation in place of a source body.
+    pub catalog_supplied: bool,
     pub operator: Option<TypedOperatorDeclaration>,
     pub parameters: Vec<(SourceSpan, ValueType)>,
     pub result: ValueType,

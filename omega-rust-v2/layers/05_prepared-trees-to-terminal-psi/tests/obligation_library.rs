@@ -14,8 +14,8 @@
 //! that never calls `new_plan`, and a checked `app` machine at the toolchain's
 //! exact path, both lower with no foreign row, so the obligation counts the test reporter
 //! publishes are their own rows, counted once. No Psi property is registered: none of these
-//! rows is local to a lowered package. Checking the library body itself needs the toolchain
-//! package to be prepared, lowered and checked, which no stage does yet.
+//! rows is local to a lowered package. The toolchain’s own verification unit lowers its checked constructor and identifies
+//! each catalog-supplied declaration separately. The importing package never copies those bodies.
 #[allow(dead_code)]
 #[path = "support/source.rs"]
 mod sources;
@@ -222,4 +222,34 @@ fn library_definition_rows_stay_in_the_library_forest_for_callers_and_non_caller
         ),
     );
     assert_eq!(unused, Selection { callers: vec![], ..real });
+}
+
+#[test]
+fn the_toolchain_defines_its_own_constructor_verification_unit() {
+    let source = omega_typer::SourcePackage::toolchain_definition();
+    let prepared = prepare_source_package(&source).expect("prepare the actual toolchain definition");
+    let definition = omega_toolchain::core_interface().id(r"access\new_plan");
+    assert!(prepared.typed().library.is_none());
+    let guarantees = prepared.typed().obligations.iter().filter(|row| {
+        matches!(&row.kind, ObligationKind::ProveGuarantee { machine, .. } if machine == definition)
+    }).count();
+    assert_eq!(guarantees, 4);
+
+    let product = omega_lowering::lower_package(&prepared).expect("lower the toolchain");
+    let constructor = product.machine_templates.iter().find(|template| {
+        template.declaration.package == omega_toolchain::TOOLCHAIN_PACKAGE && template.declaration.path == definition.path
+    }).expect("the defining unit owns the actual constructor body");
+    assert_eq!(constructor.signature.ensures.len(), guarantees);
+    let supplied: std::collections::BTreeSet<_> = prepared.typed().signatures.iter()
+        .filter(|sig| omega_toolchain::core_interface().supplies(&sig.machine))
+        .map(|sig| (&sig.machine.package, &sig.machine.path))
+        .collect();
+    assert_eq!(supplied.len(), 9);
+    assert_eq!(
+        product.catalog_declarations.iter().map(|decl| (&decl.package, &decl.path)).collect::<Vec<_>>(),
+        supplied.into_iter().collect::<Vec<_>>()
+    );
+    assert!(!product.catalog_declarations.contains(&constructor.declaration));
+    let client = sources::lower(&[("client.omg", "machine local(x:u8)->u8{x}")]).unwrap();
+    assert!(client.catalog_declarations.is_empty());
 }

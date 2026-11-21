@@ -57,7 +57,7 @@ families! {
     PredicateStep => [
         Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, FixedArrayRead,
         IsCase, InDomain,
-        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeComparison, MathematicalTerm,
+        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeArithmetic, IeeeComparison, MathematicalTerm,
         HypothesisParameter, HypothesisGuarantee, Apply,
     ],
     TypeShape => [
@@ -113,6 +113,7 @@ impl Tally {
 
     fn package(&mut self, package: &LoweredPackage) {
         let LoweredPackage {
+            catalog_declarations,
             target_closure,
             types,
             data,
@@ -130,6 +131,7 @@ impl Tally {
             machine_templates,
             machines,
         } = package;
+        self.add("Package::catalog_declarations", catalog_declarations.len());
         self.add("Package::target_closure", usize::from(target_closure.is_some()));
         self.add("Package::data", data.len());
         self.add("Package::aliases", aliases.len());

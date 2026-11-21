@@ -156,47 +156,87 @@ pub(super) fn store_borrowed(
     site: Site,
     before_return: bool,
 ) -> Result<(), LoweringError> {
-    let id = expressions
-        .types
-        .id_for(carrier)
-        .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-    if !matches!(expressions.types.get(id), Some(TypeShape::Nominal(_))) {
-        return Err(LoweringError::new(&site, "structural replacement needs an exact nominal type"));
-    }
-    let OperationResult::Structural(value) = expressions.lower(rhs, carrier, body, flow)? else {
-        return Err(LoweringError::new(&site, "structural store needs an owned value"));
+    let store = Replacement::capture(expressions, destination, rhs, carrier, body, flow, site)?;
+    let Vacancy::Known(vacant) = store.vacancy(&expressions.selector_premises, body, flow, before_return)? else {
+        return Err(store.ambiguous());
     };
-    if body.places[value.index()].ty != id {
-        return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
-    }
-    let premises = &expressions.selector_premises;
-    let disposition = if vacancy_at(body, premises, flow, &destination, &site, before_return)? {
-        crate::StructuralStoreDisposition::FillVacancy
-    } else if matches!(expressions.types.get(id),Some(TypeShape::Nominal(data)) if expressions.data[data.get()-1].multiplicity == crate::Multiplicity::Copy) {
-        crate::StructuralStoreDisposition::ReplaceUnrestricted
-    } else {
-        // The old value has its own custody. Dispose it on the continuation
-        // after evaluating the replacement and before filling the vacancy.
-        let OperationResult::Structural(old) = body.push_operation(
-            OperationOutput::Structural(id),
-            OperationKind::BorrowedMove { source: destination.clone() },
-            site.clone(),
-        ) else {
-            unreachable!("an extracted field produces an owned place")
+    store.emit(expressions, body, flow, vacant)
+}
+
+/// Selector and replacement are evaluated before choosing the occupied or vacant schedule.
+pub(super) struct Replacement {
+    pub destination: ProjectedPlace,
+    pub site: Site,
+    value: crate::PlaceId,
+    id: crate::TypeId,
+}
+
+impl Replacement {
+    pub fn capture(
+        expressions: &Expressions<'_>, destination: ProjectedPlace, rhs: usize, carrier: &ValueType,
+        body: &mut MachineBody, flow: &mut BlockFlow, site: Site,
+    ) -> Result<Self, LoweringError> {
+        let id = expressions
+            .types
+            .id_for(carrier)
+            .map_err(|e| LoweringError::new(&site, e.to_string()))?;
+        if !matches!(expressions.types.get(id), Some(TypeShape::Nominal(_))) {
+            return Err(LoweringError::new(&site, "structural replacement needs an exact nominal type"));
+        }
+        let OperationResult::Structural(value) = expressions.lower(rhs, carrier, body, flow)? else {
+            return Err(LoweringError::new(&site, "structural store needs an owned value"));
         };
-        super::ownership::dispose_temporary(expressions, body, flow, old, site.clone())?;
-        crate::StructuralStoreDisposition::FillVacancy
-    };
-    body.push_operation(
-        OperationOutput::Unit,
-        OperationKind::StructuralStore {
-            destination,
-            value,
-            disposition,
-        },
-        site,
-    );
-    Ok(())
+        if body.places[value.index()].ty != id {
+            return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
+        }
+        Ok(Self { destination, site, value, id })
+    }
+
+    pub fn ambiguous(&self) -> LoweringError {
+        LoweringError::new(&self.site, "cannot prove the store selector equal to or distinct from the selector of an open vacancy")
+    }
+
+    pub fn vacancy(
+        &self, premises: &[super::view_loans::SelectorPremise], body: &MachineBody, flow: &BlockFlow, before_return: bool,
+    ) -> Result<Vacancy, LoweringError> {
+        vacancy_at(body, premises, flow, &self.destination, &self.site, before_return)
+    }
+
+    pub fn emit(&self, expressions: &Expressions<'_>, body: &mut MachineBody, flow: &mut BlockFlow, vacant: bool) -> Result<(), LoweringError> {
+        let Self { destination, value, id, site } = self;
+        let disposition = if vacant {
+            crate::StructuralStoreDisposition::FillVacancy
+        } else if matches!(expressions.types.get(*id),Some(TypeShape::Nominal(data)) if expressions.data[data.get()-1].multiplicity == crate::Multiplicity::Copy) {
+            crate::StructuralStoreDisposition::ReplaceUnrestricted
+        } else {
+            // The old value has its own custody. Dispose it on the continuation
+            // after evaluating the replacement and before filling the vacancy.
+            let OperationResult::Structural(old) = body.push_operation(
+                OperationOutput::Structural(*id),
+                OperationKind::BorrowedMove { source: destination.clone() },
+                site.clone(),
+            ) else {
+                unreachable!("an extracted field produces an owned place")
+            };
+            super::ownership::dispose_temporary(expressions, body, flow, old, site.clone())?;
+            crate::StructuralStoreDisposition::FillVacancy
+        };
+        body.push_operation(
+            OperationOutput::Unit,
+            OperationKind::StructuralStore {
+                destination: destination.clone(),
+                value: *value,
+                disposition,
+            },
+            site.clone(),
+        );
+        Ok(())
+    }
+}
+
+pub(super) enum Vacancy {
+    Known(bool),
+    DependsOn(ProjectedPlace),
 }
 
 /// Choose the store operation that corresponds to the authored assignment.
@@ -209,11 +249,11 @@ fn vacancy_at(
     destination: &ProjectedPlace,
     site: &Site,
     before_return: bool,
-) -> Result<bool, LoweringError> {
+) -> Result<Vacancy, LoweringError> {
     use super::view_loans::{Relation, relate};
     let target = captured_place(body, destination);
     let known_vacancy = exact_vacancy(body, premises, flow, &target, site)?;
-    let mut owed_final_fill = false;
+    let mut unresolved = None;
     let mut checked = Vec::new();
     for operation in &body.operations {
         let OperationKind::BorrowedMove { source } = &operation.kind else { continue };
@@ -241,13 +281,17 @@ fn vacancy_at(
                 // implicit return. Emit the only possible normal repair at
                 // the actual store selector. L6 still owes its identity with
                 // the captured move, its bound and its receiving validity.
-                Relation::Unproved if before_return && !owed_final_fill => owed_final_fill = true,
+                Relation::Unproved if unresolved.is_none() => unresolved = Some(source.clone()),
                 _ => return Err(LoweringError::new(site, "cannot prove the store selector equal to or distinct from the selector of an open vacancy")),
             }
         }
         checked.push(source);
     }
-    Ok(known_vacancy || owed_final_fill)
+    Ok(match unresolved {
+        Some(_) if before_return => Vacancy::Known(true),
+        Some(open) => Vacancy::DependsOn(open),
+        None => Vacancy::Known(known_vacancy),
+    })
 }
 
 fn exact_vacancy(

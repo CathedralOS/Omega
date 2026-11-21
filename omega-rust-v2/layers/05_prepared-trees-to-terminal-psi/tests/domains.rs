@@ -343,16 +343,9 @@ fn inherited_subject_cast_reads_the_parent_qualified_value_in_the_child_predicat
 
 #[test]
 fn domain_access_refusal_identifies_the_authored_policy() {
-    let source = "use omega\\language\\core;
-                  use omega\\language\\core\\reflect;
-                  use omega\\language\\core\\access;
-                  domain i32::Locked access Rule;
-                  Rule satisfies AccessPolicy {
-                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
-                          new_plan::<'t>(@schema, Issuance::Unrestricted{})
-                      }
-                  }";
-    sources::refuse(&[("policy.omg", source)], "policy.omg", sources::unique_span(source, "access Rule"), "domain access policy needs the package owner for its semantic schema");
+    let source = include_str!("fixtures/domain_access/empty-issuers/policy.omg");
+    sources::refuse_built_fixture("domain_access/empty-issuers", "policy.omg", source,
+        sources::unique_span(source, "access Rule"), r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
 }
 
 #[test]
