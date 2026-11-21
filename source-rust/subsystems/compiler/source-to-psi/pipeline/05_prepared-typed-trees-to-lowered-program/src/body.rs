@@ -1106,8 +1106,9 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
     },
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
-    /// Observe a projected place once. A borrowed slice selects its first element.
-    LocationAlignment {
+    /// Observe the selected location once, preserving its actual borrow and projection.
+    StorageLocation {
+        query: terminal_psi::StorageLocationQuery,
         place: Box<Expression>,
         home: Option<String>,
         first_element: Option<StructuralTypeId>,

@@ -549,6 +549,8 @@ impl<'a> Storage<'a> {
             OperationKind::AtomicFence { .. } => {}
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
+            | OperationKind::StorageAddress { .. }
+            | OperationKind::StorageAlignment { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ElementViewLength { .. }
             | OperationKind::ByteSequenceRead { .. }

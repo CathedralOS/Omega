@@ -3,6 +3,37 @@
 use super::*;
 
 #[test]
+fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
+    let program = "data Cell { word: u64; }
+        machine main(cell: @mut Cell) -> bool {
+            let first: addr = address_of(@mut cell.word);
+            cell.word = 11u64;
+            let alias: @u64 = @cell.word;
+            address_of(alias) == first
+        }";
+    let typed = super::boundary_calls::typed(program);
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("both references denote the same live field: {verdict:?}");
+    };
+    let addresses = accepted.elaboration.module.machines.iter()
+        .flat_map(|machine| machine.operations())
+        .filter(|operation| matches!(operation.kind, terminal_psi::OperationKind::StorageAddress { .. }))
+        .count();
+    assert_eq!(addresses, 2);
+    accepted.publish_invocation().unwrap();
+
+    let typed = super::boundary_calls::typed(
+        "machine main(value: u64) -> addr { address_of(value) }",
+    );
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an owned scalar cannot expose a referent: {verdict:?}");
+    };
+    assert!(violations.iter().any(|rule| rule.statement.contains("address_of needs an ordinary reference")));
+}
+
+#[test]
 fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
     let program = "data Slots { tag: u8; value: u64; }
         machine main() -> u64 {
