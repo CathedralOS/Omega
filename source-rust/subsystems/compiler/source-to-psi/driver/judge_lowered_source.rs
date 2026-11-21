@@ -197,8 +197,11 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
             { value }
         "
         .replace("WRAPPER_BODY", body);
-        let typed = crate::test_support::schema_customer_source::actual_library_source(
-            &library, &source, package,
+        let typed = crate::test_support::schema_customer_source::source_with_core(
+            &library,
+            &source,
+            package,
+            &[],
         )
         .unwrap();
         let entry = typed.realized_machine_named(entry).unwrap().symbol;
