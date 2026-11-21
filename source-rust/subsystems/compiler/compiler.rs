@@ -6,6 +6,7 @@ pub use compiler_identity::compiler_identity;
 
 mod request_outcome;
 mod runtime_consent;
+pub use provider_correspondence::trust::selected_provider_grants;
 pub use request_outcome::CompilerRequestOutcome;
 
 use diagnostics::Diagnostic;

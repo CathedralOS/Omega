@@ -590,6 +590,7 @@ dependencies = [
  "optimization-selections",
  "product-publication",
  "provider-acceptance",
+ "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
  "review-evidence",

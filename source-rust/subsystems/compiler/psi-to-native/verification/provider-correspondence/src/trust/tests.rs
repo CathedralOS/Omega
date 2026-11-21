@@ -56,6 +56,29 @@ fn admit(
 }
 
 #[test]
+fn locked_provider_grants_require_the_selected_application() {
+    let selected = selected_provider_plans::SelectedProviderPlanFacts::default();
+    let mut grant = claim(2, "DisplayName");
+    grant.subject = RootGrantSubject::Provider {
+        declaration: "Package::Hosted".into(),
+        application: Some("Hosted<8>".into()),
+    };
+    let error = super::selected_provider_grants(&selected, &[grant]).unwrap_err();
+    assert!(
+        error
+            .message
+            .contains("0 selected plans for its exact provider declaration and application")
+    );
+}
+
+#[test]
+fn an_accepted_machine_needs_its_own_grant_review() {
+    let selected = selected_provider_plans::SelectedProviderPlanFacts::default();
+    let error = super::selected_provider_grants(&selected, &[claim(2, "Claim")]).unwrap_err();
+    assert!(error.message.contains("requires its own admission check"));
+}
+
+#[test]
 fn identical_authored_grants_collapse_without_resolving_the_display_name() {
     let declarations = vec![
         machine(1, "Claim"),
