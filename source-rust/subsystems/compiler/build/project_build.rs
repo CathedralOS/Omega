@@ -5,6 +5,9 @@ mod product;
 #[path = "planning/registered_tests.rs"]
 mod registered_tests;
 pub use product::ProductStage;
+#[path = "planning/package_review/mod.rs"]
+mod package_review;
+pub use package_review::CheckedPackagePolicy;
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{

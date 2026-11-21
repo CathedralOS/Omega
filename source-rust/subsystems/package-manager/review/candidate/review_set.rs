@@ -4,12 +4,14 @@
     custody for each checked package occurrence in a resolved closure.
 
     There is deliberately no public constructor: source resolution, build
-    handoff, normalized policy rows, and policy commitments (`policy_rows_and_commitment`)
+    handoff, normalized policy rows, and policy commitments (`encode_policy`)
     are joined only by candidate compilation.
 */
 
 use crate::declarations::PackageKey;
-use package_compilation::build_execution::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
+use package_compilation::build_execution::{
+    BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest,
+};
 use package_compilation::{PackageBuildHandoff, PackageSourceConsumptionCommitment};
 use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
@@ -92,14 +94,25 @@ impl CompilerIssuedPackageReview {
     }
 }
 
-pub(super) fn policy_rows_and_commitment(
+pub(super) struct EncodedReviewPolicy {
+    pub rows: Vec<PackagePolicyRow>,
+    pub bytes: Vec<u8>,
+    pub commitment: [u8; 32],
+}
+
+/// Derive the canonical rows, budget charge and commitment from one policy.
+pub(super) fn encode_policy(
     policy: &PackagePolicyBaseline,
-) -> Result<(Vec<PackagePolicyRow>, [u8; 32]), review_evidence::encoding::PackageReviewEncodingError>
-{
+) -> Result<EncodedReviewPolicy, review_evidence::encoding::PackageReviewEncodingError> {
     let (rows, _) = policy
         .canonical_rows_with_limits(review_evidence::record::PackagePolicyRowLimits::default())?;
-    let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?);
-    Ok((rows, commitment))
+    let bytes = policy.canonical_bytes()?;
+    let commitment = crate::digest_encoder::content_identity(&bytes);
+    Ok(EncodedReviewPolicy {
+        rows,
+        bytes,
+        commitment,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

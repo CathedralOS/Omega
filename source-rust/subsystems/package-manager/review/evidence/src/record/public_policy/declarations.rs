@@ -13,60 +13,60 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTraitShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) is_boundary: bool,
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
-    pub(crate) parents: Vec<PackageReviewTraitParent>,
-    pub(crate) requirements: Vec<PackagePolicyTraitRequirement>,
+    pub identity: PackageReviewNominalIdentity,
+    pub is_boundary: bool,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub conformance_bounds: Vec<PackageReviewConformanceBound>,
+    pub parents: Vec<PackageReviewTraitParent>,
+    pub requirements: Vec<PackagePolicyTraitRequirement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTraitRequirement {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) spelling: Option<language_core::OperatorSpelling>,
-    pub(crate) has_default_realization: bool,
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) conformance_bounds: Vec<crate::record::PackageReviewConformanceBound>,
-    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
+    pub identity: PackageReviewNominalIdentity,
+    pub spelling: Option<language_core::OperatorSpelling>,
+    pub has_default_realization: bool,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub conformance_bounds: Vec<crate::record::PackageReviewConformanceBound>,
+    pub parameters: Vec<PackageReviewSignatureParameter>,
     /// Entry i names the source formal for structural parameter i. Version 37 omitted this list.
-    pub(crate) structural_parameter_positions: Option<Vec<u32>>,
-    pub(crate) return_type: Option<PackageReviewTypeIdentity>,
-    pub(crate) contracts: Vec<PackageReviewCallableContract>,
+    pub structural_parameter_positions: Option<Vec<u32>>,
+    pub return_type: Option<PackageReviewTypeIdentity>,
+    pub contracts: Vec<PackageReviewCallableContract>,
     /// None is open; Some(empty) is an explicit empty ceiling.
-    pub(crate) published_crash: Option<Vec<PackagePolicyCrashRoute>>,
-    pub(crate) service_reach: Option<Vec<PackageReviewNominalIdentity>>,
-    pub(crate) service_reach_is_installation_bound: bool,
-    pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    pub(crate) suspends: bool,
-    pub(crate) blocks: bool,
-    pub(crate) termination: PackagePolicyTermination,
-    pub(crate) returned_borrow_origins: Vec<crate::record::PackageReviewReturnedBorrowOrigin>,
-    pub(crate) parameter_qualification_preconditions: Vec<PackageReviewParameterQualification>,
+    pub published_crash: Option<Vec<PackagePolicyCrashRoute>>,
+    pub service_reach: Option<Vec<PackageReviewNominalIdentity>>,
+    pub service_reach_is_installation_bound: bool,
+    pub synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub termination: PackagePolicyTermination,
+    pub returned_borrow_origins: Vec<crate::record::PackageReviewReturnedBorrowOrigin>,
+    pub parameter_qualification_preconditions: Vec<PackageReviewParameterQualification>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyConformanceShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) interface: PackageReviewEvidenceInterface,
+    pub identity: PackageReviewNominalIdentity,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub interface: PackageReviewEvidenceInterface,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyDomainShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) target_type: PackageReviewTypeIdentity,
-    pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_presence: language_core::DomainPredicatePresence,
-    pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
-    pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
-    pub(crate) classification: Option<PackageReviewDomainClassification>,
-    pub(crate) semantic_roles: Vec<PackageReviewDomainSemanticRole>,
-    pub(crate) establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
+    pub identity: PackageReviewNominalIdentity,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub target_type: PackageReviewTypeIdentity,
+    pub index_arguments: Vec<PackageReviewTypeIdentity>,
+    pub predicate_presence: language_core::DomainPredicatePresence,
+    pub predicate_facts: Vec<PackageReviewContractFact>,
+    pub alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
+    pub classification: Option<PackageReviewDomainClassification>,
+    pub semantic_roles: Vec<PackageReviewDomainSemanticRole>,
+    pub establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,16 +82,26 @@ pub struct PackagePolicyOperatorShape {
     pub(crate) published_crash: Vec<PackagePolicyCrashRoute>,
 }
 
+/// The alias owns a public name and binders. Its expansion is the existing carrier's checked type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackagePolicyTypeAlias {
+    pub identity: PackageReviewNominalIdentity,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub conformance_bounds: Vec<PackageReviewConformanceBound>,
+    pub expansion: PackageReviewTypeIdentity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyDataShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) kind: PackageReviewDataKind,
-    pub(crate) supply: language_core::DataSupplyMode,
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) properties: PackageReviewDataProperties,
-    pub(crate) zero_gated: bool,
-    pub(crate) invariants: Vec<PackageReviewContractFact>,
-    pub(crate) retired_identities: Vec<u64>,
-    pub(crate) members: Vec<PackageReviewDataMember>,
+    pub identity: PackageReviewNominalIdentity,
+    pub kind: PackageReviewDataKind,
+    pub supply: language_core::DataSupplyMode,
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub properties: PackageReviewDataProperties,
+    pub zero_gated: bool,
+    pub invariants: Vec<PackageReviewContractFact>,
+    pub retired_identities: Vec<u64>,
+    pub members: Vec<PackageReviewDataMember>,
 }

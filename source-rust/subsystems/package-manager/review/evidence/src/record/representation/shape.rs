@@ -5,9 +5,9 @@ pub type PackageReviewBoundaryShapeClass = calling_conventions::BoundaryValueCla
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryShape {
-    pub(crate) class: PackageReviewBoundaryShapeClass,
-    pub(crate) byte_size: u16,
-    pub(crate) alignment: u16,
+    pub class: PackageReviewBoundaryShapeClass,
+    pub byte_size: u16,
+    pub alignment: u16,
 }
 
 impl PackageReviewBoundaryShape {
@@ -17,8 +17,8 @@ impl PackageReviewBoundaryShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryShapeField {
-    pub(crate) shape: u16,
-    pub(crate) byte_offset: u16,
+    pub shape: u16,
+    pub byte_offset: u16,
 }
 
 impl PackageReviewBoundaryShapeField {
@@ -27,10 +27,10 @@ impl PackageReviewBoundaryShapeField {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryShapeGraph {
-    pub(crate) shapes: Vec<PackageReviewBoundaryShape>,
-    pub(crate) fields: Vec<PackageReviewBoundaryShapeField>,
-    pub(crate) parameters: Vec<u16>,
-    pub(crate) result: Option<u16>,
+    pub shapes: Vec<PackageReviewBoundaryShape>,
+    pub fields: Vec<PackageReviewBoundaryShapeField>,
+    pub parameters: Vec<u16>,
+    pub result: Option<u16>,
 }
 
 impl PackageReviewBoundaryShapeGraph {

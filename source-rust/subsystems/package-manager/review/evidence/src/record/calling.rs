@@ -9,21 +9,21 @@ mod callbacks;
 mod opaque;
 mod physical;
 
-pub(crate) use application::{
+pub use application::{
     PackagePolicyCallingParameter, PackagePolicyCallingPlan, PackagePolicyNativeParameter,
     PackagePolicyNativeParameterOrigin,
 };
 
+pub use callbacks::PackagePolicyCallbacks;
 pub(crate) use callbacks::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication, PackagePolicyCallbackMaterialization,
-    PackagePolicyCallbacks,
 };
 pub(crate) use opaque::PackagePolicyCallingOpaqueUse;
 
-pub(crate) use physical::{
-    PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
-    PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
-    PackagePolicyPreemption, PackagePolicyStatePlan,
+pub use physical::{
+    PackagePolicyEntryControl, PackagePolicyMachineRegime, PackagePolicyMachineState,
+    PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract, PackagePolicyStatePlan,
 };
+pub(crate) use physical::{PackagePolicyEntryStack, PackagePolicyPreemption};

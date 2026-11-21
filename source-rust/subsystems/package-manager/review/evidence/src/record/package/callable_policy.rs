@@ -14,7 +14,7 @@ mod conformances;
 mod getters;
 mod reach_dependency;
 pub(crate) use conformances::PackagePolicyCallableConformance;
-pub(crate) use reach_dependency::PackagePolicyServiceReachDependency;
+pub use reach_dependency::PackagePolicyServiceReachDependency;
 pub(in crate::record) mod validation;
 
 use crate::record::accessors::field_projection_accessors;
@@ -30,9 +30,9 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCallables {
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: TargetProfile,
-    pub(crate) callables: Vec<PackagePolicyCallable>,
+    pub package: PackageKeyIdentity,
+    pub target: TargetProfile,
+    pub callables: Vec<PackagePolicyCallable>,
 }
 
 impl PackagePolicyCallables {
@@ -52,34 +52,34 @@ pub enum PackagePolicyCallableRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCallable {
-    pub(crate) target_context: crate::record::PackagePolicyTargetContext,
-    pub(crate) role: PackagePolicyCallableRole,
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) supply: PackageReviewCallableSupply,
-    pub(crate) spelling: Option<language_core::OperatorSpelling>, // Declared token binding, separate from selected operator realizations.
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
-    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
-    pub(crate) return_type: Option<PackageReviewTypeIdentity>,
-    pub(crate) conformances: Vec<PackagePolicyCallableConformance>,
-    pub(crate) operator_realizations: Vec<PackageReviewOperatorRealization>,
-    pub(crate) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
-    pub(crate) contracts: Vec<PackageReviewCallableContract>,
-    pub(crate) declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
-    pub(crate) service_reach_dependency: PackagePolicyServiceReachDependency,
-    pub(crate) checked_service_reach: PackageReviewCheckedServiceReach,
-    pub(crate) unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
-    pub(crate) declared_synchronous_invocations: Option<Vec<PackageReviewSynchronousInvocation>>,
-    pub(crate) realized_synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    pub(crate) capability_flows: Vec<PackagePolicyCapabilityFlow>,
-    pub(crate) reachable_capability_flows: Vec<PackagePolicyCapabilityFlow>,
-    pub(crate) checked_may_suspend: bool,
-    pub(crate) checked_may_block: bool,
-    pub(crate) declared_may_suspend: Option<bool>,
-    pub(crate) declared_may_block: Option<bool>,
-    pub(crate) declared_termination: Option<PackagePolicyTermination>,
-    pub(crate) checked_termination: PackagePolicyTermination,
-    pub(crate) checked_crash: PackagePolicyCrash,
-    pub(crate) mutation: PackagePolicyMutation,
+    pub target_context: crate::record::PackagePolicyTargetContext,
+    pub role: PackagePolicyCallableRole,
+    pub identity: PackageReviewNominalIdentity,
+    pub supply: PackageReviewCallableSupply,
+    pub spelling: Option<language_core::OperatorSpelling>, // Declared token binding, separate from selected operator realizations.
+    pub lifetime_parameter_count: usize,
+    pub type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub conformance_bounds: Vec<PackageReviewConformanceBound>,
+    pub parameters: Vec<PackageReviewSignatureParameter>,
+    pub return_type: Option<PackageReviewTypeIdentity>,
+    pub conformances: Vec<PackagePolicyCallableConformance>,
+    pub operator_realizations: Vec<PackageReviewOperatorRealization>,
+    pub requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
+    pub contracts: Vec<PackageReviewCallableContract>,
+    pub declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
+    pub service_reach_dependency: PackagePolicyServiceReachDependency,
+    pub checked_service_reach: PackageReviewCheckedServiceReach,
+    pub unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
+    pub declared_synchronous_invocations: Option<Vec<PackageReviewSynchronousInvocation>>,
+    pub realized_synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
+    pub capability_flows: Vec<PackagePolicyCapabilityFlow>,
+    pub reachable_capability_flows: Vec<PackagePolicyCapabilityFlow>,
+    pub checked_may_suspend: bool,
+    pub checked_may_block: bool,
+    pub declared_may_suspend: Option<bool>,
+    pub declared_may_block: Option<bool>,
+    pub declared_termination: Option<PackagePolicyTermination>,
+    pub checked_termination: PackagePolicyTermination,
+    pub checked_crash: PackagePolicyCrash,
+    pub mutation: PackagePolicyMutation,
 }

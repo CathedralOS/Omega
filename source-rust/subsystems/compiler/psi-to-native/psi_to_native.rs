@@ -13,24 +13,27 @@ pub mod stage_validators;
 pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
     SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
+    review_source_providers,
 };
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
-pub use provider_realization::published_application::NativeApplicationSettings;
+pub use provider_realization::{
+    SelectedProviderResult, published_application::NativeApplicationSettings,
+};
 
 use diagnostics::Diagnostic;
+use driver::request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_entry_memory::PrivateEntryRamInitialization;
-use driver::request::NativeCompileRequest;
 use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Observe compiler stages and exercise foreign ABI adapter emission in integration tests.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
     pub use crate::driver::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
+    pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
 }
 
 /// The emitted image and the checks requested against its stage inputs.

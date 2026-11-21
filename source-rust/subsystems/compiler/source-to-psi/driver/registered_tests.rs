@@ -1,10 +1,10 @@
 //! Each registered satisfier receives its own checked ProgramEntry root.
 //! The application and every test start from the same captured source.
-use crate::*;
-use crate::driver::published_target;
 use crate::compile_product::ProductSourceInputs;
-use diagnostics::Diagnostic;
+use crate::driver::published_target;
 use crate::source_state::{TypedTrees, machine::resolve_satisfied_declaration};
+use crate::*;
+use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_declarations::source_selections::TestGroupRegistration;
 
@@ -102,7 +102,11 @@ impl<'a> RegisteredTests<'a> {
             )]);
         }
         let (source, continuation) = source.resolve()?;
-        let checked = source.judge(continuation.clone(), crate::compile_product::ProductEntry::BuildBindings)?;
+        let checked = source.judge(
+            continuation.clone(),
+            crate::compile_product::ProductEntry::BuildBindings,
+            &mut Default::default(),
+        )?;
         let typed = &checked.program;
         let retain = |symbol| {
             source_symbols::retain_declaration(&typed.symbols, symbol)
@@ -184,6 +188,7 @@ impl<'a> RegisteredTests<'a> {
         let checked = self.source.judge(
             self.continuation.clone(),
             crate::compile_product::ProductEntry::RegisteredTest { root, target },
+            &mut Default::default(),
         )?;
         let psi = self.source.publish(&checked)?;
         published_target(psi, checked, target, self.source.subject)

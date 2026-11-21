@@ -4,15 +4,15 @@
 mod physical;
 
 use super::declarations::unavailable;
-use crate::record::{
-    PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyCallingPlan,
-    PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin, PackagePolicyServiceMethod,
-    PackageReviewBoundaryShape, PackageReviewBoundaryShapeField, PackageReviewBoundaryShapeGraph,
-};
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
 };
 use diagnostics::Diagnostic;
+use review_evidence::record::{
+    PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyCallingPlan,
+    PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin, PackagePolicyServiceMethod,
+    PackageReviewBoundaryShape, PackageReviewBoundaryShapeField, PackageReviewBoundaryShapeGraph,
+};
 use target::TargetProfile;
 
 pub(super) fn project(
@@ -141,15 +141,8 @@ pub(super) fn project(
         semantic_parameters,
         semantic_result: result_type.cloned(),
         native_parameters,
-        callbacks: PackagePolicyCallbacks {
-            binders: Vec::new(),
-            demands: Vec::new(),
-            materializations: Vec::new(),
-            layouts: Vec::new(),
-        },
+        callbacks: PackagePolicyCallbacks::default(),
         opaque_uses: Vec::new(),
-        physical: crate::record::PackagePolicyPhysicalCallingContract::from_validated_plan(
-            &application.plan,
-        ),
+        physical: physical::project(&application.plan),
     })
 }

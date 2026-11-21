@@ -32,6 +32,12 @@ pub enum CoreVocabulary {
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
     PortIoService,
+    InterruptControlService,
+    InterruptEntryService,
+    RootMemoryAccessService,
+    ProcessInputService,
+    ProcessOutputService,
+    ProcessExitService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
@@ -306,6 +312,42 @@ const ROWS: &[CoreVocabularyRow] = &[
         "AccessPlan",
         BundledFile::CoreLayout,
         CoreVocabulary::AccessPlan,
+    ),
+    row(
+        "assembly.omg",
+        "InterruptControl",
+        BundledFile::CoreAssembly,
+        CoreVocabulary::InterruptControlService,
+    ),
+    row(
+        "assembly.omg",
+        "RootMemoryAccess",
+        BundledFile::CoreAssembly,
+        CoreVocabulary::RootMemoryAccessService,
+    ),
+    row(
+        "interrupt.omg",
+        "InterruptEntry",
+        BundledFile::CoreInterrupt,
+        CoreVocabulary::InterruptEntryService,
+    ),
+    row(
+        "process_authority.omg",
+        "ProcessInput",
+        BundledFile::CoreProcessAuthority,
+        CoreVocabulary::ProcessInputService,
+    ),
+    row(
+        "process_authority.omg",
+        "ProcessOutput",
+        BundledFile::CoreProcessAuthority,
+        CoreVocabulary::ProcessOutputService,
+    ),
+    row(
+        "process_exit.omg",
+        "ProcessExit",
+        BundledFile::CoreProcessExit,
+        CoreVocabulary::ProcessExitService,
     ),
     row(
         "assembly.omg",

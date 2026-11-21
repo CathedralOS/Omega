@@ -98,6 +98,24 @@ impl Program<'_> {
         let (Some(expected), Some(found)) = (expected, found) else {
             return refused;
         };
+        let array_length = |ty| {
+            let ValueType::Record(row, _, _) = ty else {
+                return None;
+            };
+            self.records.get(row)?.shape.fixed_array_extent()?.literal()
+        };
+        if let (Some(wanted), Some(actual)) = (array_length(expected), array_length(found))
+            && wanted != actual
+        {
+            return reject(
+                id,
+                at,
+                format!(
+                    "{} expects an array with {wanted} elements but the supplied array has {actual}",
+                    destination.named()
+                ),
+            );
+        }
         if let (ValueType::Scalar(expected, _), ValueType::Scalar(found, _)) = (expected, found)
             && expected != found
         {
@@ -407,6 +425,66 @@ mod tests {
         assert_eq!(refusal.source_span, None);
         assert!(refusal.detail.contains("`u<width parameter>`"));
         assert!(refusal.detail.contains("`bool`"));
+    }
+
+    #[test]
+    fn a_fixed_array_length_mismatch_names_both_lengths() {
+        use crate::lowering::body::{RecordType, StorageShape};
+        use terminal_psi::ArrayExtent;
+        let typed = TypedTrees::default();
+        let mut program = Program::new(&typed, false);
+        let id = MachineId::new(1).unwrap();
+        let element = program.records.push(RecordType {
+            identity: "u8".into(),
+            shape: StorageShape::PrimitiveScalar {
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                ),
+                policy: None,
+            },
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            cleanup: None,
+            requires: Vec::new(),
+            authored_layout: false,
+        });
+        let mut array = |length| {
+            ValueType::record(program.records.push(RecordType {
+                shape: StorageShape::FixedArray {
+                    element,
+                    qualification: Qualification::NONE,
+                    length,
+                },
+                identity: format!("[u8; {length}]"),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                cleanup: None,
+                requires: Vec::new(),
+                authored_layout: false,
+            }))
+        };
+        let three = array(ArrayExtent::Literal(3));
+        let four = array(ArrayExtent::Literal(4));
+        let unknown = array(ArrayExtent::Parameter {
+            owner: id,
+            value: ValueId::new(1).unwrap(),
+        });
+        let mismatch = |actual| {
+            program.mistyped(
+                id,
+                SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                Destination::Parameter,
+                Some(four),
+                Some(actual),
+                "argument types",
+            )
+        };
+        let refused = mismatch(three);
+        assert_eq!(refused.reason, RefusalReason::Violation);
+        assert!(
+            refused
+                .detail
+                .contains("expects an array with 4 elements but the supplied array has 3")
+        );
+        assert_eq!(mismatch(unknown).reason, RefusalReason::Unsupported);
     }
 
     #[test]

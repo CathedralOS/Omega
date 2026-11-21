@@ -67,8 +67,6 @@ pub(super) fn prepare_and_judge(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
     }
-    // Source validation checks every declaration of the subject. Concrete
-    // geometry follows the entries and selected Build rows of each target.
     let subject = pass.inputs.subject;
     selected.extend(
         claimed
@@ -96,7 +94,9 @@ pub(super) fn prepare_and_judge(
 
     let inspection_root = match pass.entry {
         ProductEntry::Inspection(name) => Some(inspection_root(&typed, subject, name)?),
-        ProductEntry::BuildBindings | ProductEntry::RegisteredTest { .. } => None,
+        ProductEntry::BuildBindings
+        | ProductEntry::PackageReview
+        | ProductEntry::RegisteredTest { .. } => None,
     };
     // Entry policies are executable dependencies of the selected targets.
     // Inactive bindings still identify real slots but need no physical contract.
@@ -164,11 +164,11 @@ pub(super) fn prepare_and_judge(
         });
     let program = match source {
         Ok(source) => {
-            *pass.accounting = source.accounting;
+            pass.accounting.append(source.accounting);
             source.program
         }
         Err(failure) => {
-            *pass.accounting = failure.accounting;
+            pass.accounting.append(failure.accounting);
             return Err(failure.diagnostics);
         }
     };
