@@ -79,10 +79,17 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.conformance_bounds,
                 encode_conformance_bound,
             )?;
+            let lifetimes = shape
+                .lifetime_parameter_count
+                .checked_add(requirement.lifetime_parameter_count)
+                .ok_or_else(|| {
+                    PackageReviewEncodingError::new("trait requirement lifetime scope overflows")
+                })?;
             encode_callable_shape!(
                 encoder,
                 &requirement.parameters,
-                requirement.return_type.as_ref()
+                requirement.return_type.as_ref(),
+                lifetimes
             );
             let positions = requirement.structural_parameter_positions();
             if positions.is_some()
@@ -221,7 +228,12 @@ pub(in crate::encoding::encode) fn operator_shape(
     encoder.option_field("spelling", shape.spelling.as_ref(), spelling)?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
-    encode_callable_shape!(encoder, &shape.parameters, shape.return_type.as_ref());
+    encode_callable_shape!(
+        encoder,
+        &shape.parameters,
+        shape.return_type.as_ref(),
+        shape.lifetime_parameter_count
+    );
     encoder.sequence_field("contracts", &shape.contracts, encode_callable_contract)?;
     encoder.sequence_field("published_crash", &shape.published_crash, crash_route)
 }

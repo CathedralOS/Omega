@@ -1216,6 +1216,10 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         .unwrap()
         .review_policy(target)
         .unwrap();
+    let policy = &reviewed.policy;
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .expect("elided reference regions must belong to the reviewed requirement");
     for (service, causes, suspends) in [
         (
             "Lending",
@@ -1227,7 +1231,6 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         ),
         ("Observation", vec![], false),
     ] {
-        let policy = &reviewed.policy;
         let declared = policy
             .public_api
             .traits
@@ -1261,6 +1264,21 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         assert_eq!(method.requirement, requirement.identity);
         assert_eq!(method.may_suspend, suspends);
     }
+    let mut narrowed = policy.clone();
+    let lending = narrowed
+        .public_api
+        .traits
+        .iter_mut()
+        .find(|service| service.identity.path == "Lending")
+        .unwrap();
+    lending.requirements[0].lifetime_parameter_count = 0;
+    assert_eq!(
+        narrowed
+            .validate_package_membership(|key| key == policy.package, Default::default())
+            .unwrap_err()
+            .error(),
+        review_evidence::encoding::PackagePolicyMembershipError::MalformedIdentity
+    );
 }
 
 #[test]
