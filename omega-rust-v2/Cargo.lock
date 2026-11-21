@@ -252,6 +252,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-checker"
+version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-lowering",
+ "omega-parser",
+ "omega-preparation",
+ "omega-psi",
+ "omega-resolver",
+ "omega-toolchain",
+]
+
+[[package]]
 name = "omega-lexer"
 version = "0.0.0"
 dependencies = [

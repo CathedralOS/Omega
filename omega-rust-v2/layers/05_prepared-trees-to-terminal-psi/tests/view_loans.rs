@@ -8,7 +8,6 @@ use omega_lowering::{
 };
 
 const CELL: &str = "data Cell{v:u8;}";
-const UNPROVED_SELECTOR: &str = "cannot prove the store selector equal to or distinct from the selector of an open vacancy";
 
 /// The view-rooted element of one occurrence: its selector, bound obligation and length.
 fn element(
@@ -580,16 +579,95 @@ fn selector_identity_changes_which_store_disposes_the_displaced_cell() {
 }
 
 #[test]
-fn a_different_selector_never_repairs_the_extracted_element() {
-    // Equality makes the second store displace c. Inequality makes the first
-    // store displace p[j]. Nothing in the program selects that cleanup site.
-    let src = format!("{CELL} {PREMISED} {{let old=move p[i]; p[j]=move c; p[i]=move old;}}");
-    sources::refuse(
-        &[("view.omg", &src)],
-        "view.omg",
-        sources::span_within(&src, "p[j]=move c", "p[j]"),
-        UNPROVED_SELECTOR,
-    );
+fn both_selector_outcomes_choose_the_store_that_owns_displaced_custody() {
+    use psi_handoff_consumer::selector_dispatch::run;
+    let cases = [
+        format!("{CELL} {PREMISED} {{let old=move p[i]; p[j]=move c; p[i]=move old;}}"),
+        format!("{LEASE}{LEASE_EDIT} requires i < p.length requires j < p.length {LEASE_SWAP}"),
+    ];
+    for (case, source) in cases.iter().enumerate() {
+        let package = sources::lower(&[("view.omg", source)]).unwrap();
+        let machine = edit(&package);
+        let cleanup = package.machines.iter().find(|m| m.declaration.path == "release").map(|m| m.id);
+        assert_eq!(cleanup.is_some(), case == 1);
+        let same = run(&package, machine, &[0, 0]).unwrap();
+        let different = run(&package, machine, &[0, 1]).unwrap();
+        let reversed = run(&package, machine, &[1, 0]).unwrap();
+        let other_equal = run(&package, machine, &[1, 1]).unwrap();
+        assert_eq!((reversed.cells, reversed.disposal), ([30, 20], (0, 10, cleanup)));
+        assert_eq!((other_equal.cells, other_equal.disposal), ([10, 20], (1, 30, cleanup)));
+        assert_eq!(same.exit, different.exit);
+        assert_eq!((same.operations, same.jumps), (10, 3));
+        assert_eq!((different.operations, different.jumps), (10, 3));
+        assert_eq!((same.writes, different.writes), (vec![0, 0], vec![1, 0]));
+        assert_eq!(machine.contract.requires.len(), if case == 0 { 0 } else { 2 });
+        for capture in psi_handoff_consumer::view_element_bounds(&package, machine).unwrap() {
+            assert_eq!(capture.stated_by.len(), case);
+        }
+        spec_corpus::observe_handoff!(
+            psi "psi-output/guarded-selector-disposal",
+            assert_eq!((same.cells, same.disposal, different.cells, different.disposal),
+                      ([10, 20], (1, 30, cleanup), [10, 30], (0, 20, cleanup)))
+        );
+
+        let fresh = || sources::lower(&[("view.omg", source.as_str())]).unwrap()
+            .machines.into_iter().find(|m| m.declaration == machine.declaration).unwrap();
+        let mut swapped = fresh();
+        let branch = swapped.body.blocks.iter_mut().find_map(|b| match &mut b.terminator {
+            BlockTerminator::Conditional { when_true, when_false, .. } => Some((when_true, when_false)),
+            _ => None,
+        }).unwrap();
+        std::mem::swap(branch.0, branch.1);
+        assert!(run(&package, &swapped, &[0, 0]).is_none());
+        assert!(run(&package, &swapped, &[0, 1]).is_none());
+
+        let mut corrupted = fresh();
+        let spare = match corrupted.body.parameters[1] { Parameter::Structural(p) => p, _ => unreachable!() };
+        for block in &mut corrupted.body.blocks {
+            if let BlockTerminator::Jump(edge) = &mut block.terminator {
+                for cleanup in &mut edge.cleanup {
+                    match cleanup {
+                        CleanupAction::Invoke { place, .. } => place.root = spare,
+                        CleanupAction::DiscardRoot(place) => *place = spare,
+                        _ => panic!("unexpected window cleanup"),
+                    }
+                }
+            }
+        }
+        assert!(run(&package, &corrupted, &[0, 0]).is_none());
+        assert!(run(&package, &corrupted, &[0, 1]).is_none());
+    }
+}
+
+#[test]
+fn the_selector_arms_rejoin_before_a_new_window_at_the_same_place() {
+    use psi_handoff_consumer::selector_dispatch::run;
+    let src = format!("{CELL} {PREMISED} {{let old=move p[i]; p[j]=move c; p[i]=move old; let next=move p[i]; p[i]=move next;}}");
+    let package = sources::lower(&[("view.omg", &src)]).unwrap();
+    let machine = edit(&package);
+    for (selectors, expected, writes) in [
+        ([0, 0], [10, 20], vec![0, 0, 0]),
+        ([0, 1], [10, 30], vec![1, 0, 0]),
+    ] {
+        let trace = run(&package, machine, &selectors).unwrap();
+        assert_eq!((trace.cells, trace.writes), (expected, writes));
+    }
+}
+
+#[test]
+fn a_third_final_selector_keeps_the_checker_debt_on_the_distinct_arm() {
+    use psi_handoff_consumer::selector_dispatch::run;
+    let src = format!("{LEASE}{LEASE_EDIT} {{let old=move p[i]; p[j]=move c; p[k]=move old;}}");
+    let package = sources::lower(&[("view.omg", &src)]).unwrap();
+    let machine = edit(&package);
+    assert!(machine.contract.requires.is_empty());
+    let same = run(&package, machine, &[0, 0, 1]).unwrap();
+    assert_eq!((same.cells, same.disposal.0, same.disposal.1), ([30, 10], 1, 20));
+    let restored = run(&package, machine, &[0, 1, 0]).unwrap();
+    assert_eq!((restored.cells, restored.disposal.0, restored.disposal.1), ([10, 30], 0, 20));
+    // On this path p[k] is already occupied and the original p[i] remains
+    // vacant. The reader cannot execute FillVacancy on that storage.
+    assert!(run(&package, machine, &[0, 1, 1]).is_none());
 }
 
 #[test]
@@ -747,9 +825,9 @@ fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_t
     // so the bounded program's body is the unbounded program's body: the same
     // extractions, stores, length observations and dispositions. Only the
     // contract gains the two bounds, and the selector premise still picks the store.
-    for (relation, operator) in [
-        ("i == j", PredicateOperator::Equal),
-        ("i != j", PredicateOperator::NotEqual),
+    for (relation, operator, occupied_store) in [
+        ("i == j", PredicateOperator::Equal, 1),
+        ("i != j", PredicateOperator::NotEqual, 0),
     ] {
         let bounded = format!("{LEASE}{LEASE_EDIT} requires i < p.length requires j < p.length requires {relation} {LEASE_SWAP}");
         let unbounded = format!("{LEASE}{LEASE_EDIT} requires {relation} {LEASE_SWAP}");
@@ -782,6 +860,26 @@ fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_t
             (&b.parameters, &b.places, &b.values, &b.operations, &b.blocks),
             "{relation}: the length clause adds no body work and changes no ownership"
         );
+        // The occupied assignment runs Lease's selected release before installing
+        // the replacement. Its input is the value extracted at that assignment.
+        let release = bounded.machines.iter().find(|machine| machine.declaration.path == "release").unwrap();
+        let [_, (source, OperationResult::Structural(displaced))] = moves(a)[..] else {
+            panic!("expected the authored move and one displaced Lease");
+        };
+        assert_eq!(source, stores(a)[occupied_store].0);
+        let cleanup_edges: Vec<_> = a.blocks.iter().filter_map(|block| match &block.terminator {
+            BlockTerminator::Jump(edge) if !edge.cleanup.is_empty() => Some((block, edge)),
+            BlockTerminator::Jump(_) => None,
+            BlockTerminator::Return { cleanup, .. } if cleanup.is_empty() => None,
+            _ => panic!("unexpected successor or return cleanup"),
+        }).collect();
+        let [(before_release, edge)] = cleanup_edges[..] else { panic!("expected one cleanup edge") };
+        assert_eq!(a.operations[before_release.operations.clone()].last().unwrap().result, OperationResult::Structural(displaced));
+        assert!(matches!(edge.cleanup.as_slice(), [CleanupAction::Invoke { place, ty, target }]
+            if place.root == displaced && place.path.is_empty() && *ty == release.parameter_types[0] && *target == release.id));
+        let after_release = a.blocks.iter().find(|block| block.id == edge.target).unwrap();
+        assert!(matches!(&a.operations[after_release.operations.start].kind,
+            OperationKind::StructuralStore { destination, .. } if destination == source));
         // Each occurrence's bound is stated by the clause on its own selector formal.
         let read = psi_handoff_consumer::view_element_bounds(&bounded, with).unwrap();
         let [

@@ -226,16 +226,19 @@ pub(crate) fn read_data<'a>(
                     }
                 }
             }
-            NodeKind::Requires => requires.push(lower_clause(
-                prepared,
-                &crate::lowering::applied_tree::LoweringTree::plain(tree),
-                if value_indices.is_empty() {
+            NodeKind::Requires => {
+                let applied;
+                let owner = if lifetime_count != 0 {
+                    let regions = (0..lifetime_count).map(|index| ValueType::Parameter { owner: Box::new(declaration.clone()), index }).collect();
+                    applied = ValueType::Applied(Box::new(declaration.clone()), regions);
+                    ClauseOwner::Subject(&applied)
+                } else if value_indices.is_empty() {
                     ClauseOwner::Subject(&carrier)
                 } else {
                     ClauseOwner::IndexedData(node, declaration, &value_indices)
-                },
-                member,
-            )?),
+                };
+                requires.push(lower_clause(prepared, &crate::lowering::applied_tree::LoweringTree::plain(tree), owner, member)?);
+            }
             NodeKind::DroppedBy => {
                 let site=site_at(tree,member);
                 let selection=typed.cleanups.iter().find(|s|s.site==site && s.owner==*declaration).ok_or_else(||refuse(member,"data cleanup has no selected target"))?;
@@ -441,7 +444,7 @@ pub(super) fn checked_fields<'a>(
     Ok(fields)
 }
 
-fn stored_field<'a>(
+pub(super) fn stored_field<'a>(
     declaration: &DeclarationId,
     lifetime_count: usize,
     field: &'a TypedField,

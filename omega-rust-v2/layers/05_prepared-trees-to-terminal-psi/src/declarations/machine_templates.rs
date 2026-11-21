@@ -592,6 +592,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 | NodeKind::Binary
                 | NodeKind::Unary
                 | NodeKind::RecordLiteral
+                | NodeKind::Dereference
                 | NodeKind::ArrayLiteral
                 | NodeKind::Match
         ) || file.nodes[node].kind == NodeKind::PathExpression && file.nodes[node].children.is_empty()
@@ -728,6 +729,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 Ok((TemplateOperand::Constant(crate::ScalarLiteral::Integer(landing.value.numer().clone())), &landing.ty))
             }
             NodeKind::RecordLiteral => self.construct(node, returned),
+            NodeKind::Dereference => self.copy_referent(node, returned),
             NodeKind::ArrayLiteral => self.array(node, returned),
             NodeKind::Match => self.select(node, returned),
             // A `let` local names the value its initializer produced.
@@ -845,6 +847,33 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         Ok((self.push(TemplateStep::Integer(step)), &op.result))
     }
 
+    fn copy_referent(&mut self, node: usize, returned: bool) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let [place] = *file.nodes[node].children.as_slice() else { return Err(self.refuse()) };
+        if file.nodes[place].kind != NodeKind::PathExpression || !file.nodes[place].children.is_empty() {
+            return Err(self.refuse());
+        }
+        let reference = &self.typed_value(place, false)?.ty;
+        let Some((omega_typed::Access::Shared, referent)) = reference.reference_parts() else { return Err(self.refuse()) };
+        let formal = formal(tree, self.sig, place, reference).ok_or_else(|| self.refuse())?;
+        let site = site_at(tree, node);
+        let mut result = None;
+        let mut copied = false;
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Expression(e) if result.is_none() && e.static_argument_slot.is_none() && &e.ty == referent => result = Some(&e.ty),
+                NodeSemantics::Obligation(o) if !copied && o.node == file.node_id(node) && o.site == site
+                    && matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == referent) => copied = true,
+                ref row if self.returned_row(row, node, returned) => {}
+                _ => return Err(self.refuse()),
+            }
+        }
+        let result = result.filter(|_| copied).ok_or_else(|| self.refuse())?;
+        let step = TemplateStep::CopyReferent { formal, ty: type_expression(result, &site)?, site };
+        Ok((self.push(step), result))
+    }
+
     /// A record or case literal. Written fields lower in source order; each
     /// omitted field named by a `ZeroField` row reads that field's zero. An
     /// `EstablishData` row stays on the step as the data's owed `requires`.
@@ -858,6 +887,8 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         let site = site_at(tree, node);
         let construction = tree.construction(node).ok_or_else(|| self.refuse())?;
         let (mut typed_result, mut establishes) = (false, false);
+        let Some((data, arguments)) = construction.carrier.nominal_parts() else { return Err(self.refuse()) };
+        if data != &construction.owner { return Err(self.refuse()); }
         let mut omitted = Vec::new();
         for row in tree.semantics_at(node) {
             match row {
@@ -889,14 +920,19 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 return Err(self.refuse());
             };
             *slot = true;
-            let (value, _) = self.expression(initializer.expression, false)?;
+            let input = initializer.expression;
+            let value = if returned && let Some(moved) = self.move_into_result(input, &roster[initializer.position].ty.substitute(data, arguments))? {
+                moved
+            } else {
+                self.expression(input, false)?.0
+            };
             fields.push((crate::identity::declaration(&roster[initializer.position].declaration, &site)?, value));
         }
         for (field, ty) in omitted {
             let Some(position) = roster.iter().position(|row| &row.declaration == field) else {
                 return Err(self.refuse());
             };
-            if std::mem::replace(&mut filled[position], true) {
+            if std::mem::replace(&mut filled[position], true) || roster[position].ty.substitute(data, arguments) != *ty {
                 return Err(self.refuse());
             }
             fields.push((crate::identity::declaration(field, &site)?, zero(field, ty, &site)?));
@@ -912,6 +948,29 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             site,
         };
         Ok((self.push(TemplateStep::Construct(step)), &construction.carrier))
+    }
+
+    /// A field of the returned construction takes an entire owned formal.
+    /// An affine formal moves even when its data has no explicit attributes.
+    fn move_into_result(&mut self, node: usize, destination: &ValueType) -> Result<Option<TemplateOperand>, LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        if file.nodes[node].kind != NodeKind::PathExpression || !file.nodes[node].children.is_empty() {
+            return Ok(None);
+        }
+        let Some(NodeSemantics::Expression(value)) = tree.semantics_at(node).next() else { return Ok(None) };
+        let Some((owner, _)) = value.ty.nominal_parts() else { return Ok(None) };
+        let Some(formal) = formal(tree, self.sig, node, &value.ty) else { return Ok(None) };
+        if owner.kind != NodeKind::Data || &value.ty != destination || !typed_subject(tree, node, &value.ty) { return Err(self.refuse()); }
+        let forest = tree.forest();
+        let declared = forest.data_properties.iter().chain(forest.library.into_iter().flat_map(|lib| &lib.data_properties))
+            .find(|(id, _)| id == owner);
+        if declared.is_some_and(|(_, p)| p.multiplicity == omega_typed::Multiplicity::Copy) {
+            return Ok(Some(TemplateOperand::Formal(formal)));
+        }
+        let site = site_at(tree, node);
+        let step = TemplateStep::MoveFormal { formal, ty: type_expression(&value.ty, &site)?, site };
+        Ok(Some(self.push(step)))
     }
 
     /// An array literal at its typed destination, an owned `[T]` or `[T; N]`.
@@ -1047,16 +1106,16 @@ fn field_roster<'t>(
         .map(|fields| fields.as_slice())
 }
 
-/// `..` supplies the zero of each omitted field (data_and_literals.md, explicit
-/// field omission). The zero is fixed only for a Boolean, a fixed-width integer
-/// and an owned `[T]`, which is empty. A reference is never supplied.
+/// A structural zero names the type whose active-case fields and default
+/// domain the checker must establish. A reference is never supplied.
 fn zero(
     field: &omega_resolved::DeclarationId,
     ty: &ValueType,
     site: &Site,
 ) -> Result<TemplateOperand, LoweringError> {
     match ty {
-        ValueType::Bool | ValueType::Integer { width: Some(_), .. } | ValueType::Slice(_) => Ok(TemplateOperand::Zero(type_expression(ty, site)?)),
+        ValueType::Bool | ValueType::Integer { width: Some(_), .. } | ValueType::Slice(_)
+        | ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..) => Ok(TemplateOperand::Zero(type_expression(ty, site)?)),
         _ if ty
             .reference_parts()
             .is_some_and(|(_, referent)| !matches!(referent, ValueType::Slice(_))) =>
@@ -1417,6 +1476,7 @@ fn reads_formal(
     use TemplateOperand as O;
     let direct = |operand: &O| matches!(operand, O::Formal(f) | O::RecordField { formal: f, .. } | O::Borrow { formal: f, .. } | O::BorrowBefore { formal: f, .. } | O::MoveField { formal: f, .. } if formals.contains(f));
     match step {
+        TemplateStep::CopyReferent { formal, .. } | TemplateStep::MoveFormal { formal, .. } => formals.contains(formal),
         TemplateStep::Call(call) => call.operands.iter().any(direct),
         TemplateStep::Integer(integer) => integer.operands.iter().any(direct),
         TemplateStep::Construct(construct) => construct.fields.iter().any(|(_, value)| direct(value)),
@@ -1506,6 +1566,7 @@ fn residuals(typed: &omega_typed::TypedTrees<'_>, sig: &TypedSignature, body: &[
     let mut moved = BTreeMap::<usize, BTreeSet<&crate::DeclarationId>>::new();
     let mut whole_actuals = BTreeSet::new();
     for (index, step) in body.iter().enumerate() {
+        if let TemplateStep::MoveFormal { formal, .. } = step { whole_actuals.insert(*formal); }
         let Some(call) = step.call() else { continue };
         for operand in &call.operands {
             match operand {

@@ -112,11 +112,6 @@ pub(crate) fn lower_predicate(
         }
         let selected_operator = matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
             && tree.semantics_at(node).any(|row| matches!(row, NodeSemantics::Call(call) if call.use_site == omega_typed::CallUse::Fact));
-        // Psi predicate terms have no IEEE arithmetic application yet; a typed
-        // float operation is refused rather than read as exact arithmetic.
-        if !selected_operator && matches!(current.kind, NodeKind::Binary | NodeKind::Unary) && matches!(ty, ValueType::Float32 | ValueType::Float64) {
-            return Err(unsupported("float arithmetic in a contract predicate has no Psi term"));
-        }
         if !selected_operator && matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
             && let Some(value) = crate::machines::arithmetic::folded_exact_operator(tree, node, ty, inherited)?
         {
@@ -286,10 +281,19 @@ pub(crate) fn lower_predicate(
                     }
                     continue;
                 }
-                let operator = predicate_operator(&operation.token, &operation.operands)
-                    .filter(|_| operands.len() == operation.operands.len())
-                    .ok_or_else(|| unsupported("unsupported contract predicate operator"))?;
-                work.push(Step::Emit(PredicateStep::Apply(operator)));
+                if operands.len() != operation.operands.len() {
+                    return Err(unsupported("contract predicate operator has the wrong operand count"));
+                }
+                let term = match semantic.float_arithmetic {
+                    Some((operation, format)) => PredicateStep::IeeeArithmetic {
+                        operation,
+                        semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+                        format,
+                    },
+                    None => PredicateStep::Apply(predicate_operator(&operation.token, &operation.operands)
+                        .ok_or_else(|| unsupported("unsupported contract predicate operator"))?),
+                };
+                work.push(Step::Emit(term));
                 for (&operand, carrier) in operands.iter().zip(&operation.operands).rev() {
                     work.push(Step::Visit {
                         node: operand,
@@ -333,7 +337,7 @@ pub(crate) fn lower_predicate(
                 let receiver = tree
                     .semantics_at(*base)
                     .find_map(|record| match record {
-                        NodeSemantics::Expression(expression) if matches!(expression.ty, ValueType::Nominal(_)) => Some(&expression.ty),
+                        NodeSemantics::Expression(expression) if expression.ty.nominal_parts().is_some() => Some(&expression.ty),
                         _ => None,
                     })
                     .ok_or_else(|| unsupported("contract field requires a nominal value receiver"))?;
@@ -558,15 +562,23 @@ pub(super) fn field_segment(
     {
         return Err(refuse("contract field disagrees with its typed place projection"));
     }
-    let ValueType::Nominal(owner) = receiver else {
+    let Some((owner, _)) = receiver.nominal_parts() else {
         return Err(refuse("contract field requires a nominal value receiver"));
     };
-    let roster = typed
-        .record_fields
-        .get(&**owner)
+    let (declarations, roster) = std::iter::once(typed).chain(typed.library)
+        .find_map(|forest| forest.record_fields.get(owner).map(|fields| (forest, fields)))
         .ok_or_else(|| refuse("contract field receiver has no typed field roster"))?;
-    if let Some(declared) = roster.iter().find(|row| &row.declaration == field) {
-        if &declared.ty != leaf {
+    // The declaration identifies each slot. A concrete application can give
+    // that slot a different carrier from the template, e.g. Pair<u8>::left.
+    let shape = typed.static_data_shapes.get(receiver).or_else(|| declarations.static_data_shapes.get(receiver));
+    let matches_leaf = |fields: &[omega_typed::TypedField], index: usize, case| {
+        match shape {
+            Some(shape) => shape.active_fields(case).and_then(|fields| fields.get(index)) == Some(leaf),
+            None => fields.get(index).is_some_and(|field| &field.ty == leaf),
+        }
+    };
+    if let Some(index) = roster.iter().position(|row| &row.declaration == field) {
+        if !matches_leaf(roster, index, None) {
             return Err(refuse("contract field disagrees with its declared carrier"));
         }
         return Ok(PredicateStep::Field(crate::identity::declaration(field, &site)?));
@@ -577,24 +589,21 @@ pub(super) fn field_segment(
     // A payload field belongs to exactly one case roster. Its case must be a
     // declared case of this receiver by the typed owner relation, never by
     // spelling; the active-case guard is not consulted.
-    let mut owners = typed
+    let mut owners = declarations
         .record_fields
         .iter()
         .filter(|(case, rows)| case.kind == NodeKind::Case && rows.iter().any(|row| &row.declaration == field));
     let (Some((case, payload)), None) = (owners.next(), owners.next()) else {
         return Err(refuse("contract payload field has no unique declared case"));
     };
-    let listed = typed
-        .static_data_shapes
-        .get(receiver)
-        .is_none_or(|shape| shape.cases.iter().any(|(id, _)| id == case));
-    if !listed || typed.case_owners.get(case) != Some(&**owner) {
+    let listed = shape.is_none_or(|shape| shape.cases.iter().any(|(id, _)| id == case));
+    if !listed || declarations.case_owners.get(case) != Some(owner) {
         return Err(refuse("contract payload case does not belong to its receiver"));
     }
     if payload
         .iter()
-        .find(|row| &row.declaration == field)
-        .is_none_or(|declared| &declared.ty != leaf)
+        .position(|row| &row.declaration == field)
+        .is_none_or(|index| !matches_leaf(payload, index, Some(case)))
     {
         return Err(refuse("contract payload field disagrees with its declared carrier"));
     }
@@ -762,6 +771,7 @@ struct Records<'a> {
     membership: Option<&'a omega_typed::TypedMembership>,
     field: Option<&'a DeclarationId>,
     operation: Option<&'a omega_typed::TypedOperation>,
+    float_arithmetic: Option<(crate::FloatOperation, crate::IeeeFloatFormat)>,
     constant: Option<&'a DeclarationId>,
     landing: Option<&'a BigInt>,
 }
@@ -780,6 +790,7 @@ fn records<'a>(
     let mut typed = false;
     let mut obligation = false;
     let mut total_guard = false;
+    let mut float_contract = None;
     let mut unsupported = false;
     for record in tree.semantics_at(node) {
         match record {
@@ -825,6 +836,10 @@ fn records<'a>(
             {
                 obligation = true;
             }
+            NodeSemantics::Obligation(row)
+                if matches!(carrier, ValueType::Float32 | ValueType::Float64)
+                    && kind == NodeKind::Binary && float_contract.is_none()
+                    && matches!(row.kind, ObligationKind::OperationContract { .. }) => float_contract = Some(row),
             NodeSemantics::Obligation(row) if crash_guard && !total_guard && matches!(row.kind, ObligationKind::TotalCrashGuard) && row.site == site => {
                 total_guard = true;
             }
@@ -849,6 +864,15 @@ fn records<'a>(
     }
     if result.operation.is_some_and(|op| &op.result != carrier) {
         return Err(LoweringError::new(&site, "unsupported typed contract predicate record"));
+    }
+    if let Some(operation) = result.operation
+        && matches!(kind, NodeKind::Binary | NodeKind::Unary)
+        && let Ok(crate::ScalarType::IeeeFloat(format)) = crate::lowering::types::stored_scalar(carrier)
+    {
+        let primitive = crate::machines::arithmetic::lower_float(operation, float_contract.as_slice())?;
+        result.float_arithmetic = Some((primitive, format));
+    } else if float_contract.is_some() {
+        return Err(LoweringError::new(&site, "float predicate formation lacks its selected operation"));
     }
     Ok(result)
 }

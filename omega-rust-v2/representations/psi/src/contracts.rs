@@ -165,6 +165,14 @@ pub enum PredicateStep {
     /// The exact bits of a float literal or anonymous number, landed once in
     /// its format by preparation. It is never rounded again.
     IeeeFloat(crate::IeeeFloatBits),
+    /// An open IEEE scalar term. Negation takes one operand; addition, subtraction,
+    /// multiplication and division take two in source order. Operands and result
+    /// have the specified format. Each operation rounds independently.
+    IeeeArithmetic {
+        operation: crate::FloatOperation,
+        semantics: crate::FloatSemantics,
+        format: crate::IeeeFloatFormat,
+    },
     /// The IEEE comparison of the two preceding terms, both of `format`, as a
     /// Boolean. Ordered kinds and `Equal` are false when either operand is NaN,
     /// `NotEqual` is true then, and signed zeros compare equal. It asserts no

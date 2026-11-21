@@ -398,26 +398,56 @@ fn corrupted_requirements_change_the_reader_verdict() {
     assert!(format.iter().all(Option::is_none));
 }
 
-/// An open IEEE comparison takes scalar terms. The portable scalar term table
-/// has no IEEE arithmetic or negation row. Scalar Application (tag 41)
-/// references a retained evaluation application and has no operand binding
-/// that substitutes this invocation's float formal. FloatMeaning applications
-/// are proof values usable only in FloatMeaningEqual. The ordered comparison
-/// requires IEEE scalar operands (proposition 17). An executable operation in
-/// the machine body would run after this entry requirement is already owed.
 #[test]
-fn float_arithmetic_requires_a_portable_scalar_term() {
-    for (source, expression) in [
-        ("machine l(a:f32)->f32 requires a + 1.0 < 2.0 { a }", "a + 1.0"),
-        ("machine l(a:f32)->f32 requires -a < 1.0 { a }", "-a"),
-    ] {
-        sources::refuse(&[("case.omg", source)], "case.omg", sources::unique_span(source, expression), "float arithmetic in a contract predicate has no Psi term");
+fn float_arithmetic_publishes_rounded_predicate_terms() {
+    let add = "machine l(a:f32)->f32 requires a + 1.0 < 2.0 { a }";
+    let neg = "machine l(a:f32)->f32 requires -a < 1.0 { a }";
+    let format = IeeeFloatFormat::Binary32;
+    let term = |operation| PredicateStep::IeeeArithmetic { operation, format, semantics: FloatSemantics::Ieee754NearestEvenV1 };
+    let expected = [
+        vec![PredicateStep::Formal(0), PredicateStep::IeeeFloat(IeeeFloatBits::Binary32(ONE)), term(FloatOperation::Add),
+             PredicateStep::IeeeFloat(IeeeFloatBits::Binary32(2.0f32.to_bits())), less(format)],
+        vec![PredicateStep::Formal(0), term(FloatOperation::Negate), PredicateStep::IeeeFloat(IeeeFloatBits::Binary32(ONE)), less(format)],
+    ];
+    let mut outcomes = vec![];
+    for (source, steps) in [add, neg].into_iter().zip(expected) {
+        let package = sources::lower(&[("case.omg", source)]).unwrap();
+        let l = machine(&package, "l");
+        assert!(l.body.operations.is_empty());
+        let clause = sole(&l.contract.requires);
+        assert_eq!(clause.predicate, steps);
+        outcomes.push([ONE - 2, ONE - 1, QUIET_NAN, NEGATIVE_ZERO, 2.0f32.to_bits()].map(|bits| {
+            evaluate_ieee_clause(clause, &[bits32(bits)], None, None)
+        }));
     }
+    spec_corpus::observe_handoff!(
+        psi "psi-output/float-arithmetic-predicate",
+        assert_eq!(outcomes, [
+            [Some(true), Some(false), Some(false), Some(true), Some(false)],
+            [Some(true), Some(true), Some(false), Some(true), Some(true)],
+        ])
+    );
 }
 
-/// These bodies evaluate the exact subexpressions at the two refused contract
-/// sites. The predecessor of 1 plus 1 ties and rounds to 2 in binary32. An
-/// exact real sum would be strictly smaller. A negated NaN remains unordered.
+#[test]
+fn nested_double_precision_predicates_preserve_operand_order_and_width() {
+    let source = "machine d(a:f64, b:f64)->f64 ensures (a - b) / (a * b) < result { a }";
+    let package = sources::lower(&[("case.omg", source)]).unwrap();
+    let clause = sole(&machine(&package, "d").contract.ensures);
+    let bits = |x:f64| PredicateValue::Bits(IeeeFloatBits::Binary64(x.to_bits()));
+    // (3 - 2) / 6 is below 0.2, while 6 / (3 - 2) is above it.
+    assert_eq!(evaluate_ieee_clause(clause, &[bits(3.0), bits(2.0)], Some(&bits(0.2)), None), Some(true));
+    assert_eq!(evaluate_ieee_clause(clause, &[bits(2.0), bits(3.0)], Some(&bits(0.0)), None), Some(true));
+    assert_eq!(evaluate_ieee_clause(clause, &[bits(3.0), bits(2.0)], Some(&bits(0.0)), None), Some(false));
+    // Widening inputs or producing a comparison instead of an arithmetic result
+    // would make the predicate ill-formed at this point.
+    let mut changed = clause.clone();
+    let PredicateStep::IeeeArithmetic { format, .. } = &mut changed.predicate[2] else { panic!("expected subtraction") };
+    *format = IeeeFloatFormat::Binary32;
+    assert_eq!(evaluate_ieee_clause(&changed, &[bits(3.0), bits(2.0)], Some(&bits(0.2)), None), None);
+}
+
+/// The body and the predicate must agree on nearest-even ties and unordered NaN.
 #[test]
 fn executable_twins_distinguish_rounded_addition_and_unordered_negation() {
     use psi_handoff_consumer::{FloatScalar, evaluate_float_body};

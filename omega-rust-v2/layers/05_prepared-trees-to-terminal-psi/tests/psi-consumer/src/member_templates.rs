@@ -200,6 +200,13 @@ impl<'a> Reader<'_, 'a> {
                     .collect::<Result<_, String>>()?,
                 establishes: construct.establishes,
             },
+            TemplateStep::MoveFormal { formal, .. } => self.arguments.get(*formal).cloned().ok_or_else(|| format!("{path}: no moved formal {formal}"))?,
+            TemplateStep::CopyReferent { formal, .. } => {
+                let Some(TemplateValue::Borrowed(value)) = self.arguments.get(*formal) else {
+                    return Err(format!("{path}: copy at step {index} needs a reference at formal {formal}"));
+                };
+                *value.clone()
+            }
             TemplateStep::Integer(_) => {
                 return Err(format!(
                     "{path}: step {index} is an integer operation, which this value reader does not evaluate"

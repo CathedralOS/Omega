@@ -17,7 +17,20 @@ pub struct SourcePackage<'text> {
     package_keys: std::collections::BTreeMap<String, [u8; 32]>,
     assembly: Option<std::sync::Arc<omega_typed::AssemblyTypes>>,
 }
+impl SourcePackage<'static> {
+    /// The toolchain checks its own definitions in the reserved package. An importing
+    /// source package receives only its interface and retains its own obligations.
+    pub fn toolchain_definition() -> Self {
+        Self { resolved: core_interface().declarations.clone(), assembly: None, package_keys: Default::default() }
+    }
+}
+
 impl SourcePackage<'_> {
+    /// User source cannot claim the reserved package during resolution.
+    pub fn defines_toolchain(&self) -> bool {
+        self.resolved.trees().next().is_some_and(|tree| tree.file.package == TOOLCHAIN_PACKAGE)
+    }
+
     /// Bind the owner already established by Build for this resolved source package.
     /// Focused source inspection retains just its local label; a captured default Build supplies the owner.
     pub fn bind_package_key(&mut self, package: &str, key: [u8; 32]) -> Result<(), &'static str> {

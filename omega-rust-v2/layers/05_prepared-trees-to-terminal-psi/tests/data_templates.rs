@@ -6,6 +6,50 @@ use TypeExpressionStep::{Function, GenericParameter, Universe};
 use omega_psi::{MathematicalStep, PredicateOperator, PredicateStep, TypeExpressionStep};
 
 #[test]
+fn a_direct_reference_region_keeps_a_concrete_record_and_its_own_count_bound() {
+    let source = "data Span<'r> requires self.count <= 32 { storage:@'r [u8]; count:u64; }";
+    let package = sources::lower(&[("span.omg", source)]).unwrap();
+    assert!(package.data_templates.is_empty());
+    let [span] = package.data.as_slice() else { panic!("expected one concrete record") };
+    assert_eq!(span.lifetime_count, 1);
+    assert_eq!(span.fields[0].lifetime, Some(0));
+    assert_eq!(span.requires[0].predicate, [
+        PredicateStep::SelfValue,
+        PredicateStep::Field(span.fields[1].declaration.clone()),
+        PredicateStep::Integer(32.into()),
+        PredicateStep::Apply(PredicateOperator::LessOrEqual),
+    ]);
+}
+
+#[test]
+fn constructor_zeros_owe_their_records_own_count_clauses() {
+    // Lower the toolchain's data declarations and constructor as one source
+    // package so the reader can follow every declaration in the same product.
+    let core = include_str!("../../../toolchain/core/core.omg");
+    let reflect = include_str!("../../../toolchain/core/reflect.omg");
+    let access = include_str!("../../../toolchain/core/access.omg");
+    let (data, _) = core.split_once("public trait AccessPolicy").unwrap();
+    let (_, constructor) = access.split_once("public machine new_plan").unwrap();
+    let original = format!("{}\npublic machine new_plan{constructor}", data.replace("use language\\core\\reflect;", reflect));
+    let false_bound = original.replace("self.service_count <= 32", "self.service_count > 0");
+    for (source, service_operator, service_limit) in [
+        (original, PredicateOperator::LessOrEqual, 32),
+        (false_bound, PredicateOperator::GreaterThan, 0),
+    ] {
+        let package = sources::lower(&[("plan.omg", &source)]).unwrap();
+        let constructor = package.machine_templates.iter().find(|machine| machine.declaration.path == "new_plan").unwrap();
+        let clauses = psi_handoff_consumer::zero_count_clauses::returned_counts(&package, constructor).unwrap();
+        let rows: Vec<_> = clauses.iter().map(|c| (c.parent.map(|id| id.path.as_str()), c.field.path.as_str(), c.comparison, c.limit)).collect();
+        assert_eq!(rows, [
+            (None, "AccessPlan::field_count", PredicateOperator::LessOrEqual, 32),
+            (None, "AccessPlan::reader_count", PredicateOperator::LessOrEqual, 32),
+            (None, "AccessPlan::writer_count", PredicateOperator::LessOrEqual, 32),
+            (Some("AccessPlan::reach"), "BoundaryReach::service_count", service_operator, service_limit),
+        ]);
+    }
+}
+
+#[test]
 fn a_dependent_record_keeps_its_predicate_binder_and_exact_field() {
     let prefix = "data Witness<u:core\\Level,v:core\\Level,A:core\\Type<u>,P:A -> core\\Strict<v>,Q:A -> core\\Strict<v>>";
     for (predicate, binder, field) in [("P", 3, "left"), ("Q", 4, "right")] {

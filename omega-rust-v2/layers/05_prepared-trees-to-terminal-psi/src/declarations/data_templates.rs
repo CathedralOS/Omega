@@ -30,7 +30,19 @@ pub(crate) fn read(
             p.kind == NodeKind::ConstParam && matches!(p.carrier.as_deref(), Some(ValueType::Integer { width: Some(1..), .. }))
         })
     });
-    if !indexed && !scopes().any(needs_template) {
+    // A direct reference field can record its region on a concrete data
+    // declaration. A region inside another carrier belongs in its type expression.
+    let nested_lifetime = own.is_some_and(|scope| !scope.parameters.is_empty() && scope.parameters.iter().all(|p| p.kind == NodeKind::LifetimeParam)
+        && std::iter::once(owner)
+            .chain(file.nodes[node].children.iter().filter(|&&member| file.nodes[member].kind == NodeKind::Case)
+                .filter_map(|&member| resolved.declaration_at(member)))
+            .filter_map(|id| trees.record_fields.get(id))
+            .flat_map(|fields| fields.iter())
+            .any(|field| {
+                let storage = super::data::stored_field(owner, scope.parameters.len(), field).map_or(&field.ty, |(ty, _)| ty);
+                storage.components().any(|part| matches!(part, ValueType::Parameter { owner: region_owner, .. } if region_owner.as_ref() == owner))
+            }));
+    if !indexed && !nested_lifetime && !scopes().any(needs_template) {
         return Ok(None);
     }
     let fields = trees

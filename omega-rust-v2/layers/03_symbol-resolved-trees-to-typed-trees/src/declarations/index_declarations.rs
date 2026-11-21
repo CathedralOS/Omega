@@ -237,6 +237,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     items.signatures.insert(
                         id,
                         std::sync::Arc::new(TypedSignature {
+                            catalog_supplied: catalog_entry,
                             operator: None,
                             node: source.node_id(node_index),
                             machine: id.clone(),

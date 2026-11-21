@@ -15,6 +15,18 @@ pub struct LoweredDomain<C = TypeId> {
     pub site: Site,
 }
 
+/// The selected policy definition available for checking before its domain can
+/// acquire a validated plan. The conformance identifies the member implementation.
+/// This product contains an open machine template and grants no issuance rights.
+#[derive(Debug, Eq, PartialEq)]
+pub struct SelectedPolicyDefinition {
+    pub domain: DeclarationId,
+    pub conformance: crate::LoweredConformance,
+    pub arguments: Vec<crate::DeclarationTerm>,
+    pub plan: crate::MachineTemplate,
+    pub site: Site,
+}
+
 /// One normalized constituent, including its ordered type/const arguments.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DomainAtom {

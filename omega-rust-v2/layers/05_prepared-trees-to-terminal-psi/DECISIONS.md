@@ -2,6 +2,18 @@
 
 This is the starting map for the repair pass at `f572107080eda`. The readiness case ledger remains the source of the current verdict. Each row names the original cases, the producer and consumer involved, and a control that distinguishes this decision from nearby ones. Grouped cases share an observed first stop. Other failures may appear after that stop is repaired.
 
+## Cases awaiting a language-owner ruling
+
+Six measured cases share five open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
+
+| Case | Decision that would change its expected output |
+| --- | --- |
+| Simultaneous domain removal and addition | [Checked replacement](../../../OWNER_QUESTIONS.md#named-domain-casts-checked-replacement) determines which Psi evidence can represent one authored cast. |
+| Inherited child with its own predicate; tag child and predicate in one cast | [Inherited establishment](../../../OWNER_QUESTIONS.md#named-domain-casts-inherited-establishment) determines whether evidence for a parent on the incoming value or the same arrival can discharge the child’s requirement. |
+| Non-exact computed ranking subject | [Descending rank entry expressions](../../../OWNER_QUESTIONS.md#descending-rank-entry-expressions) determines which arithmetic expressions are valid rank subjects. |
+| Carry policy on a transparent data alias | [Transparent alias carry assertions](../../../OWNER_QUESTIONS.md#transparent-alias-carry-assertions) determines whether an alias can declare a floor that leaves its effective policy unchanged. |
+| Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
+
 ## Storage, views and suspension
 
 | Original readiness case | Decision boundary | Discriminating evidence |
@@ -13,6 +25,10 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 | `handoff/borrowed scalar home live across a suspension` | L5 suspension → retained storage | The borrow now has an address before the call. Suspending requires the parked call to retain that primitive home. |
 | `handoff/arithmetic on float reads` | L5 arithmetic → Psi operation | Reading the bits of two f32 values succeeds. Adding them needs a floating-point operation with the selected arithmetic semantics. |
 | `handoff/value-level cast from an integer to a float` | Typing and conversion rules → L5 | A reference recast, an owned bit conversion and a numeric conversion have different contracts. Settle the applicable conversion or rejection for the value-level cast before granting it a Psi result. |
+
+For the unproved-selector case, the source moves `p[i]` into `old`, assigns `c` to `p[j]`, then restores `old` to `p[i]`. If `i == j`, the second assignment displaces `c`. If `i != j`, the first assignment displaces the original `p[j]`. The bounded `Lease` twins retain the same two bounds and call the selected `release` on different inputs at those respective sites. Bounds alone leave both schedules possible. With no selector premise, L5 compares the captured indices once and emits both schedules on the corresponding branches. [Selector and cleanup controls](tests/view_loans.rs)
+
+The unchecked Psi body must already identify its executable operations and cleanup edges. L6 can prove that an emitted edge is justified. Choosing an edge during checking would also choose the program's disposal order and hook operand. Each arm now carries its own displacement, cleanup target and two stores. They rejoin after restoration, so L6 can check the emitted program without choosing its behavior. [Psi product and check order](../../../wiki/spec/terminal-psi/product.md#optimization-ordering) · [Borrowed-storage restoration](../../../wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration)
 
 ## Generic machines and ranking
 

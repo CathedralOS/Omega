@@ -19,6 +19,7 @@ members = [
     "layers/03_symbol-resolved-trees-to-typed-trees",
     "layers/04_typed-trees-to-prepared-trees",
     "layers/05_prepared-trees-to-terminal-psi",
+    "layers/06_terminal-psi-to-checked-terminal-psi",
     "tools/compare-builds",
     "tools/golden",
     "tools/measure",

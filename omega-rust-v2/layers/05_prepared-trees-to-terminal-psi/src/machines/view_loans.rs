@@ -36,8 +36,8 @@ pub(super) enum Relation {
 /// One operand of an authored entry clause that relates two selectors.
 #[derive(Clone, Debug, PartialEq)]
 enum PremiseOperand {
-    /// The entry value of this scalar formal.
-    Formal(ValueId),
+    /// An immutable scalar captured at entry or on a dominating branch.
+    Captured(ValueId),
     Integer(num_bigint::BigInt),
 }
 
@@ -60,6 +60,12 @@ pub(crate) struct SelectorPremise {
     equal: bool,
 }
 
+impl SelectorPremise {
+    pub(super) fn on_branch(left: ValueId, right: ValueId, equal: bool) -> Self {
+        Self { left: PremiseOperand::Captured(left), right: PremiseOperand::Captured(right), equal }
+    }
+}
+
 /// Collect the selector relations stated directly by `requires` clauses.
 pub(crate) fn selector_premises(
     requires: &[crate::ContractClause],
@@ -68,7 +74,7 @@ pub(crate) fn selector_premises(
     use crate::{Parameter, PredicateOperator, PredicateStep};
     let operand = |step: &PredicateStep| match step {
         PredicateStep::Formal(index) => match parameters.get(*index) {
-            Some(Parameter::Scalar(value)) => Some(PremiseOperand::Formal(*value)),
+            Some(Parameter::Scalar(value)) => Some(PremiseOperand::Captured(*value)),
             _ => None,
         },
         PredicateStep::Integer(value) => Some(PremiseOperand::Integer(value.clone())),
@@ -175,7 +181,7 @@ fn premised(
         return Relation::Unproved;
     }
     let names = |operand: &PremiseOperand, selector: ValueId| match operand {
-        PremiseOperand::Formal(value) => *value == selector,
+        PremiseOperand::Captured(value) => *value == selector,
         PremiseOperand::Integer(expected) => matches!(
             &body.values[selector.index()].origin,
             crate::ValueOrigin::Operation(op)
@@ -318,7 +324,8 @@ pub(super) fn store_element(
     body: &mut MachineBody,
     flow: &mut BlockFlow,
     before_return: bool,
-) -> Result<(), LoweringError> {
+    next_statement: Option<(usize, bool)>,
+) -> Result<bool, LoweringError> {
     let site = site_at(expressions.tree, place);
     let Some((_, _, view)) = receiver(expressions, place) else {
         return Err(LoweringError::new(&site, "element store requires an exclusive element view"));
@@ -331,10 +338,21 @@ pub(super) fn store_element(
         _ => return Err(LoweringError::new(&site, "element store requires an exclusive element view")),
     };
     if let Ok(scalar) = crate::lowering::types::scalar_carrier(&element) {
-        return store_scalar_element(expressions, place, rhs, &element, scalar, body, flow);
+        store_scalar_element(expressions, place, rhs, &element, scalar, body, flow)?;
+        return Ok(false);
     }
     let destination = element_place(expressions, place, &element, false, body, flow)?;
-    super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site, before_return)
+    let store = super::loans::Replacement::capture(expressions, destination, rhs, &element, body, flow, site)?;
+    match store.vacancy(&expressions.selector_premises, body, flow, before_return)? {
+        super::loans::Vacancy::Known(vacant) => {
+            store.emit(expressions, body, flow, vacant)?;
+            Ok(false)
+        }
+        super::loans::Vacancy::DependsOn(open) => {
+            selector_dispatch::emit_pair(expressions, body, flow, &element, store, open, next_statement)?;
+            Ok(true)
+        }
+    }
 }
 
 /// `view[i] = value` through `@mutable [T]` with a scalar `T`: replace one
@@ -545,3 +563,6 @@ fn element_place(
         ],
     })
 }
+
+#[path = "selector_dispatch.rs"]
+mod selector_dispatch;

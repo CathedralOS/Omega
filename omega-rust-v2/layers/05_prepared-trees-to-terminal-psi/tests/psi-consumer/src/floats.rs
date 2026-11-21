@@ -112,7 +112,7 @@ fn fits(
 
 // Host `f32` and `f64` operations are IEEE binary32 and binary64 with
 // round-to-nearest-even, the contract this reader accepted above.
-fn apply(
+pub(super) fn apply(
     operation: FloatOperation,
     format: IeeeFloatFormat,
     operands: &[IeeeFloatBits],

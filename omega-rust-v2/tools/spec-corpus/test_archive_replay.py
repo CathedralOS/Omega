@@ -153,6 +153,19 @@ class ArchiveReplayTests(unittest.TestCase):
         report["lowering_cli"]["results"][0]["status"] = "unverified"
         self.assertEqual(replay.collect(report)[ACCESS].holes, ["1 of 1 stop locations have no package program the CLI reproduced"])
 
+    def test_build_owned_replay_requires_the_same_root_for_both_commands(self):
+        report = native_report([["case.omg", "REFUSE"]], entry="package")
+        row = report["lowering_cli"]["results"][0]
+        for action in ("prepare", "lower"):
+            row[action]["args"][3:3] = ["--package-root", "."]
+        inputs = replay.collect(report)[KEY]
+        self.assertEqual(inputs.holes, [])
+        self.assertEqual(inputs.pairs[0][0].argv["lower"], ["source", "lower", "--package-root", ".", "--", "case.omg"])
+        del row["lower"]["args"][3:5]
+        damaged = replay.collect(report)[KEY]
+        self.assertFalse(damaged.pairs)
+        self.assertTrue(any("not a normal package command" in reason for reason in damaged.holes))
+
     def test_each_outcome_on_the_original_program_is_kept_apart(self):
         report = native_report([["a.omg", "machine f() { REFUSE }"]])
         for mode, expected in [("refuse", "identical-refusal"), ("lowers", "lowers"), ("typer", "earlier-phase"),

@@ -213,7 +213,7 @@ pub(crate) fn lower_integer(
 /// the formation question only for the four arithmetic operations; the
 /// operation itself is total, so nothing else may accompany it. Policy
 /// spellings and mixed formats have no float candidate and stop in typing.
-pub(super) fn lower_float(
+pub(crate) fn lower_float(
     operation: &TypedOperation,
     obligations: &[&TypingObligation],
 ) -> Result<crate::FloatOperation, LoweringError> {

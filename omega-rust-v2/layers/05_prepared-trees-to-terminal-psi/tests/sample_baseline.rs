@@ -152,10 +152,13 @@ fn current_import_files(main: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     ]
 }
 
-/// The retired `Main::main` owner and its call, written as the free machine `main`.
+/// Both legacy entry programs use a qualified main and the retired mutable binding and borrow spellings.
 const FREE_MAIN: &[(&str, &str)] = &[
-    ("machine Main::main(", "machine main("),
-    ("    Main::main(@mutable entry_storage);", "    main(@mutable entry_storage);"),
+    ("machine Main::main(main: @mut Main)", "machine main(main: @mutable Main)"),
+    ("machine pass(main: @mut Main)", "machine pass(main: @mutable Main)"),
+    ("machine fail(main: @mut Main)", "machine fail(main: @mutable Main)"),
+    ("let mut entry_storage: Main;", "let mutable entry_storage: Main;"),
+    ("    Main::main(@mut entry_storage);", "    main(@mutable entry_storage);"),
 ];
 /// The retired callback binder and its `requires machine` bound, written as a `const` binder
 /// of a callable alias that keeps the bound's premise.

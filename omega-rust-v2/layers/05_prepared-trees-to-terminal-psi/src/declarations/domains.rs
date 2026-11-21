@@ -141,6 +141,43 @@ impl DomainSchema<'_> {
     }
 }
 
+/// Lower the actual selected definition while the domain still owes the result of
+/// evaluating it. The resulting template names its callees; any external call
+/// needs its own definition and proof before the policy can execute.
+pub fn lower_selected_policy_definition(
+    prepared: &PreparedTrees<'_>,
+    selection: &omega_typed::AccessPolicySelection,
+) -> Result<crate::SelectedPolicyDefinition, LoweringError> {
+    let typed = prepared.typed();
+    let site = &selection.site;
+    if !typed.access_policies.contains(selection) {
+        return Err(LoweringError::new(site, "access policy selection is absent from the prepared package"));
+    }
+    let trees: Vec<_> = typed.trees().collect();
+    let (owner_tree, owner_node) = trees.iter().find_map(|tree| {
+        tree.resolved().declaration_nodes().find(|(_, id)| *id == &selection.policy).map(|(node, _)| (tree, node))
+    }).ok_or_else(|| LoweringError::new(site, "selected access policy needs its defining conformance"))?;
+    let conformance = super::members::conformance(typed, owner_tree, owner_node, &mut Vec::new())?;
+    let sig = typed.signatures.iter().find(|s| s.machine == selection.plan_machine)
+        .ok_or_else(|| LoweringError::new(site, "selected access policy lacks its machine signature"))?;
+    if !trees.get(sig.node.file).is_some_and(|tree| tree.resolved().declaration_at(sig.node.node) == Some(&sig.machine)) {
+        return Err(LoweringError::new(site, "selected access policy needs its defining machine body"));
+    }
+    let plans = super::machine_templates::plan(prepared, &trees, &[sig], &[], &[])?;
+    let [plan] = <[_; 1]>::try_from(plans)
+        .map_err(|_| LoweringError::new(site, "selected access policy needs one machine template"))?;
+    if !conformance.members.iter().any(|row| row.implementation == plan.declaration) {
+        return Err(LoweringError::new(site, "selected access policy machine is absent from its conformance"));
+    }
+    Ok(crate::SelectedPolicyDefinition {
+        domain: crate::identity::declaration(&selection.domain, site)?,
+        conformance,
+        arguments: selection.arguments.iter().map(|a| super::type_expression::declaration_term(a, site)).collect::<Result<_, _>>()?,
+        plan,
+        site: site.clone(),
+    })
+}
+
 pub(crate) fn read_domain<'a>(
     prepared: &'a PreparedTrees<'_>,
     tree: &'a TypedTree<'_>,

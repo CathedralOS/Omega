@@ -140,6 +140,9 @@ pub struct ScalarResult {
 /// consumer can read them after the prepared trees and source have been dropped.
 #[derive(Debug, Eq, PartialEq)]
 pub struct LoweredPackage {
+    /// Locally declared operations supplied by the closed toolchain catalog. Their
+    /// semantics come from that catalog; only source-defined machines have bodies here.
+    pub catalog_declarations: Vec<DeclarationId>,
     pub target_closure: Option<FoldedTargetClosure>,
     pub types: TypeTable,
     pub data: Vec<LoweredData>,

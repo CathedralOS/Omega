@@ -5,6 +5,7 @@ use omega_psi::{
 };
 
 mod assembly;
+pub mod zero_count_clauses;
 mod domain_completions;
 mod floats;
 mod ieee_predicates;
@@ -326,3 +327,4 @@ pub use member_templates::{
 
 pub mod callable_loans;
 pub mod sum_cleanup;
+pub mod selector_dispatch;

@@ -38,8 +38,11 @@ fn resolve_named<'text>(
 
 // Package identities can appear inside rendered types. Obtain the reference diagnostic
 // under the package command's identity, and require it to come from the same decision.
-fn package_command_reference(files: &[(&str, &str)], original: &LoweringError) -> Result<String, String> {
-    let package = resolve_named("root", files).map_err(|error| format!("resolution: {}", error.message))?;
+fn package_command_reference(files: &[(&str, &str)], original: &LoweringError, owner: Option<[u8; 32]>) -> Result<String, String> {
+    let mut package = resolve_named("root", files).map_err(|error| format!("resolution: {}", error.message))?;
+    if let Some(owner) = owner {
+        package.bind_package_key("root", owner)?;
+    }
     let prepared = prepare_source_package(&package).map_err(|error| format!("preparation: {}", error.message))?;
     let error = lower_package(&prepared).err().ok_or("lowering produced Psi")?;
     let expected_owner = if original.site.package == "app" { "root" } else { original.site.package.as_str() };
@@ -73,6 +76,7 @@ struct ExpectedRefusal<'a> {
     span: std::ops::Range<usize>,
     message: &'a str,
     cli_message: &'a str,
+    package_owner: Option<[u8; 32]>,
 }
 
 /// Locate the authored occurrence before consulting either compiler return.
@@ -101,14 +105,32 @@ pub fn refuse(files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, 
 pub fn refuse_with_cli_message(files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, message: &str, cli_message: &str) -> LoweringError {
     let package = resolve(files);
     let prepared = prepare_source_package(&package).expect("the source reaches L5 after preparation");
-    let expected = ExpectedRefusal { file, span, message, cli_message };
+    let expected = ExpectedRefusal { file, span, message, cli_message, package_owner: None };
     lower_and_report(&prepared, files, "source", Some(&expected)).expect_err("expected L5 to refuse")
 }
 
 #[allow(dead_code)]
 pub fn refuse_prepared(prepared: &PreparedTrees, files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, message: &str) -> LoweringError {
-    let expected = ExpectedRefusal { file, span, message, cli_message: message };
+    let expected = ExpectedRefusal { file, span, message, cli_message: message, package_owner: None };
     lower_and_report(prepared, files, "prepared", Some(&expected)).expect_err("expected L5 to refuse")
+}
+
+/// Exercise the same default Build capture and owner binding as source lower --package-root.
+#[allow(dead_code)]
+pub fn refuse_built_fixture(
+    directory: &str, file: &str, source: &str, span: std::ops::Range<usize>, message: &str,
+) -> (Vec<omega_typed::TypingObligation>, LoweringError) {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(directory);
+    let build = omega_toolchain::DefaultBuild::capture(&root).expect("capture the fixture package");
+    assert_eq!(build.source_bytes(std::path::Path::new(file)).unwrap().as_ref(), source.as_bytes());
+    let files = [(file, source)];
+    let mut resolved = resolve(&files);
+    let owner = build.package_key();
+    resolved.bind_package_key("app", owner).unwrap();
+    let prepared = prepare_source_package(&resolved).expect("the captured package reaches L5");
+    let expected = ExpectedRefusal { file, span, message, cli_message: message, package_owner: Some(owner) };
+    let error = lower_and_report(&prepared, &files, "package", Some(&expected)).expect_err("expected L5 to refuse");
+    (prepared.typed().obligations.clone(), error)
 }
 
 fn lower_and_report(
@@ -173,7 +195,7 @@ fn lower_and_report(
                 });
                 let field = spec_corpus::diagnostic_field;
                 let selected = source.and_then(|(_, text)| text.get(start..end)).unwrap_or_default();
-                let (reference, root_message) = match package_command_reference(files, error) {
+                let (reference, root_message) = match package_command_reference(files, error, expected.and_then(|e| e.package_owner)) {
                     Ok(message) => ("root", message),
                     Err(detail) => ("unreproduced", detail),
                 };

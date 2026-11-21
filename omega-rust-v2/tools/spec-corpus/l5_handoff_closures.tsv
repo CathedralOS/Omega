@@ -146,3 +146,5 @@ theorem application inside a theorem proof	checker-input	psi-output/nested-theor
 user-declared operator in a contract predicate	checker-input	psi-output/selected-record-predicate-operator
 affine replacement through a write-only loan	checker-input	psi-output/write-only-affine-replacement
 descriptor cleanup for write-only replacement	checker-input	psi-output/write-only-descriptor-replacement
+float arithmetic in a contract predicate	product	psi-output/float-arithmetic-predicate
+restoration through an unproved selector	checker-input	psi-output/guarded-selector-disposal
