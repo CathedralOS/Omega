@@ -11,6 +11,7 @@ path = "symbol_resolved_trees.rs"
 test-support = []
 
 [dependencies]
+syntax-trees = { path = "../syntax-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../foundation/source-text" }

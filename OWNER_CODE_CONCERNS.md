@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: Building the earlier provider selection pulls in both abstract and target operations. Move the selected meaning and its exact plan, boundary and refusal into the target-bound program. Have native realization consume that evidence when it chooses an instruction implementation. Check an admitted builtin and a refused builtin through root and private callable lowering, then remove the provider selection's downstream IR dependencies.
 - Reported: 2026-11-20, Codex, while separating entry reach from its native providers.
 
-### Extending a resolved program still requires its original parser trees
-
-- Category: Knowledge crossing a boundary.
-- Where: [extension inputs](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/generated_source.rs#L19), [driver handoff](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type.rs#L465), [saved checkpoint](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/storage.rs#L7), [alias test](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/pre_resolution/initializers.rs#L338).
-- Saw: The resolver receives the previous resolved program, the new syntax and the previous syntax. Its test holds the resolved base and new file fixed. `Holder` can use the base's `Pair<Byte>` when the old forest is supplied. An empty forest produces `selected type alias has no retained source declaration`. The driver also writes that forest to its checkpoint.
-- Cost: An extension cannot use the resolved artifact alone. Give the resolved declaration its reusable alias body, parameter bindings, lexical owner and diagnostic spans. Have a consumer extend a saved base using only the resolved base and new input, check the instantiated field type and reject an invalid application at its use. Then retire the old forest argument and its checkpoint storage.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Source checkpoints carry both a package permission callback and its recorded answer
 
 - Category: Knowledge crossing a boundary.

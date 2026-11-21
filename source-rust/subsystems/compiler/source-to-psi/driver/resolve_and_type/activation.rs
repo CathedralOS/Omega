@@ -11,7 +11,6 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub(super) struct SourceContext {
-    pub declaration_syntax: Arc<SyntaxTrees>,
     pub bindings: Vec<SourceScopedTopLevelBinding>,
     pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub build_helper_identity: std::borrow::Cow<'static, str>,
@@ -23,7 +22,6 @@ impl SourceContext {
     pub fn same_input(&self, other: &Self) -> bool {
         self.recorded_authority.is_none()
             && other.recorded_authority.is_none()
-            && Arc::ptr_eq(&self.declaration_syntax, &other.declaration_syntax)
             && self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
             && match (&self.authority, &other.authority) {
@@ -119,7 +117,6 @@ enum SourceReuseMiss {
 pub(super) struct ActivatedSource {
     pub typing: SeededTypingBase,
     pub pre_checks: Vec<PreCheckEvaluation>,
-    pub declaration_syntax: Arc<SyntaxTrees>,
     sources: Arc<SourceMap>,
 }
 
@@ -191,7 +188,6 @@ pub(super) fn select_retained_source(
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (_, source, sources) in candidates {
-        let declaration_syntax = Arc::clone(&source.context.declaration_syntax);
         let (typing, pending_pre_checks) = super::SourceTypingCheckpoint::complete_selected(
             source,
             Arc::clone(&sources),
@@ -257,7 +253,6 @@ pub(super) fn select_retained_source(
         return Ok(Some(ActivatedSource {
             typing,
             pre_checks,
-            declaration_syntax,
             sources,
         }));
     }

@@ -2231,7 +2231,6 @@ mod copied_call_tests {
 
         let resumed = crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
             base: Arc::new(projected),
-            base_declarations: Arc::new(parse()),
             syntax: parse(),
             sources: Arc::clone(&sources),
             top_level_bindings: Vec::new(),
@@ -2400,7 +2399,6 @@ mod copied_call_tests {
         assert!(!projected.symbols.symbol_source_is_selected(original_owner));
         let resumed = crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
             base: Arc::new(projected),
-            base_declarations: Arc::new(parse()),
             syntax: parse(),
             sources: Arc::clone(&sources),
             top_level_bindings: Vec::new(),

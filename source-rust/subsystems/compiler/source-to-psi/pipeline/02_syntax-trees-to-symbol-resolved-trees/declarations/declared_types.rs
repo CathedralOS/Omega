@@ -670,7 +670,6 @@ mod static_operands {
 
 struct Expansion<'a, 'base> {
     selection: &'a ConstantSelection<'base>,
-    declarations: Vec<&'a SyntaxTrees>,
     active: Vec<SourceSpan>,
     supplied: Vec<TypeReferenceHandle>,
 }
@@ -708,7 +707,6 @@ impl Expansion<'_, '_> {
             let declaration = self.selection.type_alias_source(syntax, &head);
             let parameters = self.selection.generic_parameter_roles(
                 syntax,
-                &self.declarations,
                 &head,
                 &[
                     SymbolKind::BuiltinType,
@@ -793,9 +791,7 @@ impl Expansion<'_, '_> {
         kinds: &[SymbolKind],
         bound: &[String],
     ) -> Result<(), Diagnostic> {
-        let parameters =
-            self.selection
-                .generic_parameter_roles(syntax, &self.declarations, name, kinds);
+        let parameters = self.selection.generic_parameter_roles(syntax, name, kinds);
         for (position, argument) in arguments.iter().enumerate() {
             if parameters
                 .as_ref()
@@ -818,27 +814,14 @@ impl Expansion<'_, '_> {
         arguments: &[TypeReferenceHandle],
         _bound: &[String],
     ) -> Result<(), Diagnostic> {
-        let mut selected = None;
-        for forest in &self.declarations {
-            let mut declarations = forest.root_items().filter_map(|item| match item {
-                Item::TypeAlias(alias) if alias.name.source_span() == declaration => Some(alias),
-                _ => None,
-            });
-            if let Some(alias) = declarations.next() {
-                if declarations.next().is_some() {
-                    return Err(Diagnostic::error(
-                        "selected type alias has ambiguous source declarations",
-                    )
-                    .with_source_span(name.source_span()));
-                }
-                selected = Some((*forest, alias.clone()));
-                break;
-            }
-        }
-        let (forest, alias) = selected.ok_or_else(|| {
-            Diagnostic::error("selected type alias has no retained source declaration")
-                .with_source_span(name.source_span())
-        })?;
+        let (forest, alias) = self
+            .selection
+            .alias_body(declaration)
+            .and_then(|body| body.declaration(declaration))
+            .ok_or_else(|| {
+                Diagnostic::error("selected type alias has no authored body")
+                    .with_source_span(name.source_span())
+            })?;
         if alias.lifetime_parameters.len() != lifetimes.len()
             || alias.type_parameters.count() as usize != arguments.len()
         {
@@ -862,7 +845,7 @@ impl Expansion<'_, '_> {
             forest,
             self.selection,
             alias.authored_expansion,
-            &alias,
+            alias,
             arguments,
             lifetimes,
             &mut types,
@@ -923,7 +906,7 @@ impl Expansion<'_, '_> {
         syntax
             .type_references
             .replace_type_occurrence(reference, expanded);
-        let mut definition_references = definition_reference_spans(forest, &alias);
+        let mut definition_references = definition_reference_spans(forest, alias);
         definition_references.extend(expressions.declaration_references);
         syntax
             .type_references
@@ -1191,24 +1174,17 @@ fn bind_type_occurrences(
     only authored alias heads expand, while retained application rows are not
     themselves traversal roots.
 
-    `declarations` are the authored forests of a retained base this forest
-    extends. An alias the base declares expands from them; an alias whose
-    declaration is in neither the forest nor these is refused.
 */
 pub(super) fn normalize(
     syntax: &mut SyntaxTrees,
     selection: &ConstantSelection<'_>,
-    declarations: &[&SyntaxTrees],
 ) -> Result<(), Vec<Diagnostic>> {
     super::type_equations::normalize_applied_operands(syntax).map_err(|error| vec![error])?;
-    if !needs_normalization(syntax, declarations) {
+    if !needs_normalization(syntax, selection) {
         return Ok(());
     }
     let templates = syntax.clone();
-    let mut forests = vec![&templates];
-    forests.extend_from_slice(declarations);
     let mut expansion = Expansion {
-        declarations: forests,
         selection,
         active: Vec::new(),
         supplied: Vec::new(),
@@ -1242,8 +1218,8 @@ pub(super) fn normalize(
     Ok(())
 }
 
-fn needs_normalization(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> bool {
-    has_alias_declarations(syntax, declarations)
+fn needs_normalization(syntax: &SyntaxTrees, selection: &ConstantSelection<'_>) -> bool {
+    selection.has_aliases()
         || syntax.items.type_parameter_entries().any(|parameter| {
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 return false;
@@ -1256,16 +1232,6 @@ fn needs_normalization(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> b
                 } => name.as_str(syntax).contains("::"),
                 _ => false,
             }
-        })
-}
-
-fn has_alias_declarations(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> bool {
-    std::iter::once(syntax)
-        .chain(declarations.iter().copied())
-        .any(|forest| {
-            forest
-                .root_items()
-                .any(|item| matches!(item, Item::TypeAlias(_)))
         })
 }
 
@@ -1325,7 +1291,6 @@ impl Expansion<'_, '_> {
                             self.selection,
                             type_reference,
                             &bound,
-                            &self.declarations,
                         )?,
                     };
                     if let Some(contract) = contract {
@@ -1604,7 +1569,7 @@ mod type_alias_tests {
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let selection =
             ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
-        normalize(&mut syntax, &selection, &[])?;
+        normalize(&mut syntax, &selection)?;
         Ok(syntax)
     }
 
@@ -1721,7 +1686,7 @@ mod type_alias_tests {
         .unwrap();
         repeated.extend_from(&later);
         let selection = ConstantSelection::new(&repeated, None, Vec::new()).unwrap();
-        normalize(&mut repeated, &selection, &[]).unwrap();
+        normalize(&mut repeated, &selection).unwrap();
         let data = repeated
             .root_items()
             .find_map(|item| match item {
@@ -1742,7 +1707,7 @@ mod type_alias_tests {
         };
         assert_eq!(name.as_str(&repeated), "T");
         let settled = repeated.clone();
-        normalize(&mut repeated, &selection, &[]).unwrap();
+        normalize(&mut repeated, &selection).unwrap();
         assert_eq!(
             repeated, settled,
             "a settled source phase must not allocate more header work"
@@ -1760,7 +1725,7 @@ mod type_alias_tests {
         .unwrap();
         global.extend_from(&later);
         let selection = ConstantSelection::new(&global, None, Vec::new()).unwrap();
-        normalize(&mut global, &selection, &[]).unwrap();
+        normalize(&mut global, &selection).unwrap();
         let later = global
             .root_items()
             .find_map(|item| match item {

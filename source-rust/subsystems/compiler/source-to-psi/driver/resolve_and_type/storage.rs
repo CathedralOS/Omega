@@ -4,7 +4,6 @@ use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 impl Record for SourceContext {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
-            self.declaration_syntax.write(output)?;
             self.bindings.write(output)?;
             self.build_helper_identity.write(output)?;
             let captured;
@@ -24,7 +23,6 @@ impl Record for SourceContext {
     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         input.record(|input| {
             Ok(Self {
-                declaration_syntax: Record::read(input)?,
                 bindings: Record::read(input)?,
                 build_helper_identity: Record::read(input)?,
                 authority: None,
