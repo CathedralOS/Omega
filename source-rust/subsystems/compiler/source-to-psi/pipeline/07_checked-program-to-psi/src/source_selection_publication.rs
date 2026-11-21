@@ -1430,6 +1430,8 @@ struct Declarations<'source> {
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<DeclarationIdentity>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
+    callable_occurrences:
+        HashMap<(source_text::SourceSpan, SelectionPurpose), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
@@ -1535,6 +1537,7 @@ impl<'source> Declarations<'source> {
             ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
+            callable_occurrences: HashMap::new(),
             sources: Vec::new(),
             core_operators: BTreeMap::new(),
         })
@@ -1714,13 +1717,34 @@ impl<'source> Declarations<'source> {
             .symbols
             .symbol_provenance_source_span(symbol)
             .ok_or_else(|| refused("selected declaration has no retained source span"))?;
-        let id = output.declarations.push(SelectionDeclaration {
+        let declaration = SelectionDeclaration {
             identity,
             name: self.typed.symbols.display_path(symbol, "::"),
             custody,
             purpose,
             callable_identity,
-        });
+        };
+        // Each use of a named callable type has its own symbols for checking
+        // the parameters. Those uses all refer to one source declaration.
+        let id = if declaration.callable_identity.is_some() {
+            match self.callable_occurrences.entry((span, purpose)) {
+                std::collections::hash_map::Entry::Occupied(entry) => {
+                    let id = *entry.get();
+                    if output.declarations.get(id) != Some(&declaration) {
+                        return Err(refused(
+                            "one callable source occurrence has competing declarations",
+                        ));
+                    }
+                    self.ids.insert(symbol, id)?;
+                    return Ok(id);
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    *entry.insert(output.declarations.push(declaration))
+                }
+            }
+        } else {
+            output.declarations.push(declaration)
+        };
         self.sources.push((id, span));
         self.ids.insert(symbol, id)?;
         Ok(id)
@@ -1942,6 +1966,7 @@ mod symbol_rows_tests {
         };
         let count = typed.symbols.symbols().nodes().len();
         let mut declarations = Declarations {
+            callable_occurrences: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(count),
@@ -3345,6 +3370,7 @@ mod core_catalog_tests {
     fn core_operator_declarations_keep_their_actual_applied_signatures() {
         let typed = TypedTrees::default();
         let mut declarations = Declarations {
+            callable_occurrences: HashMap::new(),
             typed: &typed,
             build_entry_source: None,
             ids: SymbolRows::new(0),

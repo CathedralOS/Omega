@@ -171,14 +171,6 @@ framework or a list of unimplemented features.
 - Cost: An indirect call in the provider needs the actual machine passed by its caller. The original report reached native stack planning. A later run on the #4790 CLI checked the modernized source, then stopped at a repeated stage-07 selection before either engine could exercise the remaining paths. Recheck both consumers with the same selected call.
 - Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
 
-### Invocation inference loses the parameter behind a callable alias
-
-- Category: One idea, several implementations.
-- Where: [callable ceiling inference](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read/services.rs#L484), [checked callable origins](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/ceilings.rs#L506), [local alias fixture](samples/cli/facts/dynamic_trait_dispatch/local/main.omg).
-- Saw: Stage 05 adds a callable parameter to the ceiling when the selected slot is a formal. Stage 06 also follows copies back to their formal. In a replay of the local dispatch fixture on the #4790 CLI, the direct call and the explicitly annotated alias passed. Only the unannotated alias was refused: `invokes none` versus `parameter 1`.
-- Cost: The inferred ceiling is empty for `let alias = selected; alias(...)`, so checking rejects a valid call. Inference and checking need the same callable origin information.
-- Reported: 2026-11-18, Codex, while migrating the local runtime selection sample.
-
 ### Package review recovery cannot verify structural parameter indices
 
 - Category: A verdict with nothing behind it.
