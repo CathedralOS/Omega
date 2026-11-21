@@ -46,13 +46,8 @@ pub(super) fn checked_service(
         d.is_boundary
             && source.symbols.display_path(d.symbol, "::") == path
             && if core {
-                path == "ProcessExit"
-                    && source.symbols.symbol_package_identity(d.symbol).is_none()
-                    && source
-                        .symbols
-                        .symbol_provenance_source_span(d.symbol)
-                        .and_then(|s| source.symbols.source_file(s))
-                        .is_some_and(|f| f.origin.is_toolchain())
+                source.core_vocabulary(d.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::ProcessExitService)
             } else {
                 source.symbols.symbol_package_identity(d.symbol) == Some(binding.package())
             }
@@ -61,12 +56,6 @@ pub(super) fn checked_service(
         return Err(unavailable("the uniquely owned semantic role declaration"));
     };
     input.nominal(slot.symbol)?;
-    if core
-        && super::authority::core_service(input, slot.symbol)?
-            != Some(review_evidence::record::PackageReviewDangerousAuthorityClass::Process)
-    {
-        return Err(unavailable("the canonical core ProcessExit declaration"));
-    }
     let declaration = ServiceSchema::from_declaration(
         input
             .accepted()
