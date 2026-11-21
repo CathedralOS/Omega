@@ -1,7 +1,7 @@
 // A returned write-only loan permits replacing caller storage 7 with 42 while preserving neighboring 19.
 // Invalid: reading the write-only destination to compute its replacement.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

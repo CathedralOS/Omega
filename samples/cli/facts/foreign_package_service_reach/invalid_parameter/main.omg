@@ -11,7 +11,7 @@ machine demand(result: bool) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-machine shout(character: i32) -> i32 reaches {
+machine shout(character: i32) -> i32 reaches none {
     CharacterCase::upper(character)
 }
 machine start() crashes Trap {

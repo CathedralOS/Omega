@@ -18,7 +18,7 @@ boundary trait SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
         first: Cell, second: Cell
     ) -> Selection<Cell>
-    reaches
+    reaches none
     requires Index <= 10
     ensures result.right == Index crashes none;
 }

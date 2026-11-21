@@ -5,7 +5,7 @@ machine keep(runtime: i32, witness [erased]: @i32, record [erased]: @Witness) ->
 requires $witness == 7
 requires record.value == 7 { runtime }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

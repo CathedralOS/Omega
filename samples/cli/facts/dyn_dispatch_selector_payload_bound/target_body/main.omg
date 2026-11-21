@@ -27,7 +27,7 @@ AlternateEvaluator satisfies PayloadEvaluator {
 
 boundary trait SelectedCompute {
     machine compute(selector: dyn PayloadEvaluator, base: u64, tag: u64) -> u64
-    reaches crashes Trap;
+    reaches none crashes Trap;
 }
 
 X86Compute satisfies SelectedCompute {
@@ -60,7 +60,7 @@ ArmCompute satisfies SelectedCompute {
     }
 }
 
-machine verify(tag: u64) reaches invokes SelectedCompute crashes Trap {
+machine verify(tag: u64) reaches none invokes SelectedCompute crashes Trap {
     let first: dyn PayloadEvaluator = ActualEvaluator as dyn PayloadEvaluator;
     let second: dyn PayloadEvaluator = AlternateEvaluator as dyn PayloadEvaluator;
     let first_at_ten: u64 = SelectedCompute::compute(first, 10u64, tag);
@@ -76,5 +76,5 @@ machine verify(tag: u64) reaches invokes SelectedCompute crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine main() reaches invokes SelectedCompute crashes Trap { verify(17u64); }
-machine arm_entry() reaches invokes SelectedCompute crashes Trap { verify(29u64); }
+machine main() reaches none invokes SelectedCompute crashes Trap { verify(17u64); }
+machine arm_entry() reaches none invokes SelectedCompute crashes Trap { verify(29u64); }

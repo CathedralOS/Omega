@@ -2,7 +2,7 @@
 // Place: target_body.
 data Counter requires total <= 320 { total: u64; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

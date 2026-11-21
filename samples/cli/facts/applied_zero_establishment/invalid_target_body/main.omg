@@ -4,7 +4,7 @@
 data Gate<const Number: u64> requires Number == 0 { code: u8; }
 machine Gate::read<const Selected: u64>(gate: @Gate<Selected>) -> u8 { gate.code }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

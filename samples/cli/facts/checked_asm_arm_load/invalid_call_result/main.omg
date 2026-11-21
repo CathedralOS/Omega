@@ -4,7 +4,7 @@ machine fresh() -> u32 {
     37
 }
 boundary trait SelectedMain {
-    machine run() reaches crashes Trap;
+    machine run() reaches none crashes Trap;
 }
 
 X86Main satisfies SelectedMain {

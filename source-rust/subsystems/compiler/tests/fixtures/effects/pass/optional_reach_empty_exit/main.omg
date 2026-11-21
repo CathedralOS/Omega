@@ -1,11 +1,11 @@
 // Expected exit: 0
-public machine read_mark() -> u64 reaches {
+public machine read_mark() -> u64 reaches none {
     let mut value: u64 = 0;
     value = 7;
     value
 }
 public machine inferred_empty() -> u64 { 7 }
-machine main() reaches crashes Trap {
+machine main() reaches none crashes Trap {
     let value: u64 = read_mark();
     let inferred: u64 = inferred_empty();
     transition value == 7 && inferred == 7 { true -> done(), _ -> bad() }

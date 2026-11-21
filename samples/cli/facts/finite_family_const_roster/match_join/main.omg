@@ -2,10 +2,10 @@
 // Expected exit: 0
 // Place: match_join.
 boundary trait WideRowTarget {
-    machine preserve(value: u32) -> u32 reaches crashes none;
+    machine preserve(value: u32) -> u32 reaches none crashes none;
 }
 HostedWideRow satisfies WideRowTarget {
-    machine preserve(value: u32) -> u32 reaches { value }
+    machine preserve(value: u32) -> u32 reaches none { value }
 }
 trait Family {
     machine row<const Width: u32>() -> u32 requires Width == 16 || Width == 32 invokes WideRowTarget;

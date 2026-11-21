@@ -2,7 +2,7 @@
 // Place: target_body (invalid twin). Initial signed value is -26i8 resulting in 99u64, which underflows exact subtraction extended - 100u64.
 // Expected diagnostic: exact subtraction underflow
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

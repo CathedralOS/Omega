@@ -13,7 +13,7 @@ machine demand(result: bool) crashes Trap {
 }
 machine start() crashes Trap {
     transition { _ -> receive(105, 55) }
-    machine receive(lower: i32, digit: i32) reaches crashes Trap {
+    machine receive(lower: i32, digit: i32) reaches none crashes Trap {
         demand(CharacterCase::upper(lower) == 73 && CharacterCase::upper(digit) == 55);
     }
 }

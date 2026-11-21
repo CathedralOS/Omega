@@ -1,7 +1,7 @@
 // Fact: zero-extending a bounded 8-bit unsigned u8 value (narrow >= 50u8 && narrow <= 180u8) to u64 (narrow as u64) preserves the exact interval (wide >= 50u64 && wide <= 180u64), discharging exact 64-bit subtractions 180u64 - wide and wide - 50u64 across all nine places.
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

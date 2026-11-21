@@ -55,7 +55,7 @@ ensures result <= 37
     let first: u64 = Step::<2>(value);
     Step::<3>(first)
 }
-machine pure_observer() -> u64 reaches
+machine pure_observer() -> u64 reaches none
 ensures result <= 37
 { ordinary::<quiet, unused>(37) }
 machine main() reaches Console crashes Trap {
