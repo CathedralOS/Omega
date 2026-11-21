@@ -423,6 +423,19 @@ fn differently_shaped_members_compare_their_own_measures_at_each_call() {
 }
 
 #[test]
+fn a_bounded_distance_from_zero_retains_an_already_computed_extent() {
+    accepted(
+        r#"
+        machine same(before: u64, after: u64) -> u8 requires before == after { 0 }
+        machine reader(cursor: u64, end: u64) -> u8 requires cursor <= end {
+            let unread: u64 = end - cursor;
+            same(unread, unread -| 0u64)
+        }
+    "#,
+    );
+}
+
+#[test]
 fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
     let parser = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

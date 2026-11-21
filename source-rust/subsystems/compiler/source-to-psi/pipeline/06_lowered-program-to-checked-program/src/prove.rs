@@ -2651,18 +2651,43 @@ impl<'a> Prover<'a> {
         if !saturated(smaller_fact, smaller) && !saturated(larger_fact, larger) {
             return None;
         }
-        let evidence = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
-            if let Some(fact) = fact
-                && proof_admission::unsigned_difference(&fact.proposition).is_some()
-            {
-                return Some(fact.proof(&self.facts));
-            }
-            self.reflexive(Proposition::Equal(subject.clone(), subject.clone()))
+        // Even when a value is itself a formed difference, its reflexive
+        // equation can name it as a whole: (end - cursor) -| 0 is compared
+        // with that exact value without needing cursor itself to be zero.
+        let equations = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+            let definition = fact
+                .filter(|fact| proof_admission::unsigned_difference(&fact.proposition).is_some())
+                .map(|fact| fact.proof(&self.facts));
+            [
+                definition,
+                self.reflexive(Proposition::Equal(subject.clone(), subject.clone())),
+            ]
         };
-        let smaller_equation = evidence(smaller_fact, smaller)?;
-        let larger_equation = evidence(larger_fact, larger)?;
+        let smaller = equations(smaller_fact, smaller);
+        let larger = equations(larger_fact, larger);
+        for after in smaller.iter().flatten() {
+            for before in larger.iter().flatten() {
+                if let Some(proof) = self.unsigned_difference_order(after, before, strict) {
+                    return Some(proof);
+                }
+            }
+        }
+        None
+    }
+
+    fn unsigned_difference_order(
+        &mut self,
+        smaller_equation: &ProofNode,
+        larger_equation: &ProofNode,
+        strict: bool,
+    ) -> Option<ProofNode> {
         let after = proof_admission::unsigned_difference(&smaller_equation.conclusion)?;
         let before = proof_admission::unsigned_difference(&larger_equation.conclusion)?;
+        if !after.saturated && !before.saturated {
+            return None;
+        }
+        let smaller = after.result;
+        let larger = before.result;
         let larger_minuend = before.minuend.clone();
         let larger_subtrahend = before.subtrahend;
         let minuends = (after.minuend.clone(), larger_minuend.clone());
@@ -2714,8 +2739,8 @@ impl<'a> Prover<'a> {
         Some(node(
             conclusion,
             ProofRule::IntegerSubtractAntitone {
-                smaller: Box::new(smaller_equation),
-                larger: Box::new(larger_equation),
+                smaller: Box::new(smaller_equation.clone()),
+                larger: Box::new(larger_equation.clone()),
                 order: Box::new(order),
             },
         ))
