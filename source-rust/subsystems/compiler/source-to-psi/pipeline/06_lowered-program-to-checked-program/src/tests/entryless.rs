@@ -239,7 +239,8 @@ fn declared_callback_lifetime_aliases_publish_without_an_entry() {
     let result = judged(
         "public data Visit<'item,T> = machine(item: @'item T) -> u64;
          public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;
-         public data Forward<'enclosing,T> = Visit<'enclosing,T>;",
+         public data Forward<'enclosing,T> = Visit<'enclosing,T>;
+         public data Borrowed<'item,T> = @'item T;",
         false,
     );
     let RouteVerdict::Accepted(accepted) = result else {
@@ -259,6 +260,18 @@ fn declared_callback_lifetimes_cannot_hide_an_undeclared_argument() {
     assert!(
         error.message.contains("lifetime argument `'unknown`"),
         "{error:?}"
+    );
+}
+
+#[test]
+fn declared_callback_lifetime_alias_checks_an_open_referents_region() {
+    let result = judged("public data Borrowed<'region,T> = @'absent T;", false);
+    let RouteVerdict::Rejected { violations, .. } = result else {
+        panic!("expected the undeclared region to reject: {result:?}");
+    };
+    assert!(
+        violations.iter().any(|violation| violation.statement.contains("undeclared lifetime")),
+        "{violations:?}"
     );
 }
 
