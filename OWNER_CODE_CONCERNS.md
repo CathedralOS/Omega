@@ -155,14 +155,6 @@ framework or a list of unimplemented features.
 - Cost: The Build planner recognizes a call in a transition arm's target but misses the subject that ordinary resolution captures. Follow the authored call through that capture so both forms stop at the same preparation and admit the helper's return in the mounted scope.
 - Reported: 2026-11-20, Codex, while comparing ordinary and staged suspension placement.
 
-### Field and export judgments still describe the earlier source tree
-
-- Category: The documents disagree.
-- Where: [contract judgments](tools/xtask/pipeline-contracts.json), [comparison against current declarations](tools/xtask/src/boundary_contracts.rs#L359).
-- Saw: At `da492310be6`, the full `xtask check-boundary` reports 395 discrepancies: 173 changed signatures, 114 declarations missing a judgment and 108 stale judgments. The separate ownership and stage-reader check passes.
-- Cost: The full check cannot certify the maintained tree until the owners review the differences. Preserve each field’s reason when correcting its location and judge each changed declaration against the current source.
-- Reported: 2026-11-19, Codex, while restoring the compiler ownership check.
-
 ### Callable analysis loses arguments passed to checked providers
 
 - Category: Re-deriving.
