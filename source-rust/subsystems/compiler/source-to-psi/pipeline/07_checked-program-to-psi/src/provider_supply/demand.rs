@@ -72,9 +72,9 @@ impl SourceProviderFacts<SourceProviderDemand> {
         target: &str,
     ) -> Result<super::PublishedTargetProviders, Vec<Diagnostic>> {
         let demand = self.receive(publication, Some(target))?;
-        let program = publication.require_published(publication.optimizations())?;
+        let artifact = publication.require_published()?;
         Ok(source_provider_publication::issue_target_provider_demand(
-            program.artifact(), target, demand,
+            artifact, target, demand,
         ))
     }
 

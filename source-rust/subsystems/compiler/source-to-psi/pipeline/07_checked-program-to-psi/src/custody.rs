@@ -1,12 +1,5 @@
-/*
-    Retained Terminal production outputs (`ProducedTerminalProgram` and
-    `PortableTerminalProgram`) and independent application judgment custody.
-
-    We pair canonical or invocation-scoped Terminal code with its source-issued
-    Build companions, machine provenance, and per-application root and
-    `ProgramEntry` receipts, supporting compiler-storage record persistence and
-    late application attachment without reopening source trees.
-*/
+//! Source-issued Build operations and application judgments travel with the checked code.
+//! Portable publication seals the declaration owners and evidence into the artifact.
 
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
@@ -212,9 +205,17 @@ impl ProducedTerminalProgram {
     pub fn source_selections(&self) -> Option<&Arc<crate::production::TerminalSourceSelections>> {
         self.source_selections.as_ref()
     }
-    pub fn into_shared_portable(
+    /// Seal source publication metadata into the artifact. Each bound application's
+    /// own receipt and root checks travel separately to the caller.
+    pub fn into_portable_publication(
         self,
-    ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
+    ) -> Result<
+        (
+            CanonicalTerminalArtifact,
+            Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
+        ),
+        CanonicalTerminalArtifactError,
+    > {
         let artifact = self.program.into_portable()?;
         let view = artifact.view().into();
         let owners = self.source_selections.as_deref().map(|selections| {
@@ -231,15 +232,8 @@ impl ProducedTerminalProgram {
             self.provenance,
             !self.applications.is_empty(),
         );
-        let entry_metadata = Arc::new(entry_metadata);
-        let artifact =
-            artifact.with_publication(Arc::clone(&entry_metadata), self.evidence.clone())?;
-        Ok(PortableTerminalProgram {
-            artifact: Arc::new(artifact),
-            evidence: self.evidence,
-            applications: self.applications,
-            entry_metadata,
-        })
+        let artifact = artifact.with_publication(Arc::new(entry_metadata), self.evidence)?;
+        Ok((artifact, self.applications))
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
         &self.build_filesystem
@@ -260,66 +254,6 @@ impl ProducedTerminalProgram {
 
     pub fn artifact(&self) -> Result<&CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
         self.program.portable()
-    }
-
-    pub fn into_artifact(
-        self,
-    ) -> Result<CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
-        self.program.into_portable()
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> Result<
-        (
-            CanonicalTerminalArtifact,
-            Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-        ),
-        CanonicalTerminalArtifactError,
-    > {
-        Ok((self.program.into_portable()?, self.applications))
-    }
-}
-
-#[derive(Debug)]
-pub struct PortableTerminalProgram {
-    artifact: Arc<CanonicalTerminalArtifact>,
-    evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
-    applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-    entry_metadata: Arc<psi_publication_records::PublishedEntryMetadata>,
-}
-
-impl PortableTerminalProgram {
-    pub fn entry_metadata(&self) -> &Arc<psi_publication_records::PublishedEntryMetadata> {
-        &self.entry_metadata
-    }
-
-    pub fn machine_provenance(&self) -> &psi_publication_records::TerminalMachineProvenance {
-        self.entry_metadata.machine_provenance()
-    }
-
-    pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
-        self.evidence.as_ref()
-    }
-    pub fn attach_application(
-        &self,
-        application: &crate::production::TerminalApplicationCustody<'_>,
-        timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
-        crate::production::application::attach(
-            application,
-            self.artifact.view().into(),
-            Ok(&self.artifact),
-            self.machine_provenance(),
-            timings,
-        )
-    }
-
-    pub fn artifact(&self) -> &Arc<CanonicalTerminalArtifact> {
-        &self.artifact
-    }
-    pub fn applications(&self) -> &[Result<ProducedTerminalApplication, Vec<Diagnostic>>] {
-        &self.applications
     }
 }
 

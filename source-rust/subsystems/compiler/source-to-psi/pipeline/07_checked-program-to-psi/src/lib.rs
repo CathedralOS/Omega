@@ -102,7 +102,7 @@ pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
-pub use custody::{PortableTerminalProgram, ProducedTerminalProgram, TerminalProductionCustody};
+pub use custody::{ProducedTerminalProgram, TerminalProductionCustody};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
 pub use terminal_codec::entry_receipt::application::{
     TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,

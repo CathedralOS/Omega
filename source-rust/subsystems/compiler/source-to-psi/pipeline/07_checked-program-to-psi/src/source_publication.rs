@@ -1,17 +1,15 @@
-// The source owner judges and publishes one exact root roster. Policy and
-// Product consumers share its immutable portable code. `SourcePublication` fixes Psi optimization choices before
-// targets settle and memoizes the produced `PortableTerminalProgram` (or its
-// refusal) in a `OnceLock` without retrying or permitting a different Psi
-// optimization projection to replace it.
+//! Publish one checked source roster once. Product and policy consumers share
+//! the canonical Psi artifact and the source's fixed optimization choices.
 
-use crate::{PortableTerminalProgram, SourceCompilationRoster};
+use crate::SourceCompilationRoster;
 use diagnostics::Diagnostic;
 use optimization::PsiOptimizationSelections;
 use std::sync::{Arc, OnceLock};
+use terminal_codec::CanonicalTerminalArtifact;
 
 pub struct SourcePublication {
     optimizations: PsiOptimizationSelections,
-    program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
+    program: OnceLock<Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>>>,
     accepted: Option<(Arc<crate::AcceptedTerminalSource>, SourceCompilationRoster)>,
 }
 
@@ -121,7 +119,7 @@ impl SourcePublication {
         optimizations: &PsiOptimizationSelections,
         authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
         timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
+    ) -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>> {
         self.retain(optimizations, || {
             let produced = self.accepted()?.produce(Default::default(), timings)?;
             let artifact = produced
@@ -141,10 +139,10 @@ impl SourcePublication {
                     },
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            produced
-                .into_shared_portable()
-                .map(Arc::new)
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])
+            let (artifact, _) = produced
+                .into_portable_publication()
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+            Ok(Arc::new(artifact))
         })
     }
 
@@ -152,31 +150,23 @@ impl SourcePublication {
         &self.optimizations
     }
 
-    pub fn published(&self) -> Option<&PortableTerminalProgram> {
-        self.program.get()?.as_ref().ok().map(Arc::as_ref)
-    }
-
-    pub fn require_published(
-        &self,
-        optimizations: &PsiOptimizationSelections,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
-        if &self.optimizations != optimizations {
-            return Err(vec![Diagnostic::error(
-                "Terminal publication differs from the Product's fixed Psi optimization selection",
-            )]);
-        }
-        self.program.get().cloned().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "target compilation requires the shared Terminal program to be published first",
-            )]
-        })?
+    pub(crate) fn require_published(&self) -> Result<&CanonicalTerminalArtifact, Vec<Diagnostic>> {
+        self.program
+            .get()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "target compilation requires the shared Terminal program to be published first",
+                )]
+            })?
+            .as_deref()
+            .map_err(Clone::clone)
     }
 
     fn retain(
         &self,
         optimizations: &PsiOptimizationSelections,
-        produce: impl FnOnce() -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
+        produce: impl FnOnce() -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>>,
+    ) -> Result<Arc<CanonicalTerminalArtifact>, Vec<Diagnostic>> {
         if &self.optimizations != optimizations {
             return Err(vec![Diagnostic::error(
                 "Terminal publication differs from the Product's fixed Psi optimization selection",
