@@ -222,33 +222,38 @@ fn judge_authored_ieee(
 
 #[test]
 fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
-    let judge = |body: &str, entry: &str| {
+    let judge = |body: &str, other: &str, entry: &str| {
         // Both implementations compute the same result at the sole call.
         // Only the first establishes observe's guarantee for every input.
         let source = r"
             use omega\language\core\FloatMeaning;
             use omega\language\core\F32::meaning;
-            machine observe(value: f32) -> FloatMeaning
+            machine observe(value: f32, other: f32) -> FloatMeaning
             ensures core\Identity::<FloatMeaning>(result, F32::meaning(value))
+            ensures core\Identity::<FloatMeaning>(F32::meaning(other), F32::meaning(OTHER_VALUE))
             { F32::meaning(WRAPPER_BODY) }
             machine main(value: f32) -> f32
-            ensures core\Identity::<FloatMeaning>(observe(2.0f32), F32::meaning(2.0f32))
+            ensures core\Identity::<FloatMeaning>(observe(2.0f32, 2.0f32), F32::meaning(2.0f32))
             { value }
         "
-        .replace("WRAPPER_BODY", body);
+        .replace("WRAPPER_BODY", body)
+        .replace("OTHER_VALUE", other);
         judge_authored_ieee(&source, entry)
     };
-    judge("value", "main").unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
-    let refused = judge("2.0f32", "main")
-        .err()
-        .expect("false wrapper guarantee");
-    assert!(
-        diagnostics::join_messages(&refused)
-            .contains("float meaning wrapper does not establish its result identity"),
-        "{refused:?}"
-    );
+    judge("value", "other", "main")
+        .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
+    for (body, other) in [("2.0f32", "other"), ("value", "value")] {
+        let refused = judge(body, other, "main")
+            .err()
+            .expect("false wrapper guarantee");
+        assert!(
+            diagnostics::join_messages(&refused)
+                .contains("float meaning wrapper does not establish its result identity"),
+            "{refused:?}"
+        );
+    }
     // The same valid declaration cannot be chosen as an executable entry.
-    let runtime = judge("value", "observe")
+    let runtime = judge("value", "other", "observe")
         .err()
         .expect("runtime proof result");
     assert!(

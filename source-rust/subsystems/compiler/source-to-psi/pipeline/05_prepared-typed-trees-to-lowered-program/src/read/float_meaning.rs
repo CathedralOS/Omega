@@ -49,6 +49,26 @@ fn intern(id: MachineId, values: &mut Vec<Value>, value: Value) -> Checked<Slot>
         .map_err(|_| unavailable(id, "too many float meaning rows"))
 }
 
+/// An independently formed proof-only term can use plain formal values.
+fn formed_wrapper_term(id: MachineId, values: Vec<Value>, root: Slot) -> Checked<()> {
+    let term = FloatMeaningClause {
+        values,
+        left: root,
+        right: root,
+    };
+    term.validate().map_err(|detail| unavailable(id, detail))?;
+    if term
+        .sources()
+        .any(super::contracts::needs_call_argument_formation)
+    {
+        return Err(unavailable(
+            id,
+            "float meaning wrapper requires a separate scalar formation proof",
+        ));
+    }
+    Ok(())
+}
+
 impl Program<'_> {
     pub(super) fn float_meaning_identity(
         &mut self,
@@ -77,7 +97,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         term: ExpressionHandle,
         values: &mut Vec<Value>,
-        result: Option<Slot>,
+        result: Option<(&ClauseScope<'_>, ExpressionHandle)>,
     ) -> Checked<Slot> {
         let typed = self.typed;
         if !typed.expression_table.expression_is_valid(term) {
@@ -88,9 +108,10 @@ impl Program<'_> {
                 if name.reserved_result_of.is_valid() && !name.static_application.is_valid() =>
             {
                 self.require_result_owner(id, scope, name.reserved_result_of)?;
-                return result.ok_or_else(|| {
+                let (body_scope, body) = result.ok_or_else(|| {
                     unavailable(id, "float meaning result outside its return clause")
-                });
+                })?;
+                return self.meaning_term(id, body_scope, body, values, None);
             }
             ExpressionNode::Call(call) => call,
             _ => {
@@ -330,7 +351,7 @@ impl Program<'_> {
         operation: FloatSemanticOperation,
         call: &TableCallExpression,
         values: &mut Vec<Value>,
-        result: Option<Slot>,
+        result: Option<(&ClauseScope<'_>, ExpressionHandle)>,
     ) -> Checked<Slot> {
         let typed = self.typed;
         let args = typed.expression_table.expression_handles(call.arguments);
@@ -507,12 +528,17 @@ impl Program<'_> {
             return Ok(());
         }
         self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
-            let mut nested = callee_scope(&unfolded.bound, unfolded.machine);
-            let (proof, pending) = program.with_clause_arguments(id, |program| {
-                let mut values = Vec::new();
-                let body = program.meaning_term(id, &nested, unfolded.body, &mut values, None)?;
-                nested.owner = unfolded.result.0;
-                nested.formal_fields = true;
+            let body_scope = callee_scope(&unfolded.bound, unfolded.machine);
+            let nested = ClauseScope {
+                owner: unfolded.result.0,
+                formal_fields: true,
+                ..body_scope
+            };
+            let ((), pending) = program.with_clause_arguments(id, |program| {
+                let mut body_values = Vec::new();
+                let body =
+                    program.meaning_term(id, &body_scope, unfolded.body, &mut body_values, None)?;
+                formed_wrapper_term(id, body_values, body)?;
                 for &expression in &unfolded.result.1 {
                     let typed = program.typed;
                     let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
@@ -540,30 +566,23 @@ impl Program<'_> {
                             "float meaning guarantee changes its subject type",
                         ));
                     }
-                    let left = program.meaning_term(id, &nested, left, &mut values, Some(body))?;
-                    let right =
-                        program.meaning_term(id, &nested, right, &mut values, Some(body))?;
+                    // Each written guarantee owns its connected rows. Read the
+                    // body in its own scope wherever this guarantee uses result.
+                    let mut values = Vec::new();
+                    let result = Some((&body_scope, unfolded.body));
+                    let left = program.meaning_term(id, &nested, left, &mut values, result)?;
+                    let right = program.meaning_term(id, &nested, right, &mut values, result)?;
                     if left != right {
                         return Err(unavailable(
                             id,
                             "float meaning wrapper does not establish its result identity",
                         ));
                     }
+                    formed_wrapper_term(id, values, left)?;
                 }
-                Ok(FloatMeaningClause {
-                    values,
-                    left: body,
-                    right: body,
-                })
+                Ok(())
             })?;
-            // The established identities may reuse the body's terms. A guarantee
-            // introducing independent terms needs a separate formation proof.
-            proof.validate().map_err(|detail| unavailable(id, detail))?;
-            if !pending.is_empty()
-                || proof
-                    .sources()
-                    .any(super::contracts::needs_call_argument_formation)
-            {
+            if !pending.is_empty() {
                 return Err(unavailable(
                     id,
                     "float meaning wrapper requires a separate scalar formation proof",
