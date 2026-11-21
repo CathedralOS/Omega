@@ -1,0 +1,27 @@
+[package]
+name = "object-file"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "object_file"
+path = "src/lib.rs"
+
+[dependencies]
+placement = { package = "selected-form-encoding-to-resolved-layout", path = "../12_selected-form-encoding-to-resolved-layout" }
+installation-admission = { path = "../../verification/installation-admission" }
+physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
+physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
+wire = { path = "../../../../../foundation/wire" }
+calling-conventions = { path = "../../targets/calling-conventions" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
+function-layout = { path = "../13_resolved-layout-to-placed-functions" }
+machine-code = { path = "../../representations/machine-code" }
+function-identity = { path = "../../representations/function-identity" }
+optimization-core = { path = "../../representations/optimization-records" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+arena = { path = "../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../psi" }
+target = { path = "../../targets/target" }

@@ -419,7 +419,7 @@ pub mod physical {
         validate_optimized_layout_independent_selected_form_encoding,
     };
     use optimization_core::OptimizationExecutionPhase;
-    use relaxation::relaxation::{
+    use placement::relaxation::{
         validate_current_layout_optimization, validate_resolved_layout_optimization,
     };
     use selected_instruction_analyses::SelectedProgramView;
@@ -439,12 +439,12 @@ pub mod physical {
         originals
             .allocation
             .validate_publication()
-            .map_err(|error| refused("stage 08 allocation publication", error))?;
+            .map_err(|error| refused("allocation publication", error))?;
         let program = &layout.program;
         let current = &AllocationOriginals::retain(&originals.allocation);
         current
             .validate_roots()
-            .map_err(|error| refused("stage 08 allocation roots", error))?;
+            .map_err(|error| refused("allocation roots", error))?;
         let selected = &current.selected;
         let environment = &current.environment;
         let physical = environment.physical();
@@ -473,14 +473,14 @@ pub mod physical {
                 artifact: &originals.encoding,
             },
         )
-        .map_err(|error| refused("stage 12 selected-form encoding", error))?;
+        .map_err(|error| refused("selected-form encoding", error))?;
         validate_optimized_resolved_selected_form_layout(ResolvedLayoutValidation {
             physical: instructions,
             replay,
             pre_layout: originals.encoding.encoding.as_ref(),
             artifact: &originals.baseline_layout,
         })
-        .map_err(|error| refused("stage 13 resolved layout", error))?;
+        .map_err(|error| refused("resolved layout", error))?;
         validate_resolved_layout_optimization(
             physical,
             &originals.baseline_layout.layout,
@@ -491,16 +491,16 @@ pub mod physical {
             layout,
             trace,
         )
-        .map_err(|error| refused("stage 14 layout optimization", error))?;
+        .map_err(|error| refused("layout optimization", error))?;
         encoding_admission::layout::validate_current_resolved_layout(program)
-            .map_err(|error| refused("stage 14 resolved layout bytes", error))?;
+            .map_err(|error| refused("resolved layout bytes", error))?;
         validate_current_layout_optimization(layout, trace)
-            .map_err(|error| refused("stage 14 relaxation trace", error))?;
+            .map_err(|error| refused("relaxation trace", error))?;
         let requirements = validate_allocated_callee_saved_requirements(
             current,
             program.context.preservation.plan().clone(),
         )
-        .map_err(|error| refused("stage 08 callee-saved requirements", error))?;
+        .map_err(|error| refused("callee-saved requirements", error))?;
         if encoding_admission::fragment_origins::prepare_fragment_origins(instructions)
             != *program.fragment_origins
         {

@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 29,239 lines / 1,149,038 bytes with SHA-256
-`08022c0ac98af1a19cec5b5e14029faf4888d3584c4a13167f12d8a5aec13c14`.
+The manifest materializes 29,650 lines / 1,170,024 bytes with SHA-256
+`b4fe2af05f4c75957002b913d7601aad47fab7113a089868f95b2f51ecbf5e2a`.
 The manifest itself is 2,905 bytes, SHA-256
-`1dc4e01df92a5fc85b7c7eec1cc8ca5ff79a441e04c58518cad63beafbdda091`;
+`100e4831ca1f8541d6cfd2794d57822d8b5c6c472964e599b920c2e93d692cd0`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -299,9 +299,43 @@ A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, broader explicit landing, and other typed runtime operations remain work.
 
 Private static storage separates parameter, local, pending-argument and
-expression-scratch cells within a 16 MiB arena `[0x02000000, 0x03000000)`,
-beyond the maximum 16 MiB tape and
-below Alpha's return stack. Each call evaluates arguments left to right into
+expression-scratch cells within a checked 1 GiB backing window
+`[0x20000000, 0x60000000)`, above Alpha's downward-growing return stack.
+`omega_storage_base()` and `omega_storage_capacity()` supply this private map
+to every backing-address emitter and layout/allocation check, including borrowed
+byte-view descriptors. The Alpha tape limit remains **16,777,212 bytes**.
+This map describes the emitted Omega program, not the Epsilon evaluator or
+Gamma runtime that executes the compiler; those have separate memory profiles.
+
+| Region | Half-open address range or origin | Admission |
+| --- | --- | --- |
+| Tape and inline data | `[0, L)`, `L <= 0x00fffffc` | Existing encoder and seed materializer check the unchanged raw tape limit. |
+| Alpha return stack | Origin `0x10000000`, grows downward | Alpha checks each complete eight-byte push and pop against its memory extent. |
+| Checked value backing | `[0x20000000, 0x60000000)` | Nonzero rounded extents and the accumulated arena must fit `0x40000000` bytes. |
+
+The backing window is disjoint from tape and stack, and its exclusive end is
+below signed `i32`'s maximum and AlphaBootstrapV5's `0x2000000000` memory extent.
+Array products are admitted by `count <= capacity / stride` before multiplying;
+record/payload growth and cell allocation use `extent <= capacity - used`
+before adding. Word rounding remains within positive `i32` arithmetic. Every
+checked index plan repeats the extent/product check before emitting an address.
+These are private compiler limits; Omega's array, provider and ownership rules
+are unchanged. Layout or arena overflow retains its existing `Incomplete`
+refusal before tape publication.
+
+The normal request controls in
+[`directory_names.py`](../../../tests/bootstrap/independent/directory_names.py)
+cover the exact and first overflowing array, record, payload and arena extents;
+a product that would wrap `i32` multiplication; independent live regions; and
+borrowed-byte descriptors after relocation. Its complete `SyntaxTrees` customer
+retains the product declaration's fields, bounds and data dependencies. It
+reserves two 45,156,664-byte owners and checks their final word and an earlier
+constrained field through separate calls. The arena-boundary customer reserves
+an unused parameter region, so testing a 1 GiB reservation does not execute a
+1 GiB initialization loop. Source-owned seed observations require a replay
+against the exact selected compiler identity.
+
+Each call evaluates arguments left to right into
 its own pending cells before copying them into destination parameters, including
 same-state transfers. This preserves
 earlier arguments and caller locals across nested calls. A whole-owner call
@@ -426,7 +460,8 @@ rounded up to a word boundary so record copies and zeroing can use whole words.
 Bounds checks use the declared element count. The `SourceUnit` byte array
 occupies 128 KiB and the construction application's 4 MiB byte array fits in
 its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
-at 64 steps and the complete private storage arena at 16 MiB. By-value cycles,
+at 64 steps. Compound extents and the complete private storage arena are
+bounded by the 1 GiB backing window described above. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and
 unsupported domains decline before allocation. An intact affine local with no
 contained cleanup may leave scope; it is never implicitly copied.
@@ -461,11 +496,17 @@ checked selectors and element stride as a record field.
 
 A machine taking `@[u8]` can read the live length of a shared byte slice.
 A literal index needs a proved lower bound on that length. A scalar index
-can also carry the declared requirement `index < bytes.len`. At each call
-or transfer the compiler checks the two actual arguments. An in-range literal,
-a matching strict guard or the caller's requirement on the same pair can
-establish the relation. Another slice or index cannot supply it. Callers can borrow
-a whole packed byte array or a half-open subrange with literal endpoints,
+can also carry the declared requirement `index < bytes.len`. A half-open
+endpoint can use `index <= bytes.len`; it still needs a strict bound for
+a byte read. Two parameters with the same plain `u8`, `u32` or `u64` type
+may require `start <= index` or
+`start < index`. At each call or transfer the compiler substitutes both
+actual arguments. Literals, pure selected comparisons and preserved entry
+requirements can establish the relation on that exact pair. A true conjunction
+can supply either of its comparisons. With `index < bytes.len`, the plain
+`u64` successor `index + 1` cannot overflow and can reach the endpoint.
+Reading at that successor requires a further bound. A preserved strict pair
+`unit < limit` likewise establishes that `unit + 1` fits its unsigned carrier. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
 including an empty range. The descriptor carries the original address and
 the live length in two words. The caller retains the shared loan through
 argument evaluation. The storage test forwards the final two bytes of the
@@ -617,7 +658,7 @@ A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.
 
-Its retained Alpha encoder targets `AlphaBootstrapV4` directly: at most
+Its retained Alpha encoder targets `AlphaBootstrapV5` directly: at most
 16,777,212 raw tape bytes, targets below that exact extent, and at most 1,864,134
 nine-byte-dominated fixups. These are outer compiler-resource bounds, not Omega
 language limits, and move only with the common seed/checker profile.
@@ -668,7 +709,18 @@ The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
 
-A nongeneric ordinary `trait` retains each bodyless machine signature in
+An ordinary `trait` retains its ordered typed static parameters. For example,
+`trait Calling<const Policy: CallingPolicy> {}` preserves the parameter name
+and declared type. The parser rejects repeated parameter names and the retired
+`Policy satisfies CallingPolicy` binder. The compiler still reports incomplete
+for an ordinary trait until it can check and publish its contract.
+[Typed static parameters](../../../wiki/spec/language/generics.md#typed-static-parameters)
+govern the source spelling. The installed `std/calling.omg` still uses the
+retired binder. Its migration belongs to `TYPED-STATIC-PARAMETERS` in
+[TASKS.md](../../../TASKS.md), alongside the product compiler's checks on callers
+such as `Calling<LinuxX86_64CallingPolicy>`.
+
+An ordinary `trait` retains each bodyless machine signature in
 its declaring trait's range. `ConsoleByteOperations` and
 `PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
 traits in a separate table from boundary services. Executable construction
@@ -678,8 +730,11 @@ A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,
 source span and ordered requirements. A requirement's name, parameters, return
 type, predicates and effect clauses retain their original spans and handles.
-Requirement names may repeat across overloads. Reaches, crash and blocking
-clauses use the ordinary machine-header parser. Bare `terminates` on a
+Requirement names may repeat across overloads. Reach, invocation, crash and
+blocking clauses use the ordinary machine-header parser. Each `invokes Entry`
+on a free machine or trait requirement owns a distinct binding-name span. The
+rows preserve source order. Checking an entry ceiling needs the binding and
+its direction, so this compiler currently returns `Incomplete` on such contracts. Bare `terminates` on a
 requirement retains the public eventual-termination guarantee. The checker resolves a memberless service to its exact declaration, including
 its package and module. An ordinary call contributes its callee's published
 reach. An omitted ceiling infers that reach through every checked call. An

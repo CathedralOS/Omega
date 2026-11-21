@@ -166,6 +166,126 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
 }
 
 #[test]
+fn private_entry_requires_the_target_of_its_parent() {
+    use provider_realization::native_execution::{BoundNativeCallable, prepare_program};
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "native-entry-target",
+        false,
+    )
+    .unwrap();
+    let main = project.path().join("main.omg");
+    std::fs::write(&main, "machine main() {}").unwrap();
+    std::fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+        Build::application(builder, "entry_target");
+        Build::bind(builder, linux_x86_64\ProgramEntry, main);
+        Build::bind(builder, linux_arm64\ProgramEntry, main);
+    }"#,
+    )
+    .unwrap();
+    let targets = [TargetProfile::LinuxX64, TargetProfile::LinuxArm64];
+    let project = open_project(&main, &targets);
+    let stage = project.product_stage(&targets).unwrap();
+    let [x64, arm64] = targets.map(|target| {
+        let Artifact::Runtime(product) = compiler::compile(
+            CompileRequest::Runtime {
+                program: stage.program(target, vec![]).unwrap(),
+                entry_memory: &[],
+            },
+            Default::default(),
+        )
+        .unwrap()
+        .artifact
+        else {
+            panic!("expected runtime product")
+        };
+        product.into_retained_terminal_artifact().unwrap()
+    });
+    assert_eq!(
+        x64.artifact().view().identity(),
+        arm64.artifact().view().identity()
+    );
+    let parent = prepare_program(x64.native_realization_proposal(), x64.authorization()).unwrap();
+    // The same machines can be published with different evidence. Only the original
+    // publication is authorized for this proposal and its private entries.
+    let module = x64.artifact().semantic_module();
+    let debug = x64
+        .artifact()
+        .debug_bytes()
+        .is_none()
+        .then(|| terminal_codec::TerminalDebugMap {
+            semantic: x64.artifact().view().identity(),
+            files: vec![],
+            sites: vec![],
+        });
+    let republished = CanonicalTerminalArtifact::from_parts(
+        module.clone(),
+        terminal_codec::build_identity_optimization_execution_record(module).unwrap(),
+        debug.as_ref(),
+    )
+    .unwrap();
+    let producer = psi_authorization::HostProducerTrust::accept("entry test");
+    let republished = psi_authorization::authorize_terminal_artifact(
+        std::sync::Arc::new(republished),
+        Some(&producer),
+    )
+    .unwrap();
+    assert_eq!(
+        republished.artifact().view().identity(),
+        x64.artifact().view().identity()
+    );
+    assert_ne!(republished.identity(), x64.authorization().identity());
+    let proposal = x64.native_realization_proposal();
+    let providers = proposal.providers();
+    let mut entry = proposal.program_entry().clone();
+    assert_eq!(
+        entry
+            .bind_physical_adapter(
+                republished.artifact(),
+                &providers.selection,
+                &providers.checked_adapters,
+            )
+            .unwrap_err(),
+        "physical adapter belongs to another canonical artifact",
+    );
+    let errors = prepare_program(x64.native_realization_proposal(), &republished)
+        .err()
+        .expect("the proposal must use its original publication");
+    assert_eq!(
+        errors[0].message,
+        "native proposal belongs to another canonical artifact"
+    );
+    let errors = BoundNativeCallable::prepare(
+        x64.native_realization_proposal(),
+        &parent,
+        republished.artifact(),
+        x64.native_realization_proposal().target_program_entry(),
+    )
+    .err()
+    .expect("the private entry must use the publication authorized by its parent");
+    assert_eq!(
+        errors[0].message,
+        x64.authorization()
+            .require_artifact(republished.artifact())
+            .unwrap_err()
+            .to_string()
+    );
+    let errors = BoundNativeCallable::prepare(
+        arm64.native_realization_proposal(),
+        &parent,
+        x64.artifact(),
+        x64.native_realization_proposal().target_program_entry(),
+    )
+    .err()
+    .expect("the x64 parent cannot supply layouts for an Arm64 entry");
+    assert_eq!(
+        errors[0].message,
+        "native execution belongs to another target"
+    );
+}
+
+#[test]
 fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
     let profile = TargetProfile::WindowsX64;
     let path = fixture_repository::root()

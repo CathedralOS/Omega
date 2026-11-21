@@ -409,7 +409,7 @@ pub fn matching_folded_constant_dependencies<'plan>(
 
 /// A selected row uses the complete canonical service contract, rather than
 /// a same-shaped schema supplied beside genuine candidate coordinates.
-fn validate_selected_service_schemas(
+pub fn validate_selected_service_schemas(
     plans: &[ProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), String> {

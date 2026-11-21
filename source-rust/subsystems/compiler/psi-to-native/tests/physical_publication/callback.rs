@@ -688,10 +688,8 @@ fn check_callback_publication(retain_body_source: bool) {
         ),
     )
     .expect("encode the closed callback entry plan");
-    let entry = object_file::PrivateEntryObject::from_placement(
-        function_layout::place_fixed_entry(relaxation::retain_fixed_entry(
-            placement::entry_layout::resolve_private_entry(entry).unwrap(),
-        )),
+    let entry = object_file::PrivateEntryObject::from_layout(
+        placement::entry_layout::resolve_private_entry(entry).unwrap(),
     );
     let private = image_emission::bind_private_function_entry(entry, Arc::new(body.into_object()))
         .expect("bind the encoded entry to its body");

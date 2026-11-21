@@ -47,7 +47,7 @@ impl AdmittedRuntimeInput<'_> {
             .native_scope
             .ok_or("runtime provisions require the lowered native execution scope")?;
         if scope != providers.scope()
-            || scope.source_native_bindings() != Some(bindings.identity_digest())
+            || scope.source_native_bindings() != bindings.identity_digest()
         {
             return Err("runtime providers differ from their lowered artifact, selection or native bindings".into());
         }

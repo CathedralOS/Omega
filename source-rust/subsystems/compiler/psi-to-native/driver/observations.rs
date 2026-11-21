@@ -1,5 +1,5 @@
-// Invocation-local counts of actual native coordinator operations across Omega
-// 00 through 09, fragment emission, and image emission. These observations
+// Invocation-local counts of actual native coordinator operations across native
+// selection through layout, fragment emission, and image emission. These observations
 // never supply semantic inputs, reuse decisions, or admission evidence; failed
 // invocations retain their entered stages on Drop, and independent callable
 // bodies remain visible as separate `NativePipelineUnit::Callable` scopes.
@@ -20,7 +20,7 @@ pub enum NativePipelineUnit {
 pub struct NativePipelineInvocation {
     pub profile: TargetProfile,
     pub unit: NativePipelineUnit,
-    pub stages: [u64; 10], // entry counts in the original native operation order
+    pub stages: [u64; 9],
     pub fragment_emission_attempts: u64,
     pub image_emission_attempts: u64,
     pub completed: bool,
@@ -51,9 +51,8 @@ pub enum NativePipelineStage {
     PostAllocationMachine = 6,
     SelectedFormEncoding = 7,
     ResolvedLayout = 8,
-    LayoutOptimization = 9,
-    FragmentEmission = 10,
-    ImageEmission = 11,
+    FragmentEmission = 9,
+    ImageEmission = 10,
 }
 
 pub struct NativePipelineObservation {
@@ -61,7 +60,7 @@ pub struct NativePipelineObservation {
     profile: TargetProfile,
     #[cfg(feature = "test-support")]
     unit: NativePipelineUnit,
-    counts: [AtomicU64; 12],
+    counts: [AtomicU64; 11],
     #[cfg(feature = "test-support")]
     completed: AtomicBool,
 }
@@ -105,8 +104,8 @@ impl Drop for NativePipelineObservation {
             profile: self.profile,
             unit: self.unit,
             stages: std::array::from_fn(|stage| self.counts[stage].load(Ordering::Relaxed)),
-            fragment_emission_attempts: self.counts[10].load(Ordering::Relaxed),
-            image_emission_attempts: self.counts[11].load(Ordering::Relaxed),
+            fragment_emission_attempts: self.counts[NativePipelineStage::FragmentEmission as usize].load(Ordering::Relaxed),
+            image_emission_attempts: self.counts[NativePipelineStage::ImageEmission as usize].load(Ordering::Relaxed),
             completed: self.completed.load(Ordering::Relaxed),
         };
         INVOCATIONS

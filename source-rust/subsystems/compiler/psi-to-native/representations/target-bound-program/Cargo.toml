@@ -8,6 +8,11 @@ version.workspace = true
 path = "bound_reach.rs"
 
 [dependencies]
+target-provider-admission = { path = "../../verification/target-providers" }
+psi-authorization = { path = "../../../psi/artifact/authorization" }
+psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }
+program-entry-contracts = { path = "../program-entry-contracts" }
+psi-publication-records = { path = "../../../psi/artifact/publication" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }
@@ -17,9 +22,9 @@ provider-correspondence = { path = "../../verification/provider-correspondence" 
 boundary-applications = { path = "../operation-evidence/boundary-applications" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 native-execution-reach = { path = "execution-reach" }
-psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
+psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
-terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi-semantics" }

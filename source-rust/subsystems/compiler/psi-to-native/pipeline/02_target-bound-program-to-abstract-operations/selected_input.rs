@@ -247,7 +247,7 @@ mod native {
             let (layouts, scalar_demand) = if let Some(scope) = selection.scope {
                 scope
                     .require_source_input(
-                        artifact.view(),
+                        artifact,
                         entry,
                         profile,
                         selection.plans,

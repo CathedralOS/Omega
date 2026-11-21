@@ -24,10 +24,10 @@ evaluation-work = { path = "../build/evaluation/accounting/work" }
 build-invocation = { path = "../build/evaluation/invocations" }
 evaluation-accounting = { path = "../build/evaluation/accounting" }
 evaluation-admission = { path = "../build/evaluation/authority/admission" }
-psi-authorization = { path = "../psi-artifact/authorization" }
-psi-provider-selections = { path = "../psi-execution-inputs/providers" }
-psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
-psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
+psi-authorization = { path = "../psi/artifact/authorization" }
+psi-provider-selections = { path = "../psi/execution-inputs/providers" }
+psi-scalar-applications = { path = "../psi/execution-inputs/scalar-applications" }
+psi-target-layouts = { path = "../psi/execution-inputs/target-layouts" }
 access-admission = { path = "../psi/access/validated-placements" }
 access-vocabulary = { path = "../psi/access/policies" }
 schema-reflection = { path = "../psi/types/reflection" }
@@ -71,13 +71,13 @@ worker-budget = { path = "../foundation/worker-budget" }
 language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layouts/geometry" }
 numerics = { path = "../foundation/numerics" }
-optimization = { path = "../psi-artifact/optimization-selections" }
+optimization = { path = "../psi/artifact/optimization-selections" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 symbols = { path = "../foundation/declaration-identity" }
 syntax-trees = { path = "representations/syntax-trees" }
 terminal-check-tables = { path = "representations/lowered-program" }
-terminal-codec = { path = "../psi-artifact/codec" }
+terminal-codec = { path = "../psi/artifact/codec" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-psi = { path = "../psi" }
 terminal-semantics = { path = "../psi-semantics" }

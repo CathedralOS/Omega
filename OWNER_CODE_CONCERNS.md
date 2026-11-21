@@ -75,20 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Computing native entry reach imports the optimizer's complete provider proposal
-
-- Category: Knowledge crossing a boundary.
-- Where: [entry reach](source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs#L22), [scope binding](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs#L21), [scoped selection](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/scoped_provider_selection.rs#L7).
-- Saw: Stage 01 passes the optimizer's entire `TerminalNativeRealizationProposal` into root and private reach computation. The optimizer crate owns the checked scope and stores the provider adapters used to discover reachable machines.
-- Cost: Reading the target-bound entry and its allowed callees requires importing later optimizer and provider-admission types. Give entry reach the checked entry, adapter and callback facts it reads. Preserve refusal of a foreign parent artifact or target through both root and private lowering.
-- Reported: 2026-11-20, Codex, while moving builtin selection into the target-bound program.
-
-### The compiler map points to native lowering for a shared Psi input
+### Shared Psi semantics live outside the portable program's directory
 
 - Category: The documents disagree.
-- Where: [ownership map](source-rust/README.md#L28), [Build scalar dependency](source-rust/subsystems/compiler/build/evaluation/scalars/Cargo.toml#L16), [native consumer](source-rust/subsystems/compiler/psi-to-native/driver/inputs/mod.rs#L22), [interpreter consumer](source-rust/subsystems/interpreter/embedding/program.rs#L282), [artifact trust](source-rust/subsystems/compiler/psi-artifact/authorization/authorization.rs#L43), [wire format guide](source-rust/subsystems/compiler/psi-artifact/wire/README.md#L3).
-- Saw: The map sends a Build maintainer to native stage 00 for admitted scalar values. Build's scalar evaluator uses `psi-scalar-applications` directly, as do native preparation and the interpreter. The wire guide's two specification links also miss the checkout. The wire codec owns the bytes, the receiving host authorizes their producer, and both execution engines consume the admitted inputs.
-- Cost: Group the portable contracts under `psi/` so its root leads to `artifact/`, `execution-inputs/` and `semantics/` alongside the program definition. Keep the Cargo boundaries for wire encoding, producer trust and input checks. Document which owner admits a supplied value and which stage computes it. After each move, check the shared consumers and relative links. The existing [storage analysis concern](#changing-storage-analysis-rebuilds-the-native-compiler) tracks the cost of the semantics dependency.
+- Where: [Psi program](source-rust/subsystems/compiler/psi/README.md), [shared semantics](source-rust/subsystems/compiler/psi-semantics/README.md).
+- Saw: Source checking, native compilation and interpretation read the shared meanings of Psi operations from a directory outside the portable program. A maintainer following the program, artifact and execution-input owners still has to leave Psi to find those rules.
+- Cost: Move the existing semantics crates under `psi/semantics/`. Keep their Cargo boundaries, check the shared consumers, and update the ownership guides and relative links. The [storage analysis concern](#changing-storage-analysis-rebuilds-the-native-compiler) tracks the separate dependency cost.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
 ### Callable analysis loses arguments passed to checked providers

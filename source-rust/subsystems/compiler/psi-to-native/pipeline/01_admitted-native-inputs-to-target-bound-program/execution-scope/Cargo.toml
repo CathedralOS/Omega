@@ -8,17 +8,16 @@ version.workspace = true
 path = "scope.rs"
 
 [dependencies]
+target-bound-program = { path = "../../../representations/target-bound-program" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
-psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
-provider-admission = { path = "../../../verification/provider-admission" }
 provider-correspondence = { path = "../../../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-terminal-codec = { path = "../../../../psi-artifact/codec" }
+terminal-codec = { path = "../../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
+psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
 terminal-semantics = { path = "../../../../psi-semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../representations/function-identity" }

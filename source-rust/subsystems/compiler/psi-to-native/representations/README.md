@@ -80,8 +80,8 @@ Follow the root type for each program form.
 | Planned framed machine | [Stage 09](../pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs) prepares the [function body](selected-instructions/physical-recipes/src/frame_protocol.rs) with its checked frame layout, private references and selected import recipes. |
 | Bound framed machine | [Stage 10](../pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs) checks the installation resources and issues the [bound function body](bound-framed-machine/bound_framed_machine.rs) and [bound entry recipes](bound-framed-machine/entries.rs). [Stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs) consumes them. The body keeps its publication opaque during encoding. |
 | Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
-| Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [stage 13](../pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
-| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Stage 14](../pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs) produces the placed functions. [Stage 15](../pipeline/15_placed-functions-to-objects/) constructs their objects, which stage 16 consumes for image emission. The [body driver](../driver/compile_body.rs) carries stage 04’s [emission facts](../pipeline/04_abstract-operations-to-target-operations/src/emission_facts.rs) with the lowered program. Callable reach and the pre-physical root come from the current form's execution contracts. |
+| Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), assigns instruction offsets and settles eligible branches under the selected relaxation policy. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
+| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Stage 13](../pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs) produces the placed functions. [Stage 14](../pipeline/14_placed-functions-to-objects/) constructs their objects, which stage 15 consumes for image emission. The [body driver](../driver/compile_body.rs) carries stage 04’s [emission facts](../pipeline/04_abstract-operations-to-target-operations/src/emission_facts.rs) with the lowered program. Callable reach and the pre-physical root come from the current form's execution contracts. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)
 holds current physical instruction/contract, encoding, layout and frame
@@ -95,7 +95,7 @@ reach the object only when a validator request retains them for
 
 [Callback function identity](function-identity/src/lib.rs) pairs the published Psi
 program with its callback placement. Admission, native program forms and object
-verification carry that same identity. The [object stage](../pipeline/15_placed-functions-to-objects/src/names.rs)
+verification carry that same identity. The [object stage](../pipeline/14_placed-functions-to-objects/src/names.rs)
 gives a private callback its linker symbol when building an object.
 
 [Targets](../targets/) holds calling conventions and physical register models. Build retains the [provider plans](../../build/providers/plans/) and the native stages carry [boundary application evidence](operation-evidence/boundary-applications/boundary_applications.rs). [Installation admission](../verification/installation-admission/) checks handler and environment evidence. [Psi layout](../../psi/layouts/geometry/README.md) owns portable layout records and their interpretation.
@@ -147,7 +147,7 @@ bytes and relocations from what was actually emitted, not a separate
 instruction-width table. The
 [text-section representation](machine-code/src/layout/text_section.rs)
 keeps the actual bytes, function/block/instruction spans and resolved
-internal-call targets. The [object handoff](../pipeline/16_objects-to-image/image-emission/src/function_fragments.rs)
+internal-call targets. The [object handoff](../pipeline/15_objects-to-image/image-emission/src/function_fragments.rs)
 passes admitted fragments to the image publisher and checks that result
 itself. Its relocation-free support does not imply resolving arbitrary
 external symbols or publishing components separately.

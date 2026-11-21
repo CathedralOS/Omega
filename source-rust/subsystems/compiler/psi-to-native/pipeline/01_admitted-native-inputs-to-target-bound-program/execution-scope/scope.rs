@@ -1,52 +1,29 @@
 //! Follow the machines, callbacks and provider boundaries reachable for a selected target entry.
 #![forbid(unsafe_code)]
 
-use provider_admission::provider_installation::SelectedProviderAdapter;
+use native_execution_reach::{ExecutionReach, ReachedCallback};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use target_bound_program::{NativeExecutionScope, NativeScopeBinding, SelectedProviderAdapter};
+use terminal_psi::{OperationKind, TerminalModule, Terminator};
 #[cfg(test)]
 use terminal_semantics::closed_owned_sequence_bounds;
-use verified_optimization_input::{NativeExecutionScope, NativeScopeBinding, TerminalNativeRealizationProposal};
-use native_execution_reach::{ExecutionReach, ReachedCallback};
-use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-/// A private callable can inherit providers only from an already checked execution.
-pub enum NativeScopeEntry<'a> {
-    Program,
-    Callable {
-        entry: terminal_psi::TargetMachineCallable,
-        parent: &'a verified_optimization_input::ScopedProviderSelection,
-    },
-}
-
-/// Follow the authorized entry's providers, callbacks and assumed boundaries for one target.
+/// Follow the selected entry and provider edges in the checked program.
 pub fn derive_native_scope(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &TerminalNativeRealizationProposal,
-    origin: NativeScopeEntry<'_>,
+    binding: NativeScopeBinding<'_>,
 ) -> Result<NativeExecutionScope, Vec<diagnostics::Diagnostic>> {
-    let targets = psi_target_layouts::terminal_target_context(
-        artifact.view(),
-        proposal.target_profile().target_name(),
-    );
-    let (entry, parent) = match origin {
-        NativeScopeEntry::Program => (proposal.target_program_entry(), None),
-        NativeScopeEntry::Callable { entry, parent } => (entry, Some(parent)),
-    };
-    let binding = NativeScopeBinding::checked(artifact, proposal, targets, entry, parent)?;
-    let assumptions = proposal
-        .providers()
-        .selection
-        .assumed_binding_coordinates(artifact.semantic_module())
+    let assumptions = binding
+        .assumed_bindings()
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let reach = TargetReach::derive(ScopeInputs {
-        artifact: artifact.view(),
+        artifact: binding.artifact(),
         entry: binding.entry(),
         entry_call: binding
             .entry_call()
             .map(|call| (call.boundary(), call.entry())),
         adapters: binding.local_adapters(),
         assumptions: &assumptions,
-        callbacks: &proposal.occurrences().callbacks,
+        callbacks: binding.callbacks(),
     })
     .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())])?;
     binding

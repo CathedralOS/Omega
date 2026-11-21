@@ -1,0 +1,25 @@
+[package]
+name = "image"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[lib]
+name = "image"
+path = "src/lib.rs"
+
+[dependencies]
+machine-code = { path = "../../../representations/machine-code" }
+wire = { path = "../../../../../../foundation/wire" }
+calling-conventions = { path = "../../../targets/calling-conventions" }
+function-identity = { path = "../../../representations/function-identity" }
+arena = { path = "../../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+object-file = { path = "../../14_placed-functions-to-objects" }
+target = { path = "../../../targets/target" }
+
+[dev-dependencies]
+image = { path = ".", features = ["test-support"] }

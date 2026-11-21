@@ -550,26 +550,19 @@ pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
 pub fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
     let build =
         strip_comments(&fs::read_to_string(sample_dir.join("build.omg")).unwrap_or_default());
-    let mut targets = BTreeSet::new();
-    for part in build.split("::ProgramEntry") {
-        let target: String = part
-            .chars()
-            .rev()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect::<String>()
-            .chars()
-            .rev()
-            .collect();
-        if !target.is_empty()
-            && target
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_lowercase())
-        {
-            targets.insert(target);
-        }
-    }
-    targets
+    build
+        .split(',')
+        .filter_map(|slot| {
+            let (target, name) = slot.trim().split_once('\\')?;
+            let target = target.trim_end();
+            (name.trim_start() == "ProgramEntry"
+                && target.starts_with(|c: char| c.is_ascii_lowercase())
+                && target
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'_'))
+            .then(|| target.to_owned())
+        })
+        .collect()
 }
 
 fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
@@ -1249,6 +1242,30 @@ mod tests {
     }
 
     #[test]
+    fn sample_targets_come_from_target_module_entry_bindings() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::write(
+            directory.join("build.omg"),
+            r#"machine build(builder: @mut Build) {
+                Build::bind(builder, windows_x86_64\ProgramEntry, main);
+                Build::bind (builder,
+                    linux_arm64 \ ProgramEntry,
+                    main);
+                Build::bind(builder, macos_arm64\ProgramEntryOther, main);
+                Build::bind(builder, macos_x86_64::ProgramEntry, main);
+                Build::application(builder, "unused\ProgramEntry");
+                // Build::bind(builder, linux_x86_64\ProgramEntry, main);
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            bound_targets(&directory),
+            BTreeSet::from(["linux_arm64".to_owned(), "windows_x86_64".to_owned()])
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn exit_oracles_keep_their_integer_before_a_following_sentence() {
         let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
         let entry = directory.join("main.omg");
@@ -1282,7 +1299,7 @@ mod tests {
         )
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
-            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}::ProgramEntry, main); }}\n", host_target())).unwrap();
+            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
         fs::write(
             directory.join("sample.json"),
             r#"{"source_inputs":["main.omg","build.omg"]}"#,

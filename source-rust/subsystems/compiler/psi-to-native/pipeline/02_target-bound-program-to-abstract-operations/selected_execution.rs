@@ -52,6 +52,7 @@ pub fn lower_native_execution(
     let authorization = execution.authorization();
     let artifact = authorization.artifact();
     let checked = execution.scope();
+    checked.require_source(proposal.scope_source())?;
     let selection = crate::NativeExecutionSelection::checked(
         checked,
         &proposal.providers().selection,

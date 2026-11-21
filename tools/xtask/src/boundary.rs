@@ -25,13 +25,13 @@ const BOUND_FRAMED_MACHINE: &str = "source-rust/subsystems/compiler/psi-to-nativ
 const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer";
 
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
-const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi-artifact";
-const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi-execution-inputs";
+const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi/artifact";
+const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi/execution-inputs";
 const PSI_SEMANTICS: &str = "source-rust/subsystems/compiler/psi-semantics";
 const NUMERICS: &str = "source-rust/subsystems/compiler/foundation/numerics";
 const INTERPRETER: &str = "source-rust/subsystems/interpreter";
 // Each of these owners is available to both pipelines. None may call either compiler.
-const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, NUMERICS];
+const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_SEMANTICS, NUMERICS];
 const PSI_CONSUMERS: &[&str] = &[PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, INTERPRETER];
 
 // The native driver's own package is admitted separately. Runtime consumers
@@ -43,8 +43,6 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets",
     "source-rust/subsystems/compiler/psi-to-native/representations",
     PSI_RECORDS,
-    PSI_ARTIFACT,
-    PSI_EXECUTION_INPUTS,
     PSI_SEMANTICS,
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
@@ -189,7 +187,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         ..rule(vec![""], vec![], "only source publication and native input admission exchange completed Build provider demand")
     });
     rules.push(rule(
-        vec!["source-rust/subsystems/compiler/psi-execution-inputs/providers"],
+        vec!["source-rust/subsystems/compiler/psi/execution-inputs/providers"],
         vec!["source-rust/subsystems/compiler/build"],
         "portable provider selection reads the artifact and receiving installation",
     ));
@@ -361,8 +359,7 @@ const AFTER_PREPARATION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -370,7 +367,7 @@ const AFTER_PREPARATION: &[&str] = &[
 /// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
-    "source-rust/subsystems/compiler/psi-artifact/codec";
+    "source-rust/subsystems/compiler/psi/artifact/codec";
 
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
@@ -382,8 +379,7 @@ const AFTER_SELECTION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
@@ -410,8 +406,7 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -585,7 +580,10 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                     && (under(&dependency, &[SOURCE, BUILD]) || dependency == PRODUCT_COORDINATOR)
                 {
                     violations.push(format!("{} -> {}: a Psi test imports compilation or Build ({dependency})", package.name, dep.name));
-                } else if under(&owner, &[PSI_RECORDS]) && under(&dependency, PSI_CONSUMERS) {
+                } else if under(&owner, &[PSI_RECORDS])
+                    && !under(&owner, PSI_CONSUMERS)
+                    && under(&dependency, PSI_CONSUMERS)
+                {
                     violations.push(format!("{} -> {}: a Psi record test imports an artifact or execution owner ({dependency})", package.name, dep.name));
                 }
             } else {
@@ -593,16 +591,18 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
             }
         }
     }
-    for (owners, forbidden, forbidden_packages) in [
-        (&[SOURCE][..], &[NATIVE][..], &[][..]),
-        (SHARED_PSI, &[SOURCE, NATIVE, BUILD][..], &[PRODUCT_COORDINATOR][..]),
-        (&[PSI_RECORDS][..], PSI_CONSUMERS, &[][..]),
-        (&[NATIVE][..], &[SOURCE][..], &[][..]),
+    // Psi records and their readers share a directory. Readers may use other readers
+    // while the program records, including their nested crates, must remain independent.
+    for (owners, excluded_owners, forbidden, forbidden_packages) in [
+        (&[SOURCE][..], &[][..], &[NATIVE][..], &[][..]),
+        (SHARED_PSI, &[][..], &[SOURCE, NATIVE, BUILD][..], &[PRODUCT_COORDINATOR][..]),
+        (&[PSI_RECORDS][..], PSI_CONSUMERS, PSI_CONSUMERS, &[][..]),
+        (&[NATIVE][..], &[][..], &[SOURCE][..], &[][..]),
     ] {
         let mut pending = VecDeque::new();
         let mut seen = BTreeSet::new();
         for (path, name) in &packages {
-            if under(path, owners) {
+            if under(path, owners) && !under(path, excluded_owners) {
                 pending.push_back((path.as_str(), name.to_string()));
                 seen.insert(path.as_str());
             }
@@ -708,7 +708,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
     "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
@@ -716,17 +716,17 @@ const WORKING_PROGRAM_READERS: &[&str] = &[
 /// cannot give object production access to the target-operation working program.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/validation.rs",
 ];
 const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/lib.rs",
         "mod retained_working_program;",
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments.rs",
         "pub(super) mod retained_source_validation;",
     ),
 ];
@@ -827,12 +827,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     ),
     (
         "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
-        "place_encoded_program",
-        1,
-    ),
-    (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-        "relax_resolved_layout",
+        "resolve_program",
         1,
     ),
     (
@@ -841,7 +836,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs",
         "assemble_fixed_frame_realization",
         1,
     ),
@@ -990,13 +985,13 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         ],
         &[
             "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
+            ("source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));
@@ -1019,11 +1014,11 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
 pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1125,7 +1120,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &["bind_target_reach"],
             &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
             &[(
-                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
+                "source-rust/subsystems/compiler/psi-to-native/representations/target-bound-program/native_execution_scope.rs",
                 "pub fn bind_target_reach(",
             )],
             "stage 01 issues reachability before a native body can be lowered",
@@ -1137,6 +1132,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(image_replay_read_violations(&root));
         violations.extend(backend_execution_plan_read_violations(&root));
         violations.extend(installation_mutation_violations(&root));
+        for dependency in [
+            "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input",
+            "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
+        ] {
+            violations.extend(transitive_exact_violations(
+                &metadata,
+                &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope"],
+                dependency,
+                "entry reachability uses the checked program entry and selected providers",
+            )?);
+        }
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -1368,15 +1374,17 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::NATIVE_STAGES[14];
+        let library = linear_pipeline::NATIVE_STAGES[13];
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[7], None, true),
+            (stages[14], stages[12], None, true),
+            (stages[15], stages[12], None, false),
             (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
             (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
-            ("source-rust/subsystems/compiler/psi-execution-inputs/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
+            ("source-rust/subsystems/compiler/psi/execution-inputs/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
             ("source-rust/subsystems/compiler/build/inputs", linear_pipeline::PSI_STAGES[7], None, false),
             ("source-rust/subsystems/compiler/build/inputs", stages[0], None, false),
             (library, stages[2], None, false),
@@ -1576,7 +1584,7 @@ mod tests {
         let plan =
             "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let wire = "source-rust/subsystems/compiler/psi-artifact/wire";
+        let wire = "source-rust/subsystems/compiler/psi/artifact/wire";
         assert!(native_forms().contains(&plan));
         let metadata = |dependency: &str, kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
@@ -1679,10 +1687,10 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image = "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src";
+        let image = "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src";
         assert_eq!(
             backend_execution_plan_read_violations(&root),
-            ["source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image: implementation directory is missing"]
+            ["source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image: implementation directory is missing"]
         );
         let files = [
             (
@@ -1818,7 +1826,7 @@ mod tests {
                 false,
             ),
             (
-                "source-rust/subsystems/compiler/psi-artifact/codec",
+                "source-rust/subsystems/compiler/psi/artifact/codec",
                 None,
                 false,
             ),
@@ -2059,7 +2067,7 @@ mod tests {
             packages: vec![
                 pkg("psi", PSI_RECORDS, &[]),
                 pkg("codec", &codec, &[("psi", PSI_RECORDS, None)]),
-                pkg("entry-memory", &entry, &[("psi", PSI_RECORDS, None)]),
+                pkg("entry-memory", &entry, &[("psi", PSI_RECORDS, None), ("codec", &codec, None)]),
                 pkg("source", SOURCE_COMPILER, &[]),
                 pkg("native", native_stages::DRIVER, &[]),
                 pkg("helper", "shared/helper", &[("codec", &codec, None)]),
@@ -2073,6 +2081,13 @@ mod tests {
         assert_eq!(violations.len(), 2, "{violations:?}");
         assert!(violations.iter().any(|row| row.contains("psi -> helper -> codec")));
         assert!(violations.iter().any(|row| row.contains("psi -> entry-memory")));
+
+        let records = format!("{PSI_RECORDS}/types/reflection");
+        metadata.packages[0] = pkg("psi", PSI_RECORDS, &[]);
+        metadata.packages.push(pkg("reflection", &records, &[("codec", &codec, None)]));
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("reflection -> codec"));
     }
 
     #[test]

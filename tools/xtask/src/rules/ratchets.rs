@@ -25,8 +25,6 @@ const PLACE_TRANSPORT_ROOTS: &[&str] = &[
     "source-rust/subsystems/compiler/foundation/semantic-records",
     "source-rust/subsystems/compiler/foundation/source-provenance",
     "source-rust/subsystems/compiler/psi",
-    "source-rust/subsystems/compiler/psi-artifact",
-    "source-rust/subsystems/compiler/psi-execution-inputs",
     "source-rust/subsystems/compiler/psi-semantics",
 ];
 

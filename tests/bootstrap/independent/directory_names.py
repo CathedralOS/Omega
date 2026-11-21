@@ -1,6 +1,7 @@
 """Check package-relative namespaces using an executable Epsilon-written Omega constructor."""
 import argparse
 from pathlib import Path
+import re
 import runpy
 import struct
 import sys
@@ -27,6 +28,8 @@ def cases():
         return data, rows
 
     yield from data_lifetime_cases(packet)
+    yield from trait_static_parameter_cases(packet)
+    yield from invokes_cases(packet)
 
     # A callee in another file owns its parameter's element type and count.
     paths = ["main.omg", "later/api.omg"]
@@ -146,17 +149,58 @@ def cases():
     yield from construction_unit_cases(encode)
     yield from nominal_record_cases(encode)
     yield from record_bound_cases(encode)
+    yield from parameter_order_cases(encode)
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from sum_equality_cases(encode)
+    yield from storage_window_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
     yield from predicate_transition_cases(encode)
+    yield from slice_conjunction_cases(encode)
+    yield from slice_successor_cases(encode)
 
 
 def copy_declaration(definitions, name):
     return declaration(definitions, b"public data " + name + b" [copy] {")
+
+
+def invokes_cases(packet):
+    # A gated package cannot drop an entry ceiling, even on an unused machine.
+    for name, source, anchor, status in [
+        ("invokes-unchecked-entry", b"machine main()->u8 invokes Entry {42}", b"invokes", 2),
+        ("invokes-service-twin", b"boundary trait Entry {} machine main()->u8 invokes Entry {42}", b"invokes", 2),
+        ("invokes-unused-entry", b"machine helper() invokes Entry {} machine main()->u8{42}", b"invokes", 2),
+        ("invokes-missing-binding", b"machine main()->u8 invokes {42}", b"{42}", 1),
+        ("invokes-binding-at-eof", b"machine main()->u8 invokes", b"", 1),
+        ("invokes-non-name", b"machine main()->u8 invokes 42 {42}", b"42", 1),
+        ("invokes-data-owner", b"data D invokes Bad {} machine main()->u8{42}", b"invokes", 1),
+        ("invokes-case-owner", b"data D {case One invokes Bad;} machine main()->u8{42}", b"invokes", 1),
+        ("invokes-domain-owner", b"domain u8::D invokes Bad; machine main()->u8{42}", b"invokes", 1),
+    ]:
+        wire, rows = packet([source], ["main.omg"])
+        position = source.index(anchor) if anchor else len(source)
+        yield name, wire, struct.pack("<BII", 0, status, rows[0][1] + position)
+
+    # The same spelling can name an ordinary local, and a service can still
+    # form a reach ceiling when the program makes no synchronous entry claim.
+    for name, source in [
+        ("invokes-contextual-name", b"machine main()->u8{let invokes:u8=42; invokes}"),
+        ("invokes-reaches-twin", b"boundary trait Entry {} machine main()->u8 reaches Entry {42}"),
+    ]:
+        yield name, packet([source], ["main.omg"])[0], 42
+
+    # Preserve the original four authored wait names. Supplying their imports
+    # as memberless services isolates checking of the Clock requirement.
+    clock = (ROOT / "source/library/std/clock.omg").read_bytes()
+    services = [("linux_arm64", "LinuxArmClockWait"), ("linux_x86_64", "LinuxClockWait"),
+                ("macos_arm64", "DarwinClockWait"), ("windows_x86_64", "WindowsClockWait")]
+    sources = [b"machine main()->u8{42}", clock,
+               *(f"public boundary trait {entry} {{}}".encode() for _, entry in services)]
+    paths = ["main.omg", "clock.omg", *(f"targets/{target}/wait.omg" for target, _ in services)]
+    wire, rows = packet(sources, paths)
+    yield "invokes-production-clock", wire, struct.pack("<BII", 0, 2, rows[1][1] + clock.index(b"boundary trait Clock"))
 
 
 def declaration(definitions, header):
@@ -564,6 +608,152 @@ def sum_equality_cases(encode):
         yield name, wire, struct.pack("<BII", 0, status, start + source.index(marker))
 
 
+def parameter_order_cases(encode):
+    # The original build-path scanner passes both relations together. The
+    # strict byte reader needs fresh evidence before it may index at an endpoint.
+    signature = b"machine scan(path:@[u8],start:u64,index:u64)->u8 "
+    bounded = b"requires start<=index && index<=path.len "
+    reader = b"machine byte(path:@[u8],start:u64,index:u64)->u8 requires start<=index && index<path.len {path[index]}"
+    dispatcher = signature + bounded + b"{transition index<path.len {true->byte(path,start,index),_ ->7}" + reader + b"}"
+    entry = b"machine main()->u8{let path:[u8;1]=[42];scan(@path[..],0,0)}"
+    samples = [
+        ("order-slice-first-byte", dispatcher + entry, 42),
+        ("order-slice-endpoint", dispatcher + entry.replace(b",0,0)", b",1,1)"), 7),
+        ("order-slice-empty", dispatcher + entry.replace(b"@path[..]", b"@path[0..0]"), 7),
+        ("order-slice-inverted", dispatcher + entry.replace(b",0,0)", b",1,0)"), (2, b"machine main")),
+        ("order-slice-past-end", dispatcher + entry.replace(b",0,0)", b",0,2)"), (2, b"machine main")),
+        ("order-slice-end-is-not-byte", signature + bounded + b"{path[index]}" + entry, (2, b"path[index]")),
+    ]
+    receiver = b"machine take(a:u64,b:u64)->u8 requires a<=b {42}"
+    caller = b"machine pass(x:u64,y:u64)->u8 "
+    main = b"machine main()->u8{pass(0,1)}"
+    for name, requirements, arguments, expected in [
+        ("order-scalar-forward", b"requires x<=y ", b"x,y", 42),
+        ("order-scalar-reverse-spelling", b"requires y>=x ", b"x,y", 42),
+        ("order-scalar-strict-implies-inclusive", b"requires x<y ", b"x,y", 42),
+        ("order-scalar-reflexive", b"", b"x,x", 42),
+        ("order-scalar-reversed-actuals", b"requires x<=y ", b"y,x", (2, b"machine pass")),
+        ("order-scalar-unproved", b"", b"x,y", (2, b"machine pass")),
+    ]:
+        samples.append((name, caller + requirements + b"{take(" + arguments + b")}" + receiver + main, expected))
+    guard = caller + b"{transition x>y {false->take(x,y),_ ->7}" + receiver + b"}"
+    samples.append(("order-scalar-negative-guard", guard + main, 42))
+    samples.append(("order-scalar-wrong-direction", guard.replace(b"x>y", b"x<y") + main, (2, b"machine pass")))
+    samples.append(("order-scalar-inclusive-is-not-strict", caller + b"requires x<=y {take(x,y)}" +
+                    receiver.replace(b"a<=b", b"a<b") + main, (2, b"machine pass")))
+    samples.append(("order-scalar-effectful-argument", caller + b"requires x<=y {take(x,copy(y))}" + receiver +
+                    b"machine copy(n:u64)->u64{n}" + main, (2, b"machine pass")))
+    two = b"machine choose(left:@[u8],right:@[u8],n:u64)->u8 requires n<=left.len {"
+    two_entry = (b"machine main()->u8{let a:[u8;1]=[42];let b:[u8;1]=[7];"
+                 b"choose(@a[..],@b[..],1)}")
+    end = b"machine end(path:@[u8],n:u64)->u8 requires n<=path.len {42}"
+    samples.append(("order-slice-forward", two + b"end(left,n)}" + end + two_entry, 42))
+    samples.append(("order-slice-wrong-length", two + b"end(right,n)}" + end + two_entry,
+                    (2, b"machine choose")))
+    # The construction application's has_build_file passes a u32 unit and
+    # limit. Its nested file machine requires unit < limit on that arrival.
+    for carrier in (b"u32", b"u8"):
+        sig = b"machine search(unit:" + carrier + b",limit:" + carrier + b")->u8 "
+        visitor = b"machine file(unit:" + carrier + b",limit:" + carrier + b")->u8 requires unit<limit {42}"
+        body = b"{transition unit<limit {true->file(unit,limit),_ ->7}" + visitor + b"}"
+        invoke = b"machine main()->u8{search(0,1)}"
+        stem = "order-" + carrier.decode()
+        samples.append((stem + "-unit-limit", sig + body + invoke, 42))
+        samples.append((stem + "-empty", sig + body + invoke.replace(b"(0,1)", b"(1,1)"), 7))
+        samples.append((stem + "-wrong-pair", sig + body.replace(b"file(unit,limit)", b"file(limit,unit)") +
+                        invoke, (2, b"machine search")))
+        step = (b"machine step(unit:" + carrier + b",limit:" + carrier + b")->" + carrier +
+                b" requires unit<limit {unit+1}")
+        use = b"machine main()->u8{let next:" + carrier + b"=step(254,255);transition next==255{true->42,_ ->7}}"
+        samples.append((stem + "-successor", step + use, 42))
+        samples.append((stem + "-successor-inclusive", step.replace(b"unit<limit", b"unit<=limit") + use,
+                        (2, b"+1")))
+        samples.append((stem + "-successor-wrong-base", step.replace(b"{unit+1}", b"{limit+1}") + use,
+                        (2, b"+1")))
+        samples.append((stem + "-successor-two", step.replace(b"{unit+1}", b"{unit+2}") + use,
+                        (2, b"+2")))
+    # Exercise arithmetic above the bootstrap proof ledger's signed 32-bit
+    # interval range. The runtime guard supplies the precondition.
+    top = (b"machine pass(unit:u32,limit:u32)->u32{transition unit<limit{true->step(unit,limit),_ ->0}"
+           b"machine step(unit:u32,limit:u32)->u32 requires unit<limit{unit+1}}"
+           b"machine main()->u8{let next:u32=pass(4294967294,4294967295);"
+           b"transition next==4294967295{true->42,_ ->7}}")
+    samples.append(("order-u32-last-successor", top, 42))
+    mixed = b"machine wrong(unit:u8,limit:u32)->u8 requires unit<limit {42}machine main()->u8{wrong(0,1)}"
+    samples.append(("order-unsigned-carrier-mismatch", mixed, (2, b"machine wrong")))
+    narrow = b"machine wrong(path:@[u8],index:u32)->u8 requires index<path.len {42}" + entry.replace(b"scan(@path[..],0,0)", b"wrong(@path[..],0)")
+    samples.append(("order-narrow-index-slice-length", narrow, (2, b"machine wrong")))
+    for name, source, expected in samples:
+        packet, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, anchor = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(anchor))
+        yield name, packet, expected
+
+    # The callee's argument positions belong to its own file. Callers can
+    # spell and order their parameters differently.
+    provider = b"public machine take(high:u64,low:u64)->u8 requires low<=high {42}"
+    for name, actuals, accepted in [("order-cross-file", b"y,x", True),
+                                    ("order-cross-file-swapped", b"x,y", False)]:
+        client = caller + b"requires x<=y {take(" + actuals + b")}" + main
+        packet, _, _, rows = encode([("app", 0)], [], [(0, client), (0, provider)], 0,
+                                    b"main", paths=["main.omg", "limits.omg"])
+        expected = 42 if accepted else struct.pack("<BII", 0, 2, rows[0][1] + client.index(b"machine pass"))
+        yield name, packet, expected
+
+
+def storage_window_cases(encode):
+    """Checked backing is disjoint from both the Alpha tape and return stack."""
+    def packet(source):
+        data, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main",
+                                  paths=["main.omg"])
+        return data, rows[0][1]
+
+    # These declarations reserve/check large regions, but main never calls
+    # reserve or initializes a giant value. Seed execution remains tiny.
+    for name, source in [
+        ("storage-array-last-valid", b"data Region{bytes:[u8;1073741824];}machine main()->u8{42}"),
+        ("storage-record-last-valid", b"data Region{left:[u8;536870912];right:[u8;536870912];}machine main()->u8{42}"),
+        ("storage-payload-last-valid", b"data Region [copy]{case Value(bytes:[u8;1073741816]);}machine main()->u8{42}"),
+        ("storage-arena-last-valid", b"data Reserve [copy]{bytes:[u8;1073741808];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}"),
+        ("storage-byte-view-relocated", b"data B{bytes:[u8;3];}machine second(bytes:@[u8])->u8 requires bytes.len>=2 {bytes[1]}machine main()->u8{let mut b:B;b.bytes[1]=42;second(@b.bytes[0..2])}"),
+    ]:
+        yield name, packet(source)[0], 42
+
+    for name, source, marker in [
+        ("storage-array-first-invalid", b"data Region{bytes:[u8;1073741825];}machine main()->u8{42}", b"data Region"),
+        ("storage-record-first-invalid", b"data Region{left:[u8;536870912];right:[u8;536870912];tail:u8;}machine main()->u8{42}", b"data Region"),
+        ("storage-payload-first-invalid", b"data Region [copy]{case Value(bytes:[u8;1073741817]);}machine main()->u8{42}", b"bytes:"),
+        ("storage-arena-first-invalid", b"data Reserve [copy]{bytes:[u8;1073741809];}machine reserve(bytes:Reserve)->u8{42}machine main()->u8{42}", b"machine main"),
+        ("storage-array-product-overflow", b"data Region{bytes:[u64;536870913];}machine main()->u8{42}", b"data Region"),
+        ("storage-two-regions-exhausted", b"data Reserve{bytes:[u8;536870912];}machine main()->u8{let a:Reserve;let b:Reserve;42}", b"machine main"),
+    ]:
+        wire, start = packet(source)
+        yield name, wire, struct.pack("<BII", 0, 2, start + source.index(marker))
+
+    # Retain every original SyntaxTrees field, capacity, constraint and all
+    # of its data dependencies. Only their containing source unit is composed.
+    base = ROOT / "source/subsystems/compiler/source_to_psi/representations"
+    syntax = (base / "syntax_trees/syntax_trees.omg").read_bytes()
+    files = (base / "source_files/source.omg").read_bytes()
+    numeric = (base / "tokens/numeric.omg").read_bytes()
+    dependencies = b"".join(copy_declaration(files, name)
+                             for name in (b"SourceId", b"Span", b"SourceSpan"))
+    dependencies += copy_declaration(numeric, b"IntegerSuffix")
+    headers = re.finditer(rb"(?m)^public data [A-Za-z_][A-Za-z_0-9]*(?: \[copy\])?\s*(?:\{|\nrequires)", syntax)
+    declarations = b"".join(declaration(syntax, header.group()) for header in headers)
+    # Both complete 45,156,664-byte owners are live at once. Calls touch the
+    # final word and an earlier constrained field independently; aliasing or
+    # result/parameter backing reuse changes the observable result.
+    main = (b"machine mark(tree:@mut SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
+            b"machine poison(tree:@mut SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
+            b"machine inspect(a:@SyntaxTrees,b:@SyntaxTrees)->bool{"
+            b"a.accepted && !b.accepted && a.root_count==42 && b.root_count==7}"
+            b"machine main()->u8{let mut a:SyntaxTrees;let mut b:SyntaxTrees;"
+            b"mark(@mut a);poison(@mut b);transition inspect(@a,@b){true->42,_->7}}")
+    yield "storage-product-two-complete-syntax-trees", packet(dependencies + declarations + main)[0], 42
+
+
 def nominal_array_cases(encode):
     def packet(sources, paths, library=None):
         packages = [("app", 0)]
@@ -779,6 +969,18 @@ def predicate_transition_cases(encode):
         yield name, request, expected
 
 
+def trait_static_parameter_cases(packet):
+    for name, declarations, status, anchor in [
+        ("typed-static-trait-parameter", b"trait Calling<const Policy: CallingPolicy> {} trait CallingPolicy {}", 2, b"trait Calling<"),
+        ("retired-trait-evidence-binder", b"trait Calling<Policy satisfies CallingPolicy> {}", 1, b"satisfies"),
+        ("duplicate-static-trait-parameter", b"trait Calling<const Policy: A, const Policy: B> {}", 1, b"Policy: B"),
+        ("missing-static-trait-parameter-type", b"trait Calling<const Policy: > {}", 1, b">"),
+    ]:
+        source = declarations + b" machine main()->u8{42}"
+        request, rows = packet([source], ["main.omg"])
+        yield name, request, struct.pack("<BII", 0, status, rows[0][1] + source.index(anchor))
+
+
 def data_lifetime_cases(packet):
     # The field names may be forwarded, repeated, or permuted. Each must bind
     # in the declaring item, and the application must match the target's arity.
@@ -799,6 +1001,95 @@ def data_lifetime_cases(packet):
         sources = [main, source, pair]
         request, rows = packet(sources, ["main.omg", "result.omg", "pair.omg"])
         yield name, request, struct.pack("<BII", 0, status, rows[1][1] + source.index(anchor))
+
+
+def slice_conjunction_sources():
+    signature = b"machine choose(left:@[u8],right:@[u8],index:u64)->u8{transition "
+    read = (b"machine read(left:@[u8],right:@[u8],index:u64)->u8 "
+            b"requires index<left.len && index<right.len {left[index]}} ")
+    main = (b"machine main()->u8{let left:[u8;1]=[42];let right:[u8;1]=[9];"
+            b"let answer:u8=choose(@left[..],@right[..],0);answer}")
+    guards = [
+        ("slice-guard-conjunction", b"index<left.len && index<right.len", 42),
+        ("slice-guard-reversed-conjunction", b"index<right.len && index<left.len", 42),
+        ("slice-guard-nested-conjunction", b"true && (index<left.len && index<right.len)", 42),
+        ("slice-guard-disjunction", b"index<left.len || index<right.len", (2, b"machine choose")),
+        ("slice-guard-wrong-slice", b"index<left.len && index<left.len", (2, b"machine choose")),
+    ]
+    for name, guard, expected in guards:
+        source = signature + guard + b"{true->read(left,right,index),_ ->0}" + read + main
+        yield name, source, expected
+    source = (signature + b"index<left.len && index<right.len{true->0,_ ->read(left,right,index)}" + read + main)
+    yield "slice-guard-false-arm", source, (2, b"machine choose")
+    source = (signature + b"index<left.len && index<right.len{true->read(left,right,index),_ ->0}" + read + main)
+    yield "slice-guard-empty-right", source.replace(b"@right[..]", b"@right[0..0]"), 0
+    signature_other = b"machine choose(left:@[u8],right:@[u8],index:u64,other:u64)->u8{transition "
+    source = (signature_other + b"index<left.len && index<right.len{true->read(left,right,other),_ ->0}" + read + main.replace(b"@right[..],0)", b"@right[..],0,0)"))
+    yield "slice-guard-wrong-index", source, (2, b"machine choose")
+
+
+def slice_conjunction_cases(encode):
+    for name, source, expected in slice_conjunction_sources():
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
+
+
+def slice_successor_sources():
+    # Keep the complete construction helper unchanged; only its caller varies.
+    product = declaration((ROOT / "source/application/construction/build_sources.omg").read_bytes(),
+                          b"machine same_build_path(")
+    for name, left_view, right, right_view, expected in [
+        ("equal", b"[..]", b"[65,66]", b"[..]", 42),
+        ("changed-byte", b"[..]", b"[65,67]", b"[..]", 7),
+        ("different-length", b"[..]", b"[65,66]", b"[0..1]", 7),
+        ("empty", b"[0..0]", b"[65,66]", b"[0..0]", 42),
+    ]:
+        source = (product + b" machine main()->u8{let left:[u8;2]=[65,66];let right:[u8;2]=" + right +
+                  b";let equal:bool=same_build_path(@left" + left_view + b",@right" + right_view +
+                  b");transition equal{true->42,_ ->7}}")
+        yield "slice-successor-product-path-" + name, source, expected
+
+    prefix = b"machine next_index(items:@[u8],index:u64)->u64 requires index<items.len {"
+    call = (b"machine main()->u8{let bytes:[u8;2]=[41,42];"
+            b"let result:u64=next_index(@bytes[..],0);transition result==1{true->42,_ ->7}}")
+    yield "slice-successor-first", prefix + b"index+1}" + call, 42
+    yield "slice-successor-last", (prefix + b"index+1}" + call).replace(b"@bytes[..],0)", b"@bytes[..],1)").replace(b"result==1", b"result==2"), 42
+    yield "slice-successor-two", prefix + b"index+2}" + call, (2, b"+2")
+    yield "slice-successor-unbounded", (prefix + b"index+1}" + call).replace(b"requires index<items.len ",b""), (2, b"+1")
+    wrong = (prefix + b"other+1}" + call).replace(b"index:u64)",b"index:u64,other:u64)").replace(b"@bytes[..],0)",b"@bytes[..],0,0)")
+    yield "slice-successor-wrong-index", wrong, (2, b"+1")
+    inclusive = (prefix + b"index+1}" + call).replace(b"index<items.len",b"index<=items.len")
+    yield "slice-successor-inclusive", inclusive, (2, b"+1")
+    read = (b"machine read(items:@[u8],index:u64)->u8 requires index<items.len {items[index+1]} "
+            b"machine main()->u8{let bytes:[u8;1]=[42];let result:u8=read(@bytes[..],0);result}")
+    yield "slice-successor-is-not-an-index-proof", read, (2, b"items[index")
+
+
+def successor_order_sources():
+    prefix = (b"machine step(path:@[u8],start:u64,index:u64)->u8 "
+              b"requires start<=index && index<path.len {transition {_->finish(path,")
+    callee = b"machine finish(path:@[u8],a:u64,b:u64)->u8 requires "
+    entry = b"machine main()->u8{let path:[u8;1]=[42];step(@path[..],0,0)}"
+    for name, args, condition, expected in [
+        ("slice-successor-endpoint", b"start,index+1", b"a<b && b<=path.len", 42),
+        ("slice-successor-equal-endpoints", b"index+1,index+1", b"a<=b && b<=path.len", 42),
+        ("slice-successor-equal-is-not-strict", b"index+1,index+1", b"a<b", (2, b"machine step")),
+        ("slice-successor-cannot-read-end", b"start,index+1", b"b<path.len", (2, b"machine step")),
+        ("slice-successor-order-reversed", b"index+1,start", b"a<=b", (2, b"machine step")),
+    ]:
+        yield name, prefix + args + b")}" + callee + condition + b"{42}}" + entry, expected
+
+
+def slice_successor_cases(encode):
+    for name, source, expected in (*slice_successor_sources(), *successor_order_sources()):
+        request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+        if isinstance(expected, tuple):
+            status, spelling = expected
+            expected = struct.pack("<BII", 0, status, rows[0][1] + source.index(spelling))
+        yield name, request, expected
 
 
 def main():

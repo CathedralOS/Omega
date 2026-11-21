@@ -340,12 +340,21 @@ data OmegaBoundaryTraitSyntax {
 // share the parser's requirement arena and retain their source-owned range.
 data OmegaTraitSyntax {
     name: OmegaRelativeSpan;
+    first_static_parameter: i32;
+    static_parameter_count: i32;
     keyword: OmegaRelativeSpan;
     first_requirement: i32;
     requirement_count: i32;
     is_public: i32;
     start: i32;
     end: i32;
+}
+
+// A typed static parameter owns its declared type. Later checking determines
+// whether that type describes a value, callable, or implementation.
+data OmegaTraitStaticParameterSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
 }
 
 // Inline provider members use ordinary machine syntax under the exact
@@ -392,6 +401,7 @@ data OmegaTypeConsumer {
     case LocalData;
     case Cast;
     case DomainCarrier;
+    case TraitStaticParameter;
 }
 
 data OmegaPathDestination {
@@ -531,6 +541,7 @@ data OmegaMachineClauseKind {
     case BlocksFalse;
     case Terminates;
     case EventualTermination;
+    case Invokes;
 }
 
 data OmegaExternalBindingKind {
@@ -540,7 +551,8 @@ data OmegaExternalBindingKind {
 // Satisfies owns exactly Trait::requirement and may own one closed external
 // binding. This slice admits the payload-free Binding::CompilerIntrinsic case
 // and retains each authored component separately. Reaches owns one or more
-// source-ordered service identifiers. An unguarded crash clause owns its
+// source-ordered service identifiers. Invokes owns one synchronous-entry name
+// per authored row. An unguarded crash clause owns its
 // single cause or none spelling. Terminates owns one path-shaped
 // subject in first_member/member_count and one qualified ranking-view path in
 // first_view_member/view_member_count; it is a private witness, not the bare
@@ -1043,6 +1055,14 @@ data OmegaParseDiagnosticCode {
     case RetiredDomainSubject;
     case ExpectedLifetimeSeparator;
     case DuplicateLifetimeBinder;
+    case ExpectedTraitStaticParameter;
+    case ExpectedTraitStaticParameterColon;
+    case ExpectedTraitStaticParameterType;
+    case ExpectedTraitStaticParameterEnd;
+    case DuplicateTraitStaticParameter;
+    case RetiredTraitEvidenceBinder;
+    case ExpectedInvokesBinding;
+    case ClauseNotAdmitted;
 }
 
 data OmegaParserResource {
@@ -1143,6 +1163,9 @@ data OmegaParser {
     boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
     ordinary_traits: [OmegaTraitSyntax; 4096];
     ordinary_trait_count: i32;
+    // Each retained static parameter owns at least one type node.
+    trait_static_parameters: [OmegaTraitStaticParameterSyntax; 16384];
+    trait_static_parameter_count: i32;
     // Both trait kinds publish one distinct root, after the whole body closes.
     pending_trait: OmegaTraitSyntax;
     pending_trait_is_boundary: i32;

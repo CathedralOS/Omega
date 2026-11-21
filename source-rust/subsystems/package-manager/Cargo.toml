@@ -27,7 +27,7 @@ source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
-terminal-codec = { path = "../compiler/psi-artifact/codec" }
+terminal-codec = { path = "../compiler/psi/artifact/codec" }
 evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 terminal-work = { path = "../compiler/psi-semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
