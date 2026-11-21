@@ -43,11 +43,15 @@ pub fn review_package(
             "package review and its deployment have different source subjects",
         )]);
     }
-    let mut imported = std::collections::BTreeMap::new();
-    for package in publication
+    let direct = publication
         .independent_packages()
-        .map_err(|reason| vec![Diagnostic::error(reason)])?
-    {
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut pending = direct.clone();
+    let mut imported = std::collections::BTreeMap::new();
+    while let Some(package) = pending.pop_first() {
+        if imported.contains_key(&package) {
+            continue;
+        }
         let description = inputs.independent_component_descriptions().get(&package)
             .ok_or_else(|| vec![Diagnostic::error(format!("the completed Product for `{}` has no separately published provider description for this target", inputs.package_label(package)))])?;
         let verified = component_description::verify_component(
@@ -62,11 +66,15 @@ pub fn review_package(
             },
         )
         .map_err(|why| vec![Diagnostic::error(why.to_string())])?;
+        pending.extend(description.independent_suppliers().iter().copied());
         imported.insert(package, std::sync::Arc::new(verified));
     }
     let component_assumptions = runtime_consent::component_assumptions(
         imported.iter().map(|(&key, value)| (key, value.as_ref())),
     )?;
+    // Consent covers the entire selected closure. Only the immediate suppliers
+    // are candidates for this Product's provider slots.
+    imported.retain(|package, _| direct.contains(package));
     let (artifact, providers, _) = publication.into_parts();
     let subject = artifact.view().identity();
     let authorized = authorize_current_compilation(artifact)?;
@@ -82,7 +90,12 @@ pub fn review_package(
         declarations,
         providers,
         component: description.map(|bytes| {
-            package_compilation::IndependentComponentDescription::new(inputs.root(), subject, bytes)
+            package_compilation::IndependentComponentDescription::new(
+                inputs.root(),
+                subject,
+                direct,
+                bytes,
+            )
         }),
     })
 }
@@ -265,12 +278,6 @@ impl Program<'_> {
                 runtime_consent,
                 suppliers,
             } => {
-                let components = publication
-                    .independent_packages()
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?
-                    .into_iter()
-                    .map(|package| suppliers.publish(package, target.profile))
-                    .collect::<Result<Vec<_>, _>>()?;
                 let subject = publication.subject();
                 let consent = runtime_consent
                     .map(|accepted| {
@@ -288,7 +295,7 @@ impl Program<'_> {
                     authorized,
                     providers,
                     &exclusions,
-                    components,
+                    |package, profile| suppliers.publish(package, profile),
                     target,
                     |policy| {
                         let assumptions = runtime_consent::component_assumptions(

@@ -29,10 +29,16 @@ pub fn prepare_source_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     publication: provider_demand::PublishedTargetProviders,
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
-    components: Vec<super::components::ComponentSourcePublication>,
+    publish: impl FnMut(
+        semantic_vocabulary::PackageKeyIdentity,
+        target::TargetProfile,
+    ) -> Result<super::components::ComponentSourcePublication, Vec<Diagnostic>>,
     target: SourceNativeTarget<'_>,
     receive: impl FnOnce(&crate::NativeProgram) -> Result<(), Vec<Diagnostic>>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let packages = publication
+        .independent_packages()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let issued = source_demand(
         &authorization,
         publication,
@@ -40,7 +46,7 @@ pub fn prepare_source_program(
         target.package_permissions,
         target.semantic_bindings,
     )?;
-    let supplied = super::components::verify(components, target.profile)?;
+    let supplied = super::components::verify(packages, target.profile, publish)?;
     let program = prepare_issued_program(
         authorization,
         issued,

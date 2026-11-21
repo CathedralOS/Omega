@@ -17931,7 +17931,7 @@
       "kind": "definition",
       "meaning": "Groups HostContext < 'host > operations with their defining host or checked image.",
       "producer": "terminal hosted interpreter",
-      "signature": "1826c83bb20b4cbba1952037856ebdc70118e4cdb25602aca2dd5c0e2da4f49e"
+      "signature": "721dcd20e0c241e197c6ecaaef3d786a58abd9d5d346e21c99a87e830c5af7e3"
     },
     {
       "consumers": [
@@ -17968,9 +17968,9 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution/host_imports/embedding.rs",
       "item": "impl:HostContext < 'host >::method:prepare_component#1",
       "kind": "host_operation",
-      "meaning": "Build an independently checked component binding from the published component and the host services.",
+      "meaning": "Bind a supplier and its reached child calls using the same checked receiver provisions and the invocation's host capabilities.",
       "producer": "terminal hosted interpreter",
-      "signature": "7ec2cc31260d48b1c104305210ef05b3d3e6ada0c5bc6328cbbde81cfe34a1f3"
+      "signature": "e7df02d176d31a1cce3b299e74b782abe68dcdb19d34b0cc185fc8b7ba6bc708"
     },
     {
       "consumers": [
@@ -18017,9 +18017,9 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution/hosted_invocation.rs",
       "item": "function:execute_installed#1",
       "kind": "host_operation",
-      "meaning": "Instantiate the program with admitted supplies, bind the selected host services and components, and resume it within the caller’s work budget.",
+      "meaning": "Install the program's direct component calls from the validated provider graph and run the selected entry with its admitted host provisions.",
       "producer": "Psi host invocation",
-      "signature": "6947a17d7db9e2aec31ecb1816aede78ca4cfeffac5ac310b4bbc1fac887197b"
+      "signature": "b9bacf54b2126ca113720eccefc9d6ec11b56c90706642e7cca20a320d729a79"
     },
     {
       "consumers": [

@@ -189,17 +189,24 @@ impl PackageCompilationInputs {
         self.dependency_closure_for(self.source.root)
     }
 
+    pub(super) fn product_dependencies_of(
+        &self,
+        root: PackageKeyIdentity,
+    ) -> BTreeSet<PackageKeyIdentity> {
+        reachable_packages(root, |package| {
+            self.source
+                .packages
+                .get(&package)
+                .map(|record| &record.dependencies)
+        })
+    }
+
     #[doc(hidden)]
     pub(crate) fn dependency_closure_for(
         &self,
         root: PackageKeyIdentity,
     ) -> PackageDependencyClosure {
-        let reachable = reachable_packages(root, |package| {
-            self.source
-                .packages
-                .get(&package)
-                .map(|record| &record.dependencies)
-        });
+        let reachable = self.product_dependencies_of(root);
         PackageDependencyClosure {
             root,
             root_role: if root == self.source.root {
@@ -462,5 +469,74 @@ mod selection_authority_tests {
         assert!(build.allows_declaration_selection(helper, helper_dependency));
         assert!(!build.allows_declaration_selection(helper, product));
         assert!(!build.allows_declaration_selection(identity(5), identity(5)));
+    }
+
+    #[test]
+    fn component_selections_follow_the_supplying_products_own_dependencies() {
+        let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "component-supplier-graph",
+            false,
+        )
+        .unwrap();
+        let [root, component, leaf, sibling, helper] =
+            [1, 2, 3, 4, 5].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
+        let packages = [
+            (root, "root"),
+            (component, "component"),
+            (leaf, "leaf"),
+            (sibling, "sibling"),
+            (helper, "helper"),
+        ]
+        .map(|(identity, name)| {
+            let path = directory.path().join(name);
+            std::fs::create_dir(&path).unwrap();
+            PackageSourceBinding::new(identity, name, path)
+        });
+        let edges = [
+            (root, "component", component, DependencyPurpose::Product),
+            (root, "sibling", sibling, DependencyPurpose::Product),
+            (component, "leaf", leaf, DependencyPurpose::Product),
+            (root, "helper", helper, DependencyPurpose::Build),
+        ]
+        .map(|(from, name, to, purpose)| {
+            PackageDependencyBinding::for_purpose(from, name, to, purpose)
+        });
+        let inputs = PackageCompilationInputs::new(
+            root,
+            BuildDeclarationKind::Application,
+            packages.into(),
+            edges.into(),
+        )
+        .unwrap();
+        let description = |supplier| {
+            crate::IndependentComponentDescription::new(
+                component,
+                terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
+                },
+                [supplier].into(),
+                Vec::new(),
+            )
+        };
+        assert!(
+            inputs
+                .clone()
+                .with_independent_component_descriptions(vec![description(leaf)])
+                .is_ok()
+        );
+        for supplier in [component, sibling, helper, root] {
+            assert_eq!(
+                inputs
+                    .clone()
+                    .with_independent_component_descriptions(vec![description(supplier)]),
+                Err(vec![
+                    crate::PackageCompilationInputError::ForeignComponentSupplier {
+                        package: component,
+                        supplier,
+                    }
+                ])
+            );
+        }
     }
 }
