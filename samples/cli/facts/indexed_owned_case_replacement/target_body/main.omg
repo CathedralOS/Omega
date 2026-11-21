@@ -23,7 +23,7 @@ machine run(payload: u64 in PositiveSmall) -> u64 {
     replace(@mut frames, 3, payload)
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

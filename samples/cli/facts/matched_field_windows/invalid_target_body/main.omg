@@ -4,7 +4,7 @@
 // Invalid control: `items[2..3]` in the arm that does not pin `which` publishes length 1
 // in every target body, so no target publishes the promised 2.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

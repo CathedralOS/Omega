@@ -4,7 +4,7 @@ machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 requires Length == [u8; Capacity]
 { Capacity }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {
@@ -25,12 +25,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedConsume {
     machine consume(items: [u8; 2]) -> u64
-        reaches invokes SelectedBodyCheck crashes Trap;
+        reaches none invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Consume satisfies SelectedConsume {
     machine consume(items: [u8; 2]) -> u64
-        reaches invokes SelectedBodyCheck crashes Trap
+        reaches none invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
         capacity::<[u8; 2], 3>(items)
@@ -39,7 +39,7 @@ X86Consume satisfies SelectedConsume {
 
 ArmConsume satisfies SelectedConsume {
     machine consume(items: [u8; 2]) -> u64
-        reaches invokes SelectedBodyCheck crashes Trap
+        reaches none invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
         capacity::<[u8; 2], 3>(items)

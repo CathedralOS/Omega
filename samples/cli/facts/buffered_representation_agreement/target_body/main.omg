@@ -144,7 +144,7 @@ data DeliveredResult<'buffer> {
     after: u64;
 }
 boundary trait AnswerDelivery {
-    machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer> reaches terminates
+    machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer> reaches none terminates
     ensures core\Identity::<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming) crashes none;
 }
 FirstDelivery satisfies AnswerDelivery {

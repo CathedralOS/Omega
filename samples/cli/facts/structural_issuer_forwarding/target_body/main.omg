@@ -11,7 +11,7 @@ machine issue<I satisfies Issuer>(value: u64) -> Token in Issued { Issuer::issue
 machine forward(token: Token in Issued) -> Token in Issued { token }
 machine consume(token: Token in Issued) -> u64 { token.value }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -4,7 +4,7 @@ domain Token::Ready established by Transfer::transfer;
 
 boundary trait Transfer {
     machine transfer(input: Token in Ready, other: Token) -> Token
-    reaches
+    reaches none
     ensures result in Ready crashes none;
 }
 Adapter satisfies Transfer {

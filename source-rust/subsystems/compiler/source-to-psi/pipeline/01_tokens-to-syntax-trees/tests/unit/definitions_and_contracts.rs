@@ -1806,7 +1806,7 @@ fn boundary_requirement_must_write_its_crash_ceiling() {
 #[test]
 fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_realizers() {
     let source = r#"
-        public boundary trait Mark { machine read() -> u64 reaches crashes none; }
+        public boundary trait Mark { machine read() -> u64 reaches none crashes none; }
         MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
         machine main() { let value: u64 = Mark::read(); }
     "#;
@@ -1827,7 +1827,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
     assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
 
     let missing = source.replace(
-        "read() -> u64 reaches crashes none;",
+        "read() -> u64 reaches none crashes none;",
         "read() -> u64 crashes none;",
     );
     let tokens = Lexer::new(&missing).tokenize().expect("valid tokens");

@@ -3,12 +3,12 @@
 machine can_window(items: @[u8], low: u64) -> bool { items.len == 4 && low <= 3 }
 boundary trait SelectedWindowRead {
     machine read(items: @[u8], low: u64) -> u8
-        reaches requires can_window(items, low) == true crashes none;
+        reaches none requires can_window(items, low) == true crashes none;
 }
 
 ComputedWindowRead satisfies SelectedWindowRead {
     machine read(items: @[u8], low: u64) -> u8
-    reaches requires can_window(items, low) == true
+    reaches none requires can_window(items, low) == true
     {
         let view: @[u8] = items[low + 0u64..low + 2u64];
         let measured: u64 = view.len;

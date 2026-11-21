@@ -1,7 +1,7 @@
 // A checked asm block (or target-scoped checked assembly helper) with explicit register operand bindings and contract (result <= 96u64) establishes the post-assembly bound, discharging exact subtraction 96u64 - result.
 // Expected rejection: exact arithmetic in machine exercise state entry terminal expression may overflow `u64`.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

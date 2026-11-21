@@ -6,7 +6,7 @@ public domain i32::RepresentableMagnitude
     requires self > -2147483648; (self & 1) == 0;
 public boundary trait Magnitude {
     machine absolute(value: i32 in RepresentableMagnitude) -> i32
-        reaches
+        reaches none
         requires 6 in RepresentableMagnitude crashes none;
 }
 

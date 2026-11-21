@@ -39,7 +39,7 @@ QuietSource satisfies Source {
 public machine observe(value: u64) -> u64
 requires value == 100u64
 ensures result >= 100u64
-reaches
+reaches none
 {
     let selected: dyn Source = JournaledSource as dyn Source;
     let observed: u64 = invoke(selected, value);

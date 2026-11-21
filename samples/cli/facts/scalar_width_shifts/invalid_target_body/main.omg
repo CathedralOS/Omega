@@ -1,7 +1,7 @@
 // A bounded shift count shift < 4 on a Wrapping u32 value preserves in-width shift validity and recovers the original scalar across all nine places.
 // Place: another target body (invalid twin). Target bodies shifting plain u32 without in Wrapping may overflow.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

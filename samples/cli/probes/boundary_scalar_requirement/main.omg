@@ -3,7 +3,7 @@
 // wait and 1 for every other timeout, so a mis-selected body cannot pass
 // both calls. Expected exit: 0.
 
-boundary trait Clock { machine tick() reaches crashes none; }
+boundary trait Clock { machine tick() reaches none crashes none; }
 
 boundary trait TimedWait {
     machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32) -> i32

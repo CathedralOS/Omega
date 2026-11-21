@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 boundary trait SelectedComputation {
-    machine compute_target(dividend: i64, divisor: i64) -> u8 reaches
+    machine compute_target(dividend: i64, divisor: i64) -> u8 reaches none
         requires dividend >= 0i64 && divisor == 4i64 crashes none;
 }
 

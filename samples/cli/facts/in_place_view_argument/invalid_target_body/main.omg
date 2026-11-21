@@ -3,7 +3,7 @@
 // Reject twin: the backing array holds 3 bytes, so the formed view cannot establish the callee's 4-byte extent requirement.
 data Input<'input> { tag: u8; bytes: @'input [u8]; tail: u8; }
 boundary trait Reader {
-    machine read_third<'input>(packet: Input<'input>) -> u8 reaches
+    machine read_third<'input>(packet: Input<'input>) -> u8 reaches none
     requires packet.bytes.len >= 4 crashes none;
 }
 X86Reader satisfies Reader {

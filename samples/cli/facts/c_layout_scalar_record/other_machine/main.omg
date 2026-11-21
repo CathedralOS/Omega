@@ -9,7 +9,7 @@ use omega\language\core\CAbiPolicy;
 use omega\language\core\CLayout;
 data Record [copy] { first: u8; second: u64; last: u16; }
 OtherPolicy satisfies FixedLayout<Record> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         CAbiPolicy::<Record>::plan(schema, target)
     }
 }

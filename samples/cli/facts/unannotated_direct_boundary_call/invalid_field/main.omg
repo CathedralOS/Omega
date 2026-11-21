@@ -8,7 +8,7 @@ MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
 data Hold { value: u64; }
-machine main() reaches crashes Trap {
+machine main() reaches none crashes Trap {
     let hold: Hold = Hold { value: Mark::read() };
     transition hold.value == 7 { true -> done(), _ -> bad() }
     machine done() {}

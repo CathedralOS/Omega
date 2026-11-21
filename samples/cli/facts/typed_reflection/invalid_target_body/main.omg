@@ -70,7 +70,7 @@ requires Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         machine boolean(value: @bool) -> u64 { transition $value { true -> 1u64, false -> 0u64 } }
     }
 }
-boundary trait Inspect { machine fields(subject: @FortyFields, totals: @mut Totals) reaches crashes Trap; }
+boundary trait Inspect { machine fields(subject: @FortyFields, totals: @mut Totals) reaches none crashes Trap; }
 WindowsInspect satisfies Inspect {
     machine fields(subject: @FortyFields, totals: @mut Totals) crashes Trap {
         reflect\visit_runtime_fields::<FortyFields, observe>(subject, totals);

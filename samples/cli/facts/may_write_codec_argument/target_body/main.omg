@@ -14,7 +14,7 @@ machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pi
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -12,7 +12,7 @@ use omega\language\core\Schema;
 
 
 SignedByte satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

@@ -12,7 +12,7 @@ use omega\language\core\Schema;
 
 
 SignedByte satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -27,7 +27,7 @@ data PortableByte [copy] { value: i64; }
 data Memory { bytes: [u8; 2]; }
 machine store(destination: @mut i64, value: i64) { $destination = value; }
 boundary trait SelectedPerform {
-    machine perform(destination: @mut i64, value: i64) reaches crashes none;
+    machine perform(destination: @mut i64, value: i64) reaches none crashes none;
 }
 X86Perform satisfies SelectedPerform {
     machine perform(destination: @mut i64, value: i64) { store(destination, value); }

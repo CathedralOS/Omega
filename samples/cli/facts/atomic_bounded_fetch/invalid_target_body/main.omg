@@ -6,7 +6,7 @@ machine mutate(cell: @Cell, mask: u32) -> u32 requires mask <= 63 {
     prior
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {
@@ -27,12 +27,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedObserve {
     machine observe(cell: @Cell) -> u32
-        reaches invokes SelectedBodyCheck crashes Trap ensures result <= 100;
+        reaches none invokes SelectedBodyCheck crashes Trap ensures result <= 100;
 }
 
 X86Observe satisfies SelectedObserve {
     machine observe(cell: @Cell) -> u32
-        reaches invokes SelectedBodyCheck crashes Trap ensures result <= 100
+        reaches none invokes SelectedBodyCheck crashes Trap ensures result <= 100
     {
         SelectedBodyCheck::require_tag(17u64);
      cell.value.load(NoOrdering)
@@ -41,7 +41,7 @@ X86Observe satisfies SelectedObserve {
 
 ArmObserve satisfies SelectedObserve {
     machine observe(cell: @Cell) -> u32
-        reaches invokes SelectedBodyCheck crashes Trap ensures result <= 100
+        reaches none invokes SelectedBodyCheck crashes Trap ensures result <= 100
     {
         SelectedBodyCheck::require_tag(29u64);
      cell.value.load(NoOrdering)

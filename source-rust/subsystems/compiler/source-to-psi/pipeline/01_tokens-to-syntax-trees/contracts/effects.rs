@@ -87,7 +87,6 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     use tokens::PunctuationKind;
     service_reach_keyword_source_spans.push(input.current_source_span());
     let mut input = input.take_contextual("reaches")?;
-    let service_count_before_clause = service_reaches.len();
     if input.at_punctuation(PunctuationKind::LessEqual) {
         if *service_reach_is_installation_bound || !service_reaches.is_empty() {
             return Err(input.error_here(
@@ -101,10 +100,6 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
             "an installation-bound reach bound cannot be combined with another `reaches` clause",
         ));
     }
-    // `reaches none` spells the explicit empty service row. It keeps the
-    // keyword span so later stages still distinguish it from omission and
-    // contributes no member, exactly like the keyword followed directly by
-    // a clause boundary, which stays accepted until the retirement sweep.
     if !*service_reach_is_installation_bound && input.at_contextual("none") {
         let after_none = input.take_contextual("none")?;
         if !at_clause_boundary(after_none) {
@@ -114,14 +109,16 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
         }
         return Ok(after_none);
     }
+    if at_clause_boundary(input) {
+        let message = if *service_reach_is_installation_bound {
+            "an installation-bound reach row requires a nonempty upper bound after `reaches <=`"
+        } else {
+            "expected a service after `reaches`; write `reaches none` for an empty reach ceiling"
+        };
+        return Err(input.error_here(message));
+    }
     while !at_clause_boundary(input) {
         input = take_service_reach_row_member(trees, input, service_reaches)?;
-    }
-    if *service_reach_is_installation_bound && service_reaches.len() == service_count_before_clause
-    {
-        return Err(input.error_here(
-            "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
-        ));
     }
     Ok(input)
 }
