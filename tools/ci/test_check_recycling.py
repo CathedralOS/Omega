@@ -35,12 +35,48 @@ class RecyclingBoundary(unittest.TestCase):
                 files["Cargo.toml"] = f"[workspace]\nmembers={members}\nexclude={excluded}"
                 self.assertEqual(len(self.check(files)), result)
 
+    def test_package_workspace(self):
+        for workspace, archived in [("../_recycling", True), ("..", False)]:
+            with self.subTest(workspace=workspace):
+                errors = self.check({
+                    "live/Cargo.toml": f'[package]\nworkspace = "{workspace}"',
+                    "Cargo.toml": "[workspace]",
+                    "_recycling/Cargo.toml": "[workspace]",
+                })
+                expected = [f"live/Cargo.toml: package workspace points into _recycling: {workspace}"]
+                self.assertEqual(errors, expected if archived else [])
+
+    def test_conditional_inline_module_directories(self):
+        files = {"_recycling/mod.rs": ""}
+        for attr, expected in [
+            ('#[cfg_attr(windows, path = "..")]', 1),
+            ('#[cfg_attr(unix, cfg_attr(feature = "old", path = ".."))]', 1),
+            ('#[path = ".."]', 1),
+            ('#[cfg_attr(windows, path = "live")]', 0),
+        ]:
+            with self.subTest(attr=attr):
+                files["src/lib.rs"] = attr + " mod adapter { mod _recycling; }"
+                errors = self.check(files)
+                self.assertEqual(len(errors), expected, errors)
+                if expected:
+                    self.assertIn("Rust module points into _recycling", errors[0])
+
+    def test_conditional_path_keeps_the_default_module_directory(self):
+        files = {"_recycling/old.rs": ""}
+        for attr, expected in [('#[cfg_attr(unix, path = "live")]', 1),
+                               ('#[path = "live"]', 0)]:
+            with self.subTest(attr=attr):
+                files["lib.rs"] = attr + " mod _recycling { mod old; }"
+                self.assertEqual(len(self.check(files)), expected)
+
     def test_direct_rust_paths(self):
         for expression in [
             '#[path = "../_recycling/old.rs"] mod old;',
             '#[cfg_attr(windows, path = r#"../_recycling/windows.rs"#)] mod chosen;',
             'include! { "../_recycling/old.rs" }',
             'include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/_rec", "ycling/old.rs"));',
+            'include!(concat!["../_rec", "ycling/old.rs"]);',
+            'include_bytes!(concat!{env!["CARGO_MANIFEST_DIR"], "/_recycling/old.bin"});',
             'const DATA: &[u8] = include_bytes!("../_recycling/old.bin");',
         ]:
             with self.subTest(expression=expression):

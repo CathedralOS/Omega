@@ -41,7 +41,10 @@ def cargo_paths(manifest):
         yield from dependency_paths(table)
     yield from dependency_paths(doc.get("replace", {}))
 
-    build = doc.get("package", {}).get("build")
+    package = doc.get("package", {})
+    if "workspace" in package:
+        yield "package workspace", package["workspace"]
+    build = package.get("build")
     if isinstance(build, str):
         yield "build script", build
     targets = [doc.get("lib", {})]
@@ -112,10 +115,15 @@ def arguments(tokens, start):
             first = i + 1
 
 
+def has_macro_arguments(tokens, name):
+    return (name + 2 < len(tokens) and tokens[name + 1] == "!"
+            and tokens[name + 2] in ("(", "[", "{"))
+
+
 def static_path(expr, manifest_dir):
     if len(expr) == 1:
         return string_value(expr[0])
-    if len(expr) >= 4 and expr[1:3] == ["!", "("]:
+    if has_macro_arguments(expr, 0):
         args = list(arguments(expr, 2))
         if expr[0] == "env" and len(args) == 1 and args[0] == ['"CARGO_MANIFEST_DIR"']:
             return str(manifest_dir)
@@ -136,6 +144,20 @@ def attribute_paths(attr):
             yield from attribute_paths(item)
 
 
+def inline_module_directories(parents, default, alternatives):
+    directories = [parent / default.replace("\\", "/") for parent in parents]
+    if not alternatives:
+        return directories
+    # Only directories present in the checkout can supply children under cfg_attr.
+    # Resolve aliases so nested attributes do not multiply equivalent search paths.
+    for parent in parents:
+        for alternative in alternatives:
+            directory = parent / alternative.replace("\\", "/")
+            if directory.is_dir():
+                directories.append(directory.resolve())
+    return list(dict.fromkeys(directories))
+
+
 def rust_paths(file, source, manifests):
     if not re.search(r'\b(?:include(?:_bytes|_str)?|path|mod)\b', source):
         return
@@ -149,6 +171,7 @@ def rust_paths(file, source, manifests):
     directories = [roots]
     inline = {}
     explicit = None
+    conditional_paths = []
     for i, word in enumerate(tokens):
         if word == "#" and tokens[i + 1:i + 2] == ["["]:
             for attr in arguments(tokens, i + 1):
@@ -160,12 +183,17 @@ def rust_paths(file, source, manifests):
                             yield "Rust path attribute", str(directory / value)
                     if attr[0] == "path":
                         explicit = value
+                    else:
+                        conditional_paths.append(value)
         if word == "mod" and i + 2 < len(tokens):
             name, delimiter = tokens[i + 1:i + 3]
             name = name.removeprefix("r#")
             if delimiter == "{":
-                inline[i + 2] = [d / (explicit if explicit is not None else name)
-                                 for d in directories[-1]]
+                # A cfg_attr may choose another directory for the module's children.
+                # The ordinary directory also applies when its condition is false.
+                inline[i + 2] = inline_module_directories(
+                    directories[-1], explicit if explicit is not None else name, conditional_paths
+                )
             elif delimiter == ";" and explicit is None:
                 for directory in directories[-1]:
                     for target in (directory / (name + ".rs"), directory / name / "mod.rs"):
@@ -177,11 +205,15 @@ def rust_paths(file, source, manifests):
             directories.pop()
         if word in {"{", "}", ";"}:
             explicit = None
-        if word in ("include", "include_bytes", "include_str") and tokens[i + 1:i + 2] == ["!"]:
-            if tokens[i + 2:i + 3] in (["("], ["["], ["{"]):
-                for arg in arguments(tokens, i + 2):
-                    if (value := static_path(arg, manifest_dir)) is not None:
-                        yield word + "!", value
+            conditional_paths.clear()
+        if word in ("include", "include_bytes", "include_str") and has_macro_arguments(tokens, i):
+            for arg in arguments(tokens, i + 2):
+                if (value := static_path(arg, manifest_dir)) is not None:
+                    yield word + "!", value
+
+
+def resolves_into_archive(root, path):
+    return "_recycling" in Path(os.path.relpath(path.resolve(), root)).parts
 
 
 def violations(root, files):
@@ -197,8 +229,8 @@ def violations(root, files):
         source = file.name == "Cargo.toml" or file.suffix == ".rs"
         if not source and not file.is_symlink():
             continue
-        if "_recycling" in Path(os.path.relpath(file.resolve(), root)).parts:
-            yield f"{file.relative_to(root)} links into _recycling"
+        if resolves_into_archive(root, file):
+            yield f"{relative} links into _recycling"
             continue
         if file.name == "Cargo.toml":
             edges = cargo_paths(file)
@@ -209,9 +241,9 @@ def violations(root, files):
         for kind, value in edges:
             # Cargo accepts slash-separated paths on all hosts. Recognize
             # Windows-authored paths when admission runs on Linux as well.
-            dest = (file.parent / value.replace("\\", "/")).resolve()
-            if "_recycling" in Path(os.path.relpath(dest, root)).parts:
-                yield f"{file.relative_to(root)}: {kind} points into _recycling: {value}"
+            dest = file.parent / value.replace("\\", "/")
+            if resolves_into_archive(root, dest):
+                yield f"{relative}: {kind} points into _recycling: {value}"
 
 
 def main():
