@@ -277,7 +277,9 @@ pub(crate) fn lower_predicate(
                                     },
                                 )
                             })
-                            .or_else(|| crate::machines::access::element_view_length(operation).map(|receiver| (receiver, PredicateStep::ElementViewLength)))
+                            .or_else(|| {
+                                crate::machines::access::element_view_length(operation).map(|receiver| (receiver, PredicateStep::ElementViewLength))
+                            })
                     })
                     .ok_or_else(|| unsupported("unsupported contract predicate expression"))?;
                 work.push(Step::Emit(length));
@@ -377,7 +379,10 @@ pub(crate) fn lower_predicate(
                             }),
                         }
                         .filter(|_| {
-                            is_contract_operand(ty) || crate::lowering::types::byte_view_access(ty).is_some() || crate::lowering::types::scalar_element_view(ty).is_some()
+                            is_contract_operand(ty)
+                                || crate::lowering::types::byte_view_access(ty).is_some()
+                                || crate::lowering::types::scalar_element_view(ty).is_some()
+                                || crate::lowering::types::mutable_element_view(ty).is_some()
                         })
                         .ok_or_else(|| unsupported("contract binding is not a supported formal of this machine"))?;
                         PredicateStep::Formal(formal)

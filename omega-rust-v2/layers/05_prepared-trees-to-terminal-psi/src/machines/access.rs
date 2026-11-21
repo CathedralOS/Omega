@@ -35,12 +35,11 @@ pub(crate) fn collection_length(operation: &omega_typed::TypedOperation) -> Opti
     Some((receiver, length))
 }
 
-/// `.len` of a scalar element view: its own element count, never a byte count.
-/// It is deliberately absent from [`collection_length`]; contract predicates
-/// classify it separately as their own element-count step.
+/// A scalar or nominal-element descriptor stores its live element count.
 pub(crate) fn element_view_length(operation: &omega_typed::TypedOperation) -> Option<&ValueType> {
     let [receiver] = operation.operands.as_slice() else { return None };
-    (operation.token == ".len" && operation.result == INDEX_TYPE && crate::lowering::types::scalar_element_view(receiver).is_some()).then_some(receiver)
+    let is_element_view = crate::lowering::types::scalar_element_view(receiver).is_some() || crate::lowering::types::mutable_element_view(receiver).is_some();
+    (operation.token == ".len" && operation.result == INDEX_TYPE && is_element_view).then_some(receiver)
 }
 
 pub(crate) fn select_indexed_read<'a>(

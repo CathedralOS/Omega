@@ -88,6 +88,11 @@ class PackageCaseTests(unittest.TestCase):
             self.assertNotIn("handoff/float literal result", observed["cases"])
             self.assertIn("its refusal changed", observed["measurement_errors"][0])
 
+    def test_an_abnormal_exit_does_not_verify_a_normal_refusal(self):
+        observed = self.measure(Compiler(lower=(101, "", REFUSAL + "\n")))
+        self.assertEqual(observed["package_cases"]["reproduced"], [])
+        self.assertIn("exit 101", observed["measurement_errors"][0])
+
     def test_a_stopping_control_or_unprepared_case_is_an_error_not_a_gap(self):
         observed = self.measure(Compiler(control=(1, "", "case.omg:1:1: lowering: x (bytes 0..1)\n")))
         self.assertIn("its control no longer prepares and lowers silently", observed["measurement_errors"][0])

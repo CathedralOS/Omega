@@ -1,5 +1,7 @@
 """Replay the original inputs of observed L5 source-helper refusals at the package CLI."""
 from collections import Counter
+import hashlib
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -71,19 +73,30 @@ def expectation(fixture, replay, files):
     return f"{name}:{line}:{col}: lowering: {authored['cli_message']} (bytes {start}..{end})\n"
 
 
+def program_digest(rows):
+    """SHA-256 of json.dumps of the [file, text] rows, the digest replay records already use."""
+    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+
+
+def materialize(root, files):
+    """Create a validated `program` namespace in an empty directory, refusing any existing entry."""
+    root = Path(root)
+    created = {root}
+    for name, data in files.items():
+        path = root / name
+        for parent in reversed(path.relative_to(root).parents):
+            folder = root / parent
+            if folder not in created:
+                folder.mkdir()  # never reuse an on-disk alias
+                created.add(folder)
+        with path.open('xb') as out:
+            out.write(data)
+
+
 def compare(exe, directory, env, files, expected, row):
     with TemporaryDirectory(dir=directory, prefix='lowering-cli-') as temp:
         root = Path(temp)
-        created = {root}
-        for name, data in files.items():
-            path = root / name
-            for parent in reversed(path.relative_to(root).parents):
-                folder = root / parent
-                if folder not in created:
-                    folder.mkdir()  # never reuse an on-disk alias
-                    created.add(folder)
-            with path.open('xb') as out:
-                out.write(data)
+        materialize(root, files)
         for action, code, stderr in [('prepare', 0, ''), ('lower', 1, expected)]:
             args = [str(exe), 'source', action, '--', *files]
             check = row[action] = {'args': args, 'expected_exit': code, 'expected_stdout': '',
@@ -122,6 +135,8 @@ def finish(report, directory, environment):
                 row['status'] = 'native origin not credited'
                 continue
             files = program(replay.get('files'))
+            # The exact package the commands compile; a later replay checks the recorded files against it.
+            row['program_sha256'] = program_digest(replay['files'])
             expected = expectation(fixture, replay, files)
             row['message_changed_with_package_identity'] = replay['message'] != replay['root_message']
             if not build_record:

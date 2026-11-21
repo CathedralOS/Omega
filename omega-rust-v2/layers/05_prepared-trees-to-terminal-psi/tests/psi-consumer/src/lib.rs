@@ -250,3 +250,6 @@ pub mod machine_templates;
 
 mod template_operands;
 pub use template_operands::template_field_argument;
+
+mod view_bounds;
+pub use view_bounds::{ViewElementBound, returned_element_count_formal, view_element_bounds};

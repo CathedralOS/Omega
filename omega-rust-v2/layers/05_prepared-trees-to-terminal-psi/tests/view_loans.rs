@@ -581,3 +581,261 @@ fn two_entry_equalities_still_stop_before_the_checker_can_relate_the_selectors()
         UNPROVED_SELECTOR,
     );
 }
+
+/// The bounded selector twins F1/F2 and their unbounded originals A1/A2
+/// (`selector-design-challenge`), byte for byte.
+const LEASE: &str = "data Lease dropped by release {mark:u8;} machine release(y:Lease) {let Lease {mark as _}=y;} ";
+const LEASE_EDIT: &str = "machine edit(p:@mut [Lease],c:Lease,i:u64,j:u64,k:u64)";
+const LEASE_SWAP: &str = "{let old=move p[i]; p[j]=move c; p[i]=move old;}";
+/// Two same-typed views swap element `i`; each has its own bound clause.
+const TWO_VIEW_SWAP: &str =
+    "machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < p.len requires i < q.len {let a=move p[i]; let b=move q[i]; p[i]=move b; q[i]=move a;}";
+
+/// `Formal(selector) < Formal(view).len`: the live element count of that exact formal.
+fn element_bound(
+    selector: usize,
+    view: usize,
+) -> Vec<PredicateStep> {
+    vec![
+        PredicateStep::Formal(selector),
+        PredicateStep::Formal(view),
+        PredicateStep::ElementViewLength,
+        PredicateStep::Apply(PredicateOperator::LessThan),
+    ]
+}
+
+fn edit(pkg: &omega_lowering::LoweredPackage) -> &omega_lowering::LoweredMachine {
+    pkg.machines
+        .iter()
+        .find(|machine| machine.declaration.path == "edit")
+        .expect("the edit machine")
+}
+
+#[test]
+fn a_length_clause_on_a_nominal_element_view_states_the_bound_without_changing_the_body() {
+    // `i < p.len` on `p: @mut [Lease]` measures the same live element count
+    // each element bound of `p` is owed against. The clause is an erased term,
+    // so the bounded program's body is the unbounded program's body: the same
+    // extractions, stores, length observations and dispositions. Only the
+    // contract gains the two bounds, and the selector premise still picks the store.
+    for (relation, operator) in [
+        ("i == j", PredicateOperator::Equal),
+        ("i != j", PredicateOperator::NotEqual),
+    ] {
+        let bounded = format!("{LEASE}{LEASE_EDIT} requires i < p.len requires j < p.len requires {relation} {LEASE_SWAP}");
+        let unbounded = format!("{LEASE}{LEASE_EDIT} requires {relation} {LEASE_SWAP}");
+        let bounded = sources::lower(&[("view.omg", &bounded)]).unwrap();
+        let unbounded = sources::lower(&[("view.omg", &unbounded)]).unwrap();
+        let (with, without) = (edit(&bounded), edit(&unbounded));
+        let clauses: Vec<_> = with
+            .contract
+            .requires
+            .iter()
+            .map(|clause| clause.predicate.clone())
+            .collect();
+        assert_eq!(
+            clauses,
+            [
+                element_bound(2, 0),
+                element_bound(3, 0),
+                vec![
+                    PredicateStep::Formal(2),
+                    PredicateStep::Formal(3),
+                    PredicateStep::Apply(operator)
+                ]
+            ]
+        );
+        assert!(matches!(bounded.types.get(with.parameter_types[0]), Some(TypeShape::MutableElementView { .. })));
+        assert_eq!(bounded.types.get(with.parameter_types[0]), unbounded.types.get(without.parameter_types[0]));
+        let (a, b) = (&with.body, &without.body);
+        assert_eq!(
+            (&a.parameters, &a.places, &a.values, &a.operations, &a.blocks),
+            (&b.parameters, &b.places, &b.values, &b.operations, &b.blocks),
+            "{relation}: the length clause adds no body work and changes no ownership"
+        );
+        // Each occurrence's bound is stated by the clause on its own selector formal.
+        let read = psi_handoff_consumer::view_element_bounds(&bounded, with).unwrap();
+        let [
+            Parameter::Structural(_),
+            _,
+            Parameter::Scalar(i),
+            Parameter::Scalar(j),
+            _,
+        ] = a.parameters[..]
+        else {
+            panic!("expected a view, a lease and three selectors");
+        };
+        assert!(!read.is_empty());
+        for bound in &read {
+            assert_eq!(bound.view, 0);
+            let expected: &[usize] = if bound.selector == i {
+                &[0]
+            } else if bound.selector == j {
+                &[1]
+            } else {
+                panic!("{relation}: an element bound kept a selector that is not a formal")
+            };
+            assert_eq!(bound.stated_by, expected, "{relation}");
+        }
+        // Without the clauses the same bounds are still owed and nothing states them.
+        let owed = psi_handoff_consumer::view_element_bounds(&unbounded, without).unwrap();
+        assert_eq!(owed.len(), read.len());
+        assert!(
+            owed.iter().all(|bound| bound.stated_by.is_empty()),
+            "{relation}: an unbounded original still owes every bound"
+        );
+    }
+}
+
+#[test]
+fn a_length_clause_names_its_own_view_among_equal_typed_views() {
+    // Two views of the same type each owe their own bounds. A clause on `q`
+    // states nothing about an element of `p`, and the reverse.
+    let swap = format!("{LEASE}{TWO_VIEW_SWAP}");
+    let pkg = sources::lower(&[("view.omg", &swap)]).unwrap();
+    let machine = edit(&pkg);
+    assert_eq!(machine.parameter_types[0], machine.parameter_types[1], "the views share one Psi type");
+    let clauses: Vec<_> = machine
+        .contract
+        .requires
+        .iter()
+        .map(|clause| clause.predicate.clone())
+        .collect();
+    assert_eq!(clauses, [element_bound(2, 0), element_bound(2, 1)]);
+    let read = psi_handoff_consumer::view_element_bounds(&pkg, machine).unwrap();
+    assert_eq!(read.len(), 4);
+    let claims: std::collections::BTreeSet<_> = read.iter().map(|b| (b.view, b.stated_by.as_slice())).collect();
+    spec_corpus::observe_handoff!(psi "psi-output/nominal-view-bound-subject", assert_eq!(
+        claims, std::collections::BTreeSet::from([(0, &[0][..]), (1, &[1][..])])
+    ));
+
+    // A clause on the other view leaves the bound owed.
+    let other = format!("{LEASE}machine edit(p:@mut [Lease],q:@mut [Lease],i:u64) requires i < q.len {{let old=move p[i]; p[i]=move old;}}");
+    let pkg = sources::lower(&[("view.omg", &other)]).unwrap();
+    let machine = edit(&pkg);
+    assert_eq!(machine.contract.requires[0].predicate, element_bound(2, 1));
+    let read = psi_handoff_consumer::view_element_bounds(&pkg, machine).unwrap();
+    assert!(!read.is_empty());
+    assert!(
+        read.iter()
+            .all(|bound| bound.view == 0 && bound.stated_by.is_empty())
+    );
+}
+
+#[test]
+fn the_psi_bounds_reader_refuses_mutated_views_and_snapshots() {
+    // Negative mutants of the two-view swap, made on published Psi alone.
+    let swap = format!("{LEASE}{TWO_VIEW_SWAP}");
+    let pkg = sources::lower(&[("view.omg", &swap)]).unwrap();
+    let machine = edit(&pkg);
+    let [
+        Parameter::Structural(p),
+        Parameter::Structural(q),
+        Parameter::Scalar(i),
+    ] = machine.body.parameters[..]
+    else {
+        panic!("expected two views and a selector");
+    };
+    let first_p = |body: &MachineBody| {
+        body.operations
+            .iter()
+            .position(|op| matches!(&op.kind, OperationKind::BorrowedMove { source } if source.root == p))
+            .expect("an extraction through p")
+    };
+    // Each mutant edits its own freshly lowered copy of the published package.
+    let slot = pkg
+        .machines
+        .iter()
+        .position(|candidate| candidate.declaration.path == "edit")
+        .expect("the edit machine");
+    let owe_against = |length: ValueId| {
+        let mut mutant = sources::lower(&[("view.omg", &swap)]).unwrap();
+        let body = &mut mutant.machines[slot].body;
+        let at = first_p(body);
+        let OperationKind::BorrowedMove { source } = &mut body.operations[at].kind else {
+            unreachable!("first_p finds an extraction")
+        };
+        let [_, PlaceProjection::ViewElement { length: owed, .. }] = source.path.as_mut_slice() else {
+            panic!("expected a view element")
+        };
+        *owed = length;
+        let mutant_machine = &mutant.machines[slot];
+        psi_handoff_consumer::view_element_bounds(&mutant, mutant_machine).map(|_| ())
+    };
+
+    // 1. The clause on p now measures the equal-typed q: p's bounds are unstated.
+    let mut moved = sources::lower(&[("view.omg", &swap)]).unwrap();
+    moved.machines[slot].contract.requires[0].predicate = element_bound(2, 1);
+    let read = psi_handoff_consumer::view_element_bounds(&moved, &moved.machines[slot]).unwrap();
+    assert!(
+        read.iter()
+            .filter(|bound| bound.view == 0)
+            .all(|bound| bound.stated_by.is_empty())
+    );
+    assert!(
+        read.iter()
+            .filter(|bound| bound.view == 1)
+            .all(|bound| bound.stated_by == [0, 1])
+    );
+
+    // 2. A p element owed against q's count: another view's snapshot.
+    assert_eq!(
+        owe_against(lengths(&machine.body, q)[0]),
+        Err("an element bound's length observes another view")
+    );
+
+    // 3. A p element owed against a later count of p: a snapshot taken after the use.
+    let later = machine.body.operations[first_p(&machine.body) + 1..]
+        .iter()
+        .find_map(|op| match (&op.kind, op.result) {
+            (OperationKind::ElementViewLength { source }, OperationResult::Scalar(length)) if *source == p => Some(length),
+            _ => None,
+        })
+        .expect("p is measured again for its repair");
+    assert_eq!(owe_against(later), Err("an element bound's length does not dominate its occurrence"));
+
+    // 4. A p element owed against the selector itself, not a count.
+    assert_eq!(owe_against(i), Err("an element bound's length is not an operation result"));
+
+    // Control: the unmutated lengths still read, so each refusal is the mutation's.
+    assert_eq!(owe_against(lengths(&machine.body, p)[0]), Ok(()));
+}
+
+#[test]
+fn a_nominal_view_count_comes_from_the_requested_formal_in_each_context() {
+    let source = "data R { x:u8; } machine count(p:@mut [R],q:@mut [R],i:u64)->u64 requires i < p.len ensures result == q.len {q.len}";
+    let mut package = sources::lower(&[("case.omg", source)]).unwrap();
+    let m = package
+        .machines
+        .iter_mut()
+        .find(|m| m.declaration.path == "count")
+        .unwrap();
+    assert_eq!(m.parameter_types[0], m.parameter_types[1]);
+    assert_eq!(
+        m.contract.requires[0].predicate,
+        [
+            PredicateStep::Formal(2),
+            PredicateStep::Formal(0),
+            PredicateStep::ElementViewLength,
+            PredicateStep::Apply(PredicateOperator::LessThan),
+        ]
+    );
+    assert_eq!(
+        m.contract.ensures[0].predicate,
+        [
+            PredicateStep::Result,
+            PredicateStep::Formal(1),
+            PredicateStep::ElementViewLength,
+            PredicateStep::Apply(PredicateOperator::Equal),
+        ]
+    );
+    spec_corpus::observe_handoff!(psi "psi-output/returned-nominal-view-count", assert_eq!(psi_handoff_consumer::returned_element_count_formal(m), Some(1)));
+    assert_eq!(m.body.operations.len(), 1);
+    let Parameter::Structural(first) = m.body.parameters[0] else {
+        panic!("expected the first descriptor")
+    };
+    m.body.operations[0].kind = OperationKind::ElementViewLength { source: first };
+    assert_eq!(psi_handoff_consumer::returned_element_count_formal(m), Some(0));
+    m.body.operations[0].kind = OperationKind::ByteSequenceLength { source: first };
+    assert_eq!(psi_handoff_consumer::returned_element_count_formal(m), None);
+}
