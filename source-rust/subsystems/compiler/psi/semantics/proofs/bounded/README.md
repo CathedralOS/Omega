@@ -1,8 +1,8 @@
 # Proof admission
 
-Contracts: [fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md),
-[integer certificates](../../../../../../wiki/spec/terminal-psi/integer_certificates.md),
-and [mathematical proof values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md).
+Contracts: [fact validity](../../../../../../../wiki/spec/terminal-psi/fact_validity.md),
+[integer certificates](../../../../../../../wiki/spec/terminal-psi/integer_certificates.md),
+and [mathematical proof values](../../../../../../../wiki/spec/terminal-psi/mathematical_values.md).
 
 [bounded.rs](bounded.rs) exposes kernel judgments, proof checking, recursion,
 normalization and witness checks a producer can call. [proof.rs](proof.rs)
@@ -35,12 +35,12 @@ unrepresentable shift count is refused as a resource limit, keeping its
 mathematical meaning.
 
 [The mathematical kernel](../mathematical/mathematical.rs) owns the common mathematical
-core for the [selected foundation](../../../../../../wiki/spec/proofs/foundation.md):
+core for the [selected foundation](../../../../../../../wiki/spec/proofs/foundation.md):
 de Bruijn dependent terms, stratified `Type`/`Strict` sorts with closed levels,
 Π/λ/application typing without cumulativity, dependent pairs, and typed
 conversion whose strict collapse depends on the shared type's sort, never on
 term shape. It also owns the first primitive of the selected
-[W-based inductive profile](../../../../../../wiki/spec/proofs/inductive_profile.md):
+[W-based inductive profile](../../../../../../../wiki/spec/proofs/inductive_profile.md):
 the `Two` type with `zero`/`one` and dependent `caseTwo` elimination computing
 on each constructor, restricted to motives in relevant `Type`. It is the
 `PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is an

@@ -27,11 +27,11 @@ const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/repr
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
 const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi/artifact";
 const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi/execution-inputs";
-const PSI_SEMANTICS: &str = "source-rust/subsystems/compiler/psi-semantics";
+const PSI_SEMANTICS: &str = "source-rust/subsystems/compiler/psi/semantics";
 const NUMERICS: &str = "source-rust/subsystems/compiler/foundation/numerics";
 const INTERPRETER: &str = "source-rust/subsystems/interpreter";
 // Each of these owners is available to both pipelines. None may call either compiler.
-const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_SEMANTICS, NUMERICS];
+const SHARED_PSI: &[&str] = &[PSI_RECORDS, NUMERICS];
 const PSI_CONSUMERS: &[&str] = &[PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, INTERPRETER];
 
 // The native driver's own package is admitted separately. Runtime consumers
@@ -43,7 +43,6 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/targets",
     "source-rust/subsystems/compiler/psi-to-native/representations",
     PSI_RECORDS,
-    PSI_SEMANTICS,
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
     "source-rust/subsystems/compiler/build/evaluation/accounting",
@@ -2059,7 +2058,7 @@ mod tests {
     }
 
     #[test]
-    fn artifact_and_execution_read_psi_records_in_one_direction() {
+    fn psi_program_records_cannot_import_their_readers() {
         let codec = format!("{PSI_ARTIFACT}/codec");
         let entry = format!("{PSI_EXECUTION_INPUTS}/entry-memory");
         let mut metadata = Metadata {
@@ -2084,10 +2083,15 @@ mod tests {
 
         let records = format!("{PSI_RECORDS}/types/reflection");
         metadata.packages[0] = pkg("psi", PSI_RECORDS, &[]);
-        metadata.packages.push(pkg("reflection", &records, &[("codec", &codec, None)]));
+        let predicates = format!("{PSI_SEMANTICS}/closed-predicates");
+        metadata.packages.push(pkg("predicates", &predicates, &[("psi", PSI_RECORDS, None)]));
+        metadata.packages.push(pkg(
+            "reflection", &records, &[("codec", &codec, None), ("predicates", &predicates, None)],
+        ));
         let violations = pipeline_dependency_violations(&metadata).unwrap();
-        assert_eq!(violations.len(), 1, "{violations:?}");
-        assert!(violations[0].contains("reflection -> codec"));
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(violations.iter().any(|row| row.contains("reflection -> codec")));
+        assert!(violations.iter().any(|row| row.contains("reflection -> predicates")));
     }
 
     #[test]

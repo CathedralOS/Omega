@@ -54,6 +54,6 @@ terminal-codec = { path = "../../../psi/artifact/codec" }
 psi-authorization = { path = "../../../psi/artifact/authorization" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-work = { path = "../../../psi/semantics/work" }
 wire = { path = "../../../../../foundation/wire" }

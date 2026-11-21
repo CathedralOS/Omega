@@ -20,8 +20,8 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-work = { path = "../../../psi/semantics/work" }
 
 [dev-dependencies]
 proof-applications = { path = "../../../psi/proofs/applications" }

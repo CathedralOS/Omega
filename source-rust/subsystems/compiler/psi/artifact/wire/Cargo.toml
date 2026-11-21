@@ -24,9 +24,9 @@ arena = { path = "../../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 optimization = { path = "../optimization-selections" }
 numerics = { path = "../../../foundation/numerics" }
-mathematical-kernel = { path = "../../../psi-semantics/proofs/mathematical" }
+mathematical-kernel = { path = "../../semantics/proofs/mathematical" }
 terminal-psi = { path = "../.." }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../semantics" }
 
 access-admission = { path = "../../access/validated-placements" }
 layout-plans = { path = "../../layouts/geometry" }

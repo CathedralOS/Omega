@@ -43,7 +43,7 @@ psi-authorization = { path = "../../../../psi/artifact/authorization" }
 terminal-psi = { path = "../../../../psi" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 target = { path = "../../../targets/target" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 program-entry-contracts = { path = "../../program-entry-contracts" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../operation-evidence/boundary-applications" }

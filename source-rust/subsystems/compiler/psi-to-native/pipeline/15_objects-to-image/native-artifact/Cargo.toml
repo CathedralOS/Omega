@@ -43,7 +43,7 @@ object-file = { path = "../../14_placed-functions-to-objects" }
 optimization-core = { path = "../../../representations/optimization-records" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi-semantics" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-codec = { path = "../../../../psi/artifact/codec" }
 sha2 = "0.10.9"
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }

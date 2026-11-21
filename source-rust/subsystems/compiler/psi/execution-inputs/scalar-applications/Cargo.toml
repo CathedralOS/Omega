@@ -16,7 +16,7 @@ psi-target-layouts = { path = "../target-layouts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../artifact/codec" }
 terminal-psi = { path = "../.." }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../semantics" }
 
 [dev-dependencies]
 proof-applications = { path = "../../proofs/applications" }

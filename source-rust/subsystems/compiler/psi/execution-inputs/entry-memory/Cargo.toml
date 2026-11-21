@@ -12,4 +12,4 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 psi-target-layouts = { path = "../target-layouts" }
 terminal-codec = { path = "../../artifact/codec" }
 terminal-psi = { path = "../.." }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../semantics" }

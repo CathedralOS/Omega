@@ -8,4 +8,4 @@ version.workspace = true
 path = "integer_defaults.rs"
 
 [dependencies]
-layout-plans = { path = "../../psi/layouts/geometry" }
+layout-plans = { path = "../../layouts/geometry" }

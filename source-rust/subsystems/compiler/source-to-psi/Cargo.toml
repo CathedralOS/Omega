@@ -53,7 +53,7 @@ source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 application-identity = { path = "../psi/identities/applications" }
-layout-planning = { path = "../psi-semantics/default-integer-layouts" }
+layout-planning = { path = "../psi/semantics/default-integer-layouts" }
 numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/accounting/contracts" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
@@ -80,12 +80,12 @@ terminal-check-tables = { path = "representations/lowered-program" }
 terminal-codec = { path = "../psi/artifact/codec" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-psi = { path = "../psi" }
-terminal-semantics = { path = "../psi-semantics" }
-terminal-work = { path = "../psi-semantics/work" }
+terminal-semantics = { path = "../psi/semantics" }
+terminal-work = { path = "../psi/semantics/work" }
 tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
-proof-admission = { path = "../psi-semantics/proofs/bounded" }
+proof-admission = { path = "../psi/semantics/proofs/bounded" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }

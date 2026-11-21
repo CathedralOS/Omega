@@ -19,4 +19,4 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
-terminal-work = { path = "../../../psi-semantics/work" }
+terminal-work = { path = "../../../psi/semantics/work" }

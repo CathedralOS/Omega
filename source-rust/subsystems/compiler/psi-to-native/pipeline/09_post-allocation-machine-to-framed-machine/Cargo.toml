@@ -13,7 +13,7 @@ structural-storage = { path = "../../representations/structural-storage" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../../psi/semantics" }
 physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 frame-admission = { path = "../../representations/machine-code/frame-admission" }
 machine-code = { path = "../../representations/machine-code" }

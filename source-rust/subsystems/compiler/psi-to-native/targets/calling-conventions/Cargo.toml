@@ -9,7 +9,7 @@ name = "calling_conventions"
 path = "src/lib.rs"
 
 [dependencies]
-layout-planning = { path = "../../../psi-semantics/default-integer-layouts" }
+layout-planning = { path = "../../../psi/semantics/default-integer-layouts" }
 wire = { path = "../../../../../foundation/wire" }
 terminal-psi = { path = "../../../psi" }
 runtime-abi = { path = "../runtime-abi" }

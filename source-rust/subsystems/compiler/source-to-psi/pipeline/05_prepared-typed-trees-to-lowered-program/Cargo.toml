@@ -37,4 +37,4 @@ symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi-semantics" }
+terminal-semantics = { path = "../../../psi/semantics" }

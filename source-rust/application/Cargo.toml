@@ -37,7 +37,7 @@ semantic-vocabulary = { path = "../subsystems/compiler/foundation/semantic-recor
 diagnostics = { path = "../foundation/diagnostics" }
 terminal-codec = { path = "../subsystems/compiler/psi/artifact/codec" }
 terminal-psi = { path = "../subsystems/compiler/psi" }
-terminal-semantics = { path = "../subsystems/compiler/psi-semantics" }
+terminal-semantics = { path = "../subsystems/compiler/psi/semantics" }
 psi-authorization = { path = "../subsystems/compiler/psi/artifact/authorization" }
 
 [target.'cfg(windows)'.dev-dependencies]
