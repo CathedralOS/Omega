@@ -524,12 +524,13 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         machine: plan.entry,
         reason,
     })?;
-    let mut structural_types = match verified_input {
-        Some(input) => StructuralTypeLookup::for_verified(&plan.structural_types, input, target),
-        None => StructuralTypeLookup::new(&plan.structural_types, target),
-    }
+    let structural_types = StructuralTypeLookup::new(
+        &plan.structural_types,
+        target,
+        verified_input,
+        borrowed_layouts.layouts(),
+    )
     .map_err(LoweringError::NonDenseStructuralTypes)?;
-    structural_types.borrowed_layouts = borrowed_layouts.layouts();
     let mut mixed_structural_scalar_abis = BTreeMap::new();
     for function in &plan.functions {
         if let Some(abi) =

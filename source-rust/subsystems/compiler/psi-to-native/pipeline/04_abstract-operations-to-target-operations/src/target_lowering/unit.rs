@@ -962,7 +962,7 @@ pub(crate) mod boundary_call {
                             &scalar_arguments,
                             &structural_arguments,
                             &target_result,
-                            |buffer| structural_types.borrowed_layouts.iter().find(|layout| layout.structural_type == buffer),
+                            |buffer| structural_types.borrowed_layout(buffer),
                             |scalar| structural_types.closed_scalar(scalar),
                         )
                         .map_err(|reason| {

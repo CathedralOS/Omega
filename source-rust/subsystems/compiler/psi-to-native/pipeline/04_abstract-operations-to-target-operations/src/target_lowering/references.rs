@@ -1571,9 +1571,7 @@ mod stored_calls {
                         declaration,
                         binding,
                         types.catalog(),
-                        |buffer| {
-                            crate::target_lowering::borrowed_storage::capture_type(buffer, types)
-                        },
+                        |buffer| types.borrowed_layout(buffer),
                         |scalar| types.closed_scalar(scalar),
                     )
                     .is_ok_and(|guard| guard.is_some())

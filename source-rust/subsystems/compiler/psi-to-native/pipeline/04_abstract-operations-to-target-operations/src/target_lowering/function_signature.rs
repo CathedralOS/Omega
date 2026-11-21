@@ -426,7 +426,7 @@ pub(crate) mod structural_type_lookup {
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
-        pub(crate) borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
+        borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
         catalog: &'a StructuralTypeCatalog,
         carriers: TargetCarrierLayout,
         verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
@@ -436,6 +436,8 @@ pub(crate) mod structural_type_lookup {
         pub(crate) fn new(
             source: &'a StructuralTypeCatalog,
             target: NativeTarget,
+            verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
+            borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
         ) -> Result<Self, NonDenseIdentities> {
             Ok(Self {
                 layouts: StructuralLayouts::with_owned_sequence_bounds(
@@ -443,21 +445,19 @@ pub(crate) mod structural_type_lookup {
                     source.owned_sequence_bounds(),
                 )?,
                 catalog: source,
-                borrowed_layouts: &[],
+                borrowed_layouts,
                 carriers: runtime_abi::target_carrier_layout(target),
-                verified: None,
+                verified,
             })
         }
 
-        /// Artifact-backed lowering always retains its original publication owner.
-        pub(crate) fn for_verified(
-            source: &'a StructuralTypeCatalog,
-            input: &'a verified_optimization_input::AdmittedLoweringFacts,
-            target: NativeTarget,
-        ) -> Result<Self, NonDenseIdentities> {
-            let mut lookup = Self::new(source, target)?;
-            lookup.verified = Some(input);
-            Ok(lookup)
+        pub(crate) fn borrowed_layout(
+            &self,
+            root: StructuralTypeId,
+        ) -> Option<&runtime_abi::NativeBorrowedStorageLayout> {
+            self.borrowed_layouts
+                .iter()
+                .find(|layout| layout.structural_type == root)
         }
 
         pub(crate) fn closed_scalar(&self, scalar: ScalarType) -> Option<ClosedScalarType> {
@@ -734,8 +734,7 @@ mod native_region_geometry_tests {
             &catalog,
             target::TargetProfile::LinuxX64
                 .native_realization()
-                .unwrap(),
-        )
+                .unwrap(), None, &[])
         .unwrap();
         assert!(types.storage_region_source_compatible(id(7), &window(32), id(8), None));
     }
@@ -747,8 +746,7 @@ mod native_region_geometry_tests {
             &catalog,
             target::TargetProfile::LinuxX64
                 .native_realization()
-                .unwrap(),
-        )
+                .unwrap(), None, &[])
         .unwrap();
         assert!(!types.storage_region_source_compatible(id(7), &window(31), id(8), None));
     }
@@ -882,8 +880,7 @@ mod native_region_geometry_tests {
             catalog,
             target::TargetProfile::LinuxX64
                 .native_realization()
-                .unwrap(),
-        )
+                .unwrap(), None, &[])
         .unwrap()
     }
 
@@ -911,7 +908,7 @@ mod native_region_geometry_tests {
                     StructuralFieldType::Scalar(integer(64)),
                 );
                 let types =
-                    StructuralTypeLookup::new(&catalog, profile.native_realization().unwrap())
+                    StructuralTypeLookup::new(&catalog, profile.native_realization().unwrap(), None, &[])
                         .unwrap();
                 assert_eq!(types.shape(id(carrier)).unwrap().byte_size, width);
                 assert_eq!(types.shape(id(7)).unwrap().alignment, 16);
