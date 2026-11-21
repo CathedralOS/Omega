@@ -95,6 +95,22 @@ machine entry() -> u64 reaches Reader invokes Reader {
         panic!("{verdicts:?}");
     };
     let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+    let mut premature = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = premature
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| !boundary.scalar_ensures.is_empty())
+        .unwrap();
+    boundary.scalar_requires = std::mem::take(&mut boundary.scalar_ensures);
+    let forged = terminal_codec::encode_module(&premature).unwrap();
+    assert!(matches!(
+        terminal_codec::decode_module(&forged),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "boundary scalar requires names an undeclared formal"
+        ))
+    ));
+
     let mut module = terminal_codec::decode_module(&bytes).unwrap();
     let boundary = module
         .interfaces
