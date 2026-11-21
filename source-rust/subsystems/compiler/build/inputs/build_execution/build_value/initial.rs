@@ -19,39 +19,37 @@ pub(super) fn initial_value(
     admission: &BuildValueAdmission,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> BuildTimeValue {
-    let mut build_fields = Vec::new();
-    if admission.has_toolchain_build_activation {
-        // The seal the toolchain establishes for the `Build` it lends
-        // (`BuildSeal in Issued`). It has no contents: source cannot make
-        // one, and the admitted vocabulary says so.
-        build_fields.push((
+    // Source cannot construct the issued seal in the Build borrowed from the host.
+    let mut build_fields = vec![
+        (
             "seal".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildSeal".to_owned(),
                 fields: Vec::new(),
             },
-        ));
-        build_fields.push((
+        ),
+        (
             "x86_deployment_features".to_owned(),
             BuildTimeValue::Case {
                 variant: "Baseline".to_owned(),
                 payload: Vec::new(),
             },
-        ));
-    }
-    build_fields.extend([(
-        "subsystem".to_owned(),
-        BuildTimeValue::Case {
-            variant: "Console".to_owned(),
-            payload: Vec::new(),
-        },
-    )]);
+        ),
+        (
+            "subsystem".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Console".to_owned(),
+                payload: Vec::new(),
+            },
+        ),
+    ];
     if admission.identifier {
         build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));
     }
-    if let Some(field) = admission.optimization.zero_build_field() {
-        build_fields.push(field);
-    }
+    build_fields.push((
+        "optimizations".to_owned(),
+        super::optimization::initial_value(),
+    ));
     if admission.log {
         build_fields.push((
             "log".to_owned(),
