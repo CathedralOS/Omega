@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,682 lines / 1,124,386 bytes with SHA-256
-`90fa1d383813784a16361cb7c1c74a9028c8dc5475393b790db936c41e9e5500`.
+The manifest materializes 28,811 lines / 1,130,691 bytes with SHA-256
+`be92f0790f1d98ff6269ab2d7e7b51d9bbc78b531e160c340d3821b6a5c9aa66`.
 The manifest itself is 2,905 bytes, SHA-256
-`39ddd5d311c9e533338e06a37a4dea53753c4b6f83c0870cfc000b021dfdc318`;
+`dd4aa51dd7f0efe3250bd413b3fa10ac672d4d29b58f8f1c89e24399a88351ad`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -258,8 +258,11 @@ and the crash and blocking ceilings described below, receivers,
 other runtime carriers/policies, arithmetic beyond the checked unsigned families below,
 and other dynamic subjects remain explicit coverage boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
-An ordinary call to a visible nested declaration remains outside this compiler subset,
-including when a free machine has the same name.
+Expression calls to visible nested declarations use their own parameter and result
+signature, entry requirements, effect acknowledgements and checked call loans.
+Lexical helpers take precedence over a free machine with the same name; a local
+value binding still takes precedence over a helper. Ordinary nested call statements
+remain an explicit coverage boundary.
 
 Each machine owns the helpers declared after its executable body. Terminal
 transfers search the caller's children and then each enclosing declaration
@@ -298,9 +301,13 @@ below Alpha's return stack. Each call evaluates arguments left to right into
 its own pending cells before copying them into destination parameters, including
 same-state transfers. This preserves
 earlier arguments and caller locals across nested calls. A whole-owner call
-DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
-all admitted state transfers stay within the owner, so mixed transfer/call
-cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
+DAG collects free-machine calls from every state. Nested expression calls retain
+exact declaration identities in the state-invocation graph. For each such call,
+a bounded reverse walk through ordinary calls and terminal transfers refuses
+any route from the callee back into its suspended caller. Each state is queued
+once per walk. Terminal-only cycles remain admitted, including within a called
+helper. Both checks cover unused declarations as well as the selected entry.
+At most 16,384 distinct state invocations can be suspended by ordinary calls.
 No admitted source operation converts these private addresses to numeric values.
 An `i32` value retains its sign through local storage, parameters, and returns.
 Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
@@ -1229,3 +1236,13 @@ mutating calls in reverse declaration order and checks both saved values, the
 omitted zero and the final counter. [Bindings](../../../tests/bootstrap/conformance/omega/payload_bindings.omg),
 [omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
 and [initializer order](../../../tests/bootstrap/conformance/omega/payload_field_order.omg)
+
+### Nested expression call controls
+
+`python3 tests/bootstrap/independent/nested_calls.py CONSTRUCTOR NEW_DIRECTORY`
+runs a supplied source-built Epsilon constructor on closed-source-set requests.
+The positive cases execute the emitted tapes on the audited Alpha seed; twins
+exercise signatures, lexical visibility, runtime capture, entry requirements,
+blocking and trapping ceilings, and mixed ordinary/terminal cycles. The test
+retains exact requests and observations. This does not claim that a development
+source model alone establishes the closed-set construction route.
