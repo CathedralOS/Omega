@@ -2042,7 +2042,7 @@ fn adapt(
                             path,
                             None,
                             selector,
-                        )?;
+                        );
                         step.record_selected_copy(
                             types,
                             slot_kind,
@@ -2050,7 +2050,7 @@ fn adapt(
                             &mut graph.contents_queries,
                             (query, *graph.place_types.get(source)?),
                             (result.place, result.structural_type),
-                        )?;
+                        );
                     } else {
                         step.may_escape = true;
                     }

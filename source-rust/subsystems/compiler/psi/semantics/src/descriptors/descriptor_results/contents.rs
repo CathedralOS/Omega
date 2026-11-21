@@ -27,13 +27,19 @@ impl DescriptorFlowStep {
         kind: DescriptorSlotKind,
         position: DescriptorPosition,
         queries: &mut DescriptorReadQueries,
-        (source, source_type): (DescriptorContentsQuery, StructuralTypeId),
+        (source, source_type): (Option<DescriptorContentsQuery>, StructuralTypeId),
         (destination, ty): (PlaceId, StructuralTypeId),
-    ) -> Option<()> {
-        if source.selected_type(types, source_type)? != Some(ty) {
-            return None;
-        }
-        let inventory = kind.owned_inventory(types, destination, ty)?;
+    ) {
+        let known = source.and_then(|query| {
+            if query.selected_type(types, source_type)? != Some(ty) {
+                return None;
+            }
+            Some((query, kind.owned_inventory(types, destination, ty)?))
+        });
+        let Some((source, inventory)) = known else {
+            self.may_escape = true;
+            return;
+        };
         let from = source.observation();
         for slot in inventory.slots.into_iter().chain(
             inventory
@@ -51,7 +57,6 @@ impl DescriptorFlowStep {
             self.derivations.push((from.clone(), slot.clone()));
             queries.insert((position, from.clone(), slot), query);
         }
-        Some(())
     }
 }
 
