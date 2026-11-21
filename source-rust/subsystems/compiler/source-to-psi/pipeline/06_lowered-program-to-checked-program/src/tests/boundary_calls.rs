@@ -472,6 +472,9 @@ boundary trait Child: Parent<i32> + Other {}",
 
 #[test]
 fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
+    use crate::source_state::service_declarations::{
+        projection::from_typed_application, provider_declarations::ProviderPlanningContext,
+    };
     use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
     use crate::source_state::type_identity::{
         TypeIdentityRequest, descriptive_type_identity_in_region_scope,
@@ -520,13 +523,28 @@ machine carrier<'left, 'right>(first: @'left mut i32, second: @'right mut i64) -
             },
         )
         .unwrap();
-        program
-            .requirement_definition_types(&scope, signature)
-            .unwrap()
+        let types = program.requirement_definition_types(&scope, signature)?;
+        let surface = from_typed_application(
+            ProviderPlanningContext::new(&program, source_provenance::DependencyScope::Product),
+            scope,
+        )
+        .unwrap();
+        let [method] = surface.declaration.methods.as_slice() else {
+            panic!("one declared method");
+        };
+        assert_eq!(
+            method.declared_type_signature,
+            service_surface::declared_type_signature(types.0.iter(), &types.1).unwrap()
+        );
+        Some(types)
     };
-    let left_i32 = applied(scalar(0), "left");
-    let left_i64 = applied(scalar(1), "left");
-    let right_i32 = applied(scalar(0), "right");
+    let left_i32 = applied(scalar(0), "left").unwrap();
+    let left_i64 = applied(scalar(1), "left").unwrap();
+    let right_i32 = applied(scalar(0), "right").unwrap();
+    assert!(
+        applied(scalar(0), "absent").is_none(),
+        "a missing caller lifetime cannot become a fresh method binder"
+    );
     let caller_type = descriptive_type_identity_in_region_scope(
         &program,
         TypeIdentityRequest::package_qualified(parameters[0].type_reference),
