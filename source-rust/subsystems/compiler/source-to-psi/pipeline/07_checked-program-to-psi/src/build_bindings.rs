@@ -79,7 +79,26 @@ pub enum TerminalBuildBindingOperation {
     BindNative,
     Select,
     SelectProvider,
+    SelectProviderOption,
     Exclude,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+pub enum ProviderSelectionOption {
+    Target(semantic_vocabulary::source_selections::ProductTarget),
+    Mode(semantic_vocabulary::source_selections::CompositionMode),
+}
+
+#[derive(Debug, PartialEq, Eq, record_storage::Record)]
+pub enum TerminalBuildBindingOperand {
+    NativeLocator(TerminalBuildNativeLocator),
+    ProviderOption {
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        cases: Vec<(
+            semantic_vocabulary::StructuralCaseId,
+            ProviderSelectionOption,
+        )>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, record_storage::Record)]
@@ -89,7 +108,7 @@ pub struct TerminalBuildBindingCall {
     pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source_text::SourceSpan>,
     pub static_environment: Option<Arc<ProductStaticEnvironment>>,
-    pub native_locator: Option<TerminalBuildNativeLocator>,
+    pub operand: Option<TerminalBuildBindingOperand>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

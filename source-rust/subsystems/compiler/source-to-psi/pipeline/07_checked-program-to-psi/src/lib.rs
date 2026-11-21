@@ -92,9 +92,10 @@ pub use self::terminal_production::{
 };
 pub use application::ProducedTerminalApplication;
 pub use build_bindings::{
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    ProviderSelectionOption, TerminalBuildBindingCall, TerminalBuildBindingOperand,
+    TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildNativeLocator,
+    TerminalBuildProviderRequirement, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape,
 };
 pub use build_companions::BuildProtocolUse;
 pub use build_filesystem::{

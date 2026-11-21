@@ -10,7 +10,7 @@ use crate::{
 };
 use arena::IdTable;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
 pub enum ProductTarget {
     LinuxArm64,
     LinuxX86_64,
@@ -85,7 +85,7 @@ impl ProductTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum CompositionMode {
     #[default]
     Fused,
