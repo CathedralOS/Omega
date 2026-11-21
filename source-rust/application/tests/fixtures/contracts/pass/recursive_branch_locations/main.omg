@@ -1,0 +1,22 @@
+machine first(count: u64, again: bool) -> u64
+requires count >= 10
+{
+    let value: u64 = match count < 5 { true -> (1u64), _ -> (2u64) };
+    transition again { true -> second(count, false), _ -> (value) }
+}
+
+machine second(count: u64, again: bool) -> u64
+requires count >= 10
+{
+    let value: u64 = match count < 6 { true -> (3u64), _ -> (7u64) };
+    transition again { true -> first(count, false), _ -> (value) }
+}
+
+machine main() crashes Trap {
+    transition first(12, true) == 7 && second(12, true) == 2 {
+        true -> done(),
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -483,9 +483,10 @@ impl Elaboration {
     /// contradicts its own contract is not exempt" (state_contracts.md,
     /// "Unreachable branches"), and the generic machine's own check form is
     /// where it is judged as written.
-    pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
+    pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, &[Branch])> + '_ {
         authored_machine_sources(&self.module, &self.sources)
-            .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
+            .filter(|(_, sources)| !sources.branches.is_empty())
+            .map(|(machine, sources)| (machine, sources.branches.as_slice()))
     }
 
     /// The `_` arms of this program's authored machines that no declared

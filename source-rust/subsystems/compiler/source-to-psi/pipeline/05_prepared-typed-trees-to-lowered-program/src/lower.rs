@@ -519,6 +519,7 @@ impl<'a> Lowering<'a> {
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
             exclusive_roots: Vec::new(),
+            owns_body: true,
             fallthrough: None,
             pending_build: None,
             block_ranks: IdTable::default(),
@@ -855,6 +856,9 @@ struct Lowering<'a> {
     /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
     /// an owned value may be moved out of (`places::record`).
     exclusive_roots: Vec<PlaceId>,
+    /// Only the machine that declares a body publishes its source advisories.
+    /// Other members of a terminal call cycle also contain its executable blocks.
+    owns_body: bool,
     /// The block a guarded arm's guard turns away to, when nothing has been
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
@@ -1026,6 +1030,8 @@ impl<'a> Lowering<'a> {
     /// continuation, and so does a statement some path of which goes on past
     /// the call (the right operand of `&&`, one arm of a `match`).
     fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
+        self.owns_body = member == self.id;
+        self.fallthrough = None;
         self.lender_homes = self.records.lender_homes(member, self.id)?;
         let entry = self.current()?;
         let source = self
@@ -1087,7 +1093,9 @@ impl<'a> Lowering<'a> {
                     Some(SourceOrigin::Unpositioned(Unpositioned::SpanAbsent))
                 }
             });
-            if let Some(statement) = first {
+            if self.owns_body
+                && let Some(statement) = first
+            {
                 self.sources.unreachable.push(crate::lowering::Unreachable {
                     statement: statement.into(),
                     call: call.into(),
