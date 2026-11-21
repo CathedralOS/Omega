@@ -101,3 +101,35 @@ accepted price of a unified API shaped for the ideal form.
 | Paths | NUL-free bytes | re-encoded to UTF-16 | native |
 | Errors | `errno` mapped to `ErrorKind` | Win32 error mapped to `ErrorKind` | native |
 | Directory enumeration | `ReadDir` zero means not started; the target implementation owns the OS cursor | same | same |
+
+### Filesystem values and partial results
+
+`read`, `write`, `read_at` and `write_at` may transfer fewer bytes than the
+caller supplies. A valid buffer does not become invalid because its length
+exceeds a native call's count field: the adapter submits a representable prefix
+and returns the actual count. Reads still refuse a count outside the supplied
+buffer; positioned operations still refuse a negative offset. `write_all`
+continues until all bytes are written or an error occurs, refusing zero progress.
+`copy` copies the initialized prefix returned by its bounded read, which may be
+short, and reports exactly that prefix's length.
+
+`DirEntry.name` stores up to 765 bytes, and `name_len` counts the returned bytes
+without a NUL terminator. This accommodates the longest supported component:
+255 UTF-16 code units can require at most 765 UTF-8 bytes. A supplementary
+Unicode scalar occupies two UTF-16 code units and four UTF-8 bytes; the adapter
+must preserve the scalar, never truncate either encoding. POSIX names retain
+their original bytes. Malformed native records or invalid UTF-16 fail rather
+than producing a partial name. Enumeration order and a directory snapshot are
+not promised.
+
+`set_times` receives signed whole Unix seconds, including times before 1970.
+The timestamp is valid independently of an operating system's encoding or the
+underlying filesystem's supported range and precision. An adapter that cannot
+represent a requested time returns `Unsupported` without applying either update;
+it must not clamp the value or report success for a no-op. Windows therefore
+returns `Unsupported` for the 1601 epoch (whose zero FILETIME means "leave
+unchanged"), earlier times, and values too large for whole-second FILETIME.
+Otherwise the host filesystem may still refuse the update or round its stored
+precision; successful conversion alone does not promise host acceptance or an
+exact subsequent metadata value. Invalid handles and host errors retain their
+ordinary error meanings.
