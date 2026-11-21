@@ -2784,7 +2784,7 @@ mod production {
         } = sections;
         let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(
             publication,
-        )?);
+        ));
         let source = emission_input.as_ref();
         let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
@@ -3064,94 +3064,6 @@ pub(crate) mod replay {
     ) -> Result<(), diagnostics::Diagnostic> {
         super::validation::validate_available(artifact)
             .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
-    }
-}
-
-pub(crate) mod reporting {
-    use diagnostics::Diagnostic;
-    use image::{
-        CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
-    };
-
-    use crate::ObjectArtifact;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct FunctionPublicationStatistics {
-        function_count: usize,
-        instruction_count: usize,
-        zero_width_instruction_count: usize,
-        frame_prologue_byte_count: usize,
-        frame_epilogue_byte_count: usize,
-        fragment_manifest_report_fingerprint: u64,
-        frame_application_report_fingerprint: u64,
-    }
-
-    impl FunctionPublicationStatistics {
-        pub(crate) fn from_current(
-            code: &machine_code::placed_body::NativeBodyReadback,
-        ) -> Result<Self, Diagnostic> {
-            let frame = &code.frame_application;
-            let stats = code.fragment_statistics;
-            let mut prologue_bytes = 0usize;
-            let mut epilogue_bytes = 0usize;
-            for function in &frame.functions {
-                prologue_bytes = prologue_bytes
-                    .checked_add(host(function.prologue_byte_count)?)
-                    .ok_or_else(overflow)?;
-                for epilogue in &function.epilogues {
-                    epilogue_bytes = epilogue_bytes
-                        .checked_add(host(epilogue.byte_count)?)
-                        .ok_or_else(overflow)?;
-                }
-            }
-            Ok(Self {
-                function_count: host(stats.functions)?,
-                instruction_count: host(stats.instruction_spans)?,
-                zero_width_instruction_count: host(stats.zero_byte_instruction_spans)?,
-                frame_prologue_byte_count: prologue_bytes,
-                frame_epilogue_byte_count: epilogue_bytes,
-                fragment_manifest_report_fingerprint: compact(
-                    frame.source_fragment_manifest.bytes(),
-                ),
-                frame_application_report_fingerprint: compact(frame.identity.bytes()),
-            })
-        }
-    }
-
-    pub(crate) fn summarize(
-        artifact: &ObjectArtifact,
-        output: &EmittedImageOutput,
-        text_validation: &CompilerTextValidationEvidence,
-    ) -> Result<Option<CompilerFunctionValidationEvidence>, Diagnostic> {
-        let stats = &artifact.emission_input.statistics;
-        Ok(Some(CompilerFunctionValidationEvidence {
-            function_count: stats.function_count,
-            instruction_count: stats.instruction_count,
-            zero_width_instruction_count: stats.zero_width_instruction_count,
-            frame_prologue_byte_count: stats.frame_prologue_byte_count,
-            frame_epilogue_byte_count: stats.frame_epilogue_byte_count,
-            fragment_manifest_report_fingerprint: stats.fragment_manifest_report_fingerprint,
-            frame_application_report_fingerprint: stats.frame_application_report_fingerprint,
-            boundary_contract_report_fingerprint: None,
-            final_region_binding_report_fingerprint: output
-                .executable_regions
-                .inventory_report_fingerprint,
-            final_text_validation_report_fingerprint: text_validation.derivation_report_fingerprint,
-        }))
-    }
-
-    fn compact(identity: [u8; 32]) -> u64 {
-        let mut prefix = [0; 8];
-        prefix.copy_from_slice(&identity[..8]);
-        u64::from_le_bytes(prefix)
-    }
-
-    fn host(value: u64) -> Result<usize, Diagnostic> {
-        usize::try_from(value).map_err(|_| overflow())
-    }
-
-    fn overflow() -> Diagnostic {
-        Diagnostic::error("compiler function validation report count exceeds supported size")
     }
 }
 
