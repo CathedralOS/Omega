@@ -2479,12 +2479,12 @@ pub mod layout_storage {
             program: &TypedTrees,
             argument: TypeReferenceHandle,
         ) -> SymbolHandle {
+            let application = program.normalized_type_identity(self.application);
             program
                 .data_implementation_applications
                 .iter()
                 .find_map(|(_, demand)| {
-                    (program.normalized_type_identity(demand.source_application)
-                        == program.normalized_type_identity(self.application))
+                    (program.normalized_type_identity(demand.source_application) == application)
                     .then_some(demand.lexical_owner)
                 })
                 .unwrap_or_else(|| {
@@ -2501,7 +2501,7 @@ pub mod layout_storage {
             program: &TypedTrees,
             requester: SymbolHandle,
         ) -> Result<SymbolHandle, &'static str> {
-            use crate::source_state::type_identity::TypeIdentityQualification;
+            use crate::source_state::type_identity::portable_applied_type_identity;
             let contract = program
                 .trait_definition_by_symbol(self.contract)
                 .ok_or("layout storage lost its exact core contract")?;
@@ -2515,15 +2515,13 @@ pub mod layout_storage {
                 .applied_requirement_scope(requester, self.policy)
                 .and_then(|scope| scope.declaring_scope(program, self.contract))
                 .ok_or("selected policy does not retain the core layout application")?;
-            if !policy
-                .parameter_argument(program, parameter.symbol)
-                .is_valid()
-                || policy.parameter_identity(
-                    program,
-                    parameter.symbol,
-                    TypeIdentityQualification::Ordinary,
-                ) != program.normalized_type_identity(self.semantic_type)
-            {
+            let selected = policy
+                .portable_parameter_identity(program, parameter.symbol)
+                .ok_or("layout policy lost its complete applied semantic argument")?;
+            let semantic =
+                portable_applied_type_identity(program, self.semantic_type, requester, &[])
+                    .ok_or("layout storage lost its complete semantic argument")?;
+            if selected != semantic {
                 return Err("selected layout policy belongs to another semantic type");
             }
             Ok(requirement.symbol)
