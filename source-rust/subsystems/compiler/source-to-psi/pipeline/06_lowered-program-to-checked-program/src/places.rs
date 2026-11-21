@@ -1616,7 +1616,7 @@ impl<'a> Storage<'a> {
         };
         Ok(Returned {
             inputs,
-            input_formals: formals,
+            input_formals: call.contract.structural_parameters,
             storage: self,
             tables,
             structural,
