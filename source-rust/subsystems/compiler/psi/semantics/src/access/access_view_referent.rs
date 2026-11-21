@@ -95,17 +95,7 @@ fn resolve_referent_place(
     Some(structural_type)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AccessViewInputError {
-    MachineMissing,
-    DeclarationMissing,
-    MachineIdentityMismatch,
-    StateIdentityMismatch,
-    CarrierIdentityMissing,
-    ParameterMissing,
-    CarrierMismatch,
-    AccessMismatch,
-}
+pub use terminal_psi::access::AccessViewInputError;
 
 pub fn access_view_input_parameter<'module>(
     module: &'module TerminalModule,

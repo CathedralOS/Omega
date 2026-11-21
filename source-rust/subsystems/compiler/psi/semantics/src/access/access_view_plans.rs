@@ -7,38 +7,7 @@ use terminal_psi::{
     TerminalModule,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AccessViewPlanError {
-    DuplicateCarrier,
-    DuplicateAccessor,
-    CarrierMissing,
-    SchemaMissing,
-    CarrierNotRecord,
-    SchemaNotRecord,
-    IdentityMissing,
-    ViewIdentityMismatch,
-    InputPlanMismatch,
-    InputMissing {
-        machine: semantic_vocabulary::MachineId,
-        runtime_position: usize,
-    },
-    /// Inputs must be strictly ordered by `(machine, runtime_position)`;
-    /// this names the first row that repeats or precedes its predecessor.
-    InputOutOfOrder {
-        machine: semantic_vocabulary::MachineId,
-        runtime_position: u32,
-    },
-    FieldSlotMismatch,
-    ViewFieldMismatch,
-    SchemaFieldMismatch,
-    AccessorMissing,
-    DuplicateBoundary,
-    BoundaryMissing,
-    BoundaryCarrierMismatch,
-    OperationNotAdmitted,
-    OperationSignatureMismatch,
-    CarrierStorageMismatch,
-}
+pub use terminal_psi::access::AccessViewPlanError;
 
 pub(crate) fn access_field_leaf(
     declarations: &[terminal_psi::StructuralTypeDeclaration],

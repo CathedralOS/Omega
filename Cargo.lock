@@ -1923,8 +1923,8 @@ dependencies = [
  "numerics",
  "operation-evidence",
  "optimization-core",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
  "wire",
 ]
@@ -1937,9 +1937,9 @@ dependencies = [
  "arena",
  "optimization-core",
  "optimization-unit",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
  "structural-storage",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
@@ -2387,6 +2387,20 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "psi-declaration-encoding"
+version = "0.1.0"
+dependencies = [
+ "access-admission",
+ "access-vocabulary",
+ "arena",
+ "layout-plans",
+ "numerics",
+ "schema-reflection",
+ "semantic-vocabulary",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -3249,10 +3263,10 @@ name = "structural-storage"
 version = "0.1.0"
 dependencies = [
  "operation-operands",
+ "psi-declaration-encoding",
  "semantic-vocabulary",
  "terminal-psi",
  "terminal-semantics",
- "terminal-wire",
 ]
 
 [[package]]
@@ -3735,8 +3749,6 @@ dependencies = [
 name = "terminal-wire"
 version = "0.1.0"
 dependencies = [
- "access-admission",
- "access-vocabulary",
  "application-identity",
  "arena",
  "bignum",
@@ -3747,8 +3759,8 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-applications",
+ "psi-declaration-encoding",
  "psi-effect-contracts",
- "schema-reflection",
  "semantic-vocabulary",
  "service-surface",
  "terminal-psi",

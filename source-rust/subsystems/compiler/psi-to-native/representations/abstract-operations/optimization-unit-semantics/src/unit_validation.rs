@@ -1415,12 +1415,12 @@ mod catalogs {
     use crate::unit_validation::structural_catalog::resolve_structural_path;
     use optimization_unit::SourceCheckedScalarReceiving;
     use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use psi_declaration_encoding::terms::proposition::canonical_proposition_order_key;
     use semantic_vocabulary::ObligationId;
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
-    use terminal_codec::canonical_proposition_order_key;
     use terminal_psi::StructuralFieldType;
     use terminal_psi::StructuralTypeDeclaration;
     use terminal_psi::find_structural_case;
@@ -1928,8 +1928,8 @@ mod catalogs {
                         terminal_semantics::whole_representation_count_goal(*source_length, factor)
                             .ok_or_else(|| invalid.clone())?;
                     require_operation!(psi_operation, obligation, &goal);
-                    let expected = terminal_codec::canonical_proposition_order_key(&goal)
-                        .map_err(|_| invalid.clone())?;
+                    let expected =
+                        canonical_proposition_order_key(&goal).map_err(|_| invalid.clone())?;
                     if unit
                         .accepted_obligation_fact(
                             function.machine,
