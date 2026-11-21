@@ -954,17 +954,21 @@ impl PolicySource<'_> {
                     .binary_search(service)
                     .is_err()
             });
-        if outside_reach
-            || outside_invocations
-            || may_suspend
-            || may_block
-            || !body.contract.crash_routes.is_empty()
-            || body.contract.published_may_block
-            || body.contract.published_may_suspend
+        let ceiling = &boundary.declaration.as_ref()
+            .ok_or_else(|| unavailable("the selected provider's checked boundary declaration"))?.source;
+        // Conditional boundary guards still need their complete review representation.
+        // An unconditional route covers only the matching cause, including narrower body guards.
+        let outside_crash = body.contract.crash_routes.iter()
+            .chain(body.contract.declared_crash_routes.iter().flatten())
+            .any(|route| !boundary.crash_routes.iter().any(|allowed| {
+                route.cause == allowed.cause
+                    && allowed.alternatives.as_slice() == [terminal_psi::CrashRouteGuard::Truth]
+            }));
+        if outside_reach || outside_invocations || outside_crash
+            || ((may_suspend || body.contract.published_may_suspend) && !ceiling.published_may_suspend)
+            || ((may_block || body.contract.published_may_block) && !ceiling.published_may_block)
         {
-            return Err(unavailable(
-                "the selected provider's complete effect or calling policy",
-            ));
+            return Err(unavailable("provider effects within the selected requirement's checked ceiling"));
         }
         Ok(PreparedRow {
             canonical: canonical.to_owned(),
@@ -1178,13 +1182,16 @@ impl PolicySource<'_> {
                 ));
             }
         }
+        let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
+            matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
+        });
         if !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
-            || !signature.declares_no_crash_route
-            || !boundary.crash_routes.is_empty()
+            || signature.declares_no_crash_route == authored_routes
+            || signature.declares_no_crash_route != boundary.crash_routes.is_empty()
             || boundary.role != BoundaryDeclarationRole::Callable
             || declaration.execution != CheckedBoundaryExecution::Provider
             || boundary.structural_parameters.iter().any(|parameter| {
@@ -1321,7 +1328,7 @@ impl PolicySource<'_> {
             checked_termination: termination,
             checked_crash: PackagePolicyCrash {
                 interface: PackageReviewCrashInterface::PublishedCeiling,
-                published: Vec::new(),
+                published: super::callables::published_crash_routes(&boundary.crash_routes)?,
                 structural_runtime_requirements: None,
                 inferred: PackagePolicyInferredCrash::Unknown,
             },

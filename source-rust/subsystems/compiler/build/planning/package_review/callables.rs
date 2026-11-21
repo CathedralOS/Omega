@@ -986,15 +986,11 @@ fn mutation(
 }
 
 fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
-    let cause = |cause| match cause {
-        semantic_vocabulary::CrashCause::Trap => PackageReviewCrashCause::Trap,
-        semantic_vocabulary::CrashCause::Abort => PackageReviewCrashCause::Abort,
-    };
     let Some(declared) = &header.declared_crash_routes else {
         let mut causes: Vec<_> = header
             .crash_routes
             .iter()
-            .map(|route| cause(route.cause))
+            .map(|route| reviewed_crash_cause(route.cause))
             .collect();
         causes.sort();
         causes.dedup();
@@ -1005,6 +1001,24 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
             inferred: PackagePolicyInferredCrash::Complete { causes },
         });
     };
+    Ok(PackagePolicyCrash {
+        interface: PackageReviewCrashInterface::PublishedCeiling,
+        published: published_crash_routes(declared)?,
+        structural_runtime_requirements: None,
+        inferred: PackagePolicyInferredCrash::Unknown,
+    })
+}
+
+fn reviewed_crash_cause(cause: semantic_vocabulary::CrashCause) -> PackageReviewCrashCause {
+    match cause {
+        semantic_vocabulary::CrashCause::Trap => PackageReviewCrashCause::Trap,
+        semantic_vocabulary::CrashCause::Abort => PackageReviewCrashCause::Abort,
+    }
+}
+
+pub(super) fn published_crash_routes(
+    declared: &[terminal_psi::CrashRouteBucket],
+) -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>> {
     let mut published = Vec::new();
     for route in declared {
         if route.alternatives.as_slice() != [CrashRouteGuard::Truth] {
@@ -1013,17 +1027,12 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
             ));
         }
         published.push(PackagePolicyCrashRoute {
-            cause: cause(route.cause),
+            cause: reviewed_crash_cause(route.cause),
             alternative_guards: vec![PackagePolicyCrashGuard::Truth],
         });
     }
     published.sort_by_key(|route| route.cause);
-    Ok(PackagePolicyCrash {
-        interface: PackageReviewCrashInterface::PublishedCeiling,
-        published,
-        structural_runtime_requirements: None,
-        inferred: PackagePolicyInferredCrash::Unknown,
-    })
+    Ok(published)
 }
 
 #[cfg(test)]
