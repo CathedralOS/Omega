@@ -2,7 +2,7 @@
 //! instructions and storage it has already established. The selected call belongs
 //! to each program independently. The suffix and additional machines may differ.
 
-use semantic_vocabulary::{BlockId, MachineId, OperationId};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId};
 use terminal_psi::{
     Block, Operation, OperationKind, TargetMachineCallable, TerminalMachine, TerminalModule,
     Terminator,
@@ -317,7 +317,7 @@ impl<'a> CheckedPrefix<'a> {
                 return Err("successor changed the number of structural edge arguments");
             }
             for (a, b) in old.iter().zip(new) {
-                if !self.same_argument(a, b) {
+                if !self.same_argument(machine, a, b) {
                     return Err("successor changed the storage of a structural edge argument");
                 }
                 b.path.clone_from_slice(&a.path);
@@ -506,6 +506,7 @@ impl<'a> CheckedPrefix<'a> {
                 | EstablishElementView { .. }
                 | EstablishMutableElementView { .. }
                 | ByteSequenceLength { .. }
+                | ByteSequenceRead { .. }
                 | ElementViewLength { .. }
                 | ElementViewRead { .. }
                 | ElementViewSubslice { .. }
@@ -552,7 +553,7 @@ impl<'a> CheckedPrefix<'a> {
                     }
                     (EstablishReference { source: a, .. }, EstablishReference { source: b, .. })
                     | (MoveStructuralValue { source: a }, MoveStructuralValue { source: b }) => {
-                        if !self.same_argument(a, b) {
+                        if !self.same_argument(left, a, b) {
                             return Err("successor changed the storage of a reached reference or move");
                         }
                         b.path.clone_from_slice(&a.path);
@@ -608,9 +609,7 @@ impl<'a> CheckedPrefix<'a> {
         }
         if let Some(arguments) = kind.structural_arguments_mut() {
             for (a, b) in p.kind.structural_arguments().iter().zip(arguments) {
-                if self.same_argument(a, b) {
-                    b.path.clone_from_slice(&a.path);
-                }
+                self.check_argument(left, a, b)?;
             }
         }
         if let Call {
@@ -662,31 +661,29 @@ impl<'a> CheckedPrefix<'a> {
                 (Place(r), Place(_))
                 | (Canonical { root: r, .. }, Canonical { .. })
                 | (ObservedField { root: r, .. }, ObservedField { .. }) => r,
-                (Projection(a), Projection(b)) if self.paths(a.path, b.path) => a.root,
+                (Projection(a), Projection(b))
+                    if self.paths_from(Some((left, a.root)), a.path, b.path) =>
+                {
+                    a.root
+                }
                 (
                     Element { descriptor, path },
                     Element {
                         descriptor: other,
                         path: other_path,
                     },
-                ) if self.paths(descriptor.path, other.path) && self.paths(path, other_path) => {
+                ) if self.paths_from(
+                    Some((left, descriptor.root)),
+                    descriptor.path,
+                    other.path,
+                ) && self.paths(path, other_path) =>
+                {
                     descriptor.root
                 }
                 (Type(a), Type(b)) if self.structural_type(a) == Some(b) => continue,
                 _ => return Err("successor changed a structural operand"),
             };
             self.same_place(left, right, root)?;
-        }
-        for (a, b) in p
-            .kind
-            .structural_arguments()
-            .iter()
-            .zip(q.kind.structural_arguments())
-        {
-            if !self.same_argument(a, b) {
-                return Err("successor changed a reached call argument");
-            }
-            self.same_place(left, right, a.place)?;
         }
         Ok(())
     }
@@ -696,12 +693,22 @@ impl<'a> CheckedPrefix<'a> {
         old: &[terminal_psi::StructuralPathSegment],
         new: &[terminal_psi::StructuralPathSegment],
     ) -> bool {
+        self.paths_from(None, old, new)
+    }
+
+    fn paths_from(
+        &self,
+        root: Option<(&TerminalMachine, PlaceId)>,
+        old: &[terminal_psi::StructuralPathSegment],
+        new: &[terminal_psi::StructuralPathSegment],
+    ) -> bool {
         use terminal_psi::StructuralPathSegment::*;
         old.len() == new.len()
             && old
                 .iter()
                 .zip(new)
-                .all(|(left, right)| match (left, right) {
+                .enumerate()
+                .all(|(index, (left, right))| match (left, right) {
                     (Field(a), Field(b)) => self.field_identity(*a) == Some(*b),
                     (
                         RepresentationView {
@@ -717,7 +724,16 @@ impl<'a> CheckedPrefix<'a> {
                             && !matches!(x, Some(semantic_vocabulary::ScalarType::Callable(_)))
                             && self.structural_type(*a) == Some(*b)
                     }
-                    (Case(a), Case(b)) => self.unambiguous_case_id(*a) == Some(*b),
+                    (Case(a), Case(b)) => {
+                        let owner = root.and_then(|(machine, place)| {
+                            self.projected_type(machine, place, &old[..index])
+                        });
+                        let case = match owner {
+                            Some(ty) => self.case_id(ty, *a),
+                            None => self.unambiguous_case_id(*a),
+                        };
+                        case == Some(*b)
+                    }
                     (AllElements | FixedIndex(_) | FixedRange { .. } | Referent, _) => {
                         left == right
                     }
@@ -754,10 +770,13 @@ impl<'a> CheckedPrefix<'a> {
 
     fn same_argument(
         &self,
+        machine: &TerminalMachine,
         a: &terminal_psi::StructuralArgument,
         b: &terminal_psi::StructuralArgument,
     ) -> bool {
-        a.place == b.place && a.access == b.access && self.paths(&a.path, &b.path)
+        a.place == b.place
+            && a.access == b.access
+            && self.paths_from(Some((machine, a.place)), &a.path, &b.path)
     }
 
     fn same_place(
