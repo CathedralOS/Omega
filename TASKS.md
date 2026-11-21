@@ -6,8 +6,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **ITERATION-PERFORMANCE.** Reduce measured delays in the edit/build/run cycle.
-  - After real-program bottlenecks, measure arena growth and copied nodes on repeated aggregate [constant substitutions](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/substitution.rs). Preserve per-occurrence metadata when sharing definition content.
 - **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
   - Bind `FilesystemHost`, `TimeHost` and direct foreign services to the exact operation and owner. Keep insufficient or installation-dependent evidence a refusal.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
