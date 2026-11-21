@@ -3729,6 +3729,16 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> framed_expression_tail_punctuation()
             OmegaTokenKind::Identifier -> framed_expression_tail_identifier()
+            OmegaTokenKind::Keyword -> framed_expression_tail_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    // The executable portion may return a value before its nested declarations.
+    // Keep the first declaration token for the scope that owns those machines.
+    state framed_expression_tail_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Machine -> finish_statement_operand()
             _ -> incomplete_root()
         }
     }
@@ -3822,7 +3832,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::AndAnd -> select_expression_and()
             OmegaPunctuationKind::PipePipe -> select_expression_or()
             OmegaPunctuationKind::RightBrace -> finish_right_brace_expression()
-            OmegaPunctuationKind::Equal -> finish_assignment_target_expression()
+            OmegaPunctuationKind::Equal -> finish_statement_operand()
             OmegaPunctuationKind::RightBracket -> finish_index_expression()
             OmegaPunctuationKind::DotDot -> finish_index_expression()
             OmegaPunctuationKind::DotDotEqual -> finish_index_expression()
@@ -3830,16 +3840,15 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    // Only a root statement expression may become an assignment target.
-    // Finishing it retains one handle before the RHS can change any parser
-    // scratch state; writability and place validity belong to checking.
-    state finish_assignment_target_expression() {
+    // Only a complete, ungrouped statement expression may end at an assignment
+    // or at the first nested declaration. Checking decides whether a target is writable.
+    state finish_statement_operand() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::ExpressionStatement -> finish_root_assignment_target()
+            OmegaExpressionConsumer::ExpressionStatement -> finish_ungrouped_statement_expression()
             _ -> incomplete_root()
         }
     }
-    state finish_root_assignment_target() {
+    state finish_ungrouped_statement_expression() {
         transition self.expression_group_count {
             0 -> finish_framed_expression()
             _ -> incomplete_root()
@@ -4595,6 +4604,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state publish_statement_expression() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> retain_expression_statement()
+            _ -> publish_statement_at_punctuation()
+        }
+    }
+    state publish_statement_at_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Equal -> begin_expression_assignment_value()
             OmegaPunctuationKind::RightBrace -> retain_expression_statement()
@@ -5504,6 +5519,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state statement_path_tail_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::As -> begin_statement_path_expression(3)
+            OmegaKeywordKind::Machine -> begin_statement_path_expression(1)
             _ -> incomplete_root()
         }
     }
@@ -6016,7 +6032,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaStatementKind::Expression;
         self.statements[self.statement_count].item_index = self.expression_result;
         self.statement_count = self.statement_count + 1;
-        transition true { true -> finish_current_state() }
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> begin_nested_state()
+            _ -> finish_current_state()
+        }
     }
 
     state begin_call_static_arguments() {
@@ -6558,6 +6577,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state path_expression_tail_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::As -> begin_path_cast()
+            OmegaKeywordKind::Machine -> retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -8040,6 +8060,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state primary_expression_end_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::As -> begin_completed_expression_cast()
+            OmegaKeywordKind::Machine -> finish_framed_primary()
             _ -> possible_implicit_struct_field()
         }
     }
@@ -10455,6 +10476,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state cast_end_keyword(after_domain: i32) {
         transition self.scan.keyword {
             OmegaKeywordKind::As -> retain_cast_after_end(after_domain)
+            OmegaKeywordKind::Machine -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
     }

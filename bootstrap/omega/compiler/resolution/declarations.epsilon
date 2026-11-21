@@ -775,7 +775,7 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
     state parameter(index: i32, state_index: i32, offset: i32) {
         transition offset < self.state_parameter_count(state_index) {
             true -> parameter_type(index, state_index, offset,
-                self.parser.machine_parameters[self.state_first_parameter(state_index) + offset])
+                self.parser.machine_parameters[self.parameter_syntax_row(self.state_first_parameter(state_index) + offset)])
             _ -> machine_item(index + 1)
         }
     }

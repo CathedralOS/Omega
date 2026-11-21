@@ -132,6 +132,15 @@ def cases():
     yield "unknown-version", bytes(4) + struct.pack("<I", 2), struct.pack("<BI", 0, 3)
 
 
+    # A machine can return an expression before it declares its helpers.
+    # Executable statements cannot resume after the first nested declaration.
+    outer = b"machine main()->u8{relay(42) machine unused()->u8{0}"
+    relay = b" machine relay(value:u8)->u8{value machine unused()->u8{0}}"
+    data, _ = packet([outer + b"}" + relay], ["main.omg"])
+    yield "result-before-nested-machine", data, 42
+    data, rows = packet([outer + b" 7}" + relay], ["main.omg"])
+    yield "statement-after-nested-machine", data, struct.pack("<BII", 0, 1, rows[0][1] + len(outer) + 1)
+
     yield from construction_unit_cases(encode)
     yield from nominal_record_cases(encode)
     yield from record_bound_cases(encode)
@@ -139,6 +148,7 @@ def cases():
     yield from nominal_sum_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
+    yield from nested_parameter_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -521,6 +531,41 @@ def nominal_array_cases(encode):
     data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
     yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
 
+
+def nested_parameter_cases(encode):
+    # The caller's signed -1 must satisfy its one-sided bound and survive
+    # the callee's 7. Other files reuse the same slot for unsigned parameters.
+    caller = (b'machine main()->u8{transition{_->relay(-1)}'
+              b'\n    machine relay(kept:i32)->u8 requires kept<=0 {let observed:u8=other(7);'
+              b'transition kept==-1{true->42,_->observed}}}')
+    callee = b'machine other(input:u8)->u8{transition{_->local(input)}machine local(value:u8)->u8{value}}'
+    sources = [caller, callee]
+    parameters = ','.join(f'p{i}:u8' for i in range(16))
+    for unit in range(64):
+        machines = [f'machine state{i}({parameters})->u8{{p0}}' for i in range(16)]
+        sources.append(('\n'.join([f'machine group{unit}()->u8{{0', *machines, '}'])).encode())
+    paths = [f'file{i}.omg' for i in range(len(sources))]
+
+    def packet(units):
+        data, _, _, rows = encode([('app', 0)], [], [(0, unit) for unit in units],
+                                  0, b'main', paths=paths)
+        return data, rows
+
+    data, _ = packet(sources)
+    yield 'nested-parameters-across-files', data, 42
+
+    missing = sources.copy()
+    prefix, body = missing[-1].rsplit(b'{p0}', 1)
+    missing[-1] = prefix + b'{other_slot}' + body
+    data, rows = packet(missing)
+    position = rows[-1][1] + missing[-1].index(b'other_slot')
+    yield 'nested-parameters-last-reference', data, struct.pack('<BII', 0, 1, position)
+
+    mistyped = sources.copy()
+    mistyped[1] = callee.replace(b'local(input)', b'local(false)')
+    data, rows = packet(mistyped)
+    position = rows[1][1] + mistyped[1].index(b'false')
+    yield 'nested-parameters-mistyped', data, struct.pack('<BII', 0, 1, position)
 
 
 def nested_state_cases(encode):
