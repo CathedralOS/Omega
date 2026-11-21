@@ -437,6 +437,42 @@ fn closed_copy_storage_rejects_declared_copy_over_custody() {
     assert!(!psi_handoff_consumer::closed_copy_storage(&package, c), "an affine declaration");
 }
 
+/// Capability publication waits for selected nominal cleanup, follows each
+/// owned field and possible sum case, and stops at a descriptor's referent.
+#[test]
+fn write_only_authority_follows_claims_and_selected_cleanup() {
+    use omega_lowering::WriteOnlyCleanup::{DescriptorCleanup, NoCodeAffine};
+    let package = lowered("data Claim [linear]{n:u8;} data Hook dropped by release {n:u8;}
+        machine release(x:Hook){let Hook{n as _}=x;}
+        data Nested{case Plain(n:u8); case Claimed(c:Claim);}
+        data Hooked{values:[Hook;2];} data Loan{r:@mut Hook;} data Cells{values:[u8;4];}");
+    let capability = |name: &str| package.data.iter().find(|schema| schema.declaration.path == name).unwrap().write_only_cleanup;
+    assert_eq!(["Claim", "Hook", "Nested", "Hooked", "Loan", "Cells"].map(capability),
+               [None, None, None, None, Some(DescriptorCleanup), Some(NoCodeAffine)]);
+}
+
+/// A second write to the same resident slot retires the descriptor installed by
+/// the first. Each incoming descriptor has its own original backing parameter.
+#[test]
+fn descriptor_replacements_keep_both_backings_and_the_same_resident_slot() {
+    let pkg = lowered("data C [copy]{r:@u8;} data Box{c:C;}
+        machine f(x:@write Box,a:@u8,b:@u8){x.c=C{r:a};x.c=C{r:b};}");
+    let f = body(&pkg);
+    let stores = write_only_stores(&pkg, "f").unwrap();
+    assert_eq!(stores.len(), 2);
+    for (store, formal) in stores.iter().zip(&f.parameters[1..]) {
+        assert_eq!((store.formal, store.crossing, store.field.as_ref().unwrap().path.as_str()), (0, 0, "Box::c"));
+        let (omega_lowering::Parameter::Structural(value), omega_lowering::Parameter::Structural(reference)) = (store.value, formal) else {
+            panic!("record replacement and reference formal")
+        };
+        let omega_lowering::PlaceOrigin::Operation(origin) = f.places[value.index()].origin else { panic!("constructed record") };
+        let OperationKind::EstablishRecord { fields } = &f.operations[origin.index()].kind else { panic!("constructor") };
+        let [field] = fields.as_slice() else { panic!("one descriptor") };
+        assert_eq!(field.field.path, "C::r");
+        assert_eq!(field.operand, omega_lowering::ValueOperand::CopyWhole(*reference));
+    }
+}
+
 /// Replacing a copy record through a write-only loan writes the whole field
 /// without reading or disposing the old one
 /// (structural_access.md#write-only-authority). The reader names the incoming

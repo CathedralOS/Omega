@@ -111,6 +111,7 @@ impl<'a> DataSchema<'a> {
             id,
             type_arguments: Vec::new(),
             cleanup_target: None,
+            write_only_cleanup: None,
             declaration: crate::identity::declaration(self.declaration, &self.site)?,
             carrier,
             public: self.public,

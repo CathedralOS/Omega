@@ -20,17 +20,6 @@ fn lower(text: &str) -> LoweredPackage {
     source::lower(&[("case.omg", text)]).unwrap()
 }
 
-/// L5 refuses `text` at the one occurrence of `at` inside `context`, with
-/// `message`; the package command replays the same bytes independently.
-fn refusal(
-    text: &str,
-    context: &str,
-    at: &str,
-    message: &str,
-) {
-    source::refuse(&[("case.omg", text)], "case.omg", source::span_within(text, context, at), message);
-}
-
 fn typer_refusal(text: &str) -> String {
     let package = source::resolve(&[("case.omg", text)]);
     match omega_preparation::prepare_source_package_diagnosed(&package) {
@@ -1680,25 +1669,27 @@ fn a_parked_write_only_loan_keeps_its_access() {
 
 const DEEPEST: &str = "data T{v:u8;} data Leaf{v:u8; t:T;}";
 
-/// Lowering picks the operation for an admitted structural store from the
-/// access of the deepest loan the store goes through
-/// (structural_access.md#write-only-authority); L3 already refused every store
-/// the source may not make. `x.next.t = T{v:1u8}` below a stored `@mut` extracts
-/// and disposes the old `T` through that loan (the field-held test above).
-/// Changing only the stored loan to `@write` refuses whatever the owner's own
-/// access, because a write-only loan cannot take the displaced `T` and nothing
-/// supplies cleanup authority for it. Its scalar twin `x.next.v = 1u8` lowers in
-/// `a_write_through_a_stored_write_only_reference_keeps_its_crossings`.
+/// The deepest loan authorizes the write. An intact affine value transfers
+/// once and the write-only path never extracts the displaced storage.
 #[test]
 fn a_structural_store_takes_its_operation_from_the_deepest_loan() {
     for parent in ["Node", "@mut Node"] {
         let text = format!("{DEEPEST} data Node{{next:@write Leaf;}} machine f(x:{parent}){{ x.next.t = T{{v:1u8}}; }}");
-        refusal(
-            &text,
-            "x.next.t = ",
-            "x.next.t",
-            "write-only structural replacement needs its cleanup authority",
-        );
+        let mut pkg = lower(&text);
+        let f = body(&pkg, "f");
+        assert!(borrowed_moves(f).is_empty());
+        let [(destination, disposition)] = stores(f)[..] else { panic!("one replacement") };
+        assert_eq!(destination.root, formal(f, 0));
+        assert_eq!(*disposition, StructuralStoreDisposition::ReplaceWriteOnly(omega_lowering::WriteOnlyCleanup::NoCodeAffine));
+        let observed = write_only_stores(&pkg, "f").unwrap();
+        let [written] = observed.as_slice() else { panic!("one write") };
+        spec_corpus::observe_handoff!(psi "psi-output/write-only-affine-replacement", assert_eq!(
+            (written.crossing, written.field.as_ref().map(|field| field.path.as_str()), written.formal),
+            (if parent == "Node" { 1 } else { 2 }, Some("Leaf::t"), 0),
+        ));
+        let schema = pkg.data.iter_mut().find(|row| row.declaration.path == "T").unwrap();
+        schema.write_only_cleanup = None;
+        assert!(write_only_stores(&pkg, "f").is_err());
     }
 }
 
@@ -1793,7 +1784,32 @@ fn replacing_a_copy_value_can_still_require_descriptor_cleanup() {
         "data C [copy]{r:@u8;} data Leaf{c:C;} machine f(x:@write Leaf,n:C){ x.c=n; }",
         "data C [copy]{case Plain(v:u8);case Held(r:@u8);} data Leaf{c:C;} machine f(x:@write Leaf){ x.c=C::Plain{v:1u8}; }",
     ] {
-        refusal(text, "x.c=", "x.c", "write-only structural replacement needs its cleanup authority");
+        let mut pkg = lower(text);
+        let f = body(&pkg, "f");
+        assert!(borrowed_moves(f).is_empty());
+        let [(_, disposition)] = stores(f)[..] else { panic!("one intact replacement") };
+        assert_eq!(*disposition, StructuralStoreDisposition::ReplaceWriteOnly(omega_lowering::WriteOnlyCleanup::DescriptorCleanup));
+        let observed = write_only_stores(&pkg, "f").unwrap();
+        let [written] = observed.as_slice() else { panic!("one whole store") };
+        let Parameter::Structural(value) = written.value else { panic!("expected structural source") };
+        let incoming = if f.parameters.len() == 2 {
+            // A [copy] incoming value keeps its source descriptor at n.
+            matches!(f.places[value.index()].origin, PlaceOrigin::Operation(id)
+                if matches!(&f.operations[id.index()].kind, OperationKind::CopyStructural { source } if source.root == formal(f, 1) && source.path.is_empty()))
+                || value == formal(f, 1)
+        } else {
+            // The incoming Plain payload carries no loan. The resident value may
+            // still be Held, so it owes exactly the resident roster at x.c.
+            matches!(f.places[value.index()].origin, PlaceOrigin::Operation(id)
+                if matches!(&f.operations[id.index()].kind, OperationKind::EstablishCase { case, .. } if case.path == "C::Plain"))
+        };
+        spec_corpus::observe_handoff!(psi "psi-output/write-only-descriptor-replacement", assert_eq!(
+            (written.formal, written.crossing, written.field.as_ref().map(|field| field.path.as_str()), incoming),
+            (0, 0, Some("Leaf::c"), true),
+        ));
+        let schema = pkg.data.iter_mut().find(|row| row.declaration.path == "C").unwrap();
+        schema.write_only_cleanup = Some(omega_lowering::WriteOnlyCleanup::NoCodeAffine);
+        assert!(write_only_stores(&pkg, "f").is_err());
     }
 }
 

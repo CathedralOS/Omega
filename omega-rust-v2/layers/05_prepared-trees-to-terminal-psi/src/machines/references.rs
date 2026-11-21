@@ -618,17 +618,25 @@ pub(super) fn store_place(
     }
     if carrier.nominal_parts().is_some() {
         return match deepest_loan {
-            None => store_intact(expressions, place, rhs, carrier, body, flow, site),
+            None => store_intact(expressions, place, rhs, carrier, body, flow, site, None),
             // Any loan crossing makes this a store into borrowed storage, even when the
             // path starts at an owned field that holds the `@mut`: the replaced place
             // may be a vacancy, and the displaced value is the lender's, not the owner's.
             Some(crate::ReferenceAccess::Mutable) => super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site, false),
-            Some(crate::ReferenceAccess::WriteOnly) if super::ownership::plain_copy_storage(projected, expressions.types, data) => {
-                store_intact(expressions, place, rhs, carrier, body, flow, site)
+            Some(crate::ReferenceAccess::WriteOnly) => {
+                use crate::{Multiplicity, StructuralStoreDisposition, TypeShape, WriteOnlyCleanup};
+                let Some(TypeShape::Nominal(id)) = expressions.types.get(projected) else {
+                    return Err(LoweringError::new(&site, "write-only structural replacement needs its cleanup authority"));
+                };
+                let schema = &data[id.get() - 1];
+                let authority = schema.write_only_cleanup.ok_or_else(|| LoweringError::new(&site, "write-only structural replacement needs its cleanup authority"))?;
+                let disposition = if schema.multiplicity == Multiplicity::Copy && authority == WriteOnlyCleanup::NoCodeAffine {
+                    StructuralStoreDisposition::ReplaceUnrestricted
+                } else {
+                    StructuralStoreDisposition::ReplaceWriteOnly(authority)
+                };
+                store_intact(expressions, place, rhs, carrier, body, flow, site, Some(disposition))
             }
-            // A write-only loan starts with valid content. Resource-bearing displacement
-            // needs its own checked authority and cannot extract the old value here.
-            Some(crate::ReferenceAccess::WriteOnly) => Err(LoweringError::new(&site, "write-only structural replacement needs its cleanup authority")),
             Some(crate::ReferenceAccess::Shared) => Err(LoweringError::new(&site, "structural store requires a writable loan")),
         };
     }
@@ -698,6 +706,7 @@ pub(super) fn store_intact(
     body: &mut MachineBody,
     flow: &mut super::branches::BlockFlow,
     site: crate::Site,
+    borrowed_disposition: Option<crate::StructuralStoreDisposition>,
 ) -> Result<(), LoweringError> {
     use super::expressions::{EmitOperation, OperationOutput};
     let ty = expressions
@@ -710,7 +719,9 @@ pub(super) fn store_intact(
     if body.places[value.index()].ty != ty {
         return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
     }
-    let disposition = if super::ownership::owned(ty, expressions.types, expressions.data) {
+    let disposition = if let Some(disposition) = borrowed_disposition {
+        disposition
+    } else if super::ownership::owned(ty, expressions.types, expressions.data) {
         crate::StructuralStoreDisposition::Dispose(vec![])
     } else {
         crate::StructuralStoreDisposition::ReplaceUnrestricted

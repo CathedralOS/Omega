@@ -20,6 +20,32 @@ pub struct PendingAccessPlan<'a> {
     pub selection: &'a omega_typed::AccessPolicySelection,
     pub carrier: &'a omega_typed::ValueType,
     pub schema: &'a PolicySchemaInput,
+    pub pending_construction: Option<&'a PolicyConstruction>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PolicyPreparation {
+    pub schema: PolicySchemaInput,
+    pub pending_construction: Option<PolicyConstruction>,
+}
+
+/// The checked body reached this data construction in its defining forest.
+/// Written inputs have values. Each omission still owes the zero of its own
+/// carrier, including establishment if that zero has a default domain.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyConstruction {
+    pub machine: omega_typed::MachineApplication,
+    /// Occurrence in the defining machine's own forest.
+    pub node: TreeNodeId,
+    pub site: omega_typed::Site,
+    pub carrier: omega_typed::ValueType,
+    pub fields: Vec<(DeclarationId, PolicyFieldInput)>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PolicyFieldInput {
+    Written(PreparedValue),
+    Zero(omega_typed::ValueType),
 }
 
 /// Progress constructing the one ordinary argument of a selected policy machine.
@@ -37,7 +63,7 @@ pub enum PolicySchemaInput {
 #[derive(Debug, Eq, PartialEq)]
 pub struct PreparedTrees<'text> {
     typed: TypedTrees<'text>,
-    policy_schemas: HashMap<DeclarationId, PolicySchemaInput>,
+    policies: HashMap<DeclarationId, PolicyPreparation>,
     constants: HashMap<DeclarationId, PreparedValue>,
     open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
     specialized_indices: Vec<SpecializedIndexValue>,
@@ -54,7 +80,7 @@ impl<'text> PreparedTrees<'text> {
     /// package they describe.
     pub fn from_preparation(
         typed: TypedTrees<'text>,
-        policy_schemas: HashMap<DeclarationId, PolicySchemaInput>,
+        policies: HashMap<DeclarationId, PolicyPreparation>,
         constants: HashMap<DeclarationId, PreparedValue>,
         open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
         specialized_indices: Vec<SpecializedIndexValue>,
@@ -68,7 +94,7 @@ impl<'text> PreparedTrees<'text> {
         landed_floats.dedup();
         Self {
             typed,
-            policy_schemas,
+            policies,
             constants,
             open_target_constants,
             specialized_indices,
@@ -123,8 +149,13 @@ impl<'text> PreparedTrees<'text> {
     pub fn pending_access_plan(&self, domain: &DeclarationId) -> Option<PendingAccessPlan<'_>> {
         let selection = self.typed.access_policies.iter().find(|policy| &policy.domain == domain)?;
         let carrier = self.typed.domain_carriers.get(domain)?;
-        let schema = self.policy_schemas.get(domain).unwrap_or(&PolicySchemaInput::UnsupportedSubject);
-        Some(PendingAccessPlan { selection, carrier, schema })
+        let progress = self.policies.get(domain);
+        Some(PendingAccessPlan {
+            selection,
+            carrier,
+            schema: progress.map_or(&PolicySchemaInput::UnsupportedSubject, |p| &p.schema),
+            pending_construction: progress.and_then(|p| p.pending_construction.as_ref()),
+        })
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {

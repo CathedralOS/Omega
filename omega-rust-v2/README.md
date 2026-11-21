@@ -2,6 +2,8 @@
 
 Start with [`check_files` in the CLI](application/src/source.rs). For `omega source lower`, this is where you can see one file become tokens and a syntax tree, several parsed files become one resolved package, and that package go through preparation and into lowering. [`main`](application/src/main.rs) selects the command. [PLAN.md](PLAN.md) tracks implementation status.
 
+Use `omega source prepare --package-root <directory> -- <relative-file>` to capture an anonymous package under the bundled default Build. The capture includes unselected files and directories under that root when deriving its identity. The same option works with `resolve`, `type`, and `lower`. Without it, the command reads the named files and can diagnose a missing package owner. [Default Build](toolchain/src/default_build.rs)
+
 | Layer | What comes in | Open this function | What goes out and who reads it |
 | --- | --- | --- | --- |
 | L0 · Lex | Bytes of one file | [`lex`](layers/00_bytes-to-tokens/src/lexing/lexer.rs) | [Tokens](representations/tokens/src/token.rs) with byte spans. L1 reads them alongside the original bytes. |

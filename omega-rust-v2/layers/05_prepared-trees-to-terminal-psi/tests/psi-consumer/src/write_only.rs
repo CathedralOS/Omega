@@ -18,10 +18,10 @@
 //! `@mut` descriptor through the write-only loan, which is a read; the reader
 //! refuses it even though the deepest loan is mutable.
 //!
-//! A structural replacement through a write-only loan cannot take the
-//! displaced value, so the unrestricted form requires
-//! [closed copy storage](closed_copy_storage): content that needs no cleanup
-//! and holds no custody, derived from the declarations
+//! The unrestricted form requires [closed copy storage](closed_copy_storage).
+//! The write-only cleanup forms additionally name the authority retained by
+//! their exact nominal schema. The descriptor form leaves child closure and
+//! the two live rosters to the lowered-form custody checker
 //! (`wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration`).
 use omega_psi::{
     CallArgument, DataId, DeclarationId, LoweredData, LoweredPackage, MachineBody, Multiplicity, OperationKind, Parameter, PlaceId, PlaceProjection,
@@ -42,9 +42,8 @@ pub struct WriteOnlyStore {
     pub crossing: usize,
     /// The written field, or `None` for a whole written place.
     pub field: Option<DeclarationId>,
-    /// `Scalar(v)` stores the SSA scalar `v`. `Structural(p)` replaces the
-    /// place's freely discardable content with the SSA structural value `p`;
-    /// its disposition is `ReplaceUnrestricted`, the form for displacing freely discardable content.
+    /// `Scalar(v)` stores the SSA scalar `v`. `Structural(p)` replaces intact
+    /// content with a value from the exact structural SSA place `p`.
     pub value: Parameter<ValueId, PlaceId>,
 }
 
@@ -61,54 +60,78 @@ pub fn closed_copy_storage(
     package: &LoweredPackage,
     ty: TypeId,
 ) -> bool {
+    checked_storage(package, ty, false) == Some((true, omega_psi::WriteOnlyCleanup::NoCodeAffine))
+}
+
+/// Reconstruct authority bottom-up from independent Psi declarations. Validate
+/// the retained authority at each nominal boundary before accepting its parent.
+/// A by-value cycle or a missing child never reaches the ready queue.
+fn checked_storage(
+    package: &LoweredPackage,
+    ty: TypeId,
+    require_retained_authority: bool,
+) -> Option<(bool, omega_psi::WriteOnlyCleanup)> {
+    use omega_psi::WriteOnlyCleanup::{DescriptorCleanup, NoCodeAffine};
     use std::collections::HashMap;
     let mut pending = vec![ty];
     let mut remaining = HashMap::new();
     let mut parents: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
-    let mut leaves = Vec::new();
+    let mut summaries = HashMap::new();
+    let mut ready = Vec::new();
     while let Some(carrier) = pending.pop() {
         if remaining.contains_key(&carrier) {
             continue;
         }
-        let fields: Vec<_> = match package.types.get(carrier) {
-            Some(TypeShape::PrimitiveScalar(_)) => vec![],
-            Some(TypeShape::FixedArray { element, .. }) => vec![*element],
-            Some(TypeShape::Nominal(id)) => {
-                let Some(data) = schema(package, *id) else { return false };
-                if data.multiplicity != Multiplicity::Copy || data.cleanup_target.is_some() {
-                    return false;
+        let (copy, authority, children): (_, _, Vec<_>) = match package.types.get(carrier)? {
+            TypeShape::PrimitiveScalar(_) => (true, NoCodeAffine, vec![]),
+            TypeShape::FixedArray { element, .. } => (true, NoCodeAffine, vec![*element]),
+            TypeShape::ScalarReference { access, .. } | TypeShape::NominalReference { access, .. } =>
+                (*access == ReferenceAccess::Shared, DescriptorCleanup, vec![]),
+            TypeShape::Nominal(id) => {
+                let data = schema(package, *id)?;
+                if data.carrier != carrier || data.multiplicity == Multiplicity::Linear || data.cleanup_target.is_some() {
+                    return None;
                 }
-                data.fields
-                    .iter()
-                    .chain(data.cases.iter().flat_map(|case| &case.fields))
-                    .map(|field| field.carrier)
-                    .collect()
+                let children = data.fields.iter().chain(data.cases.iter().flat_map(|case| &case.fields)).map(|field| field.carrier).collect();
+                (data.multiplicity == Multiplicity::Copy, NoCodeAffine, children)
             }
-            _ => return false,
+            _ => return None,
         };
-        remaining.insert(carrier, fields.len());
-        if fields.is_empty() {
-            leaves.push(carrier);
+        remaining.insert(carrier, children.len());
+        summaries.insert(carrier, (copy, authority));
+        if children.is_empty() {
+            ready.push(carrier);
         }
-        for field in fields {
+        for field in children {
             parents.entry(field).or_default().push(carrier);
             pending.push(field);
         }
     }
-    // A by-value cycle can never reduce to closed storage.
-    while let Some(leaf) = leaves.pop() {
-        if leaf == ty {
-            return true;
+    while let Some(child) = ready.pop() {
+        let (copy, cleanup) = summaries[&child];
+        if let TypeShape::Nominal(id) = package.types.get(child)? {
+            let data = schema(package, *id)?;
+            if require_retained_authority && data.write_only_cleanup != Some(cleanup) || data.multiplicity == Multiplicity::Copy && !copy {
+                return None;
+            }
         }
-        for parent in parents.remove(&leaf).unwrap_or_default() {
-            let count = remaining.get_mut(&parent).expect("a recorded parent");
+        if child == ty {
+            return Some((copy, cleanup));
+        }
+        for parent in parents.remove(&child).unwrap_or_default() {
+            let result = summaries.get_mut(&parent)?;
+            result.0 &= copy;
+            if cleanup == DescriptorCleanup {
+                result.1 = DescriptorCleanup;
+            }
+            let count = remaining.get_mut(&parent)?;
             *count -= 1;
             if *count == 0 {
-                leaves.push(parent);
+                ready.push(parent);
             }
         }
     }
-    false
+    None
 }
 
 fn schema(
@@ -296,15 +319,17 @@ pub fn write_only_stores(
                 disposition,
             } => {
                 let Some((reached, crossing)) = crossing(destination)? else { continue };
-                if *disposition != StructuralStoreDisposition::ReplaceUnrestricted {
-                    return Err("a write-only loan can neither take nor dispose the displaced value");
-                }
                 let Reached::Type(ty) = reached else { return Err(disagrees) };
                 if body.places.get(value.index()).ok_or(MALFORMED)?.ty != ty {
                     return Err(disagrees);
                 }
-                if !closed_copy_storage(package, ty) {
-                    return Err("a write-only replacement displaces content that is not freely discardable");
+                let storage = checked_storage(package, ty, matches!(disposition, StructuralStoreDisposition::ReplaceWriteOnly(_)));
+                match disposition {
+                    StructuralStoreDisposition::ReplaceUnrestricted if storage == Some((true, omega_psi::WriteOnlyCleanup::NoCodeAffine)) => {}
+                    StructuralStoreDisposition::ReplaceUnrestricted => return Err("a write-only replacement displaces content that is not freely discardable"),
+                    StructuralStoreDisposition::ReplaceWriteOnly(authority) if storage.is_some_and(|(copy, retained)| retained == *authority && !(copy && retained == omega_psi::WriteOnlyCleanup::NoCodeAffine)) => {}
+                    StructuralStoreDisposition::ReplaceWriteOnly(_) => return Err("a write-only replacement lacks its exact type's cleanup authority"),
+                    _ => return Err("a write-only loan can neither take nor dispose the displaced value"),
                 }
                 let mut path = destination.path.clone();
                 let field = match path.last() {

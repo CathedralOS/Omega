@@ -1,7 +1,6 @@
 # Omega-V2 plan
 
-Living document. Jarod edits it freely; Claude keeps the layer statuses, spec
-gaps and decision log current as work lands. Last updated 2026-11-19.
+This plan records the compiler architecture, layer sign-offs and open work. Last updated 2026-11-21.
 
 For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
 ten diagrams and no prose beyond captions.
@@ -24,9 +23,7 @@ only the lexer and parser compile independently, with the other six still
 built together. That one agent session had run 11h24m, 3,850 steps and 589M
 input tokens across 34 commits at the time of writing.
 
-V2 takes the other route: build one layer at a time, from the spec, and do not
-start the next layer until the current one is proven by a test suite fast
-enough to run on every change. **Decided.**
+V2 introduces layers in order. A layer’s first sign-off authorizes starting the next layer. When a real consumer later exposes a missing or incorrect handoff, the [reopening procedure](#reopening-a-signed-handoff) applies.
 
 A layer carries each decision the next layer needs in its output. When changing
 a handoff, name the layer that owns the decision and the field that carries it.
@@ -69,8 +66,15 @@ tokens, tokens to a tree, and so on. The same loop runs for every layer:
 3. **Test the handoff.** Check the producer's output and the consumer's
    decision using the [handoff review](#handoff-review).
 4. **Gate.** The layer passes the checks under [What solid means](#what-solid-means).
-5. **Sign-off.** Jarod reviews and marks the layer done here. Only then does
-   the next layer start.
+5. **Sign-off.** After the three independent handoff reviews and the layer checks, Jarod records the accepted contract and evidence in the status table. That first sign-off opens development of the next layer.
+
+### Reopening a signed handoff
+
+Record the changed rule, the source case that revealed it, the producing layer and the consumers that rely on it. Reopen the producer’s sign-off for that rule. Downstream evidence that assumed the old handoff must be collected again, including evidence from a later consumer when the change propagates. Unaffected rules keep their prior evidence. Work already underway in a consumer can continue, including the test that prompted reopening. Its next sign-off waits for the affected producer and consumer checks and Jarod’s acceptance.
+
+The status table records dates so an earlier sign-off and a current review can appear on the same row. L5 began after L4’s first sign-off. A selected access policy later exposed a new L4 obligation. Evidence for L5’s policy path now depends on that reopened handoff. Independent L5 work, such as lowering write-only stores, can proceed.
+
+A PR can land an incremental change or a test that reproduces a blocker. Repository PR review and admission govern that merge. A layer lock separately requires the three reviews, the layer evidence and Jarod’s sign-off recorded here.
 
 ## What solid means
 
@@ -106,7 +110,7 @@ A layer is done when all of these are true:
 
 Built for L0 as described here; change it freely. The purpose is that
 changing a layer and knowing whether it still works takes about a second,
-with no compiler binary to build. Run it with `cargo test -p omega-lexer`;
+with no compiler binary to build. Run it with `mbx test -p omega-lexer`;
 rewrite expected files with `OMEGA_BLESS=1` set.
 
 - **Where it lives:** `tools/golden` is the fixture runner and
@@ -164,7 +168,7 @@ Psi to native code) are not planned yet.
 | L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | revised handoff signed off 2026-11-19. Changes to overload identity, nested operator visibility and the scope of predicate `self` await review. | 0.17 s (2026-11-18 warm median, five runs) |
 | L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19. Nested machine selections and static callback refinements are under review. | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | signed off 2026-11-19. Reopened for domain access plans. L3 selects the policy machine. L4 builds the scalar TypeSchema argument when the requesting package has a Build-supplied owner. Source inspection has only a local package label. L4 still owes other subject shapes and checked policy execution before L5 can carry the result into the Psi domain declaration. The checker independently validates its use. [Access policy contract](../wiki/spec/resources/access.md#plans-and-admitted-supply). Generic initializer scope, pattern bindings, nested helper applications and forwarded callback evidence await review. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | signed off 2026-11-19. Reopened for domain access plans. L3 selects the policy machine. L4 builds the scalar TypeSchema argument when the requesting package has a Build-supplied owner. A focused source command supplies a local package label. With `--package-root`, default Build supplies the owner and preparation reaches the selected library constructor. L4 retains its evaluated field inputs and outstanding establishment obligations. Other subject shapes and certified policy results remain open. The checker independently validates its use. [Access policy contract](../wiki/spec/resources/access.md#plans-and-admitted-supply). Generic initializer scope, pattern bindings, nested helper applications and forwarded callback evidence await review. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
 | L5 Lowering | prepared tree → Terminal Psi | open. Tests cover structural moves and cleanup, loans and element views, selected calls, suspension with scalar values and incoming loans, trapping arithmetic and catalog-selected assembly. Branch joins preserve incoming loans. Completed local calls preserve shared-view backing. Suspending calls identify caller-owned storage, ownership transferred to each callee argument, and loans of live fields. Incoming records and immutable constructors retain the origin of stored shared references. Straight-line whole-record replacement retains the home and updates its shared descriptor origin. A parked shared-view result can retain its producing boundary call and single input lifetime anchor. Projected replacements, general boundary lifetime frontiers and case-dependent whole-sum cleanup remain open. [Lowering contract](layers/05_prepared-trees-to-terminal-psi/CONTRACT.md#handoffs-and-remaining-work) | 11.06 s for 298 L5 tests, including the pinned baseline (warm `mbx test --locked -p omega-lowering --no-fail-fast -- --include-ignored`, indexed-record handoff on `e75d3cefa46`) |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
@@ -187,8 +191,8 @@ L2 binds all four published selector operands and retains the type argument in
 ### The `omega` application
 
 **Application built through syntax parsing, 2026-11-18.** Build the executable
-with `cargo build --release -p omega`, or try it from this checkout with
-`cargo run -p omega -- source parse layers/01_tokens-to-syntax-trees/tests/fixtures/types/accept/types.omg`.
+with `mbx build --release -p omega`, or try it from this checkout with
+`mbx run -p omega -- source parse layers/01_tokens-to-syntax-trees/tests/fixtures/types/accept/types.omg`.
 Success is silent. A lexical or grammar refusal identifies the file, line
 and byte column on stderr. Jarod's spellings in the Fable session were
 `omega run main.omg` and `omega build build.omg`. The command chooses the
@@ -257,7 +261,7 @@ an explicit decision to reopen that contract.
     at first. On the real path the lexer is not the limit: opening the
     files is, at about 100 MB/s. See
     [layers/00_bytes-to-tokens/EXPERIMENTS.md](layers/00_bytes-to-tokens/EXPERIMENTS.md). Run with
-    `cargo run --release -p omega-lexer --example lex_tree -- <directory>`.
+    `mbx run --release -p omega-lexer --example lex_tree -- <directory>`.
     None of those files is lexically invalid, so this checks what V2
     accepts, not what it refuses.
   - 60,000 random short inputs never panic. Accepted ones tile and relex;
@@ -267,7 +271,7 @@ an explicit decision to reopen that contract.
   - Six deliberate breakages of the scanner (nesting, CR in quotes, the
     fraction rule, the radix check, the suffix check, the line-comment end)
     were each caught by at least one test.
-  - `cargo clippy -D warnings` and `cargo fmt --check` are clean.
+  - Formatting and Clippy passed at sign-off.
 - **What sign-off accepted:** the six gap rules G1 to G6 in the contract, on
   the basis that they contradict nothing in the spec. The largest is G1: the
   lexer has no keyword list, so `machine` and `foo` are the same kind of
@@ -426,8 +430,7 @@ The rule:
 > **A stage starts with its inputs and its service backings settled. Anything
 > it discovers or selects goes into the plan for a later compile.**
 
-The driver never suspends a half-checked program, extends what its names
-mean, and resumes it.
+The proposed driver starts a new source stage when its plan selects another source universe. Within a stage, resumed typing keeps its original resolved package.
 
 1. **Every program is a stage, and `build.omg` is not special.** It is an
    ordinary Omega program in its own universe: it resolves its own imports,
@@ -468,10 +471,8 @@ are insufficient for that later work.
 
 What follows from it:
 
-- **Every layer is a plain function, called once per stage.** No layer takes
-  a frozen base or produces an extension, and nothing is suspended. The
-  earlier `layer(frozen base, new input)` proposal is withdrawn.
-- **The driver is a loop over whole straight compiles:** compile a stage, run
+- **Within one source stage, preparation can run typing in rounds.** L3 checks the resolved package and can return pending static-value requests. L4 evaluates the admitted requests and calls L3 again on the same resolved package with the accumulated answers. L3 owns the selected identities, types and diagnostics, including failures found when typing resumes. L4 owns evaluation, detects stalled requests, and can return an open target-dependent preparation when it needs target input. Once typing completes, L4 freezes the prepared product for L5. For example, the value of `choose()` must be available before L3 can select `Rule<choose()>`. [Preparation rounds](layers/04_typed-trees-to-prepared-trees/src/preparation/rounds.rs) · [Policy argument regression](layers/04_typed-trees-to-prepared-trees/tests/frozen_handoff.rs)
+- **The proposed Build driver operates between completed source stages:** compile a stage, run
   it with the backings its predecessor selected and the invocation granted,
   read its plan, repeat until a plan asks for an artifact. It is built after
   L5 and a Terminal Psi interpreter exist, and it is not part of any layer.
@@ -731,10 +732,9 @@ decisions belong in the [repository owner-question queue](../OWNER_QUESTIONS.md)
 
 None at the plan level.
 
-Settled 2026-11-18, recorded in the decision log: Rust on the stable
-toolchain (1.100.0; V1 pins `nightly-2026-09-04`), a `layers/NN-name/` folder
-per layer with its fixtures plus `tools/` for shared test tools, and a git
-repository. Nothing has been committed yet.
+The 2026-11-18 decision selected stable Rust. V2 has been tested locally with Rust 1.100.0. It has no directory-level toolchain override. In a normal repository checkout rustup inherits `nightly-2026-09-04` from the [repository toolchain file](../rust-toolchain.toml). A Windows junction opened outside that directory hierarchy can select the user’s rustup default. Use `rustup show active-toolchain` from the build directory when recording a result. The sources, fixtures and shared tools live in the V2 Cargo workspace.
+
+Use the repository’s `mbx` adapter for Rust builds, runs, tests and Clippy. The local gates include `mbx xtask check-rules`, `mbx xtask fmt --check` and `mbx clippy -p <crate> --all-targets -- -D warnings`. The [admission workflow](../.github/workflows/admission.yml) checks the canonical spec, conditionally checks the archive boundary, and runs `mbx test --locked --workspace` for relevant V2 or toolchain changes. Metadata, formatting and Clippy are local requirements. [Repository workflow](../AGENTS.md) · [Testing guide](../wiki/development/testing.md)
 
 ## Historical V2 owner rulings
 

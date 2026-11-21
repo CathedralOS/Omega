@@ -908,7 +908,7 @@ fn a_schema_argument_without_a_policy_result_cannot_supply_issuance() {
             omega_prepared::PolicySchemaInput::Ready { .. }
         ));
         let error = omega_lowering::lower_package(&prepared).unwrap_err();
-        assert_eq!(error.message, "domain access policy needs its evaluated plan for the selected semantic schema");
+        assert_eq!(error.message, r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
         assert_eq!(error.site, selection.site);
     }
 }

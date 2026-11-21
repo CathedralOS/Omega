@@ -144,3 +144,5 @@ affine field operand of a formal record	checker-input	psi-output/template-affine
 theorem subject computed from a variable	checker-input	psi-output/erased-arithmetic-subject
 theorem application inside a theorem proof	checker-input	psi-output/nested-theorem-application
 user-declared operator in a contract predicate	checker-input	psi-output/selected-record-predicate-operator
+affine replacement through a write-only loan	checker-input	psi-output/write-only-affine-replacement
+descriptor cleanup for write-only replacement	checker-input	psi-output/write-only-descriptor-replacement

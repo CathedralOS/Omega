@@ -1,4 +1,4 @@
-use omega_prepared::{PolicySchemaInput, PreparedValue};
+use omega_prepared::{PolicyPreparation, PolicySchemaInput, PreparedValue};
 use omega_resolved::DeclarationId;
 use omega_toolchain::{SourcePackage, core_interface};
 use omega_typed::{TypedTrees, ValueType};
@@ -8,7 +8,8 @@ use std::fmt::Write;
 pub(crate) fn prepare(
     typed: &TypedTrees<'_>,
     source: &SourcePackage<'_>,
-) -> HashMap<DeclarationId, PolicySchemaInput> {
+    boundary_slots: &[omega_typed::BoundarySlot],
+) -> HashMap<DeclarationId, PolicyPreparation> {
     typed
         .access_policies
         .iter()
@@ -18,12 +19,16 @@ pub(crate) fn prepare(
                 .domain_carriers
                 .get(domain)
                 .and_then(ScalarRoot::from_type);
-            let input = match (scalar, source.package_key(&domain.package)) {
+            let schema = match (scalar, source.package_key(&domain.package)) {
                 (None, _) => PolicySchemaInput::UnsupportedSubject,
                 (Some(_), None) => PolicySchemaInput::NeedsPackageOwner,
                 (Some(root), Some(key)) => root.argument(domain, key),
             };
-            (domain.clone(), input)
+            let pending_construction = match &schema {
+                PolicySchemaInput::Ready { argument, .. } => super::policy_execution::prepare(typed, selection, argument, boundary_slots),
+                _ => None,
+            };
+            (domain.clone(), PolicyPreparation { schema, pending_construction })
         })
         .collect()
 }

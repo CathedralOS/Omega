@@ -736,3 +736,59 @@ fn a_computed_policy_argument_is_evaluated_before_selecting_the_access_plan() {
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"choose()".as_slice()));
     assert_eq!(error.message, "fact or static argument requires an effect-free computation");
 }
+
+#[test]
+fn selected_policy_executes_the_librarys_written_construction_inputs() {
+    use omega_prepared::{PolicyFieldInput, PolicySchemaInput};
+    use std::{fs, path::Path};
+
+    let base = include_str!("fixtures/access_policy/selected.omg");
+    let input = Path::new("main.omg");
+    let core = omega_toolchain::core_interface();
+    for (index, (source, expected_case)) in [
+        (base.to_owned(), Some("Issuance::Unrestricted")),
+        (base.replace("Unrestricted{}", "Only{routes:[]}"), Some("Issuance::Only")),
+        (base.replace("Unrestricted{}", "Only{..}"), Some("Issuance::Only")),
+        (format!("{}\nmachine relay<'t>(s:@TypeSchema<'t>, i:Issuance<'t>)->AccessPlan<'t> reaches none crashes none terminates {{ new_plan::<'t>(s,i) }}",
+                 base.replace("new_plan::<'t>(@schema", "relay::<'t>(@schema")), Some("Issuance::Unrestricted")),
+        (base.replace("new_plan::<'t>(@schema", "let s = schema; new_plan::<'t>(@s"), None),
+    ].into_iter().enumerate() {
+        let root = std::env::temp_dir().join(format!("omega-policy-execution-{}-{index}", std::process::id()));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join(input), source).unwrap();
+        let build = omega_toolchain::DefaultBuild::capture(&root).unwrap();
+        let bytes = build.source_bytes(input).unwrap();
+        fs::remove_file(root.join(input)).unwrap();
+        fs::remove_dir(root).unwrap();
+        let mut package = package(std::str::from_utf8(&bytes).unwrap());
+        package.bind_package_key("app", build.package_key()).unwrap();
+        let prepared = prepare_source_package(&package).unwrap();
+        let selection = &prepared.typed().access_policies[0];
+        let demand = prepared.pending_access_plan(&selection.domain).unwrap();
+        let PolicySchemaInput::Ready { argument, .. } = demand.schema
+        else { panic!("Build supplied the schema owner") };
+        let Some(expected_case) = expected_case else {
+            assert!(demand.pending_construction.is_none(), "an unsupported statement cannot be skipped");
+            continue;
+        };
+        let construction = demand.pending_construction.expect("selected construction in the defining library");
+        assert_eq!(construction.machine.machine.as_ref(), core.id(r"access\new_plan"));
+        assert_eq!(construction.site.package, omega_toolchain::TOOLCHAIN_PACKAGE);
+        let (definition, _) = prepared.typed().imported_machine_definition(&construction.machine.machine).unwrap();
+        assert_eq!(definition.resolved().file.node_id(construction.node.node), construction.node);
+        assert_eq!(omega_typed::site_at(definition.resolved().file, construction.node.node), construction.site);
+        assert!(definition.semantics_at(construction.node.node).any(|row|
+            matches!(row, omega_typed::NodeSemantics::Obligation(o) if matches!(&o.kind, omega_typed::ObligationKind::EstablishData(owner) if owner == core.id("AccessPlan")))));
+        assert_eq!(construction.fields.len(), 9);
+        assert_eq!(construction.fields[0], (core.id("AccessPlan::schema").clone(), PolicyFieldInput::Written(argument.clone())));
+        let (field, PolicyFieldInput::Written(PreparedValue::Sum { owner, case, fields })) = &construction.fields[1] else { panic!("evaluated issuance") };
+        assert_eq!((field, owner, case), (core.id("AccessPlan::issuance"), core.id("Issuance"), core.id(expected_case)));
+        if expected_case == "Issuance::Only" {
+            assert_eq!(&fields[..], &[PreparedValue::Array([].into())]);
+        } else {
+            assert!(fields.is_empty());
+        }
+        assert!(construction.fields[2..].iter().all(|(_, input)| matches!(input, PolicyFieldInput::Zero(_))));
+        assert_eq!(construction.fields[8].0, *core.id("AccessPlan::reach"));
+    }
+}

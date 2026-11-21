@@ -19,6 +19,15 @@ pub enum DataArgument {
     Integer { carrier: crate::ScalarType, value: num_bigint::BigInt },
 }
 
+/// Authority for intact replacement through a write-only loan at this concrete type.
+/// Descriptor retirement also owes the resident and incoming loan rosters and
+/// child closure at the store. Neither capability grants copy permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteOnlyCleanup {
+    NoCodeAffine,
+    DescriptorCleanup,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct LoweredData {
     pub id: DataId,
@@ -28,6 +37,7 @@ pub struct LoweredData {
     pub type_arguments: Vec<DataArgument>,
     /// Exact owned cleanup selected for this declaration, when one is authored.
     pub cleanup_target: Option<crate::MachineId>,
+    pub write_only_cleanup: Option<WriteOnlyCleanup>,
     pub public: bool,
     /// The nominal declaration's multiplicity. A value also owes the obligations
     /// of its record fields or the fields of its active case.

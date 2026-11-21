@@ -49,7 +49,7 @@ families! {
     BlockTerminator => [Return, Conditional, Jump, TerminalCall, ExternalExit],
     ReturnEdge => [Unit, Scalar, Structural],
     CleanupAction => [DiscardRoot, DiscardResidual, Invoke, RetireHome],
-    StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose],
+    StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose, ReplaceWriteOnly],
     ValueOperand => [Scalar, CopyWhole, MoveWhole, Borrow],
     PlaceProjection => [Referent, Case, Field, FixedIndex, ViewElement],
     CallTarget => [Machine, Member, Runtime],

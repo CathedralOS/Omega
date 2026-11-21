@@ -147,6 +147,7 @@ impl<'a> Application<'a> {
         Ok(LoweredData {
             id,
             cleanup_target: None,
+            write_only_cleanup: None,
             declaration: template.declaration.clone(),
             carrier: id_for(self.carrier)?,
             type_arguments: self

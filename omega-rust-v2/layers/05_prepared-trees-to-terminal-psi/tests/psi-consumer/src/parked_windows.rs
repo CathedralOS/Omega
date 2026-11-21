@@ -117,7 +117,7 @@ pub fn window_stores(
         let place = captured(body, destination);
         let kind = match disposition {
             StructuralStoreDisposition::FillVacancy => StoreKind::Fill,
-            StructuralStoreDisposition::ReplaceUnrestricted | StructuralStoreDisposition::Dispose(_) => StoreKind::Displace,
+            StructuralStoreDisposition::ReplaceUnrestricted | StructuralStoreDisposition::ReplaceWriteOnly(_) | StructuralStoreDisposition::Dispose(_) => StoreKind::Displace,
         };
         stores.push((op.id, place, kind));
     }

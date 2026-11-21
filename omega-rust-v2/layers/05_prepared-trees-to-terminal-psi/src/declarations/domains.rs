@@ -163,10 +163,19 @@ pub(crate) fn read_domain<'a>(
         .get(declaration)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed carrier"))?;
     if let Some(demand) = prepared.pending_access_plan(declaration) {
-        let reason = match demand.schema {
-            omega_prepared::PolicySchemaInput::NeedsPackageOwner => "domain access policy needs the package owner for its semantic schema",
-            omega_prepared::PolicySchemaInput::UnsupportedSubject => "domain access policy needs a semantic schema for this carrier",
-            omega_prepared::PolicySchemaInput::Ready { .. } => "domain access policy needs its evaluated plan for the selected semantic schema",
+        let reason = match (demand.schema, demand.pending_construction) {
+            (omega_prepared::PolicySchemaInput::NeedsPackageOwner, _) => "domain access policy needs the package owner for its semantic schema",
+            (omega_prepared::PolicySchemaInput::UnsupportedSubject, _) => "domain access policy needs a semantic schema for this carrier",
+            (omega_prepared::PolicySchemaInput::Ready { .. }, Some(construction)) => {
+                let (data, _) = construction.carrier.nominal_parts().ok_or_else(|| LoweringError::new(
+                    &demand.selection.site, "domain access policy construction lacks its data carrier"
+                ))?;
+                return Err(LoweringError::new(&demand.selection.site, format!(
+                    "domain access policy needs checked establishment of `{}` in `{}`",
+                    data.path, construction.machine.machine.path
+                )));
+            }
+            (omega_prepared::PolicySchemaInput::Ready { .. }, None) => "domain access policy needs its evaluated plan for the selected semantic schema",
         };
         return Err(LoweringError::new(&demand.selection.site, reason));
     }

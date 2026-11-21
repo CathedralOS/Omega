@@ -291,3 +291,42 @@ fn lowers_prepared_array_extent_and_runtime_arithmetic() {
     assert!(lowered.status.success(), "{}", String::from_utf8_lossy(&lowered.stderr));
     assert!(lowered.stdout.is_empty() && lowered.stderr.is_empty());
 }
+
+#[test]
+fn default_build_captures_only_the_explicit_root_and_keeps_focused_argv_bounded() {
+    let cwd = std::env::temp_dir().join(format!("omega-cli-captured-root-{}", std::process::id()));
+    fs::create_dir(&cwd).unwrap();
+    let root = cwd.join("package");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("-entry.omg"), "machine entry() {}").unwrap();
+    let args = ["source", "lower", "--package-root", "package", "--", "-entry.omg"];
+
+    // This unselected sibling of the package exceeds the capture limit. The
+    // explicit entrance cannot inspect it, even though it runs from this cwd.
+    let large = cwd.join("unrelated.bin");
+    fs::File::create(&large).unwrap().set_len(256 * 1024 * 1024 + 1).unwrap();
+    let captured = invoke(&cwd, &args);
+    assert!(captured.status.success(), "{}", String::from_utf8_lossy(&captured.stderr));
+
+    // Moving those bytes inside the explicit package makes capture fail.
+    // The positional compatibility entrance still reads just its named file.
+    fs::rename(&large, root.join("large.bin")).unwrap();
+    let over = invoke(&cwd, &args);
+    assert_eq!(over.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&over.stderr).contains("package source exceeds capture byte limit"));
+    let focused = invoke(&root, &["source", "lower", "--", "-entry.omg"]);
+    assert!(focused.status.success(), "{}", String::from_utf8_lossy(&focused.stderr));
+    fs::remove_dir_all(cwd).unwrap();
+}
+
+#[test]
+fn lowering_from_an_explicit_capture_sees_the_requesters_build_owner() {
+    let root = application_directory().join("../layers/04_typed-trees-to-prepared-trees/tests/fixtures/access_policy");
+    let focused = invoke(&root, &["source", "lower", "selected.omg"]);
+    assert_eq!(focused.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&focused.stderr).contains("domain access policy needs the package owner for its semantic schema"));
+    let captured = invoke(application_directory(), &["source", "lower", "--package-root", root.to_str().unwrap(), "--", "selected.omg"]);
+    assert_eq!(captured.status.code(), Some(1));
+    let error = String::from_utf8_lossy(&captured.stderr);
+    assert!(error.contains("selected.omg:5:20: lowering: domain access policy needs checked establishment of") && error.contains(r"language\core\access\new_plan"), "{error}");
+}

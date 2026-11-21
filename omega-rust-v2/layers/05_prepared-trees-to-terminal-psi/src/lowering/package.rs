@@ -424,6 +424,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         }
         schema.cleanup_target = Some(target.machine);
     }
+    super::write_only_cleanup::retain(&types, &mut data);
     for (instance, (contract, operator)) in instances.iter().zip(headers) {
         let sig = &*instance.signature;
         let machine_id = callees.local[&sig.machine][instance.application.arguments.as_slice()].machine;

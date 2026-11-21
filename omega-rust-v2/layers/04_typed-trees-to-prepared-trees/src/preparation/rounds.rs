@@ -331,10 +331,10 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                 // Float landing needs no target: it rounds once to the format.
                 let exact_comparisons = crate::evaluation::exact_comparisons::freeze(&typed);
                 let landed_floats = crate::evaluation::floating_point::landed_floats(&typed);
-                let policy_schemas = crate::evaluation::policy_schema::prepare(&typed, source);
+                let policies = crate::evaluation::policy_schema::prepare(&typed, source, boundary_slots);
                 return Ok(PreparationStep::Finished(PreparationProgress::Complete(PreparedTrees::from_preparation(
                     typed,
-                    policy_schemas,
+                    policies,
                     constants,
                     open_target_constants,
                     state.specialized_indices,

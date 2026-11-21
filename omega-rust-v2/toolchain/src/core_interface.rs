@@ -110,19 +110,20 @@ impl CoreInterface {
         ]
     }
 }
+pub(crate) const PRODUCT_CORE: [(&str, &str); 7] = [
+    ("indexing/collections.omg", include_str!("../core/indexing.omg")),
+    ("language/core/core.omg", include_str!("../core/core.omg")),
+    ("language/core/reflect/reflect.omg", include_str!("../core/reflect.omg")),
+    ("language/core/access/access.omg", include_str!("../core/access.omg")),
+    ("language/core/Nat/nat.omg", include_str!("../core/nat.omg")),
+    ("language/core/never.omg", include_str!("../core/never.omg")),
+    ("language/core/process_exit.omg", include_str!("../core/process_exit.omg")),
+];
+
 pub fn core_interface() -> &'static CoreInterface {
     static CORE: OnceLock<CoreInterface> = OnceLock::new();
     CORE.get_or_init(|| {
-        let files = [
-            ("indexing/collections.omg", include_str!("../core/indexing.omg")),
-            ("language/core/core.omg", include_str!("../core/core.omg")),
-            ("language/core/reflect/reflect.omg", include_str!("../core/reflect.omg")),
-            ("language/core/access/access.omg", include_str!("../core/access.omg")),
-            ("language/core/Nat/nat.omg", include_str!("../core/nat.omg")),
-            ("language/core/never.omg", include_str!("../core/never.omg")),
-            ("language/core/process_exit.omg", include_str!("../core/process_exit.omg")),
-        ]
-        .map(|(path, text)| {
+        let files = PRODUCT_CORE.map(|(path, text)| {
             let tokens = omega_lexer::lex(text.as_bytes()).expect("bundled core tokens");
             let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap_or_else(|e| panic!("{path}: {e:?}"));
             (path, text, tokens, tree)

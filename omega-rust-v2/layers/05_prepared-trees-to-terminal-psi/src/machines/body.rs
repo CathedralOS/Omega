@@ -251,6 +251,7 @@ fn emit_body(
                         &mut block,
                         &mut flow,
                         site_at(file, place),
+                        None,
                     )?;
                     continue;
                 }

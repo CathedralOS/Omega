@@ -321,6 +321,10 @@ pub enum OperationKind {
 pub enum StructuralStoreDisposition {
     FillVacancy,
     ReplaceUnrestricted,
+    /// The destination's exact type retains the named authority. An affine
+    /// source transfers once. Descriptor cleanup requires the checker to
+    /// reconstruct the rosters at these exact places before retiring custody.
+    ReplaceWriteOnly(crate::WriteOnlyCleanup),
     Dispose(Vec<crate::CleanupAction>),
 }
 

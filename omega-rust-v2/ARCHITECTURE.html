@@ -108,7 +108,7 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer, parser and resolver are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver sends visible overloads to typing. The typer checks expressions, generic applications and exact declaration selections. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight compiler products in order. L4 returns evaluated static arguments to L3 when typing is pending. L5 receives a completed prepared package. L2 through L4 have handoffs under review.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
@@ -122,7 +122,7 @@
         <text x="360" y="114" text-anchor="middle" class="ts">builds the tree</text>
         <path class="a" d="M435,100 H525"/><text x="480" y="92" text-anchor="middle" class="tl">syntax tree</text>
 
-        <rect class="b-done" x="525" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="525" y="70" width="150" height="60" rx="7"/>
         <text x="600" y="95" text-anchor="middle" class="th">L2 Resolver</text>
         <text x="600" y="114" text-anchor="middle" class="ts">binds every name</text>
         <path class="a" d="M675,100 H765"/><text x="720" y="92" text-anchor="middle" class="tl">resolved tree</text>
@@ -131,14 +131,15 @@
         <text x="840" y="95" text-anchor="middle" class="th">L3 Typer</text>
         <text x="840" y="114" text-anchor="middle" class="ts">gives every part a type</text>
 
-        <path class="a" d="M840,130 V165 H120 V200"/><text x="480" y="158" text-anchor="middle" class="tl">typed tree</text>
+        <path class="a" d="M840,130 V165 H120 V200"/><text x="480" y="158" text-anchor="middle" class="tl">typed tree or pending requests</text>
+        <path class="a" d="M155,200 V183 H884 V130"/><text x="550" y="197" text-anchor="middle" class="tl">evaluated static arguments</text>
 
-        <rect class="b-todo" x="45" y="200" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="45" y="200" width="150" height="60" rx="7"/>
         <text x="120" y="225" text-anchor="middle" class="th">L4 Preparation</text>
         <text x="120" y="244" text-anchor="middle" class="ts">evaluates, then freezes</text>
         <path class="a" d="M195,230 H285"/><text x="240" y="222" text-anchor="middle" class="tl">prepared tree</text>
 
-        <rect class="b-todo" x="285" y="200" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="285" y="200" width="150" height="60" rx="7"/>
         <text x="360" y="225" text-anchor="middle" class="th">L5 Lowering</text>
         <text x="360" y="244" text-anchor="middle" class="ts">rewrites as Terminal Psi</text>
         <path class="a" d="M435,230 H525"/><text x="480" y="222" text-anchor="middle" class="tl">Terminal Psi</text>
@@ -155,7 +156,7 @@
         <text x="840" y="306" text-anchor="middle" class="mono">published Psi artifact</text>
       </svg>
       </div>
-      <figcaption>One straight line. Each layer is a plain function from one representation to the next, depends only on the layers before it, and refuses what it cannot accept. No layer is ever re-entered.</figcaption>
+      <figcaption>Preparation can resume typing on the same resolved package when static values become available. Once L4 freezes the completed product, L5 can lower it. <a href="PLAN.md#layers">Current layer status</a>.</figcaption>
     </figure>
   </section>
 
@@ -498,7 +499,7 @@
     <h2><span>8</span>One turn of the driver</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 336" role="img" aria-label="The driver takes the plan from the previous stage, compiles the stage in one straight pass through the layers, and runs it in the Terminal Psi interpreter. The plan selects which backings the stage gets, by identity; the invocation separately grants the resources. The stage returns its own plan, which either asks for another stage, looping back, or asks for an artifact, which ends the chain.">
+      <svg viewBox="0 0 960 336" role="img" aria-label="The driver takes the plan from the previous stage, compiles that source stage to a checked product, including any preparation rounds, and runs it in the Terminal Psi interpreter. The plan selects which backings the stage gets, by identity; the invocation separately grants the resources. The stage returns its own plan, which either asks for another stage, looping back, or asks for an artifact, which ends the chain.">
         <rect class="b" x="490" y="24" width="170" height="50" rx="7"/>
         <text x="575" y="46" text-anchor="middle" class="th">the invocation</text>
         <text x="575" y="64" text-anchor="middle" class="ts">command and arguments</text>
@@ -511,7 +512,7 @@
 
         <rect class="b" x="260" y="150" width="170" height="70" rx="7"/>
         <text x="345" y="180" text-anchor="middle" class="th">compile the stage</text>
-        <text x="345" y="199" text-anchor="middle" class="ts">L0 to L7, one straight pass</text>
+        <text x="345" y="199" text-anchor="middle" class="ts">L0 to L7, including preparation</text>
         <path class="a" d="M430,185 H490"/><text x="460" y="177" text-anchor="middle" class="tl">program</text>
 
         <rect class="b" x="490" y="150" width="170" height="70" rx="7"/>

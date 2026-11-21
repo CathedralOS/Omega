@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 pub use omega_program_contracts::CollectionPrimitive;
 mod core_interface;
+mod default_build;
+pub use default_build::{DefaultBuild, DEFAULT_ROOT_PACKAGE};
 pub use core_interface::{CoreInterface, DeclarationQuery, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
 use omega_resolver::{Dependency, NameError, NameErrorKind, StageSource, SymbolResolvedTrees};
@@ -17,7 +19,7 @@ pub struct SourcePackage<'text> {
 }
 impl SourcePackage<'_> {
     /// Bind the owner already established by Build for this resolved source package.
-    /// The source inspection command has only a local package label.
+    /// Focused source inspection retains just its local label; a captured default Build supplies the owner.
     pub fn bind_package_key(&mut self, package: &str, key: [u8; 32]) -> Result<(), &'static str> {
         if !self.resolved.trees().any(|tree| tree.file.package == package) {
             return Err("package key has no matching source package");
