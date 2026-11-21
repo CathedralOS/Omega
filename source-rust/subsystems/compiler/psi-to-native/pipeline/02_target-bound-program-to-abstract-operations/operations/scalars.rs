@@ -493,9 +493,17 @@ pub(crate) mod scalar_applications {
                 });
             }
             TerminalScalarValue::HostAddress { .. } => {
-                return Err(LoweringError::HostAddressScalarApplication {
+                return Err(LoweringError::UnmaterializableScalarApplication {
+                    reason: "a host address names storage in the evaluating process",
                     operation: operation.id,
                     application,
+                });
+            }
+            TerminalScalarValue::UndeterminedNaN(_) => {
+                return Err(LoweringError::UnmaterializableScalarApplication {
+                    operation: operation.id,
+                    application,
+                    reason: "compile-time arithmetic did not determine NaN representation bits",
                 });
             }
             TerminalScalarValue::Boolean(value) => AbstractOperation::BooleanConstant {
