@@ -317,7 +317,7 @@ fn tag_tables() -> Vec<TagTable> {
         table(
             "machine-result-tags",
             &["TerminalMachineResult"],
-            read::<_, machine_wire::MachineResult>,
+            read::<_, psi_callable_encoding::signatures::MachineResult>,
         ),
         table("place-kind-tags", &["StructuralPlaceKind"], |reader| {
             refusal(place::decode_structural_place_kind(reader))

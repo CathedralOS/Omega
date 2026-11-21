@@ -4,6 +4,7 @@
 pub mod content;
 pub mod float_meaning;
 pub mod integer;
+pub mod order;
 pub mod proposition;
 pub mod scalar;
 pub mod scalar_types;

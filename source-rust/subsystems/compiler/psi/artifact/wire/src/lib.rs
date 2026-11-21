@@ -32,8 +32,9 @@ decoding, structural validation and carried proof data.
 */
 
 mod block_wire;
-mod callable_invocations_wire;
-pub use callable_invocations_wire::{decode_callable_invocations, encode_callable_invocations};
+pub use psi_declaration_encoding::invocations::{
+    decode_callable_invocations, encode_callable_invocations,
+};
 mod closed_types;
 pub mod contract_forms;
 pub use closed_types::ClosedTypeCatalog;

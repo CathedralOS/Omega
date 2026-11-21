@@ -112,3 +112,16 @@ pub fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, Cod
         tag => return Err(CodecError::InvalidTag("IntegerValue", tag)),
     })
 }
+
+pub struct Scalar;
+impl crate::fields::Field<semantic_vocabulary::ScalarType> for Scalar {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::ScalarType,
+    ) -> Result<(), CodecError> {
+        encode_scalar_type(writer, *value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::ScalarType, CodecError> {
+        decode_scalar_type(reader)
+    }
+}

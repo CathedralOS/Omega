@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+application-identity = { path = "../../identities/applications" }
 access-vocabulary = { path = "../../access/policies" }
 schema-reflection = { path = "../../types/reflection" }
 arena = { path = "../../../../../foundation/arena" }
