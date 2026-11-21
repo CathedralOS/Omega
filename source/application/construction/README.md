@@ -16,7 +16,8 @@ identity, graph, snapshot, admission and commitment implementations.
 application needs: its own units, the driver, frontend, Alpha backend, wire foundation,
 standard library and core library. It copies each file byte for byte, keeps package
 and unit identities, and writes an exact manifest. Package Build declarations
-and core’s default Build are recorded separately as build inputs. The entry is
+and core’s default Build are recorded separately as build inputs. The capture excludes
+each package’s `tests/fixtures/` subtree, where the compiler tests keep their own packages. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh
