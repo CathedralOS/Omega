@@ -17,6 +17,7 @@ use crate::resolution::names::target_siblings::bind_sibling_calls;
 use crate::resolution::names::type_predicates::retain_operands;
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
+pub use declarations::dispatches::prepare as prepare_dispatches;
 use declarations::machine_equations::complete;
 use declarations::machine_equations::required;
 use declarations::machine_equations::validate_declarations;

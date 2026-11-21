@@ -78,8 +78,12 @@ impl BuildStageSource {
         let mut selected = self;
         let imports = std::mem::take(&mut selected.pending_imports);
         let mut request = selected.request(preparation, host, authority)?;
-        let mut plan =
-            waits::EntryPlan::new(&request.syntax.trees, entry, previous, !imports.is_empty())?;
+        let mut plan = waits::EntryPlan::new(
+            &mut request.syntax.trees,
+            entry,
+            previous,
+            !imports.is_empty(),
+        )?;
         let mut timings = CompileTimings::default();
         let mut resolved = None;
         let mut parked = Vec::new();

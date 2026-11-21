@@ -13,7 +13,8 @@ use syntax_trees::statement::{
     TableTransition, TransitionGuardNode, TransitionPattern,
 };
 
-pub(super) fn prepare(syntax: &mut SyntaxTrees) {
+/// Evaluate transition subjects once before their ordered arms, including in staged Builds.
+pub fn prepare(syntax: &mut SyntaxTrees) {
     if !syntax.statements.has_dispatches() {
         return;
     }

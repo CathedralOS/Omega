@@ -41,7 +41,7 @@ fn select_after(
         crate::test_support::frontend_fixture::parse_syntax_trees_with_id(SOURCE, &tokens).unwrap();
     let start = text.find("machine build").unwrap() + "machine ".len();
     let entry = SourceSpan::new(SOURCE, Span::new(start, start + 5));
-    let mut plan = EntryPlan::new(&syntax, entry, previous, !imports.is_empty()).unwrap();
+    let mut plan = EntryPlan::new(&mut syntax, entry, previous, !imports.is_empty()).unwrap();
     let resolved = resolve_program(syntax.clone(), text);
     let parked = plan.select(&resolved, imports).unwrap();
     plan.project(&mut syntax);
@@ -344,17 +344,14 @@ machine build(builder: @mut Build, choosing: bool) suspends {
     let state = syntax
         .items
         .state(syntax.items.state_handles(entry.states)[0]);
-    let [statement] = syntax.items.statements(state.statements) else {
-        panic!("one complete dispatch")
-    };
-    let StatementNode::Dispatch(dispatch) = syntax.statements.statement(*statement) else {
-        panic!("both authored arms")
-    };
     let choices = syntax
-        .statements
-        .dispatch(*dispatch)
-        .arms
+        .items
+        .statements(state.statements)
         .iter()
+        .filter_map(|&statement| match syntax.statements.statement(statement) {
+            StatementNode::Transition(arm) => Some(arm),
+            _ => None,
+        })
         .map(|arm| {
             let syntax_trees::statement::TransitionTargetNode::Named { path, .. } =
                 syntax.statements.transition_target(arm.target)

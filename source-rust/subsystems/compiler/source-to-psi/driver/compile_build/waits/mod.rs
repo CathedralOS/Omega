@@ -126,7 +126,7 @@ pub(super) struct EntryPlan {
 
 impl EntryPlan {
     pub(super) fn new(
-        syntax: &SyntaxTrees,
+        syntax: &mut SyntaxTrees,
         entry: SourceSpan,
         previous: Option<&BuildStage>,
         has_pending_imports: bool,
@@ -147,6 +147,11 @@ impl EntryPlan {
                 .to_vec(),
             None => Vec::new(),
         };
+        if has_pending_imports {
+            // A transition evaluates each subject in a local before it selects an arm.
+            // Plan and project the same statements that name resolution will check.
+            syntax_trees_to_symbol_resolved_trees::resolution::prepare_dispatches(syntax);
+        }
         let mut calls = Vec::new();
         let selected = syntax.root_item_handles().iter().any(|handle| {
             syntax
@@ -173,37 +178,22 @@ impl EntryPlan {
                 let statements = syntax
                     .items
                     .statements(syntax.items.state(state).statements);
-                for (position, &statement) in statements.iter().enumerate() {
-                    if let StatementNode::Dispatch(dispatch) =
-                        syntax.statements.statement(statement)
-                    {
-                        let dispatch = syntax.statements.dispatch(*dispatch);
-                        for arm in &dispatch.arms {
-                            if let Some(call) = suspending_arm(syntax, arm.target) {
-                                calls.push(AuthoredCall {
-                                    owner,
-                                    state,
-                                    call,
-                                    through: position + 1,
-                                    prepares: false,
-                                    terminal_arm: true,
-                                });
-                            }
-                        }
-                        continue;
+                // Arms share the end of their dispatch. A subject or an ordinary
+                // statement can stop the stage immediately after its own evaluation.
+                let mut through = statements.len();
+                for (position, &statement) in statements.iter().enumerate().rev() {
+                    let node = syntax.statements.statement(statement);
+                    if !matches!(node, StatementNode::Transition(arm) if !arm.ends_dispatch) {
+                        through = position + 1;
                     }
-                    let transition = match syntax.statements.statement(statement) {
-                        StatementNode::Transition(arm) => Some(arm),
-                        _ => None,
-                    };
                     if let Some(call) = suspending_call(syntax, statement) {
                         calls.push(AuthoredCall {
                             owner,
                             call,
                             state,
-                            through: position + 1,
+                            through,
                             prepares: preparation(syntax, statement).is_some(),
-                            terminal_arm: transition.is_some(),
+                            terminal_arm: matches!(node, StatementNode::Transition(_)),
                         });
                     }
                 }

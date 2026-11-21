@@ -147,14 +147,6 @@ framework or a list of unimplemented features.
 - Cost: Group the portable contracts under `psi/` so its root leads to `artifact/`, `execution-inputs/` and `semantics/` alongside the program definition. Keep the Cargo boundaries for wire encoding, producer trust and input checks. Document which owner admits a supplied value and which stage computes it. After each move, check the shared consumers and relative links. The existing [storage analysis concern](#changing-storage-analysis-rebuilds-the-native-compiler) tracks the cost of the semantics dependency.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
-### Build preparation misses a suspended helper used as a transition subject
-
-- Category: One idea, several implementations.
-- Where: [Build's syntax walk](source-rust/subsystems/compiler/source-to-psi/driver/compile_build/waits/mod.rs#L318), [resolution's transition subject capture](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/dispatches.rs#L86), [ordinary suspension placement check](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/operational.rs#L142).
-- Saw: At `98fb39c09558c`, `ready` prepared a dependency and returned whether its public machine returned 7. Binding `suspend ready(builder, registration)` to a local and branching on it passed with native/Psi agreement. Putting the same call directly after `transition` reported that the dependency machine had no visible declaration inside `ready`. The direct form passed when the helper still prepared the dependency and returned `true` without importing it.
-- Cost: The Build planner recognizes a call in a transition arm's target but misses the subject that ordinary resolution captures. Follow the authored call through that capture so both forms stop at the same preparation and admit the helper's return in the mounted scope.
-- Reported: 2026-11-20, Codex, while comparing ordinary and staged suspension placement.
-
 ### Callable analysis loses arguments passed to checked providers
 
 - Category: Re-deriving.
