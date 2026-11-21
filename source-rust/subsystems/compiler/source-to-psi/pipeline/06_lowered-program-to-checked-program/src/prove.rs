@@ -123,22 +123,12 @@ fn fact_proof_for_literal_bound(
     }
 }
 
-/// Whether this prover has rules for `goal`'s form at all, decided from the
-/// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
-/// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and equalities over terms the rules
-/// bound (`reach::within_rules`), a comparison of two
-/// closed mathematical terms, and an arithmetic bound of one add, subtract,
-/// multiply, left shift or single value against a literal. Anything else the
-/// prover can only take from an equal hypothesis, so a failure on it says
-/// nothing about the program: it is `UnprovedCause::NoRuleForGoalForm`,
-/// published `Incomplete`, not `NoDerivation`.
-///
-/// `fixed` says which values a result equation fixes to a literal. A
-/// mathematical term over such values and literals is closed once those
-/// equations are substituted, which is how the kernel reads it
-/// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
-/// not searched for (`Prover::has_rules_for`).
+/// Classify a goal after proof search has failed. A covered form receives
+/// `NoDerivation`. Other forms receive `NoRuleForGoalForm` and the checker
+/// reports the obligation as incomplete. Proof search can still establish
+/// such a goal, for example by combining known bounds on a sum's operands.
+/// `fixed` identifies values whose equations supply a literal, so a closed
+/// mathematical comparison can be evaluated after substitution.
 fn covered(
     goal: &Proposition,
     fixed: &dyn Fn(ValueId) -> bool,
