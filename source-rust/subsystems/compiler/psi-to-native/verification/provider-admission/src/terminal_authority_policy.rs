@@ -12,17 +12,14 @@ duplicate physical identities reject, and empty implementation or checked
 argument contracts are never valid policy keys.
 */
 
-/*
-Cohort tables (`host_cohorts`) decide membership and disposition for canonical
-settled host boundaries (`FilesystemHost`, `TimeHost`, `Console`, `ProcessExit`,
-`DarwinClock`) in one place so settlement sites do not re-list those tables.
-Minting a policy row is not admission: the caller still binds the mechanism the
-leaf computed, and ordinary-release cohorts mint nothing without an
-occurrence-specific release contract.
-*/
+// The host tables define package permissions and classify selected operations.
+// Darwin poll also needs a checked descriptor count. Windows imports have a
+// separate table of reviewed exports and contracts.
 
 #[path = "terminal_authority_policy/classification.rs"]
 mod classification;
+#[path = "terminal_authority_policy/darwin_poll.rs"]
+pub(crate) mod darwin_poll;
 #[path = "terminal_authority_policy/external_mechanisms.rs"]
 mod external_mechanisms;
 #[path = "terminal_authority_policy/host_cohorts.rs"]
@@ -271,10 +268,14 @@ pub(crate) fn cohort_mechanism_row(
     // Windows foreign imports have their own reviewed physical meanings.
     // A readable portable/Console/Time method name cannot classify an unknown
     // export or replace an import's complete admitted argument contract.
-    if let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism
-        && foreign.target() == target::TargetProfile::WindowsX64
-    {
-        return windows_imports::mechanism_row(foreign);
+    if let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism {
+        if foreign.target() == target::TargetProfile::WindowsX64 {
+            return windows_imports::mechanism_row(foreign);
+        }
+        // The service selecting poll cannot establish its descriptor count.
+        if darwin_poll::is_poll(foreign) {
+            return None;
+        }
     }
     host_cohorts::filesystem_mechanism_row(mechanism, method)
         .or_else(|| host_cohorts::console_mechanism_row(mechanism, method))
