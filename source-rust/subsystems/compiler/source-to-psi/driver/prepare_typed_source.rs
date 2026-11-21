@@ -166,6 +166,10 @@ impl<'request> SourcePreparationRequest<'request> {
                 program,
                 accounting,
                 demanded_constants,
+                selected_providers: self.admission.layout_scopes.iter()
+                    .flat_map(|scope| scope.provider_declarations.iter())
+                    .map(|selection| selection.provider_type.symbol)
+                    .collect(),
                 wire_demands: self.admission.wire_demands,
             }),
             Err(diagnostics) => Err(SourcePreparationFailure {
