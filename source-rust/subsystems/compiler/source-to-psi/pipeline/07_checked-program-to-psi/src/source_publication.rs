@@ -111,6 +111,29 @@ impl SourcePublication {
             })
     }
 
+    /// Check the package selections against the module the source judgment owns.
+    /// This stopping point needs neither a portable envelope nor a native target.
+    pub fn check(
+        &self,
+        authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let accepted = self.accepted()?;
+        let module = accepted.module();
+        let selections =
+            crate::production::source_selection_publication::prepare(accepted, module, None)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        psi_authorization::selection_questions::admit_selection_questions(
+            module,
+            &selections.questions,
+            &psi_authorization::selection_questions::SelectionAuthorities {
+                build: None,
+                product: authority,
+            },
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        Ok(accepted.advisories().to_vec())
+    }
+
     /// Publish the accepted source once, with the declaration authority admitted
     /// for this request. Consumers receive code and evidence, never a producer
     /// callback capable of replacing a failed result.

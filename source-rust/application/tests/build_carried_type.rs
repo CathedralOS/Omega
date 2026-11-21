@@ -47,7 +47,7 @@ fn binding_a_transitive_result_keeps_its_type_without_granting_member_access() {
         }"#,
     )
     .unwrap();
-    let publish = |observation| {
+    let compile = |arguments: &[&str], observation| {
         fs::write(
             root.join("main.omg"),
             format!(
@@ -64,24 +64,23 @@ fn binding_a_transitive_result_keeps_its_type_without_granting_member_access() {
         .unwrap();
         Command::new(env!("CARGO_BIN_EXE_omega"))
             .current_dir(&root)
-            .args([
-                "--emit-psi",
-                "app.psi",
-                "--target",
-                "linux_x86_64",
-                "build.omg",
-            ])
+            .args(arguments)
+            .arg("build.omg")
             .output()
             .unwrap()
     };
-    let carried = publish("read_packet(value)");
-    assert!(carried.status.success(), "{carried:?}");
-    let selected = publish("value.count");
-    let diagnostic = String::from_utf8_lossy(&selected.stderr);
-    assert!(!selected.status.success());
-    assert!(
-        diagnostic.contains("Packet::count")
-            && diagnostic.contains("without direct dependency authority"),
-        "{diagnostic}"
-    );
+    let publish = ["--emit-psi", "app.psi", "--target", "linux_x86_64"];
+    let check = ["--check", "--target", "linux_x86_64"];
+    for arguments in [check.as_slice(), publish.as_slice()] {
+        let carried = compile(arguments, "read_packet(value)");
+        assert!(carried.status.success(), "{carried:?}");
+        let selected = compile(arguments, "value.count");
+        let diagnostic = String::from_utf8_lossy(&selected.stderr);
+        assert!(!selected.status.success());
+        assert!(
+            diagnostic.contains("Packet::count")
+                && diagnostic.contains("without direct dependency authority"),
+            "{diagnostic}"
+        );
+    }
 }

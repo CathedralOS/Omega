@@ -51,11 +51,9 @@ pub struct StageSource<'a> {
 pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let (product, resolved) = source.resolve()?;
     let checked = product.judge(resolved, ProductEntry::BuildBindings)?;
-    Ok(checked
+    checked
         .terminal_publication
-        .accepted()?
-        .advisories()
-        .to_vec())
+        .check(product.declaration_scope.as_deref().map(|scope| scope as _))
 }
 
 pub fn compile(
