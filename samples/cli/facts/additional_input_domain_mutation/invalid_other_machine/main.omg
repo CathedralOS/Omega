@@ -9,7 +9,7 @@ ensures cell in Before {
 machine initial() -> Cell in Before { Cell { value: 0 } }
 machine delegate(cell: @write Cell in Before) { overwrite(@write cell); }
 machine observed_exit() -> u32 {
-    let mut cell: Cell = initial();
+    let mutable cell: Cell = initial();
     delegate(@write cell);
     transition cell.value == 73 { true -> 0, _ -> 1 }
 }

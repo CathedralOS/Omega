@@ -24,7 +24,7 @@ Canonical fixed coordinates had displaced retained reference formation. The repa
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each twin changes only `&mut rows[...]` to `&rows[...]` at the state argument.
+Each twin changes only `@mutable rows[...]` to `@rows[...]` at the state argument.
 It must reject with `but the caller lends only immutable access`; setup or
 unrelated rejections do not count.
 

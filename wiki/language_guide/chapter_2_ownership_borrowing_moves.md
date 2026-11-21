@@ -7,7 +7,7 @@ main additions are write-only borrows and values that must be finished.
 ## Moving
 
 ```omega
-machine repair_inventory(system: @mut InventorySystem, replacement: Inventory) {
+machine repair_inventory(system: @mutable InventorySystem, replacement: Inventory) {
     system.inventory = move replacement;
 }
 ```
@@ -54,12 +54,12 @@ machine read(view: @u8) -> u8 { take($view) }
 
 ## Mutable locals
 
-Declare an owned local with `let mut` when its established storage will be
+Declare an owned local with `let mutable` when its established storage will be
 modified, whether directly, through a field or element, or by a helper
-receiving `@mut` or `@write`. Taking a writable borrow delegates permission;
+receiving `@mutable` or `@write`. Taking a writable borrow delegates permission;
 it cannot manufacture permission absent from the owned place.
 
-This does not make everything reachable from a non-`mut` binding immutable.
+This does not make everything reachable from a non-`mutable` binding immutable.
 A local holding an existing mutable reference can write through that reference
 without being mutable itself: the reference's storage and its referent are
 different places. Copying or moving an owned value follows its ordinary
@@ -71,7 +71,7 @@ also preserves domain access restrictions and the separate rules for atomics.
 ## Mutable borrows
 
 ```omega
-machine heal(player: @mut Player, amount: i32)
+machine heal(player: @mutable Player, amount: i32)
 requires player.health in 0..=100
 requires amount in 0..=100
 {
@@ -79,7 +79,7 @@ requires amount in 0..=100
 }
 ```
 
-`@mut T` is exclusive: while it is in use, no other route can read or write
+`@mutable T` is exclusive: while it is in use, no other route can read or write
 that place. Exclusive access is not a proof that the arithmetic fits; the
 `requires` clauses do that.
 
@@ -102,10 +102,10 @@ narrowed to write-only; the reverse is not available.
 ## Lending part of what you borrowed
 
 ```omega
-machine clear_first(items: @mut [u8])
+machine clear_first(items: @mutable [u8])
 requires items.length > 0
 {
-    let first: @mut u8 = @mut items[0];
+    let first: @mutable u8 = @mutable items[0];
     $first = 0;
     // The loan on items[0] ends after its last use.
     items[0] = 1;
@@ -118,11 +118,11 @@ parent waits.
 Two borrows of the same collection need to be provably separate:
 
 ```omega
-let left: @mut [i32] = @mut items[start..mid];
-let right: @mut [i32] = @mut items[mid..end];
+let left: @mutable [i32] = @mutable items[start..mid];
+let right: @mutable [i32] = @mutable items[mid..end];
 
-let a: @mut i32 = @mut items[i];
-let b: @mut i32 = @mut items[j];      // needs i != j
+let a: @mutable i32 = @mutable items[i];
+let b: @mutable i32 = @mutable items[j];      // needs i != j
 ```
 
 The two halves are separate because they share the boundary `mid`. The two
@@ -132,7 +132,7 @@ formed: changing `i` afterwards does not move `a`.
 ## Taking a field out for a moment
 
 ```omega
-machine rearrange_inventory(system: @mut InventorySystem) {
+machine rearrange_inventory(system: @mutable InventorySystem) {
     let inventory: Inventory = system.inventory;
     // system.inventory is empty here and cannot be read or passed on.
     system.inventory = move inventory;
@@ -161,7 +161,7 @@ which input the result borrows from:
 
 ```omega
 machine header<'buffer>(
-    buffer: @'buffer [u8], scratch: @mut [u8]
+    buffer: @'buffer [u8], scratch: @mutable [u8]
 ) -> @'buffer [u8] {
     buffer
 }
@@ -184,7 +184,7 @@ machine status_text(code: u32) -> @[u8] {
 
 Writing a lifetime that no input carries says the same thing explicitly. It
 also lets a machine that does take a reference return a result that does not
-borrow it: `machine kind_name<'name>(value: &Value) -> &'name [u8]`. The body
+borrow it: `machine kind_name<'name>(value: @Value) -> @'name [u8]`. The body
 must return storage that lasts for whatever the caller chooses, so returning a
 view into `value` or into a local is rejected.
 

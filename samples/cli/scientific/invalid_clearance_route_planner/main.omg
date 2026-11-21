@@ -3,9 +3,9 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use nodes;
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut input: [u8; 8];
-    _ = block Console::read_line(@mut input[..]);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable input: [u8; 8];
+    _ = block Console::read_line(@mutable input[..]);
     let coordinates: [i64; 6] = [0,10,3,7,3,7];
     let value: i64 = nodes\unguarded(@coordinates, input[0] as i32 +Wrapping);
     ProcessExit::exit_process(0);
@@ -13,6 +13,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

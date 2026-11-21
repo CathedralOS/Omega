@@ -2,10 +2,10 @@
 // Place: other_state.
 // Expected exit: 0
 machine main() crashes Trap {
-    let mut backing: [u8; 1] = [19];
-    let windows: [@mut [u8]; 1] = [@mut backing[..]];
+    let mutable backing: [u8; 1] = [19];
+    let windows: [@mutable [u8]; 1] = [@mutable backing[..]];
     transition { _ -> inspect(windows) }
-    machine inspect(windows: [@mut [u8]; 1])
+    machine inspect(windows: [@mutable [u8]; 1])
     requires windows[0].length == 1
     {
         let length: u64 = windows[0].length;

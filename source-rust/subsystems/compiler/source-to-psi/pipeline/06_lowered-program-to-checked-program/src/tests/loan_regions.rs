@@ -1,8 +1,8 @@
 //! One lifetime given the loans of two places. Read from source and run in
 //! the Psi interpreter: the products of `samples/cli/facts/
 //! build_activation_borrow` choose between two cells their caller lent
-//! separately, `selected<'storage>(left: &'storage mut Cell, right: &'storage
-//! mut Cell, first)`.
+//! separately, `selected<'storage>(left: @'storage mutable Cell, right: @'storage
+//! mutable Cell, first)`.
 //!
 //! A loan is formed where the program forms it and lives within the storage
 //! it lends (loans.md: a loan resource has its "captured place" and its
@@ -18,13 +18,13 @@ use super::*;
 
 const CELLS: &str = r#"
 data Cell { before: u64; value: u64; after: u64; }
-data Carrier<'storage> { cell: @'storage mut Cell; }
+data Carrier<'storage> { cell: @'storage mutable Cell; }
 data View<'storage> { cell: @'storage Cell; }
 "#;
 
 /// The sample's chooser: a carrier of whichever cell `first` selects.
 const SELECTED: &str = r#"
-machine selected<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) -> Carrier<'storage> {
+machine selected<'storage>(left: @'storage mutable Cell, right: @'storage mutable Cell, first: bool) -> Carrier<'storage> {
     transition first {
         true -> Carrier { cell: left },
         false -> Carrier { cell: right }
@@ -39,12 +39,12 @@ machine selected<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, 
 /// the trapping arm.
 const ENTRY: &str = r#"
 machine entry() crashes Trap {
-    let mut left: Cell = Cell { before: 11, value: 5, after: 17 };
-    let mut right: Cell = Cell { before: 23, value: 9, after: 29 };
-    journey(@mut left, @mut right, true);
+    let mutable left: Cell = Cell { before: 11, value: 5, after: 17 };
+    let mutable right: Cell = Cell { before: 23, value: 9, after: 29 };
+    journey(@mutable left, @mutable right, true);
     let first_correct: bool = left.value == 73 && right.value == 9
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29;
-    journey(@mut left, @mut right, false);
+    journey(@mutable left, @mutable right, false);
     transition first_correct && left.value == 73 && right.value == 73
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
         true -> done(),
@@ -119,14 +119,14 @@ fn verdict(build: &str) -> String {
 fn a_call_gives_one_lifetime_the_loans_of_two_places() {
     completes(
         r#"
-machine both<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) {
+machine both<'storage>(left: @'storage mutable Cell, right: @'storage mutable Cell, first: bool) {
     transition first {
         true -> write(left),
         false -> write(right)
     }
-    machine write(cell: @mut Cell) { cell.value = 73; }
+    machine write(cell: @mutable Cell) { cell.value = 73; }
 }
-machine journey(left: @mut Cell, right: @mut Cell, first: bool) {
+machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {
     both(left, right, first);
 }
 "#,
@@ -143,7 +143,7 @@ fn a_loan_is_stored_only_where_its_place_region_is_the_holders() {
     let stashed = |binders: &str, holder: &str, cell: &str| {
         format!(
             r#"{CELLS}
-machine build_entry{binders}(holder: @mut View{holder}, cell: @{cell}Cell) {{
+machine build_entry{binders}(holder: @mutable View{holder}, cell: @{cell}Cell) {{
     holder.cell = cell;
 }}
 "#
@@ -172,7 +172,7 @@ fn a_shared_loan_region_is_no_named_lifetime_of_the_machine() {
         verdict(&format!(
             r#"{CELLS}
 machine pick<'a, 'b>(left: @'a Cell, right: @'b Cell) -> View<'a> {{
-    let mut view: View = View {{ cell: left }};
+    let mutable view: View = View {{ cell: left }};
     view.cell = right;
     view
 }}
@@ -231,8 +231,8 @@ machine build_entry(cell: @Cell) {{
 fn a_reference_backed_by_either_of_two_inputs_is_refused_by_name_when_returned() {
     let returned = run(&format!(
         r#"{CELLS}{SELECTED}
-machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
-    let mut carrier: Carrier = selected(left, right, first);
+machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
+    let mutable carrier: Carrier = selected(left, right, first);
     carrier.cell.value = 73;
 }}
 {ENTRY}"#
@@ -243,8 +243,8 @@ machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
     );
     let joined = run(&format!(
         r#"{CELLS}
-machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
-    let mut carrier: Carrier = match first {{
+machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
+    let mutable carrier: Carrier = match first {{
         true -> Carrier {{ cell: left }},
         false -> Carrier {{ cell: right }}
     }};

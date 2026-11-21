@@ -94,7 +94,7 @@ machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
     .unwrap();
     std::fs::write(
         temporary.path().join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
     Build::application(builder, "mixed");
     Build::select_provider::<Counter, LocalCounter>(builder);
     let mode: CompositionMode = fused_mode();
@@ -213,7 +213,7 @@ fn private_entry_requires_the_target_of_its_parent() {
     std::fs::write(&main, "machine main() {}").unwrap();
     std::fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::application(builder, "entry_target");
         Build::bind(builder, linux_x86_64\ProgramEntry, main);
         Build::bind(builder, linux_arm64\ProgramEntry, main);
@@ -716,7 +716,7 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
     let source = workspace.path().join("main.omg");
     std::fs::write(
         workspace.path().join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
     Build::application(builder, "exit_scope");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }"#,
@@ -920,7 +920,7 @@ fn fresh_review_records_the_build_that_declared_the_package() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mut Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
+        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
     )
     .unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
@@ -954,7 +954,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
         let root = project.path();
         std::fs::write(
             root.join("build.omg"),
-            r#"machine build(builder: @mut Build) { Build::package(builder, "review_ceiling"); }"#,
+            r#"machine build(builder: @mutable Build) { Build::package(builder, "review_ceiling"); }"#,
         )
         .unwrap();
         std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches ProcessOutput crashes none {{ value }}\n")).unwrap();
@@ -999,7 +999,7 @@ fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
     std::fs::write(
         root.join("build.omg"),
         r#"use omega\language\core\ProcessExit;
-        machine build(builder: @mut Build) {
+        machine build(builder: @mutable Build) {
             Build::package(builder, "exit_provider");
             Build::select_provider::<ProcessExit, LeafExit>(builder, linux_x86_64);
         }"#,
@@ -1060,7 +1060,7 @@ fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mut Build) { Build::package(builder, "receiver_review"); }"#,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "receiver_review"); }"#,
     )
     .unwrap();
     std::fs::write(
@@ -1205,7 +1205,7 @@ fn review_retains_public_alias_names_with_their_normalized_expansions() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mut Build) { Build::package(builder, "public_aliases"); }"#,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "public_aliases"); }"#,
     )
     .unwrap();
     std::fs::write(
@@ -1351,7 +1351,7 @@ fn review_and_deployment_publish_the_same_entryless_provider() {
     let path = root.join("build.omg");
     std::fs::write(
         &path,
-        r#"machine build(builder: @mut Build) { Build::package(builder, "numbers"); }"#,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
     )
     .unwrap();
     std::fs::write(

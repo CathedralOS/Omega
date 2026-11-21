@@ -14,14 +14,14 @@ use report\output\number;
 use report\output\report;
 
 machine main() reaches ProcessExit + Console {
-    let mut acquisition: Acquisition;
-    block read_acquisition(@mut acquisition);
-    transition acquisition.error == 0 { true -> decode(@mut acquisition), false -> reject(@acquisition) }
-    machine decode(acquisition: @mut Acquisition) {
+    let mutable acquisition: Acquisition;
+    block read_acquisition(@mutable acquisition);
+    transition acquisition.error == 0 { true -> decode(@mutable acquisition), false -> reject(@acquisition) }
+    machine decode(acquisition: @mutable Acquisition) {
         reconstruct(acquisition);
         transition acquisition.error == 0 { true -> fitted(acquisition), false -> reject(acquisition) }
     }
-    machine fitted(acquisition: @mut Acquisition) {
+    machine fitted(acquisition: @mutable Acquisition) {
         fit_clock(acquisition);
         report(acquisition);
         ProcessExit::exit_process(0);

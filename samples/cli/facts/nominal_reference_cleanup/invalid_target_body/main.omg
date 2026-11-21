@@ -3,8 +3,8 @@
 // Expected rejection: cleanup retains its code 7 requirement.
 data Seed [copy] { code: u64; }
 data Counter { value: u64; }
-data Keeper<'view> dropped by drop_keeper { output: @'view mut Counter; code: u64; }
-machine drop_keeper(keeper: @mut Keeper) requires keeper.code == 7 {
+data Keeper<'view> dropped by drop_keeper { output: @'view mutable Counter; code: u64; }
+machine drop_keeper(keeper: @mutable Keeper) requires keeper.code == 7 {
     keeper.output.value = keeper.code;
 }
 machine observe(keeper: @Keeper) {}
@@ -43,8 +43,8 @@ X86Consume satisfies SelectedConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed.code == 6
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut output: Counter = Counter { value: 0 };
-        observe(@Keeper { output: @mut output, code: seed.code });
+        let mutable output: Counter = Counter { value: 0 };
+        observe(@Keeper { output: @mutable output, code: seed.code });
         check(@output);
     }
 }
@@ -54,8 +54,8 @@ ArmConsume satisfies SelectedConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed.code == 6
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut output: Counter = Counter { value: 0 };
-        observe(@Keeper { output: @mut output, code: seed.code });
+        let mutable output: Counter = Counter { value: 0 };
+        observe(@Keeper { output: @mutable output, code: seed.code });
         check(@output);
     }
 }

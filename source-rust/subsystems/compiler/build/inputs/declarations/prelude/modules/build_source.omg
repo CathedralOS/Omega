@@ -6,7 +6,7 @@ public machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 re
     BuildFilesystemOperations::open(source, path, flags)
 }
 
-public machine read(source: @BuildSource, descriptor: i32, buffer: @mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine read(source: @BuildSource, descriptor: i32, buffer: @mutable [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::read(source, descriptor, buffer, count)
 }
 

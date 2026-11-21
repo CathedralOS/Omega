@@ -270,7 +270,7 @@ the same ordered sequence, including nested destinations, RHS calls, independent
 copies, moved homes and captured scalar values. Each write uses the current home
 and the existing `StructuralScalarFieldStore`; it introduces no reference carrier
 or wire operation. Plain `let` permits member writes under existing source rules;
-`mut` gates whole-local rebinding. Bounded leaf stores still need independently
+`mutable` gates whole-local rebinding. Bounded leaf stores still need independently
 reconstructed invariant obligations. Native owned/local field stores
 remain explicitly unsupported. Parameter-origin
 moves into local storage still need their formal/local custody join.

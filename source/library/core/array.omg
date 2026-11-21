@@ -26,7 +26,7 @@ boundary trait ArrayAccess {
         index < items.length
     crashes none;
 
-    machine index_mut<T, const N: u64>(items: @mut [T; N], index: u64) -> @mut T
+    machine index_mut<T, const N: u64>(items: @mutable [T; N], index: u64) -> @mutable T
     reaches none
     requires
         index < items.length
@@ -39,7 +39,7 @@ boundary trait ArrayAccess {
         result.length == items.length
     crashes none;
 
-    machine as_mut_slice<T, const N: u64>(items: @mut [T; N]) -> @mut [T]
+    machine as_mut_slice<T, const N: u64>(items: @mutable [T; N]) -> @mutable [T]
     reaches none
     ensures
         result.length == items.length

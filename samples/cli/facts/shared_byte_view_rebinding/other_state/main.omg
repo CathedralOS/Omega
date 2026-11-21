@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Rebinding a shared byte-view parameter retains its declared descriptor identity and observes replacement backing without mutating either backing.
 machine identity<'storage>(view: @'storage [u8]) -> @'storage [u8] requires view.length == 1 ensures result.length == 1 { view }
-machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
+machine replace(mutable selected: @[u8], replacement: @[u8]) -> u8
 requires selected.length == 1 && replacement.length == 1 {
     selected = replacement;
     selected = replacement;

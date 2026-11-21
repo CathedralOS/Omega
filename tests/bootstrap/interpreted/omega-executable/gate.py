@@ -25,8 +25,8 @@ ENTRY_IDENTITIES = {
                            "87738a1eb03678fb979c48b2770c91a9d03a2f0539c19a49101233b6e786d5c3"),
     "controls_i.epsilon": (3754,
                            "5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4"),
-    "controls_j.epsilon": (5581,
-                           "203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5"),
+    "controls_j.epsilon": (5585,
+                           "d0fe765d9d0efa6aab8ab8b0444e87571b005b25d657572753b3e06bc915c4af"),
 }
 
 import argparse
@@ -100,8 +100,8 @@ def main():
     require_identity("Delta compiler", delta_compiler, 152411,
                      "cfa4f2a6f75352d819a83486169bd517ab48ecf90246c561e47a809309ccc25f")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 1198645,
-                     "8dc0bee09f15dce0649a439f9998a00873af2e6d3c2ba93babb1cd9481b1bc52")
+    require_identity("D", compiler, 1198693,
+                     "c3ccd816d4280a44a6eecd9c537f84546591dac966fcc83a7ccce15576fa1468")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))

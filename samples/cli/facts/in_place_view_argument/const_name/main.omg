@@ -14,7 +14,7 @@ requires packet.bytes.length >= 4 {
 const EXTENT: u64 = 4;
 const THIRD: u8 = 29;
 machine main() crashes Trap {
-    let mut packet: [u8; EXTENT];
+    let mutable packet: [u8; EXTENT];
     packet[0] = 11;
     packet[2] = THIRD;
     let third: u8 = read_third(Input { tag: 5, bytes: @packet, tail: 9 });

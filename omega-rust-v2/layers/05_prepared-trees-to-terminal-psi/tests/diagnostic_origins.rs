@@ -51,8 +51,8 @@ fn identical_open_template_messages_retain_distinct_decisions() {
 #[test]
 fn a_carrier_failure_is_located_where_it_becomes_a_lowering_refusal() {
     // Mutable byte views have a separate carrier; scalar element reads now lower.
-    let text = "machine get(items:@mut [u8],i:u64)->u8 { items[i] }";
-    let origin = refusal(text, 12, 17, "no Psi lowering for carrier @mut [u8]");
+    let text = "machine get(items:@mutable [u8],i:u64)->u8 { items[i] }";
+    let origin = refusal(text, 12, 17, "no Psi lowering for carrier @mutable [u8]");
     assert!(
         origin
             .file()

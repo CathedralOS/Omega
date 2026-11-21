@@ -29,12 +29,12 @@ fn canonical_anonymous_record_matches_build_reference_and_commits_semantic_input
         anonymous_owner(&tree, DEFAULT_SEMANTICS, &[bundled]).unwrap(),
         anonymous_owner(&tree, DEFAULT_SEMANTICS, &[changed]).unwrap()
     );
-    assert!(check_empty_default("machine build(activation: @mut Build) {}").is_ok());
+    assert!(check_empty_default("machine build(activation: @mutable Build) {}").is_ok());
     for entry in [
-        "machine build(builder: @mut Build) { dependency(); }",
+        "machine build(builder: @mutable Build) { dependency(); }",
         "machine build(builder: @Build) {}",
-        "machine build(builder: @mut UserBuild) {}",
-        "machine Owner::build(builder: @mut Build) {}",
+        "machine build(builder: @mutable UserBuild) {}",
+        "machine Owner::build(builder: @mutable Build) {}",
     ] {
         assert!(check_empty_default(entry).is_err(), "{entry}");
     }

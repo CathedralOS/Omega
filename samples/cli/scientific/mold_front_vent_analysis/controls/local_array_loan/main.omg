@@ -1,7 +1,7 @@
 // Complete current-main reproduction: owned byte array crosses a case edge.
 data Count { case Value(count: u64); case End; }
 machine main() {
-    let mut input: [u8; 32];
+    let mutable input: [u8; 32];
     let result: Count = Count::Value { count: 17 };
     transition result {
         Count::Value { count } -> observe(@input, count),

@@ -3,12 +3,12 @@ domain [u8; 128]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer [copy] requires used <= 128 { storage: [u8; 128] in Ascii; used: u64; }
 machine text_buffer_live(buffer: @TextBuffer) -> @[u8] in Ascii { @buffer.storage[..buffer.used] }
-machine text_buffer_copy(buffer: @mut [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine text_buffer_copy(buffer: @mutable [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 128, bytes.length <= 128 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 128, index <= 128
     ensures buffer in Ascii
     {
@@ -17,7 +17,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 128, index < 128, index < bytes.length, start + index < 128
     ensures buffer in Ascii
     {
@@ -27,17 +27,17 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine text_buffer_set(buffer: @mut TextBuffer, bytes: @[u8] in Ascii)
+machine text_buffer_set(buffer: @mutable TextBuffer, bytes: @[u8] in Ascii)
 requires bytes.length <= 128
 {
-    text_buffer_copy(@mut buffer.storage, bytes, 0);
+    text_buffer_copy(@mutable buffer.storage, bytes, 0);
     buffer.used = bytes.length;
 }
-machine join(buffer: @mut TextBuffer, left: @[u8] in Ascii, right: @[u8] in Ascii)
+machine join(buffer: @mutable TextBuffer, left: @[u8] in Ascii, right: @[u8] in Ascii)
 requires left.length <= 24, right.length <= 100
 {
-    text_buffer_copy(@mut buffer.storage, left, 0);
-    text_buffer_copy(@mut buffer.storage, right, left.length);
+    text_buffer_copy(@mutable buffer.storage, left, 0);
+    text_buffer_copy(@mutable buffer.storage, right, left.length);
     buffer.used = left.length + right.length;
 }
 
@@ -47,12 +47,12 @@ data ExitCommand [copy] requires used <= 8 { storage: [u8; 8] in Ascii; used: u6
 machine exit_command_live(buffer: @ExitCommand) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 8
 { @buffer.storage[..buffer.used] }
-machine exit_command_copy(buffer: @mut [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine exit_command_copy(buffer: @mutable [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 8, bytes.length <= 8 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 8, index <= 8
     ensures buffer in Ascii
     {
@@ -61,7 +61,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 8, index < 8, index < bytes.length, start + index < 8
     ensures buffer in Ascii
     {
@@ -71,10 +71,10 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine exit_command_set(buffer: @mut ExitCommand, bytes: @[u8] in Ascii)
+machine exit_command_set(buffer: @mutable ExitCommand, bytes: @[u8] in Ascii)
 requires bytes.length <= 8
 {
-    exit_command_copy(@mut buffer.storage, bytes, 0);
+    exit_command_copy(@mutable buffer.storage, bytes, 0);
     buffer.used = bytes.length;
 }
 
@@ -85,12 +85,12 @@ data RoomLabel [copy] requires used <= 16 { storage: [u8; 16] in Ascii; used: u6
 machine room_label_live(buffer: @RoomLabel) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 16
 { @buffer.storage[..buffer.used] }
-machine room_label_copy(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine room_label_copy(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 16, bytes.length <= 16 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index <= 16
     ensures buffer in Ascii
     {
@@ -99,7 +99,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index < 16, index < bytes.length, start + index < 16
     ensures buffer in Ascii
     {
@@ -109,10 +109,10 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine room_label_set(buffer: @mut RoomLabel, bytes: @[u8] in Ascii)
+machine room_label_set(buffer: @mutable RoomLabel, bytes: @[u8] in Ascii)
 requires bytes.length <= 16
 {
-    room_label_copy(@mut buffer.storage, bytes, 0);
+    room_label_copy(@mutable buffer.storage, bytes, 0);
     buffer.used = bytes.length;
 }
 
@@ -123,12 +123,12 @@ data EnemyName [copy] requires used <= 24 { storage: [u8; 24] in Ascii; used: u6
 machine enemy_name_live(buffer: @EnemyName) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 24
 { @buffer.storage[..buffer.used] }
-machine enemy_name_copy(buffer: @mut [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine enemy_name_copy(buffer: @mutable [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 24, bytes.length <= 24 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 24, index <= 24
     ensures buffer in Ascii
     {
@@ -137,7 +137,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 24, index < 24, index < bytes.length, start + index < 24
     ensures buffer in Ascii
     {
@@ -147,10 +147,10 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine enemy_name_set(buffer: @mut EnemyName, bytes: @[u8] in Ascii)
+machine enemy_name_set(buffer: @mutable EnemyName, bytes: @[u8] in Ascii)
 requires bytes.length <= 24
 {
-    enemy_name_copy(@mut buffer.storage, bytes, 0);
+    enemy_name_copy(@mutable buffer.storage, bytes, 0);
     buffer.used = bytes.length;
 }
 
@@ -160,12 +160,12 @@ data RoomDescription [copy] requires used <= 64 { storage: [u8; 64] in Ascii; us
 machine room_description_live(buffer: @RoomDescription) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 64
 { @buffer.storage[..buffer.used] }
-machine room_description_copy(buffer: @mut [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine room_description_copy(buffer: @mutable [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 64, bytes.length <= 64 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 64, index <= 64
     ensures buffer in Ascii
     {
@@ -174,7 +174,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 64, index < 64, index < bytes.length, start + index < 64
     ensures buffer in Ascii
     {
@@ -184,9 +184,9 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine room_description_set(buffer: @mut RoomDescription, bytes: @[u8] in Ascii)
+machine room_description_set(buffer: @mutable RoomDescription, bytes: @[u8] in Ascii)
 requires bytes.length <= 64
 {
-    room_description_copy(@mut buffer.storage, bytes, 0);
+    room_description_copy(@mutable buffer.storage, bytes, 0);
     buffer.used = bytes.length;
 }

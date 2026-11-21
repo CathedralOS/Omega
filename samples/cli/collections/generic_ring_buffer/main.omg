@@ -14,14 +14,14 @@ data Ring [copy] requires head < 8, tail < 8 {
 }
 
 // This sample scripts only available-capacity pushes and nonempty pops.
-machine push(ring: @mut Ring, value: i32 in Saturating) {
+machine push(ring: @mutable Ring, value: i32 in Saturating) {
     let slot: u64 = ring.tail;
     ring.slots[slot] = value;
     ring.tail = (slot + 1) % 8;
     ring.size = ring.size + 1;
 }
 
-machine pop(ring: @mut Ring) -> i32 in Saturating {
+machine pop(ring: @mutable Ring) -> i32 in Saturating {
     let slot: u64 = ring.head;
     let value: i32 in Saturating = ring.slots[slot];
     ring.head = (slot + 1) % 8;
@@ -30,18 +30,18 @@ machine pop(ring: @mut Ring) -> i32 in Saturating {
 }
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut ring: Ring;
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable ring: Ring;
     Console::write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
-    push(@mut ring, 20i32 as +Saturating);
-    push(@mut ring, 30i32 as +Saturating);
-    push(@mut ring, 40i32 as +Saturating);
-    push(@mut ring, 50i32 as +Saturating);
-    let first: i32 in Saturating = pop(@mut ring);
-    push(@mut ring, 5i32 as +Saturating);
-    push(@mut ring, 15i32 as +Saturating);
-    let second: i32 in Saturating = pop(@mut ring);
-    let last: i32 in Saturating = pop(@mut ring);
+    push(@mutable ring, 20i32 as +Saturating);
+    push(@mutable ring, 30i32 as +Saturating);
+    push(@mutable ring, 40i32 as +Saturating);
+    push(@mutable ring, 50i32 as +Saturating);
+    let first: i32 in Saturating = pop(@mutable ring);
+    push(@mutable ring, 5i32 as +Saturating);
+    push(@mutable ring, 15i32 as +Saturating);
+    let second: i32 in Saturating = pop(@mutable ring);
+    let last: i32 in Saturating = pop(@mutable ring);
     transition ring.size == 3 {
         true -> block check_popped(@ring, first, second, last),
         _ -> block bad_size()
@@ -78,14 +78,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine finish(code: i32) {
         Console::write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block Console::read_line(@mut pause[..]);
+        let mutable pause: [u8; 256];
+        _ = block Console::read_line(@mutable pause[..]);
         ProcessExit::exit_process(code);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

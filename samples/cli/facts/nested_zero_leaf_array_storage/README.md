@@ -47,7 +47,7 @@ markers each; no semantic product is missing. Linux x86-64 reported two
 source-checking timing slowdowns against shared pins; all functional oracles
 passed. No fresh memory claim is made.
 
-Remaining: the parent task's qualified/view-backed carriers and retained-provider custody, and ordinary nested array literal results containing live borrowed-array subvalues. An auxiliary `snapshot_rows(rows: &[[u8;0];2]) -> [[u8;0];2] { [rows[0],rows[1]] }` refused before execution on both baseline70f and the first candidate (`returned scalar array`); that separate construction operation is not claimed repaired here.
+Remaining: the parent task's qualified/view-backed carriers and retained-provider custody, and ordinary nested array literal results containing live borrowed-array subvalues. An auxiliary `snapshot_rows(rows: @[[u8;0];2]) -> [[u8;0];2] { [rows[0],rows[1]] }` refused before execution on both baseline70f and the first candidate (`returned scalar array`); that separate construction operation is not claimed repaired here.
 
 Contracts: [boundary shapes](../../../../wiki/spec/build/boundary_shapes.md), [layout plans](../../../../wiki/spec/layouts/plans.md), [byte views](../../../../wiki/spec/terminal-psi/byte_views.md), and [indexing](../../../../wiki/spec/language/counts_and_addresses.md).
 

@@ -196,7 +196,7 @@ top of the bound member closure, never part of the manifested members.
 | `controls_g.epsilon` | 3,175 | `c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137` |
 | `controls_h.epsilon` | 4,385 | `87738a1eb03678fb979c48b2770c91a9d03a2f0539c19a49101233b6e786d5c3` |
 | `controls_i.epsilon` | 3,754 | `5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4` |
-| `controls_j.epsilon` | 5,581 | `203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5` |
+| `controls_j.epsilon` | 5,585 | `d0fe765d9d0efa6aab8ab8b0444e87571b005b25d657572753b3e06bc915c4af` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/interpreted/omega-identity.sh` covers the refusals. The

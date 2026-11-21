@@ -45,7 +45,7 @@ fn a_reachable_unsafe_predecessor_cannot_borrow_the_other_arms_arithmetic_value(
 #[test]
 fn overwriting_the_join_result_does_not_retain_its_previous_arithmetic_bound() {
     let source = SOURCE
-        .replace("let chosen: u64", "let mut chosen: u64")
+        .replace("let chosen: u64", "let mutable chosen: u64")
         .replace(
             "    chosen - 100u64",
             "    chosen = 0u64;\n    chosen - 100u64",

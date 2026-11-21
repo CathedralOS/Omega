@@ -15,7 +15,7 @@ OtherPolicy satisfies FixedLayout<Record> {
 }
 machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
 machine make() -> CLayout<Record> {
-    let mut record: CLayout<Record>;
+    let mutable record: CLayout<Record>;
     record.first = 17u8;
     record.second = 42u64;
     record.last = 9u16;
@@ -23,7 +23,7 @@ machine make() -> CLayout<Record> {
 }
 machine observe(record: LayoutStorage<Record, OtherPolicy>) -> bool {
     let value: CLayout<Record> = record;
-    let mut words: [u64; 3];
+    let mutable words: [u64; 3];
     words[0] = 17u64;
     words[1] = 42u64;
     words[2] = 9u64;

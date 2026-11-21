@@ -3,9 +3,9 @@
 A shared two-byte Pair view starting at byte 1 of live [u8; 4] preserves the original first-byte address and full two-byte loan while its second field reads 37.
 
 The source is always the live mutable array `[11, 23, 37, 41]`. The shared
-`&Pair` is always formed by `&bytes[1] as &Pair`; `Pair` has two `u8` fields,
+`@Pair` is always formed by `@bytes[1] as @Pair`; `Pair` has two `u8` fields,
 so its referent occupies bytes 1 and 2 at alignment 1. The positive observes
-`address_of(&view.first) == address_of(&bytes[1])` and `view.second == 37`.
+`address_of(@view.first) == address_of(@bytes[1])` and `view.second == 37`.
 The original address is captured before transport and the backing stays in
 place. The final branch observes the operation's result; it grants no access,
 formation bound or membership.

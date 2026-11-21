@@ -3,7 +3,7 @@
 End-to-end CLI check that a Build can ask for a Product declaration by path
 (`omega --check`).
 
-`BuildProduct::entry(&builder.product, "support::setup::launch", slot)` asks
+`BuildProduct::entry(@builder.product, "support::setup::launch", slot)` asks
 which machine a path names and hands back a description a root binding can
 use (`wiki/spec/build/scoped_execution.md`, "Selecting product declarations
 without executing them"). The path is read in the package of the Build
@@ -77,20 +77,20 @@ fn a_resumed_build_calls_its_kit_and_queries_the_products_kit() {
         std::fs::write(
             directory.join("build.omg"),
             format!(
-                r#"machine build(builder: @mut Build) {{ Build::package(builder, "{package}"); }}"#
+                r#"machine build(builder: @mutable Build) {{ Build::package(builder, "{package}"); }}"#
             ),
         )
         .unwrap();
     }
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     let build = r#"use kit;
-machine build(builder: @mut Build) suspends {
+machine build(builder: @mutable Build) suspends {
     Build::application(builder, "dual_alias");
-    let mut host: DependencyDescription = dependency\from_source(Source::Path { location: "tools" });
-    dependency\with_alias(@mut host, "kit");
+    let mutable host: DependencyDescription = dependency\from_source(Source::Path { location: "tools" });
+    dependency\with_alias(@mutable host, "kit");
     let h: DependencyRegistration = Build::build_dependency(builder, host);
-    let mut deployed: DependencyDescription = dependency\from_source(Source::Path { location: "runtime" });
-    dependency\with_alias(@mut deployed, "kit");
+    let mutable deployed: DependencyDescription = dependency\from_source(Source::Path { location: "runtime" });
+    dependency\with_alias(@mutable deployed, "kit");
     let p: DependencyRegistration = Build::dependency(builder, deployed);
     suspend Build::prepare_dependency(builder, h);
     let seven: i32 = kit\choose();
@@ -98,12 +98,12 @@ machine build(builder: @mut Build) suspends {
         true -> bind_entry(builder),
         _ -> wrong(builder)
     }
-    machine bind_entry(builder: @mut Build) {
+    machine bind_entry(builder: @mutable Build) {
         Build::bind(builder, HOST\ProgramEntry, entry(builder, "HOST::ProgramEntry"));
     }
-    machine wrong(builder: @mut Build) { Build::application(builder, "wrong"); }
+    machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
 }
-machine entry(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
+machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
     BuildProduct::entry(@builder.product, "kit::launch", slot)
 }
 "#.replace("HOST", host.target_name());
@@ -150,7 +150,7 @@ fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
     let root = project.path();
     let kit = root.join("vendor");
     std::fs::create_dir(&kit).unwrap();
-    let generated = r#"public machine select(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
+    let generated = r#"public machine select(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
     BuildProduct::entry(@builder.product, "launch", slot)
 }
 "#;
@@ -172,13 +172,13 @@ fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
     )
     .unwrap();
     let build = r#"use kit;
-machine build(builder: @mut Build) suspends {
+machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_query");
-    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mut request, "kit");
+    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+    dependency\with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
-    let mut product_request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mut product_request, "kit");
+    let mutable product_request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+    dependency\with_alias(@mutable product_request, "kit");
     let for_product: DependencyRegistration = Build::dependency(builder, product_request);
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST\ProgramEntry, kit\select(builder, "HOST::ProgramEntry"));

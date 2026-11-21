@@ -11,10 +11,10 @@ public machine element(problem: @Problem, row: i32, column: i32) -> Complex {
     transition position >= 0 && position < 1024 { true -> read(problem, position as i32), false -> (Complex { real: 0.0, imaginary: 0.0 }) }
     machine read(problem: @Problem, position: i32) -> Complex requires position >= 0 && position < 1024 { problem.matrix[position] }
 }
-public machine store(problem: @mut Problem, row: i32, column: i32, value: Complex) {
+public machine store(problem: @mutable Problem, row: i32, column: i32, value: Complex) {
     let position: i32 in Wrapping = (row as +Wrapping) * 32 + (column as +Wrapping);
     transition position >= 0 && position < 1024 { true -> write(problem, position as i32, value), false -> done() }
-    machine write(problem: @mut Problem, position: i32, value: Complex) requires position >= 0 && position < 1024 { problem.matrix[position] = value; }
+    machine write(problem: @mutable Problem, position: i32, value: Complex) requires position >= 0 && position < 1024 { problem.matrix[position] = value; }
     machine done() {}
 }
 public machine hamiltonian(problem: @Problem, row: i32, column: i32) -> f64

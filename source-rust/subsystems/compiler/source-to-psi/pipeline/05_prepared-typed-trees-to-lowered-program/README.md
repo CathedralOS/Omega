@@ -144,9 +144,9 @@ See [effects](../../../../../wiki/spec/language/effects.md).
 
 A trait requirement with binders of its own that a trait schema cannot state
 is checked once in its own generic check form. These are its own lifetime
-parameters, as in `open<'scope>(attributes: &WindowsNativeObjectAttributes<'scope>)`,
+parameters, as in `open<'scope>(attributes: @WindowsNativeObjectAttributes<'scope>)`,
 and an array formal sized by its own `const` binder, as in
-`send_string<const Count: u64>(text: &[u8; Count])`. That form reads the
+`send_string<const Count: u64>(text: @[u8; Count])`. That form reads the
 requirement as a bodyless machine whose `const` binders are inputs, so
 `[u8; Count]` has a symbolic extent owned by that machine, and judges its
 contract for every argument and region. A program that reads the trait
@@ -467,7 +467,7 @@ Refused by name:
 | Saturating left shift as a contract term | `contract selected arithmetic operator has no canonical contract term` |
 | a cast that changes the carrier of an integer that already carries a policy ("Rejected: each of these changes the carrier of a qualified value") | `expression cast that changes the carrier of a policy-qualified integer` |
 | a literal or other plain value where a policy-qualified one is declared: `let x: u32 in Wrapping = 5;`, an argument, a field initializer, a result ("An expected type selects the carrier in which an anonymous literal lands. It never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local`, `typing argument types`, `typing record literal field type`, `typing arm value type`, `typing final value type`, `typing assigned value type` |
-| a policy-qualified local declared without an initializer, `&T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
+| a policy-qualified local declared without an initializer, `@T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
 
 ### Mathematical integers in a clause
 
@@ -651,11 +651,11 @@ serves:
 - the record literal `R { a: x, b: y }`, the field read `r.a` and `r.a.b`,
   and copying a record value (`let b = a;`, passing it by value, returning
   it, moving it into a field of a literal);
-- a store into a field of a `mut` local, `r.a = x` and `r.a.b = x`, and the
+- a store into a field of a `mutable` local, `r.a = x` and `r.a.b = x`, and the
   replacement of a record field by a record, `l.from = p`;
-- whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
-- a local declared without an initializer: `let mut r: R;` holds the zero
-  value of `R`, and `let mut x: u32;` holds zero;
+- whole assignment to a `mutable` local, `r = R { ... }` and `r = other;`;
+- a local declared without an initializer: `let mutable r: R;` holds the zero
+  value of `R`, and `let mutable x: u32;` holds zero;
 - the record pattern `let { a, b as c, d as _ } = r;` over a place: each
   bound field is the ordinary local that follows the pattern's marker, a
   field read of the subject, and the marker itself lowers to nothing. The
@@ -725,14 +725,14 @@ occurrence of the type (as stage 03 does for the type of a literal nested in
 another literal), or else the declaration being read, meaning the data
 declaration the member belongs to or the machine whose signature or body it
 is in. A tag that owner has no
-binder for, in a data application or on a reference such as `&'a [u8]`, is
+binder for, in a data application or on a reference such as `@'a [u8]`, is
 the program's error and is rejected, not refused as an unserved type
 (`read/places.rs`, `reference_lifetime_declared`).
 
 A machine that declares lifetime parameters is one machine, read once
 ("Lifetime arguments are erased regions, separate from runtime generic arity,
 layout and monomorphization"). A byte view written with one of them,
-`&'a [u8]`, has a type that names that region, so the body may return or
+`@'a [u8]`, has a type that names that region, so the body may return or
 store it only where the same region is written. A call stands a region of
 the caller in for each lifetime the callee's signature names or leaves out:
 the region of the view passed (`read/calls.rs`). Views of two
@@ -746,12 +746,12 @@ a machine's lifetime into data applied at it, since data applied at lifetimes
 is still the declaration's one record whose stored views name the data's own
 binders.
 
-A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
+A `mutable` formal that holds its own value (`mutable x: u32`, `mutable p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
-`mut` local is ([ownership](../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
+`mutable` local is ([ownership](../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
 "the recipient may bind its own value mutably"). Nothing a caller sees
 changes: the signature, the contract and the argument are those of the same
-formal without `mut`.
+formal without `mutable`.
 
 - A scalar is assigned by rebinding its slot to the assigned value. The
   formal's entry value keeps its identity, so an entry `requires` stays a
@@ -763,8 +763,8 @@ formal without `mut`.
   which holds the copy the call passed; the store logs the new content on
   that exact field, and its siblings keep what they held at entry. A whole
   assignment rebinds the slot to a fresh root.
-- `&mut x` and `&mut p.a` lend the formal as owned storage
-  (`Lender::Owner`), as they lend a `mut` local.
+- `@mutable x` and `@mutable p.a` lend the formal as owned storage
+  (`Lender::Owner`), as they lend a `mutable` local.
 
 An assignment to an immutable owned formal or local rejects at the written
 target, including a field or element of that binding. Writes through an
@@ -774,18 +774,18 @@ Refused by name:
 
 | Construct | Refusal detail |
 | --- | --- |
-| an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
-| a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
-| a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
+| an `ensures` clause or a crash route guard that names a `mutable` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
+| a `mutable` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
+| a `mutable` formal marked `[erased]` | `parameter mutable erased parameter` |
 
-A `mut` formal of plain data without `[copy]` is refused as that data is
+A `mutable` formal of plain data without `[copy]` is refused as that data is
 anywhere (`type data with custody`). A formal passed by reference is
 [References](#references).
 
 ### References
 
-The first slice of the references and loans lane: a formal passed by `&T`
-or `&mut T`, for a builtin scalar or plain record `T`, and the loans a direct
+The first slice of the references and loans lane: a formal passed by `@T`
+or `@mutable T`, for a builtin scalar or plain record `T`, and the loans a direct
 call forms for it.
 
 - **A borrowed formal** is read as its referent type with the reference
@@ -798,13 +798,13 @@ call forms for it.
   referent is a place of its primitive type, read with
   `PrimitiveScalarRead` and stored with `WriteOnlyPrimitiveStore`, as a
   home is; a record referent is read and stored by field, as a record
-  formal is. Only `&mut` lets the body store into it. The formals that are
+  formal is. Only `@mutable` lets the body store into it. The formals that are
   places, record formals and borrowed formals in position order, are the
   machine's first places, so a clause names the `k`-th of them as place
   `k + 1`. An entry `requires` may name a borrowed scalar formal (`x < 10`)
   or a field of a borrowed record (`cell.value > 0`): what the storage holds
   at entry.
-- **A loan** is the argument for a borrowed formal: `&place` or `&mut
+- **A loan** is the argument for a borrowed formal: `@place` or `@mutable
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
   whole, which reborrows its referent (`set(value)`). The call passes the
@@ -838,12 +838,12 @@ refuses, by name, what the slice does not serve:
 
 | Construct | Refusal detail |
 | --- | --- |
-| `&write T`, a reference with a named lifetime, an `[erased]` reference, `mut` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
+| `@write T`, a reference with a named lifetime, an `[erased]` reference, `mutable` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
 | a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
 | a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
 | an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
-| `&mut` of a binding that is not `mut` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
-| another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
+| `@mutable` of a binding that is not `mutable` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
+| another argument of the same call that names a lent slot (`f(@mutable a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
 | `let r = reference;` without a declared type | `statement local bound to a reference without a declared type` |
 | whole assignment to a slice formal | `statement whole assignment through a reference` |
@@ -1262,8 +1262,8 @@ root a local names ("A whole, unqualified, claim-free owned record home
 (entry, block parameter, or completed establishment/call result) supplies
 write authority directly").
 
-**Locals with no initializer.** `let mut r: R;` emits
-`EstablishZeroedStructural` and `let mut x: u32;` a zero constant and
+**Locals with no initializer.** `let mutable r: R;` emits
+`EstablishZeroedStructural` and `let mutable x: u32;` a zero constant and
 `EstablishPrimitiveLocal`, which the interpreter runs.
 
 A data local is zero-established. Its declaration logs one row for the
@@ -1281,7 +1281,7 @@ established value or the type is gated
 ([terminal-psi-to-terminal-psi](../06_lowered-program-to-checked-program/README.md#zero-establishment)).
 
 A scalar local is zero-constructed by the same rule
-(`local-without-initializer`): `let mut x: u32; f(x)` reads zero.
+(`local-without-initializer`): `let mutable x: u32; f(x)` reads zero.
 Lowering logs `Content::Value(zero)` on the scalar
 home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
 before it

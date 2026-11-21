@@ -1,9 +1,9 @@
 // `kit` is a Build scope edge only: no Product scope row exists for it, so
 // product source must not resolve the alias.
 
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_build_edge_in_product_scope");
-    let mut kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_a" });
-    dependency\with_alias(@mut kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_a" });
+    dependency\with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
 }

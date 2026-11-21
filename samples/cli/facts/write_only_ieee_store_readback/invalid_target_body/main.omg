@@ -1,4 +1,4 @@
-// Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
+// Fact: an IEEE f64 computed and stored through a write-only borrow (@write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
 // Invalid: the store observes the write-only referent. Place: another target body.
 // Expected diagnostic: reads write-only parameter
 
@@ -48,7 +48,7 @@ ArmExpected satisfies SelectedExpected {
 }
 
 machine main() crashes Trap {
-    let mut slot: f64;
+    let mutable slot: f64;
     store(@write slot);
     let v: f64 = slot;
     transition v == SelectedExpected::expected() { true -> done(), _ -> bad() }

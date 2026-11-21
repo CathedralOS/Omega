@@ -7,8 +7,8 @@
 
 public DarwinArm64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
-        let accepted: bool = darwin_arm64_scalar_signature(@signature, @mut plan);
+        let mutable plan: BoundaryEntryPlan = darwin_arm64_entry();
+        let accepted: bool = darwin_arm64_scalar_signature(@signature, @mutable plan);
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
@@ -19,41 +19,41 @@ public DarwinArm64ScalarCalling satisfies CallingPolicy {
 }
 
 machine darwin_arm64_scalar_signature(signature: @BoundarySignature,
-    plan: @mut BoundaryEntryPlan) -> bool {
+    plan: @mutable BoundaryEntryPlan) -> bool {
     transition signature.parameter_count == signature.native_parameter_count
         && signature.parameter_count <= 32 && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
         true -> result(signature, plan),
         _ -> false
     }
-    machine result(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
+    machine result(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool {
         plan.call.parameter_count = signature.parameter_count;
         transition signature.has_result {
             true -> result_index(signature, plan),
             _ -> darwin_arm64_scalar_parameters(signature, plan, 0, 0, 32)
         }
     }
-    machine result_index(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
+    machine result_index(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
             true -> result_shape(signature, plan, @signature.shapes[signature.result]),
             _ -> false
         }
     }
-    machine result_shape(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+    machine result_shape(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition shape.class {
             ValueClass::Integer -> result_integer(signature, plan, shape),
             _ -> false
         }
     }
-    machine result_integer(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+    machine result_integer(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
             true -> result_place(signature, plan, shape),
             _ -> false
         }
     }
-    machine result_place(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+    machine result_place(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         plan.call.has_result = true;
         plan.call.result.shape = AbiValueShape {
@@ -73,7 +73,7 @@ machine darwin_arm64_integer_shape(shape: @ValueShape) -> bool {
 }
 
 machine darwin_arm64_scalar_parameters(signature: @BoundarySignature,
-    plan: @mut BoundaryEntryPlan, ordinal: u64, stack: u64, remaining: u64) -> bool
+    plan: @mutable BoundaryEntryPlan, ordinal: u64, stack: u64, remaining: u64) -> bool
 requires stack <= 256
 terminates by remaining
 {
@@ -89,7 +89,7 @@ terminates by remaining
 // 257 is a rejected-shape sentinel; accepted stack extents stay bounded by
 // 32 * 8 bytes. No rejected partial plan escapes the policy's result.
 machine darwin_arm64_scalar_parameter(signature: @BoundarySignature,
-    plan: @mut BoundaryEntryPlan, ordinal: u64, stack: u64) -> u64
+    plan: @mutable BoundaryEntryPlan, ordinal: u64, stack: u64) -> u64
 requires stack <= 256
 {
     transition {
@@ -98,7 +98,7 @@ requires stack <= 256
             root(signature, plan, ordinal, stack, signature.parameters[ordinal]),
         _ -> 257
     }
-    machine root(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+    machine root(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan,
         ordinal: u64, stack: u64, root: u64) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -107,7 +107,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine shape(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine shape(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -117,7 +117,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine integer(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine integer(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -126,7 +126,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine reference(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine reference(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -135,7 +135,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine place(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine place(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -148,7 +148,7 @@ requires stack <= 256
             _ -> stack_shape(plan, ordinal, stack, shape)
         }
     }
-    machine register_shape(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine register_shape(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 8
     {
@@ -157,7 +157,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine register(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine register(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, size: u64) -> u64
     requires ordinal < 8
     {
@@ -166,7 +166,7 @@ requires stack <= 256
         };
         stack
     }
-    machine stack_shape(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine stack_shape(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, shape: @ValueShape) -> u64
     requires ordinal < 32, stack <= 256
     {
@@ -175,7 +175,7 @@ requires stack <= 256
             _ -> 257
         }
     }
-    machine stack_place(plan: @mut BoundaryEntryPlan, ordinal: u64,
+    machine stack_place(plan: @mutable BoundaryEntryPlan, ordinal: u64,
         stack: u64, size: u64, alignment: u64) -> u64
     requires ordinal < 32, stack <= 256, alignment > 0 && alignment <= 8, size <= 8
     {
@@ -191,7 +191,7 @@ requires stack <= 256
 // policy. Each policy fills only its own parameter and result placements.
 public machine darwin_arm64_entry() -> BoundaryEntryPlan
 {
-    let mut plan: BoundaryEntryPlan;
+    let mutable plan: BoundaryEntryPlan;
     plan.call.convention = CallingConvention::DarwinAapcs64;
     plan.call.stack_alignment = 16;
     plan.call.entry_control = EntryControl::CallReturn;

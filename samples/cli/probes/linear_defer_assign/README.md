@@ -2,7 +2,7 @@
 
 Compile-scope probe. No standard-library dependency.
 
-- linear_defer_assign: `let mut receipt: Receipt;` deferred
+- linear_defer_assign: `let mutable receipt: Receipt;` deferred
   establishment — bare decl owns zeroed storage, assignment
   creates the obligation; `ReceiptAck::ack` is the
   only authorized disposition.
@@ -25,7 +25,7 @@ mbx run -p omega -- packages update --project samples/cli/probes/linear_defer_as
 
 ## Native realization
 
-Measured on macOS arm64 on 2026-10-13. Before that refusal, `let mut receipt:
+Measured on macOS arm64 on 2026-10-13. Before that refusal, `let mutable receipt:
 Receipt;` itself fails Terminal validation ("zeroed structural establishment
 has an invalid result shape"): the local is established as zeroed storage with
 linear multiplicity, which spec/language/ownership.md rules out ("Implicit

@@ -17,7 +17,7 @@ fn assert_psi_runs(name: &str, source: &str) {
     let project = stage_project(
         name,
         source,
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
     Build::application(builder, "structural_domain_issuer");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind(builder, linux_arm64\ProgramEntry, main);
@@ -62,7 +62,7 @@ machine main() reaches ProcessExit + Console {
 "#,
         &format!(
             r#"
-machine build(builder: @mut Build) {{
+machine build(builder: @mutable Build) {{
     Build::application(builder, "console_descriptor_eof");
     let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, macos_arm64\ProgramEntry, main);

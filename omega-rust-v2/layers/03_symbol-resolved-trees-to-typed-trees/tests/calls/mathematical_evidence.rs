@@ -167,7 +167,7 @@ fn specializing_a_logical_parameter_preserves_its_authority_restriction() {
     let shared = program("@");
     let stage = check(&[("proof.omg", &shared)]).unwrap();
     assert!(stage.obligations.iter().any(|o| matches!(o.kind, omega_typer::ObligationKind::SupplyHypothesis { .. })));
-    for access in ["@mut ", "@write "] {
+    for access in ["@mutable ", "@write "] {
         let source = program(access);
         let error = check(&[("proof.omg", &source)]).unwrap_err();
         assert_eq!(error.file, "proof.omg");

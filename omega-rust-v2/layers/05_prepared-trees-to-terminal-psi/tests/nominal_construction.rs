@@ -131,7 +131,7 @@ fn a_record_constructor_owes_the_result_schemas_predicate_on_its_actual_operand(
 
 #[test]
 fn copy_record_is_writable_only_when_bound_mutably_and_needs_no_discard() {
-    let src = "data Point [copy] {x:u8;} machine make(){let mut p=(Point{x:1});p.x=2;}";
+    let src = "data Point [copy] {x:u8;} machine make(){let mutable p=(Point{x:1});p.x=2;}";
     let pkg = sources::lower(&[("point.omg", src)]).unwrap();
     let body = &pkg.machines[0].body;
     let [one, construct, two, store] = body.operations.as_slice() else {
@@ -155,7 +155,7 @@ fn a_linear_local_live_at_return_publishes_its_discard_on_the_return_edge() {
     // The affine and linear twins differ only in the declared multiplicity.
     // Lowering publishes the same discard on both returns; the checker must
     // refuse it for the linear local, whose exit has no authorized disposition.
-    let affine = "data Point {x:u8;} machine make(){let mut p=(Point{x:1});p.x=2;}";
+    let affine = "data Point {x:u8;} machine make(){let mutable p=(Point{x:1});p.x=2;}";
     let linear = affine.replace("Point {", "Point [linear] {");
     for (text, multiplicity) in [
         (affine, omega_lowering::Multiplicity::Affine),
@@ -178,7 +178,7 @@ fn a_linear_local_live_at_return_publishes_its_discard_on_the_return_edge() {
         // The implicit return belongs to the body, not to p's last use.
         assert_eq!(
             body.diagnostics.edges[id.get() - 1].span.slice(text.as_bytes()),
-            Some(b"{let mut p=(Point{x:1});p.x=2;}".as_slice())
+            Some(b"{let mutable p=(Point{x:1});p.x=2;}".as_slice())
         );
         let Some(omega_lowering::TypeShape::Nominal(point)) = pkg.types.get(body.places[home.index()].ty) else {
             panic!("nominal local expected")

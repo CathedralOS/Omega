@@ -1,4 +1,4 @@
-// Fact: a write-only borrow (&write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
+// Fact: a write-only borrow (@write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
 // Place: field. The initialized slot value is stored in and read from a record field before exact subtraction.
 // Expected diagnostic: exact subtraction underflow
 
@@ -19,7 +19,7 @@ data Carrier {
 }
 
 machine probe() -> u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 99u64 };
     initialize_slot(@write slot);
     let carrier: Carrier = Carrier { item: slot.value };
     carrier.item - 100u64

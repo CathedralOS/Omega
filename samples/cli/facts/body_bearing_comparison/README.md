@@ -41,7 +41,7 @@ than repairing one constructor spelling:
 | stronger source | [stronger_fields](stronger_fields/main.omg), [twin](stronger_fields/invalid/main.omg) | sources retain the complete Marked & Extra set while fields require Marked; later calls consume both original memberships |
 
 The [alias control](ordered_field_calls/invalid_alias/main.omg) reads the field
-after it is overwritten through `&mut`; its old false result must not justify
+after it is overwritten through `@mutable`; its old false result must not justify
 `hold`. It is pinned as `body_bearing_comparison_overwritten_field_result_rejected`.
 Each other production has matching pass/fail facts fixtures. Every positive
 facts fixture also declares `expected_terminal_inspections.txt` with `main`,

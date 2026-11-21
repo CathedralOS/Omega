@@ -42,7 +42,7 @@ fn carrying_a_value_does_not_grant_access_to_its_fields() {
     type_carried_point("machine run() { let p = dep\\point(); let q = p; }", false).unwrap();
     for (source, selection) in [
         ("machine run() -> u8 { let p = dep\\point(); p.x }", "p.x"),
-        ("machine run() { let mut p = dep\\point(); p.x = 1; }", "p.x"),
+        ("machine run() { let mutable p = dep\\point(); p.x = 1; }", "p.x"),
         ("machine run() -> u8 { let p = dep\\point(); let (value, _) = p; value }", "value"),
         ("machine run() -> u8 { let p = dep\\point(); let (value, ..) = p; value }", "value"),
     ] {

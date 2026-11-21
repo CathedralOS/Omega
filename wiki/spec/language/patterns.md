@@ -126,7 +126,7 @@ facts, loans and invariants apply to it without a special route.
   the call; a helper that needs one states it as its own requirement, and the
   caller proves it.
 - **Lending the field keeps the holder's obligations.** Through
-  `@mut command.op` a helper may mutate the active payload or replace the
+  `@mutable command.op` a helper may mutate the active payload or replace the
   case. The lender owes the complete record's predicates again at handback
   under [contract-based repair](dependent_values.md#contract-based-repair).
 - **Ownership is ordinary.** Borrowed decomposition retains the subject's

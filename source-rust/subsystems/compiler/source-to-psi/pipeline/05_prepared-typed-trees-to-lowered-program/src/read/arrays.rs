@@ -166,7 +166,7 @@ impl Program<'_> {
     }
 
     /// Borrow a range of a closed array using the backing's shape. A `u8`
-    /// destination forms a byte descriptor; an `&[T]` destination forms the
+    /// destination forms a byte descriptor; an `@[T]` destination forms the
     /// typed element view of the same backing. Both are the one
     /// `CollectionView` formation, which Terminal Psi establishes as a
     /// `WholeCollection` element view whose length is the array's exact
@@ -188,7 +188,7 @@ impl Program<'_> {
             |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
         // expressions.md, "Borrowed range access": "a bare range
         // `items[start..end]` forms a shared view when received as a
-        // reference". So a bare range lends exactly what `&items[start..end]`
+        // reference". So a bare range lends exactly what `@items[start..end]`
         // lends. Read the actual backing once below: a fixed array forms a
         // descriptor, while a byte view keeps its checked subslice operation.
         let (target, written_access) = match self.typed.expression_table.borrow_expression(argument)
@@ -654,7 +654,7 @@ impl Program<'_> {
             }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
-        // A range of a shared typed view (`&[T]`) is the same window as a
+        // A range of a shared typed view (`@[T]`) is the same window as a
         // byte range: it keeps the view's backing region, and lowering checks
         // `start <= end <= len` against the view's own length. A mutable view
         // would need its exclusive loan kept live through the window, which

@@ -3,7 +3,7 @@
 
 data Reading<'bytes> { bytes: @'bytes [u8]; }
 
-machine store(bytes: @mut [u8])
+machine store(bytes: @mutable [u8])
 requires bytes.length > 0u64
 {
     bytes[0u64] = 7u8;
@@ -16,8 +16,8 @@ requires reading.bytes.length == 2u64
 }
 
 machine entry() -> bool {
-    let mut bytes: [u8; 2] = [19u8, 23u8];
-    store(@mut bytes[..]);
+    let mutable bytes: [u8; 2] = [19u8, 23u8];
+    store(@mutable bytes[..]);
     let reading: Reading = Reading { bytes: @bytes[..] };
     observed(@reading)
 }

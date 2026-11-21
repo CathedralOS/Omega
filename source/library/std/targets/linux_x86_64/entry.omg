@@ -78,7 +78,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine build_physical() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 1;
         // The kernel arrival supplies the initial process-stack image base
         // in rsp; it is an input observation, not a writable argument object.
@@ -123,7 +123,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine build_semantic() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four System V integer registers.
@@ -137,7 +137,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     machine finish(output: BoundaryEntryPlan, supervisor: bool)
         -> BoundaryPlanResult
     {
-        let mut plan: BoundaryEntryPlan = output;
+        let mutable plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.stack_alignment = 16;
         transition supervisor {
@@ -147,7 +147,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine finish_supervisor(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // The kernel supplies no return continuation; the physical contract
         // completes through exit_group (rax = 231) with status in edi.
         output.call.entry_control = EntryControl::SupervisorCall {
@@ -158,13 +158,13 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine finish_call(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         output.call.entry_control = EntryControl::CallReturn;
         transition { _ -> seal(output) }
     }
 
     machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // System V AMD64 caller-saved banks; the bridge may also observe the
         // incoming stack pointer before switching to its private stack.
         output.call.ordinary_clobbers.register_count = 25;

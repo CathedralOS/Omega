@@ -17,7 +17,7 @@ the unselected machine named `main` traps.
 The nearest row, [foreign_scalar_record_result](../foreign_scalar_record_result),
 returns owned scalar payloads. This row returns an alias of existing mutable
 storage, so copying payload bits cannot satisfy it. Its reject twin removes only
-`mut` from the boundary input and rejects because that input cannot supply the
+`mutable` from the boundary input and rejects because that input cannot supply the
 returned reference's access. [build_activation_borrow](../build_activation_borrow)
 transports checked guest-call loans; this row crosses an opaque native host call
 and must correlate the actual returned address with an admitted captured endpoint.

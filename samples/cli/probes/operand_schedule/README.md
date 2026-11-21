@@ -1,7 +1,7 @@
 # operand_schedule
 
 Transition subjects and edge operands are scheduled
-expressions: `false && clear(&mut flag)` skips the
+expressions: `false && clear(@mutable flag)` skips the
 side effect, `flag && demand(flag)` discharges the
 callee's `requires` from the same evaluation, and edge
 arguments observe pre-transfer state. Machines whose

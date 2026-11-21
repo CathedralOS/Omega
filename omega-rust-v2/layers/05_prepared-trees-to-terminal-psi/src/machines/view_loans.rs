@@ -1,6 +1,6 @@
 //! Whole-element extraction and restoration through an exclusive element view.
 //!
-//! An `@mut [T]` machine parameter owns none of its elements and has no static
+//! An `@mutable [T]` machine parameter owns none of its elements and has no static
 //! extent, so the restoration window stays rooted at the view. Each authored
 //! occurrence evaluates its selector once, observes that same view's element
 //! count, and names the element as `Referent` followed by a `ViewElement` owed
@@ -244,7 +244,7 @@ fn congruent(
     }
 }
 
-/// The receiver, selector and view carrier of an index through `@mut [T]`,
+/// The receiver, selector and view carrier of an index through `@mutable [T]`,
 /// for a nominal or a scalar element.
 fn receiver(
     expressions: &Expressions<'_>,
@@ -337,7 +337,7 @@ pub(super) fn store_element(
     super::loans::store_borrowed(expressions, destination, rhs, &element, body, flow, site, before_return)
 }
 
-/// `view[i] = value` through `@mut [T]` with a scalar `T`: replace one
+/// `view[i] = value` through `@mutable [T]` with a scalar `T`: replace one
 /// element in place (`wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views`).
 /// A scalar element needs no restoration window; the write displaces nothing
 /// with custody. Evaluate the selector, then the value, then observe the same
@@ -400,7 +400,7 @@ fn store_scalar_element(
 }
 
 /// The exact typed selection of one element through a machine-parameter
-/// `@mut [T]`: the exclusive core element primitive, its bound, the view's
+/// `@mutable [T]`: the exclusive core element primitive, its bound, the view's
 /// exclusive loan and, for a move, the restoration debt. Returns the selector
 /// node and the view's own descriptor.
 fn selected_view(

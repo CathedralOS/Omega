@@ -64,7 +64,7 @@ Run each positive with `omega run --both <place>/main.omg` and each twin with
 
 ## Requirements
 
-- Establishment: the loan is formed by `&cell` (or `&cells[SELECTED]`, or an
+- Establishment: the loan is formed by `@cell` (or `@cells[SELECTED]`, or an
   incoming parameter) before the crossing; the copy into `Message` only
   transports it.
 - Identity and lifetime: the record's descriptor names its exact supplying

@@ -18,7 +18,7 @@ machine verify(storage: @Storage) crashes Trap {
 const SELECTED: u64 = 1;
 const OTHER: u64 = 0;
 machine main() crashes Trap {
-    let mut storage: Storage;
+    let mutable storage: Storage;
     storage.cells[0].padding = 11;
     storage.cells[0].value = 85;
     storage.cells[1].padding = 23;

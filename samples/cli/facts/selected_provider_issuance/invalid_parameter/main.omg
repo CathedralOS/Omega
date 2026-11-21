@@ -93,12 +93,12 @@ machine exercise(buffer: Buffer in Buffer::Owned) reaches Writer + NativeBytes c
     machine failed() reaches none crashes Trap { crash Trap; }
 }
 data Main {}
-machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
+machine Main::main(context: @mutable Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     exercise(InitialSupplyProvider::acquire());
 }
 
 // The hosted entry owns its ordinary application storage.
 machine entry_start() reaches InitialSupply + Writer + NativeBytes crashes Trap {
-    let mut application: Main = Main {};
-    Main::main(@mut application);
+    let mutable application: Main = Main {};
+    Main::main(@mutable application);
 }

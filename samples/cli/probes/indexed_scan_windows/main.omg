@@ -3,9 +3,9 @@
 // Returned windows retain the old backing; neighboring slots remain untouched.
 
 data Cell [copy] { value: u32; tag: u64; }
-data Window<'input> { values: @'input mut [Cell]; }
+data Window<'input> { values: @'input mutable [Cell]; }
 
-machine replace<'carrier, 'input>(windows: @'carrier mut [Window<'input>], replacement: @'input mut [Cell], position: u64) -> Window<'input>
+machine replace<'carrier, 'input>(windows: @'carrier mutable [Window<'input>], replacement: @'input mutable [Cell], position: u64) -> Window<'input>
 requires position < windows.length {
     let previous: Window<'input> = windows[position];
     windows[position] = Window { values: replacement };
@@ -34,17 +34,17 @@ machine unchanged(values: @[Cell]) -> bool {
 }
 
 machine main() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 9223372036854775808 }, Cell { value: 19, tag: 29 }];
-    let mut second_replacement: [Cell; 1] = [Cell { value: 55, tag: 65 }];
-    let mut windows: [Window; 2] = [Window { values: @mut original[..] }, Window { values: @mut neighbor[..] }];
-    let retired: Window = replace(@mut windows[..], @mut replacement[..], 0);
+    let mutable original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mutable neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mutable replacement: [Cell; 2] = [Cell { value: 42, tag: 9223372036854775808 }, Cell { value: 19, tag: 29 }];
+    let mutable second_replacement: [Cell; 1] = [Cell { value: 55, tag: 65 }];
+    let mutable windows: [Window; 2] = [Window { values: @mutable original[..] }, Window { values: @mutable neighbor[..] }];
+    let retired: Window = replace(@mutable windows[..], @mutable replacement[..], 0);
     let retired_correct: bool = old_window(retired.values);
     mark(retired.values);
     let valid: bool = replaced(windows[0].values);
     let adjacent: bool = unchanged(windows[1].values);
-    let second_retired: Window = replace(@mut windows[..], @mut second_replacement[..], 1);
+    let second_retired: Window = replace(@mutable windows[..], @mutable second_replacement[..], 1);
     let second_retired_correct: bool = unchanged(second_retired.values);
     let first_retained: bool = replaced(windows[0].values);
     let second_installed: bool = second_window(windows[1].values);
@@ -58,12 +58,12 @@ machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 
-machine mark(values: @mut [Cell]) {
+machine mark(values: @mutable [Cell]) {
     transition values.length > 0 {
         true -> write(values),
         false -> done()
     }
-    machine write(values: @mut [Cell]) requires values.length > 0 {
+    machine write(values: @mutable [Cell]) requires values.length > 0 {
         values[0].value = 9;
     }
     machine done() {}

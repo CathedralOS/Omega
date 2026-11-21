@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let bytes: u64 = size_of::<Row>();
     let alignment: u64 = align_of::<Row>();
     let extent: u64 = bytes + alignment;
-    let mut geometry: Geometry = Geometry { bytes: bytes, alignment: alignment };
+    let mutable geometry: Geometry = Geometry { bytes: bytes, alignment: alignment };
     let saved: u64 = geometry.bytes;
     geometry.bytes = 0;
     let detached_extent: u64 = saved + alignment;

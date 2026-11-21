@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation"
+    "reads write-only parameter `selected`; `@write` permits replacement or exact `@write` forwarding, never observation"
   ]
 }

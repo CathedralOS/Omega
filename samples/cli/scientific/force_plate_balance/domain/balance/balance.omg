@@ -13,7 +13,7 @@ public data Balance {
     status: i32;
 }
 public machine reconcile(frame: @Frame) -> Balance {
-    let mut result: Balance;
+    let mutable result: Balance;
     let a: i64 in Wrapping = frame.values[0] as i64 +Wrapping;
     let b: i64 in Wrapping = frame.values[1] as i64 +Wrapping;
     let c: i64 in Wrapping = frame.values[2] as i64 +Wrapping;
@@ -33,7 +33,7 @@ public machine reconcile(frame: @Frame) -> Balance {
         _ -> invalid(result, 0)
     }
     machine invalid(result: Balance, status: i32) -> Balance {
-        let mut completed: Balance = result;
+        let mutable completed: Balance = result;
         completed.status = status;
         completed
     }

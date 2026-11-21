@@ -7,7 +7,7 @@
 //
 //   * `domain [u8]::Utf8(bytes) requires
 //     valid_utf8(bytes)`.
-//   * `view: &[u8] = main.buffer[0..1]` slice param.
+//   * `view: @[u8] = main.buffer[0..1]` slice param.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
@@ -21,7 +21,7 @@ data Main {
     result: u64;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.buffer[0] = 65;
     main.result = 0;
     let view: @[u8] = main.buffer[0..1];
@@ -29,7 +29,7 @@ machine Main::main(main: @mut Main) {
         true -> checked(main, view),
         false -> bad()
     }
-    machine checked(main: @mut Main, view: @[u8])
+    machine checked(main: @mutable Main, view: @[u8])
     requires
         valid_utf8(view)
     {
@@ -40,6 +40,6 @@ machine Main::main(main: @mut Main) {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

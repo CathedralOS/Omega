@@ -1,11 +1,11 @@
-// Write-only loans project through members: `&write
-// Pair` forwards into a state that re-lends `&write
+// Write-only loans project through members: `@write
+// Pair` forwards into a state that re-lends `@write
 // destination.left` — the attenuation composes member-
 // wise while the sibling field stays untouched.
 //
-//   * `forward(&write pair, choose_left, value)` —
+//   * `forward(@write pair, choose_left, value)` —
 //     one write-only record loan, two member routes.
-//   * `replace(&write destination.left, value)` —
+//   * `replace(@write destination.left, value)` —
 //     member projection carries the qualifier.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -32,7 +32,7 @@ machine forward(destination: @write Pair, choose_left: bool, value: i32) {
 
 data Main { pair: Pair; hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.pair.left = 7;
     main.pair.right = 19;
@@ -41,12 +41,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

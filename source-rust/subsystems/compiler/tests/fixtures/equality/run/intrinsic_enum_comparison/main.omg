@@ -15,7 +15,7 @@ machine == key_equal(left: Key, right: Key) -> bool { false }
 machine same(left: Signal, right: Signal) -> bool { left == right }
 machine different(left: Signal, right: Signal) -> bool { left != right }
 machine borrowed(left: @Signal, right: @Signal) -> bool { left == right }
-machine marked(context: @mut Context, next: Signal) -> Signal {
+machine marked(context: @mutable Context, next: Signal) -> Signal {
     context.calls = context.calls +% 1u32;
     context.signal = next;
     next
@@ -23,16 +23,16 @@ machine marked(context: @mut Context, next: Signal) -> Signal {
 machine main() crashes Trap {
     // Atomic observation supplies a runtime selector, so the comparison
     // callees cannot all disappear through constant folding.
-    let mut selector: AtomicBool;
+    let mutable selector: AtomicBool;
     selector.store(true, NoOrdering);
     let ready: Signal = match selector.load(NoOrdering) {
         true -> Signal::Ready,
         false -> Signal::Waiting
     };
     let waiting: Signal = Signal::Waiting;
-    let mut context: Context = Context { signal: ready, calls: 0u32 };
-    let snapshot: bool = context.signal == marked(@mut context, waiting);
-    let ordered: bool = marked(@mut context, ready) != marked(@mut context, Signal::Done);
+    let mutable context: Context = Context { signal: ready, calls: 0u32 };
+    let snapshot: bool = context.signal == marked(@mutable context, waiting);
+    let ordered: bool = marked(@mutable context, ready) != marked(@mutable context, Signal::Done);
     let computed: bool = (match true { true -> ready, false -> waiting }) == ready;
     let message: Message = Message::Number { value: 17 };
     let selected: bool = message == message;

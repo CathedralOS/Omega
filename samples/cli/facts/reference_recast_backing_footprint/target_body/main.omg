@@ -47,7 +47,7 @@ ArmObserve satisfies SelectedObserve {
 
 
 machine probe() -> bool {
-    let mut bytes: [u8; 4] = [11, 23, 37, 41];
+    let mutable bytes: [u8; 4] = [11, 23, 37, 41];
     let original: addr = address_of(@bytes[1]);
     let view: @Pair = @bytes[1] as @Pair;
     SelectedObserve::observe(view, original)

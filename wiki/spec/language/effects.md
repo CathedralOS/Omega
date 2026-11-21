@@ -51,8 +51,8 @@ does not cover its operations:
 ```omega
 boundary trait WallClock: ClockOps<NoState> {}     // now: reaches TimeObservation
 
-machine stamp_now(entry: @mut Entry) reaches WallClock {
-    entry.at = WallClock::now(@mut none);    // Rejected: contributes TimeObservation.
+machine stamp_now(entry: @mutable Entry) reaches WallClock {
+    entry.at = WallClock::now(@mutable none);    // Rejected: contributes TimeObservation.
 }
 ```
 
@@ -201,7 +201,7 @@ selection against an explicitly closed destination is ordinary
 [contract refinement](machines.md#substitution).
 
 ```omega
-data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data ClearCounter = machine(counter: @mutable Counter) reaches none crashes none terminates;
 data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 
 data CounterOps {
@@ -760,7 +760,7 @@ public boundary trait Registrar {
 }
 
 public boundary trait FilesystemService {
-    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
         blocks
         reaches FilesystemContentRead
         crashes none;                     // host calls are the provider's business

@@ -71,19 +71,19 @@ public data ImportTarget [copy] {
 }
 
 // Every `use` names a supplied module; the first that names none rejects.
-public machine check_imports(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine check_imports(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.use_count {
             true -> import(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine import(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine import(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let use_item: UseItem = syntax_trees_use_item(syntax, index);
         let target: ImportTarget = import_target(sources, syntax, use_item);
         let named: bool = names_some_unit(sources, syntax, use_item, target, 0);
@@ -93,7 +93,7 @@ crashes Trap
         }
     }
 
-    machine unresolved(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) {
+    machine unresolved(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) {
         let undeclared: bool = undeclared_dependency(sources, syntax, use_item, target);
         transition undeclared {
             true -> reject(resolver, ResolveDiagnosticCode::UndeclaredDependency, use_item),
@@ -101,8 +101,8 @@ crashes Trap
         }
     }
 
-    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, use_item: UseItem) {
-        name_resolution_reject(@mut resolver.output, code, use_item.source_span);
+    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, use_item: UseItem) {
+        name_resolution_reject(@mutable resolver.output, code, use_item.source_span);
     }
 
     machine done() {}

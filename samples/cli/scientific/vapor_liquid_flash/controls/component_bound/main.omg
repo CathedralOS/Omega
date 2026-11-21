@@ -2,6 +2,6 @@
 // Expected diagnostic: cannot prove index
 data Feed { fractions: [f64; 8]; }
 machine main() {
-    let mut feed: Feed;
+    let mutable feed: Feed;
     feed.fractions[8] = 1.0;
 }

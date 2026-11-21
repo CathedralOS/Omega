@@ -6,7 +6,7 @@ use omega\language\core\CountedQuantity;
 data Units {}
 data Payload {}
 data Region [linear] dropped by cleanup_region { amount: u64; }
-machine cleanup_region(region: @mut Region) {}
+machine cleanup_region(region: @mutable Region) {}
 domain Region::Owned;
 machine Owned::content(region: @Region) -> CountedQuantity<Units>
 satisfies Content<Region, CountedQuantity<Units>>::project {

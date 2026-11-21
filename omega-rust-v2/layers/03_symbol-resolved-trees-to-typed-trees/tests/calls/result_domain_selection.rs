@@ -221,7 +221,7 @@ fn generated_result_domain_selection_follows_each_call_destination() {
     let callers: &[(&str, &str, &[&str])] = &[
         ("return.omg", "machine direct(x:u8)->u8 in A{(pick(x))}", &["a.omg"]),
         ("local.omg", "machine local(x:u8)->u8 in A{let v:u8 in A=pick(x);v}", &["a.omg"]),
-        ("assign.omg", "machine assign(x:u8)->u8 in B{let mut v:u8 in B=x as +B;v=pick(x);v}", &["b.omg"]),
+        ("assign.omg", "machine assign(x:u8)->u8 in B{let mutable v:u8 in B=x as +B;v=pick(x);v}", &["b.omg"]),
         ("argument.omg", "machine argument(x:u8){take(pick(x))}", &["a.omg"]),
         ("fields.omg", "machine fields(x:u8)->Pair{Pair{b:pick(x),a:pick(x)}}", &["b.omg", "a.omg"]),
         (

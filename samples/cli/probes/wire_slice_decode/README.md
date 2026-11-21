@@ -1,7 +1,7 @@
 # wire_slice_decode
 
-First sample decoding a borrowed `&[u8]` wire member:
-`#0 bytes: &[u8]` synthesizes `Blob::encode`/`Blob::decode`;
+First sample decoding a borrowed `@[u8]` wire member:
+`#0 bytes: @[u8]` synthesizes `Blob::encode`/`Blob::decode`;
 decode stores a `{ptr, len}` descriptor viewing the decode
 buffer in place (zero-copy, no allocator) and reports
 through a `WireVerdict` sum whose `Invalid` case is ZII.

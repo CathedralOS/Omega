@@ -83,7 +83,7 @@ The row's requirement: the leaf field bound `40u64 <= outer.mid.inner.val <= 80u
   `OMEGA_CORPUS_JOBS=2` (9 checked, 9 rejected, 0 rejected without their
   expected fragment, 0 moved rows), so the recorded verdicts survive the
   compiler movement after the measurement. No compiler repair was needed.
-- **What remains open:** Dynamic nested array-within-record projections, variant tagged payloads across nested structures, and mutable field updates across nested paths. Routes where a level is a `&`/`&mut` view or a computed (runtime) field selection retain their own rows; a deeper or wider copy of this same mechanism adds no new compiler code path.
+- **What remains open:** Dynamic nested array-within-record projections, variant tagged payloads across nested structures, and mutable field updates across nested paths. Routes where a level is a `@`/`@mutable` view or a computed (runtime) field selection retain their own rows; a deeper or wider copy of this same mechanism adds no new compiler code path.
 
 ## Build-owned target-body migration
 

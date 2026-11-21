@@ -2,12 +2,12 @@
 // Expected exit: 0
 data Subject<'view> [copy] { items: @'view [u8]; }
 data Holder<'view> { value: Subject<'view>; }
-machine update<const N: u64>(value: @mut Subject, bytes: @[u8; N]) {
+machine update<const N: u64>(value: @mutable Subject, bytes: @[u8; N]) {
     region(value, @bytes[..], 0u64, N);
-    machine region(value: @mut Subject, bytes: @[u8], start: u64, end: u64) {
+    machine region(value: @mutable Subject, bytes: @[u8], start: u64, end: u64) {
         transition start <= end && end <= bytes.length { true -> establish(value, bytes, start, end), false -> done() }
     }
-    machine establish(value: @mut Subject, bytes: @[u8], start: u64, end: u64)
+    machine establish(value: @mutable Subject, bytes: @[u8], start: u64, end: u64)
     requires start <= end && end <= bytes.length
     { value.items = @bytes[start..end]; }
     machine done() {}
@@ -21,8 +21,8 @@ machine valid(value: @Subject) -> bool {
 machine measured() -> bool {
     let first: [u8; 2] = [11u8, 29u8];
     let second: [u8; 2] = [31u8, 47u8];
-    let mut subject: Subject = Subject { items: @first[..] };
-    update(@mut subject, @second);
+    let mutable subject: Subject = Subject { items: @first[..] };
+    update(@mutable subject, @second);
     valid(@subject) && first[0u64] == 11u8 && second[1u64] == 47u8
 }
 const OBSERVED: bool = measured();

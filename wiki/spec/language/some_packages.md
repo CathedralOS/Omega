@@ -13,13 +13,13 @@ type object.
 ## Declaration and construction
 
 ```omega
-data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64
+data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
     ensures result <= output.length
     reaches none
     crashes none;
 
 data Reader<'a, some S> {
-    state: @'a mut S;
+    state: @'a mutable S;
     read: ReadInto<S>;
 }
 ```
@@ -39,13 +39,13 @@ nested type declares.
 An ordinary record literal constructs the package:
 
 ```omega
-let reader: Reader = Reader { state: @mut file, read: read_file };
+let reader: Reader = Reader { state: @mutable file, read: read_file };
 ```
 
 Construction infers one concrete witness for each `some` binder from the field
 initializers and checks all related fields against that same choice, including
 callable contracts and the data invariant. Unresolved or inconsistent witnesses
-reject. A machine accepting `Socket` cannot accompany `@mut File`. Witnesses
+reject. A machine accepting `Socket` cannot accompany `@mutable File`. Witnesses
 remain checking evidence, not runtime source-level type values. A generic helper
 may construct a package using its ordinary static type argument as the witness,
 and an [opened abstract witness](#owned-state-through-uniform-carriers) may do
@@ -69,7 +69,7 @@ the same stable opening share that type. The rule is independent of expression
 spelling; it does not recognize a special `reader.read(reader.state)` idiom.
 
 ```omega
-machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
+machine read_one(reader: @mutable Reader, output: @mutable [u8]) -> u64
 ensures result <= output.length
 {
     (reader.read)(reader.state, output)
@@ -153,9 +153,9 @@ returns to its provider; an allocator family wraps it with its return handle
 where one is needed, and two owners of the same payload from different providers
 keep distinct return paths. Packing allocates nothing: it moves an established
 owner into the record. Stored operations take the owner, by reference or by
-value, rather than `@mut S`, so the consumer never specializes over the hidden
+value, rather than `@mutable S`, so the consumer never specializes over the hidden
 type. Opening pairs `state` with its operations as above, while
-`@mut package.state` remains an ordinary field borrow.
+`@mutable package.state` remains an ordinary field borrow.
 
 Each stored operation keeps its own
 [callable contract](machine_values.md#callable-types-and-construction), and

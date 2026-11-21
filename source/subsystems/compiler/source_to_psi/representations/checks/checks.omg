@@ -63,7 +63,7 @@ public data CheckDiagnosticCode [copy] {
     // (pipeline/typed_trees_to_checked_trees/recasts.omg).
     case RepresentationUnproven;
     // A read, a shared or exclusive borrow, or an inspection of a place
-    // reached through a `&write` reference
+    // reached through a `@write` reference
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
     case WriteOnlyObservation;
     // A `terminates by` witness's rank range the entry rank or a cyclic
@@ -138,17 +138,17 @@ public data SlotParameterQualification [copy] {
 }
 
 // A pass moves on to another machine.
-public machine open_machine(checks: @mut Checks) {
+public machine open_machine(checks: @mutable Checks) {
     checks.machine_accepted = true;
 }
 
-public machine checks_reject(checks: @mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+public machine checks_reject(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
     transition checks.machine_accepted {
         true -> first(checks, code, source_span),
         _ -> done()
     }
 
-    machine first(checks: @mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+    machine first(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
         checks.accepted = false;
         checks.machine_accepted = false;
         let index: u64 = checks.diagnostic_count;
@@ -158,7 +158,7 @@ public machine checks_reject(checks: @mut Checks, code: CheckDiagnosticCode, sou
         }
     }
 
-    machine recorded(checks: @mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
+    machine recorded(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
     requires index < 64
     {
         checks.diagnostics[index] = CheckDiagnostic { code: code, source_span: source_span };
@@ -205,7 +205,7 @@ crashes Trap
     }
 }
 
-public machine set_routes(checks: @mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
+public machine set_routes(checks: @mutable Checks, machine: u64 in Trapping, routes: CrashRoutes)
 crashes Trap
 {
     transition machine < checks.machine_count {
@@ -213,7 +213,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(checks: @mut Checks, machine: u64 in Trapping, routes: CrashRoutes) {
+    machine write(checks: @mutable Checks, machine: u64 in Trapping, routes: CrashRoutes) {
         checks.routes[machine] = routes;
     }
 
@@ -222,13 +222,13 @@ crashes Trap
     }
 }
 
-public machine clear_slot_records(checks: @mut Checks) {
+public machine clear_slot_records(checks: @mutable Checks) {
     checks.slot_origin_count = 0;
     checks.slot_qualification_count = 0;
 }
 
 public machine push_slot_origin(
-    checks: @mut Checks,
+    checks: @mutable Checks,
     kind: SlotOriginKind,
     parameter_index: u64 in Trapping
 ) -> bool
@@ -240,7 +240,7 @@ crashes Trap
         _ -> full()
     }
 
-    machine write(checks: @mut Checks, kind: SlotOriginKind, parameter_index: u64 in Trapping, index: u64) -> bool
+    machine write(checks: @mutable Checks, kind: SlotOriginKind, parameter_index: u64 in Trapping, index: u64) -> bool
     requires index < 64
     {
         checks.slot_origins[index] = SlotReturnedBorrowOrigin { kind: kind, parameter_index: parameter_index };
@@ -273,7 +273,7 @@ crashes Trap
 }
 
 public machine push_slot_qualification(
-    checks: @mut Checks,
+    checks: @mutable Checks,
     parameter_index: u64 in Trapping,
     domain_item: u64 in Trapping
 ) -> bool
@@ -286,7 +286,7 @@ crashes Trap
     }
 
     machine write(
-        checks: @mut Checks,
+        checks: @mutable Checks,
         parameter_index: u64 in Trapping,
         domain_item: u64 in Trapping,
         index: u64

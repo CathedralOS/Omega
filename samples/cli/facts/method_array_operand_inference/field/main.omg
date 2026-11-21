@@ -1,4 +1,4 @@
-// Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual &[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].
+// Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual @[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].
 // Expected exit: 0
 data Packet { before: u8; items: [u8; 3]; after: u8; }
 boundary trait Bytes {

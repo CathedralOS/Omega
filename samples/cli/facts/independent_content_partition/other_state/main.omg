@@ -20,7 +20,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 machine issue() -> Region in First & Second
 ensures result.base == 10, result.length == 48
 { Region { base: 10, length: 48 } }
-machine drop_region(region: @mut Region) {}
+machine drop_region(region: @mutable Region) {}
 data Parts { left: Region in First & Second; right: Region in First & Second; }
 machine partition(whole: Region in First & Second, requested: u64) -> Parts
 requires whole.base == 10 && whole.length == 48 && requested == 16

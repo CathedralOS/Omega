@@ -105,8 +105,8 @@ or closure of either parent task. Those requirements remain on the board.
 ## A nested machine passes a reference to a state
 
 `other_state/` hands a reference to a named target whose parameter is a loan.
-The two reference accesses share one route, and both must work: `&mut i64` and
-`&i64`. An owned value, a machine parameter, and a second local holding the
+The two reference accesses share one route, and both must work: `@mutable i64` and
+`@i64`. An owned value, a machine parameter, and a second local holding the
 reference follow different routes and were never affected.
 
 A plain local borrowed at the transition exposed a lowering refusal, not a
@@ -129,8 +129,8 @@ finds no producer for its root.
 ## Requirements and Evidence
 
 - **Parent outcome:** `MATCH-SELECTIVE-LOWERING` (`TASKS.md`).
-- **Requirement established:** End-to-end nine-place fact preservation, loan exclusivity, arrival handoff lowering, and native realization for moved exclusive references (`&mut i64`). Specifically:
-  1. **Establishment:** Forming an exclusive reference `&mut value` (or `&mut backing`, initialized to `17`) and moving that exclusive reference carrier into the receiving binding establishes exclusive write authority to the original backing. Writing `child = 41` (or writing through the receiving binding across each place) mutates the original backing to `41`, without requiring any post-hoc caller equality guard (`transition x == 100`) after the construct completes. Reading through the active loan (or inspecting the mutated backing after loan retirement) proves `observed == 41` directly from the static fact established by the store.
+- **Requirement established:** End-to-end nine-place fact preservation, loan exclusivity, arrival handoff lowering, and native realization for moved exclusive references (`@mutable i64`). Specifically:
+  1. **Establishment:** Forming an exclusive reference `@mutable value` (or `@mutable backing`, initialized to `17`) and moving that exclusive reference carrier into the receiving binding establishes exclusive write authority to the original backing. Writing `child = 41` (or writing through the receiving binding across each place) mutates the original backing to `41`, without requiring any post-hoc caller equality guard (`transition x == 100`) after the construct completes. Reading through the active loan (or inspecting the mutated backing after loan retirement) proves `observed == 41` directly from the static fact established by the store.
   2. **Identity and lifetime:** The moved exclusive reference names the exact backing storage version of `backing`. Across arrival handoff (and across `cleanup_receiver` variations: ordered markers, rebound source, projected siblings, and state jumps), the loan retains exact backing identity. The move invalidates read and write access through the moved-from source binding until the receiving loan expires; overlapping writes to unrelated storage do not invalidate the carried reference, but concurrent access to `backing` or `original` while the receiving loan is active is statically prohibited.
   3. **Composition:** The exclusive reference handoff composes uniformly across all nine standard places:
      - `local`: a second local binding receives the moved reference.

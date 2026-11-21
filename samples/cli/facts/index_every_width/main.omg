@@ -3,7 +3,7 @@
 //
 //   * `combine_fixed` takes one bounded parameter per width and
 //     folds `values[...]` reads with `^`.
-//   * `read_slice` indexes a `&[u64]` view by a signed bound +
+//   * `read_slice` indexes a `@[u64]` view by a signed bound +
 //     `requires position < values.length`.
 //   * `hits` records the reached arm.
 
@@ -43,7 +43,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) crashes Trap {
+machine Main::main(main: @mutable Main) crashes Trap {
     main.hits = 0;
     main.values = [1, 2, 4, 8];
     transition combine_fixed(main.values, 0, 1, 2, 3, 0, 1, 2, 2) == 12
@@ -51,13 +51,13 @@ machine Main::main(main: @mut Main) crashes Trap {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { crash Trap; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { crash Trap; }
 }
 
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

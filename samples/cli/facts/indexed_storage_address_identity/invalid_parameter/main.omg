@@ -1,7 +1,7 @@
 // For runtime u64 index < 2 into live [u64; 2], compatible references to items[index] expose the same nonzero addr and differ from the other live element address.
 // Invalid: the shared query overlaps a live exclusive loan.
-machine observe(items: @mut [u64; 2], index: u64) -> bool requires index < 2 {
-    let held: @mut u64 = @mut items[index];
+machine observe(items: @mutable [u64; 2], index: u64) -> bool requires index < 2 {
+    let held: @mutable u64 = @mutable items[index];
     let selected: addr = address_of(@items[index]);
     $held = 13;
     let again: addr = address_of(@items[index]);
@@ -13,8 +13,8 @@ machine observe(items: @mut [u64; 2], index: u64) -> bool requires index < 2 {
     }
 }
 machine probe(input: u64) -> bool requires input < 2 {
-    let mut items: [u64; 2] = [7, 11];
-    observe(@mut items, input)
+    let mutable items: [u64; 2] = [7, 11];
+    observe(@mutable items, input)
 }
 machine main() crashes Trap {
     let zero: bool = probe(0);

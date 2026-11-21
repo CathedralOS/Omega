@@ -3,7 +3,7 @@
 //! `StructuralByteViewFieldStore` replaces "the descriptor of one shared
 //! borrowed-view field", and "Zero-initialized storage holds the empty shared
 //! view, which borrows nothing". Read from source, as a Build program: the
-//! toolchain's `Build` stores `identifier: &'storage [u8]`.
+//! toolchain's `Build` stores `identifier: @'storage [u8]`.
 
 use super::build_purpose::judge_build;
 use super::*;
@@ -61,7 +61,7 @@ fn operations(accepted: &crate::checking::AcceptedClosure) -> Vec<&OperationKind
 
 const VIEW_ASSIGNMENT: &str = r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry<'shared>(session: @mut Session<'shared>, other: @Session<'shared>) {
+machine build_entry<'shared>(session: @mutable Session<'shared>, other: @Session<'shared>) {
     session.name = other.name;
     session.ready = true;
 }
@@ -108,7 +108,7 @@ fn a_view_of_an_unrelated_formal_is_not_stored() {
         refusal(
             r#"
 data Session<'storage> { ready: bool; name: @'storage [u8]; }
-machine build_entry(session: @mut Session, other: @Session) {
+machine build_entry(session: @mutable Session, other: @Session) {
     session.name = other.name;
 }
 "#
@@ -127,7 +127,7 @@ machine build_entry(session: @Session, other: @Session) {
     session.name = other.name;
 }
 "#;
-    let shared = VIEW_ASSIGNMENT.replace("session: @mut", "session: @");
+    let shared = VIEW_ASSIGNMENT.replace("session: @mutable", "session: @");
     for build in [source, shared.as_str()] {
         let verdict = judge_build(build);
         let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
@@ -162,8 +162,8 @@ fn a_stored_view_is_established_by_a_literal_and_by_zero() {
     const SOURCE: &str = r#"
 data Inner<'held> { count: u32; name: @'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
-machine build_entry(session: @mut Session) {
-    let mut zeroed: Session;
+machine build_entry(session: @mutable Session) {
+    let mutable zeroed: Session;
     let made: Inner = Inner { count: 1, name: "made" };
     zeroed.inner.name = made.name;
     session.inner.name = made.name;
@@ -196,8 +196,8 @@ machine build_entry(session: @mut Session) {
     let executable = format!(
         r#"{SOURCE}
 machine entry() crashes Trap {{
-    let mut session: Session;
-    build_entry(@mut session);
+    let mutable session: Session;
+    build_entry(@mutable session);
     transition session.inner.name.length == 4 {{
         true -> done(),
         _ -> bad()
@@ -221,8 +221,8 @@ machine entry() crashes Trap {{
 fn an_exclusive_view_is_a_structural_field() {
     let accepted = accepted(
         r#"
-        data Session<'storage> { ready: bool; name: @'storage mut [u8]; }
-        machine build_entry(session: @mut Session) { session.ready = true; }
+        data Session<'storage> { ready: bool; name: @'storage mutable [u8]; }
+        machine build_entry(session: @mutable Session) { session.ready = true; }
     "#,
     );
     assert_eq!(stored_fields(&accepted), [false]);

@@ -36,19 +36,19 @@ use representations\syntax_trees\syntax_trees_type_reference;
 // both are target-scoped bodies for different targets, which form one family
 // keyed by target (wiki/spec/language/machines.md#target-scoped-families). An
 // untargeted body beside a targeted one of the same signature is a duplicate.
-machine check_machines(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine check_machines(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }
 
-    machine next_machine(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_parameters(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine_parameters(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine machine_parameters(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         check_generic_names(resolver, sources, syntax, scope);
@@ -58,13 +58,13 @@ crashes Trap
         }
     }
 
-    machine generic_values(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine generic_values(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.generic_parameter_count {
             true -> generic_value(resolver, sources, syntax, index, item, offset),
             _ -> machine_parameter_names(resolver, sources, syntax, index, item)
         }
     }
-    machine generic_value(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine generic_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
         let is_value: bool = binder_names(generic.kind, false);
         transition is_value {
@@ -72,20 +72,20 @@ crashes Trap
             _ -> generic_values(resolver, sources, syntax, index, item, offset + 1)
         }
     }
-    machine visible_value(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine visible_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
         transition item.parent > 0 {
             true -> ancestor(resolver, sources, syntax, index, item, offset, name),
             _ -> container(resolver, sources, syntax, index, item, offset, name)
         }
     }
-    machine ancestor(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine ancestor(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
         let binding: ValueBinding = lexical_static_value_binder(sources, syntax, item.parent - 1, name.source_span, false);
         transition binding {
             ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
             _ -> container(resolver, sources, syntax, index, item, offset, name)
         }
     }
-    machine container(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine container(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
         let binding: ValueBinding = container_value_binder(@resolver.output, sources, syntax, index, name.source_span, false);
         transition binding {
             ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
@@ -93,7 +93,7 @@ crashes Trap
         }
     }
 
-    machine machine_parameter_names(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
+    machine machine_parameter_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
         check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
             true -> overloads(resolver, sources, syntax, index, item, 0),
@@ -102,7 +102,7 @@ crashes Trap
     }
 
     machine overloads(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         index: u64 in Trapping,
@@ -116,7 +116,7 @@ crashes Trap
     }
 
     machine overload_compare(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         index: u64 in Trapping,
@@ -133,8 +133,8 @@ crashes Trap
         }
     }
 
-    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(@mut resolver.output, code, name.source_span);
+    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
     machine done() {}
@@ -142,7 +142,7 @@ crashes Trap
 
 // Each parameter name of one signature differs from every earlier one.
 public machine check_parameter_names(
-    resolver: @mut Resolver,
+    resolver: @mutable Resolver,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     first_parameter: u64 in Trapping,
@@ -153,7 +153,7 @@ crashes Trap
     transition { _ -> next(resolver, sources, syntax, first_parameter, parameter_count, 0) }
 
     machine next(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
@@ -167,7 +167,7 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
@@ -179,7 +179,7 @@ crashes Trap
     }
 
     machine prior(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
@@ -195,7 +195,7 @@ crashes Trap
     }
 
     machine compare(
-        resolver: @mut Resolver,
+        resolver: @mutable Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
@@ -214,8 +214,8 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: @mut Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
+    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
+        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
     }
 
     machine done() {}

@@ -3,14 +3,14 @@ data Page [copy] {
     marker: u8;
 }
 
-machine mark(page: @mut Page, value: u8) {
+machine mark(page: @mutable Page, value: u8) {
     page.marker = value;
 }
 
 machine qualified_array_element_copy() -> u8 {
-    let mut first: Page;
-    mark(@mut first, 42);
+    let mutable first: Page;
+    mark(@mutable first, 42);
     let second: Page = first;
-    mark(@mut first, 1);
+    mark(@mutable first, 1);
     second.marker
 }

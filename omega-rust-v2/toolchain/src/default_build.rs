@@ -100,7 +100,7 @@ fn check_empty_default(text: &str) -> Result<(), String> {
     };
     if nodes[*param].kind != Param
         || reference.kind != ReferenceType
-        || !reference.leaves.iter().map(|leaf| leaf.text).eq(["@", "mut"])
+        || !reference.leaves.iter().map(|leaf| leaf.text).eq(["@", "mutable"])
         || nodes[*activation].kind != PathType
         || !nodes[*activation].children.is_empty()
         || !nodes[*activation]

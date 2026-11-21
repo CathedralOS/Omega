@@ -85,7 +85,7 @@ ensures result in Buffer::Owned, result.pointer == buffer.pointer {
 }
 data Envelope { buffer: Buffer in Buffer::Owned; }
 data Main {}
-machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
+machine Main::main(context: @mutable Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
     let envelope: Envelope = Envelope { buffer: buffer };
     let original_pointer: addr = envelope.buffer.pointer;
@@ -99,6 +99,6 @@ machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBy
 
 // The hosted entry owns its ordinary application storage.
 machine entry_start() reaches InitialSupply + Writer + NativeBytes crashes Trap {
-    let mut application: Main = Main {};
-    Main::main(@mut application);
+    let mutable application: Main = Main {};
+    Main::main(@mutable application);
 }

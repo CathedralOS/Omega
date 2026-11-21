@@ -21,7 +21,7 @@ Each reject twin proves the entry equal to `1.0`, where `value == value` stays
 true, so `maybe_ordered`'s `Trap` route stays uncovered and the program rejects
 with `has an uncovered Trap crash route`. `const_name` cannot divide by the
 sealed float operator in a const initializer, so it names the quiet-NaN bits
-`2143289344` and reads them as `f32` (`&value as &f32`); the twin names the bits
+`2143289344` and reads them as `f32` (`@value as @f32`); the twin names the bits
 of `1.0`, `1065353216`.
 
 ## Nine-Place Coverage

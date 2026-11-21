@@ -21,7 +21,7 @@ ensures result.length == end - start {
 boundary trait SliceAccess {
     machine Length<T>(items: @[T]) -> u64 reaches none crashes none;
 
-    machine index_mut<T>(items: @mut [T], index: u64) -> @mut T
+    machine index_mut<T>(items: @mutable [T], index: u64) -> @mutable T
     reaches none
     requires
         index < items.length
@@ -33,7 +33,7 @@ boundary trait SliceAccess {
         items.length > 0
     crashes none;
 
-    machine tail_mut<T>(items: @mut [T]) -> @mut [T]
+    machine tail_mut<T>(items: @mutable [T]) -> @mutable [T]
     reaches none
     requires
         items.length > 0
@@ -45,7 +45,7 @@ boundary trait SliceAccess {
         start <= items.length
     crashes none;
 
-    machine from_mut<T>(items: @mut [T], start: u64) -> @mut [T]
+    machine from_mut<T>(items: @mutable [T], start: u64) -> @mutable [T]
     reaches none
     requires
         start <= items.length
@@ -57,13 +57,13 @@ boundary trait SliceAccess {
         end <= items.length
     crashes none;
 
-    machine to_mut<T>(items: @mut [T], end: u64) -> @mut [T]
+    machine to_mut<T>(items: @mutable [T], end: u64) -> @mutable [T]
     reaches none
     requires
         end <= items.length
     crashes none;
 
-    machine range_mut<T>(items: @mut [T], start: u64, end: u64) -> @mut [T]
+    machine range_mut<T>(items: @mutable [T], start: u64, end: u64) -> @mutable [T]
     reaches none
     requires
         start <= end && end <= items.length

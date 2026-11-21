@@ -256,18 +256,7 @@ pub(crate) fn take_unary_prefix<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::At) {
         let span = input.current_source_span();
         let input = input.take_punctuation(PunctuationKind::At, "@")?;
-        let (access, input) = if input.at_contextual("mut") {
-            (ReferenceAccess::Mutable, input.take_contextual("mut")?)
-        } else if input.at_contextual("write") {
-            (ReferenceAccess::WriteOnly, input.take_contextual("write")?)
-        } else if input.at_keyword(KeywordKind::State) {
-            (
-                ReferenceAccess::Mutable,
-                input.take_keyword(KeywordKind::State, "state")?,
-            )
-        } else {
-            (ReferenceAccess::Shared, input)
-        };
+        let (access, input) = input.take_reference_access()?;
         return Ok(Some((UnaryPrefix::Borrow(access, span), input)));
     }
     for (punctuation, operator, label) in [

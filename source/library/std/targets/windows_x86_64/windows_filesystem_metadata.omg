@@ -32,8 +32,8 @@ reaches FilesystemMetadataQuery {
 
 machine windows_filesystem_native_read_metadata(path: @[u8] in Path, no_follow: bool) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
-    let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path as -Path, @mut wide);
+    let mutable wide: [u16; 4096];
+    let count: i64 = windows_wide_path(path as -Path, @mutable wide);
     wide[4095] = 0;
     transition count > 0 {
         true -> block select(wide as +WindowsNativePath, no_follow),
@@ -142,24 +142,24 @@ reaches FilesystemMetadataQuery {
         false -> (windows_metadata_error())
     }
     machine basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
-        let mut basic: WindowsNativeFileBasicInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, @mut basic, 40);
+        let mutable basic: WindowsNativeFileBasicInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, @mutable basic, 40);
         transition succeeded != 0 {
             true -> block standard(handle, basic),
             false -> (windows_metadata_error())
         }
     }
     machine standard(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
-        let mut standard: WindowsNativeFileStandardInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::standard(handle, 1, @mut standard, 24);
+        let mutable standard: WindowsNativeFileStandardInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::standard(handle, 1, @mutable standard, 24);
         transition succeeded != 0 {
             true -> block attributes(handle, basic, standard),
             false -> (windows_metadata_error())
         }
     }
     machine attributes(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
-        let mut tag: WindowsNativeFileAttributeTagInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(handle, 9, @mut tag, 8);
+        let mutable tag: WindowsNativeFileAttributeTagInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(handle, 9, @mutable tag, 8);
         transition succeeded != 0 {
             true -> value(basic, standard, tag),
             false -> (windows_metadata_error())

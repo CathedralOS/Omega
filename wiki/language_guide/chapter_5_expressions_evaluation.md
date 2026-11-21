@@ -25,14 +25,14 @@ them, not the order the type declares them.
 An assignment picks its destination before it evaluates the right-hand side:
 
 ```omega
-values[index] = replacement(@mut index);   // stores into the element chosen first
+values[index] = replacement(@mutable index);   // stores into the element chosen first
 ```
 
 ## Calls
 
 ```omega
 let command: Command = Parser::resolve(@parser, @line);
-View::render_room(@mut view, @room);
+View::render_room(@mutable view, @room);
 ```
 
 A dot selects a field. It never calls anything.
@@ -49,7 +49,7 @@ suspend block may_do_either();
 A `suspend` call stands on its own: bind its result, then use it.
 
 ```omega
-let next: u64 = suspend Source::next(@mut source);
+let next: u64 = suspend Source::next(@mutable source);
 let total: u64 = prefix + next;
 ```
 
@@ -88,10 +88,10 @@ let first: Item = view[0];
 let tail: @[Item] = view[1..];
 ```
 
-`[T; N]` owns its elements and `&[T]` borrows a run of them. `&fixed` alone is
-a reference to the array, of type `&[Item; 4]`. It doesn't turn into a view
-when a parameter or a `let` asks for one: write `&fixed[..]` or
-`&mut fixed[..]`, or call `ArrayAccess::as_slice`. The view knows its length
+`[T; N]` owns its elements and `@[T]` borrows a run of them. `@fixed` alone is
+a reference to the array, of type `@[Item; 4]`. It doesn't turn into a view
+when a parameter or a `let` asks for one: write `@fixed[..]` or
+`@mutable fixed[..]`, or call `ArrayAccess::as_slice`. The view knows its length
 is 4. See [views of a fixed array](../spec/language/expressions.md#views-of-a-fixed-array).
 Every index needs
 evidence that it is in bounds, usually from a `requires` or a branch:
@@ -111,7 +111,7 @@ show is in range is rejected. Ranges are `a..b` (excludes `b`), `a..=b`
 A mutable sub-slice is requested explicitly:
 
 ```omega
-let middle: @mut [u8] = @mut view[2..4];
+let middle: @mutable [u8] = @mutable view[2..4];
 ```
 
 Your own types can be indexed by declaring `[]`:
@@ -239,7 +239,7 @@ Comparisons follow IEEE: anything compared with NaN is false, except `!=`.
 Sorting needs a total order and asks for one by name:
 
 ```omega
-sort_by::<F64::TotalOrder>(@mut samples);
+sort_by::<F64::TotalOrder>(@mutable samples);
 ```
 
 Finite inputs do not make a result finite: a division can still overflow or
@@ -249,9 +249,9 @@ divide by zero, and the compiler asks you to rule those out.
 
 ```omega
 {
-    let mut room: Room;
-    Lookup::find_room(@lookup, level, current_cell, @mut room);
-    View::render_room(@mut view, @room);
+    let mutable room: Room;
+    Lookup::find_room(@lookup, level, current_cell, @mutable room);
+    View::render_room(@mutable view, @room);
 }
 ```
 

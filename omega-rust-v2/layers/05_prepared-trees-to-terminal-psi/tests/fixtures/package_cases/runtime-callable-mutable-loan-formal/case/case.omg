@@ -1,1 +1,1 @@
-data Bump = machine(x:@mut u8)->u8 reaches none crashes none; machine keep(f:Bump) {}
+data Bump = machine(x:@mutable u8)->u8 reaches none crashes none; machine keep(f:Bump) {}

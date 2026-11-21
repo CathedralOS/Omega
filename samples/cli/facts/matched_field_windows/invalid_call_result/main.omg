@@ -9,17 +9,17 @@ machine endpoint() -> i64
     3
 }
 
-machine from_call<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
+machine from_call<'row>(items: @'row mutable [u8; 4], which: i64) -> @'row mutable [u8]
     ensures result.length == 2
 {
     match which {
-        0 -> @mut items[0..endpoint()],
-        _ -> @mut items[2..4]
+        0 -> @mutable items[0..endpoint()],
+        _ -> @mutable items[2..4]
     }
 }
 machine main() crashes Trap {
-    let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    let window: @mut [u8] = from_call(@mut bytes, 0);
+    let mutable bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: @mutable [u8] = from_call(@mutable bytes, 0);
     transition window.length == 2 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

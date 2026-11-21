@@ -27,7 +27,7 @@ native arguments are not equivalent to a record containing them. See
 
 | Disposition | Required contract |
 | --- | --- |
-| Call-scoped | `@T`, `@[T]`, `@write T`, `@write [T]`, `@mut T`, or `@mut [T]` grants only its exact access until return. |
+| Call-scoped | `@T`, `@[T]`, `@write T`, `@write [T]`, `@mutable T`, or `@mutable [T]` grants only its exact access until return. |
 | Retained after return | A linear protocol result owns stable backing, an explicitly lifetime-parameterized result retains a checked loan, or a permitted semantic snapshot uses private stable backing. |
 | Process-lifetime | Authority moves into an already-established static/process-lifetime root. There is no general permanent-custodian spelling. |
 

@@ -1,14 +1,14 @@
 // Two separate traversal buffers use the same shape as holds_references in loans.omg.
-machine visit(handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9]) {
+machine visit(handles: @mutable [u64 in Trapping; 9], offsets: @mutable [u64 in Trapping; 9]) {
     handles[0] = 41 as +Trapping;
     offsets[8] = 42 as +Trapping;
 }
 
 machine main() -> u8 {
     let zero: u64 in Trapping = 0 as +Trapping;
-    let mut handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
-    let mut offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
-    visit(@mut handles, @mut offsets);
+    let mutable handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
+    let mutable offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
+    visit(@mutable handles, @mutable offsets);
     let h: u64 in Trapping = handles[0];
     let o: u64 in Trapping = offsets[8];
     transition (h as -Trapping) < (o as -Trapping) {

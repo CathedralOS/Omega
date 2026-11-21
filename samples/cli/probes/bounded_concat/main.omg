@@ -8,12 +8,12 @@ machine live(buffer: @TextBuffer) -> @[u8] in Ascii {
     let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
     prefix as +Ascii
 }
-machine copy(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
+machine copy(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 16, bytes.length <= 16 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index <= 16
     ensures buffer in Ascii
     {
@@ -22,11 +22,11 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index < 16, index < bytes.length, start + index < 16
     ensures buffer in Ascii
     {
-        (@mut buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -46,25 +46,25 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine exercise(main: @mut Main) {
+machine exercise(main: @mutable Main) {
     main.hits = 0 as +Wrapping;
     main.label = Label { storage: [65u8, 49u8, 0u8, 0u8] as +Ascii, used: 2 };
-    copy(@mut main.text.storage, "Room " as +Ascii, 0);
-    copy(@mut main.text.storage, label_live(@main.label), 5);
+    copy(@mutable main.text.storage, "Room " as +Ascii, 0);
+    copy(@mutable main.text.storage, label_live(@main.label), 5);
     main.text.used = 7;
     let view: @[u8] in Ascii = live(@main.text);
     transition (view as -Ascii) == "Room A1" && view.length == 7 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1 as +Wrapping; }
-    machine fail(main: @mut Main) { main.hits = (-1) as +Wrapping; }
+    machine pass(main: @mutable Main) { main.hits = 1 as +Wrapping; }
+    machine fail(main: @mutable Main) { main.hits = (-1) as +Wrapping; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
-    let mut entry_storage: Main;
-    exercise(@mut entry_storage);
+    let mutable entry_storage: Main;
+    exercise(@mutable entry_storage);
     transition entry_storage.hits == 1 { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }

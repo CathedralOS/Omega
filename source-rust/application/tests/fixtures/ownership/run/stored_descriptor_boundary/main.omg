@@ -2,17 +2,17 @@
 // Expected exit: 0
 boundary trait Probe {
     machine selected() -> u64 reaches Probe crashes none;
-    machine retained(input: @mut @mut [u8]) reaches Probe crashes none;
+    machine retained(input: @mutable @mutable [u8]) reaches Probe crashes none;
 }
 CheckedProbe satisfies Probe {
     machine selected() -> u64 reaches Probe { 7 }
-    machine retained(input: @mut @mut [u8]) reaches Probe {}
+    machine retained(input: @mutable @mutable [u8]) reaches Probe {}
 }
 machine main() reaches Probe crashes Trap {
     let selected: u64 = Probe::selected();
-    let mut backing: [u8; 2] = [41u8, 19u8];
-    let mut window: @mut [u8] = @mut backing[..];
-    Probe::retained(@mut window);
+    let mutable backing: [u8; 2] = [41u8, 19u8];
+    let mutable window: @mutable [u8] = @mutable backing[..];
+    Probe::retained(@mutable window);
     transition selected == 7 && window.length == 2u64 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() crashes Trap { crash Trap; }

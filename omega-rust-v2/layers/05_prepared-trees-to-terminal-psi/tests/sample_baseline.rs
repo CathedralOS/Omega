@@ -155,7 +155,7 @@ fn current_import_files(main: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
 /// The retired `Main::main` owner and its call, written as the free machine `main`.
 const FREE_MAIN: &[(&str, &str)] = &[
     ("machine Main::main(", "machine main("),
-    ("    Main::main(@mut entry_storage);", "    main(@mut entry_storage);"),
+    ("    Main::main(@mutable entry_storage);", "    main(@mutable entry_storage);"),
 ];
 /// The retired callback binder and its `requires machine` bound, written as a `const` binder
 /// of a callable alias that keeps the bound's premise.

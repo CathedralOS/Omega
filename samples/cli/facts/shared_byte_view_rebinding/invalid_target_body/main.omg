@@ -22,12 +22,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReplace {
-    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
+    machine replace(mutable selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.length == 1 && replacement.length == 1;
 }
 
 X86Replace satisfies SelectedReplace {
-    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
+    machine replace(mutable selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.length == 1 && replacement.length == 1
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -39,7 +39,7 @@ X86Replace satisfies SelectedReplace {
 }
 
 ArmReplace satisfies SelectedReplace {
-    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
+    machine replace(mutable selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.length == 1 && replacement.length == 1
     {
         SelectedBodyCheck::require_tag(29u64);

@@ -10,7 +10,7 @@ use omega\language\core\widen_u8_to_u64;
 data Payload [copy] { first: u64; value: u64; }
 Policy satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        let mut entries: [FieldEntry; 64];
+        let mutable entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
         LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
@@ -19,7 +19,7 @@ Policy satisfies FixedLayout<Payload> {
 boundary trait ReadValue { machine read() -> u64 reaches none crashes none; }
 DefaultRead satisfies ReadValue {
     machine read() -> u64 {
-        let mut storage: LayoutStorage<Payload, Policy>;
+        let mutable storage: LayoutStorage<Payload, Policy>;
         storage.first = 9u64;
         storage.value = 7u64;
         let bytes: @[u8; 16] = @storage as @[u8; 16];
@@ -28,7 +28,7 @@ DefaultRead satisfies ReadValue {
 }
 OverrideRead satisfies ReadValue { machine read() -> u64 { 7u64 } }
 data Defaults {}
-macos_arm64 machine Defaults::provider_defaults(defaults: @mut Defaults) {
+macos_arm64 machine Defaults::provider_defaults(defaults: @mutable Defaults) {
     Defaults::select_provider::<ReadValue, DefaultRead>(defaults);
 }
 machine main() reaches ReadValue crashes Trap {

@@ -9,7 +9,7 @@ Compile-scope probe. No standard-library dependency.
   crash-route guard faces between the route decl and the body.
 - scoped_const_shadow: `const Sizes::SIZE: Index` scoped const +
   record-typed const param + `let Sizes: u64` local shadow.
-- slice_reborrow: `&mut buf` reborrow of a `&mut [u64]` param
+- slice_reborrow: `@mutable buf` reborrow of a `@mutable [u64]` param
   into a second machine.
 
 Compile-checked only (no ProcessExit provider):

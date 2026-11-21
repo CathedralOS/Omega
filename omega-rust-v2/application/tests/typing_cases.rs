@@ -93,7 +93,7 @@ fn an_assignment_to_a_computed_value_identifies_the_missing_storage() {
     check(Case {
         layer: "L3",
         producer: "typer",
-        good: &[("assign.omg", "machine value()->u8{1u8} machine set(){let mut x=value(); x=2u8;}")],
+        good: &[("assign.omg", "machine value()->u8{1u8} machine set(){let mutable x=value(); x=2u8;}")],
         bad: &[("assign.omg", "machine value()->u8{1u8} machine set(){value()=2u8;}")],
         file: "assign.omg",
         occurrence: "value()",
@@ -107,7 +107,7 @@ fn an_assignment_to_an_immutable_binding_identifies_the_missing_authority() {
     check(Case {
         layer: "L3",
         producer: "typer",
-        good: &[("assign.omg", "machine set(){let mut cell=1u8; cell=2u8;}")],
+        good: &[("assign.omg", "machine set(){let mutable cell=1u8; cell=2u8;}")],
         bad: &[("assign.omg", "machine set(){let cell=1u8; cell=2u8;}")],
         file: "assign.omg",
         occurrence: "cell",
@@ -720,7 +720,7 @@ fn a_nested_hypothesis_checks_its_result_at_the_outer_application() {
 #[test]
 fn a_hypothesis_without_a_machine_slot_checks_its_specialized_authority() {
     let source = "machine theorem<T>() requires machine Step(x:T); {} machine use_it(){theorem::<@u8>()}";
-    check_hypothesis_change(source, "@u8", "@mut u8", "theorem::<@mut u8>",
+    check_hypothesis_change(source, "@u8", "@mutable u8", "theorem::<@mutable u8>",
         "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
 }
 
@@ -741,7 +741,7 @@ fn a_logical_parameter_cannot_gain_write_authority_at_specialization() {
 #[test]
 fn an_explicit_lifetime_cannot_hide_exclusive_hypothesis_authority() {
     let source = "machine theorem<'life,machine Step>() requires machine Step(value:@'life u8); {}";
-    check_hypothesis_change(source, "@'life u8", "@'life mut u8", "value:@'life mut u8",
+    check_hypothesis_change(source, "@'life u8", "@'life mutable u8", "value:@'life mutable u8",
         "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
 }
 
@@ -809,7 +809,7 @@ fn selecting_a_trait_member_requires_trait_evidence() {
 #[test]
 fn a_nested_indexed_move_needs_an_owned_array() {
     let source = "data Resource{n:u8;} machine pick(a:[[Resource; 1]; 1])->Resource{move a[0][0]}";
-    check_source_change(source, "a:[[", "a:@mut [[",
+    check_source_change(source, "a:[[", "a:@mutable [[",
         "a[0]", "nested indexed move requires an owned fixed-array place", "Collection access");
 }
 
@@ -1172,8 +1172,8 @@ fn a_logical_hypothesis_cannot_supply_mutable_authority() {
     check_hypothesis_change(
         source,
         "@u8",
-        "@mut u8",
-        "value: @mut u8",
+        "@mutable u8",
+        "value: @mutable u8",
         "logical hypothesis cannot supply mutable authority",
         omega_typer::LogicalHypothesisError::MutableAuthority,
     );
@@ -1235,8 +1235,8 @@ domain C::Locked access Rule;
 #[test]
 fn a_shared_reborrow_requires_readable_storage() {
     check_source_change(
-        "machine inspect(r: @mut u8) { _ = @$r; }\n",
-        "@mut u8",
+        "machine inspect(r: @mutable u8) { _ = @$r; }\n",
+        "@mutable u8",
         "@write u8",
         "$r",
         "cannot read through a write-only reference",

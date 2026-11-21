@@ -85,7 +85,7 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine build_physical() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // System V AMD64 integer argument order: edi, rsi, rdx, rcx.
         output.call.parameters[0] = hosted_entry_named_word(4,
@@ -127,7 +127,7 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine build_semantic() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four System V integer registers.
@@ -139,7 +139,7 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = output;
+        let mutable plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.stack_alignment = 16;
         plan.call.entry_control = EntryControl::CallReturn;
@@ -147,7 +147,7 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // System V AMD64 caller-saved banks.
         output.call.ordinary_clobbers.register_count = 25;
         output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;

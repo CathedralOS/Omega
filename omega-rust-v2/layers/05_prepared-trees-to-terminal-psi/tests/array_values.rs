@@ -8,7 +8,7 @@ use omega_lowering::{
 #[test]
 fn rebinding_an_array_local_preserves_its_earlier_copy() {
     let source = "machine f(left:[u8;2], right:[u8;2], i:u64)->u8 {
-        let mut row=left; let old=row; row=right; old[i] +% row[i]
+        let mutable row=left; let old=row; row=right; old[i] +% row[i]
     }";
     let package = sources::lower(&[("locals.omg", source)]).unwrap();
     let body = &package.machines[0].body;

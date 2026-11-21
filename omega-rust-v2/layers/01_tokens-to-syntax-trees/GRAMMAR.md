@@ -107,7 +107,7 @@ ahead to tell them apart.
 
 | The spec writes | V2 writes |
 | --- | --- |
-| `apply<set_time>(&mut e, 5)` | `apply::<set_time>(@mut e, 5)` |
+| `apply<set_time>(&mut e, 5)` | `apply::<set_time>(@mutable e, 5)` |
 | `integer\max<i32>()` | `integer\max::<i32>()` |
 | `Sensor<29u64>::read()` | `Sensor::<29u64>::read()` |
 | `builder.tests.group<Tests::memory>()` | `builder.tests.group::<Tests::memory>()` |
@@ -258,7 +258,7 @@ proofs/mathematical_bindings.md:63 and :226.
 
     type        = type_operand ( '->' type )?
                 | '(' word ':' type ')' '->' type
-    type_operand = '@' lifetime? ( 'mut' | 'write' )? type_operand
+    type_operand = '@' lifetime? ( 'mutable' | 'write' )? type_operand
                 | '[' type_in ']'
                 | '[' type_in ';' expression ']'
                 | path_type ( '(' arguments? ')' )?
@@ -268,7 +268,7 @@ proofs/mathematical_bindings.md:63 and :226.
     machine_type = 'machine' generic_params? '(' params ')' result? clause*
     lifetime    = ''' word
 
-References and views `@[u8]`, `@mut [u8]`, `@'a U`, `@'a mut S`
+References and views `@[u8]`, `@mutable [u8]`, `@'a U`, `@'a mutable S`
 (language/data_and_literals.md:109, language/some_packages.md:15), arrays
 `[u8; 38]` (language/expressions.md:532), named callable types for fields and
 parameters, function types `A -> B` in
@@ -354,7 +354,7 @@ mathematical declarations and in machine parameters
 
 ## Statements
 
-    statement = 'let' 'mut'? pattern ( ':' type_in )? ( '=' expression )? ';'
+    statement = 'let' 'mutable'? pattern ( ':' type_in )? ( '=' expression )? ';'
               | place '=' expression ';'
               | '_' '=' expression ';'
               | expression ';'
@@ -363,8 +363,8 @@ mathematical declarations and in machine parameters
 - **There is no `if` statement** (decision 1), and no `else`, `while`,
   `loop`, `return`, `for`, `break` or `continue`. Branching is `match` and
   `transition`; repetition is nested machines and transitions.
-- `let` with and without a type, with `mut`, and with no initializer
-  `let mut bytes: [u8; 38];` (language/expressions.md:532).
+- `let` with and without a type, with `mutable`, and with no initializer
+  `let mutable bytes: [u8; 38];` (language/expressions.md:532).
 - Destructuring `let Lease { pool, slot } = move value;`
   (language/ownership.md:309).
 - Discard `_ = builder.tests.group::<Tests::memory>();`
@@ -448,7 +448,7 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
     selection  = path 'satisfies' type
     postfix = primary ( '(' args ')' | '.' word expr_args? | '[' index ']' )*
     index   = expression | expression? ( '..' | '..=' ) expression?
-    prefix  = ( '@' ( 'mut' | 'write' )? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
+    prefix  = ( '@' ( 'mutable' | 'write' )? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
     cast    = prefix ( 'as' type? cast_entry* )*
     cast_entry = ( '+' | '-' | '=' ) path_type
 
@@ -498,8 +498,8 @@ Bitwise operators bind tighter than comparisons, unlike C.
   (language/effects.md:878). `move`, `suspend` and `block` are prefixes only
   directly before another word, so each is still a name everywhere else:
   `block(x)` calls a machine named `block`. A `$` operand also admits the `move` prefix.
-- **`mut` and `write` after `@`** mark access only if an operand follows. `@mut;`
-  borrows a name spelled `mut`.
+- **`mutable` and `write` after `@`** mark access only if an operand follows. `@mutable;`
+  borrows a name spelled `mutable`.
 - **A record literal needs parentheses** where a `{` after a name means
   something else: in the subject of a `match` or `transition`, in a clause's
   predicate, and at the top of a pattern.
@@ -556,7 +556,7 @@ the word is an ordinary name.
 | `public` | a declaration follows | `public satisfies T { }` |
 | `boundary` | `trait`, `machine` or `let` follows, as a declaration | |
 | `match`, `transition` | `{` follows, or a token that can start a subject | `match = match.field;` |
-| `mut` | after `@` or `let`, and an operand or pattern follows | `let mut = move;` |
+| `mutable` | after `@` or `let`, and an operand or pattern follows | `let mutable = move;` |
 | `write` | after `@` when a type or operand follows | `@write;` borrows the name `write` |
 | `move`, `suspend`, `block` | directly before another word | `block(use);` |
 | `case` (in data) | a name follows | `case: u8;` |
@@ -735,7 +735,7 @@ Made by Jarod on 2026-11-18, with Zac on two of them.
 | 9 | `satisfies` expressions and `some` binders? | In the spec since 2026-11-10. | "obviously in" | **In.** |
 | 10 | How is the spec corpus tagged? | 132 examples of mixed kinds. | "I dont care" | **Claude's choice.** |
 | 11 | May a comparison be the operand of another? | Grouped to the left, `a == b == c` on three booleans type-checks as `(a == b) == c`, which is not "all three are equal", and nothing downstream objects. Rust, Zig and Lean refuse such chains, all six operators as one group; Rocq defines a chain as both comparisons holding; Odin groups to the left. No spec example chains comparisons. | Decided, then dropped ("just keep the chaining"), then on the boolean case: "this hole seems bad and it sounds like magic, which I hate" and "bring it back". | **No, not without parentheses.** All six comparison operators. This revises decision 6 for those six. |
-| 12 | How are references and borrows spelled? | The reader can distinguish a borrow from bitwise AND at sight. | Jarod chose the job-queue example using `@`. | Each `@` adds one layer, including `@mut`, `@write` and nested `@@`. |
+| 12 | How are references and borrows spelled? | The reader can distinguish a borrow from bitwise AND at sight. | Jarod chose the job-queue example using `@`. | Each `@` adds one layer, including `@mutable`, `@write` and nested `@@`. |
 
 A rule that `iN` and `uN` cannot be declared as type names came up under
 decision 5. It is a rule about names, so it belongs to the layer that

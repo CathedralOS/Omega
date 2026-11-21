@@ -1,6 +1,6 @@
 // Expected exit: 0
 public machine read_mark() -> u64 reaches none {
-    let mut value: u64 = 0;
+    let mutable value: u64 = 0;
     value = 7;
     value
 }

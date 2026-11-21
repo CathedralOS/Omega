@@ -47,7 +47,7 @@ Its behavior remains a no-op, so this row claims no observable cleanup side effe
 - Establishment: the selected implementation proves the applied trait's complete
   conservation contract. The caller's final comparison observes the payload;
   it does not establish the callee's proof obligation.
-- Identity and lifetime: `old(&region)` denotes the entry revision, not a copied
+- Identity and lifetime: `old(@region)` denotes the entry revision, not a copied
   resource. The positive moves the owned region and consumes it exactly once.
   Count equality grants no storage, identity or access authority.
 - Composition: the contract survives all nine places through exact explicit

@@ -279,7 +279,7 @@ For an encoding library, the policy shape is:
 
 ```text
 encoding_policy::<Value>(field: FieldInfo,
-                       selection: @mut EncodingSelection<Value>)
+                       selection: @mutable EncodingSelection<Value>)
 
     if field is the special timestamp member:
         EncodingSelection::select::<UnixTimestampEncoding>(selection)

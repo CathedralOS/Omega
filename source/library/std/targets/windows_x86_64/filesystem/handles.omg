@@ -122,14 +122,14 @@ ensures result <= requested && result <= 4294967295
     }
 }
 
-machine windows_filesystem_read(file: File, buffer: @mut [u8], count: u64) -> IoResult
+machine windows_filesystem_read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 {
     transition file.handle != 0 && count <= buffer.length {
         true -> block transfer(file, buffer, count),
         false -> invalid(file)
     }
-    machine transfer(file: File, buffer: @mut [u8], count: u64) -> IoResult {
+    machine transfer(file: File, buffer: @mutable [u8], count: u64) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(count);
         let result: i64 = block WindowsFilesystemHost::read_file(file.handle, buffer, limit);
         windows_filesystem_transferred(result, limit)
@@ -159,20 +159,20 @@ reaches FilesystemContentWrite
 // The raw positioned operations preserve the original object's cursor and
 // cannot upgrade its granted data rights. Validate portable arguments before
 // acquiring their temporary independent object; retain the actual short count.
-machine windows_filesystem_read_at(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
+machine windows_filesystem_read_at(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
 {
     transition file.handle != 0 {
         true -> block validate(file, buffer, count, offset),
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
-    machine validate(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult {
+    machine validate(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult {
         transition offset >= 0 && count <= buffer.length {
             true -> block transfer(file, buffer, count, offset),
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }
     }
-    machine transfer(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult {
+    machine transfer(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(count);
         let result: i64 = block WindowsFilesystemHost::read_at(file.handle, buffer, limit, offset);
         windows_filesystem_transferred(result, limit)

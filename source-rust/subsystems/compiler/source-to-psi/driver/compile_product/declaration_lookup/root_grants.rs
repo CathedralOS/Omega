@@ -187,10 +187,10 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine select(activation: u64) reaches none crashes none;
 }
-public machine build_selection_receiver<'a>(builder: @'a mut Build) -> @'a mut Build { builder }
+public machine build_selection_receiver<'a>(builder: @'a mutable Build) -> @'a mutable Build { builder }
 "#;
         let build =
-            "machine build(builder: @mut Build) { Build::accept_boundary::<First>(builder); }";
+            "machine build(builder: @mutable Build) { Build::accept_boundary::<First>(builder); }";
         let product = "public boundary trait Service { machine tick() reaches none crashes none; }
                        public First satisfies Service { machine tick() reaches none crashes none {} }";
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();

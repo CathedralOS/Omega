@@ -25,7 +25,7 @@ impl BodyTyper<'_, '_> {
     /// ordinary copy eligibility (patterns.md: "A field-value binding from
     /// borrowed storage still needs ordinary copy eligibility"). A non-copy
     /// value needs an explicit borrow instead, except that a place reached
-    /// through `@mut` may be moved out (ownership.md, borrowed-storage
+    /// through `@mutable` may be moved out (ownership.md, borrowed-storage
     /// invariant windows).
     pub(super) fn read_borrowed(
         &mut self,

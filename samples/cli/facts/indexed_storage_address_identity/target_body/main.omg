@@ -30,7 +30,7 @@ X86Observe satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires index < 2
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut items: [u64; 2] = [7, 11];
+        let mutable items: [u64; 2] = [7, 11];
         let selected: addr = address_of(@items[index]);
         let again: addr = address_of(@items[index]);
         let first: addr = address_of(@items[0]);
@@ -47,7 +47,7 @@ ArmObserve satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires index < 2
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut items: [u64; 2] = [7, 11];
+        let mutable items: [u64; 2] = [7, 11];
         let selected: addr = address_of(@items[index]);
         let again: addr = address_of(@items[index]);
         let first: addr = address_of(@items[0]);

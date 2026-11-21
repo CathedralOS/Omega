@@ -3,7 +3,7 @@
 data Cell { before: u64; value: u64; after: u64; }
 data View<'storage> { cell: @'storage Cell; }
 machine observe(left: @Cell, right: @Cell) -> bool {
-    let mut view: View = View { cell: left };
+    let mutable view: View = View { cell: left };
     view.cell = right;
     view.cell.value == 9
 }

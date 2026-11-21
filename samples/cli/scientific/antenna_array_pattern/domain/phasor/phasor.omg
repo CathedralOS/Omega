@@ -18,7 +18,7 @@ public machine cosine(angle: f64) -> f64 {
     }
     machine polynomial(angle: f64) -> f64 {
         let square: f64 = angle * angle;
-        let mut value: f64 = 0.0000000000000000004110317623312165;
+        let mutable value: f64 = 0.0000000000000000004110317623312165;
         value = -1.56192069685862253e-16 + square * value;
         value = 4.77947733238738525e-14 + square * value;
         value = -1.14707455977297245e-11 + square * value;

@@ -1,6 +1,6 @@
 # Saved Linux x86-64 Psi
 
-The source compiler published `linux_x86_64.psi` from this fixture’s ordinary Build entry nomination and the bundled library. It compiled 251 source files. Its authenticated entry declaration is `toolchain-contract::targets::linux_x86_64::LinuxX86_64Application`. The native compiler regression reopens the artifact, checks the requested validators and executes the resulting ELF with the status in [expected_native_exit.txt](expected_native_exit.txt).
+The source compiler published `linux_x86_64.psi` from this fixture’s ordinary Build entry nomination and the bundled library. It compiled 252 source files. Its authenticated entry declaration is `toolchain-contract::targets::linux_x86_64::LinuxX86_64Application`. The native compiler regression reopens the artifact, checks the requested validators and executes the resulting ELF with the status in [expected_native_exit.txt](expected_native_exit.txt).
 
 From the repository root, publish the fixture with this command.
 
@@ -8,15 +8,15 @@ From the repository root, publish the fixture with this command.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 tests/fixtures/calls/run/scalar_contract_route_exit/main.omg
 ```
 
-The bundled `source/library` tree is Git object `9ab0512f14d04d850309fa325baeb8febd2a0128`.
+The bundled `source/library` tree is Git object `4fa1ae9d7ac72f6efa7b1367cec9093e9ac2ad51`.
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `3a6fa5cfba1465c655a59ac981e7aa647482a019436b10d7f83d07807391732f` |
-| Saved file SHA-256, 228489 bytes | `887133c82e6e53ed243b80bd06dd526c6dfd8f53d2eb58f4d715042a3684a569` |
-| main.omg SHA-256 | `b5d21f4364aaad35445e93ef041b0daac030ffbeefc5a9acb74d62ab125b32b9` |
-| build.omg SHA-256 | `94fc742d3f10426152b6d4f232cafa9c0d45233eeb631c34ed3f92c3c736d35f` |
-| Linux entry source SHA-256 | `be2a77d811663197a1b74755efb6014fb39effdc30e26b087325207b22e12bd1` |
+| Canonical artifact manifest | `5832612f0086193e5f311724887f42fb1d8eba038338b72999c5d48f175877d1` |
+| Saved file SHA-256, 228974 bytes | `23c1f9ffccbcab9067e737437f535ec6e602cc686c27f43a7f98c0335afb2f11` |
+| main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
+| build.omg SHA-256 | `9483243b6476c41b95be5c949a0e39901e44096d881995872d51df51683d3d5d` |
+| Linux entry source SHA-256 | `94aec6503de550f72f997279fc6316f973037edcd1ee1b433b205ef1afdc387c` |
 
 ## Historical wire specimen
 

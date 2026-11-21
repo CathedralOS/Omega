@@ -1,12 +1,12 @@
 // Declared operator on borrowed operands: `machine +` whose
-// signature takes `&Wrapped`/`&Wrapped` and returns `u64` — the
+// signature takes `@Wrapped`/`@Wrapped` and returns `u64` — the
 // result type is independent of the operand type. The token is
 // also callable by name (`Wrapped::add`) and composes as a match
 // arm result. Anonymous comptime arithmetic accepts values beyond
 // u64 (`2^64 / 2^64 == 1`).
 //
 //   * `left + right` inside a `match` arm — declared `+` on
-//     `&Wrapped` operands.
+//     `@Wrapped` operands.
 //   * `18446744073709551616 / 18446744073709551616` — anonymous
 //     exact comptime arithmetic on an out-of-range literal.
 //   * `hits` records the reached arm.
@@ -29,7 +29,7 @@ machine choose(flag: bool, left: @Wrapped, right: @Wrapped) -> u64 {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     let left: Wrapped = Wrapped { value: 250 };
     let right: Wrapped = Wrapped { value: 10 };
@@ -39,12 +39,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

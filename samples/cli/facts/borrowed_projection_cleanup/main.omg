@@ -2,8 +2,8 @@
 // Expected exit: 0
 // Shared projected arguments retain their whole anonymous owner until the call
 // returns, then dispose every child under the owner's ordinary cleanup plan.
-data CapturedReceipt<'view> dropped by drop_captured_receipt { code: u64; counter: @'view mut [u64; 1]; }
-machine drop_captured_receipt(receipt: @mut CapturedReceipt) requires receipt.code == 7 {
+data CapturedReceipt<'view> dropped by drop_captured_receipt { code: u64; counter: @'view mutable [u64; 1]; }
+machine drop_captured_receipt(receipt: @mutable CapturedReceipt) requires receipt.code == 7 {
     receipt.counter[0] = ((receipt.counter[0] as u64 +Wrapping) + 1) as u64;
 }
 data CapturedView<'borrow, 'view> { receipt: @'borrow CapturedReceipt<'view>; }
@@ -19,9 +19,9 @@ machine verify_captured(code: u64, counter: @[u64; 1]) crashes Trap {
     machine bad() { crash Trap; }
 }
 data CapturedToken [linear] dropped by drop_captured_token { code: u64; }
-machine drop_captured_token(token: @mut CapturedToken) requires token.code == 7 {}
-data CapturedPair<'view> dropped by drop_captured_pair { first: CapturedToken; second: CapturedToken; counter: @'view mut [u64; 1]; }
-machine drop_captured_pair(pair: @mut CapturedPair) {
+machine drop_captured_token(token: @mutable CapturedToken) requires token.code == 7 {}
+data CapturedPair<'view> dropped by drop_captured_pair { first: CapturedToken; second: CapturedToken; counter: @'view mutable [u64; 1]; }
+machine drop_captured_pair(pair: @mutable CapturedPair) {
     pair.counter[0] = ((pair.counter[0] as u64 +Wrapping) + 1) as u64;
 }
 data CapturedPairView<'borrow, 'view> { pair: @'borrow CapturedPair<'view>; }
@@ -29,14 +29,14 @@ machine capture_pair<'borrow, 'view>(pair: @'borrow CapturedPair<'view>) -> Capt
     CapturedPairView { pair: pair }
 }
 data Receipt [linear] dropped by drop_receipt { code: u64; }
-machine drop_receipt(receipt: @mut Receipt) {}
+machine drop_receipt(receipt: @mutable Receipt) {}
 data Pair dropped by drop_pair { first: Receipt; second: Receipt; }
-machine drop_pair(pair: @mut Pair) {}
+machine drop_pair(pair: @mutable Pair) {}
 
 machine issue() -> Pair {
     Pair { first: Receipt { code: 17 }, second: Receipt { code: 23 } }
 }
-machine issue_next(counter: @mut u64) -> Receipt {
+machine issue_next(counter: @mutable u64) -> Receipt {
     $counter = (($counter as u64 +Wrapping) + 1) as u64;
     Receipt { code: $counter }
 }
@@ -51,19 +51,19 @@ machine observe(receipt: @Receipt, expected: u64) crashes Trap {
 }
 
 machine main() crashes Trap {
-    let mut direct_drops: [u64; 1] = [0];
-    let direct_code: u64 = capture(@CapturedReceipt { code: 7, counter: @mut direct_drops }).receipt.code;
+    let mutable direct_drops: [u64; 1] = [0];
+    let direct_code: u64 = capture(@CapturedReceipt { code: 7, counter: @mutable direct_drops }).receipt.code;
     verify_captured(direct_code, @direct_drops);
-    let mut call_drops: [u64; 1] = [0];
-    let call_code: u64 = read_captured([capture(@CapturedReceipt { code: 7, counter: @mut call_drops }).receipt][0]) + 0;
+    let mutable call_drops: [u64; 1] = [0];
+    let call_code: u64 = read_captured([capture(@CapturedReceipt { code: 7, counter: @mutable call_drops }).receipt][0]) + 0;
     verify_captured(call_code, @call_drops);
-    let mut pair_drops: [u64; 1] = [0];
-    let pair_code: u64 = capture_pair(@CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: 7 }, counter: @mut pair_drops }).pair.second.code;
+    let mutable pair_drops: [u64; 1] = [0];
+    let pair_code: u64 = capture_pair(@CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: 7 }, counter: @mutable pair_drops }).pair.second.code;
     verify_captured(pair_code, @pair_drops);
-    let mut counter: u64 = 39;
+    let mutable counter: u64 = 39;
     // Both children execute in authored order, once, before lending the second.
     observe(@Pair {
-        first: issue_next(@mut counter), second: issue_next(@mut counter)
+        first: issue_next(@mutable counter), second: issue_next(@mutable counter)
     }.second, 41);
     let constructed: u64 = inspect(Pair {
         first: Receipt { code: 7 }, second: Receipt { code: 13 }

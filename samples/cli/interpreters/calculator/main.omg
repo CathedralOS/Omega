@@ -30,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     main.text = "12+34";
 
@@ -56,28 +56,28 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         _ -> block check_sub(main)
     }
 
-    machine check_sub(main: @mut Main) {
+    machine check_sub(main: @mutable Main) {
         transition main.text[2] == 45 { true -> block do_sub(main), _ -> block unknown(main) }
     }
 
-    machine do_add(main: @mut Main) { main.result = main.a + main.b; transition { _ -> block emit(main) } }
-    machine do_sub(main: @mut Main) { main.result = main.a - main.b; transition { _ -> block emit(main) } }
-    machine unknown(main: @mut Main) {
+    machine do_add(main: @mutable Main) { main.result = main.a + main.b; transition { _ -> block emit(main) } }
+    machine do_sub(main: @mutable Main) { main.result = main.a - main.b; transition { _ -> block emit(main) } }
+    machine unknown(main: @mutable Main) {
         Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(0);
     }
-    machine emit(main: @mut Main) {
+    machine emit(main: @mutable Main) {
         Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(main.result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

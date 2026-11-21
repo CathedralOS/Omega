@@ -11,10 +11,10 @@ SchedulerProvider>` in build.omg.
 
 The provider is a static slot selected by `build.omg`, not a
 carrier value. Source calls the requirement directly —
-`Scheduler::notify(&main.provider, 65)` — with the provider
+`Scheduler::notify(@main.provider, 65)` — with the provider
 borrowed explicitly as the first parameter, which is the
 shape `VtableField` requirement bodies take
-(`notify(provider: &SchedulerProvider, value: i32)`). The
+(`notify(provider: @SchedulerProvider, value: i32)`). The
 handle a `grant` issues has an ordinary wire carrier
 (`SchedulerHandle { identity: u64 }`), because a zero-sized
 data type cannot cross a boundary by value.

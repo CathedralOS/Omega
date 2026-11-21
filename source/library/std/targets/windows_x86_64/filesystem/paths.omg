@@ -24,7 +24,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     windows_filesystem_unit(status)
 }
 
-machine windows_filesystem_read_link(path: @[u8] in Path, output: @mut [u8], count: u64) -> IoResult
+machine windows_filesystem_read_link(path: @[u8] in Path, output: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemMetadataQuery
 {
     let transferred: i64 = block WindowsFilesystemHost::read_link(path, output, count);
@@ -176,7 +176,7 @@ reaches FilesystemNamespaceMutation
     windows_filesystem_unit(status)
 }
 
-machine windows_filesystem_canonicalize(path: @[u8] in Path, output: @mut [u8]) -> UnitResult
+machine windows_filesystem_canonicalize(path: @[u8] in Path, output: @mutable [u8]) -> UnitResult
 reaches FilesystemMetadataQuery
 {
     let status: i32 = block WindowsFilesystemHost::canonicalize(path, output);

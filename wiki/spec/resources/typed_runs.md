@@ -130,7 +130,7 @@ cells. Equal addresses never substitute for this ordered transfer.
 
 ## Views, mutation and release
 
-Ordinary native placement over suitable Stable RAM admits `@[T]` and `@mut [T]`
+Ordinary native placement over suitable Stable RAM admits `@[T]` and `@mutable [T]`
 over the live cells, with the same bounds, authority and loan obligations as
 array views. Encoded, device or otherwise incompatible placement instead uses
 its permitted per-cell access operations; it cannot fabricate a native slice.

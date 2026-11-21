@@ -1,7 +1,7 @@
 # cyclic_shared_array
 
 First sample taking a shared borrow of a plain fixed
-array through a state cycle: `scan(numbers: &[i32; 3])`
+array through a state cycle: `scan(numbers: @[i32; 3])`
 loops step ↔ body under the unranked-cycle eligibility
 gate — the shared loan freezes its referent so every
 arrival observes the same storage; `body`'s `index < 3`

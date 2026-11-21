@@ -1,4 +1,4 @@
-//! A byte view in a domain, `reason: &[u8] in Utf8`, stored in a record.
+//! A byte view in a domain, `reason: @[u8] in Utf8`, stored in a record.
 //!
 //! A domain whose one `requires` is a primitive byte predicate of `self`
 //! (`valid_utf8`, `no_nul`, `ascii_only`) is decided by the bytes a view
@@ -554,7 +554,7 @@ machine build_entry() {
 }
 
 /// The field is the view's own byte field with the domain's predicate on
-/// it, and the view row is the one a plain `&[u8]` has.
+/// it, and the view row is the one a plain `@[u8]` has.
 #[test]
 fn the_field_carries_its_predicates_on_its_type() {
     let accepted = match judge_build(&rejection("valid_utf8", "no plan")) {
@@ -611,8 +611,8 @@ data Rejection<'reason> { reason: @'reason [u8] in Text; }
     );
     assert_eq!(verdict(&formal), "accepted");
     let copied = format!(
-        "{declarations}machine copy(from: @Rejection, into: @mut Rejection) {{ into.reason = from.reason; }}\n\
-         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(@a, @mut b); }}"
+        "{declarations}machine copy(from: @Rejection, into: @mutable Rejection) {{ into.reason = from.reason; }}\n\
+         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mutable b: Rejection; copy(@a, @mutable b); }}"
     );
     // Independent input regions cannot promise the stored view survives in
     // the other record. State their common referent lifetime for the copy.
@@ -621,8 +621,8 @@ data Rejection<'reason> { reason: @'reason [u8] in Text; }
         "typing assigned value type while reading the body of `copy`"
     );
     let copied = copied.replacen(
-        "copy(from: @Rejection, into: @mut Rejection)",
-        "copy<'reason>(from: @Rejection<'reason>, into: @mut Rejection<'reason>)",
+        "copy(from: @Rejection, into: @mutable Rejection)",
+        "copy<'reason>(from: @Rejection<'reason>, into: @mutable Rejection<'reason>)",
         1,
     );
     assert_eq!(verdict(&copied), "accepted");
@@ -656,8 +656,8 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
     // The default owner must distinguish an empty descriptor from the one
     // zero octet in this actual parsed and lowered fixed-array field.
     let default_source = format!("data FixedDefault {{ bytes: [u8; 1]; }}\n{copied}").replacen(
-        "let mut b: Rejection;",
-        "let mut b: Rejection; let zeros: FixedDefault;",
+        "let mutable b: Rejection;",
+        "let mutable b: Rejection; let zeros: FixedDefault;",
         1,
     );
     let accepted = match judge_build(&default_source) {
@@ -791,7 +791,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
     );
 }
 
-/// A formal in a byte domain, `name: &[u8] in Name`, owes the domain's
+/// A formal in a byte domain, `name: @[u8] in Name`, owes the domain's
 /// primitive byte predicate at entry: every caller proves it of the bytes it
 /// passes, and the body may rely on it (byte_views.md: "An ordinary or
 /// boundary shared-byte argument may satisfy its formal's primitive byte

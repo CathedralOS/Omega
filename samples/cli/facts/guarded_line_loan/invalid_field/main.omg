@@ -8,14 +8,14 @@ data ReadOutcome {
     case Full(count: u64);
     case Invalid;
 }
-machine receive(line: @mut [u8; 64]) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64]) -> ReadOutcome {
     line[0] = 37;
     ReadOutcome::Complete { count: 5 }
 }
 machine main() crashes Trap {
-    let mut holder: Holder;
-    let held: @mut [u8; 64] = @mut holder.line;
-    let result: ReadOutcome = receive(@mut holder.line);
+    let mutable holder: Holder;
+    let held: @mutable [u8; 64] = @mutable holder.line;
+    let result: ReadOutcome = receive(@mutable holder.line);
     held[1] = 9;
     transition result {
         ReadOutcome::Complete { count } -> observe(@holder.line, count),

@@ -3,7 +3,7 @@
 //! `wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased regions,
 //! separate from runtime generic arity, layout and monomorphization. Erasure
 //! does not remove semantic lifetime relations or loan obligations." So a
-//! region never selects a structural row: `&'a [u8]` and `&'b [u8]` lower to
+//! region never selects a structural row: `@'a [u8]` and `@'b [u8]` lower to
 //! one byte-view row, and `Message<'a>` and `Message<'b>` to one record row.
 //! The region is part of the type the reader compares instead
 //! (`body::Regions`), and this module owns what a region is and the two
@@ -79,7 +79,7 @@ pub(crate) enum OwnedStorageRoot {
 /// lends, so its own region is some region inside the lent place's, not that
 /// place's region itself. That is what lets one lifetime take the loans of
 /// two places (`selected(left, right, first)` for `selected<'storage>(left:
-/// &'storage mut Cell, right: &'storage mut Cell, ..)`, a record literal in
+/// @'storage mutable Cell, right: @'storage mutable Cell, ..)`, a record literal in
 /// each arm of a `match`, a reference field assigned from another formal):
 /// lifetimes.md, "Returned views": "every reference leaf carrying the
 /// selected lifetime remains a possible source". The one region those loans
@@ -432,9 +432,9 @@ pub(crate) enum Elision {
     /// declares the lifetimes of its views", and says of a named data
     /// application that it must "match the declaration's lifetime arity" and
     /// "use binders declared in the lexical owner". So a field states the
-    /// lifetime of every view it stores (`name: &'buffer [u8]`) and the
+    /// lifetime of every view it stores (`name: @'buffer [u8]`) and the
     /// lifetime arguments of every data it names, directly or behind a
-    /// reference (`&'activation mut Build<'storage>`). An elided one is
+    /// reference (`@'activation mutable Build<'storage>`). An elided one is
     /// refused (`elided_region`, `elided_regions`): it never takes the named
     /// declaration's own binders, which are not the field's owner's, nor one
     /// region shared by every declaration that elides it.

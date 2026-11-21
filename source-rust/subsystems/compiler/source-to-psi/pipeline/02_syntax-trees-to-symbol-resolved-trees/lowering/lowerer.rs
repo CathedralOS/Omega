@@ -209,7 +209,7 @@ pub(crate) struct Lowerer {
     pub(crate) hoist_counter: u32,
     /*
         Names of the CURRENT state's parameters declared as a shared reference
-        to a NAMED type (`table: &EfiSystemTable`). A member read through one
+        to a NAMED type (`table: @EfiSystemTable`). A member read through one
         (`table.con_out`) must dereference the pointer slot; the flat fold reads
         frame garbage (the entry-ref-param face). The guard/operand hoists use
         this to materialize such reads into `let` temps, which lower through the

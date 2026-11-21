@@ -1,7 +1,7 @@
 data Settings<'storage> { identifier: @'storage [u8]; }
 
 machine main() crashes Trap {
-    let mut settings: [Settings; 2] = [
+    let mutable settings: [Settings; 2] = [
         Settings { identifier: "before" },
         Settings { identifier: "longer" }
     ];

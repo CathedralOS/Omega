@@ -39,35 +39,35 @@ machine Main::main(&mut self) {
     state run() {
         self.positive(self.source.as_slice[0..self.length], 42, 10);
         // disjoint fields
-        self.positive("data Leaf [copy] { word: u32 in Trapping; } data Packet [copy] { left: Leaf; right: Leaf; } machine replace(target: @mut Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let mut packet: Packet = Packet { left: Leaf { word: 1 as +Trapping }, right: Leaf { word: 9 as +Trapping } }; replace(@mut packet.left, packet.right); transition packet.left.word == packet.right.word { true -> yes(),_ -> no() } machine yes() -> u8 { 43 } machine no() -> u8 { 1 } }", 43, 11);
+        self.positive("data Leaf [copy] { word: u32 in Trapping; } data Packet [copy] { left: Leaf; right: Leaf; } machine replace(target: @mutable Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let mutable packet: Packet = Packet { left: Leaf { word: 1 as +Trapping }, right: Leaf { word: 9 as +Trapping } }; replace(@mutable packet.left, packet.right); transition packet.left.word == packet.right.word { true -> yes(),_ -> no() } machine yes() -> u8 { 43 } machine no() -> u8 { 1 } }", 43, 11);
         // shared read
         self.positive("data Leaf [copy] { word: u32 in Trapping; } machine same(source: @Leaf, other: Leaf) -> bool { source.word == other.word } machine main() -> u8 { let leaf: Leaf = Leaf { word: 31 as +Trapping }; transition same(@leaf, leaf) { true -> yes(),_ -> no() } machine yes() -> u8 { 44 } machine no() -> u8 { 1 } }", 44, 12);
         // bounds and copy
-        self.positive("data Counter [copy] requires value <= 4, { value: u64; } machine main() -> u8 { let mut counter: Counter; counter.value = 4; let snapshot: Counter = counter; counter.value = 0; transition snapshot.value == 4 && counter.value == 0 { true -> yes(),_ -> no() } machine yes() -> u8 { 45 } machine no() -> u8 { 1 } }", 45, 13);
+        self.positive("data Counter [copy] requires value <= 4, { value: u64; } machine main() -> u8 { let mutable counter: Counter; counter.value = 4; let snapshot: Counter = counter; counter.value = 0; transition snapshot.value == 4 && counter.value == 0 { true -> yes(),_ -> no() } machine yes() -> u8 { 45 } machine no() -> u8 { 1 } }", 45, 13);
         // record result staging
         self.positive("data Leaf [copy] { word: u32 in Trapping; } machine make(value: u32 in Trapping) -> Leaf { Leaf { word: value } } machine first(a: Leaf, b: Leaf) -> Leaf { a } machine main() -> u8 { let saved: Leaf = first(make(7 as +Trapping), make(9 as +Trapping)); transition saved.word == 7 { true -> yes(),_ -> no() } machine yes() -> u8 { 46 } machine no() -> u8 { 1 } }", 46, 14);
         // zero local
         self.positive("machine main() -> u8 { let value: u8; value }", 0, 15);
         // mutable local
-        self.positive("machine main() -> u8 { let mut value: u8 = 2; value }", 2, 16);
+        self.positive("machine main() -> u8 { let mutable value: u8 = 2; value }", 2, 16);
         // An earlier by-value argument stays copied when a later call mutates its origin.
-        self.positive("data Leaf [copy] {word:u8;} machine change(target:@mut Leaf)->Leaf {target.word=9;Leaf{word:target.word}} machine first(a:Leaf,b:Leaf)->Leaf {a} machine main()->u8 {let mut original:Leaf=Leaf{word:7};let saved:Leaf=first(original,change(@mut original));transition saved.word==7 && original.word==9 {true->yes(),_->no()} machine yes()->u8 {48} machine no()->u8 {1}}", 48, 17);
+        self.positive("data Leaf [copy] {word:u8;} machine change(target:@mutable Leaf)->Leaf {target.word=9;Leaf{word:target.word}} machine first(a:Leaf,b:Leaf)->Leaf {a} machine main()->u8 {let mutable original:Leaf=Leaf{word:7};let saved:Leaf=first(original,change(@mutable original));transition saved.word==7 && original.word==9 {true->yes(),_->no()} machine yes()->u8 {48} machine no()->u8 {1}}", 48, 17);
         // The index is captured before a disjoint selector field changes in the RHS.
-        self.positive("data Cursor [copy] requires value <= 1, { value:u64; } data Buffer {bytes:[u8;2];cursor:Cursor;} machine change(target:@mut Cursor)->u8 {target.value=1;7} machine main()->u8 {let mut buffer:Buffer;buffer.bytes[buffer.cursor.value]=change(@mut buffer.cursor);transition buffer.bytes[0]==7 && buffer.bytes[1]==0 && buffer.cursor.value==1 {true->yes(),_->no()} machine yes()->u8 {44} machine no()->u8 {1}}", 44, 18);
+        self.positive("data Cursor [copy] requires value <= 1, { value:u64; } data Buffer {bytes:[u8;2];cursor:Cursor;} machine change(target:@mutable Cursor)->u8 {target.value=1;7} machine main()->u8 {let mutable buffer:Buffer;buffer.bytes[buffer.cursor.value]=change(@mutable buffer.cursor);transition buffer.bytes[0]==7 && buffer.bytes[1]==0 && buffer.cursor.value==1 {true->yes(),_->no()} machine yes()->u8 {44} machine no()->u8 {1}}", 44, 18);
         // An explicit scalar entry contract is discharged from the caller guard.
         self.positive("data B {bytes:[u8;2];} machine choose(index:u64)->u8 {transition index<2 {true->read(index),_->miss()} machine read(index:u64)->u8 requires index<2 {let b:B;b.bytes[index]} machine miss()->u8{2}} machine main()->u8{choose(1)}", 0, 20);
         // A shared nested transfer keeps the original incoming referent.
-        self.positive("data B {bytes:[u8;2];} machine read(source:@B)->u8 {transition{_->forward(source)} machine forward(source:@B)->u8 {source.bytes[0]}} machine main()->u8 {let mut b:B;b.bytes[0]=51;read(@b)}", 51, 21);
+        self.positive("data B {bytes:[u8;2];} machine read(source:@B)->u8 {transition{_->forward(source)} machine forward(source:@B)->u8 {source.bytes[0]}} machine main()->u8 {let mutable b:B;b.bytes[0]=51;read(@b)}", 51, 21);
         // An exclusive call mutating a disjoint sibling preserves the indexed field contract.
-        self.positive("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Pair {left:Cell;right:Cell;} machine mutate(cell:@mut Cell){cell.length=2;} machine choose(pair:@mut Pair)->u8 {transition pair.left.length<2 {true->read(pair),_->miss()} machine read(pair:@mut Pair)->u8 requires pair.left.length<2 {mutate(@mut pair.right);pair.left.bytes[pair.left.length]} machine miss()->u8{2}} machine main()->u8 {let mut pair:Pair;pair.left.bytes[0]=53;choose(@mut pair)}", 53, 22);
+        self.positive("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Pair {left:Cell;right:Cell;} machine mutate(cell:@mutable Cell){cell.length=2;} machine choose(pair:@mutable Pair)->u8 {transition pair.left.length<2 {true->read(pair),_->miss()} machine read(pair:@mutable Pair)->u8 requires pair.left.length<2 {mutate(@mutable pair.right);pair.left.bytes[pair.left.length]} machine miss()->u8{2}} machine main()->u8 {let mutable pair:Pair;pair.left.bytes[0]=53;choose(@mutable pair)}", 53, 22);
         // borrow immutable
-        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine replace(target: @mut Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let target: Leaf; let value: Leaf; replace(@mut target,value); 42 }", 1, 40);
+        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine replace(target: @mutable Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let target: Leaf; let value: Leaf; replace(@mutable target,value); 42 }", 1, 40);
         // later overlap read
-        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine replace(target: @mut Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let mut target: Leaf; replace(@mut target,target); 42 }", 1, 41);
+        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine replace(target: @mutable Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let mutable target: Leaf; replace(@mutable target,target); 42 }", 1, 41);
         // shared write
         self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine write(target: @Leaf) { target.word = 1 as +Trapping; } machine main() -> u8 { 42 }", 1, 42);
         // wrong field carrier
-        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main() -> u8 { let mut target: Leaf; target.word = true; 42 }", 1, 43);
+        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main() -> u8 { let mutable target: Leaf; target.word = true; 42 }", 1, 43);
         // missing domain
         self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main() -> u8 { let target: Leaf = Leaf { word: 7 }; 42 }", 1, 44);
         // duplicate literal field
@@ -75,13 +75,13 @@ machine Main::main(&mut self) {
         // missing literal field
         self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main() -> u8 { let target: Leaf = Leaf { }; 42 }", 1, 46);
         // violated upper bound
-        self.refusal("data Counter requires value <= 4, { value:u64; } machine write(target:@mut Counter) { target.value=5; } machine main()->u8 {42}", 2, 47);
+        self.refusal("data Counter requires value <= 4, { value:u64; } machine write(target:@mutable Counter) { target.value=5; } machine main()->u8 {42}", 2, 47);
         // unsupported default
         self.refusal("data Counter requires value > 0, { value:u64; } machine main()->u8 {let counter:Counter;42}", 2, 48);
         // implicit shared
         self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine read(target:@Leaf)->u32 in Trapping { target.word } machine main()->u8 {let target:Leaf;read(target);42}", 2, 49);
         // stored reference
-        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main()->u8 {let mut target:Leaf;let view:@mut Leaf=@mut target;42}", 2, 50);
+        self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine main()->u8 {let mutable target:Leaf;let view:@mutable Leaf=@mutable target;42}", 2, 50);
         // affine value
         self.refusal("data Box { value:u8; } machine main()->u8 {let original:Box;let moved:Box=original;42}", 2, 51);
         // omitted unit result
@@ -91,17 +91,17 @@ machine Main::main(&mut self) {
         // Requirement literals must land in the compared field's carrier.
         self.refusal("data R requires x <= 256, {x:u8;} machine main()->u8 {let r:R;0}", 2, 54);
         // Projected writes retain the nested owner's default predicate.
-        self.refusal("data Counter [copy] requires value<=4, {value:u64;} data Outer {inner:Counter;} machine main()->u8 {let mut outer:Outer;outer.inner.value=5;42}", 2, 55);
+        self.refusal("data Counter [copy] requires value<=4, {value:u64;} data Outer {inner:Counter;} machine main()->u8 {let mutable outer:Outer;outer.inner.value=5;42}", 2, 55);
         // Fixed-byte indexing checks authority, bounds, shell domains and overlapping RHS loans.
-        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mut b:B;(@b.bytes)[0]=1;42}", 1, 60);
+        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mutable b:B;(@b.bytes)[0]=1;42}", 1, 60);
         self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let b:B;b.bytes[0]=1;42}", 1, 61);
-        self.refusal("data B {bytes:[u8;2] in Trapping;} machine main()->u8 {let mut b:B;b.bytes[0]=1;42}", 2, 62);
-        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mut b:B;b.bytes[true]=1;42}", 1, 63);
-        self.refusal("data B {words:[u32;2];} machine main()->u8 {let mut b:B;b.words[0]=1;42}", 2, 64);
-        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mut b:B;b.bytes[2]=1;42}", 1, 65);
-        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mut b:B;let mut index:u64=0;b.bytes[index]=1;42}", 2, 66);
-        self.refusal("data I [copy] requires value<=2, {value:u64;} data B {bytes:[u8;2];index:I;} machine main()->u8 {let mut b:B;b.bytes[b.index.value]=1;42}", 2, 67);
-        self.refusal("data B {bytes:[u8;2];} machine write(target:@mut B)->u8 {target.bytes[0]=1;9} machine main()->u8 {let mut b:B;b.bytes[0]=write(@mut b);42}", 2, 68);
+        self.refusal("data B {bytes:[u8;2] in Trapping;} machine main()->u8 {let mutable b:B;b.bytes[0]=1;42}", 2, 62);
+        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mutable b:B;b.bytes[true]=1;42}", 1, 63);
+        self.refusal("data B {words:[u32;2];} machine main()->u8 {let mutable b:B;b.words[0]=1;42}", 2, 64);
+        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mutable b:B;b.bytes[2]=1;42}", 1, 65);
+        self.refusal("data B {bytes:[u8;2];} machine main()->u8 {let mutable b:B;let mutable index:u64=0;b.bytes[index]=1;42}", 2, 66);
+        self.refusal("data I [copy] requires value<=2, {value:u64;} data B {bytes:[u8;2];index:I;} machine main()->u8 {let mutable b:B;b.bytes[b.index.value]=1;42}", 2, 67);
+        self.refusal("data B {bytes:[u8;2];} machine write(target:@mutable B)->u8 {target.bytes[0]=1;9} machine main()->u8 {let mutable b:B;b.bytes[0]=write(@mutable b);42}", 2, 68);
         self.positive("public machine compare(value:u64 in Trapping)->bool crashes none {value<=0} machine main()->u8 {transition compare(0 as +Trapping) {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{7}}", 42, 69);
         // A tail transfer cannot reuse a local backing while its shared loan remains live.
         self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell=Cell{value:0};transition{_->again(@seed,42,false)} machine again(view:@Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(@temp,44,true)}}}", 2, 70);
@@ -110,13 +110,13 @@ machine Main::main(&mut self) {
         // A true requirement does not invent a numeric bound.
         self.refusal("data B {bytes:[u8;2];} machine choose(index:u64)->u8 requires true {let b:B;b.bytes[index]} machine main()->u8{0}", 2, 72);
         // A prior direct write kills the entry version.
-        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine read(cell:@mut Cell)->u8 requires cell.length<2 {cell.length=2;cell.bytes[cell.length]} machine main()->u8{0}", 2, 73);
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine read(cell:@mutable Cell)->u8 requires cell.length<2 {cell.length=2;cell.bytes[cell.length]} machine main()->u8{0}", 2, 73);
         // An earlier argument call kills an overlapping entry version within the same expression.
-        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Outer{cell:Cell;} machine mutate(cell:@mut Cell)->u8{cell.length=2;0} machine combine(first:u8,second:u8)->u8{second} machine victim(outer:@mut Outer)->u8 requires outer.cell.length<2 {combine(mutate(@mut outer.cell),outer.cell.bytes[outer.cell.length])} machine main()->u8{0}", 2, 74);
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Outer{cell:Cell;} machine mutate(cell:@mutable Cell)->u8{cell.length=2;0} machine combine(first:u8,second:u8)->u8{second} machine victim(outer:@mutable Outer)->u8 requires outer.cell.length<2 {combine(mutate(@mutable outer.cell),outer.cell.bytes[outer.cell.length])} machine main()->u8{0}", 2, 74);
         // A mutating Boolean RHS cannot preserve the earlier left guard.
-        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine mutate(cell:@mut Cell)->bool{cell.length=2;true} machine choose(cell:@mut Cell)->u8 {transition cell.length<2 && mutate(@mut cell) {true->read(cell),_->miss()} machine read(cell:@mut Cell)->u8 requires cell.length<2 {cell.bytes[cell.length]} machine miss()->u8{0}} machine main()->u8{0}", 2, 75);
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine mutate(cell:@mutable Cell)->bool{cell.length=2;true} machine choose(cell:@mutable Cell)->u8 {transition cell.length<2 && mutate(@mutable cell) {true->read(cell),_->miss()} machine read(cell:@mutable Cell)->u8 requires cell.length<2 {cell.bytes[cell.length]} machine miss()->u8{0}} machine main()->u8{0}", 2, 75);
         // A bare exclusive transfer retains its loan through later arguments.
-        self.refusal("data C {value:u8;} machine write(view:@mut C)->u8 {transition{_->next(view,view.value)} machine next(view:@mut C,value:u8)->u8 {value}} machine main()->u8 {let mut c:C;write(@mut c)}", 1, 76);
+        self.refusal("data C {value:u8;} machine write(view:@mutable C)->u8 {transition{_->next(view,view.value)} machine next(view:@mutable C,value:u8)->u8 {value}} machine main()->u8 {let mutable c:C;write(@mutable c)}", 1, 76);
         // A nested reference cannot substitute local backing for its incoming owner reference.
         self.refusal("data C {value:u8;} machine read(view:@C)->u8 {let local:C;transition{_->next(@local)} machine next(view:@C)->u8 {view.value}} machine main()->u8 {let c:C;read(@c)}", 2, 77);
         // A literal violating an authored callee contract cannot compile.
@@ -132,24 +132,24 @@ machine Main::main(&mut self) {
         self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[2].v}", 1, 83);
         self.refusal("data R {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[0].v}", 2, 84);
         self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[true].v}", 1, 85);
-        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mut grid:Grid;grid.r[0]=grid.r[1];42}", 2, 86);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mutable grid:Grid;grid.r[0]=grid.r[1];42}", 2, 86);
         self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;let b:bool=grid.r[0].v;42}", 1, 87);
-        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mut grid:Grid;grid.r[0].v=1;42}", 2, 88);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mutable grid:Grid;grid.r[0].v=1;42}", 2, 88);
         // Bare u64 elements retain the full word, the destination authority and the selector contract.
-        self.positive("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;w.array[1]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 42, 91);
-        self.positive("machine main()->u8 {let mut x:[u64;2];let base:u64=4294967295;let wrapped:u64 in Wrapping=base as +Wrapping;let plus:u64 in Wrapping=wrapped+2;let high:u64=plus as -Wrapping;x[0]=7;x[1]=high;transition x[0]==7 && x[1]==high && x[1]>4294967295 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 42, 92);
-        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;let byte:u8=42;w.array[1]=byte;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 93);
-        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;w.array[1]=42;let byte:u8=w.array[1];transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 94);
-        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;w.array[2]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 95);
-        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;let base:u64=1;let index:u64 in Trapping=base as +Trapping;w.array[index]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 96);
+        self.positive("data Words { array:[u64;2]; } machine main()->u8 {let mutable w:Words;w.array[0]=7;w.array[1]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 42, 91);
+        self.positive("machine main()->u8 {let mutable x:[u64;2];let base:u64=4294967295;let wrapped:u64 in Wrapping=base as +Wrapping;let plus:u64 in Wrapping=wrapped+2;let high:u64=plus as -Wrapping;x[0]=7;x[1]=high;transition x[0]==7 && x[1]==high && x[1]>4294967295 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 42, 92);
+        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mutable w:Words;w.array[0]=7;let byte:u8=42;w.array[1]=byte;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 93);
+        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mutable w:Words;w.array[0]=7;w.array[1]=42;let byte:u8=w.array[1];transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 94);
+        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mutable w:Words;w.array[0]=7;w.array[2]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 95);
+        self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mutable w:Words;w.array[0]=7;let base:u64=1;let index:u64 in Trapping=base as +Trapping;w.array[index]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 96);
         self.refusal("data W {a:[u64;2];} machine overwrite(w:@W){w.a[0]=3;} machine main()->u8{let w:W;overwrite(@w);42}", 1, 97);
         self.refusal("data W {a:[u64 in Trapping;2];} machine main()->u8 {let w:W;let raw:u64=w.a[0];42}", 2, 98);
         // Exclusive loans conflict in either argument order. A tail transfer
         // must also check forwarded parameters, even when the callee has no writes.
-        self.refusal("data C{x:u8;} machine pair(a:@mut C,b:@mut C){} machine main()->u8{let mut c:C;pair(@mut c,@mut c);42}", 1, 100);
-        self.refusal("data C{x:u8;} machine pair(a:@mut C,b:@C){} machine main()->u8{let mut c:C;pair(@mut c,@c);42}", 1, 101);
-        self.refusal("data C{x:u8;} data P{c:C;} machine pair(a:@P,b:@mut C){} machine main()->u8{let mut p:P;pair(@p,@mut p.c);42}", 1, 102);
-        self.refusal("data C{x:u8;} machine outer(a:@mut C,b:@mut C){transition{_->pair(a,a)} machine pair(x:@mut C,y:@mut C){}} machine main()->u8{42}", 1, 103);
+        self.refusal("data C{x:u8;} machine pair(a:@mutable C,b:@mutable C){} machine main()->u8{let mutable c:C;pair(@mutable c,@mutable c);42}", 1, 100);
+        self.refusal("data C{x:u8;} machine pair(a:@mutable C,b:@C){} machine main()->u8{let mutable c:C;pair(@mutable c,@c);42}", 1, 101);
+        self.refusal("data C{x:u8;} data P{c:C;} machine pair(a:@P,b:@mutable C){} machine main()->u8{let mutable p:P;pair(@p,@mutable p.c);42}", 1, 102);
+        self.refusal("data C{x:u8;} machine outer(a:@mutable C,b:@mutable C){transition{_->pair(a,a)} machine pair(x:@mutable C,y:@mutable C){}} machine main()->u8{42}", 1, 103);
         // A call headed by a scalar binding cannot jump to the hidden helper.
         self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{transition{_->label()}} machine label()->u8{7}}", 1, 104);
         self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{label();42} machine label(){}}", 1, 105);
@@ -163,8 +163,8 @@ machine Main::main(&mut self) {
         self.refusal("data B{bytes:[u8;3];} machine read(b:@[u8])->u8 {b[0]} machine main()->u8{let a:B;read(@a.bytes[..])}", 2, 112);
         self.refusal("machine write(b:@[u8]){b.length=0;} machine main()->u8{42}", 1, 113);
         self.refusal("machine write(b:@[u8]){b[0]=9;} machine main()->u8{42}", 1, 114);
-        self.refusal("data B {a:[u8;3];} machine use_both(s:@[u8],b:@mut B){} machine main()->u8{let mut b:B;use_both(@b.a[..],@mut b);42}", 2, 115);
-        self.refusal("data B {a:[u8;3];} machine use_both(b:@mut B,s:@[u8]){} machine main()->u8{let mut b:B;use_both(@mut b,@b.a[..]);42}", 1, 116);
+        self.refusal("data B {a:[u8;3];} machine use_both(s:@[u8],b:@mutable B){} machine main()->u8{let mutable b:B;use_both(@b.a[..],@mutable b);42}", 2, 115);
+        self.refusal("data B {a:[u8;3];} machine use_both(b:@mutable B,s:@[u8]){} machine main()->u8{let mutable b:B;use_both(@mutable b,@b.a[..]);42}", 1, 116);
         self.refusal("data B{bytes:[u8;3];} machine size(b:@[u8])->u64{b.length} machine main()->u8{let a:B;let n:u64=size(@a.bytes[4294967296u64..]);42}", 2, 117);
         // A strict bound belongs to exactly one index and one borrowed slice.
         self.refusal("machine take(b:@[u8],i:u64,j:u64)->u8 requires i<b.length {b[j]} machine main()->u8{42}", 2, 118);
@@ -173,27 +173,27 @@ machine Main::main(&mut self) {
         self.refusal("machine run(b:@[u8],i:u64)->u8{transition i<=b.length {true->take(b,i),_->no()} machine take(b:@[u8],i:u64)->u8 requires i<b.length {b[i]} machine no()->u8{7}} machine main()->u8{42}", 2, 121);
         self.refusal("machine run(a:@[u8],b:@[u8],i:u64)->u8{transition i<a.length {true->take(b,i),_->no()} machine take(b:@[u8],i:u64)->u8 requires i<b.length {b[i]} machine no()->u8{7}} machine main()->u8{42}", 2, 122);
         // Copy a shared record, then replace the mutable referent between two sentinel fields.
-        self.positive("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@mut Pair,other:@Pair){let saved:Pair=$other;$target=saved;} machine main()->u8 {let mut box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@mut box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 42, 123);
-        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@ Pair,other:@Pair){let saved:Pair=$other;$target=saved;} machine main()->u8 {let mut box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 1, 124);
-        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine main()->u8 {let mut a:Pair;let other:Pair=Pair{first:42,second:1};$a=other;42}", 1, 125);
-        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@mut Pair,other:@Pair){let saved:Pair=other;$target=saved;} machine main()->u8 {let mut box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@mut box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 2, 126);
-        self.refusal("data Cell [copy] requires n<=2, { n:u64; bytes:[u8;2]; } machine read(p:@mut Cell)->u8 requires p.n<2 {let mut replacement:Cell;replacement.n=2;$p=replacement;p.bytes[p.n]} machine main()->u8 {42}", 2, 127);
-        self.refusal("data Leaf [copy] { n:u8; } data Tree [copy] { leaf:Leaf; } machine use_both(a:@mut Leaf,b:Tree) {} machine caller(p:@mut Tree) {use_both(@mut p.leaf,$p);} machine main()->u8 {42}", 1, 128);
+        self.positive("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@mutable Pair,other:@Pair){let saved:Pair=$other;$target=saved;} machine main()->u8 {let mutable box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@mutable box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 42, 123);
+        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@ Pair,other:@Pair){let saved:Pair=$other;$target=saved;} machine main()->u8 {let mutable box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 1, 124);
+        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine main()->u8 {let mutable a:Pair;let other:Pair=Pair{first:42,second:1};$a=other;42}", 1, 125);
+        self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@mutable Pair,other:@Pair){let saved:Pair=other;$target=saved;} machine main()->u8 {let mutable box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@mutable box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 2, 126);
+        self.refusal("data Cell [copy] requires n<=2, { n:u64; bytes:[u8;2]; } machine read(p:@mutable Cell)->u8 requires p.n<2 {let mutable replacement:Cell;replacement.n=2;$p=replacement;p.bytes[p.n]} machine main()->u8 {42}", 2, 127);
+        self.refusal("data Leaf [copy] { n:u8; } data Tree [copy] { leaf:Leaf; } machine use_both(a:@mutable Leaf,b:Tree) {} machine caller(p:@mutable Tree) {use_both(@mutable p.leaf,$p);} machine main()->u8 {42}", 1, 128);
         // An underflow proof belongs to its scalar and cannot truncate a wide literal.
         self.refusal("data Pool requires used<=43, {used:u64;} machine free(p:@Pool)->u64{42-p.used} machine main()->u8{42}", 2, 130);
         self.refusal("data Pool requires used<=42, {used:u64;other:u64;} machine free(p:@Pool)->u64{42-p.other} machine main()->u8{42}", 2, 131);
         self.refusal("machine trim(v:u64)->u64 requires v>=1 {v-2} machine main()->u8{42}", 2, 132);
         self.refusal("machine trim(v:u64)->u64 requires v>=2 {v-2} machine main()->u8{let r:u64=trim(1);42}", 2, 133);
         self.refusal("machine trim(v:u64)->u64 requires v>=2 {v-4294967298u64} machine main()->u8{42}", 2, 134);
-        self.refusal("data Pool requires used<=42, {used:u64;} machine sum(p:@Pool)->u64{p.used+4294967296u64} machine main()->u8{let mut p:Pool;p.used=2;transition sum(@p)==2u64 {true->42,_->1}}", 2, 135);
+        self.refusal("data Pool requires used<=42, {used:u64;} machine sum(p:@Pool)->u64{p.used+4294967296u64} machine main()->u8{let mutable p:Pool;p.used=2;transition sum(@p)==2u64 {true->42,_->1}}", 2, 135);
         // A stored Trapping sum must fit the specific destination field on every call.
-        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping) requires i<=512 {p.n=(i+1) as -Trapping;} machine main()->u8{42}", 2, 136);
-        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping) requires i<512 {p.n=(i+2) as -Trapping;} machine main()->u8{42}", 2, 137);
-        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping) requires i<512 {p.n=(i+4294967297u64) as -Trapping;} machine main()->u8{42}", 2, 138);
-        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping,j:u64 in Trapping) requires i<512 {p.n=(j+1) as -Trapping;} machine main()->u8{42}", 2, 139);
-        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping) requires i<512 {p.n=(i+1) as -Trapping;} machine main()->u8{let mut p:Count;mark(@mut p,512 as +Trapping);42}", 2, 140);
+        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mutable Count,i:u64 in Trapping) requires i<=512 {p.n=(i+1) as -Trapping;} machine main()->u8{42}", 2, 136);
+        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mutable Count,i:u64 in Trapping) requires i<512 {p.n=(i+2) as -Trapping;} machine main()->u8{42}", 2, 137);
+        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mutable Count,i:u64 in Trapping) requires i<512 {p.n=(i+4294967297u64) as -Trapping;} machine main()->u8{42}", 2, 138);
+        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mutable Count,i:u64 in Trapping,j:u64 in Trapping) requires i<512 {p.n=(j+1) as -Trapping;} machine main()->u8{42}", 2, 139);
+        self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mutable Count,i:u64 in Trapping) requires i<512 {p.n=(i+1) as -Trapping;} machine main()->u8{let mutable p:Count;mark(@mutable p,512 as +Trapping);42}", 2, 140);
         // Five times two exceeds seven even though five plus two fits.
-        self.refusal("data Count requires n<=7, {n:u32;} machine store(p:@mut Count,i:u32 in Trapping) requires i<=5 {p.n=(i*2) as -Trapping;} machine main()->u8{let mut p:Count;store(@mut p,5u32 as +Trapping);42}", 2, 141);
+        self.refusal("data Count requires n<=7, {n:u32;} machine store(p:@mutable Count,i:u32 in Trapping) requires i<=5 {p.n=(i*2) as -Trapping;} machine main()->u8{let mutable p:Count;store(@mutable p,5u32 as +Trapping);42}", 2, 141);
         // A branch proves a bound only for its own index, on the matching side.
         self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<=2 {true->b.a[i],_->0}} machine main()->u8{42}", 2, 142);
         self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<2 {true->b.a[j],_->0}} machine main()->u8{42}", 2, 143);

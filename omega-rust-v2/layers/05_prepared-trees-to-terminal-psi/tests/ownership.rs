@@ -300,7 +300,7 @@ fn residual_cleanup_invokes_the_hook_on_the_exact_live_field() {
 #[test]
 fn owned_replacement_distinguishes_a_vacant_field_from_its_live_sibling() {
     for (destination, vacant) in [("left", true), ("right", false)] {
-        let source = format!("{PAIR} machine replace(p:Pair,new:Token)->Token{{let mut q=move p;let old=move q.left;q.{destination}=move new;old}}");
+        let source = format!("{PAIR} machine replace(p:Pair,new:Token)->Token{{let mutable q=move p;let old=move q.left;q.{destination}=move new;old}}");
         let package = sources::lower(&[("replace.omg", &source)]).unwrap();
         let body = &package.machines[0].body;
         let (written, disposition) = body
@@ -391,7 +391,7 @@ fn transferring_an_owned_match_result_uses_the_join_parameter() {
 
 #[test]
 fn reinitializing_an_earlier_local_preserves_reverse_declaration_cleanup_order() {
-    let source = "data Token {n:u8;} machine order(a:Token,b:Token,c:Token){let mut first=move a;let second=move b;let removed=move first;first=move c;}";
+    let source = "data Token {n:u8;} machine order(a:Token,b:Token,c:Token){let mutable first=move a;let second=move b;let removed=move first;first=move c;}";
     let package = sources::lower(&[("order.omg", source)]).unwrap();
     let body = &package.machines[0].body;
     let declared: Vec<_> = body
@@ -590,7 +590,7 @@ fn a_cleanup_pattern_transfers_bound_children_and_disposes_ignored_children() {
     // Through an exclusive loan the move is a borrowed move of the referent's
     // field. The reader reports the referent as the hooked owner.
     let borrowed = format!(
-        "{} machine swap(x:@mut Lease)->Token{{let t=move x.kept; x.kept=Token{{value:1}}; t}}",
+        "{} machine swap(x:@mutable Lease)->Token{{let t=move x.kept; x.kept=Token{{value:1}}; t}}",
         &source[..source.find("machine unpack").unwrap()]
     );
     let package = sources::lower(&[("parts.omg", &borrowed)]).unwrap();
@@ -793,7 +793,7 @@ fn a_grouped_call_argument_transfers_the_selected_field_to_the_callee() {
     spec_corpus::observe_handoff!("grouped-call-field/consumer", {
         for (property, access, refill, obligation) in [
             (" [copy]", "@", "", "CopyRead"),
-            ("", "@mut ", "h.item=B{n:0};", "RestoreBorrowed"),
+            ("", "@mutable ", "h.item=B{n:0};", "RestoreBorrowed"),
         ] {
             let src = format!("data B{property} {{n:u8;}} data H{{item:B;}} data W{{b:B;}} machine wrap(b:B)->W{{W{{b:b}}}} machine run(h:{access}H)->W{{let w=wrap((h.item));{refill}w}}");
             let lowered = pipeline::lower(&src);
@@ -803,7 +803,7 @@ fn a_grouped_call_argument_transfers_the_selected_field_to_the_callee() {
             assert_eq!(lowered.spelling(&transfer.site), "h.item");
             let operation = pipeline::operation_at(body, &transfer.site);
             let source = match (&operation.kind, access) {
-                (OperationKind::CopyStructural { source }, "@") | (OperationKind::BorrowedMove { source }, "@mut ") => source,
+                (OperationKind::CopyStructural { source }, "@") | (OperationKind::BorrowedMove { source }, "@mutable ") => source,
                 _ => panic!("wrong transfer for {access}: {:?}", operation.kind),
             };
             assert!(matches!(source.path.as_slice(), [PlaceProjection::Referent, PlaceProjection::Field(field)] if field.path == "H::item"));

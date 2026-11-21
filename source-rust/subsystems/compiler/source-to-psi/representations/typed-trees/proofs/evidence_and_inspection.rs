@@ -1870,12 +1870,8 @@ pub mod evidence {
                     format!("{}.{}", render(member.receiver)?, member.member)
                 }
                 ExpressionNode::Borrow(inner) => format!(
-                    "{} {}",
-                    match inner.access {
-                        language_core::ReferenceAccess::Mutable => "mut",
-                        language_core::ReferenceAccess::WriteOnly => "write",
-                        language_core::ReferenceAccess::Shared => "shared",
-                    },
+                    "{}{}",
+                    inner.access.borrow_prefix(),
                     render(inner.target)?
                 ),
                 ExpressionNode::Name(path) => {

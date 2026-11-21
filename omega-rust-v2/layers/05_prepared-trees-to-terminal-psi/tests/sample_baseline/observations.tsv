@@ -2,11 +2,11 @@
 # Psi products: id, psi, inspected property.
 standalone	psi	witness matched
 module-library	psi	witness matched
-cross-width	L2	root	main.omg	475	485	20	9	Main::main	a data carrier cannot own a machine
-rational-landing	L2	root	main.omg	720	730	25	9	Main::main	a data carrier cannot own a machine
+cross-width	L1	root	main.omg	497	501	20	31	Main	expected `,` or `)` (bytes 497..501)
+rational-landing	L1	root	main.omg	742	746	25	31	Main	expected `,` or `)` (bytes 742..746)
 cross-width-v2	psi	witness matched
 rational-landing-v2	psi	witness matched
-direct-imports	L2	root	m/b.omg	4	7	1	5	m\a	unavailable import m\a
+direct-imports	L1	root	main.omg	285	289	13	31	Main	expected `,` or `)` (bytes 285..289)
 direct-imports-v2	psi	witness matched
 missing-import-v2	L2	root	main.omg	65	66	4	30	A	unresolved name A
 abstract-premise	L1	root	main.omg	772	776	37	27	Trap	expected `;` (bytes 772..776)

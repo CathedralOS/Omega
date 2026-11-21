@@ -1936,7 +1936,7 @@ pub(super) fn lifetime_application(
     Ok(())
 }
 
-/// `&'a T` where a type is read: the tag a reference writes must be a binder
+/// `@'a T` where a type is read: the tag a reference writes must be a binder
 /// its owner declares. lifetimes.md: "Duplicate binders and undeclared tags
 /// reject." A tag no binder of the owner answers is the author's error in
 /// every program, so it is rejected here rather than left to the identity

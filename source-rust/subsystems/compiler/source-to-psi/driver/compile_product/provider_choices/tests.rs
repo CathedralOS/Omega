@@ -14,12 +14,12 @@ use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
 const SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\ndata Other {}\n";
-const ORIGINAL_NATIVE_DEFAULT: &str = "machine Native::provider_defaults(defaults: @mut Native) {\n    Native::select_provider::<Service, Native>(defaults);\n}\n";
+const ORIGINAL_NATIVE_DEFAULT: &str = "machine Native::provider_defaults(defaults: @mutable Native) {\n    Native::select_provider::<Service, Native>(defaults);\n}\n";
 
 // The named implementations supply the operations. Separate data declarations select defaults.
 const NAMED_SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\npublic Native satisfies Service {\n    machine go() reaches none crashes none {}\n}\npublic Other satisfies Service {\n    machine go() reaches none crashes none {}\n}\ndata NativeDefaults {}\ndata OtherDefaults {}\n";
-const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider::<Service, Native>(defaults);\n}\n";
-const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: @mut OtherDefaults) {\n    OtherDefaults::select_provider::<Service, Other>(defaults);\n}\n";
+const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: @mutable NativeDefaults) {\n    NativeDefaults::select_provider::<Service, Native>(defaults);\n}\n";
+const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: @mutable OtherDefaults) {\n    OtherDefaults::select_provider::<Service, Other>(defaults);\n}\n";
 const REACHES: &str = "machine main() {\n    Service::go();\n}\n";
 const REACHES_NOTHING: &str = "machine main() {\n}\n";
 

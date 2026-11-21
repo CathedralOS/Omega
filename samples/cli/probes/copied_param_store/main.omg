@@ -1,4 +1,4 @@
-// By-value param copies: `let mut copy: Item = item;` is fresh
+// By-value param copies: `let mutable copy: Item = item;` is fresh
 // storage the caller cannot observe — storing a case-valued field
 // or a count writes only the copy. `[copy]` data + `u64 in
 // Trapping` domain field.
@@ -31,7 +31,7 @@ machine Kind::tag(kind: Kind) -> u64 in Trapping {
 }
 
 machine Item::promoted(item: Item) -> Item {
-    let mut copy: Item = item;
+    let mutable copy: Item = item;
     copy.kind = Kind::Second;
     copy.count = copy.count + 7;
     copy
@@ -39,7 +39,7 @@ machine Item::promoted(item: Item) -> Item {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     let original: Item = Item { kind: Kind::First, count: 2 };
     let lifted: Item = Item::promoted(original);
@@ -49,12 +49,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

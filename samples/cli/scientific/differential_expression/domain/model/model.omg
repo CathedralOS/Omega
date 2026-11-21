@@ -46,19 +46,19 @@ machine geometric(study: @Study, gene: i32 in Wrapping) -> f64 {
  false -> 0.0 }
     }
 }
-public machine normalize(study: @mut Study) -> bool {
+public machine normalize(study: @mutable Study) -> bool {
     transition { _ -> sample(study, 0) }
-    machine sample(study: @mut Study, index: i32 in Wrapping) -> bool {
+    machine sample(study: @mutable Study, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 6 {
  true -> genes(study, index, 0, 0),
  false -> true }
     }
-    machine genes(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine genes(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         transition gene < 8 {
  true -> ratio(study, index, gene, size),
  false -> median(study, index, size) }
     }
-    machine ratio(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine ratio(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         let center: f64 = geometric(study, gene);
         let observed: f64 = count(study, gene, index);
         transition center > 0.0 && size >= 0 && size < 8 {
@@ -68,41 +68,41 @@ public machine normalize(study: @mut Study) -> bool {
  false -> genes(study, index, gene + 1, size)
         }
     }
-    machine prepare_insert(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, observed: f64, center: f64) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine prepare_insert(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, observed: f64, center: f64) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         let value: f64 = logarithm(observed / center);
         transition { _ -> insert(study, index, gene, size, value, size) }
     }
-    machine insert(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine insert(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         transition position > 0 && position < 8 {
  true -> previous(study, index, gene, size, value, position, position - 1),
  false -> store(study, index, gene, size, value, position) }
     }
-    machine previous(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
+    machine previous(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
         transition study.ratios[previous] > value {
  true -> shift(study, index, gene, size, value, position, previous),
  false -> store(study, index, gene, size, value, position) }
     }
-    machine shift(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
+    machine shift(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
         study.ratios[position] = study.ratios[previous];
         transition { _ -> insert(study, index, gene, size, value, previous) }
     }
-    machine store(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine store(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         transition position >= 0 && position < 8 {
  true -> write(study, index, gene, size, value, position),
  false -> false }
     }
-    machine write(study: @mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position >= 0 && position < 8 {
+    machine write(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position >= 0 && position < 8 {
         study.ratios[position] = value;
         transition { _ -> genes(study, index, gene + 1, size + 1) }
     }
-    machine median(study: @mut Study, index: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine median(study: @mutable Study, index: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         let upper: i32 in Wrapping = size / 2;
         let lower: i32 in Wrapping = (size - 1) / 2;
         transition size > 0 && upper >= 0 && upper < 8 && lower >= 0 && lower < 8 {
  true -> finish(study, index, size, lower, upper),
  false -> false }
     }
-    machine finish(study: @mut Study, index: i32 in Wrapping, size: i32 in Wrapping, lower: i32 in Wrapping, upper: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && lower >= 0 && lower < 8 && upper >= 0 && upper < 8 {
+    machine finish(study: @mutable Study, index: i32 in Wrapping, size: i32 in Wrapping, lower: i32 in Wrapping, upper: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && lower >= 0 && lower < 8 && upper >= 0 && upper < 8 {
         study.factors[index] = exponential((study.ratios[lower] + study.ratios[upper]) / 2.0);
         study.eligible = size;
         transition { _ -> sample(study, index + 1) }

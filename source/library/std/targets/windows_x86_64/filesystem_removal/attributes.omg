@@ -22,8 +22,8 @@ reaches FilesystemMetadataQuery {
     transition (file as -WindowsDiskFileOrAbsent) != 0 { true -> block query(file), false -> failed() }
     machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
     requires (file as -WindowsDiskFileOrAbsent) != 0 {
-        let mut information: WindowsNativeFileAttributeTagInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, @mut information, 8);
+        let mutable information: WindowsNativeFileAttributeTagInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, @mutable information, 8);
         transition succeeded != 0 {
             true -> (WindowsRemovalAttributes::Value { attributes: information.attributes }),
             false -> failed()

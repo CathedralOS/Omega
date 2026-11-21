@@ -4,14 +4,14 @@
 data Cell [copy] { before: i64; value: i64; after: i64; }
 data Outcome [copy] { chosen: i64; other: i64; }
 
-machine choose(counter: @mut u64, flag: bool) -> bool
+machine choose(counter: @mutable u64, flag: bool) -> bool
 requires $counter == 0
 {
     $counter = 1;
     flag
 }
 
-machine apply(chosen: @mut Cell, other: @mut Cell, visits: @mut u64, flag: bool)
+machine apply(chosen: @mutable Cell, other: @mutable Cell, visits: @mutable u64, flag: bool)
 requires $visits == 0
 {
     let selected: @write i64 = match choose(visits, flag) {
@@ -23,10 +23,10 @@ requires $visits == 0
 }
 
 machine store(flag: bool) -> Outcome crashes Trap {
-    let mut chosen: Cell = Cell { before: 3, value: 17, after: 5 };
-    let mut other: Cell = Cell { before: 7, value: 23, after: 9 };
-    let mut visits: u64 = 0;
-    apply(@mut chosen, @mut other, @mut visits, flag);
+    let mutable chosen: Cell = Cell { before: 3, value: 17, after: 5 };
+    let mutable other: Cell = Cell { before: 7, value: 23, after: 9 };
+    let mutable visits: u64 = 0;
+    apply(@mutable chosen, @mutable other, @mutable visits, flag);
     transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {
         true -> report(Outcome { chosen: chosen.value, other: other.value }),
         false -> wrong()

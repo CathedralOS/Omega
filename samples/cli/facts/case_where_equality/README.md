@@ -32,7 +32,7 @@ The nested [data_predicate](data_predicate/README.md) row is an independent exis
 - **Composition:** ordinary calls and nested arrivals substitute exact actuals. Both match branches retain the complete same domain, and copied/synthetic transition homes carry the completed value's admission. Case payload access consumes an independently proved classifier through the existing typed projection owner.
 - **Soundness:** malformed Point4/3 construction and const admission refuse; overlapping payload mutation cannot reuse the old nominal predicate, and Empty cannot provide another case's payload. The repair adds no copy permission, caller guard, receiving-type premise, or tag-from-equality rule.
 - **Checked to Terminal Psi:** the unchanged exact-u64 subtraction, tags, case fields, ordinary calls, and crash routes lower and execute in both engines. Admission metadata is checking context, not a new runtime representation.
-- **Provider and physical realization:** the target body has the original `&mut Main`, empty reach, and Trap ceiling. Four Build choices select the same ordinary body. Caller-home observations exercise the realized record fields, case payload, parameter/result transport and native writeback. Four-target artifacts are distinguished from actual host execution.
+- **Provider and physical realization:** the target body has the original `@mutable Main`, empty reach, and Trap ceiling. Four Build choices select the same ordinary body. Caller-home observations exercise the realized record fields, case payload, parameter/result transport and native writeback. Four-target artifacts are distinguished from actual host execution.
 
 ## Evidence
 

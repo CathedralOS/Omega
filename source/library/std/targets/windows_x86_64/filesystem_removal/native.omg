@@ -39,8 +39,8 @@ boundary trait WindowsFilesystemRemovalIo {
     // SYNCHRONIZE|DELETE|READ_ATTRIBUTES, adding LIST_DIRECTORY only when
     // requesting a directory. Actual opened-object metadata decides descent.
     // OBJ_DONT_REPARSE, no case-folding of exact enumeration components.
-    machine open<'scope>(output: @mut i64, access: u32, attributes: @WindowsNativeObjectAttributes<'scope>,
-        status: @mut WindowsFilesystemIoStatus, sharing: u32, options: u32) -> i32
+    machine open<'scope>(output: @mutable i64, access: u32, attributes: @WindowsNativeObjectAttributes<'scope>,
+        status: @mutable WindowsFilesystemIoStatus, sharing: u32, options: u32) -> i32
     requires (access == 1114240 || access == 1114241) && sharing == 7 && options == 2113568
     reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration blocks
     crashes none;

@@ -1,7 +1,7 @@
 //! Follow a parked writable home's descriptors through the stores that
 //! replaced them, reading published Psi alone.
 //!
-//! `let mut h = Holder{r: first}; h.r = second;` constructs the home and then
+//! `let mutable h = Holder{r: first}; h.r = second;` constructs the home and then
 //! replaces one shared descriptor field
 //! (`wiki/spec/language/lifetimes.md#carried-loan-transport`). When a later
 //! call parks with `h` live, the owner row must say that `h.r` now holds the

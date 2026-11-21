@@ -25,7 +25,7 @@ machine Main::main(&mut self) {
     self.refusal("machine shadow(value: u8) -> u8 { let value: u8 = 2; value } machine main() -> u8 { 42 }", 1, 45);
     self.refusal("machine hidden() -> u8 { 7 } machine main() -> u8 { let hidden: u8 = 2; hidden }", 2, 46);
     self.positive("machine main() -> u8 { let value: u8; value }", 0, 47);
-    self.positive("machine main() -> u8 { let mut value: u8 = 2; value }", 2, 48);
+    self.positive("machine main() -> u8 { let mutable value: u8 = 2; value }", 2, 48);
     self.refusal("machine increment(value: u8) -> u8 { value + 1 } machine main() -> u8 { (increment(41)) }", 2, 49);
     self.refusal("machine recur(value: u8) -> u8 { (recur(value)) } machine main() -> u8 { (recur(42)) }", 2, 50);
     self.refusal("machine left(value: u8) -> u8 { (right(value)) } machine right(value: u8) -> u8 { (left(value)) } machine main() -> u8 { (left(42)) }", 2, 51);
@@ -56,7 +56,7 @@ machine Main::main(&mut self) {
     assert self.compiler.outcome_space == 4;
     assert self.compiler.outcome_coordinate == 0;
     // The call changes its source from 42 to 7. Reading the returned field must execute it once.
-    self.positive("data Item [copy] { source_span:u8; decoy:u8; } data Root [copy] { span:u8; } data Counter [copy] { n:u8; } machine item(c:@mut Counter)->Item { let saved:u8=c.n; c.n=7; Item {source_span:saved,decoy:1} } machine main()->u8 { let mut c:Counter; c.n=42; let root:Root=Root {span:item(@mut c).source_span}; transition c.n==7 {true->root.span,_->1} }", 42, 91);
+    self.positive("data Item [copy] { source_span:u8; decoy:u8; } data Root [copy] { span:u8; } data Counter [copy] { n:u8; } machine item(c:@mutable Counter)->Item { let saved:u8=c.n; c.n=7; Item {source_span:saved,decoy:1} } machine main()->u8 { let mutable c:Counter; c.n=42; let root:Root=Root {span:item(@mutable c).source_span}; transition c.n==7 {true->root.span,_->1} }", 42, 91);
     self.refusal("data Item [copy]{n:u8;} machine item()->Item{Item{n:42}} machine main()->u8{item().absent}", 1, 92);
     self.positive("machine main() -> u8 { 43 }", 43, 90);
 }

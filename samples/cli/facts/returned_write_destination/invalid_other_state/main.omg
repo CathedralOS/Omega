@@ -6,7 +6,7 @@ machine replace(destination: @write i32) {
  machine later(destination: @write i32) { destination = destination; }
 }
 machine main() crashes Trap {
- let mut value: i32 = 7;
+ let mutable value: i32 = 7;
  let neighbor: i32 = 19;
  replace(@write value);
  transition value == 42 && neighbor == 19 { true -> done(), false -> wrong() }

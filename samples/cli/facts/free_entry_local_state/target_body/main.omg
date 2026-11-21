@@ -2,8 +2,8 @@
 // Place: target_body.
 // Expected exit: 0
 data Tally { total: u64; }
-data Mark<'view> dropped by drop_mark { slot: @'view mut Tally; code: u64; }
-machine drop_mark(mark: @mut Mark) requires mark.code == 7 {
+data Mark<'view> dropped by drop_mark { slot: @'view mutable Tally; code: u64; }
+machine drop_mark(mark: @mutable Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
 machine settle(mark: @Mark) {}
@@ -28,12 +28,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedFinish {
-    machine finish(tally: @mut Tally, code: u64)
+    machine finish(tally: @mutable Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7;
 }
 
 X86Finish satisfies SelectedFinish {
-    machine finish(tally: @mut Tally, code: u64)
+    machine finish(tally: @mutable Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -45,7 +45,7 @@ X86Finish satisfies SelectedFinish {
 }
 
 ArmFinish satisfies SelectedFinish {
-    machine finish(tally: @mut Tally, code: u64)
+    machine finish(tally: @mutable Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -58,8 +58,8 @@ ArmFinish satisfies SelectedFinish {
 
 
 machine start() crashes Trap {
-    let mut tally: Tally = Tally { total: 0 };
-    SelectedFinish::finish(@mut tally, 7);
+    let mutable tally: Tally = Tally { total: 0 };
+    SelectedFinish::finish(@mutable tally, 7);
 }
 
 // A hosted shape alone cannot establish this ordinary mutable argument.

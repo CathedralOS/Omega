@@ -59,7 +59,6 @@ use crate::source_resolved::types::TypeConstraint;
 use crate::source_resolved::types::TypeReference;
 use crate::source_symbols::JoinedPath;
 use arena::HandleSpan;
-use language_core::ReferenceAccess;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
 use source_text::Span;
@@ -84,7 +83,7 @@ use syntax_trees::operator_spelling::OperatorSpelling;
     use site, so a boundary row repeating a machine binding rejects here too.
 
     The semantic-home rule stays machine-only: attached `operator` spells like
-    `Slice::index<T>(items: &[T], ...)` attach to a namespace that never joins
+    `Slice::index<T>(items: @[T], ...)` attach to a namespace that never joins
     the operand tuple, and trait-homed operators participate through
     conformance, not operand selection. Whether the operator form keeps that
     looser admission or retires behind the machine rule is an
@@ -1099,7 +1098,7 @@ impl<'program> ShapeNormalizer<'program> {
     fn parameter_shape(&mut self, parameter: &StateParameter) -> String {
         let mut shape = String::new();
         if parameter.is_mutable {
-            shape.push_str("mut ");
+            shape.push_str("mutable ");
         }
         if parameter.is_const {
             shape.push_str("const ");
@@ -1223,11 +1222,7 @@ impl<'program> ShapeNormalizer<'program> {
                 self.callable_shape(&signature)
             }
             TypeReference::Reference(reference) => {
-                let access = match reference.access {
-                    ReferenceAccess::Shared => "@",
-                    ReferenceAccess::Mutable => "@mut ",
-                    ReferenceAccess::WriteOnly => "@write ",
-                };
+                let access = reference.access.borrow_prefix();
                 let referee = self.program.child_type_reference(reference.referee);
                 format!("{access}{}", self.type_shape(referee))
             }

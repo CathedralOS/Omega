@@ -267,7 +267,7 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable<Shape> {
-            machine draw(value: @Shape, canvas: @mut Canvas);
+            machine draw(value: @Shape, canvas: @mutable Canvas);
         }
 
         boundary trait Console {
@@ -450,7 +450,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::main(app: @mut App) requires app.a <= app.b reaches Console {
+        machine App::main(app: @mutable App) requires app.a <= app.b reaches Console {
         }
         "#;
 
@@ -477,25 +477,25 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::reaches_then_requires(app: @mut App) reaches Console requires app.a <= app.b {
+        machine App::reaches_then_requires(app: @mutable App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(app: @mut App) requires app.a <= app.b reaches Console {
+        machine App::requires_semicolon_reaches(app: @mutable App) requires app.a <= app.b reaches Console {
         }
-        machine App::requires_newline_reaches(app: @mut App)
+        machine App::requires_newline_reaches(app: @mutable App)
             requires app.a <= app.b
             reaches Console {
         }
-        machine App::requires_only(app: @mut App) requires app.a <= app.b {
+        machine App::requires_only(app: @mutable App) requires app.a <= app.b {
         }
-        machine App::reaches_only(app: @mut App) reaches Console {
+        machine App::reaches_only(app: @mutable App) reaches Console {
         }
-        machine App::bare(app: @mut App) {
+        machine App::bare(app: @mutable App) {
         }
-        machine App::predicate_then_reaches(app: @mut App) ensures app.a settled reaches Console {
+        machine App::predicate_then_reaches(app: @mutable App) ensures app.a settled reaches Console {
         }
 
         trait Visitor<Visited> {
-            machine visit(value: @mut Visited) requires value.a <= value.b reaches Console;
+            machine visit(value: @mutable Visited) requires value.a <= value.b reaches Console;
         }
         "#;
 

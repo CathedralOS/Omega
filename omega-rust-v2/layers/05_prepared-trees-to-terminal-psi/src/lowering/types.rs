@@ -558,7 +558,7 @@ pub(crate) fn nominal_element_view(carrier: &ValueType) -> Option<(&omega_typed:
     Some((access, id))
 }
 
-/// An exclusive place reference: `@mut T` or `@write T`. A write-only loan is
+/// An exclusive place reference: `@mutable T` or `@write T`. A write-only loan is
 /// exclusive too (language/ownership.md#borrows-and-aliases), and exclusive
 /// descriptors never gain copy permission
 /// (terminal-psi/structural_access.md#write-only-authority).
@@ -569,14 +569,14 @@ pub(crate) fn is_exclusive_reference(carrier: &ValueType) -> bool {
     )
 }
 
-/// An exclusive loan carrier: a `@mut T` or `@write T` reference or a
-/// `@mut [T]` element view. It is affine, so a state edge transfers it rather
+/// An exclusive loan carrier: a `@mutable T` or `@write T` reference or a
+/// `@mutable [T]` element view. It is affine, so a state edge transfers it rather
 /// than copying it (terminal-psi/byte_views.md#calls-and-control-transfers).
 pub(crate) fn is_exclusive_descriptor(carrier: &ValueType) -> bool {
     is_exclusive_reference(carrier) || is_exclusive_element_view(carrier)
 }
 
-/// A `@mut [T]` element view of scalar or nominal elements. Like every other
+/// A `@mutable [T]` element view of scalar or nominal elements. Like every other
 /// descriptor it lives in a structural place, but it is never copied.
 pub(crate) fn is_exclusive_element_view(carrier: &ValueType) -> bool {
     element_view_access(carrier) == Some(&omega_typed::Access::Mut)

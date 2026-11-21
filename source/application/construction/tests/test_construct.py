@@ -15,8 +15,8 @@ import construct
 
 class BuildSourceTests(unittest.TestCase):
     packages = [('app', 0), ('core', 1), ('library', 0)]
-    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mut Build) {}'),
-               (1, 'defaults/build.omg', b'machine build(builder: @mut Build) {}')]
+    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mutable Build) {}'),
+               (1, 'defaults/build.omg', b'machine build(builder: @mutable Build) {}')]
     entries = [(0, 0), (1, 1), (2, 1)]
 
     def frame(self, packages=None, sources=None, entries=None):
@@ -63,13 +63,13 @@ class BuildSourceTests(unittest.TestCase):
             for _, package, _ in construct.PACKAGES:
                 root = Path(temp) / package
                 root.mkdir(parents=True)
-                (root / 'build.omg').write_text('machine build(builder: @mut Build) {}')
+                (root / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
                 (root / 'main.omg').write_text('machine entry_start() {}')
             psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
             before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
             fixture = psi / 'tests/fixtures/example'
             fixture.mkdir(parents=True)
-            (fixture / 'build.omg').write_text('machine build(builder: @mut Build) {}')
+            (fixture / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
             (fixture / 'main.omg').write_text('machine main() -> u8 { 42 }')
             self.assertEqual(before, [construct.compiler_input(scoped)[0] for scoped in (False, True)])
             (psi / 'main.omg').write_text('machine changed() {}')

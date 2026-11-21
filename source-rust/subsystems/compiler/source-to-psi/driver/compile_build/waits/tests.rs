@@ -5,8 +5,8 @@ const SOURCE: SourceId = SourceId(0);
 const PROGRAM: &str = r#"
 use kit;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build) suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build) suspends {
     let before: u32 = 1;
     suspend Build::prepare_dependency(builder);
     let seven: u32 = TEST();
@@ -168,7 +168,7 @@ fn a_helper_preparation_keeps_its_actual_caller_and_return_body() {
             "    suspend ready(builder);",
         )
         .replace("TEST", r"kit\seven")
-        + "\nmachine ready(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder); }";
+        + "\nmachine ready(builder: @mutable Build) suspends { suspend Build::prepare_dependency(builder); }";
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
@@ -196,7 +196,7 @@ fn a_wait_inside_the_helper_keeps_the_helpers_post_wait_local() {
         )
         .replace("TEST()", "7")
         + r"
-machine ready(builder: @mut Build) suspends {
+machine ready(builder: @mutable Build) suspends {
     let held: u32 = 1;
     suspend Build::prepare_dependency(builder);
     let next: u32 = kit\seven();
@@ -307,14 +307,14 @@ fn a_conditional_preparation_retains_both_caller_arms() {
     let program = r"
 use kit;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build, choosing: bool) suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build, choosing: bool) suspends {
     transition choosing {
         true -> suspend ready(builder),
         _ -> skipped()
     }
     machine skipped() {}
-    machine ready(builder: @mut Build) suspends {
+    machine ready(builder: @mutable Build) suspends {
         let saved: u32 = 3;
         suspend Build::prepare_dependency(builder);
         let value: u32 = kit\seven();
@@ -432,13 +432,13 @@ fn a_wait_in_a_sibling_arm_does_not_supply_another_arms_import() {
     let program = r"
 use kit;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build, choosing: bool) suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build, choosing: bool) suspends {
     transition choosing {
         true -> suspend ready(builder),
         _ -> finish()
     }
-    machine ready(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder); }
+    machine ready(builder: @mutable Build) suspends { suspend Build::prepare_dependency(builder); }
     machine finish() { let result: u32 = kit\seven(); }
 }";
     let (_, plan, _) = select(program, &imports);
@@ -459,7 +459,7 @@ fn a_value_returning_helper_keeps_its_authored_completion_at_a_nested_wait() {
         )
         .replace("TEST()", r"kit\seven(saved)")
         + r"
-machine ready(builder: @mut Build) -> u32 suspends {
+machine ready(builder: @mutable Build) -> u32 suspends {
     suspend Build::prepare_dependency(builder);
     19u32
 }";
@@ -499,17 +499,17 @@ fn separate_dispatch_arms_prepare_only_their_own_missing_scopes() {
 use left;
 use right;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build, choosing: bool) suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build, choosing: bool) suspends {
     transition choosing {
         true -> suspend first(builder),
         _ -> suspend second(builder)
     }
-    machine first(builder: @mut Build) suspends {
+    machine first(builder: @mutable Build) suspends {
         suspend Build::prepare_dependency(builder);
         let seen: u32 = left\answer();
     }
-    machine second(builder: @mut Build) suspends {
+    machine second(builder: @mutable Build) suspends {
         suspend Build::prepare_dependency(builder);
         let seen: u32 = right\answer();
     }
@@ -599,14 +599,14 @@ fn a_shared_use_requires_a_preparation_on_each_returning_arm() {
     let program = r"
 use kit;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build, choosing: bool) suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build, choosing: bool) suspends {
     suspend choose(builder, choosing);
     let must_be_available: u32 = kit\answer();
 }
-machine choose(builder: @mut Build, choosing: bool) suspends {
+machine choose(builder: @mutable Build, choosing: bool) suspends {
     transition choosing { true -> suspend first(builder), _ -> skip() }
-    machine first(builder: @mut Build) suspends {
+    machine first(builder: @mutable Build) suspends {
         suspend Build::prepare_dependency(builder);
         let seen: u32 = kit\answer();
     }
@@ -627,9 +627,9 @@ fn a_projected_value_helper_keeps_its_real_result_type_and_exact_open_call() {
     let text = r"
 use kit;
 data Build {}
-machine Build::prepare_dependency(builder: @mut Build) suspends {}
-machine build(builder: @mut Build) suspends { let saved: u32 = suspend ready(builder); }
-machine ready(builder: @mut Build) -> u32 suspends {
+machine Build::prepare_dependency(builder: @mutable Build) suspends {}
+machine build(builder: @mutable Build) suspends { let saved: u32 = suspend ready(builder); }
+machine ready(builder: @mutable Build) -> u32 suspends {
     suspend Build::prepare_dependency(builder);
     kit\answer()
 }";

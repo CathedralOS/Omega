@@ -21,7 +21,7 @@ a named machine selects the code.
 
 ```omega
 data Counter { value: u64; }
-data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data ClearCounter = machine(counter: @mutable Counter) reaches none crashes none terminates;
 data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 
 data CounterOps {
@@ -29,7 +29,7 @@ data CounterOps {
     value: CounterValue;
 }
 
-machine clear(counter: @mut Counter) terminates { counter.value = 0; }
+machine clear(counter: @mutable Counter) terminates { counter.value = 0; }
 machine value(counter: @Counter) -> u64 terminates { counter.value }
 
 let operations = CounterOps { clear: clear, value: value };

@@ -8,8 +8,8 @@ capability. Every plan now states its issuance when it is built:
 
 ```omega
 // before: the second line is forgettable
-let mut plan: AccessPlan = AccessPlan::new(@schema);
-AccessPlan::establish(@mut plan, [reflect::callable(choose_folder)]);
+let mutable plan: AccessPlan = AccessPlan::new(@schema);
+AccessPlan::establish(@mutable plan, [reflect::callable(choose_folder)]);
 
 // after: no plan exists without the choice
 let plan: AccessPlan = AccessPlan::new(
@@ -30,7 +30,7 @@ Delete this record when the implementation and acceptance are complete.
 
 ## Decisions
 
-1. `AccessPlan::new(&schema, issuance)` takes an `Issuance`. No valid plan
+1. `AccessPlan::new(@schema, issuance)` takes an `Issuance`. No valid plan
    omits it, including a plan built as a record literal.
 2. `Issuance` is `Only(routes)` or `Unrestricted`. `Only` with an empty list
    admits nobody; existing qualified values still move, lend and forward.
@@ -70,7 +70,7 @@ rest become a policy whose plan starts from `Issuance::Only`.
 
 - A plan built without an issuance argument does not compile, and a record
   literal for `AccessPlan` that omits it yields a plan that admits nobody.
-- `let mut plan: AccessPlan;` followed by reader rules admits no issuer.
+- `let mutable plan: AccessPlan;` followed by reader rules admits no issuer.
 - `as +D` outside the listed routes rejects under `Only`, is accepted under
   `Unrestricted` when the predicates hold, and rejects everywhere under an
   empty `Only` while an existing qualified value still passes through a call.

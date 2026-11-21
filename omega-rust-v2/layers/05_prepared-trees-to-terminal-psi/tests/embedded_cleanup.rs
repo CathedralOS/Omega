@@ -101,13 +101,13 @@ fn a_shared_reference_beside_a_resource_is_a_separate_residual() {
 fn an_embedded_exclusive_loan_ends_when_its_record_is_discarded() {
     use omega_lowering::ReferenceAccess::{Mutable, Shared};
     let cases = [
-        ("data Token{v:u8;}", "r:@mut Token;", vec![("Holder::r", Mutable)]),
-        ("data Token{v:u8;}", "n:u8;r:@mut Token;", vec![("Holder::r", Mutable)]),
-        ("", "r:@mut u8;", vec![("Holder::r", Mutable)]),
-        ("", "r:@mut [u32];", vec![("Holder::r", Mutable)]),
-        (HANDLE, "r:@mut Handle;", vec![("Holder::r", Mutable)]),
-        ("data Token{v:u8;}", "r:@mut [Token];", vec![("Holder::r", Mutable)]),
-        ("", "r:@[u8];s:@mut u8;", vec![("Holder::r", Shared), ("Holder::s", Mutable)]),
+        ("data Token{v:u8;}", "r:@mutable Token;", vec![("Holder::r", Mutable)]),
+        ("data Token{v:u8;}", "n:u8;r:@mutable Token;", vec![("Holder::r", Mutable)]),
+        ("", "r:@mutable u8;", vec![("Holder::r", Mutable)]),
+        ("", "r:@mutable [u32];", vec![("Holder::r", Mutable)]),
+        (HANDLE, "r:@mutable Handle;", vec![("Holder::r", Mutable)]),
+        ("data Token{v:u8;}", "r:@mutable [Token];", vec![("Holder::r", Mutable)]),
+        ("", "r:@[u8];s:@mutable u8;", vec![("Holder::r", Shared), ("Holder::s", Mutable)]),
     ];
     let observed: Vec<_> = cases
         .iter()
@@ -138,7 +138,7 @@ fn an_embedded_exclusive_loan_ends_when_its_record_is_discarded() {
 /// before the resource's cleanup machine runs, in reverse declaration order.
 #[test]
 fn an_exclusive_reference_beside_a_resource_is_a_separate_residual() {
-    let text = format!("{HANDLE} data Holder{{t:Handle;r:@mut u8;}} machine finish(h:Holder){{}}");
+    let text = format!("{HANDLE} data Holder{{t:Handle;r:@mutable u8;}} machine finish(h:Holder){{}}");
     let package = source::lower(&[("embedded.omg", &text)]).unwrap();
     let (root, cleanup) = finish(&package);
     let release = machine(&package, "release").id;

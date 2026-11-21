@@ -16,15 +16,15 @@ machine verify(storage: @Storage) crashes Trap {
     }
 }
 machine main() crashes Trap {
-    let mut storage: Storage;
+    let mutable storage: Storage;
     storage.cells[0].padding = 11;
     storage.cells[0].value = 85;
     storage.cells[1].padding = 23;
     storage.cells[1].value = 29;
     storage.position = 1;
-    exercise(@mut storage);
+    exercise(@mutable storage);
     verify(@storage);
-    machine exercise(storage: @mut Storage) requires storage.position == 1 {
+    machine exercise(storage: @mutable Storage) requires storage.position == 1 {
         let parent: @write [Cell; 2] = @write storage.cells;
         let child: @write [Cell; 2] = @write parent;
         replace(@write child[storage.position], 7);

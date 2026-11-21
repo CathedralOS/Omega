@@ -2,10 +2,10 @@ data Marker [copy] { copy: u8; }
 data Markers { rows: [Marker; 1]; }
 
 machine indexed_record_fields() -> u8 {
-    let mut sources: SourceSet;
-    let mut selected: Markers;
+    let mutable sources: SourceSet;
+    let mutable selected: Markers;
     selected.rows[0] = Marker { copy: 42 };
-    store_unit_count(@mut sources, 511 as +Trapping);
+    store_unit_count(@mutable sources, 511 as +Trapping);
     let last_count: u64 = sources.unit_count;
     sources.units[511] = SourceRange { start: 3 as +Trapping, length: 1 as +Trapping };
     sources.bytes[3] = 42;
@@ -14,12 +14,12 @@ machine indexed_record_fields() -> u8 {
     let last_byte: u8 = source_set_byte_or_nul(@sources, last_id, 0 as +Trapping);
     let past_byte: u8 = source_set_byte_or_nul(@sources, last_id, 1 as +Trapping);
     let past_unit: u8 = source_set_byte_or_nul(@sources, past_end, 0 as +Trapping);
-    store_unit_count(@mut sources, 1 as +Trapping);
+    store_unit_count(@mutable sources, 1 as +Trapping);
     sources.unit_packages[0] = 73;
     sources.byte_count = 4194262;
     sources.path_byte_count = 16382;
-    let mut unit: SourceUnit;
-    let mut path: ModulePath;
+    let mutable unit: SourceUnit;
+    let mutable path: ModulePath;
     unit.length = 42;
     path.length = 2;
     let fits: bool = has_room(@sources, @unit, @path);
@@ -51,7 +51,7 @@ machine has_room(sources: @SourceSet, unit: @SourceUnit, module_path: @ModulePat
 }
 
 // The count increment from source_set_add::store_ranges.
-machine store_unit_count(sources: @mut SourceSet, unit_count: u64 in Trapping)
+machine store_unit_count(sources: @mutable SourceSet, unit_count: u64 in Trapping)
 requires unit_count < 512
 {
     sources.unit_count = (unit_count + 1) as -Trapping;

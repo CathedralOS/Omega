@@ -90,7 +90,7 @@ fn a_result_promise_cannot_hide_read_restrictions() {
         "access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })";
     assert_eq!(source.matches(selected).count(), 1);
     let restricted = format!(
-        "let mut plan: AccessPlan = {selected};\naccess::allow_readers(@mut plan, AccessRegion::Subject {{ schema: schema }}, [reflect::callable(stamp)]);\nplan"
+        "let mutable plan: AccessPlan = {selected};\naccess::allow_readers(@mutable plan, AccessRegion::Subject {{ schema: schema }}, [reflect::callable(stamp)]);\nplan"
     );
     let source = format!(
         "use omega\\language\\core\\AccessRegion;\n{}",

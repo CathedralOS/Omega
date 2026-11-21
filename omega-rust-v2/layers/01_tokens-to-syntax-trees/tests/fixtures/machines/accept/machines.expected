@@ -15,7 +15,7 @@ File
         ':'
         ReferenceType
           '@'
-          'mut'
+          'mutable'
           PathType 'EchoSupplier'
       ','
       Param

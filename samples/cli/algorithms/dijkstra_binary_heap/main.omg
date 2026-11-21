@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // min-heap parameterized by an ordering machine binder.
 //
 // `Heap<T>` stores sixteen cells; `push_heap`/`pop_heap` sift by the
-// caller-supplied `machine Less(left: &T, right: &T) -> bool` ordering.
+// caller-supplied `machine Less(left: @T, right: @T) -> bool` ordering.
 // Entries pack `dist * 256 + node` into a u64, so `ent_less` is ordinary
 // u64 comparison ordered distance-major, node as tiebreak. Pop runs lazy
 // Dijkstra: stale heap entries are skipped by the `nd <= dist[node]`
@@ -24,11 +24,11 @@ machine ent_less(left: @u64, right: @u64) -> bool {
     $left < $right
 }
 
-machine push_heap<T [copy], machine Less>(h: @mut Heap<T>, value: @T)
+machine push_heap<T [copy], machine Less>(h: @mutable Heap<T>, value: @T)
 requires machine Less(left: @T, right: @T) -> bool;
 {
     transition h.length < 16 { true -> place(h, value, h.length), _ -> full(h) }
-    machine place(h: @mut Heap<T>, value: @T, at: u64)
+    machine place(h: @mutable Heap<T>, value: @T, at: u64)
         requires at < 16
     {
         let tmp: T = $value;
@@ -36,7 +36,7 @@ requires machine Less(left: @T, right: @T) -> bool;
         h.length = at + 1;
         transition { _ -> up(h, at) }
     }
-    machine up(h: @mut Heap<T>, at: u64)
+    machine up(h: @mutable Heap<T>, at: u64)
         requires at < 16
     {
         let parent: u64 = at / 2;
@@ -45,7 +45,7 @@ requires machine Less(left: @T, right: @T) -> bool;
             _ -> {}
         }
     }
-    machine sift(h: @mut Heap<T>, at: u64, parent: u64)
+    machine sift(h: @mutable Heap<T>, at: u64, parent: u64)
         requires at < 16
         requires parent < 16
     {
@@ -55,23 +55,23 @@ requires machine Less(left: @T, right: @T) -> bool;
         h.items[parent] = moved;
         transition { _ -> up(h, parent) }
     }
-    machine full(h: @mut Heap<T>) {}
+    machine full(h: @mutable Heap<T>) {}
 }
 
-machine pop_heap<T [copy], machine Less>(h: @mut Heap<T>, root: @mut Popped<T>)
+machine pop_heap<T [copy], machine Less>(h: @mutable Heap<T>, root: @mutable Popped<T>)
 requires machine Less(left: @T, right: @T) -> bool;
     requires h.length >= 1
     requires h.length <= 16
 {
     transition h.length >= 2 { true -> lift(h, root), _ -> take(h, root) }
-    machine take(h: @mut Heap<T>, root: @mut Popped<T>)
+    machine take(h: @mutable Heap<T>, root: @mutable Popped<T>)
         requires h.length >= 1
     {
         let top: T = h.items[0];
         root.value = top;
         h.length = 0;
     }
-    machine lift(h: @mut Heap<T>, root: @mut Popped<T>)
+    machine lift(h: @mutable Heap<T>, root: @mutable Popped<T>)
         requires h.length >= 2
         requires h.length <= 16
     {
@@ -85,7 +85,7 @@ requires machine Less(left: @T, right: @T) -> bool;
             _ -> finish(h, n)
         }
     }
-    machine sink(h: @mut Heap<T>, at: u64, n: u64)
+    machine sink(h: @mutable Heap<T>, at: u64, n: u64)
         requires at < n
         requires n <= 16
     {
@@ -95,7 +95,7 @@ requires machine Less(left: @T, right: @T) -> bool;
             _ -> finish(h, n)
         }
     }
-    machine right_child(h: @mut Heap<T>, at: u64, left: u64, n: u64)
+    machine right_child(h: @mutable Heap<T>, at: u64, left: u64, n: u64)
         requires at < n
         requires left < n
         requires n <= 16
@@ -106,7 +106,7 @@ requires machine Less(left: @T, right: @T) -> bool;
             _ -> maybe(h, at, left, n)
         }
     }
-    machine maybe(h: @mut Heap<T>, at: u64, child: u64, n: u64)
+    machine maybe(h: @mutable Heap<T>, at: u64, child: u64, n: u64)
         requires at < n
         requires child < n
         requires n <= 16
@@ -116,7 +116,7 @@ requires machine Less(left: @T, right: @T) -> bool;
             _ -> finish(h, n)
         }
     }
-    machine swap(h: @mut Heap<T>, at: u64, child: u64, n: u64)
+    machine swap(h: @mutable Heap<T>, at: u64, child: u64, n: u64)
         requires at < n
         requires child < n
         requires n <= 16
@@ -127,7 +127,7 @@ requires machine Less(left: @T, right: @T) -> bool;
         h.items[at] = moved;
         transition { _ -> sink(h, child, n) }
     }
-    machine finish(h: @mut Heap<T>, n: u64)
+    machine finish(h: @mutable Heap<T>, n: u64)
         requires n <= 16
     {
         h.length = n;
@@ -143,7 +143,7 @@ data Main {
     heap: Heap<u64>;
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: @mutable Main) reaches ProcessExit + Console crashes Trap {
     // 12-node weighted digraph; edges sorted by tail.
     // 0: ->1(4) ->2(2)      1: ->2(1) ->3(5)      2: ->3(8) ->4(10)
     // 3: ->4(2) ->5(6)      4: ->5(3) ->11(4)     5: ->6(1) ->11(9)
@@ -157,7 +157,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     main.heap.length = 0;
     transition { _ -> clear(main, 0) }
 
-    machine clear(main: @mut Main, i: u64)
+    machine clear(main: @mutable Main, i: u64)
         requires i <= 12
     {
         transition i < 12 {
@@ -165,31 +165,31 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> boot(main)
         }
     }
-    machine wipe(main: @mut Main, i: u64)
+    machine wipe(main: @mutable Main, i: u64)
         requires i < 12
     {
         main.dist[i] = 1000000;
         main.prev[i] = 12;
         transition { _ -> clear(main, i + 1) }
     }
-    machine boot(main: @mut Main) {
+    machine boot(main: @mutable Main) {
         main.dist[0] = 0;
         let e: u64 = 0;
-        push_heap::<ent_less>(@mut main.heap, @e);
+        push_heap::<ent_less>(@mutable main.heap, @e);
         transition { _ -> step(main) }
     }
-    machine step(main: @mut Main) {
+    machine step(main: @mutable Main) {
         transition main.heap.length >= 1 && main.heap.length <= 16 {
             true -> take(main),
             _ -> score(main, 0, 0)
         }
     }
-    machine take(main: @mut Main)
+    machine take(main: @mutable Main)
         requires main.heap.length >= 1
         requires main.heap.length <= 16
     {
-        let mut popped: Popped<u64> = Popped { value: 0 };
-        pop_heap::<ent_less>(@mut main.heap, @mut popped);
+        let mutable popped: Popped<u64> = Popped { value: 0 };
+        pop_heap::<ent_less>(@mutable main.heap, @mutable popped);
         let node: u64 = popped.value % 256;
         let nd: u64 = popped.value / 256;
         transition node < 12 && nd <= 1000000 && nd <= main.dist[node] {
@@ -197,7 +197,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> step(main)
         }
     }
-    machine edges(main: @mut Main, v: u64, vd: u64)
+    machine edges(main: @mutable Main, v: u64, vd: u64)
         requires v < 12
         requires vd <= 1000000
     {
@@ -208,7 +208,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> step(main)
         }
     }
-    machine relax(main: @mut Main, v: u64, vd: u64, edge: u64, after: u64)
+    machine relax(main: @mutable Main, v: u64, vd: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires edge <= after
@@ -219,7 +219,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> step(main)
         }
     }
-    machine visit(main: @mut Main, v: u64, vd: u64, edge: u64, after: u64)
+    machine visit(main: @mutable Main, v: u64, vd: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires edge < after
@@ -231,7 +231,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> bad(main)
         }
     }
-    machine weigh(main: @mut Main, v: u64, vd: u64, w: u64, edge: u64, after: u64)
+    machine weigh(main: @mutable Main, v: u64, vd: u64, w: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires w <= 1000000
@@ -245,7 +245,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> relax(main, v, vd, edge + 1, after)
         }
     }
-    machine improve(main: @mut Main, to: u64, nd: u64, v: u64, edge: u64, after: u64, vd: u64)
+    machine improve(main: @mutable Main, to: u64, nd: u64, v: u64, edge: u64, after: u64, vd: u64)
         requires to < 12
         requires v < 12
         requires nd <= 2000000
@@ -256,10 +256,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         main.dist[to] = nd;
         main.prev[to] = v;
         let e: u64 = nd * 256 + to;
-        push_heap::<ent_less>(@mut main.heap, @e);
+        push_heap::<ent_less>(@mutable main.heap, @e);
         transition { _ -> relax(main, v, vd, edge + 1, after) }
     }
-    machine score(main: @mut Main, i: u64, sum: u64)
+    machine score(main: @mutable Main, i: u64, sum: u64)
         requires i <= 12
         requires sum <= i * 1000000
     {
@@ -268,7 +268,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> walk_prev(main, 11, 0, sum)
         }
     }
-    machine gather(main: @mut Main, i: u64, sum: u64)
+    machine gather(main: @mutable Main, i: u64, sum: u64)
         requires i < 12
         requires sum <= i * 1000000
     {
@@ -278,14 +278,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> bad(main)
         }
     }
-    machine add(main: @mut Main, i: u64, sum: u64, d: u64)
+    machine add(main: @mutable Main, i: u64, sum: u64, d: u64)
         requires i < 12
         requires sum <= i * 1000000
         requires d <= 1000000
     {
         transition { _ -> score(main, i + 1, sum + d) }
     }
-    machine walk_prev(main: @mut Main, at: u64, hops: u64, sum: u64)
+    machine walk_prev(main: @mutable Main, at: u64, hops: u64, sum: u64)
         requires at < 13
         requires hops <= 12
     {
@@ -294,7 +294,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> bound_at(main, at, hops, sum)
         }
     }
-    machine bound_at(main: @mut Main, at: u64, hops: u64, sum: u64)
+    machine bound_at(main: @mutable Main, at: u64, hops: u64, sum: u64)
         requires at < 13
         requires hops < 12
     {
@@ -303,7 +303,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> bad(main)
         }
     }
-    machine climb(main: @mut Main, at: u64, hops: u64, sum: u64)
+    machine climb(main: @mutable Main, at: u64, hops: u64, sum: u64)
         requires at < 12
         requires hops < 12
     {
@@ -313,18 +313,18 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
             _ -> bad(main)
         }
     }
-    machine done(main: @mut Main, sum: u64, hops: u64) {
+    machine done(main: @mutable Main, sum: u64, hops: u64) {
         transition sum == 150 && hops == 4 {
             true -> good(main, sum + hops),
             _ -> bad(main)
         }
     }
-    machine good(main: @mut Main, code: u64) { ProcessExit::exit_process(code as i32); }
-    machine bad(main: @mut Main) { crash Trap; }
+    machine good(main: @mutable Main, code: u64) { ProcessExit::exit_process(code as i32); }
+    machine bad(main: @mutable Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

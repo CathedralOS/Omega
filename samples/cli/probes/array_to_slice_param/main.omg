@@ -1,10 +1,10 @@
 // An array borrow coerces to a slice parameter at the
-// call site: `count(&main.buf)` passes `&[u8; 8]` where
-// `bytes: &[u8]` is declared — the sized array view
+// call site: `count(@main.buf)` passes `@[u8; 8]` where
+// `bytes: @[u8]` is declared — the sized array view
 // weakens to an unsized slice implicitly.
 //
-//   * `machine count(bytes: &[u8]) -> u64` — slice param.
-//   * `count(&main.buf)` / `count(&owned)` — field array
+//   * `machine count(bytes: @[u8]) -> u64` — slice param.
+//   * `count(@main.buf)` / `count(@owned)` — field array
 //     and local array both coerce.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -17,7 +17,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     let owned: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
     let from_field: u64 = count(@main.buf);
@@ -26,12 +26,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

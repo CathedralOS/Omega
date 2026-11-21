@@ -1151,7 +1151,7 @@ data Lease dropped by finish {mark:u8;}
     // A disposing store carries its own list. Replacing the Lease runs finish
     // on the old value at the store; the return then cleans the new one.
     let source = "data Lease dropped by finish {mark:u8;}
-        machine again(n:u64) terminates by n { let mut lease=Lease {mark:0}; lease=Lease {mark:1}; }
+        machine again(n:u64) terminates by n { let mutable lease=Lease {mark:0}; lease=Lease {mark:1}; }
         machine finish(x:Lease) { let Lease {mark as _}=x; again(3); }";
     let package = lower(source).unwrap();
     let (again, finish) = (machine(&package, "again"), machine(&package, "finish"));

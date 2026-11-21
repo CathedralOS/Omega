@@ -1,8 +1,8 @@
 // Boundary byte-extent requirement discharged against the
 // caller's sized storage: `count <= buffer.length` on
-// `ByteHost::read` proves at `&mut main.control` — the
+// `ByteHost::read` proves at `@mutable main.control` — the
 // `[u8; 64]` extent resolves through the caller's attached
-// data, and `pump(buffer: &mut [u8])` re-proves the same length
+// data, and `pump(buffer: @mutable [u8])` re-proves the same length
 // across the second boundary.
 //
 //   * `public boundary trait ByteHost` with `reaches ByteHost`
@@ -12,7 +12,7 @@
 
 
 public boundary trait ByteHost {
-    machine read(fd: i32, buffer: @mut [u8], count: u64) -> i64 reaches ByteHost
+    machine read(fd: i32, buffer: @mutable [u8], count: u64) -> i64 reaches ByteHost
     requires
         count <= buffer.length crashes none;
 }
@@ -21,7 +21,7 @@ data Main {
     control: [u8; 64];
 }
 
-machine pump(buffer: @mut [u8])
+machine pump(buffer: @mutable [u8])
     requires 64 <= buffer.length
     reaches ByteHost
 {

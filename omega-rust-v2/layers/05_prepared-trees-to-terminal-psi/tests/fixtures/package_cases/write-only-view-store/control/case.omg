@@ -1,1 +1,1 @@
-data Cell {value:u8;} machine f(view:@mut Cell) {view.value=7;}
+data Cell {value:u8;} machine f(view:@mutable Cell) {view.value=7;}

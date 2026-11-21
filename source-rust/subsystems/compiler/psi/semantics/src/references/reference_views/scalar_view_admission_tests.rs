@@ -23,7 +23,7 @@ fn primitive(raw: u64, scalar: ScalarType) -> StructuralTypeDeclaration {
     }
 }
 
-// `&mut pair.start as &mut u32` over an i32 field: every bit pattern is
+// `@mutable pair.start as @mutable u32` over an i32 field: every bit pattern is
 // valid in both carriers, so every borrow access admits the view, but an
 // owned value is never reinterpreted in place.
 #[test]

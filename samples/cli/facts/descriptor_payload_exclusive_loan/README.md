@@ -5,7 +5,7 @@ selected case payload's descriptor, writes 41 through that loan, and leaves the
 unselected descriptor unchanged.
 
 The root `main.omg` and `build.omg` carry the fact with no transport place: the
-match on `choose(&mut visits)` selects the writing arm, `selected` is the
+match on `choose(@mutable visits)` selects the writing arm, `selected` is the
 exclusive view of the selected payload's descriptor, `selected[0] = 41` writes
 through it, and the successor read observes 41 with `visits == 1`. Root and all
 nine places bind `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
@@ -70,9 +70,9 @@ natively with Terminal Psi agreement. Canonical authority:
 [value dispatch](../../../../wiki/spec/language/patterns.md) and the
 [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md).
 
-- **Establishment:** `choose(&mut visits)` runs exactly once (`visits == 1`
+- **Establishment:** `choose(@mutable visits)` runs exactly once (`visits == 1`
   gates the exit), the selected arm yields the exclusive element view of the
-  selected payload's descriptor (`&mut chosen.value[..]` / `pair.chosen` /
+  selected payload's descriptor (`@mutable chosen.value[..]` / `pair.chosen` /
   the parameter, result, const, state and target-body carriers), and the
   successor read of `selected[0] == 41` is the establishing evidence itself;
   no post-hoc caller equality guard (`transition x == 100`) re-establishes
@@ -89,7 +89,7 @@ natively with Terminal Psi agreement. Canonical authority:
   compose across all nine standard places; each `<place>/main.omg` differs
   from `<place>/invalid/main.omg` only in that one mutation statement of the
   construct's own source, never in a caller guard, and calls substitute the
-  exact actuals (`apply(&mut chosen, &mut other, &mut visits)`,
+  exact actuals (`apply(@mutable chosen, @mutable other, @mutable visits)`,
   `present([17, 0])`). The consuming operation reads `selected[0]` directly
   from the fact carried through the place.
 - **Soundness boundaries:** the exclusive view is affine; using the source

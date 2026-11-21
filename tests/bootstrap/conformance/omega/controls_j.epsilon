@@ -26,7 +26,7 @@ machine Main::main(&mut self) {
     self.compiler.compile("machine answer()->u8 {let n:u32=2; let x:u32=2147483648*n;42}", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer()->u8 {let mut n:u32=1; n=4294967295; let x:u32=n+2;42}", "answer");
+    self.compiler.compile("machine answer()->u8 {let mutable n:u32=1; n=4294967295; let x:u32=n+2;42}", "answer");
     self.incomplete();
 
     self.compiler.compile("machine answer()->u8 {let n:u32=3; let x:u32=n+2;42}", "answer");

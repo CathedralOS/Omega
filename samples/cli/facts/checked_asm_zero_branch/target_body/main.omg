@@ -31,7 +31,7 @@ X86Countdown satisfies SelectedCountdown {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed == 2
     {
         SelectedBodyCheck::require_tag(17u64);
-     let mut output: u32 = 99;
+     let mutable output: u32 = 99;
      asm {
      entry:
       mov eax, seed;
@@ -55,7 +55,7 @@ ArmCountdown satisfies SelectedCountdown {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires seed == 2
     {
         SelectedBodyCheck::require_tag(29u64);
-     let mut output: u32 = 99;
+     let mutable output: u32 = 99;
      asm {
      entry:
       mov eax, seed;

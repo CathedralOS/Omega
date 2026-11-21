@@ -12,7 +12,7 @@ requires packet.bytes.length >= 4 {
     machine zero() -> u8 { 0 }
 }
 machine make() -> [u8; 4] {
-    let mut packet: [u8; 4];
+    let mutable packet: [u8; 4];
     packet[0] = 11;
     packet[2] = 29;
     packet

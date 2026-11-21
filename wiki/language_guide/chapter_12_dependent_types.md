@@ -91,11 +91,11 @@ A call invalidates what you knew about storage it may write, and nothing else.
 The compiler works out which places a machine writes from its body:
 
 ```omega
-public machine set_time(entry: @mut Entry, time: u64) {
+public machine set_time(entry: @mutable Entry, time: u64) {
     entry.at = time;
 }
 
-set_time(@mut e, 5);
+set_time(@mutable e, 5);
 use(e.owner);        // facts about e.owner survive the call
 ```
 
@@ -103,7 +103,7 @@ For a call with no body to inspect, such as a boundary operation or a machine
 held in a field, the compiler assumes everything handed over may be written.
 Two things keep that from costing you:
 
-- Lend only what the callee needs: `&mut entry.at` instead of `&mut entry`.
+- Lend only what the callee needs: `@mutable entry.at` instead of `@mutable entry`.
 - Have the requirement say what is unchanged:
   `ensures entry.owner == old(entry.owner)`.
 
@@ -112,7 +112,7 @@ Two things keep that from costing you:
 Each round must establish what the next round requires:
 
 ```omega
-machine clear(buffer: @mut [u8], remaining: u64)
+machine clear(buffer: @mutable [u8], remaining: u64)
 requires remaining <= buffer.length
 terminates by remaining -> Nat\Descending
 {
@@ -121,7 +121,7 @@ terminates by remaining -> Nat\Descending
         false -> step(buffer, remaining)
     }
 
-    machine step(buffer: @mut [u8], remaining: u64)
+    machine step(buffer: @mutable [u8], remaining: u64)
     requires remaining > 0
     requires remaining <= buffer.length
     terminates by remaining -> Nat\Descending

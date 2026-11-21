@@ -2,7 +2,7 @@
 
 Two named implementations choose the first value at or above, or below, a threshold.
 The caller forwards and rebinds a `dyn Scan<i32>` selector independently of
-the input slice. Results use the bundled `Optional<&i32>` and still denote
+the input slice. Results use the bundled `Optional<@i32>` and still denote
 the input's original backing after the selector changes. Empty and no-match
 scans return `None`; a subwindow result denotes that window's matching element.
 

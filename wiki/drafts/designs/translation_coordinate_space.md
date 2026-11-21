@@ -99,7 +99,7 @@ machine install<Delta: u64>() -> Mapping<Delta> in Installed
 ensures result.virt == 0, result.length == 32
 { Mapping { virt: 0, length: 32 } }
 
-machine drop_mapping<Delta: u64>(mapping: @mut Mapping<Delta>) {}
+machine drop_mapping<Delta: u64>(mapping: @mutable Mapping<Delta>) {}
 
 data Parts<Delta: u64> { left: Mapping<Delta> in Installed; right: Mapping<Delta> in Installed; }
 
@@ -122,7 +122,7 @@ ensures
 }
 
 data Main { marker: u64; }
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.marker = 0;
 }
 ```

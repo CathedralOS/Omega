@@ -2,7 +2,7 @@
 
 Compile-scope probe. No standard-library dependency.
 
-- `&packet.samples.items[..]` — doubly-nested-field slice view
+- `@packet.samples.items[..]` — doubly-nested-field slice view
   from an owned state arrival; the record stays readable beside
   the loan.
 

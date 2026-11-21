@@ -56,10 +56,10 @@ data Source [copy] {
     case Git(repository: u32, revision: u32);
 }
 machine look(value: @u32) -> u32 { 1 }
-machine bump(value: @mut u32) -> u32 { 1 }
-machine two(value: @mut u32, other: @u32) -> u32 { 1 }
-machine both(held: @mut Source, value: @u32) -> u32 { 1 }
-machine replace(held: @mut Source) { }
+machine bump(value: @mutable u32) -> u32 { 1 }
+machine two(value: @mutable u32, other: @u32) -> u32 { 1 }
+machine both(held: @mutable Source, value: @u32) -> u32 { 1 }
+machine replace(held: @mutable Source) { }
 "#;
 
 #[test]
@@ -70,17 +70,17 @@ data Frame [copy] {
     case Empty;
     case Directory(handle: i64 in FileHandle);
 }
-machine entry(frames: @mut [Frame; 2], depth: u64, restart: u8) -> i64
+machine entry(frames: @mutable [Frame; 2], depth: u64, restart: u8) -> i64
 requires depth > 0 && depth <= 2 && restart <= 1 {
     transition { _ -> block next(frames, depth, restart) }
-    machine next(frames: @mut [Frame; 2], depth: u64, restart: u8) -> i64
+    machine next(frames: @mutable [Frame; 2], depth: u64, restart: u8) -> i64
     requires depth > 0 && depth <= 2 && restart <= 1 {
         transition frames[depth - 1] {
             Frame::Directory { handle } -> block directory(frames, depth, restart, handle),
             Frame::Empty -> 0i64
         }
     }
-    machine directory(frames: @mut [Frame; 2], depth: u64, restart: u8,
+    machine directory(frames: @mutable [Frame; 2], depth: u64, restart: u8,
         handle: i64 in FileHandle) -> i64
     requires depth > 0 && depth <= 2 && restart <= 1 {
         transition restart == 1 {
@@ -221,17 +221,17 @@ data Frame [copy] {
     case Empty;
     case Directory(handle: i64 in FileHandle);
 }
-machine entry(frames: @mut [Frame; 2], count: u64, original: u32) -> u32
+machine entry(frames: @mutable [Frame; 2], count: u64, original: u32) -> u32
 requires count <= 2 {
     transition { _ -> block next(frames, count, original) }
-    machine next(frames: @mut [Frame; 2], count: u64, original: u32) -> u32
+    machine next(frames: @mutable [Frame; 2], count: u64, original: u32) -> u32
     requires count <= 2 {
         transition count > 0 {
             true -> block pop(frames, count, original),
             false -> (original)
         }
     }
-    machine pop(frames: @mut [Frame; 2], count: u64, original: u32) -> u32
+    machine pop(frames: @mutable [Frame; 2], count: u64, original: u32) -> u32
     requires count > 0 && count <= 2 {
         let frame: Frame = frames[count - 1];
         frames[count - 1] = Frame::Empty;
@@ -240,7 +240,7 @@ requires count <= 2 {
             Frame::Directory { handle } -> block close(frames, count - 1, original, handle)
         }
     }
-    machine close(frames: @mut [Frame; 2], count: u64, original: u32,
+    machine close(frames: @mutable [Frame; 2], count: u64, original: u32,
         handle: i64 in FileHandle) -> u32
     requires count < 2 {
         transition (handle as -FileHandle) != 0 {
@@ -248,7 +248,7 @@ requires count <= 2 {
             false -> block next(frames, count, original)
         }
     }
-    machine release(frames: @mut [Frame; 2], count: u64, original: u32,
+    machine release(frames: @mutable [Frame; 2], count: u64, original: u32,
         handle: i64 in FileHandle) -> u32
     requires count < 2 && (handle as -FileHandle) != 0 {
         transition { _ -> block next(frames, count, original) }
@@ -416,7 +416,7 @@ machine route(source: Source) -> u32 {{
             r#"{SCALARS}
 machine build_entry(source: Source) {{ let n: u32 = route(source); }}
 machine route(source: Source) -> u32 {{
-    let mut held: Source = source;
+    let mutable held: Source = source;
     match held {{
         Source::Path {{ location }} -> {lent},
         Source::Git {{ repository, revision }} -> 2
@@ -429,7 +429,7 @@ machine route(source: Source) -> u32 {{
     // The payload lies inside `held`, so lending both is lending one
     // place twice.
     assert_eq!(
-        verdict(&scalar("both(@mut held, @location)")),
+        verdict(&scalar("both(@mutable held, @location)")),
         "state `both` receives `@<saved subject #1:1>.location` as both mutable and read-only"
     );
 }
@@ -443,13 +443,13 @@ fn a_transition_arm_does_not_lend_its_payload_exclusively() {
             r#"{SCALARS}
 machine build_entry(source: Source) {{ route(source); }}
 machine route(source: Source) {{
-    let mut held: Source = source;
+    let mutable held: Source = source;
     transition held {{
-        Source::Path {{ location }} -> replace_scalar(@mut location),
-        Source::Git {{ repository, revision }} -> replace_scalar(@mut repository)
+        Source::Path {{ location }} -> replace_scalar(@mutable location),
+        Source::Git {{ repository, revision }} -> replace_scalar(@mutable repository)
     }}
 }}
-machine replace_scalar(value: @mut u32) {{ }}
+machine replace_scalar(value: @mutable u32) {{ }}
 "#
         )),
         "call exclusive loan of an immutable binding while reading the body of `route`"
@@ -481,9 +481,9 @@ machine route() -> u32 {{
             r#"{SCALARS}
 machine build_entry() {{ let n: u32 = route(); }}
 machine route() -> u32 {{
-    let mut held: Source = Source::Path {{ location: 3 }};
+    let mutable held: Source = Source::Path {{ location: 3 }};
     {before}
-    bump(@mut held.location)
+    bump(@mutable held.location)
 }}
 "#
         )
@@ -499,7 +499,7 @@ machine route() -> u32 {{
     // what a helper may have written is the write frame it publishes
     // (dependent_values.md, "Mutation frames"). This helper writes nothing,
     // so the case it was lent still stands after the call.
-    assert_eq!(verdict(&scalar("replace(@mut held);")), "accepted");
+    assert_eq!(verdict(&scalar("replace(@mutable held);")), "accepted");
 }
 
 /// A sum never known to hold the case lends no payload of it.
@@ -525,8 +525,8 @@ fn payload_fields_of_one_case_are_lent_as_sibling_places() {
             r#"{SCALARS}
 machine build_entry() {{ let n: u32 = route(); }}
 machine route() -> u32 {{
-    let mut held: Source = Source::Git {{ repository: 1, revision: 2 }};
-    two(@mut held.repository, @held.{other})
+    let mutable held: Source = Source::Git {{ repository: 1, revision: 2 }};
+    two(@mutable held.repository, @held.{other})
 }}
 "#
         )
@@ -580,13 +580,13 @@ fn arm_read(arm: &str) -> String {
     format!(
         r#"
 data Slot {{ case Full(n: u32); case Empty; }}
-machine peek(held: @mut Slot) -> u32 {{ 0 }}
-machine refill(held: @mut Slot) -> u32 {{
+machine peek(held: @mutable Slot) -> u32 {{ 0 }}
+machine refill(held: @mutable Slot) -> u32 {{
     held = Slot::Full {{ n: 9 }};
     0
 }}
 machine build_entry() crashes Trap {{
-    let mut s: Slot = Slot::Full {{ n: 1 }};
+    let mutable s: Slot = Slot::Full {{ n: 1 }};
     let got: u32 = match s {{
         Slot::Full {{ .. }} -> {arm},
         Slot::Empty -> 0
@@ -610,12 +610,12 @@ machine build_entry() crashes Trap {{
 /// to return the dispatch-time 1 here, in Psi and natively, instead of 9.
 #[test]
 fn a_payload_read_after_the_subject_is_lent_exclusively_reads_the_subject_again() {
-    assert_eq!(verdict(&arm_read("refill(@mut s) + s.n")), NO_CASE);
+    assert_eq!(verdict(&arm_read("refill(@mutable s) + s.n")), NO_CASE);
     // A helper that writes nothing leaves the case established, so the
     // fresh read is accepted and still sees 1.
-    execute_owned_store(&arm_read("peek(@mut s) + s.n"));
+    execute_owned_store(&arm_read("peek(@mutable s) + s.n"));
     // A read before the loan is the dispatch-time payload.
-    execute_owned_store(&arm_read("s.n + refill(@mut s)"));
+    execute_owned_store(&arm_read("s.n + refill(@mutable s)"));
 }
 
 /// The callee can change this exact scalar payload, but cannot replace its
@@ -625,15 +625,15 @@ fn a_scalar_payload_loan_preserves_the_enclosing_case() {
     execute_owned_store(
         r#"
         data Slot { case Full(n:u32); case Empty; }
-        machine bump(value:@mut u32)->u32 { $value=9; 0 }
+        machine bump(value:@mutable u32)->u32 { $value=9; 0 }
         machine last(first:u32, result:u32)->u32 { result }
-        machine read(held:@mut Slot)->u32 { match held {
-            Slot::Full {n}->last(bump(@mut held.n), n),
+        machine read(held:@mutable Slot)->u32 { match held {
+            Slot::Full {n}->last(bump(@mutable held.n), n),
             Slot::Empty->0
         } }
         machine build_entry() crashes Trap {
-            let mut held:Slot=Slot::Full {n:1};
-            transition read(@mut held)==9 { true->done(), _->bad() }
+            let mutable held:Slot=Slot::Full {n:1};
+            transition read(@mutable held)==9 { true->done(), _->bad() }
             machine done() {}
             machine bad() { crash Trap; }
         }
@@ -675,7 +675,7 @@ fn an_owned_payload_store_requires_its_exact_selected_case() {
 
 #[test]
 fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
-    let source = owned_store_source().replace("let mut choice:", "let choice:");
+    let source = owned_store_source().replace("let mutable choice:", "let choice:");
     let verdict = judge_build(&source);
     let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("the immutable root cannot receive the payload: {verdict:?}");
@@ -685,7 +685,7 @@ fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
     };
     assert_eq!(
         violation.statement,
-        "writing to an immutable owned binding requires `mut` while reading the body of `build_entry`"
+        "writing to an immutable owned binding requires `mutable` while reading the body of `build_entry`"
     );
     let start = source.find("choice.item = item(7);").unwrap() + "choice.".len();
     assert_eq!(
@@ -701,17 +701,17 @@ fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
 fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
     let source = owned_store_source()
         .replace("machine item(value: u32) -> Item { Item { value: value } }",
-            "data Holder { choice: Choice; }\nmachine item(value: u32, owner: @mut Holder) -> Item { Item { value: value } }")
+            "data Holder { choice: Choice; }\nmachine item(value: u32, owner: @mutable Holder) -> Item { Item { value: value } }")
         .replace("machine consume(choice: Choice) { }", "machine consume(holder: Holder) { }")
-        .replace("let mut choice: Choice = Choice::Left { item: Item { value: 3 } };",
-            "let mut holder: Holder = Holder { choice: Choice::Left { item: Item { value: 3 } } };")
-        .replace("choice.item = item(7);", "holder.choice.item = item(7, @mut holder);")
+        .replace("let mutable choice: Choice = Choice::Left { item: Item { value: 3 } };",
+            "let mutable holder: Holder = Holder { choice: Choice::Left { item: Item { value: 3 } } };")
+        .replace("choice.item = item(7);", "holder.choice.item = item(7, @mutable holder);")
         .replace("choice.item.value", "holder.choice.item.value")
         .replace("consume(choice)", "consume(holder)");
     execute_owned_store(&source);
     let changed = source.replace(
-        "machine item(value: u32, owner: @mut Holder) -> Item { Item { value: value } }",
-        "machine item(value: u32, owner: @mut Holder) -> Item { let replacement: Choice = Choice::Right {}; owner.choice = replacement; Item { value: value } }",
+        "machine item(value: u32, owner: @mutable Holder) -> Item { Item { value: value } }",
+        "machine item(value: u32, owner: @mutable Holder) -> Item { let replacement: Choice = Choice::Right {}; owner.choice = replacement; Item { value: value } }",
     );
     let verdict = judge_build(&changed);
     let Ok(RouteVerdict::Rejected { unestablished, .. }) = verdict else {
@@ -734,12 +734,12 @@ fn shelf(body: &str) -> String {
         r#"
 data Choice [copy] {{ case Left(value: u32); case Right; }}
 data Shelf [copy] {{ items: [Choice; 2]; }}
-machine pick(shelf: @mut Shelf, slot: u64) -> u32 requires slot < 2 {{
+machine pick(shelf: @mutable Shelf, slot: u64) -> u32 requires slot < 2 {{
     {body}
 }}
 machine build_entry() {{
-    let mut shelf: Shelf;
-    let seen: u32 = pick(@mut shelf, 0u64);
+    let mutable shelf: Shelf;
+    let seen: u32 = pick(@mutable shelf, 0u64);
 }}
 "#
     )

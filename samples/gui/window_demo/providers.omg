@@ -64,7 +64,7 @@ public WindowsGuiProvider satisfies Gui {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes WindowsGuiHost { WindowsGuiHost::get_dc(window) }
 
-    machine pump_message(window_state: @mut Window, message: @mut WindowsMessage, close_requested: @mut bool) -> u32
+    machine pump_message(window_state: @mutable Window, message: @mutable WindowsMessage, close_requested: @mutable bool) -> u32
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -74,7 +74,7 @@ public WindowsGuiProvider satisfies Gui {
         ProcessOutput + ProcessExit invokes WindowsGuiHost {
         let present: bool = WindowsGuiHost::pump_message(message);
         transition present { true -> inspect(window_state, message, close_requested), _ -> (0) }
-        machine inspect(window_state: @Window, message: @WindowsMessage, close_requested: @mut bool) -> u32 {
+        machine inspect(window_state: @Window, message: @WindowsMessage, close_requested: @mutable bool) -> u32 {
             let target: u64 = windows_message_window(message);
             let kind: u64 = windows_message_kind(message);
             let command: u64 = windows_message_word_parameter(message) & 0xFFFF;
@@ -85,7 +85,7 @@ public WindowsGuiProvider satisfies Gui {
                 _ -> (1)
             }
         }
-        machine cancel(close_requested: @mut bool) -> u32 {
+        machine cancel(close_requested: @mutable bool) -> u32 {
             $close_requested = true;
             1
         }
@@ -170,7 +170,7 @@ public MacosGuiProvider satisfies Gui {
         macos_window_get_dc(window_state, window)
     }
 
-    machine pump_message(window_state: @mut Window, message: @mut WindowsMessage, close_requested: @mut bool) -> u32
+    machine pump_message(window_state: @mutable Window, message: @mutable WindowsMessage, close_requested: @mutable bool) -> u32
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +

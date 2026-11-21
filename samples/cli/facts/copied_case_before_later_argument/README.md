@@ -4,7 +4,7 @@ A copied Present payload of 7 stays readable after a later argument replaces its
 
 This row advances **BUILD-OWNED-TARGET-SELECTION** and the existing **STATE-LOCAL-VALUE-FRONTIER** prerequisite found during **CML4**. Their broader acceptance remains open.
 
-Every place preserves `read_payload(chosen, set_to_absent(&mut chosen))` on `Slot [copy]` (the field place uses `holder.chosen`). The first argument completes its independent copy of `Present { value: 7 }` before the second replaces the source with `Absent`. The caller establishes `read_payload`'s declared `before in Slot::Present` requirement for that exact completed copy. The generic reader proves its payload access from the declared premise.
+Every place preserves `read_payload(chosen, set_to_absent(@mutable chosen))` on `Slot [copy]` (the field place uses `holder.chosen`). The first argument completes its independent copy of `Present { value: 7 }` before the second replaces the source with `Absent`. The caller establishes `read_payload`'s declared `before in Slot::Present` requirement for that exact completed copy. The generic reader proves its payload access from the declared premise.
 
 The parameter, forwarding machine and selected implementation retain their original Present preconditions. The nested `inspect` retains its original signature without an added requirement: its inferred private obligation must hold on **every** closed arrival. Lexical nesting supplies no runtime capture or ambient parent premise. A second Absent arrival, an unknown entry operand or a replacement before the first argument must defeat that inference.
 

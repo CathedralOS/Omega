@@ -1,4 +1,4 @@
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "applied_providers");
     Build::select_provider::<Service<u32>, First>(builder, windows_x86_64);
     Build::select_provider::<Service<Slot<ProductRole>>, Second>(builder, windows_x86_64);

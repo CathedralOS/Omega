@@ -6,7 +6,7 @@
 //! target elements exactly tile each source element, and the shared result
 //! has `source_length * source_stride / target_stride` elements. A separate
 //! obligation proves that count fits `u64`, and the region supplies no
-//! mutable access. So a program may read an `&[i32]` as its bytes, learns
+//! mutable access. So a program may read an `@[i32]` as its bytes, learns
 //! the byte view's exact length, and still owes the count bound; a target
 //! that does not tile the source, a padded element, and a mutable re-view
 //! are refused.
@@ -38,7 +38,7 @@ fn scalar_reference_recasts_keep_their_backing_and_presented_fields() {
     let source = r#"
 data Envelope [copy] { before: u64; bits: u64; after: u64; }
 data SignedWord [copy] { value: i64; }
-machine signed(mut bits: u64) -> i64 {
+machine signed(mutable bits: u64) -> i64 {
     let value: @i64 = @bits as @i64;
     value
 }
@@ -46,7 +46,7 @@ machine unsigned(bits: i64) -> u64 {
     let value: @u64 = @bits as @u64;
     value
 }
-machine overwrite(bits: @mut u64) { $bits = 0u64; }
+machine overwrite(bits: @mutable u64) { $bits = 0u64; }
 machine entry() crashes Trap {
     let bits: u64 = 18446744073709551615u64;
     let envelope: Envelope = Envelope { before: 11u64, bits: bits, after: 37u64 };
@@ -95,7 +95,7 @@ machine entry() crashes Trap {
     // the spelling of its scalar carrier cannot permit an overlapping write.
     let competing = source.replace(
         "let value: @i64 = @bits as @i64;",
-        "let value: @i64 = @bits as @i64; overwrite(@mut bits);",
+        "let value: @i64 = @bits as @i64; overwrite(@mutable bits);",
     );
     let refused = judge_source(&competing);
     assert!(
@@ -180,8 +180,8 @@ machine bytes_of(rows: @[Padded]) requires rows.length <= 8 {
     // the source valid; nothing establishes that, so even bytes re-viewed
     // as bytes are refused when the view writes.
     refused(
-        "machine scribble(bytes: @mut [u8]) {
-    let same: @mut [u8] = bytes as @mut [u8];
+        "machine scribble(bytes: @mutable [u8]) {
+    let same: @mutable [u8] = bytes as @mutable [u8];
 }",
         "expression exclusive storage view without establishment and handback evidence",
     );
@@ -195,7 +195,7 @@ fn a_window_of_a_mutable_byte_parameter_is_lent_for_reading() {
     let program = |requires: &str| {
         format!(
             "machine send(bytes: @[u8]) -> u64 {{ bytes.length }}
-machine write(buffer: @mut [u8], count: u64) -> u64 {requires} {{
+machine write(buffer: @mutable [u8], count: u64) -> u64 {requires} {{
     send(buffer[0..count])
 }}"
         )

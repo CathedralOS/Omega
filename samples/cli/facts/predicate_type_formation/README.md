@@ -31,7 +31,7 @@ The formed value reaches `payload` through each place. `field` surrounds it with
 non-zero `head` and `tail` canaries, `parameter` forms it in the argument,
 `call_result` returns it from helpers, `match_join` selects between two formed
 values by a flag, `const_name` forms it in named constants, `other_machine`
-writes it through `&mut`, and `target_body` forms it in four ordinary named
+writes it through `@mutable`, and `target_body` forms it in four ordinary named
 implementations selected through Build. `true` and `false` both run, so a wrong
 payload read changes the result.
 

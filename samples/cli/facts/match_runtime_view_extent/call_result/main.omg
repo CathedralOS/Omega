@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
-machine choose(counter: @mut u64, flag: bool) -> bool
+machine choose(counter: @mutable u64, flag: bool) -> bool
 requires $counter == 0
 {
     $counter = 1;
@@ -19,12 +19,12 @@ machine make_other() -> [i64; 6] {
 }
 
 machine store(flag: bool) -> Outcome crashes Trap {
-    let mut chosen: [i64; 4] = make_chosen();
-    let mut other: [i64; 6] = make_other();
-    let mut visits: u64 = 0;
-    let selected: @mut [i64] = match choose(@mut visits, flag) {
-        true -> @mut chosen,
-        false -> @mut other
+    let mutable chosen: [i64; 4] = make_chosen();
+    let mutable other: [i64; 6] = make_other();
+    let mutable visits: u64 = 0;
+    let selected: @mutable [i64] = match choose(@mutable visits, flag) {
+        true -> @mutable chosen,
+        false -> @mutable other
     };
     let last: u64 = selected.length - 1;
     selected[last] = 41;

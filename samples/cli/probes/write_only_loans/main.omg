@@ -1,10 +1,10 @@
-// `&write` attenuates an exclusive place to a write-only
+// `@write` attenuates an exclusive place to a write-only
 // loan: the callee may store but never read, and the
 // loan forwards through ordinary call parameters.
 //
-//   * `&write i32` parameter + `&write destination`
+//   * `@write i32` parameter + `@write destination`
 //     argument — write-only loan spelled at both ends.
-//   * `forward` re-lends `&write destination` — the
+//   * `forward` re-lends `@write destination` — the
 //     attenuation composes through forwarding.
 //   * The caller's local is mutated by the whole-scalar
 //     replacement even though nothing read it.
@@ -22,20 +22,20 @@ machine forward(destination: @write i32, value: i32) {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let mut destination: i32 = 0;
+    let mutable destination: i32 = 0;
     forward(@write destination, 42);
     transition destination == 42 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

@@ -2,7 +2,7 @@
 
 Compile-scope probe. No standard-library dependency.
 
-- `counter: &Counter in Counter::Ready` — domain-qualified BORROW
+- `counter: @Counter in Counter::Ready` — domain-qualified BORROW
   parameter; `domain X::ReadyAlias = Ready` alias.
 - `[Receipt in Issued; 2]` array-of-domained linear values;
   `Slot { receipt: Receipt in Issued }` domain'd linear field.

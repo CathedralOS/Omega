@@ -9,35 +9,35 @@ use domain\equilibrium\Equilibrium;
 // Scientific notation preserves tiny species; normalized mantissa fits i64.
 // Round magnitude half upward and retain the sign separately.
 machine mantissa(value: f64) reaches Console {
-    let mut bytes: [u8; 18] = "+0.000000000000000";
+    let mutable bytes: [u8; 18] = "+0.000000000000000";
     transition value < 0.0 {
-        true -> negative(@mut bytes, value),
-        _ -> positive(@mut bytes, value)
+        true -> negative(@mutable bytes, value),
+        _ -> positive(@mutable bytes, value)
     }
-    machine negative(bytes: @mut [u8; 18], value: f64) {
+    machine negative(bytes: @mutable [u8; 18], value: f64) {
         bytes[0] = 45;
         let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000000000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
     }
-    machine positive(bytes: @mut [u8; 18], value: f64) {
+    machine positive(bytes: @mutable [u8; 18], value: f64) {
         let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
     }
-    machine digits(bytes: @mut [u8; 18],
+    machine digits(bytes: @mutable [u8; 18],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 18 {
             true -> separator(bytes, remaining, position),
             _ -> emit(bytes)
         }
     }
-    machine separator(bytes: @mut [u8; 18],
+    machine separator(bytes: @mutable [u8; 18],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 2 {
             true -> digits(bytes, remaining, position - 1),
             _ -> store(bytes, remaining, position)
         }
     }
-    machine store(bytes: @mut [u8; 18],
+    machine store(bytes: @mutable [u8; 18],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
         let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
         bytes[position] = narrow_i32_to_u8_trapping(digit);

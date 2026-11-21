@@ -3,7 +3,7 @@ data Choice { case Left(item: Item); case Right; }
 machine item(value: u32) -> Item { Item { value: value } }
 machine consume(choice: Choice) { }
 machine main() crashes Trap {
-    let mut choice: Choice = Choice::Left { item: Item { value: 3 } };
+    let mutable choice: Choice = Choice::Left { item: Item { value: 3 } };
     choice.item = item(7);
     transition choice.item.value == 7 {
         true -> consume(choice),

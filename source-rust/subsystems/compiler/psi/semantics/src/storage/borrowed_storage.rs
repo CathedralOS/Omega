@@ -131,7 +131,7 @@ pub fn validate_write_frames(module: &terminal_psi::TerminalModule) -> Result<()
     Ok(())
 }
 
-/// The referents a callee can store into through the `&mut` references
+/// The referents a callee can store into through the `@mutable` references
 /// carried by a value it receives with `access`: one path per reference,
 /// relative to the value and ending in `Referent`, outermost first.
 /// Lowering writes each of them at a call that has no narrower frame,

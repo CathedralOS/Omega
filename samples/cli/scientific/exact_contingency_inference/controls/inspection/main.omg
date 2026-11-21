@@ -2,7 +2,7 @@
 data Counter [copy] { value: u64; untouched: u64; }
 machine increment(counter: Counter) -> Counter {
     transition { _ -> update(counter) }
-    machine update(mut counter: Counter) -> Counter {
+    machine update(mutable counter: Counter) -> Counter {
         counter.value = 7;
         counter
     }

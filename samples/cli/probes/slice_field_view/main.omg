@@ -1,4 +1,4 @@
-// Records holding slice views: `Sample.readings: &[i32]` built from a
+// Records holding slice views: `Sample.readings: @[i32]` built from a
 // local array's subrange, read inside a callee through a record
 // borrow. A `state` may carry its own `requires` roster after the
 // signature — the callee's guard proves the bound the state's
@@ -8,7 +8,7 @@
 //     initialized from an exclusive subrange.
 //   * `inspect_values` transitions on `values.length`, the `read` state
 //     restates the bound as a requires clause.
-//   * `Counts::clone(&mut merged)` — `&mut` reborrow weakens to the
+//   * `Counts::clone(@mutable merged)` — `@mutable` reborrow weakens to the
 //     callee's shared loan.
 //   * `hits` records the reached arm.
 //
@@ -34,28 +34,28 @@ machine inspect_values(values: @[i32]) -> bool {
     }
 }
 
-machine collect(merged: @mut Counts) -> u64 {
-    let copy: Counts = Counts::clone(@mut merged);
+machine collect(merged: @mutable Counts) -> u64 {
+    let copy: Counts = Counts::clone(@mutable merged);
     copy.tally
 }
 
 data Main { counts: Counts; hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.counts.tally = 9;
     let backing: [i32; 4] = [7, 11, 13, 17];
     let sample: Sample = Sample { readings: backing[1..3] };
-    transition inspect_values(sample.readings) && collect(@mut main.counts) == 9 {
+    transition inspect_values(sample.readings) && collect(@mutable main.counts) == 9 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

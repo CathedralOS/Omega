@@ -66,7 +66,7 @@ public boundary trait WindowsGuiHost {
     crashes none;
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
-    machine pump_message(message: @mut WindowsMessage) -> bool reaches
+    machine pump_message(message: @mutable WindowsMessage) -> bool reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -99,7 +99,7 @@ public boundary trait WindowsGuiHost {
         FilesystemNamespaceMutation
     invokes WindowsGuiIo
     crashes none;
-    machine client_rectangle(window: u64, rectangle: @mut WindowsRectangle) -> i32 reaches WindowManagement
+    machine client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32 reaches WindowManagement
     invokes WindowsGuiIo
     crashes none;
     // The caller lends live BITMAPINFO and pixel storage for this synchronous call.

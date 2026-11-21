@@ -290,12 +290,12 @@ fn returned_scalar_recast_preserves_the_exclusive_lender() {
     let unsigned = ScalarType::Integer { signed: false, width: 8 };
     let signed = ScalarType::Integer { signed: true, width: 8 };
     for (src, cast, qualifier, field, access) in [
-        ("data Cell {value:u8;} machine view(cell:@mut Cell)->@mut i8 { @mut cell.value as @mut i8 }",
-            "@mut cell.value as @mut i8", "mut ", "Cell::value", ReferenceAccess::Mutable),
+        ("data Cell {value:u8;} machine view(cell:@mutable Cell)->@mutable i8 { @mutable cell.value as @mutable i8 }",
+            "@mutable cell.value as @mutable i8", "mutable ", "Cell::value", ReferenceAccess::Mutable),
         ("data Cell {value:u8;} machine view(cell:@Cell)->@i8 { @cell.value as @i8 }",
             "@cell.value as @i8", "", "Cell::value", ReferenceAccess::Shared),
-        ("data Cell {value:u8; other:u8;} machine view(cell:@mut Cell)->@mut i8 { @mut cell.other as @mut i8 }",
-            "@mut cell.other as @mut i8", "mut ", "Cell::other", ReferenceAccess::Mutable),
+        ("data Cell {value:u8; other:u8;} machine view(cell:@mutable Cell)->@mutable i8 { @mutable cell.other as @mutable i8 }",
+            "@mutable cell.other as @mutable i8", "mutable ", "Cell::other", ReferenceAccess::Mutable),
     ] {
         let files = [("recast.omg", src)];
         let package = sources::resolve(&files);
@@ -487,7 +487,7 @@ fn last_body(pkg: &LoweredPackage) -> &omega_lowering::MachineBody {
     &pkg.machines.last().unwrap().body
 }
 
-/// A borrowed `let mut` scalar gets one home, like an immutable one, and the
+/// A borrowed `let mutable` scalar gets one home, like an immutable one, and the
 /// home is writable. Each assignment stores into that home, so the view, the
 /// store and later reads all name the same storage. Whether a store may run
 /// while a view of the home is still read is the checker's verdict, so that
@@ -497,7 +497,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     use omega_lowering::ScalarLiteral;
     use psi_handoff_consumer::{HomeEvent, primitive_homes};
     // The original program: the mutable local's home is borrowed and recast.
-    let original = "machine build() { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; }";
+    let original = "machine build() { let mutable bits: u32 = 1u32; let view: @f32 = @bits as @f32; }";
     let pkg = sources::lower(&[("recast.omg", original)]).unwrap();
     let body = last_body(&pkg);
     let [constant, home, borrow, recast] = body.operations.as_slice() else {
@@ -526,7 +526,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     );
 
     // An assignment after the view stores into the home; the return reads it.
-    let assigned = "machine build()->u32 { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; bits }";
+    let assigned = "machine build()->u32 { let mutable bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; bits }";
     let mut pkg = sources::lower(&[("recast.omg", assigned)]).unwrap();
     let body = last_body(&pkg);
     let [home] = primitive_homes(body).unwrap().try_into().unwrap();
@@ -575,7 +575,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     assert_eq!(primitive_homes(body), Err("whole-primitive store outside a primitive home"));
 
     // The view is still read after the store. Lowering keeps that order for the checker.
-    let live = "machine build()->f32 { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; $view }";
+    let live = "machine build()->f32 { let mutable bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; $view }";
     let pkg = sources::lower(&[("recast.omg", live)]).unwrap();
     let body = last_body(&pkg);
     let position = |found: &dyn Fn(&OperationKind) -> bool| body.operations.iter().position(|op| found(&op.kind)).unwrap();
@@ -589,7 +589,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     assert!(recast < store && store < read, "{:#?}", body.operations);
 
     // A mutable loan of the home writes through `Referent`; the later read observes the home.
-    let lent = "machine build()->u32 { let mut bits: u32 = 1u32; let r: @mut u32 = @mut bits; $r = 3u32; bits }";
+    let lent = "machine build()->u32 { let mutable bits: u32 = 1u32; let r: @mutable u32 = @mutable bits; $r = 3u32; bits }";
     let pkg = sources::lower(&[("recast.omg", lent)]).unwrap();
     let body = last_body(&pkg);
     let [home] = primitive_homes(body).unwrap().try_into().unwrap();
@@ -612,7 +612,7 @@ fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
     );
 
     // An unborrowed mutable local stays a rebound SSA value.
-    let unborrowed = "machine build()->u32 { let mut bits: u32 = 1u32; bits = 2u32; bits }";
+    let unborrowed = "machine build()->u32 { let mutable bits: u32 = 1u32; bits = 2u32; bits }";
     let pkg = sources::lower(&[("recast.omg", unborrowed)]).unwrap();
     let body = last_body(&pkg);
     assert_eq!((primitive_homes(body).unwrap(), body.mutable_homes.as_slice()), (vec![], &[][..]));
@@ -719,7 +719,7 @@ fn a_borrowed_scalar_home_stays_in_the_parked_activation() {
         ("machine f(bits:u8)->u8 suspends { transition { _ -> suspend g(@bits), } }", true, false, 0),
         // A mutable local's home, written before the call, is read after it.
         (
-            "machine f()->u8 suspends { let mut b:u8 = 1u8; let v:@u8 = @b; b = 2u8; let a:u8 = suspend step(1u8); b }",
+            "machine f()->u8 suspends { let mutable b:u8 = 1u8; let v:@u8 = @b; b = 2u8; let a:u8 = suspend step(1u8); b }",
             false,
             true,
             0,

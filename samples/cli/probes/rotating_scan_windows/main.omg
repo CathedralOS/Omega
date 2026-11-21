@@ -4,9 +4,9 @@
 // and regain access to the displaced descriptor's original backing.
 
 data Cell [copy] { value: u32; tag: u64; }
-data Window<'input> { values: @'input mut [Cell]; }
+data Window<'input> { values: @'input mutable [Cell]; }
 
-machine replace<'carrier, 'input>(windows: @'carrier mut [Window<'input>], replacement: @'input mut [Cell])
+machine replace<'carrier, 'input>(windows: @'carrier mutable [Window<'input>], replacement: @'input mutable [Cell])
 requires windows.length == 2 {
     windows[0].values = replacement;
 }
@@ -33,11 +33,11 @@ machine unchanged(values: @[Cell]) -> bool {
 }
 
 machine main() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 9223372036854775808 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: @mut original[..] }, Window { values: @mut neighbor[..] }];
-    replace(@mut windows[..], @mut replacement[..]);
+    let mutable original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mutable neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mutable replacement: [Cell; 2] = [Cell { value: 42, tag: 9223372036854775808 }, Cell { value: 19, tag: 29 }];
+    let mutable windows: [Window; 2] = [Window { values: @mutable original[..] }, Window { values: @mutable neighbor[..] }];
+    replace(@mutable windows[..], @mutable replacement[..]);
     original[0].value = 9;
     let valid: bool = replaced(windows[0].values);
     let adjacent: bool = unchanged(windows[1].values);

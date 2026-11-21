@@ -113,7 +113,7 @@ fn elaborated(
 
 #[test]
 fn a_length_read_uses_the_exact_formals_entry_extent() {
-    for view in ["@[u8]", "@mut [u8]"] {
+    for view in ["@[u8]", "@mutable [u8]"] {
         let result = judged(&format!(
             "machine entry(items: {view}) -> u64 requires items.length > 0 {{ items.length - 1 }}"
         ));
@@ -253,9 +253,9 @@ fn a_call_cannot_reuse_length_from_before_an_overlapping_mutable_call() {
     let result = judged(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
 machine required<'a>(items: @'a [u8]) -> u64 requires items.length > 0 { items.length - 1 }
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.length > 0 {
     let before: u64 = holder.bytes.length;
     replace(holder, replacement);
@@ -277,13 +277,13 @@ fn a_later_argument_preserves_an_explicit_descriptor_copy() {
     let result = judged(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
 machine required<'a>(items: @'a [u8], ignored: u64) -> u64
 requires items.length > 0 { items.length - 1 }
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.length > 0 {
     let captured: @'a [u8] = holder.bytes;
     required(captured, replace(holder, replacement))
@@ -301,13 +301,13 @@ fn a_direct_view_argument_keeps_its_length_across_later_argument_effects() {
     let result = judged(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
 machine required<'a>(items: @'a [u8], ignored: u64) -> u64
 requires items.length > 0 { items.length - 1 }
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.length > 0 {
     required(holder.bytes, replace(holder, replacement))
 }
@@ -324,7 +324,7 @@ fn a_direct_view_argument_executes_with_its_captured_descriptor() {
     let result = judged_invocation(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
@@ -332,8 +332,8 @@ machine length(items: @[u8], ignored: u64) -> u64 { items.length }
 machine entry<'a>() -> u64 {
     let original: @'a [u8] = "long";
     let replacement: @'a [u8] = "x";
-    let mut holder: Holder<'a> = Holder { bytes: original };
-    length(holder.bytes, replace(@mut holder, replacement))
+    let mutable holder: Holder<'a> = Holder { bytes: original };
+    length(holder.bytes, replace(@mutable holder, replacement))
 }
 "#,
     );
@@ -383,13 +383,13 @@ fn a_returned_view_executes_after_its_argument_home_and_source_slot_end() {
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
 machine echo<'a>(items: @'a [u8]) -> @'a [u8] { items }
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
 machine entry<'a>() -> u64 {
     let original: @'a [u8] = "long";
     let replacement: @'a [u8] = "x";
-    let mut holder: Holder<'a> = Holder { bytes: original };
+    let mutable holder: Holder<'a> = Holder { bytes: original };
     let returned: @'a [u8] = echo(holder.bytes);
-    replace(@mut holder, replacement);
+    replace(@mutable holder, replacement);
     returned.length
 }
 "#,
@@ -448,7 +448,7 @@ fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 requires holder.bytes.length > 0 {
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 requires holder.bytes.length > 0 {
     holder.bytes = replacement;
     holder.bytes.length - 1
 }
@@ -482,8 +482,8 @@ fn a_mutable_call_keeps_a_saved_scalar_but_invalidates_a_fresh_extent() {
         format!(
             r#"
 data Holder<'held> {{ bytes: @'held [u8]; }}
-machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) {{ holder.bytes = replacement; }}
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
+machine replace<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) {{ holder.bytes = replacement; }}
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.length > 0 {{
     let before: u64 = holder.bytes.length;
     replace(holder, replacement);
@@ -511,11 +511,11 @@ fn a_mutable_boundary_keeps_the_extent_used_to_restore_a_saved_byte() {
     let elaboration = elaborated_invocation(
         r#"
 boundary trait Fill {
-    machine read_dir(fd: i32, bytes: @mut [u8], position: @mut i64) -> i64
+    machine read_dir(fd: i32, bytes: @mutable [u8], position: @mutable i64) -> i64
     reaches none crashes none;
 }
 machine normalize(outcome: i64) -> i64 { outcome }
-machine entry(bytes: @mut [u8], position: @mut i64) -> i64
+machine entry(bytes: @mutable [u8], position: @mutable i64) -> i64
 requires bytes.length >= 1024
 reaches Fill invokes Fill
 {
@@ -610,13 +610,13 @@ reaches Fill invokes Fill
 fn a_mutable_boundary_does_not_preserve_the_previous_byte_contents() {
     let verdict = judged_invocation(
         r#"
-boundary trait Fill { machine fill(bytes: @mut [u8]) reaches none crashes none; }
-machine entry(bytes: @mut [u8; 1]) -> u8
+boundary trait Fill { machine fill(bytes: @mutable [u8]) reaches none crashes none; }
+machine entry(bytes: @mutable [u8; 1]) -> u8
 ensures result == 7u8
 reaches Fill invokes Fill
 {
     bytes[0] = 7;
-    Fill::fill(@mut bytes[..]);
+    Fill::fill(@mutable bytes[..]);
     bytes[0]
 }
 "#,
@@ -661,7 +661,7 @@ fn an_overlapping_mutable_call_on_a_backedge_invalidates_the_next_read() {
     use terminal_psi::{Block, OperationKind, Terminator};
 
     for mutable in [false, true] {
-        let access = if mutable { "@mut" } else { "@" };
+        let access = if mutable { "@mutable" } else { "@" };
         let body = if mutable {
             "holder.bytes = replacement;"
         } else {
@@ -671,7 +671,7 @@ fn an_overlapping_mutable_call_on_a_backedge_invalidates_the_next_read() {
             r#"
 data Holder<'held> {{ bytes: @'held [u8]; }}
 machine touch<'a>(holder: {access} Holder<'a>, replacement: @'a [u8]) {{ {body} }}
-machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {{
+machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
     let before: u64 = holder.bytes.length;
     touch(holder, replacement);
     holder.bytes.length

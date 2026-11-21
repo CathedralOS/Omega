@@ -63,7 +63,7 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
     }
 }
 
-machine main(context: @mut Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     let text: [u8; 5] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(@text);
@@ -71,13 +71,13 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let output: i32 = narrow_u32_to_i32_trapping(digest as u32);
     Console::write_line("result: the digest's low byte, 40 for omega (the exit code)");
     Console::write_line("[press Enter to close]");
-    let mut pause: [u8; 256];
-    _ = block Console::read_line(@mut pause[..]);
+    let mutable pause: [u8; 256];
+    _ = block Console::read_line(@mutable pause[..]);
     ProcessExit::exit_process(output);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

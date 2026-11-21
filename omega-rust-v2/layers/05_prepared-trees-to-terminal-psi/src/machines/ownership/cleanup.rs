@@ -218,7 +218,7 @@ impl Frontier {
     }
 
     /// The frontier holds only owned storage. Transferring an exclusive loan
-    /// carrier, such as a `@mut [T]` view arriving at a join, moves no cleanup
+    /// carrier, such as a `@mutable [T]` view arriving at a join, moves no cleanup
     /// custody, exactly as `MoveStructural` of such a place does not.
     fn consume_arguments(
         &mut self,

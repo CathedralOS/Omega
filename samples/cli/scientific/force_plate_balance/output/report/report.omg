@@ -18,7 +18,7 @@ invokes Console
         transition { _ -> positive(0 - value) }
     }
     machine positive(value: i64 in Wrapping) {
-        let mut decimal: Decimal;
+        let mutable decimal: Decimal;
         transition { _ -> collect(decimal, value, 0) }
     }
     machine collect(decimal: Decimal, value: i64 in Wrapping, count: u64) {
@@ -27,7 +27,7 @@ invokes Console
     machine append(decimal: Decimal, value: i64 in Wrapping, count: u64)
     requires count < 10
     {
-        let mut completed: Decimal = decimal;
+        let mutable completed: Decimal = decimal;
         completed.digits[count] = (value % 10 + 48) as i32;
         let remaining: i64 in Wrapping = value / 10;
         transition remaining == 0 {

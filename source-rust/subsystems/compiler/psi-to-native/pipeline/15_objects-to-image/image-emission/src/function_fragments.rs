@@ -19948,7 +19948,7 @@ mod structural {
                     &types
                 ));
                 // Every f32 bit pattern is a u32 and back, so the recasts spec's
-                // `&mut float_bits as &mut u32` publishes the same original home.
+                // `@mutable float_bits as @mutable u32` publishes the same original home.
                 let mut exclusive = argument.clone();
                 exclusive.access = StructuralAccess::MutableBorrow;
                 assert!(argument_matches_source(

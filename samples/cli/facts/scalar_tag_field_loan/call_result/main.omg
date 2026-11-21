@@ -5,7 +5,7 @@ domain u32::Controlled;
 machine consume(value: @u32 in Controlled) -> u32 { $value ^ 0 }
 machine forward<'owner>(value: @'owner u32 in Controlled) -> @'owner u32 in Controlled { value }
 machine main() crashes Trap {
-    let mut storage: Cell = Cell { value: 73 };
+    let mutable storage: Cell = Cell { value: 73 };
     let selected: @u32 in Controlled = @storage.value;
     let returned: @u32 in Controlled = forward(selected);
     let result: u32 = consume(returned);

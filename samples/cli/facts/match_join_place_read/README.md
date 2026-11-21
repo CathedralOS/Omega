@@ -4,8 +4,8 @@ A borrowed match join records the selected place, and a later projection read
 uses that recorded referent. The consumer reads the joined field.
 
 `choose()` runs once with the contract `ensures result == true`, so the match
-`joined: &Pair = match choose() { true -> &chosen; false -> &spare }` statically
-selects `&chosen` and records that selected place on the join. The later
+`joined: @Pair = match choose() { true -> @chosen; false -> @spare }` statically
+selects `@chosen` and records that selected place on the join. The later
 projection read `read_field(joined)` carries the recorded place fact into the
 callee's requirement `place.kept == 17` and reads `place.kept` through it; the
 program observes `17` and takes `done()` (exit 0). Every place copies that
@@ -25,8 +25,8 @@ unsupported field claim.
 | Place | Positive Program | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the joined referents are two local `Pair` values |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the joined places are record fields (`&holder.chosen` / `&holder.spare`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the join runs inside `apply` on `&Pair` parameters |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the joined places are record fields (`@holder.chosen` / `@holder.spare`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the join runs inside `apply` on `@Pair` parameters |
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the joined places are `make_pair(...)` call results |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the `Pair` values themselves arrive from match joins |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the distinguishing values are named constants `KEPT`/`UNSELECTED` |
@@ -122,7 +122,7 @@ the record above is the measurement that supersedes them.
 
 1. **Establishment:** The selected place is established where it originates:
    `choose()` is called once with `ensures result == true`, the match join
-   `match choose() { true -> &chosen; false -> &spare }` records `&chosen` as
+   `match choose() { true -> @chosen; false -> @spare }` records `@chosen` as
    the selected place, and the projection read `read_field(joined)` carries
    that recorded place fact into the callee's requirement `place.kept == 17`.
    No caller equality guard substitutes for the obligation.
@@ -153,7 +153,7 @@ the record above is the measurement that supersedes them.
    `CompilerBuiltinExecution`) across all four hosted targets. `Pair` layout
    geometry (two `i64` fields) is evaluated per target, and
    `CallPlan`/`StatePlan` carry the reference arguments (`joined`, and in the
-   parameter/other-machine/target-body places the two `&Pair` parameters)
+   parameter/other-machine/target-body places the two `@Pair` parameters)
    across register placements.
 7. **Instruction selection, register homes, and activation frame realization
    (`Omega 03–06`):** Backend lowering selects target ISA instructions for the

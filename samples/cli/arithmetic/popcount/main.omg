@@ -17,7 +17,7 @@ use omega_language_std\Console;
 use omega\language\core\narrow_u32_to_i32_trapping;
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
 
     transition {
@@ -46,14 +46,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let result: i32 = narrow_u32_to_i32_trapping(count as u32);
         Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
         Console::write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block Console::read_line(@mut pause[..]);
+        let mutable pause: [u8; 256];
+        _ = block Console::read_line(@mutable pause[..]);
         ProcessExit::exit_process(result);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

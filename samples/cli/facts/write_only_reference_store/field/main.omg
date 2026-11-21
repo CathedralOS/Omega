@@ -1,4 +1,4 @@
-// Fact: a `&write` store into a record's reference leaf installs the incoming
+// Fact: a `@write` store into a record's reference leaf installs the incoming
 // descriptor — the stored target reads the new referent's 85 while the
 // displaced referent's 11 and the sibling stamp's 17 stay untouched.
 // Place: field. The write-only slot arrives through a record field.
@@ -10,8 +10,8 @@ data Carrier<'view> { slot: @'view write Held<'view>; }
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
-    let mut held: Held = Held { target: @left, stamp: 17 };
-    let mut carrier: Carrier = Carrier { slot: @write held };
+    let mutable held: Held = Held { target: @left, stamp: 17 };
+    let mutable carrier: Carrier = Carrier { slot: @write held };
     carrier.slot.target = @right;
     transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
         true -> done(),

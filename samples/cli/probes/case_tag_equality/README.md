@@ -8,7 +8,7 @@ Compile-scope probe: tag equality on enum members via a named empty
 - `main.cmd == Command::None` — a payload-LESS case member is a legal
   equality value even when a sibling case carries a payload: tag
   identity is total equality for the payload-free case.
-- `let mut` typed local + reassignment.
+- `let mutable` typed local + reassignment.
 
 Compile-checked only (no ProcessExit provider):
 

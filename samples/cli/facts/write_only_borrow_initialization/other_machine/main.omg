@@ -1,4 +1,4 @@
-// Fact: a write-only borrow (&write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
+// Fact: a write-only borrow (@write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
 // Place: other machine. Another machine receives and forwards the initialized slot value before exact subtraction.
 // Expected exit: 0
 
@@ -29,7 +29,7 @@ ensures
 machine probe() -> u64
 ensures
     result == 0u64 {
-    let mut slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable slot: BoxedSlot = BoxedSlot { value: 100u64 };
     initialize_slot(@write slot);
     forward_slot(@slot)
 }

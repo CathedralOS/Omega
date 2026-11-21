@@ -536,11 +536,11 @@ machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(
 fn completion_storage_does_not_inherit_the_inputs_nonzero_bound() {
     const SOURCE: &str = r#"
 data Cell { value: u32; }
-machine retain(value: @mut Cell)
+machine retain(value: @mutable Cell)
 requires value.value >= 1
 ensures old(value.value) - 1 <= 4294967295u32
 { value.value = 0; }
-machine build_entry() { let mut value: Cell = Cell { value: 7 }; retain(@mut value); }
+machine build_entry() { let mutable value: Cell = Cell { value: 7 }; retain(@mutable value); }
 "#;
     executed_source(SOURCE);
     rejected_source(&SOURCE.replace("old(value.value) - 1", "value.value - 1"));
@@ -645,7 +645,7 @@ requires embed(value.number) + 1 <= 8
 { value as +Limited }
 machine build_entry() {
     let first: u32 in Small = 3u32 as +Small;
-    let mut cell: Cell = Cell {
+    let mutable cell: Cell = Cell {
         before: 41u32, value: first,
         reading: tag(Reading { number: 3u32 }), after: 73u32
     };

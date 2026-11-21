@@ -12,9 +12,9 @@ use domain\adc\Conversion;
 use domain\adc\quantize;
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
-    let mut configuration: Settings;
-    let accepted: bool = block settings(@mut configuration);
+machine main(main: @mutable Main) reaches ProcessExit + Console crashes Trap {
+    let mutable configuration: Settings;
+    let accepted: bool = block settings(@mutable configuration);
     transition accepted { true -> block header(@configuration), _ -> invalid() }
     machine header(configuration: @Settings) {
         Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
@@ -28,8 +28,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         transition raw >= -1000 && raw <= 1000 { true -> block convert(configuration, index, raw), _ -> invalid() }
     }
     machine convert(configuration: @Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
-        let mut result: Conversion;
-        quantize(configuration, raw, @mut result);
+        let mutable result: Conversion;
+        quantize(configuration, raw, @mutable result);
         integer(raw); Console::write(",");
         integer(result.code); Console::write(",");
         integer(result.reconstruction_numerator); Console::write(",");
@@ -51,6 +51,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

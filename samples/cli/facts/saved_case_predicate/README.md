@@ -2,7 +2,7 @@
 
 A saved case verdict selects the same unwritten case payload after a disjoint case replacement.
 
-Parent: **STATE-LOCAL-VALUE-FRONTIER**, generic/reference saved case observations. Each place passes its case through an opaque `Value` constrained by `Value == &'storage mut Choice`. A saved `Choice::Full` verdict survives an alias and a write to the other Choice. It must justify the current payload and the nonzero divisor in `490 / choice.amount`.
+Parent: **STATE-LOCAL-VALUE-FRONTIER**, generic/reference saved case observations. Each place passes its case through an opaque `Value` constrained by `Value == @'storage mutable Choice`. A saved `Choice::Full` verdict survives an alias and a write to the other Choice. It must justify the current payload and the nonzero divisor in `490 / choice.amount`.
 
 Every positive invokes both Full (quotient 70) and Empty (fallback 0), and traps if either result is wrong. The field place checks neighboring values 11 and 13; all places observe the disjoint clear. Each twin changes only the post-observation replacement destination from the other Choice to the observed Choice. Its saved Boolean survives, but cannot authorize accessing the replaced payload.
 

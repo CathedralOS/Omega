@@ -156,7 +156,7 @@ Contract parameter bindings are immutable logical inputs. Executable parameter
 bindings are local working values initialized from those inputs. In `requires`,
 `ensures` and declared crash-route guards, a by-value parameter name denotes the
 supplied input, not the value last assigned to its working binding. Declaring
-the parameter `mut`, assigning it, or passing its owned storage to a writable
+the parameter `mutable`, assigning it, or passing its owned storage to a writable
 helper does not rebind the contract input. Executable expressions and guards
 inside the body still observe the current working value.
 

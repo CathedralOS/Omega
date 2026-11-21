@@ -42,7 +42,7 @@ fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
         root.join("build.omg"),
         format!(
             "{declarations}
-machine build(builder: @mut Build) {{
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"computed\");
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
     let held: {held};

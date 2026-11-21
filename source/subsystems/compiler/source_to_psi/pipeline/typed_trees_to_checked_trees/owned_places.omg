@@ -186,7 +186,7 @@ crashes Trap
         }
     }
 
-    // A recast views its operand's storage: `&place as &T` roots at the
+    // A recast views its operand's storage: `@place as @T` roots at the
     // place, and a recast reference value at the reference's place.
     machine recast(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         let operand: Expression = syntax_trees_expression(syntax, expression.left);
@@ -579,7 +579,7 @@ crashes Trap
 // field or an index whose base, at any step, is a reference.
 // Whether a place is, or is reached through, a write-only reference: the
 // place itself, or a field (a `.length` selection reads metadata, not the
-// referent) or element base along its path, of type `&write T`.
+// referent) or element base along its path, of type `@write T`.
 public machine through_write_only(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {

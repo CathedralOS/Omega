@@ -22,7 +22,7 @@ machine length() -> i32 { CheckedMath::offset_zero(9) }
 
 data Main { bytes: [u8; length()]; }
 
-machine run_checked_math(main: @mut Main)
+machine run_checked_math(main: @mutable Main)
 reaches ProcessExit + Console
 {
     // The same named requirement executes its checked provider during type
@@ -39,6 +39,6 @@ reaches ProcessExit + Console
 machine entry_start()
 reaches ProcessExit + Console
 {
-    let mut entry_storage: Main;
-    run_checked_math(@mut entry_storage);
+    let mutable entry_storage: Main;
+    run_checked_math(@mutable entry_storage);
 }

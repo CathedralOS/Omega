@@ -1,7 +1,7 @@
 // Foreign generic sums with user payloads:
 // `Optional<First>` / `Optional<Second>` instantiate the
 // core `option` package's closed sum over local data —
-// construction, `&Optional<T>` borrowed dispatch, and
+// construction, `@Optional<T>` borrowed dispatch, and
 // `Optional::Some { value }` payload destructure all work
 // through the ordinary sum machinery.
 //
@@ -36,7 +36,7 @@ machine second(subject: @Optional<Second>) -> i32 {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     let left: Optional<First> = Optional::Some { value: First { value: 1 } };
     let right: Optional<Second> = Optional::Some { value: Second { padding: 41, value: 2 } };
@@ -48,12 +48,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

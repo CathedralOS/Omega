@@ -70,8 +70,8 @@ fn a_disjoint_move_preserves_the_exact_owned_backing_of_either_borrowed_field() 
 #[test]
 fn a_mutable_projected_argument_keeps_the_original_writable_home_parked() {
     let text = format!(
-        "{DATA} machine park(c:@mut Cell) suspends{{c.value=9u8;}}
-         machine forward(p:Pair) suspends{{let mut q=move p; suspend park(@mut q.right)}}"
+        "{DATA} machine park(c:@mutable Cell) suspends{{c.value=9u8;}}
+         machine forward(p:Pair) suspends{{let mutable q=move p; suspend park(@mutable q.right)}}"
     );
     let package = prepare_borrow(&text, "q", "right", Access::Mut).unwrap();
     let (site, argument) = parked_borrow(&package);

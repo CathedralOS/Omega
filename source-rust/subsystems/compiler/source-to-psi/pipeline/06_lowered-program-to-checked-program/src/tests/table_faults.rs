@@ -920,7 +920,7 @@ fn a_borrowed_zero_read_uses_its_actual_backing_and_keeps_later_writes() {
             r#"
             data Pair {{ x: u32; y: u32; }}
             machine check(pair: @Pair) -> u32 requires pair.{field} == 0u32 {{ pair.{field} }}
-            machine entry() -> u32 {{ let mut pair: Pair; pair.x = 3u32; check(@pair) }}
+            machine entry() -> u32 {{ let mutable pair: Pair; pair.x = 3u32; check(@pair) }}
         "#
         );
         let compilation = calling_policies::prepared(
@@ -1043,7 +1043,7 @@ fn a_write_row_that_logs_another_value_is_refused() {
     assert_refused(verdict, "a write row is not what its operation stores");
 }
 
-/// `f(v) { let mut p = Point { x: 7, y: 9 }; p.x = v; peek(p) }` where
+/// `f(v) { let mutable p = Point { x: 7, y: 9 }; p.x = v; peek(p) }` where
 /// `peek` requires `p.x == 7`: at the call `p.x` holds `v`, not the `7` it
 /// was constructed with.
 fn stored_over() -> Elaboration {

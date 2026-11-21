@@ -139,7 +139,7 @@ fn proof_fact_array_values_remain_value_expressions() {
 fn reference_operands_retain_access_and_element_type_role_through_copy() {
     for (access, expected) in [
         ("", language_core::ReferenceAccess::Shared),
-        ("mut ", language_core::ReferenceAccess::Mutable),
+        ("mutable ", language_core::ReferenceAccess::Mutable),
         ("write ", language_core::ReferenceAccess::WriteOnly),
     ] {
         let source = format!(
@@ -206,7 +206,7 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
             .iter_expressions()
             .any(|(_, expression)| matches!(expression, ExpressionNode::TypeExpression(_)))
     );
-    for target in ["@u8", "@ @u8", "@mut @write u8"] {
+    for target in ["@u8", "@ @u8", "@mutable @write u8"] {
         let source =
             format!("machine view(value: @u64) -> @u8 {{ value as {target} in Wrapping }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();

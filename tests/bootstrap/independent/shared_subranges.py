@@ -18,7 +18,7 @@ machine first(part: @[u8]) -> u8 {
     machine byte(part: @[u8]) -> u8 requires part.length > 0 { part[0] }
 }\n'''
 MAIN = '''machine main() -> u8 {
-    let mut buffer: Buffer; buffer.bytes[0] = 41; buffer.bytes[1] = 42; buffer.bytes[2] = 43;
+    let mutable buffer: Buffer; buffer.bytes[0] = 41; buffer.bytes[1] = 42; buffer.bytes[2] = 43;
     cut(@buffer.bytes[..], LO, HI)
 }\n'''
 
@@ -64,7 +64,7 @@ REFUSALS = (
     ('empty-not-readable', program('lo..lo', 'lo <= source.length', lo=3).replace(FIRST,
         'data Buffer { bytes: [u8; 3]; } machine first(part: @[u8]) -> u8 requires part.length > 0 { part[0] }'), 2),
     ('inclusive-unsupported', program('lo..=hi'), 2),
-    ('mutable-from-shared', program('lo..hi').replace('first(@source[', 'first(@mut source['), 2),
+    ('mutable-from-shared', program('lo..hi').replace('first(@source[', 'first(@mutable source['), 2),
     ('effectful-endpoint', program('lo..endpoint()', 'lo <= source.length') + 'machine endpoint() -> u64 { 2 }', 2),
     ('wrong-slice', FIRST + '''machine cut(source: @[u8], other: @[u8], lo: u64, hi: u64) -> u8
         requires lo <= hi && hi <= other.length { first(@source[lo..hi]) }

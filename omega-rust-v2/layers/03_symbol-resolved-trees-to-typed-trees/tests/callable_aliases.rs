@@ -83,7 +83,7 @@ fn a_generic_local_checks_its_concrete_storage_type_through_forwarding_calls() {
     ";
     let allowed = format!("{schemas} machine reserve<T>() {{}} machine good() {{forward::<Predicate>();}}");
     check(&[("reserve.omg", &allowed)]).unwrap();
-    let refused = allowed.replace("reserve<T>() {}", "reserve<T>() {let mut slot:T;}");
+    let refused = allowed.replace("reserve<T>() {}", "reserve<T>() {let mutable slot:T;}");
     let error = check(&[("reserve.omg", &refused)]).unwrap_err();
     assert_eq!(error.message, "runtime callable requires explicit reach and crash ceilings");
     assert_eq!(error.span.slice(refused.as_bytes()), Some(b"forward::<Predicate>()".as_slice()));

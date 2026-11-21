@@ -25,20 +25,20 @@ public machine pressure_at(stage: @Stage, volume: f64) -> f64 {
     machine cube(stage: @Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio * ratio }
 }
 
-public machine evaluate(stage: @mut Stage) -> bool {
+public machine evaluate(stage: @mutable Stage) -> bool {
     transition stage.volume >= 0.25 && stage.volume <= 8.0
         && stage.end_volume >= 0.25 && stage.end_volume <= 8.0
         && stage.pressure > 0.0 && stage.pressure <= 64.0 {
         true -> kind(stage),
         _ -> reject()
     }
-    machine kind(stage: @mut Stage) -> bool {
+    machine kind(stage: @mutable Stage) -> bool {
         transition stage.isochoric {
             true -> hold(stage),
             _ -> exponent(stage)
         }
     }
-    machine hold(stage: @mut Stage) -> bool {
+    machine hold(stage: @mutable Stage) -> bool {
         stage.work = 0.0;
         stage.exponent = 0;
         transition stage.volume == stage.end_volume
@@ -47,14 +47,14 @@ public machine evaluate(stage: @mut Stage) -> bool {
             _ -> reject()
         }
     }
-    machine exponent(stage: @mut Stage) -> bool {
+    machine exponent(stage: @mutable Stage) -> bool {
         transition stage.exponent == -1 || stage.exponent == 0
             || stage.exponent == 2 || stage.exponent == 3 {
             true -> integrate(stage),
             _ -> reject()
         }
     }
-    machine integrate(stage: @mut Stage) -> bool {
+    machine integrate(stage: @mutable Stage) -> bool {
         stage.end_pressure = pressure_at(stage, stage.end_volume);
         transition stage.exponent {
             -1 -> rising_work(stage),
@@ -63,19 +63,19 @@ public machine evaluate(stage: @mut Stage) -> bool {
             _ -> cube_work(stage)
         }
     }
-    machine rising_work(stage: @mut Stage) -> bool {
+    machine rising_work(stage: @mutable Stage) -> bool {
         stage.work = (stage.end_pressure * stage.end_volume - stage.pressure * stage.volume) / 2.0;
         true
     }
-    machine constant_work(stage: @mut Stage) -> bool {
+    machine constant_work(stage: @mutable Stage) -> bool {
         stage.work = stage.pressure * (stage.end_volume - stage.volume);
         true
     }
-    machine square_work(stage: @mut Stage) -> bool {
+    machine square_work(stage: @mutable Stage) -> bool {
         stage.work = stage.pressure * stage.volume - stage.end_pressure * stage.end_volume;
         true
     }
-    machine cube_work(stage: @mut Stage) -> bool {
+    machine cube_work(stage: @mutable Stage) -> bool {
         stage.work = (stage.pressure * stage.volume - stage.end_pressure * stage.end_volume) / 2.0;
         true
     }

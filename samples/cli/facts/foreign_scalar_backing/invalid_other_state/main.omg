@@ -22,7 +22,7 @@ machine demand(result: bool) crashes Trap {
 machine posix_main() crashes Trap {
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
     machine receive(cell: Cell) {
-        let mut backing: Cell = cell;
+        let mutable backing: Cell = cell;
     let selected: @u32 = @backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
@@ -35,7 +35,7 @@ machine windows_main() crashes Trap {
     demand(previous_mode != -1);
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
     machine receive(cell: Cell) {
-        let mut backing: Cell = cell;
+        let mutable backing: Cell = cell;
     let selected: @u32 = @backing.word;
     backing.word = 0;
     let written: i32 = WindowsWords::write(1, selected, 4);

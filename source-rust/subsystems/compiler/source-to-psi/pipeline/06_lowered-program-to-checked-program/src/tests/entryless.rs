@@ -163,7 +163,7 @@ fn transparent_data_aliases_cannot_erase_a_parameter_property() {
     assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
     for (application, required) in [
         ("CopyOnly<Ticket>", "[copy]"),
-        ("CopyOnly<@mut u32>", "[copy]"),
+        ("CopyOnly<@mutable u32>", "[copy]"),
         ("CopyOnly<@write u32>", "[copy]"),
         ("LinearOnly<u32>", "[linear]"),
     ] {

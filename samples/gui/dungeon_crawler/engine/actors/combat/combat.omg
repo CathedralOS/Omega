@@ -12,7 +12,7 @@ use configuration\KNOCKBACK_DISTANCE;
 use configuration\ROOM_WIDTH;
 use configuration\ROOM_HEIGHT;
 
-public machine cooldowns<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
+public machine cooldowns<const Rooms: u64>(mutable actor: Actor<Rooms>) -> Actor<Rooms>
 terminates
 requires Rooms >= 1 {
     actor.attack = elapse::<ATTACK_FRAMES>(actor.attack);
@@ -20,14 +20,14 @@ requires Rooms >= 1 {
     actor
 }
 
-public machine attack_intent<const Rooms: u64>(mut actor: Actor<Rooms>, command: Command) -> Actor<Rooms>
+public machine attack_intent<const Rooms: u64>(mutable actor: Actor<Rooms>, command: Command) -> Actor<Rooms>
 terminates
 requires Rooms >= 1 {
     transition command.attack && actor.attack.remaining == 0 && actor.active && actor.vitality.current > 0 {
         true -> swing(actor),
         _ -> (actor)
     }
-    machine swing(mut actor: Actor<Rooms>) -> Actor<Rooms> {
+    machine swing(mutable actor: Actor<Rooms>) -> Actor<Rooms> {
         actor.attack = Countdown { remaining: ATTACK_FRAMES };
         actor
     }
@@ -52,7 +52,7 @@ requires Rooms >= 1 {
             _ -> (victim)
         }
     }
-    machine hit(mut victim: Actor<Rooms>, direction: i32) -> Actor<Rooms>
+    machine hit(mutable victim: Actor<Rooms>, direction: i32) -> Actor<Rooms>
     requires direction >= 0 && direction < 4 {
         victim.vitality = damage(victim.vitality);
         victim.position = knock_back(victim.position, direction);
@@ -110,7 +110,7 @@ requires Rooms >= 1 {
         let dy: i32 = victim.position.y - attacker.position.y;
         transition dx > -CONTACT_DISTANCE && dx < CONTACT_DISTANCE && dy > -CONTACT_DISTANCE && dy < CONTACT_DISTANCE { true -> hit(victim), _ -> (victim) }
     }
-    machine hit(mut victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine hit(mutable victim: Actor<Rooms>) -> Actor<Rooms> {
         victim.vitality = damage(victim.vitality);
         victim.immunity = Countdown { remaining: INVULNERABILITY_FRAMES };
         victim

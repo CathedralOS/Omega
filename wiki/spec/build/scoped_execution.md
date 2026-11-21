@@ -134,14 +134,14 @@ route or supplied filesystem backing, never the compiler's ambient filesystem:
 ```omega
 use topology;
 
-machine build(builder: @mut Build)
+machine build(builder: @mutable Build)
 suspends
 {
   Build::application(builder, "payments");
-  let mut request = dependency\from_source(Source::Path {
+  let mutable request = dependency\from_source(Source::Path {
     location: "../topology"
   });
-  dependency\with_alias(@mut request, "topology");
+  dependency\with_alias(@mutable request, "topology");
   let registered = Build::build_dependency(builder, request);
 
   suspend Build::prepare_dependency(builder, registered);

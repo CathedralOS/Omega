@@ -1,11 +1,11 @@
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: @mut Token) {}
+machine drop_token(token: @mutable Token) {}
 data InnerChoice { case Empty; case Value(token: Token); }
 data OuterChoice { case Absent; case Present(inner: InnerChoice); }
 data Holder { marker: u64; choice: OuterChoice; }
 
-machine clear(choice: @mut OuterChoice) {
+machine clear(choice: @mutable OuterChoice) {
     $choice = OuterChoice::Absent {};
 }
 
@@ -30,20 +30,20 @@ machine consume_outer(choice: OuterChoice) -> u64 {
 }
 
 machine main() crashes Trap {
-    let mut absent: Holder = Holder { marker: 30, choice: OuterChoice::Absent {} };
-    let mut empty: Holder = Holder {
+    let mutable absent: Holder = Holder { marker: 30, choice: OuterChoice::Absent {} };
+    let mutable empty: Holder = Holder {
         marker: 40,
         choice: OuterChoice::Present { inner: InnerChoice::Empty {} },
     };
-    let mut populated: Holder = Holder {
+    let mutable populated: Holder = Holder {
         marker: 50,
         choice: OuterChoice::Present {
             inner: InnerChoice::Value { token: Token { value: 7 } },
         },
     };
-    clear(@mut absent.choice);
-    clear(@mut empty.choice);
-    clear(@mut populated.choice);
+    clear(@mutable absent.choice);
+    clear(@mutable empty.choice);
+    clear(@mutable populated.choice);
     let first: u64 = consume_outer(absent.choice);
     let second: u64 = consume_outer(empty.choice);
     let third: u64 = consume_outer(populated.choice);

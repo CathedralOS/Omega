@@ -102,11 +102,11 @@ fn call_results_retain_match_capture_around_selected_payload_calls() {
     compare(
         r#"
         data Cell { value: i32; }
-        data Envelope { case Active(cell: @mut Cell); case Empty; }
-        machine store(cell: @mut Cell) -> bool { cell.value == 41 }
+        data Envelope { case Active(cell: @mutable Cell); case Empty; }
+        machine store(cell: @mutable Cell) -> bool { cell.value == 41 }
         machine caller(envelope: Envelope) -> bool {
             match envelope {
-                Envelope::Active { cell } -> store(@mut cell),
+                Envelope::Active { cell } -> store(@mutable cell),
                 Envelope::Empty -> false
             }
         }

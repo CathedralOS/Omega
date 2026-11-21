@@ -7,8 +7,8 @@ public WindowsTimeHost satisfies TimeHost {
     reaches TimeHost
     invokes WindowsTimeRead
     {
-        let mut counter: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_counter(@mut counter);
+        let mutable counter: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_counter(@mutable counter);
         transition status == 0 {
             true -> degraded(),
             _ -> measured(counter)
@@ -23,8 +23,8 @@ public WindowsTimeHost satisfies TimeHost {
     reaches TimeHost
     invokes WindowsTimeRead
     {
-        let mut frequency: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_frequency(@mut frequency);
+        let mutable frequency: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_frequency(@mutable frequency);
         transition status == 0 {
             true -> degraded(),
             _ -> measured(frequency)
@@ -39,8 +39,8 @@ public WindowsTimeHost satisfies TimeHost {
     reaches TimeHost
     invokes WindowsTimeRead
     {
-        let mut file_time: u64 = 0;
-        WindowsTimeRead::system_time_as_file_time(@mut file_time);
+        let mutable file_time: u64 = 0;
+        WindowsTimeRead::system_time_as_file_time(@mutable file_time);
         transition { _ -> measured(file_time) }
 
         machine measured(file_time: u64) -> u64 { file_time }

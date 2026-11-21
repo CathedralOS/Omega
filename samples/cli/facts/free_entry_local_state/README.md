@@ -46,7 +46,7 @@ Host: Linux x86_64. Producer: `target/debug/omega`, dev profile, `opt-level` 1, 
 
 ## Reject twins
 
-The nine place positives and their `invalid/main.omg` twins differ only in the entry contract: `machine start()` versus `machine start(unprovided: &mut Unprovided)`. Both contain the same ordinary record declaration. The hosted contract supplies no arrival parameter or backing, so the twin must reject even though an all-zero `Unprovided` would be an ordinary valid local. The root twin retains the separate unprovided `u64` control. The pinned fragment is `hosted ProgramEntry exposes no arrival parameters`.
+The nine place positives and their `invalid/main.omg` twins differ only in the entry contract: `machine start()` versus `machine start(unprovided: @mutable Unprovided)`. Both contain the same ordinary record declaration. The hosted contract supplies no arrival parameter or backing, so the twin must reject even though an all-zero `Unprovided` would be an ordinary valid local. The root twin retains the separate unprovided `u64` control. The pinned fragment is `hosted ProgramEntry exposes no arrival parameters`.
 
 ## Requirements and evidence
 
@@ -66,7 +66,7 @@ This row establishes ordinary local ownership and cleanup, not every parent obli
 
 On macOS ARM64 at `b50066b75303e6e899f27764c28e57deb5dbb1ab`,
 the public checker wrongly accepted an otherwise ordinary entry with an unprovided
-`&mut Context`. The preceding `3ddc7d1455f182d54645df101870ea9b441b9019`
+`@mutable Context`. The preceding `3ddc7d1455f182d54645df101870ea9b441b9019`
 producer also executed that entry with native exit 0 and Terminal exit 0 by
 manufacturing backing. Those are refusal-control failures, not successful
 acceptance of an installed argument. The frozen probe and qualification receipt

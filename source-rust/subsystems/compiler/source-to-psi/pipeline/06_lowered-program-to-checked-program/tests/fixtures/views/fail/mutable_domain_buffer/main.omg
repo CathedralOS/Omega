@@ -10,13 +10,13 @@ data Packet {
     after: u8;
 }
 machine main() crashes Trap {
-    let mut packet: Packet = Packet {
+    let mutable packet: Packet = Packet {
         before: 11,
         line: "ABCDEFGHIJKLMNOPQRSTUVWXYZ!?" as +Utf8,
         index: 13 as +Wrapping,
         after: 37
     };
-    (@mut packet.line as -Utf8)[packet.index as -Wrapping] = 128;
+    (@mutable packet.line as -Utf8)[packet.index as -Wrapping] = 128;
     let view: @[u8] = (@packet.line as -Utf8)[..];
     transition view.length == 28 && view[12] == 77 && view[13] == 48 && view[14] == 79
         && packet.before == 11 && packet.after == 37 {

@@ -21,7 +21,7 @@ public machine valid_schedule(schedule: @Schedule) -> bool {
     valid_migration(schedule.migration0) && valid_migration(schedule.migration1) && valid_migration(schedule.migration2)
 }
 public machine total(census: @Census) -> i64 in Wrapping { census.newborn + census.juvenile + census.adult }
-public machine advance(census: @mut Census, schedule: @Schedule) -> Balance {
+public machine advance(census: @mutable Census, schedule: @Schedule) -> Balance {
     let before: i64 in Wrapping = total(census);
     let survivor0: i64 in Wrapping = census.newborn * schedule.survival0 / 1000;
     let survivor1: i64 in Wrapping = census.juvenile * schedule.survival1 / 1000;

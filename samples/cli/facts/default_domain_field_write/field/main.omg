@@ -15,7 +15,7 @@ machine consume(span: Interval) -> u64 {
 }
 data Holder [copy] { span: Interval; }
 machine main() crashes Trap {
-    let mut holder: Holder = Holder { span: Interval::Range { lo: 1, hi: 2 } };
+    let mutable holder: Holder = Holder { span: Interval::Range { lo: 1, hi: 2 } };
     holder.span.hi = 3;
     let empty: Interval = Interval::Empty;
     transition consume(holder.span) == 1 && consume(empty) == 0 {

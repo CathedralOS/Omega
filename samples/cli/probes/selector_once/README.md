@@ -1,8 +1,8 @@
 # selector_once
 
 First sample proving the index selector evaluates once before
-its replacement call: `tokens[select(&mut cursor)] =
-replacement(&mut cursor)` — `select` mutates `cursor.index`
+its replacement call: `tokens[select(@mutable cursor)] =
+replacement(@mutable cursor)` — `select` mutates `cursor.index`
 to 1 but the store still lands at the saved coordinate 0;
 `ensures result == 0` contract on the selector.
 

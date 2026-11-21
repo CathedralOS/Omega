@@ -33,13 +33,13 @@ data Application {
     rejected: u64 in Wrapping;
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut application: Application;
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable application: Application;
     Console::write_line("VARIANT_NORMALIZATION|1");
-    transition { _ -> read(@mut application) }
-    machine read(application: @mut Application) {
-        let mut line: [u8; 64];
-        let result: LineReadResult = block Console::read_line(@mut line[..]);
+    transition { _ -> read(@mutable application) }
+    machine read(application: @mutable Application) {
+        let mutable line: [u8; 64];
+        let result: LineReadResult = block Console::read_line(@mutable line[..]);
         transition result {
             LineReadResult::LineComplete { count } -> process(application, @line, count, false),
             LineReadResult::EndOfInput { count } -> eof(application, @line, count),
@@ -47,50 +47,50 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             LineReadResult::Invalid -> overflow(application)
         }
     }
-    machine eof(application: @mut Application, line: @[u8; 64], count: u64 in Wrapping) {
+    machine eof(application: @mutable Application, line: @[u8; 64], count: u64 in Wrapping) {
         transition count == 0 {
             true -> finish(application),
             _ -> process(application, line, count, true)
         }
     }
-    machine process(application: @mut Application, line: @[u8; 64], count: u64 in Wrapping, last: bool) {
+    machine process(application: @mutable Application, line: @[u8; 64], count: u64 in Wrapping, last: bool) {
         transition application.line_number < 512 {
             true -> bounded_process(application, line, count, last),
             _ -> record_capacity(application)
         }
     }
-    machine record_capacity(application: @mut Application) {
+    machine record_capacity(application: @mutable Application) {
         application.rejected = application.rejected + 1;
         Console::write_line("FATAL|record_capacity");
         transition { _ -> finish(application) }
     }
-    machine bounded_process(application: @mut Application, line: @[u8; 64], count: u64 in Wrapping, last: bool) {
+    machine bounded_process(application: @mutable Application, line: @[u8; 64], count: u64 in Wrapping, last: bool) {
         application.line_number = application.line_number + 1;
-        let mut input: Input;
-        parse(line, count, @mut input);
+        let mutable input: Input;
+        parse(line, count, @mutable input);
         let reason: u64 in Wrapping = consume(application, @input);
         transition reason == 0 {
             true -> next(application, last),
             _ -> reject(application, last, reason)
         }
     }
-    machine reject(application: @mut Application, last: bool, reason: u64 in Wrapping) {
+    machine reject(application: @mutable Application, last: bool, reason: u64 in Wrapping) {
         application.rejected = application.rejected + 1;
         Console::write("REJECT|"); number(application.line_number); separator(); number(reason); newline();
         transition { _ -> next(application, last) }
     }
-    machine next(application: @mut Application, last: bool) {
+    machine next(application: @mutable Application, last: bool) {
         transition last {
             true -> finish(application),
             _ -> read(application)
         }
     }
-    machine overflow(application: @mut Application) {
+    machine overflow(application: @mutable Application) {
         application.rejected = application.rejected + 1;
         Console::write_line("FATAL|line_capacity");
         transition { _ -> finish(application) }
     }
-    machine finish(application: @mut Application) {
+    machine finish(application: @mutable Application) {
         render_ledger(@application.ledger);
         Console::write("SUMMARY|"); number(application.ledger.count); separator();
         number(application.ledger.merged); separator(); number(application.ledger.conflicts); separator();
@@ -103,92 +103,92 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine exit(code: i32) { ProcessExit::exit_process(code); }
 }
 
-machine consume(application: @mut Application, input: @Input) -> u64 in Wrapping reaches ProcessExit + Console {
+machine consume(application: @mutable Application, input: @Input) -> u64 in Wrapping reaches ProcessExit + Console {
     transition input.valid {
         true -> select(application, input),
         _ -> 1
     }
-    machine select(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine select(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition input.kind == 0 {
             true -> reference(application, input),
             _ -> variant(application, input)
         }
     }
-    machine reference(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition application.locked {
             true -> 2,
             _ -> contig_reference(application, input)
         }
     }
-    machine contig_reference(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine contig_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition input.contig == 0 {
             true -> first_reference(application, input),
             _ -> second_reference(application, input)
         }
     }
-    machine first_reference(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine first_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition application.first_defined {
             true -> 2,
             _ -> store_first(application, input)
         }
     }
-    machine store_first(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine store_first(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         application.first_reference = input.removed;
         application.first_defined = true;
         (0)
     }
-    machine second_reference(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine second_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition application.second_defined {
             true -> 2,
             _ -> store_second(application, input)
         }
     }
-    machine store_second(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine store_second(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         application.second_reference = input.removed;
         application.second_defined = true;
         (0)
     }
-    machine variant(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine variant(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         application.locked = true;
         transition input.contig == 0 {
             true -> first(application, input),
             _ -> second(application, input)
         }
     }
-    machine first(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine first(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition application.first_defined {
             true -> first_run(application, input),
             _ -> 2
         }
     }
-    machine second(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine second(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         transition application.second_defined {
             true -> second_run(application, input),
             _ -> 2
         }
     }
-    machine first_run(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine first_run(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         let reference: Sequence = application.first_reference;
         transition { _ -> run(application, input, @reference) }
     }
-    machine second_run(application: @mut Application, input: @Input) -> u64 in Wrapping {
+    machine second_run(application: @mutable Application, input: @Input) -> u64 in Wrapping {
         let reference: Sequence = application.second_reference;
         transition { _ -> run(application, input, @reference) }
     }
-    machine run(application: @mut Application, input: @Input, reference: @Sequence) -> u64 in Wrapping {
-        let mut result: Normalization;
-        normalize(reference, input.position, @input.removed, @input.inserted, @mut result);
+    machine run(application: @mutable Application, input: @Input, reference: @Sequence) -> u64 in Wrapping {
+        let mutable result: Normalization;
+        normalize(reference, input.position, @input.removed, @input.inserted, @mutable result);
         transition result.status {
-            0 -> accepted(application, input, @mut result),
+            0 -> accepted(application, input, @mutable result),
             1 -> 3,
             2 -> 4,
             _ -> 5
         }
     }
-    machine accepted(application: @mut Application, input: @Input, result: @mut Normalization) -> u64 in Wrapping {
+    machine accepted(application: @mutable Application, input: @Input, result: @mutable Normalization) -> u64 in Wrapping {
         result.canonical.contig = input.contig;
         result.canonical.provenance = source_mask(input.source);
-        let action: u64 in Wrapping = add(@mut application.ledger, @result.canonical);
+        let action: u64 in Wrapping = add(@mutable application.ledger, @result.canonical);
         transition action < 2 {
             true -> emit(input, result, action),
             _ -> 6
@@ -236,6 +236,6 @@ machine render_ledger(ledger: @Ledger) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

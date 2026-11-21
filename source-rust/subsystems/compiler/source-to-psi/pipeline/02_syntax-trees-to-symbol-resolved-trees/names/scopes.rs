@@ -838,7 +838,7 @@ impl MachineScope<'_> {
         Walk a `self`-rooted member chain of SPELLED names (`["self", "p", "a"]`)
         through the declared field types and return the exact type symbol AFTER the last
         segment (`"BoxI"` for `self.p.a` where `a: BoxI`). Each hop's field type
-        must be a plain `Named` type: shell-wrapped intermediates (`&mut`,
+        must be a plain `Named` type: shell-wrapped intermediates (`@mutable`,
         constrained, arrays) return `None` -- conservative, so an unsupported
         nested receiver keeps the existing loud unresolved-call error rather
         than silently binding 0. `None` unless the root is `self` and every hop

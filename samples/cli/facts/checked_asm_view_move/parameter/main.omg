@@ -2,10 +2,10 @@
 // Expected exit: 0.
 data Cells { values: [u32; 2]; }
 machine main() crashes Trap {
-    let mut cells: Cells = Cells { values: [7, 9] };
-    fill(@mut cells);
+    let mutable cells: Cells = Cells { values: [7, 9] };
+    fill(@mutable cells);
 }
-machine fill(cells: @mut Cells) crashes Trap {
+machine fill(cells: @mutable Cells) crashes Trap {
     asm {
         mov eax, 37;
         mov cells.values[0], eax

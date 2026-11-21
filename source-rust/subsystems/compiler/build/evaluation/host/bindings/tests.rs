@@ -11,20 +11,20 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine bind(activation: u64) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
+public machine build_selection_receiver<'activation>(builder: @'activation mutable Build) -> @'activation mutable Build {
     builder
 }
 "#;
 
 const BUILD: &str = r#"
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     first(builder);
     second(builder);
 }
-machine first(builder: @mut Build) {
+machine first(builder: @mutable Build) {
     Build::bind(builder, linux_x86_64\ProgramEntry, one);
 }
-machine second(builder: @mut Build) {
+machine second(builder: @mutable Build) {
     Build::bind(builder, windows_x86_64\ProgramEntry, two);
 }
 "#;

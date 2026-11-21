@@ -14,7 +14,7 @@ File
         ':'
         ReferenceType
           '@'
-          'mut'
+          'mutable'
           SliceType
             '['
             PathType 'u8'
@@ -33,7 +33,7 @@ File
         ';'
       Let
         'let'
-        'mut'
+        'mutable'
         BindingPattern 'b'
         ':'
         PathType 'u32'
@@ -51,7 +51,7 @@ File
         ';'
       Let
         'let'
-        'mut'
+        'mutable'
         BindingPattern 'bytes'
         ':'
         ArrayType

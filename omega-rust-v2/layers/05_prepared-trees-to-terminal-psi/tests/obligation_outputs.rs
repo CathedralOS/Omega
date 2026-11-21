@@ -81,7 +81,7 @@ fn a_zero_value_carries_its_record_predicate_to_the_checker() {
         ("Nonzero", "self.value > 0", 0, PredicateOperator::GreaterThan),
         ("Small", "self.value < 10", 10, PredicateOperator::LessThan),
     ] {
-        let binding = format!("let mut cell:{name};");
+        let binding = format!("let mutable cell:{name};");
         let declaration = format!("data {name} requires {predicate} {{value:u8;}}");
         for qualified in [true, false] {
             let source = if qualified {
@@ -139,7 +139,7 @@ fn a_zero_value_carries_its_record_predicate_to_the_checker() {
 
     // Gating propagates through containment: a copyable predicate-bearing field
     // lowers inside the zeroed home and its own schema keeps the clause.
-    let binding = "let mut cell:Holder;";
+    let binding = "let mutable cell:Holder;";
     let source = format!("data Inner [copy] requires self.v > 0 {{v:u8;}} data Holder {{inner:Inner;}} machine init(){{{binding}}}");
     let lowered = pipeline::lower(&source);
     let [zero] = lowered.obligations("ZeroValue")[..] else {

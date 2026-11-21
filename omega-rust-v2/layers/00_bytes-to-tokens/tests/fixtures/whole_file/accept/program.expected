@@ -12,10 +12,10 @@
 3:15     Word         counter
 3:22     Punctuation  :
 3:24     Punctuation  @
-3:25     Word         mut
-3:29     Word         Counter
-3:36     Punctuation  )
-3:38     Punctuation  {
+3:25     Word         mutable
+3:33     Word         Counter
+3:40     Punctuation  )
+3:42     Punctuation  {
 4:5      Word         counter
 4:12     Punctuation  .
 4:13     Word         value

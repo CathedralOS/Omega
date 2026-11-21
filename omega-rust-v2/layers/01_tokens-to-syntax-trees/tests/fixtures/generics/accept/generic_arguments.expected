@@ -317,7 +317,7 @@ File
             '('
             Borrow
               '@'
-              'mut'
+              'mutable'
               PathExpression 'e'
             ','
             Literal '5'

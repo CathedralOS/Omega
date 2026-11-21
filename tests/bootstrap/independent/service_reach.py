@@ -96,10 +96,10 @@ def terminal_cases():
     # Empty-brace arms complete a Unit result. Calling both choices makes
     # an accidental write on the early-return path observable.
     empty_arm = (b'data Cell [copy] {n:u8;} '
-                 b'machine choose(c:@mut Cell,skip:bool){transition skip {true->{},_->put(c)} '
-                 b'machine put(c:@mut Cell){c.n=42;}} '
-                 b'machine main()->u8 {let mut early:Cell;early.n=7;let mut late:Cell;'
-                 b'choose(@mut early,true);choose(@mut late,false);'
+                 b'machine choose(c:@mutable Cell,skip:bool){transition skip {true->{},_->put(c)} '
+                 b'machine put(c:@mutable Cell){c.n=42;}} '
+                 b'machine main()->u8 {let mutable early:Cell;early.n=7;let mutable late:Cell;'
+                 b'choose(@mutable early,true);choose(@mutable late,false);'
                  b'transition early.n==7 {true->late.n,_->1}}')
     yield trial('empty-arm-choice', empty_arm, 42, standalone=True)
     yield trial('empty-arm-entry', b'machine main(){transition {_-> { /* explicit Unit */ }}}',
@@ -130,7 +130,7 @@ def terminal_cases():
     yield trial('uninhabited-value-context', import_never + stop + b'machine main()->u8 crashes Trap {stop()}', 'trap')
     yield trial('uninhabited-unrelated-name', b'data Void requires false {}\nmachine fail()->Void crashes Trap '
                 b'{crash Trap;} machine main()->u8 crashes Trap {fail();}', 'trap')
-    yield trial('zero-uninhabited', import_never + b'machine main()->u8 {let mut value:Never;42}', (1, 0, b'let'))
+    yield trial('zero-uninhabited', import_never + b'machine main()->u8 {let mutable value:Never;42}', (1, 0, b'let'))
     yield trial('construct-uninhabited', import_never + b'machine wrong()->Never {Never {}} machine main()->u8{42}',
                 (1, 0, b'Never {}'))
     yield trial('normal-result-lookalike', b'data Never [copy] {} machine fake()->Never {Never {}} '
@@ -269,7 +269,7 @@ def build_scope_cases():
     product = [(0, b'machine main()->u8{42}'), (1, b'public machine value()->u8{9}')]
     paths = ['main.omg', 'nested/value.omg']
     default = (ROOT / 'source/library/core/defaults/build.omg').read_bytes()
-    authored = b'machine build(builder:@mut Build){Build::application(builder,"application");}'
+    authored = b'machine build(builder:@mutable Build){Build::application(builder,"application");}'
     builds = [(2, 'defaults/build.omg', default), (0, 'build.omg', authored), (0, 'm/extra.omg', b'')]
     selected = [(0, 1), (1, 0), (2, 0)]
     wire, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
@@ -323,7 +323,7 @@ def rooted_application_cases():
     paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg']
     bind = b'Build::bind(builder, alpha_bootstrap\\ProgramEntry, entry_start);'
     selection = b'Build::select_provider::<ProcessExit,NativeProcessExit>(builder,alpha_bootstrap);'
-    config = (b'use omega\\language\\core\\ProcessExit; machine build(builder:@mut Build){'
+    config = (b'use omega\\language\\core\\ProcessExit; machine build(builder:@mutable Build){'
               b'Build::application(builder,"app");' + bind + selection + b'}')
     pure = b'public machine entry_start()->u8 {42}'
     effect = b'public machine entry_start() reaches ProcessExit {ProcessExit::exit_process(-257i32);}'
@@ -359,7 +359,7 @@ def rooted_application_cases():
     yield trial('build-unfinished', config[:-1] + b'Build::unknown(builder);}')
     # The same local helper and declaration can appear in three deployments.
     # Only execution of its Alpha selection supplies this target's provider.
-    helper = b'machine configure(handle: @mut Build){' + selection.replace(b'builder', b'handle') + b'}'
+    helper = b'machine configure(handle: @mutable Build){' + selection.replace(b'builder', b'handle') + b'}'
     hosted = selection.replace(b'alpha_bootstrap', b'linux_x86_64').replace(b'builder', b'handle')
     called = config.replace(selection, b'configure(builder);') + helper[:-1] + hosted + b'}'
     yield trial('build-called-helper', called, effect, 'service')
@@ -374,7 +374,7 @@ def rooted_application_cases():
     yield trial('build-ill-typed-unreached-helper', called.replace(b'configure(builder);', b'').replace(
         hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
 
-    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mut Build){Build::unknown(builder);}')
+    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mutable Build){Build::unknown(builder);}')
     yield trial('build-additional-unit', extra=[(0, 'helper.omg', b'machine helper(){}')])
 
 

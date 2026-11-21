@@ -1,12 +1,12 @@
-// `&write` is a write-only projected borrow: the callee assigns
+// `@write` is a write-only projected borrow: the callee assigns
 // `destination = value` with no deref spelling and can never read
-// the pointee. A `&write` parameter forwards by re-projection —
-// `&write destination` passes the same write loan deeper.
+// the pointee. A `@write` parameter forwards by re-projection —
+// `@write destination` passes the same write loan deeper.
 //
-//   * `machine replace(destination: &write i32, value: i32)` —
+//   * `machine replace(destination: @write i32, value: i32)` —
 //     write-only leaf.
 //   * `forward` transitions through a state spelling
-//     `&write destination` at each hop.
+//     `@write destination` at each hop.
 //   * `neighbor` untouched: the write loan sees only its target.
 //   * `hits` records the reached arm.
 //
@@ -31,7 +31,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.value = 7;
     main.neighbor = 19;
@@ -40,12 +40,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

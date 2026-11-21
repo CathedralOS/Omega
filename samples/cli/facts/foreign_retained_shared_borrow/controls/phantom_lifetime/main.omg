@@ -4,7 +4,7 @@ use omega\language\core\Content;
 use omega\language\core\CountedQuantity;
 public data ByteUnit {}
 public data Buffer [linear] dropped by drop_buffer { value: u64; }
-machine drop_buffer(buffer: @mut Buffer) {}
+machine drop_buffer(buffer: @mutable Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
@@ -23,7 +23,7 @@ public boundary trait Reader {
     machine register<'source>(capacity: Capacity in Capacity::Available, buffer: @'source Buffer in Buffer::Owned) -> Pending<'source>
     reaches none
     ensures result in Pending::Retained crashes Trap;
-    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mut u64) -> Capacity
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mutable u64) -> Capacity
     reaches none
     ensures result in Capacity::Available crashes Trap;
     machine release(capacity: Capacity in Capacity::Available) reaches none crashes Trap;
@@ -31,8 +31,8 @@ public boundary trait Reader {
 data Phantom<'a> { marker: u64; }
 machine make<'a>(buffer: @'a Buffer) -> Phantom<'a> { Phantom { marker: 37 } }
 data Main {}
-machine run_main(main: @mut Main) crashes Trap {
-    let mut buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+machine run_main(main: @mutable Main) crashes Trap {
+    let mutable buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
     let phantom: Phantom = make(@buffer);
     buffer.value = 91;
     let marker: u64 = phantom.marker;
@@ -45,6 +45,6 @@ machine run_main(main: @mut Main) crashes Trap {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
-    let mut entry_storage: Main;
-    run_main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    run_main(@mutable entry_storage);
 }

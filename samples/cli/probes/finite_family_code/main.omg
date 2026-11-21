@@ -35,7 +35,7 @@ Primary satisfies Shape<Item> {
 }
 
 machine finite_family_code() {
-    let mut item: Item = Item { value: 7 };
+    let mutable item: Item = Item { value: 7 };
     let half: i32 = Item::code::<16>(@item);
     let full: i32 = Item::code::<32>(@item);
     transition half == 7 && full == 7 {

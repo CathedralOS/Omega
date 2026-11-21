@@ -15,7 +15,7 @@ machine consume(span: Interval) -> u64 {
 }
 machine supply() -> Interval { Interval::Range { lo: 1, hi: 2 } }
 machine main() crashes Trap {
-    let mut span: Interval = supply();
+    let mutable span: Interval = supply();
     span.hi = 9;
     let empty: Interval = Interval::Empty;
     transition consume(span) == 1 && consume(empty) == 0 {

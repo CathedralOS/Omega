@@ -52,7 +52,7 @@ The requirement checks are:
   cannot justify the consuming precondition.
 - Terminal Psi: scalar reads, returned values and contracts retain their exact
   source relationships through lowering and interpreter execution.
-- Provider and calling plans: the ordinary selected method accepts `&Ends` and
+- Provider and calling plans: the ordinary selected method accepts `@Ends` and
   returns `f64`; four Build rows preserve target choice without source prefixes.
 - Native realization: actual native and Terminal execution must agree at exit
   zero. The match markers and field check detect wrong branch or field lowering.

@@ -1,13 +1,13 @@
 // A Fused entry receiver keeps its Terminal attachment
 // identity while it lends a fixed array field to a
 // checked-body callee on a borrowed slice view —
-// `&mut main.items` seeds `buf: &mut [u64]` through the
+// `@mutable main.items` seeds `buf: @mutable [u64]` through the
 // ordinary borrowed-view presentation.
 //
 //   * `boundary trait Ping` + `data PingProvider`
 //     satisfies — the provider is a static slot selected by
 //     build.omg; there is no carrier field.
-//   * `Worker::drain(buf: &mut [u64], filter: &Filter,
+//   * `Worker::drain(buf: @mutable [u64], filter: @Filter,
 //     index: u64)` attached worker machine on an
 //     empty-carrier Worker.
 //
@@ -26,11 +26,11 @@ data Filter {
 }
 
 data Worker { }
-machine Worker::drain(buf: @mut [u64], filter: @Filter, index: u64) {
+machine Worker::drain(buf: @mutable [u64], filter: @Filter, index: u64) {
     transition {
-        _ -> probe(@mut buf, filter, index)
+        _ -> probe(@mutable buf, filter, index)
     }
-    machine probe(buf: @mut [u64], filter: @Filter, index: u64) {
+    machine probe(buf: @mutable [u64], filter: @Filter, index: u64) {
         transition {
             _ -> done()
         }
@@ -46,13 +46,13 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 1;
-    Worker::drain(@mut main.items, @main.filter, 0);
+    Worker::drain(@mutable main.items, @main.filter, 0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

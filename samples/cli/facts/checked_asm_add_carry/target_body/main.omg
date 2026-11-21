@@ -34,7 +34,7 @@ X86ObserveTarget satisfies SelectedObserveTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     let mut snapshot: u64 = 0;
+     let mutable snapshot: u64 = 0;
      asm clobbers rax, rflags, r10, r15 {
      entry:
       mov eax, 4294967295;
@@ -55,7 +55,7 @@ ArmObserveTarget satisfies SelectedObserveTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     let mut snapshot: u64 = 0;
+     let mutable snapshot: u64 = 0;
      asm clobbers rax, rflags, r10, r15 {
      entry:
       mov eax, 4294967295;

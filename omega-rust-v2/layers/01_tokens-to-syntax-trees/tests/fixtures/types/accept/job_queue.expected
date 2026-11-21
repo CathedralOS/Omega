@@ -85,7 +85,7 @@ File
         ':'
         ReferenceType
           '@'
-          'mut'
+          'mutable'
           PathType 'Job'
       ','
       Param

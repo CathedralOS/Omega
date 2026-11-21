@@ -20,19 +20,19 @@ use representations\typed_trees\type_table_row;
 // parameter as its returned-borrow origin. The index counts reference
 // parameters only, in authored order.
 
-public machine project_slots(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing)
+public machine project_slots(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing)
 crashes Trap
 {
     transition { _ -> next_machine(checker, syntax, typing, 0) }
 
-    machine next_machine(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
+    machine next_machine(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> one(checker, syntax, typing, index),
             _ -> done()
         }
     }
 
-    machine one(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
+    machine one(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition item.container == MachineContainer::Trait {
             true -> requirement(checker, syntax, typing, index, item),
@@ -41,7 +41,7 @@ crashes Trap
     }
 
     machine requirement(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -54,7 +54,7 @@ crashes Trap
     }
 
     machine typed_return(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -69,7 +69,7 @@ crashes Trap
     }
 
     machine parameters(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -88,7 +88,7 @@ crashes Trap
     }
 
     machine one_parameter(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -110,7 +110,7 @@ crashes Trap
     }
 
     machine reference_parameter(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -132,7 +132,7 @@ crashes Trap
     }
 
     machine qualify(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -146,12 +146,12 @@ crashes Trap
         same: bool,
         domain_item: u64 in Trapping
     ) {
-        let recorded: bool = push_slot_qualification(@mut checker.output, structural, domain_item);
+        let recorded: bool = push_slot_qualification(@mutable checker.output, structural, domain_item);
         transition { _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same && recorded) }
     }
 
     machine advance(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -171,7 +171,7 @@ crashes Trap
     }
 
     machine taken(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -185,7 +185,7 @@ crashes Trap
     }
 
     machine finish(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
@@ -199,13 +199,13 @@ crashes Trap
     }
 
     machine record_origin(
-        checker: @mut Checker,
+        checker: @mutable Checker,
         syntax: @SyntaxTrees,
         typing: @Typing,
         index: u64 in Trapping,
         matched: u64 in Trapping
     ) {
-        let recorded: bool = push_slot_origin(@mut checker.output, SlotOriginKind::Parameter, matched);
+        let recorded: bool = push_slot_origin(@mutable checker.output, SlotOriginKind::Parameter, matched);
         transition recorded {
             true -> next_machine(checker, syntax, typing, index + 1),
             _ -> next_machine(checker, syntax, typing, index + 1)

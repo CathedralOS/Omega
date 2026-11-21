@@ -4,7 +4,7 @@ data CommandParser {
 }
 
 machine resolve_navigation(
-    command_parser: @mut CommandParser,
+    command_parser: @mutable CommandParser,
     level: Level,
     cell: CellId,
     line: @[u8] in Utf8
@@ -37,7 +37,7 @@ machine resolve_command(line: @[u8] in Utf8) -> NavigationChoice {
 }
 
 machine resolve_exit(
-    command_parser: @mut CommandParser,
+    command_parser: @mutable CommandParser,
     level: Level,
     cell: CellId,
     line: @[u8] in Utf8
@@ -62,7 +62,7 @@ machine resolve_exit(
 }
 
 machine find_exit(
-    command_parser: @mut CommandParser,
+    command_parser: @mutable CommandParser,
     room: Room,
     command: @[u8] in Utf8
     ) -> Navigation {
@@ -75,7 +75,7 @@ machine find_exit(
 }
 
 machine find_exit_at(
-    command_parser: @mut CommandParser,
+    command_parser: @mutable CommandParser,
     exits: @[Exit],
     exit_count: u64 in Wrapping,
     command: @[u8] in Utf8,
@@ -88,7 +88,7 @@ machine find_exit_at(
 
 
     machine inspect_exit(
-        command_parser: @mut CommandParser,
+        command_parser: @mutable CommandParser,
         exits: @[Exit],
         exit_count: u64 in Wrapping,
         command: @[u8] in Utf8,
@@ -106,7 +106,7 @@ machine find_exit_at(
     }
 }
 
-machine invalid_navigation(command_parser: @mut CommandParser) -> Navigation {
+machine invalid_navigation(command_parser: @mutable CommandParser) -> Navigation {
     transition {
         _ -> navigation(NavigationChoice::Invalid, CellId::Empty)
     }

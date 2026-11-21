@@ -793,7 +793,7 @@ terminates by remaining {
         true -> later(schema, plan, index, remaining - 1),
         false -> plan
     }
-    machine later(schema: Schema, mut plan: Plan, index: u64, remaining: u64) -> Plan
+    machine later(schema: Schema, mutable plan: Plan, index: u64, remaining: u64) -> Plan
     requires index < 2 && remaining >= 1 && remaining <= 2
     terminates by remaining {
         plan.align = bounded(schema.fields[index].align);

@@ -9,7 +9,7 @@ pub enum ExclusiveOrigin {
     /// `MoveStructural` out of owned storage: the caller's stored loan itself
     /// is the result.
     Transfer,
-    /// `BorrowedMove` through a `@mut` parent. The source is a hole that must be
+    /// `BorrowedMove` through a `@mutable` parent. The source is a hole that must be
     /// restored before the parent loan is released.
     BorrowedMove,
     /// A `Mutable` `BorrowPlace` below a stored descriptor: a child of that loan.
@@ -55,7 +55,7 @@ fn moved_root(
     root
 }
 
-/// `@mut` and `@write` loans are both exclusive, so neither may be copied.
+/// `@mutable` and `@write` loans are both exclusive, so neither may be copied.
 fn exclusive(shape: Option<&TypeShape>) -> bool {
     matches!(
         shape,
@@ -125,8 +125,8 @@ pub fn returned_exclusive(
     let (origin, from): (ExclusiveOrigin, &ProjectedPlace) = match &op.kind {
         OperationKind::MoveStructural { source } => (ExclusiveOrigin::Transfer, source),
         OperationKind::BorrowedMove { source } => (ExclusiveOrigin::BorrowedMove, source),
-        // A reborrow keeps the result's own exclusive access: `@mut` from
-        // `@mut $(..)`, `@write` from `@write $(..)`.
+        // A reborrow keeps the result's own exclusive access: `@mutable` from
+        // `@mutable $(..)`, `@write` from `@write $(..)`.
         OperationKind::BorrowPlace { source, access } if Some(*access) == access_of(package.types.get(result)) => (ExclusiveOrigin::Reborrow, source),
         OperationKind::BorrowPlace {
             access: ReferenceAccess::Shared,

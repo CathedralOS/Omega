@@ -3,12 +3,12 @@
 // Range operands still evaluate into the same access-preserving view values.
 boundary trait ByteObserver {
     machine count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 reaches none crashes none;
-    machine observe(bytes: @[u8], destination: @mut Observation) reaches none crashes none;
+    machine observe(bytes: @[u8], destination: @mutable Observation) reaches none crashes none;
 }
 data Observation [copy] { count: u64; }
 Selected satisfies ByteObserver {
     machine count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 { validated_count(prefix, bytes, suffix) }
-    machine observe(bytes: @[u8], destination: @mut Observation) { destination.count = validated_count(17, bytes, 23); }
+    machine observe(bytes: @[u8], destination: @mutable Observation) { destination.count = validated_count(17, bytes, 23); }
 }
 
 machine validated_count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 {
@@ -24,29 +24,29 @@ machine validated_count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 {
 data Payload [copy] { bytes: [u8; 8]; length: u64; }
 data CountResult { case Error; case Ok(count: u64); }
 data Sequence [copy] { digits: u64 in Wrapping; }
-machine ordered_prefix(sequence: @mut Sequence) -> u64 {
+machine ordered_prefix(sequence: @mutable Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
     17
 }
-machine range_start(sequence: @mut Sequence) -> u64 ensures result == 0 {
+machine range_start(sequence: @mutable Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: @mut Sequence) -> u64 ensures result == 3 {
+machine range_end(sequence: @mutable Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }
-machine ordered_suffix(sequence: @mut Sequence) -> u64 {
+machine ordered_suffix(sequence: @mutable Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 4;
     23
 }
 machine from_ordered(payload: Payload) -> CountResult {
-    let mut sequence: Sequence;
+    let mutable sequence: Sequence;
     sequence.digits = 0;
     let count: u64 = Selected::count(
-        ordered_prefix(@mut sequence),
-        payload.bytes[range_start(@mut sequence)..range_end(@mut sequence)],
-        ordered_suffix(@mut sequence)
+        ordered_prefix(@mutable sequence),
+        payload.bytes[range_start(@mutable sequence)..range_end(@mutable sequence)],
+        ordered_suffix(@mutable sequence)
     );
     transition count == 3 && sequence.digits == 1234 {
         true -> CountResult::Ok { count: count },
@@ -58,8 +58,8 @@ machine from_owned(payload: Payload) -> CountResult
 requires payload.length <= payload.bytes.length
 {
     let count: u64 = Selected::count(17, payload.bytes[0..payload.length], 23);
-    let mut observed: Observation;
-    Selected::observe(payload.bytes[0..payload.length], @mut observed);
+    let mutable observed: Observation;
+    Selected::observe(payload.bytes[0..payload.length], @mutable observed);
     transition count == observed.count {
         true -> CountResult::Ok { count: count },
         false -> CountResult::Error
@@ -81,7 +81,7 @@ machine from_view(bytes: @[u8]) -> CountResult {
     CountResult::Ok { count: count }
 }
 machine main() crashes Trap {
-    let mut payload: Payload;
+    let mutable payload: Payload;
     payload.bytes[0] = 41;
     payload.length = 3;
     let owned: CountResult = from_owned(payload);
@@ -118,7 +118,7 @@ machine main() crashes Trap {
         transition count == 3 { true -> empty(owned, borrowed, view), false -> wrong() }
     }
     machine empty(owned: u64, borrowed: u64, view: u64) {
-        let mut payload: Payload;
+        let mutable payload: Payload;
         payload.length = 0;
         let result: CountResult = from_owned(payload);
         transition result {

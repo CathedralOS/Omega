@@ -538,7 +538,7 @@ impl Program<'_> {
                 carrier,
             )?,
             // An array or record, or a reference displaying a
-            // domain on its referent (`&text as +Terminated`):
+            // domain on its referent (`@text as +Terminated`):
             // the clauses are stated over the plain value at one
             // structural subject, which lowering binds to the
             // cast's result (`record_cast_predicates`).

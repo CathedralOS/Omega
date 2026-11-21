@@ -48,7 +48,7 @@ fn program(
 ) -> String {
     let (effect, call) = if suspending { (" suspends", "suspend wait()") } else { ("", "wait()") };
     format!(
-        "data Holder{{r:@u8;}} machine wait(){effect}{{}} machine forward(first:@u8,second:@u8){effect}{{let mut h=Holder{{r:{initial}}};h=Holder{{r:{latest}}};{call}}}"
+        "data Holder{{r:@u8;}} machine wait(){effect}{{}} machine forward(first:@u8,second:@u8){effect}{{let mutable h=Holder{{r:{initial}}};h=Holder{{r:{latest}}};{call}}}"
     )
 }
 

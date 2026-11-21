@@ -11,7 +11,7 @@ use omega\language\core\widen_u32_to_u64;
 use omega_language_std\targets\macos_arm64\filesystem_abi;
 
 public boundary trait StatExchange {
-    machine fill(value: @mut DarwinStat) reaches none crashes none;
+    machine fill(value: @mutable DarwinStat) reaches none crashes none;
     machine check(value: @DarwinStat) -> u64 reaches none crashes none;
     machine extent() -> u64 reaches none crashes none;
     machine alignment() -> u64 reaches none crashes none;
@@ -22,7 +22,7 @@ OtherPolicy satisfies FixedLayout<DarwinStatRecord> {
     }
 }
 machine authored() -> DarwinStat {
-    let mut record: DarwinStat;
+    let mutable record: DarwinStat;
     record.dev = -2147483647i32;
     record.mode = 33188u16;
     record.nlink = 3u16;

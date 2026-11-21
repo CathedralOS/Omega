@@ -9,6 +9,7 @@ The cross-width-v2, rational-landing-v2 and historical abstract-premise rows com
 the run that installed the lawful twins (target/l5-loop-01/samples/runs/sample-baseline-after.log).
 The two lawful abstract-premise twin rows come from the run that lowered their premise-bearing
 callback (target/l5-loop-01/integration/callback-samples/logs/sample-baseline-after.log).
+The three historical @mut receivers report the parser refusals measured after the mutable keyword change.
 """
 import os
 from pathlib import Path
@@ -58,19 +59,19 @@ SAMPLE_LINES = [
     "OMEGA_CASE\tsample\tstandalone\tL5\texecutable product inspected\twitness matched",
     "module-library\tpsi\twitness matched",
     "OMEGA_CASE\tsample\tmodule-library\tL5\texecutable product inspected\twitness matched",
-    "OMEGA_SAMPLE_REFUSAL\tcross-width\tL2\troot\tmain.omg\t475\t485\t20\t9\tMain::main\ta data carrier cannot own a machine",
-    "cross-width\tL2\tmain.omg:20:9\ta data carrier cannot own a machine",
-    "OMEGA_CASE\tsample\tcross-width\tL2\tintended rejection verified\tmain.omg:20:9 a data carrier cannot own a machine",
-    "OMEGA_SAMPLE_REFUSAL\trational-landing\tL2\troot\tmain.omg\t720\t730\t25\t9\tMain::main\ta data carrier cannot own a machine",
-    "rational-landing\tL2\tmain.omg:25:9\ta data carrier cannot own a machine",
-    "OMEGA_CASE\tsample\trational-landing\tL2\tintended rejection verified\tmain.omg:25:9 a data carrier cannot own a machine",
+    "OMEGA_SAMPLE_REFUSAL\tcross-width\tL1\troot\tmain.omg\t497\t501\t20\t31\tMain\texpected `,` or `)` (bytes 497..501)",
+    "cross-width\tL1\troot\tmain.omg\t497\t501\t20\t31\tMain\texpected `,` or `)` (bytes 497..501)",
+    "OMEGA_CASE\tsample\tcross-width\tL1\tintended rejection verified\tmain.omg:20:31 expected `,` or `)` (bytes 497..501)",
+    "OMEGA_SAMPLE_REFUSAL\trational-landing\tL1\troot\tmain.omg\t742\t746\t25\t31\tMain\texpected `,` or `)` (bytes 742..746)",
+    "rational-landing\tL1\troot\tmain.omg\t742\t746\t25\t31\tMain\texpected `,` or `)` (bytes 742..746)",
+    "OMEGA_CASE\tsample\trational-landing\tL1\tintended rejection verified\tmain.omg:25:31 expected `,` or `)` (bytes 742..746)",
     "cross-width-v2\tpsi\twitness matched",
     "OMEGA_CASE\tsample\tcross-width-v2\tL5\texecutable product inspected\twitness matched",
     "rational-landing-v2\tpsi\twitness matched",
     "OMEGA_CASE\tsample\trational-landing-v2\tL5\texecutable product inspected\twitness matched",
-    "OMEGA_SAMPLE_REFUSAL\tdirect-imports\tL2\troot\tm/b.omg\t4\t7\t1\t5\tm\\a\tunavailable import m\\a",
-    "direct-imports\tL2\tm/b.omg:1:5\tunavailable import m\\a",
-    "OMEGA_CASE\tsample\tdirect-imports\tL2\tcompatibility blocked\tm/b.omg:1:5 unavailable import m\\a",
+    "OMEGA_SAMPLE_REFUSAL\tdirect-imports\tL1\troot\tmain.omg\t285\t289\t13\t31\tMain\texpected `,` or `)` (bytes 285..289)",
+    "direct-imports\tL1\troot\tmain.omg\t285\t289\t13\t31\tMain\texpected `,` or `)` (bytes 285..289)",
+    "OMEGA_CASE\tsample\tdirect-imports\tL1\tintended rejection verified\tmain.omg:13:31 expected `,` or `)` (bytes 285..289)",
     "direct-imports-v2\tpsi\twitness matched",
     "OMEGA_CASE\tsample\tdirect-imports-v2\tL5\texecutable product inspected\twitness matched",
     "OMEGA_SAMPLE_REFUSAL\tmissing-import-v2\tL2\troot\tmain.omg\t65\t66\t4\t30\tA\tunresolved name A",
@@ -164,15 +165,15 @@ class L5RecordTests(unittest.TestCase):
         self.assertEqual(self.report["cohort_sources"], {"spec_tree_at_head": "f" * 40, "historical_samples": REVISION})
         cases = self.report["cases"]
         self.assertEqual((cases["sample/cross-width"]["target"], cases["sample/cross-width"]["test"]), ("tests\\sample_baseline.rs", SAMPLE_TEST))
-        self.assertEqual(cases["sample/cross-width"]["later_layers_not_reached"], ["L3", "L4", "L5"])
+        self.assertEqual(cases["sample/cross-width"]["later_layers_not_reached"], ["L2", "L3", "L4", "L5"])
         # Each of the nine printed refusals is attached to its case with its exact bytes and position.
         refusals = {key: case["compiler_refusal"] for key, case in cases.items() if "compiler_refusal" in case}
         self.assertEqual({key: (site["stage"], site["package"], site["file"], site["byte_start"], site["byte_end"],
                                 site["line"], site["byte_column"], site["occurrence_form"], site["occurrence"], site["reason"])
                           for key, site in refusals.items()}, {
-            "sample/cross-width": ("L2", "root", "main.omg", 475, 485, 20, 9, "text", "Main::main", "a data carrier cannot own a machine"),
-            "sample/rational-landing": ("L2", "root", "main.omg", 720, 730, 25, 9, "text", "Main::main", "a data carrier cannot own a machine"),
-            "sample/direct-imports": ("L2", "root", "m/b.omg", 4, 7, 1, 5, "text", "m\\a", "unavailable import m\\a"),
+            "sample/cross-width": ("L1", "root", "main.omg", 497, 501, 20, 31, "text", "Main", "expected `,` or `)` (bytes 497..501)"),
+            "sample/rational-landing": ("L1", "root", "main.omg", 742, 746, 25, 31, "text", "Main", "expected `,` or `)` (bytes 742..746)"),
+            "sample/direct-imports": ("L1", "root", "main.omg", 285, 289, 13, 31, "text", "Main", "expected `,` or `)` (bytes 285..289)"),
             "sample/missing-import-v2": ("L2", "root", "main.omg", 65, 66, 4, 30, "text", "A", "unresolved name A"),
             "sample/abstract-premise": ("L1", "root", "main.omg", 772, 776, 37, 27, "text", "Trap", "expected `;` (bytes 772..776)"),
             "sample/false-abstract-premise": ("L1", "root", "main.omg", 773, 777, 37, 27, "text", "Trap", "expected `;` (bytes 773..777)"),
@@ -286,13 +287,13 @@ class L5RecordTests(unittest.TestCase):
 
     def test_a_passing_comparison_must_print_the_outcome_it_compared_with_the_baseline(self):
         # The compiler's receipt and the case result change together, as in a real changed outcome.
-        changed = [line.replace("a data carrier cannot own a machine", "unresolved name Width")
+        changed = [line.replace(CROSS_REASON, "unresolved name Width")
                    if line.startswith(("OMEGA_CASE\tsample\tcross-width\t", "OMEGA_SAMPLE_REFUSAL\tcross-width\t")) else line
                    for line in SAMPLE_LINES]
         self.collect(sample(changed))
         self.assertEqual(len(self.report["measurement_errors"]), 1)
         self.assertIn("sample/cross-width", self.report["measurement_errors"][0])
-        self.assertEqual(self.report["cases"]["sample/cross-width"]["detail"], "main.omg:20:9 unresolved name Width")
+        self.assertEqual(self.report["cases"]["sample/cross-width"]["detail"], "main.omg:20:31 unresolved name Width")
         # A failed comparison already reports the change as a failed assertion.
         self.setUp()
         self.collect(sample(changed, status="FAILED"))
@@ -312,15 +313,15 @@ class L5RecordTests(unittest.TestCase):
 
 CROSS_RECEIPT = "OMEGA_SAMPLE_REFUSAL\tcross-width\t"
 CROSS_CASE = "OMEGA_CASE\tsample\tcross-width\t"
-CROSS_REASON = "a data carrier cannot own a machine"
+CROSS_REASON = "expected `,` or `)` (bytes 497..501)"
 
 
-def receipt(label="cross-width", stage="L2", package="root", file="main.omg", start="475", end="485", row="20", column="9",
-            occurrence="Main::main", reason=CROSS_REASON):
+def receipt(label="cross-width", stage="L1", package="root", file="main.omg", start="497", end="501", row="20", column="31",
+            occurrence="Main", reason=CROSS_REASON):
     return "\t".join(["OMEGA_SAMPLE_REFUSAL", label, stage, package, file, start, end, row, column, occurrence, reason])
 
 
-def case(stage="L2", status="intended rejection verified", detail="main.omg:20:9 " + CROSS_REASON):
+def case(stage="L1", status="intended rejection verified", detail="main.omg:20:31 " + CROSS_REASON):
     return f"{CROSS_CASE}{stage}\t{status}\t{detail}"
 
 
@@ -358,7 +359,7 @@ class SampleRefusalTests(unittest.TestCase):
         for line, why in [(receipt(reason="100%"), "malformed percent escape"),
                           (receipt(reason="a%0adata"), "malformed percent escape"),
                           (receipt(occurrence="Main%3A%3Amain"), "not escaped as the emitter escapes it"),
-                          (receipt(occurrence="Main::mai"), "has 9 bytes but the range 475..485 has 10"),
+                          (receipt(occurrence="Mai"), "has 3 bytes but the range 497..501 has 4"),
                           (receipt(row="-"), "incomplete line and byte column"),
                           (receipt(stage="setup"), "not a compiler stage"),
                           (receipt() + "\textra", "expected 11 tab-separated fields, found 12")]:
@@ -377,8 +378,8 @@ class SampleRefusalTests(unittest.TestCase):
         self.assertEqual(self.refusal()["reason"], CROSS_REASON)
 
     def test_the_receipt_stage_and_resumption_must_be_the_reported_stage(self):
-        self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(stage="L1")}),
-                         ["sample/cross-width: compiler stopped at L1 but the case reports L2"])
+        self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(stage="L2")}),
+                         ["sample/cross-width: compiler stopped at L2 but the case reports L1"])
         self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(stage="L3"), CROSS_CASE: case(stage="L3-resumed")}),
                          ["sample/cross-width: compiler stopped at L3 but the case reports L3-resumed"])
         self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(stage="L3-resumed"), CROSS_CASE: case(stage="L3")}),
@@ -388,7 +389,7 @@ class SampleRefusalTests(unittest.TestCase):
         self.assertEqual(self.report["cases"]["sample/cross-width"]["later_layers_not_reached"], ["L5"])
 
     def test_the_reason_and_position_must_be_the_case_detail(self):
-        for line in [receipt(reason="unresolved name Width"), receipt(row="21"), receipt(column="10", start="476", end="486"),
+        for line in [receipt(reason="unresolved name Width"), receipt(row="21"), receipt(column="32", start="498", end="502"),
                      receipt(file="other.omg")]:
             with self.subTest(line=line):
                 errors = self.outcome({CROSS_RECEIPT: line})
@@ -398,23 +399,23 @@ class SampleRefusalTests(unittest.TestCase):
 
     def test_escaped_reasons_are_decoded_and_flattened_like_the_detail(self):
         self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(reason="why%09100%25%0Amore"),
-                                       CROSS_CASE: case(detail="main.omg:20:9 why 100% more")}), [])
+                                       CROSS_CASE: case(detail="main.omg:20:31 why 100% more")}), [])
         self.assertEqual(self.refusal()["reason"], "why\t100%\nmore")
         # The undecoded reason is not the compiler's reason.
         self.assertEqual(len(self.outcome({CROSS_RECEIPT: receipt(reason="why%09100%25%0Amore"),
-                                           CROSS_CASE: case(detail="main.omg:20:9 why%09100%25%0Amore")})), 1)
+                                           CROSS_CASE: case(detail="main.omg:20:31 why%09100%25%0Amore")})), 1)
 
     def test_a_same_named_file_of_another_package_keeps_its_owner(self):
         errors = self.outcome({CROSS_RECEIPT: receipt(package="dep")})
         self.assertEqual(len(errors), 1, errors)
-        self.assertIn("'<dep>/main.omg:20:9 " + CROSS_REASON, errors[0])
-        self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(package="dep"), CROSS_CASE: case(detail="<dep>/main.omg:20:9 " + CROSS_REASON)}), [])
+        self.assertIn("'<dep>/main.omg:20:31 " + CROSS_REASON, errors[0])
+        self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(package="dep"), CROSS_CASE: case(detail="<dep>/main.omg:20:31 " + CROSS_REASON)}), [])
         self.assertEqual((self.refusal()["package"], self.refusal()["file"], self.refusal()["line"]), ("dep", "main.omg", 20))
         # Bytes of another package are unavailable; only its byte range locates the refusal.
         unavailable = receipt(package="@omega/toolchain", row="-", column="-", occurrence="-")
         self.assertEqual(len(self.outcome({CROSS_RECEIPT: unavailable})), 1)
         self.assertEqual(self.outcome({CROSS_RECEIPT: unavailable, CROSS_CASE: case(
-            detail="<@omega/toolchain>/main.omg (bytes 475..485) " + CROSS_REASON)}), [])
+            detail="<@omega/toolchain>/main.omg (bytes 497..501) " + CROSS_REASON)}), [])
         self.assertEqual((self.refusal()["occurrence_form"], self.refusal()["occurrence"]), ("unavailable", None))
         self.assertNotIn("line", self.refusal())
 
@@ -430,22 +431,22 @@ class SampleRefusalTests(unittest.TestCase):
                          ["sample/no-such-sample: compiler refusal for a sample without a case result"])
 
     def test_inspection_failures_report_the_actual_refusal(self):
-        got = ", got L2 main.omg:20:9 " + CROSS_REASON
+        got = ", got L1 main.omg:20:31 " + CROSS_REASON
         for detail in ["expected Psi" + got, "expected L2 main.omg:1:1 unresolved name B" + got]:
             with self.subTest(detail=detail):
                 self.assertEqual(self.outcome({CROSS_CASE: case(status="inspection failed", detail=detail)}), [])
-                self.assertEqual(self.refusal()["stage"], "L2")
+                self.assertEqual(self.refusal()["stage"], "L1")
         self.assertEqual(self.outcome({CROSS_RECEIPT: None, CROSS_CASE: case(status="inspection failed", detail="expected Psi" + got)}),
                          ["sample/cross-width: missing the compiler's original refusal"])
-        for detail in ["expected Psi, got L2 main.omg:20:9 unresolved name Width", "expected Psi, got L1 main.omg:20:9 " + CROSS_REASON,
-                       "got L2 main.omg:20:9 " + CROSS_REASON, "expected " + got]:
+        for detail in ["expected Psi, got L1 main.omg:20:31 unresolved name Width", "expected Psi, got L2 main.omg:20:31 " + CROSS_REASON,
+                       "got L1 main.omg:20:31 " + CROSS_REASON, "expected " + got]:
             with self.subTest(detail=detail):
                 errors = self.outcome({CROSS_CASE: case(status="inspection failed", detail=detail)})
                 self.assertEqual(len(errors), 1, errors)
                 self.assertIn("does not end with the compiler refusal", errors[0])
         # A refusal by L5 itself is reported at L5 with no later layer.
         self.assertEqual(self.outcome({CROSS_RECEIPT: receipt(stage="L5"), CROSS_CASE: case(
-            stage="L5", status="inspection failed", detail="expected Psi, got L5 main.omg:20:9 " + CROSS_REASON)}), [])
+            stage="L5", status="inspection failed", detail="expected Psi, got L5 main.omg:20:31 " + CROSS_REASON)}), [])
         self.assertEqual(self.refusal()["later_layers_not_reached"], [])
 
     def test_an_unexpected_product_needs_no_receipt(self):

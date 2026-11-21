@@ -1,4 +1,4 @@
-// Fact: a write-only borrow (&write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
+// Fact: a write-only borrow (@write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
 // Place: target body. Target-scoped machine bodies initialize and consume the write-only borrow on all four hosted targets.
 // Expected diagnostic: exact subtraction underflow
 
@@ -44,7 +44,7 @@ X86Probe satisfies SelectedProbe {
         reaches SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
+        let mutable slot: BoxedSlot = BoxedSlot { value: 99u64 };
         initialize_slot(@write slot);
         slot.value - 100u64
     }
@@ -55,7 +55,7 @@ ArmProbe satisfies SelectedProbe {
         reaches SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
+        let mutable slot: BoxedSlot = BoxedSlot { value: 99u64 };
         initialize_slot(@write slot);
         slot.value - 100u64
     }

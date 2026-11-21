@@ -30,7 +30,7 @@ X86ReadPlace satisfies SelectedReadPlace {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             mov loaded, source
         }
@@ -48,7 +48,7 @@ ArmReadPlace satisfies SelectedReadPlace {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut loaded: u32 = 0;
+        let mutable loaded: u32 = 0;
         asm {
             ldr loaded, source
         }

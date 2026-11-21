@@ -28,8 +28,8 @@ public LinuxX8664TimeHost satisfies TimeHost {
     reaches TimeHost
     invokes LinuxX64TimeRead
     {
-        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(1, @mut instant);
+        let mutable instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxX64TimeRead::clock_gettime(1, @mutable instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()
@@ -51,8 +51,8 @@ public LinuxX8664TimeHost satisfies TimeHost {
     reaches TimeHost
     invokes LinuxX64TimeRead
     {
-        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(0, @mut instant);
+        let mutable instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxX64TimeRead::clock_gettime(0, @mutable instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()

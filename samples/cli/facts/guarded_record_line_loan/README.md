@@ -43,7 +43,7 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 ### The oracle discriminates
 
 Before each invocation, the caller sets its record count to 99 (`application.ledger.count = 99`).
-It invokes `exercise(&mut application, false)` (`Complete`) and `exercise(&mut application, true)` (`End`).
+It invokes `exercise(@mutable application, false)` (`Complete`) and `exercise(@mutable application, true)` (`End`).
 Inside `exercise`, `observe` writes `application.ledger.count = count` and evaluates `(line[0] + application.ledger.count) == 42`.
 The caller asserts `complete && completed_count == 5 && ended && application.ledger.count == 5`.
 If either delivery fails to observe 42 or fails to mutate the ledger count to 5, the transition evaluates to `false`,
@@ -52,7 +52,7 @@ transitioning to `wrong() { crash Trap; }` and terminating with a non-zero exit/
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` twin (and sibling `controls/shared_record/`) that consistently attenuates
-only the `Application` loan from mutable (`&mut Application`) to shared (`&Application`) while retaining the same
+only the `Application` loan from mutable (`@mutable Application`) to shared (`@Application`) while retaining the same
 storage, selected case edges, bound, store and read.
 
 The expected diagnostic is:
@@ -81,9 +81,9 @@ omega --check samples/cli/facts/guarded_record_line_loan/invalid_target_body/mai
 - **Pinned fixtures:**
 ### Specification and Lowering Layers
 
-1. **Establishment:** Selecting the `ReadOutcome::Complete` or `ReadOutcome::End` case edge establishes simultaneous loan availability: an exclusive mutable borrow `&mut Application` and a shared array borrow `&[u8; 64]` over disjoint backing allocations. This establishes authority for both the mutating ledger field assignment (`application.ledger.count = count`) and immutable byte index load (`line[0]`) directly without any post-hoc caller equality guard (`transition x == 100`).
+1. **Establishment:** Selecting the `ReadOutcome::Complete` or `ReadOutcome::End` case edge establishes simultaneous loan availability: an exclusive mutable borrow `@mutable Application` and a shared array borrow `@[u8; 64]` over disjoint backing allocations. This establishes authority for both the mutating ledger field assignment (`application.ledger.count = count`) and immutable byte index load (`line[0]`) directly without any post-hoc caller equality guard (`transition x == 100`).
 2. **Identity and lifetime:** The mutable record borrow and shared byte-slice loan remain bound to their exact backing storage homes (`application` and `line`) across state transitions, case branches, field projections, parameter forwarding, and machine calls. State loan chains retain backing homes by checked successor membership, ensuring borrow validity without aliasing or invalidated storage across delivery boundaries.
-3. **Composition:** The dual borrow transport composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into `observe(application, &line, count)`. Each positive `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in attenuating `&mut Application` to `&Application`, isolating the mutable loan requirement under test.
+3. **Composition:** The dual borrow transport composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into `observe(application, @line, count)`. Each positive `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in attenuating `@mutable Application` to `@Application`, isolating the mutable loan requirement under test.
 4. **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins (and `controls/shared_record/`) fail closed with compilation error `assignment cannot write \`application\` because it is not mutable in this state` when a shared borrow attempts mutation. Shared and mutable loan regions remain strictly disjoint; no simultaneous aliased mutable loans can be formed.
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Multi-borrow loan chains lower into canonical target-neutral `PSITERM\0` operations, materializing explicit borrow restoration windows (`reborrow restored call uses`) and affine cleanup actions while erasing proof-only contracts. Tagged case payload dispatch (`ReadOutcome`) and simultaneous reference carriers execute identically in the Terminal Psi interpreter (`omega run --both`).
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Record layout plans for `Application`, `Ledger`, `Variant`, and `Sequence` resolve field offsets and alignments, array `[u8; 64]` occupies 64 contiguous bytes, and pointer carriers lower across standard ABI parameter registers and stack slots according to target calling conventions.

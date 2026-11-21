@@ -42,9 +42,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     ensures result != -1
     {
         let raw: i64 = narrow_u64_to_i64_wrapping(handle);
-        let mut completion: WindowsFilesystemIoStatus;
-        let mut mode: u32 = 0;
-        let status: i32 = block WindowsFilesystemIo::c_file_mode(raw, @mut completion, @mut mode, 4, 16);
+        let mutable completion: WindowsFilesystemIoStatus;
+        let mutable mode: u32 = 0;
+        let status: i32 = block WindowsFilesystemIo::c_file_mode(raw, @mutable completion, @mutable mode, 4, 16);
         transition status == 0 {
             true -> block checked(handle, mode, completion.information),
             false -> block failed_query(handle, status)
@@ -75,11 +75,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 }
 
 machine windows_directory_next(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
-    output: @mut WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
+    output: @mutable WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration {
-    let mut completion: WindowsFilesystemIoStatus;
-    let status: i32 = block WindowsFilesystemDirectoryIo::next_name(handle, 0, 0, 0, @mut completion, output, 8208, 12, 1, 0, 0);
+    let mutable completion: WindowsFilesystemIoStatus;
+    let status: i32 = block WindowsFilesystemDirectoryIo::next_name(handle, 0, 0, 0, @mutable completion, output, 8208, 12, 1, 0, 0);
     transition status == 0 {
         true -> (windows_directory_decode(output, completion.information)),
         false -> other(status)
@@ -132,10 +132,10 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block start(handle), false -> (windows_filesystem_native_failure_i64()) }
     machine start(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i64 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let mut output: WindowsNativeDirectoryNameInfo;
-        transition { _ -> block next(handle, @mut output, 0) }
+        let mutable output: WindowsNativeDirectoryNameInfo;
+        transition { _ -> block next(handle, @mutable output, 0) }
     }
-    machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
+    machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable WindowsNativeDirectoryNameInfo, count: u64) -> i64
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         let step: WindowsDirectoryStep = block windows_directory_next(handle, output);
         transition step {
@@ -144,14 +144,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             WindowsDirectoryStep::Name { length } -> block entry(handle, output, count, length)
         }
     }
-    machine entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mut WindowsNativeDirectoryNameInfo, count: u64, length: u64) -> i64
+    machine entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable WindowsNativeDirectoryNameInfo, count: u64, length: u64) -> i64
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         transition windows_directory_dot(output, length) {
             true -> block next(handle, output, count),
             false -> block increment(handle, output, count)
         }
     }
-    machine increment(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
+    machine increment(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable WindowsNativeDirectoryNameInfo, count: u64) -> i64
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         transition count < 9223372036854775807 {
             true -> block next(handle, output, count + 1),

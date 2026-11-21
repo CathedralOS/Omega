@@ -1,4 +1,4 @@
-// Fact: a write-only borrow (&write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
+// Fact: a write-only borrow (@write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
 // Place: match join. The initialized slot value is unified across reconverging match arms before exact subtraction.
 // Expected exit: 0
 
@@ -17,8 +17,8 @@ machine initialize_slot(destination: @write BoxedSlot) {
 machine probe(flag: bool) -> u64
 ensures
     result == 0u64 {
-    let mut left_slot: BoxedSlot = BoxedSlot { value: 100u64 };
-    let mut right_slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable left_slot: BoxedSlot = BoxedSlot { value: 100u64 };
+    let mutable right_slot: BoxedSlot = BoxedSlot { value: 100u64 };
     initialize_slot(@write left_slot);
     initialize_slot(@write right_slot);
     let joined: u64 = match flag {

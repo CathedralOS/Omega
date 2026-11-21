@@ -17,7 +17,7 @@ language/effects.md:231  accepted
 language/effects.md:576  accepted
 language/effects.md:641  accepted
 language/expressions.md:411  L3 bodyless machine has no authorized supply | machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
-language/expressions.md:532  L3 no matching overload for set_first(@mut [u8; 38], 7) | set_first
+language/expressions.md:532  L3 no matching overload for set_first(@mutable [u8; 38], 7) | set_first
 language/generics.md:246  accepted
 language/generics.md:367  accepted
 language/generics.md:510  accepted

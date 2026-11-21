@@ -4,7 +4,7 @@ A match subject is one evaluation of a computed root, the selected exclusive
 loan records that root, and the consumer writes 41 through that recorded loan.
 
 The counter starts at 0. `compute` increments it and returns index 0; the match
-selects `&mut chosen[0]` when that element is 17. The consumer writes 41 through
+selects `@mutable chosen[0]` when that element is 17. The consumer writes 41 through
 the selected loan. The runtime oracle checks the written value, `chosen[1] == 5`,
 `other[0] == 0` and `visits == 1`. The reject twin overwrites `chosen` while
 `selected` is live and must report ``while local borrow `selected` is still active``.

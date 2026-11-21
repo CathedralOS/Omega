@@ -27,10 +27,10 @@ crashes Trap {
 }
 
 data Main { packet: [u8; 4]; }
-machine run(main: @mut Main) crashes Trap {
+machine run(main: @mutable Main) crashes Trap {
     main.packet[0] = 11;
     main.packet[2] = 29;
-    let mut decoder: WindowDecoder = header_window;
+    let mutable decoder: WindowDecoder = header_window;
     let header: u8 = read_first(decoder, @main.packet[..]);
     decoder = trailer_window;
     let trailer: u8 = read_first(decoder, @main.packet[..]);
@@ -44,6 +44,6 @@ machine run(main: @mut Main) crashes Trap {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
-    let mut entry_storage: Main;
-    run(@mut entry_storage);
+    let mutable entry_storage: Main;
+    run(@mutable entry_storage);
 }

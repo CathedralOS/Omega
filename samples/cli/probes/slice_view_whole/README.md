@@ -1,7 +1,7 @@
 # slice_view_whole
 
 Whole-array reborrows lend the array's contiguous storage through ordinary
-`&mut [i32]` and `&[i32]` views. The `cells_valid` predicate establishes byte
+`@mutable [i32]` and `@[i32]` views. The `cells_valid` predicate establishes byte
 bounds without changing the i32 carrier or giving a slice a fixed layout.
 Writes through the view remain visible through `main.bag.cells[2]`.
 
@@ -22,7 +22,7 @@ The five `[0..=255]` positions at `25b435334dd` retain their obligations:
 
 | Position | Canonical obligation |
 | --- | --- |
-| `Bag.cells` element | `where cells_valid(&cells) == true` |
+| `Bag.cells` element | `where cells_valid(@cells) == true` |
 | `fill.cells` element | Predicate arrival requirement and checked handback guarantee |
 | `fill.value` | Ordinary `requires value >= 0 && value <= 255` |
 | `tally.cells` element | Predicate arrival requirement and checked selected-cell citations |
@@ -35,5 +35,5 @@ for its actual updated contents, not assume arbitrary predicates survive stores.
 ## Learnings
 
 - Parenthesize indexed elements and binary expressions used directly as transition results; this example retains its original named `total` and `observed` calculations.
-- A `&mut [T]`/`&[T]` view carries unknown length: indexed element access needs `requires at < cells.length` (or `cells.length == 4`) on the callee, even though the `[..]` reborrowed array has statically-known extent.
+- A `@mutable [T]`/`@[T]` view carries unknown length: indexed element access needs `requires at < cells.length` (or `cells.length == 4`) on the callee, even though the `[..]` reborrowed array has statically-known extent.
 - A multi-clause `transition` subject with `&&` at top level must sit on continuation lines before `{`.

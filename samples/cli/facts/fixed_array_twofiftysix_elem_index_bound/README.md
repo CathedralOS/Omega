@@ -56,7 +56,7 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects scaled-index addressing modes (e.g. `[base + idx * 8]` on `x86_64` and `[base, idx, lsl #3]` on `arm64`). Activation frames allocate disjoint stack storage for the 2048-byte array honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under LAYOUT-PLANS: dynamically sized slice views `&[u64]`, multidimensional array indexing layout plans, and non-power-of-two element counts exceeding register spills.
+Remaining open under LAYOUT-PLANS: dynamically sized slice views `@[u64]`, multidimensional array indexing layout plans, and non-power-of-two element counts exceeding register spills.
 
 ## Build-owned target-body migration
 

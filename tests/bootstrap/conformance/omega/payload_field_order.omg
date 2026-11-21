@@ -1,14 +1,14 @@
 data C { value: u8; }
 data M [copy] { case Empty; case P(a:u8,b:u8,z:u8); }
-machine stamp(c:@mut C,n:u8)->u8 { let prior:u8=c.value;c.value=n;prior }
+machine stamp(c:@mutable C,n:u8)->u8 { let prior:u8=c.value;c.value=n;prior }
 machine check(s:M)->bool {
     transition s {M::P{a,b,z}->fields(a,b,z),_->miss()}
     machine fields(a:u8,b:u8,z:u8)->bool {a==7 && b==0 && z==0}
     machine miss()->bool {false}
 }
 machine main()->u8 {
-    let mut c:C;
-    let p:M=M::P{b:stamp(@mut c,7),a:stamp(@mut c,42),..};
+    let mutable c:C;
+    let p:M=M::P{b:stamp(@mutable c,7),a:stamp(@mutable c,42),..};
     transition check(p) && c.value==42 {true->yes(),_->no()}
     machine yes()->u8{42} machine no()->u8{1}
 }

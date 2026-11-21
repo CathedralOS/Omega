@@ -94,7 +94,7 @@ returns exit 255 against the authored exit 0, and both restore to
 - The row was measured, not repaired: all ten places already ran green on both
   engines, and the gap was that no native golden row had been recorded.
 
-- **What remains open:** Reference and mutable loan transport of nested record fields (`&envelope.header.limit`), partial field assignment invalidation of sibling path facts, and dynamic partition conservation under `core::content`.
+- **What remains open:** Reference and mutable loan transport of nested record fields (`@envelope.header.limit`), partial field assignment invalidation of sibling path facts, and dynamic partition conservation under `core::content`.
 
 ## Build-owned target-body migration
 

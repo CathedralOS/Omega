@@ -42,7 +42,7 @@ public boundary trait StaticInterruptWork<Context> {
 // A stack view includes only usable words. Guards stay outside this exclusive
 // loan. The installed scope retains both the view and its original backing.
 public data StaticInterruptStack<'stack> {
-    words: @'stack mut [u64];
+    words: @'stack mutable [u64];
     ist: u8;
 }
 
@@ -88,10 +88,10 @@ public boundary machine X86StaticInterruptScope::run<
     const Completion: InterruptAcknowledgementCompletion::complete,
     const GdtEntries: u64
 >(
-    table: @mut Table,
-    gdt: @mut [u64; GdtEntries],
+    table: @mutable Table,
+    gdt: @mutable [u64; GdtEntries],
     task_state: @[u8; 104],
-    stacks: @mut [StaticInterruptStack],
+    stacks: @mutable [StaticInterruptStack],
     arrivals: @[StaticInterruptArrival],
     context: @Context
 ) -> bool

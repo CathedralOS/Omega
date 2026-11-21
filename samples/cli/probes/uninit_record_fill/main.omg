@@ -1,13 +1,13 @@
 // Declarations without initializers: a bare
 // `let point: Point;` may be filled member by member —
-// `mut` controls whole-local rebinding, not establishment
-// of record fields. A `let mut made: Point;` with no
+// `mutable` controls whole-local rebinding, not establishment
+// of record fields. A `let mutable made: Point;` with no
 // initializer owns its zeroed shape, so the scalar member
 // read projects the declared `Trapping` field out of the
 // established zero.
 //
 //   * `let point: Point;` member-fill local.
-//   * `let mut made: Point;` zeroed member read through a
+//   * `let mutable made: Point;` zeroed member read through a
 //     free machine result cast `read_x() as i32`.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -21,13 +21,13 @@ data Point {
 data Main { hits: i32 in Wrapping; }
 
 machine read_x() -> i32 in Trapping {
-    let mut made: Point;
+    let mutable made: Point;
     made.x
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let mut point: Point;
+    let mutable point: Point;
     point.x = 7;
     point.y = 12;
     let observed: i32 = read_x() as i32;
@@ -35,12 +35,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

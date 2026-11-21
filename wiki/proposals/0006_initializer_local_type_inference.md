@@ -13,7 +13,7 @@ Affected owners: [expressions](../spec/language/expressions.md),
 
 ## Problem and scope
 
-Local declarations currently spell `let [mut] name: Type [= value];`; the
+Local declarations currently spell `let [mutable] name: Type [= value];`; the
 product parser requires the type. Generic argument inference and a machine's
 substituted result type do not currently authorize omitting that annotation.
 Often the initializer already determines the complete type, so the local
@@ -27,10 +27,10 @@ or top-level mathematical definitions. Those surfaces retain their contracts.
 ## Proposed rule
 
 ```omega
-let message = "hello";        // &[u8], not implicitly Utf8-qualified.
+let message = "hello";        // @[u8], not implicitly Utf8-qualified.
 let count = 5u64;             // u64; the suffix chooses its carrier.
-let middle = @mut view[2..4];  // &mut [u8], given view: &mut [u8].
-let mut next = 0u64;          // Mutable local, fixed u64 type.
+let middle = @mutable view[2..4];  // @mutable [u8], given view: @mutable [u8].
+let mutable next = 0u64;          // Mutable local, fixed u64 type.
 ```
 
 For a call, infer the selected application's declared, substituted result. For
@@ -48,7 +48,7 @@ or explicit arguments rather than choosing a candidate or searching later code.
 
 Preserve the initializer's type and its ordinary custody: no implicit cast,
 domain erasure, ownership duplication, lifetime extension or new borrow is
-introduced to make inference succeed. `mut` still controls whether the local
+introduced to make inference succeed. `mutable` still controls whether the local
 may be reassigned, independently of whether its value is a mutable reference.
 Flow-derived propositions remain facts, not newly authored qualification types.
 Explicitly typed declarations retain their existing landing and admission rules.
@@ -63,7 +63,7 @@ does ordinary typing determine one complete type without the local annotation?
 let count = 5;                // Proposed rejection: no selected carrier.
 let ratio = 7 / 2;            // Proposed rejection: still anonymous numeric.
 let storage;                  // Rejection: neither type nor initializer.
-let mutable: @mut [u8] = view[2..4]; // Rejection under the accepted range rule.
+let mutable: @mutable [u8] = view[2..4]; // Rejection under the accepted range rule.
 ```
 
 No default integer width or float format is introduced. Unsuffixed numbers can
@@ -75,7 +75,7 @@ a carrier from its later uses. Use a suffix or explicit local annotation.
 
 The accepted [borrowed range access](../spec/language/expressions.md#borrowed-range-access)
 rule remains independent: bare core ranges produce shared views when received
-as references; `&mut` explicitly creates a mutable view. A local annotation
+as references; `@mutable` explicitly creates a mutable view. A local annotation
 cannot request that borrow implicitly. This proposal does not decide a new
 standalone value type for an unborrowed range place; use an explicit borrow or
 the existing typed shared-view destination when a reference is intended.

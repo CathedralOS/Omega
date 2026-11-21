@@ -8,7 +8,7 @@ use omega_parser::{FragmentKind, ParseErrorKind, parse_file, parse_fragment};
 #[test]
 fn nested_access_modes_stay_on_their_authored_layer() {
     // Predict the tree independently of the parser, including the position of each access word.
-    let modes = ["", "mut", "write"];
+    let modes = ["", "mutable", "write"];
     for outer_mode in modes {
         for inner_mode in modes {
             for separator in ["", " ", "/* loan */", "\r\n"] {
@@ -56,7 +56,7 @@ fn assert_tree(
 
 #[test]
 fn contextual_borrows_leave_cast_and_membership_outside_the_borrow() {
-    for word in ["mut", "write"] {
+    for word in ["mutable", "write"] {
         for gap in [" ", "/*gap*/", "\r\n"] {
             for (op, node, rhs) in [("as", "Cast", "PathType"), ("in", "Binary", "PathExpression")] {
                 assert_tree(
@@ -78,7 +78,7 @@ fn contextual_borrows_leave_cast_and_membership_outside_the_borrow() {
 
 #[test]
 fn contextual_reference_types_leave_qualification_and_expression_suffixes_to_the_caller() {
-    for word in ["mut", "write"] {
+    for word in ["mutable", "write"] {
         for name in ["as", "in"] {
             assert_tree(
                 FragmentKind::GenericParam,
@@ -117,18 +117,18 @@ fn the_enclosing_syntax_owns_the_suffix() {
     // `=` cannot end the discard operand, but it can end the left side of an assignment.
     assert_tree(
         FragmentKind::Statements,
-        "_ = @mut as =D;",
-        "Fragment\n  Discard\n    '_'\n    '='\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mut'\n      'as'\n      CastEntry\n        '='\n        PathType 'D'\n    ';'\n",
+        "_ = @mutable as =D;",
+        "Fragment\n  Discard\n    '_'\n    '='\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mutable'\n      'as'\n      CastEntry\n        '='\n        PathType 'D'\n    ';'\n",
     );
     assert_tree(
         FragmentKind::Statements,
-        "@mut as = D;",
-        "Fragment\n  Assign\n    Borrow\n      '@'\n      'mut'\n      PathExpression 'as'\n    '='\n    PathExpression 'D'\n    ';'\n",
+        "@mutable as = D;",
+        "Fragment\n  Assign\n    Borrow\n      '@'\n      'mutable'\n      PathExpression 'as'\n    '='\n    PathExpression 'D'\n    ';'\n",
     );
     assert_tree(
         FragmentKind::Clauses,
-        "requires @mut as ensures ok",
-        "Fragment\n  Requires\n    'requires'\n    Borrow\n      '@'\n      'mut'\n      PathExpression 'as'\n  Ensures\n    'ensures'\n    PathExpression 'ok'\n",
+        "requires @mutable as ensures ok",
+        "Fragment\n  Requires\n    'requires'\n    Borrow\n      '@'\n      'mutable'\n      PathExpression 'as'\n  Ensures\n    'ensures'\n    PathExpression 'ok'\n",
     );
     assert_tree(
         FragmentKind::Statements,
@@ -137,8 +137,8 @@ fn the_enclosing_syntax_owns_the_suffix() {
     );
     assert_tree(
         FragmentKind::Statements,
-        "let x: @mut in in S;",
-        "Fragment\n  Let\n    'let'\n    BindingPattern 'x'\n    ':'\n    QualifiedType\n      ReferenceType\n        '@'\n        'mut'\n        PathType 'in'\n      'in'\n      PathType 'S'\n    ';'\n",
+        "let x: @mutable in in S;",
+        "Fragment\n  Let\n    'let'\n    BindingPattern 'x'\n    ':'\n    QualifiedType\n      ReferenceType\n        '@'\n        'mutable'\n        PathType 'in'\n      'in'\n      PathType 'S'\n    ';'\n",
     );
 }
 
@@ -146,19 +146,34 @@ fn the_enclosing_syntax_owns_the_suffix() {
 fn operator_words_can_still_be_names_before_a_suffix() {
     assert_tree(
         FragmentKind::Statements,
-        "@mut as as u8",
-        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        'mut'\n        PathExpression 'as'\n      'as'\n      PathType 'u8'\n",
+        "@mutable as as u8",
+        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        'mutable'\n        PathExpression 'as'\n      'as'\n      PathType 'u8'\n",
     );
     assert_tree(
         FragmentKind::Statements,
-        "@mut as as",
-        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mut'\n      'as'\n      PathType 'as'\n",
+        "@mutable as as",
+        "Fragment\n  Tail\n    Cast\n      Borrow\n        '@'\n        PathExpression 'mutable'\n      'as'\n      PathType 'as'\n",
     );
     assert_tree(
         FragmentKind::Statements,
         "@write in(x)",
         "Fragment\n  Tail\n    Borrow\n      '@'\n      'write'\n      Call\n        PathExpression 'in'\n        Args\n          '('\n          PathExpression 'x'\n          ')'\n",
     );
+}
+
+#[test]
+fn mut_can_be_a_name_and_cannot_mark_a_mutable_binding_or_reference() {
+    let name = b"machine f(mut:u8)->u8{mut}";
+    parse_file(name, &lex(name).unwrap()).unwrap();
+
+    for source in [
+        "machine f(){let mut value:u8=0;}",
+        "machine f(value:@mut u8){}",
+        "machine f(value:u8){let borrow=@mut value;}",
+    ] {
+        let bytes = source.as_bytes();
+        assert!(parse_file(bytes, &lex(bytes).unwrap()).is_err(), "{source}");
+    }
 }
 
 #[test]
@@ -170,7 +185,11 @@ fn incomplete_and_retired_prefixes_identify_the_first_bad_token() {
         ("machine f(a: @|", ""),
         ("machine f() { _ = @@|; }", ";"),
         ("machine f() { _ = @|", ""),
-        ("machine f(a: |&mut T) {}", "&"),
+        ("machine f(a: |&T) {}", "&"),
+        ("machine f(a: |&mutable T) {}", "&"),
+        ("machine f(a: |&write T) {}", "&"),
+        ("machine f() { _ = |&x; }", "&"),
+        ("machine f() { _ = |&mutable x; }", "&"),
         ("machine f() { _ = |&write x; }", "&"),
         ("machine f(a: |& &T) {}", "&"),
         ("machine f() { _ = |& &x; }", "&"),
@@ -178,7 +197,7 @@ fn incomplete_and_retired_prefixes_identify_the_first_bad_token() {
         ("machine f() { _ = f::<|&T>(x); }", "&"),
         ("machine f() { _ = x as |&T; }", "&"),
         ("machine f() { _ = x |@ y; }", "@"),
-        ("machine f() { _ = @mut as @|; }", ";"),
+        ("machine f() { _ = @mutable as @|; }", ";"),
         ("machine f() { _ = @write in $|; }", ";"),
         ("machine f(x: @write in D & |) {}", ")"),
     ] {

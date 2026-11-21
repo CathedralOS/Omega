@@ -13,7 +13,7 @@ machine ent_less(left: @u64, right: @u64) -> bool {
 
 data Main { heap: Heap<u64>; }
 
-machine pop_heap<T [copy], machine Less>(h: @mut Heap<T>, root: @mut Popped<T>)
+machine pop_heap<T [copy], machine Less>(h: @mutable Heap<T>, root: @mutable Popped<T>)
 requires machine Less(left: @T, right: @T) -> bool;
     requires h.length >= 1
     requires h.length <= 16
@@ -23,15 +23,15 @@ requires machine Less(left: @T, right: @T) -> bool;
     h.length = 0;
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: @mutable Main) reaches ProcessExit + Console crashes Trap {
     main.heap.length = 0;
-    let mut popped: Popped<u64> = Popped { value: 0 };
-    pop_heap::<ent_less>(@mut main.heap, @mut popped);
+    let mutable popped: Popped<u64> = Popped { value: 0 };
+    pop_heap::<ent_less>(@mutable main.heap, @mutable popped);
     ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

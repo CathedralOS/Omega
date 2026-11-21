@@ -1,15 +1,15 @@
 data LoanCell { value: u8; }
 data LoanPair { left: LoanCell; right: LoanCell; }
 
-machine fill_cells(left: @mut LoanCell, right: @mut LoanCell) {
+machine fill_cells(left: @mutable LoanCell, right: @mutable LoanCell) {
     transition { _ -> write(right, left) }
-    machine write(first: @mut LoanCell, second: @mut LoanCell) {
+    machine write(first: @mutable LoanCell, second: @mutable LoanCell) {
         first.value = 41;
         second.value = 42;
     }
 }
 
-machine copy_cell(dst: @mut LoanCell, src: @LoanCell) {
+machine copy_cell(dst: @mutable LoanCell, src: @LoanCell) {
     dst.value = src.value;
 }
 
@@ -18,10 +18,10 @@ machine both_forty_two(left: @LoanCell, right: @LoanCell) -> bool {
 }
 
 machine disjoint_reference_parameters() -> bool {
-    let mut pair: LoanPair;
-    fill_cells(@mut pair.left, @mut pair.right);
+    let mutable pair: LoanPair;
+    fill_cells(@mutable pair.left, @mutable pair.right);
     let swapped: bool = pair.left.value == 42 && pair.right.value == 41;
-    copy_cell(@mut pair.right, @pair.left);
+    copy_cell(@mutable pair.right, @pair.left);
     swapped && both_forty_two(@pair.left, @pair.left) && pair.right.value == 42
 }
 
@@ -51,12 +51,12 @@ machine byte_or_zero(bytes: @[u8], index: u64 in Trapping) -> u8 {
 }
 
 machine construction_byte_arena() -> u8 {
-    let mut input: ConstructionInput;
+    let mutable input: ConstructionInput;
     input.unit_count = 305;
     input.bytes[4194303] = 255;
     input.bytes[4194302] = 41;
     input.bytes[0] = 42;
-    let mut small: ByteTail;
+    let mutable small: ByteTail;
     small.after = 77;
     small.bytes[1] = 255;
     small.bytes[0] = 19;
@@ -91,26 +91,26 @@ machine read_helper_names() -> u8 {
 }
 
 machine main() -> u8 {
-    let mut unit: SourceUnit;
+    let mutable unit: SourceUnit;
     let id: SourceId = SourceId { value: 77 as +Trapping };
     unit.length = 19;
     unit.last_retained = false;
     unit.bytes[0] = 77;
-    source_unit_clear(@mut unit, id);
+    source_unit_clear(@mutable unit, id);
     let canary: u8 = unit.bytes[0];
-    source_unit_append(@mut unit, 41);
+    source_unit_append(@mutable unit, 41);
     let first: u8 = source_unit_byte_or_nul(@unit, 0 as +Trapping);
     let absent: u8 = source_unit_byte_or_nul(@unit, 1 as +Trapping);
     unit.length = 131071;
-    source_unit_append(@mut unit, 42);
+    source_unit_append(@mutable unit, 42);
     let last: u8 = source_unit_byte_or_nul(@unit, 131071 as +Trapping);
     let retained: bool = unit.last_retained;
-    source_unit_append(@mut unit, 55);
+    source_unit_append(@mutable unit, 55);
     let preserved: u8 = source_unit_byte_or_nul(@unit, 131071 as +Trapping);
-    let mut path: ModulePath;
+    let mutable path: ModulePath;
     path.length = 255;
-    let path_last: bool = module_path_append(@mut path, 73);
-    let path_full: bool = module_path_append(@mut path, 99);
+    let path_last: bool = module_path_append(@mutable path, 73);
+    let path_full: bool = module_path_append(@mutable path, 99);
     transition read_helper_names() == 42 && disjoint_reference_parameters() && unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 && indexed_record_fields() == 42 && construction_byte_arena() == 42 {
         true -> yes(),
         _ -> no()

@@ -10,7 +10,7 @@ contract say so by rejecting it:
 
 ```omega
 data CounterOps {
-    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
+    clear: machine(counter: @mutable Counter) reaches none crashes none terminates;
     value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 }
 ```

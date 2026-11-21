@@ -20,7 +20,7 @@ File
           '@'
           ReferenceType
             '@'
-            'mut'
+            'mutable'
             PathType 'u8'
       ','
       Param
@@ -64,7 +64,7 @@ File
         '='
         Borrow
           '@'
-          'mut'
+          'mutable'
           PathExpression 'a'
         ';'
       Discard

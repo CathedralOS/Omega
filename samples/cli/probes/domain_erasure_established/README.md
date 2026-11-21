@@ -10,7 +10,7 @@ Compile-scope probe. No standard-library dependency.
   let-annotation erasure, `machine + i32::Degrees::add` roster
   decl. Call args never weaken a domain implicitly.
 - alias_fact_transfer: entry `requires main.player in Alive` +
-  `let mut copy` alias carrying the fact into a callee's
+  `let mutable copy` alias carrying the fact into a callee's
   requires.
 
 Compile-checked only (no ProcessExit provider):

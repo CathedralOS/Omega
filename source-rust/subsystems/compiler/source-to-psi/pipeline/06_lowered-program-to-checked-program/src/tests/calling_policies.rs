@@ -216,7 +216,7 @@ fn a_literal_index_past_the_extent_is_an_unproved_bound() {
             &format!(
                 r#"
 data Table [copy] {{ cells: [u32; 256]; count: u64; }}
-machine pick(mut table: Table) -> u32 {{
+machine pick(mutable table: Table) -> u32 {{
     {body}
 }}
 "#
@@ -285,7 +285,7 @@ fn a_guard_over_the_fields_of_a_formal_reaches_its_arm() {
     // the guard and the read leaves the read unbounded.
     let stored = |store: &str| {
         keyed_index(
-            "mut key: Key",
+            "mutable key: Key",
             &format!(
                 "let within: bool = key.slot < 256 && key.other < 256;\n    {store}\n    \
                  transition within {{ true -> sum(table.cells[key.slot]), _ -> none() }}"
@@ -306,12 +306,12 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     let root = |access: &str, body: &str| {
         format!("{PAIR}machine root(pair: {access}Pair) -> u64 {{ {body} }}")
     };
-    for access in ["@", "@mut "] {
+    for access in ["@", "@mutable "] {
         assert_eq!(verdict(&root(access, "pair.left"), &["root"]), "accepted");
     }
     assert_eq!(
         verdict(
-            &root("@mut ", "pair.left = 3; pair.left = 2; pair.left"),
+            &root("@mutable ", "pair.left = 3; pair.left = 2; pair.left"),
             &["root"]
         ),
         "accepted",
@@ -323,7 +323,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
         "a readable established input is not an uninitialized write-only loan"
     );
     let crash = format!(
-        "{PAIR}machine root(pair: @mut Pair) -> u64 crashes Trap {{ pair.left = 3; crash Trap; }}"
+        "{PAIR}machine root(pair: @mutable Pair) -> u64 crashes Trap {{ pair.left = 3; crash Trap; }}"
     );
     assert_eq!(
         verdict(&crash, &["root"]),
@@ -332,8 +332,8 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     );
     let gated = judged(
         "data Positive [copy] requires value > 0 { value: u64; }\n\
-         machine consume(value: @mut Positive) -> u64 { 1u64 }\n\
-         machine root() -> u64 { let mut value: Positive; consume(@mut value) }",
+         machine consume(value: @mutable Positive) -> u64 { 1u64 }\n\
+         machine root() -> u64 { let mutable value: Positive; consume(@mutable value) }",
         &["root"],
     );
     let [Ok(RouteVerdict::Rejected { unestablished, .. })] = gated.as_slice() else {
@@ -343,7 +343,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     let nested = |body: &str| {
         format!(
             "{PAIR}data Wrapper {{ pair: Pair; sibling: u64; }}\n\
-         machine root(value: @mut Wrapper) -> u64 {{ {body} }}"
+         machine root(value: @mutable Wrapper) -> u64 {{ {body} }}"
         )
     };
     assert_eq!(
@@ -351,7 +351,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
         "accepted"
     );
     for text in [
-        root("@mut ", "pair.left = 3; 0u64"),
+        root("@mutable ", "pair.left = 3; 0u64"),
         nested("value.pair.left = 3; value.sibling"),
     ] {
         let verdicts = judged(&text, &["root"]);
@@ -398,7 +398,7 @@ data Placement requires count <= 16 { count: u64; }
 data Metadata [copy] { tag: u64; }
 data Plan { placements: [Placement; 2]; metadata: Metadata; }
 machine read_tag(metadata: @Metadata) -> u64 { metadata.tag }
-machine root(plan: @mut Plan, index: u64) -> u64
+machine root(plan: @mutable Plan, index: u64) -> u64
 requires index < 2 {
     plan.placements[index].count = 1;
     read_tag(@plan.metadata)
@@ -449,17 +449,17 @@ requires index < 2 {
 fn a_call_preserves_only_storage_outside_its_published_write_frame() {
     let source = r#"
 data Pair [copy] { left: u64; right: u64; }
-public machine update(pair: @mut Pair, value: u64) reaches none crashes none terminates {
+public machine update(pair: @mutable Pair, value: u64) reaches none crashes none terminates {
     pair.left = value;
 }
-machine root(mut pair: Pair) -> u64
+machine root(mutable pair: Pair) -> u64
 requires pair.right == 9
 ensures result == 9
 {
-    update(@mut pair, 7);
+    update(@mutable pair, 7);
     pair.right
 }
-public machine change_owned(mut pair: Pair) -> Pair
+public machine change_owned(mutable pair: Pair) -> Pair
 reaches none crashes none terminates
 ensures result.left == 7
 {
@@ -780,7 +780,7 @@ fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
         format!(
             "data Item {{ value: u64; }}\n\
          data Table {{ items: [Item; 2]; side: Item; }}\n\
-         machine root(mut table: Table, index: u64) -> u64 requires index < {bound} {{\n\
+         machine root(mutable table: Table, index: u64) -> u64 requires index < {bound} {{\n\
              {prefix}\n\
              table.items[index] = Item {{ value: 7 }};\n\
              table.items[index].value\n\

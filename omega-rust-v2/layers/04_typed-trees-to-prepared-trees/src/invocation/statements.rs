@@ -72,7 +72,7 @@ impl ConstantEvaluation<'_, '_> {
                     return Err(UNSUPPORTED_BODY.into());
                 }
                 let local_carrier = checked_carrier_in_scope(&tree, binder, &scope)?;
-                let writable = file.nodes[node].words().any(|word| word.text == "mut");
+                let writable = file.nodes[node].words().any(|word| word.text == "mutable");
                 if writable && local_carrier != ValueType::Bool && IntegerRange::for_type(&local_carrier).is_none() {
                     return Err(UNSUPPORTED_BODY.into());
                 }

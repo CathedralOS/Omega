@@ -1528,7 +1528,7 @@ fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
     assert_eq!(returned_stored_loan(&psi, "read"), Err("the borrow must cross the stored descriptor, not select the record's own field"));
 }
 
-/// Returning a stored `@mut Leaf` by value from an owned record transfers the
+/// Returning a stored `@mutable Leaf` by value from an owned record transfers the
 /// caller's loan out of the field (language/ownership.md: "A by-value
 /// reference transfers or copies its loan carrier"). The result is that stored
 /// loan itself, so it points into the original backing; nothing copies it,
@@ -1538,7 +1538,7 @@ fn reading_a_stored_exclusive_reference_transfers_its_loan() {
     use omega_lowering::{BlockTerminator, CleanupAction, PlaceProjection, ProjectedPlace, ReturnEdge};
     use psi_handoff_consumer::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
     let file = "load_next.omg";
-    let source = "data Leaf{v:u8;} data Node{next:@mut Leaf;} machine read(x:Node)->@mut Leaf{x.next}";
+    let source = "data Leaf{v:u8;} data Node{next:@mutable Leaf;} machine read(x:Node)->@mutable Leaf{x.next}";
     let (obligations, package) = lower(file, source);
     let mut package = package.unwrap();
     // L3 hands the return relation to the checker; L5 keeps it for L6.

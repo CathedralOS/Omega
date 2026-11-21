@@ -53,11 +53,11 @@ ArmReadTarget satisfies SelectedReadTarget {
     }
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.k = 2;
     main.r = SelectedReadTarget::read_target(main);
     transition { _ -> successor(main) }
-    machine successor(main: @mut Main) {
+    machine successor(main: @mutable Main) {
         main.r = SelectedReadTarget::read_target(main);
         main.hits = main.r;
     }
@@ -65,8 +65,8 @@ machine Main::main(main: @mut Main) {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);

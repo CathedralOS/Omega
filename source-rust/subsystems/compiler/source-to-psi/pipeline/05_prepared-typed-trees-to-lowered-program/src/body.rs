@@ -46,7 +46,7 @@ pub use terminal_check_tables::contracts::{Ceiling, CrashCeiling};
 /// monomorphization. Erasure does not remove semantic lifetime relations or
 /// loan obligations." So the regions are part of the type every typing rule
 /// compares, and nothing that stores or lowers a value reads them: a
-/// `&'a [u8]` and a `&'b [u8]` are one structural row on the lowered form
+/// `@'a [u8]` and a `@'b [u8]` are one structural row on the lowered form
 /// and two types here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -556,7 +556,7 @@ pub struct Signature {
     /// identity after the result pseudo-value. A call supplies a term for
     /// it and evaluates nothing.
     pub erased: Vec<usize>,
-    /// The formals passed by reference, `&T` or `&mut T`, in strictly
+    /// The formals passed by reference, `@T` or `@mutable T`, in strictly
     /// increasing position order. `parameters` holds each one's referent
     /// type. A borrowed formal is a place, never a value, whatever its
     /// referent: the root of a structural parameter whose declared access
@@ -717,7 +717,7 @@ pub enum BorrowedReferent {
 pub struct Borrowed {
     /// The formal's position in `Signature::parameters`.
     pub position: usize,
-    /// `Shared` for `&T`, `Mutable` for `&mut T`. `&write T` is refused by
+    /// `Shared` for `@T`, `Mutable` for `@mutable T`. `@write T` is refused by
     /// the reader.
     pub access: language_core::ReferenceAccess,
     /// The authored referent, before slice references become descriptor types.
@@ -1277,7 +1277,7 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
         left: Box<Expression>,
         right: Box<Expression>,
     },
-    /// `&place` or `&mut place` as the argument for a borrowed formal, the
+    /// `@place` or `@mutable place` as the argument for a borrowed formal, the
     /// one position the reader serves it in: the place a slot, or a member
     /// path beneath one, names, lent to the call for the call's duration.
     /// `result` is the referent's type. A borrowed formal named whole as the

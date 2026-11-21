@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // Subtraction establishes ZF; a structured snapshot carries that bit to a label.
 machine capture() -> u64 ensures (result & 64u64) == 64u64 {
- let mut snapshot: u64 = 0;
+ let mutable snapshot: u64 = 0;
  asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 1;

@@ -21,7 +21,7 @@ public data Normalization {
 // Canonical ordering is (removed+inserted, position, removed). For a fixed
 // haplotype and candidate coordinates, the inserted sequence is uniquely fixed.
 public machine normalize(reference: @Sequence, position: u64 in Wrapping,
-                      removed: @Sequence, inserted: @Sequence, result: @mut Normalization) {
+                      removed: @Sequence, inserted: @Sequence, result: @mutable Normalization) {
     result.status = 1;
     transition reference.length <= 8 && position <= reference.length
         && removed.length <= 4 && inserted.length <= 4
@@ -31,7 +31,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
     }
     machine reference_match(reference: @Sequence, position: u64 in Wrapping,
                           removed: @Sequence, inserted: @Sequence,
-                          result: @mut Normalization, index: u64 in Wrapping) {
+                          result: @mutable Normalization, index: u64 in Wrapping) {
         transition index < removed.length {
             true -> base_match(reference, position, removed, inserted, result, index),
             _ -> construct(reference, position, removed, inserted, result)
@@ -39,7 +39,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
     }
     machine base_match(reference: @Sequence, position: u64 in Wrapping,
                      removed: @Sequence, inserted: @Sequence,
-                     result: @mut Normalization, index: u64 in Wrapping) {
+                     result: @mutable Normalization, index: u64 in Wrapping) {
         let observed: u64 in Wrapping = sequence_base(reference, position + index);
         let declared: u64 in Wrapping = sequence_base(removed, index);
         transition observed == declared {
@@ -47,45 +47,45 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
             _ -> mismatch(result)
         }
     }
-    machine mismatch(result: @mut Normalization) { result.status = 2; }
+    machine mismatch(result: @mutable Normalization) { result.status = 2; }
     machine construct(reference: @Sequence, position: u64 in Wrapping,
-                    removed: @Sequence, inserted: @Sequence, result: @mut Normalization) {
+                    removed: @Sequence, inserted: @Sequence, result: @mutable Normalization) {
         result.haplotype.length = 0;
-        let prefix: bool = copy_range(reference, 0, position, @mut result.haplotype);
-        let middle: bool = copy_range(inserted, 0, inserted.length, @mut result.haplotype);
+        let prefix: bool = copy_range(reference, 0, position, @mutable result.haplotype);
+        let middle: bool = copy_range(inserted, 0, inserted.length, @mutable result.haplotype);
         let suffix: bool = copy_range(reference, position + removed.length,
-            reference.length - position - removed.length, @mut result.haplotype);
+            reference.length - position - removed.length, @mutable result.haplotype);
         transition prefix && middle && suffix {
             true -> classify(reference, result),
             _ -> stop()
         }
     }
-    machine classify(reference: @Sequence, result: @mut Normalization) {
+    machine classify(reference: @Sequence, result: @mutable Normalization) {
         let unchanged: bool = equal(reference, @result.haplotype);
         transition unchanged {
             true -> noop(result),
             _ -> start(reference, result)
         }
     }
-    machine noop(result: @mut Normalization) { result.status = 3; }
-    machine start(reference: @Sequence, result: @mut Normalization) {
+    machine noop(result: @mutable Normalization) { result.status = 3; }
+    machine start(reference: @Sequence, result: @mutable Normalization) {
         result.cost = 25;
         transition { _ -> position_scan(reference, result, 0) }
     }
-    machine position_scan(reference: @Sequence, result: @mut Normalization, position: u64 in Wrapping) {
+    machine position_scan(reference: @Sequence, result: @mutable Normalization, position: u64 in Wrapping) {
         transition position <= reference.length {
             true -> width_scan(reference, result, position, 0),
             _ -> finished(result)
         }
     }
-    machine width_scan(reference: @Sequence, result: @mut Normalization,
+    machine width_scan(reference: @Sequence, result: @mutable Normalization,
                      position: u64 in Wrapping, removed: u64 in Wrapping) {
         transition removed <= 4 && position + removed <= reference.length {
             true -> candidate(reference, result, position, removed),
             _ -> position_scan(reference, result, position + 1)
         }
     }
-    machine candidate(reference: @Sequence, result: @mut Normalization,
+    machine candidate(reference: @Sequence, result: @mutable Normalization,
                     position: u64 in Wrapping, removed: u64 in Wrapping) {
         let length: u64 in Wrapping = result.haplotype.length;
         let inserted: u64 in Wrapping = length + removed - reference.length;
@@ -94,7 +94,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
-    machine insertion_width(reference: @Sequence, result: @mut Normalization,
+    machine insertion_width(reference: @Sequence, result: @mutable Normalization,
                           position: u64 in Wrapping, removed: u64 in Wrapping,
                           inserted: u64 in Wrapping) {
         transition inserted <= 4 && removed + inserted < result.cost {
@@ -102,7 +102,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
-    machine test(reference: @Sequence, result: @mut Normalization,
+    machine test(reference: @Sequence, result: @mutable Normalization,
                position: u64 in Wrapping, removed: u64 in Wrapping, inserted: u64 in Wrapping) {
         let equivalent: bool = equivalent_edit(reference, @result.haplotype, position, removed, inserted);
         transition equivalent {
@@ -110,25 +110,25 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
-    machine save(reference: @Sequence, result: @mut Normalization,
+    machine save(reference: @Sequence, result: @mutable Normalization,
                position: u64 in Wrapping, removed: u64 in Wrapping, inserted: u64 in Wrapping) {
         result.canonical.position = position;
         result.canonical.removed = removed;
         result.canonical.inserted.length = 0;
-        let copied: bool = copy_range(@result.haplotype, position, inserted, @mut result.canonical.inserted);
+        let copied: bool = copy_range(@result.haplotype, position, inserted, @mutable result.canonical.inserted);
         result.cost = removed + inserted;
         transition copied {
             true -> width_scan(reference, result, position, removed + 1),
             _ -> stop()
         }
     }
-    machine finished(result: @mut Normalization) {
+    machine finished(result: @mutable Normalization) {
         transition result.cost < 25 {
             true -> accepted(result),
             _ -> stop()
         }
     }
-    machine accepted(result: @mut Normalization) { result.status = 0; }
+    machine accepted(result: @mutable Normalization) { result.status = 0; }
     machine stop() { }
 }
 // Prefix and suffix equality prove the candidate reproduces the exact haplotype.

@@ -44,7 +44,7 @@ X86Probe satisfies SelectedProbe {
         reaches SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut span: Interval = Interval::Range { lo: 1, hi: 2 };
+        let mutable span: Interval = Interval::Range { lo: 1, hi: 2 };
         span.hi = HI;
         let empty: Interval = Interval::Empty;
         transition consume(span) == 1 && consume(empty) == 0 {
@@ -59,7 +59,7 @@ ArmProbe satisfies SelectedProbe {
         reaches SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut span: Interval = Interval::Range { lo: 1, hi: 2 };
+        let mutable span: Interval = Interval::Range { lo: 1, hi: 2 };
         span.hi = HI;
         let empty: Interval = Interval::Empty;
         transition consume(span) == 1 && consume(empty) == 0 {

@@ -41,7 +41,7 @@ const HOLDER: &str = "data Holder<'storage> { ready: bool; name: @'storage [u8];
 fn a_call_instantiates_a_machine_lifetime_with_the_caller_region() {
     accepted(&format!(
         "{HOLDER}
-machine named<'storage>(holder: @mut Holder<'storage>, name: @'storage [u8]) {{
+machine named<'storage>(holder: @mutable Holder<'storage>, name: @'storage [u8]) {{
     holder.name = name;
     holder.ready = true;
 }}
@@ -49,8 +49,8 @@ machine copied<'storage>(holder: @Holder<'storage>) -> Holder<'storage> {{
     Holder {{ ready: holder.ready, name: holder.name }}
 }}
 machine build_entry(source: @Holder) {{
-    let mut made: Holder = copied(source);
-    named(@mut made, \"made\");
+    let mutable made: Holder = copied(source);
+    named(@mutable made, \"made\");
 }}
 "
     ));
@@ -64,10 +64,10 @@ fn a_call_that_gives_one_lifetime_two_regions_is_refused() {
     assert_eq!(
         refusal(&format!(
             "{HOLDER}
-machine adopt<'storage>(holder: @mut Holder<'storage>, other: @Holder<'storage>) {{
+machine adopt<'storage>(holder: @mutable Holder<'storage>, other: @Holder<'storage>) {{
     holder.name = other.name;
 }}
-machine build_entry(holder: @mut Holder, other: @Holder) {{
+machine build_entry(holder: @mutable Holder, other: @Holder) {{
     adopt(holder, other);
 }}
 "
@@ -105,7 +105,7 @@ fn a_view_of_one_machine_lifetime_is_not_stored_at_another() {
     assert_eq!(
         refusal(&format!(
             "{HOLDER}
-machine named<'storage, 'other>(holder: @mut Holder<'storage>, name: @'other [u8]) {{
+machine named<'storage, 'other>(holder: @mutable Holder<'storage>, name: @'other [u8]) {{
     holder.name = name;
 }}
 machine build_entry() {{ }}
@@ -123,8 +123,8 @@ machine build_entry() {{ }}
 #[test]
 fn a_view_moves_between_records_only_at_one_region() {
     for signature in [
-        "<'long, 'short>(long: @mut Holder<'long>, short: @Holder<'short>)",
-        "(long: @mut Holder, short: @Holder)",
+        "<'long, 'short>(long: @mutable Holder<'long>, short: @Holder<'short>)",
+        "(long: @mutable Holder, short: @Holder)",
     ] {
         assert_eq!(
             refusal(&format!(
@@ -137,7 +137,7 @@ fn a_view_moves_between_records_only_at_one_region() {
     }
     accepted(&format!(
         "{HOLDER}machine build_entry() {{ }}\n\
-         machine exchange<'one>(long: @mut Holder<'one>, short: @Holder<'one>) {{ long.name = short.name; }}\n"
+         machine exchange<'one>(long: @mutable Holder<'one>, short: @Holder<'one>) {{ long.name = short.name; }}\n"
     ));
 }
 
@@ -280,10 +280,10 @@ fn a_lifetime_requirement_is_checked_once_for_every_argument() {
 fn selected_generic_helpers_keep_their_ordinary_lifetime_obligations() {
     let source = r#"
 machine make<'storage>(bytes: @'storage [u8]) -> u64 { bytes.length }
-machine relay<'storage, Kind, machine Make>(bytes: @'storage [u8], other: @'storage [u8], count: @mut u64) -> u64
+machine relay<'storage, Kind, machine Make>(bytes: @'storage [u8], other: @'storage [u8], count: @mutable u64) -> u64
 requires machine Make(bytes: @'storage [u8]) -> u64 reaches none crashes none;
 { let length: u64 = Make(bytes); count = length; length }
-machine entry(left: @[u8], right: @[u8], count: @mut u64) {
+machine entry(left: @[u8], right: @[u8], count: @mutable u64) {
     let selected: u64 = relay::<u32, make>(left, left, count);
 }
 "#;

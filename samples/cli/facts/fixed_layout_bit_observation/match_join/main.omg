@@ -12,7 +12,7 @@ public domain u64::Nibble requires self <= 15u64;
 public data PackedFlags [copy] { present: bool; mode: u64 in Delivered; code: u64 in Nibble; }
 CompactBits satisfies FixedLayout<PackedFlags> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
         representation: FieldPlan::Bits {
@@ -64,18 +64,18 @@ CompactBits satisfies FixedLayout<PackedFlags> {
 }
 
 machine make() -> LayoutStorage<PackedFlags, CompactBits> {
-    let mut value: LayoutStorage<PackedFlags, CompactBits>;
+    let mutable value: LayoutStorage<PackedFlags, CompactBits>;
     value.present = true;
     value.mode = 5u64;
     value.code = 10u64;
     value
 }
-machine first(marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { $marker = 17u64; make() }
-machine second(marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { $marker = 29u64; make() }
-machine choose(flag: bool, marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { match flag { true -> first(marker), false -> second(marker) } }
+machine first(marker: @mutable u64) -> LayoutStorage<PackedFlags, CompactBits> { $marker = 17u64; make() }
+machine second(marker: @mutable u64) -> LayoutStorage<PackedFlags, CompactBits> { $marker = 29u64; make() }
+machine choose(flag: bool, marker: @mutable u64) -> LayoutStorage<PackedFlags, CompactBits> { match flag { true -> first(marker), false -> second(marker) } }
 machine exercise(flag: bool, expected_marker: u64) crashes Trap {
-    let mut marker: u64 = 0u64;
-    let value: LayoutStorage<PackedFlags, CompactBits> = choose(flag, @mut marker);
+    let mutable marker: u64 = 0u64;
+    let value: LayoutStorage<PackedFlags, CompactBits> = choose(flag, @mutable marker);
     let difference: u64 = value.mode - 5u64;
     let bytes: @[u8; 1] = @value as @[u8; 1];
     transition marker == expected_marker && difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {

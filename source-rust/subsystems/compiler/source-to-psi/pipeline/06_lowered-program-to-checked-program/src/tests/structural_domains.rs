@@ -191,7 +191,7 @@ fn zeroed_arrays_keep_unrestricted_record_element_domains() {
 data Ticket { number: u32; }
 domain Ticket::Stamped;
 machine entry() -> u32 {
-    let mut tickets: [Ticket in Stamped; 2];
+    let mutable tickets: [Ticket in Stamped; 2];
     tickets[1u64].number
 }
 "#;
@@ -221,15 +221,15 @@ machine reg(word: u64, convention: @u64) -> u64 {
         false -> (0u64)
     }
 }
-machine single(plan: @mut Plan, ordinal: u64, word: u64)
+machine single(plan: @mutable Plan, ordinal: u64, word: u64)
 requires ordinal < 2u64 {
     plan.cells[ordinal].count = 1u64;
     plan.cells[ordinal].location = reg(word, @plan.convention);
 }
 machine entry() -> u64 {
-    let mut plan: Plan;
+    let mutable plan: Plan;
     plan.convention = 9u64;
-    single(@mut plan, 1u64, 7u64);
+    single(@mutable plan, 1u64, 7u64);
     transition plan.cells[1u64].count == 1u64
         && plan.cells[0u64].count == 0u64 && plan.cells[0u64].location == 0u64 {
         true -> (plan.cells[1u64].location),
@@ -718,7 +718,7 @@ machine boxed(number: u32) -> Ticket ensures result.number in WordStamped {
 }
 machine projected(number: u32) -> u32 {
     let original: Ticket = boxed(number);
-    let mut copied: Ticket = original;
+    let mutable copied: Ticket = original;
     copied.canary = 99u32;
     let tagged: u32 in WordStamped = copied.number as +WordStamped;
     tagged as -WordStamped
@@ -735,9 +735,9 @@ machine entry()"#,
 
 #[test]
 fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
-    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: @mut Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
-        .replace("let plain: Ticket = stamp", "let mut plain: Ticket = stamp")
-        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(@mut plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
+    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: @mutable Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
+        .replace("let plain: Ticket = stamp", "let mutable plain: Ticket = stamp")
+        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(@mutable plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
     let changed_value = NORMAL_MEMBERSHIP.replace(
         "let tagged: u32 in WordStamped = plain as +WordStamped;",
         "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",

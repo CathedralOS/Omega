@@ -1,6 +1,6 @@
 # Restore a record before returning it
 
-Each program saves `&write counter` in a local reference before passing
+Each program saves `@write counter` in a local reference before passing
 it to `fill`. This exercises the same loan-location record as the mutable scalar
 reference production while retaining write-only access. These programs already
 check on optimized baseline source `2713116252386e98ce5e87961aca764f8760b217`;
@@ -18,7 +18,7 @@ reject a helper that returns too soon or uses the record as valid too soon.
 Parent: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in `TASKS.md`.
 Fact: **Counter.cell.value <= 60 makes exact i32 70 + value representable without a per-call bound.**
 This exercises [the existing fact](../README.md) after writes through
-`&write Counter`, which permits writes but forbids reads through that reference.
+`@write Counter`, which permits writes but forbids reads through that reference.
 
 `fill` receives a valid `Counter` and a replacement bounded by its ordinary
 call requirement. It temporarily stores 61 in `cell.value`, then restores the

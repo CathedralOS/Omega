@@ -60,12 +60,12 @@ data Main {
     g: Grid;
 }
 
-machine Main::seed(context: @mut Main) {
+machine Main::seed(context: @mutable Main) {
     context.g.board[1] = 1;
     context.g.board[2] = 1;
 }
 
-machine Main::step(context: @mut Main) {
+machine Main::step(context: @mutable Main) {
     cell_is_bit(@context.g.board, 1);
     cell_is_bit(@context.g.board, 2);
     let neighbours: i32 in Wrapping = (context.g.board[1] + context.g.board[2]) as i32 +Wrapping;
@@ -74,14 +74,14 @@ machine Main::step(context: @mut Main) {
         _ -> die(context)
     }
 
-    machine live(context: @mut Main) {
+    machine live(context: @mutable Main) {
         context.g.next[0] = 1;
         context.g.next[1] = 0;
         context.g.next[2] = 0;
         context.g.next[3] = 0;
     }
 
-    machine die(context: @mut Main) {
+    machine die(context: @mutable Main) {
         context.g.next[0] = 0;
         context.g.next[1] = 0;
         context.g.next[2] = 0;
@@ -89,7 +89,7 @@ machine Main::step(context: @mut Main) {
     }
 }
 
-machine Main::commit(context: @mut Main) {
+machine Main::commit(context: @mutable Main) {
     cell_is_bit(@context.g.next, 0);
     context.g.board[0] = context.g.next[0];
     cell_is_bit(@context.g.next, 1);
@@ -100,7 +100,7 @@ machine Main::commit(context: @mut Main) {
     context.g.board[3] = context.g.next[3];
 }
 
-machine Main::checksum(context: @mut Main) -> i32 {
+machine Main::checksum(context: @mutable Main) -> i32 {
     cell_is_bit(@context.g.next, 0);
     cell_is_bit(@context.g.next, 1);
     cell_is_bit(@context.g.next, 2);
@@ -110,7 +110,7 @@ machine Main::checksum(context: @mut Main) -> i32 {
     }
 }
 
-machine Main::main(context: @mut Main) reaches ProcessExit + Console {
+machine Main::main(context: @mutable Main) reaches ProcessExit + Console {
     Main::seed(context);
     Main::step(context);
     let first: i32 = Main::checksum(context);
@@ -122,20 +122,20 @@ machine Main::main(context: @mut Main) reaches ProcessExit + Console {
         _ -> bad(context)
     }
 
-    machine check_second(context: @mut Main, second: i32) {
+    machine check_second(context: @mutable Main, second: i32) {
         transition second == 0 {
             true -> good(context),
             _ -> bad(context)
         }
     }
 
-    machine good(context: @mut Main) { ProcessExit::exit_process(50); }
+    machine good(context: @mutable Main) { ProcessExit::exit_process(50); }
 
-    machine bad(context: @mut Main) { ProcessExit::exit_process(51); }
+    machine bad(context: @mutable Main) { ProcessExit::exit_process(51); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

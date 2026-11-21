@@ -1,1 +1,1 @@
-machine f(v:@mut [u32], i:u64) { let x:u32 = v[i]; }
+machine f(v:@mutable [u32], i:u64) { let x:u32 = v[i]; }

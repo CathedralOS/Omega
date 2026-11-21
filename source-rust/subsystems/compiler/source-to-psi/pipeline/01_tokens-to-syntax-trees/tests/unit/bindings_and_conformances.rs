@@ -292,9 +292,9 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
 fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let source = r#"
         data Main { v: i32; }
-        machine Main::main(main: @mut Main, n: i32, bound [erased]: i32) {
+        machine Main::main(main: @mutable Main, n: i32, bound [erased]: i32) {
             let x [erased]: i32 = 0;
-            let mut y: i32 = 1;
+            let mutable y: i32 = 1;
         }
     "#;
     let parsed = crate::tests::parse_source(source, "binding relevance should parse");
@@ -343,7 +343,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "duplicate binding property `erased`",
         ),
         (
-            "data Main { v: i32; } machine Main::main(main: @mut Main) { let x [bogus]: i32 = 0; }",
+            "data Main { v: i32; } machine Main::main(main: @mutable Main) { let x [bogus]: i32 = 0; }",
             "unknown local binding property `bogus`",
         ),
     ] {
@@ -357,7 +357,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
 fn empty_binding_brackets_stay_relevant_on_signature_parameters_and_locals() {
     for source in [
         "machine m(x []: i32) {}",
-        "data Main { v: i32; } machine Main::main(main: @mut Main) { let x []: i32 = 0; }",
+        "data Main { v: i32; } machine Main::main(main: @mutable Main) { let x []: i32 = 0; }",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -824,7 +824,7 @@ fn parses_evidence_binder_in_machine_telescope() {
         trait Ranked<Element> {}
 
         machine sort<Element, Order satisfies Ranked<Element>>(
-            values: @mut [Element]
+            values: @mutable [Element]
         ) {}
     "#;
     let parsed =
@@ -848,7 +848,7 @@ fn rejects_subject_spelled_evidence_binder() {
         trait Ranked {}
 
         machine sort<Element, Order: Element satisfies Ranked>(
-            values: @mut [Element]
+            values: @mutable [Element]
         ) {}
     "#;
     let error =
@@ -863,7 +863,7 @@ fn rejects_retired_dyn_type_forms() {
         "machine inspect(order: dyn Ranked) {}",
         "machine inspect(order: dyn Ranked<_>) {}",
         "machine inspect(order: @dyn Ranked<Card>) {}",
-        "machine inspect(order: @mut dyn Ranked<Card>) {}",
+        "machine inspect(order: @mutable dyn Ranked<Card>) {}",
         "machine inspect(order: @dyn Card::PowerOrder) {}",
         "data Choices { order: [dyn Ranked<Card>; 2]; }",
         "machine choose() { let order: u64 = PowerOrder as dyn Ranked<Card>; }",
@@ -877,7 +877,7 @@ fn rejects_retired_dyn_type_forms() {
 #[test]
 fn distinguishes_shared_mutable_and_write_only_reference_access() {
     let source = r#"
-        machine borrow(shared: @u8, mutable: @mut u8, output: @write u8) {}
+        machine borrow(shared: @u8, mutable: @mutable u8, output: @write u8) {}
     "#;
 
     let parsed = crate::tests::parse_source(source, "reference access modes should parse");
@@ -940,7 +940,7 @@ fn parses_attached_main_state_name_as_main() {
         data Main {
         }
 
-        machine Main::main(main: @mut Main) {}
+        machine Main::main(main: @mutable Main) {}
         "#;
 
     let parsed = crate::tests::parse_source(source, "parse should succeed");

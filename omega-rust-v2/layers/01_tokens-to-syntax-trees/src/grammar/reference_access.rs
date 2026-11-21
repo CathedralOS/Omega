@@ -7,7 +7,7 @@ use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     fn at_access_word(&self) -> bool {
-        matches!(self.nth_word(0), Some(b"mut" | b"write"))
+        matches!(self.nth_word(0), Some(b"mutable" | b"write"))
     }
 
     pub(super) fn at_type_access_marker(
@@ -40,7 +40,7 @@ impl SyntaxParser<'_> {
 
     /// If the operand starts with `as` or `in`, that word could instead operate on
     /// the shared reference. In a run of those words, names and operators alternate:
-    /// `@mut as as T` marks access, `@mut as as;` casts to a type named `as`.
+    /// `@mutable as as T` marks access, `@mutable as as;` casts to a type named `as`.
     /// Inspect just that run and its right edge; never reparse an operand.
     fn marker_before_expression_suffix(
         &self,
@@ -67,8 +67,8 @@ impl SyntaxParser<'_> {
             return rhs_follows;
         }
         // With a marker, the last word would be a name. Keep that reading if it can
-        // end here or continue (notably `@mut in(x)` and `@mut as + D`). Otherwise
-        // the next operand would be stranded: `@mut as T` / `@write in S`.
+        // end here or continue (notably `@mutable in(x)` and `@mutable as + D`). Otherwise
+        // the next operand would be stranded: `@mutable as T` / `@write in S`.
         let type_name = if last == 1 { cast_carrier } else { self.nth_at_keyword(last - 1, "as") };
         !rhs_follows
             || (context.suffix() == ExpressionSuffix::Clause && self.nth_can_start_clause(end))

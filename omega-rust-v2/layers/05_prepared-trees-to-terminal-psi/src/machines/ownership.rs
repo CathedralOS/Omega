@@ -70,7 +70,7 @@ pub(super) fn move_value(
     {
         return Err(LoweringError::new(&site, "owned field access carries an unrelated loan obligation"));
     }
-    // An exclusive reference, `@mut` or `@write`, owes no cleanup, but it is
+    // An exclusive reference, `@mutable` or `@write`, owes no cleanup, but it is
     // affine: a by-value use transfers the loan carrier and never copies it
     // (language/ownership.md, "A by-value reference transfers or copies its
     // loan carrier").

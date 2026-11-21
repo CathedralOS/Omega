@@ -26,7 +26,7 @@ requires layout.origin == 0 && layout.row_stride == 1 && layout.column_stride ==
     read_checked(backing, offset)
 }
 
-machine main(context: @mut Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + Console {
     let backing: [i32; 6] = [1, 4, 2, 5, 3, 6];
     let layout: Layout2 = Layout2 { rows: 2, columns: 3, origin: 0, row_stride: 1, column_stride: 2 };
     let empty: Layout2 = Layout2 { rows: 0, columns: 3, origin: 0, row_stride: 1, column_stride: 0 };
@@ -45,10 +45,10 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let outside: ReadResult = try_read(@backing, @layout, 2, 0);
     let backing_view: @[i32] = @backing[..];
     transition empty_read { ReadResult::Invalid -> outside_check(context, backing_view, @layout, @swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected), ReadResult::Ok { value } -> bad(context) }
-    machine outside_check(context: @mut Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, outside: ReadResult, valid: bool) {
+    machine outside_check(context: @mutable Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, outside: ReadResult, valid: bool) {
         transition outside { ReadResult::Invalid -> entries(context, backing, layout, swapped, valid), ReadResult::Ok { value } -> bad(context) }
     }
-    machine entries(context: @mut Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, valid: bool) {
+    machine entries(context: @mutable Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, valid: bool) {
         let first: bool = equals(backing, layout, 0, 0, 1);
         let second: bool = equals(backing, layout, 0, 1, 2);
         let third: bool = equals(backing, layout, 0, 2, 3);
@@ -61,12 +61,12 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
             false -> bad(context)
         }
     }
-    machine good(context: @mut Main) { ProcessExit::exit_process(41); }
-    machine bad(context: @mut Main) { ProcessExit::exit_process(1); }
+    machine good(context: @mutable Main) { ProcessExit::exit_process(41); }
+    machine bad(context: @mutable Main) { ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

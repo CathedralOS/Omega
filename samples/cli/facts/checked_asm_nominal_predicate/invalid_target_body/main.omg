@@ -2,7 +2,7 @@
 data Counted [copy] requires length == 7 { length: u64; }
 machine snapshot(start: u64, end: u64) -> Counted
 requires start <= end && end - start == 7 { Counted { length: end - start } }
-machine reset(cursor: @mut u64) -> u64
+machine reset(cursor: @mutable u64) -> u64
 ensures $cursor == 0 && result == 0 { $cursor = 0; 0 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
@@ -36,7 +36,7 @@ X86MoveSelected satisfies SelectedMoveSelected {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 7
     {
         SelectedBodyCheck::require_tag(17u64);
-        let mut output: u64 = 99;
+        let mutable output: u64 = 99;
         asm clobbers none {
         entry:
             mov output, selected.length;
@@ -52,7 +52,7 @@ ArmMoveSelected satisfies SelectedMoveSelected {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 7
     {
         SelectedBodyCheck::require_tag(29u64);
-        let mut output: u64 = 99;
+        let mutable output: u64 = 99;
         asm clobbers none {
         entry:
             mov output, selected.length;
@@ -65,8 +65,8 @@ ArmMoveSelected satisfies SelectedMoveSelected {
 
 
 machine main() crashes Trap {
-    let mut cursor: u64 = 2;
-    let observed: u64 = SelectedMoveSelected::move_selected(snapshot(cursor, 9), reset(@mut cursor));
+    let mutable cursor: u64 = 2;
+    let observed: u64 = SelectedMoveSelected::move_selected(snapshot(cursor, 9), reset(@mutable cursor));
     transition observed == 7 && cursor == 0 { true -> finished(), false -> failed() }
 }
 machine x86_entry() crashes Trap {

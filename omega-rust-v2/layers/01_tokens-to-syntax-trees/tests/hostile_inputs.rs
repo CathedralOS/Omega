@@ -264,7 +264,7 @@ const SOURCE_PIECES: &[&str] = &[
     "use",
     "const",
     "let",
-    "mut",
+    "mutable",
     "write",
     "match",
     "transition",

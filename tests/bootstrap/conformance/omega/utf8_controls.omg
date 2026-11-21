@@ -3,11 +3,11 @@
 // Unicode ceiling, truncated input and malformed continuation bytes.
 machine check(a:u8,b:u8,c:u8,d:u8,length:u64,scalar:u32,width:u64,valid:bool)->bool
 requires length <= 4 {
-    let mut unit:SourceUnit;
-    source_unit_append(@mut unit,a);
-    source_unit_append(@mut unit,b);
-    source_unit_append(@mut unit,c);
-    source_unit_append(@mut unit,d);
+    let mutable unit:SourceUnit;
+    source_unit_append(@mutable unit,a);
+    source_unit_append(@mutable unit,b);
+    source_unit_append(@mutable unit,c);
+    source_unit_append(@mutable unit,d);
     unit.length=length;
     let value:DecodedScalar=decode_scalar(@unit,0 as +Trapping);
     let absent:DecodedScalar=decode_scalar(@unit,4294967295 as +Trapping);

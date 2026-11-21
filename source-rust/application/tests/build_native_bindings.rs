@@ -64,7 +64,7 @@ fn check_product(name: &str, product: &str, bindings: &str) -> String {
         format!(
             "use omega\\language\\core\\DllImport;
 use omega\\language\\core\\ForeignBinding;
-machine build(builder: @mut Build) {{
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"bound\");
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 {bindings}}}
@@ -193,7 +193,7 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
         format!(
             "use omega\\language\\core\\DllImport;
 use omega\\language\\core\\ForeignBinding;
-machine build(builder: @mut Build) {{
+machine build(builder: @mutable Build) {{
     Build::package(builder, \"bound_library\");
     Build::bind::<Raw::read>(builder, macos_arm64, {SLEEP});
 }}
@@ -208,10 +208,10 @@ machine build(builder: @mut Build) {{
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: @mut Build) {
+        "machine build(builder: @mutable Build) {
     Build::application(builder, \"bound_user\");
-    let mut library: DependencyDescription = dependency\\from_source(Source::Path { location: \"bound_library\" });
-    dependency\\with_alias(@mut library, \"bound\");
+    let mutable library: DependencyDescription = dependency\\from_source(Source::Path { location: \"bound_library\" });
+    dependency\\with_alias(@mutable library, \"bound\");
     let registration: DependencyRegistration = Build::dependency(builder, library);
     Build::bind(builder, windows_x86_64\\ProgramEntry, main);
 }

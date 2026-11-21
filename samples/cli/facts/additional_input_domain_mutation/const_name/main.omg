@@ -7,7 +7,7 @@ machine overwrite(cell: @write Cell in Before) {
 }
 const INITIAL: u32 = 0;
 machine observed_exit() -> u32 {
-    let mut cell: Cell = Cell { value: INITIAL };
+    let mutable cell: Cell = Cell { value: INITIAL };
     overwrite(@write cell);
     transition cell.value == 73 { true -> 0, _ -> 1 }
 }

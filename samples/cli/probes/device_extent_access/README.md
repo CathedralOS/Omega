@@ -10,7 +10,7 @@ is inert (`Expected exit: 0`); the two DMA drivers are checked but unreachable.
 - Native build and run of the inert entry are green on macos_arm64. The
   product retains a checked boundary plan for every `DeviceLoanProvider`
   requirement and every loopback leaf, including the requirements that lend
-  a linear opaque (`publish`, `maintain_cache` take `&DeviceLoan`) and the
+  a linear opaque (`publish`, `maintain_cache` take `@DeviceLoan`) and the
   leaves whose parameters carry a domain qualification (`release`,
   `lend_for_read`, `lend_for_write`, `notify`, `acquire`).
 - Making a driver reachable from `Main::main` needs native realization of the

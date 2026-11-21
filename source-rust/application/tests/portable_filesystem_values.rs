@@ -131,7 +131,7 @@ fn build(dependency: bool) -> String {
         String::new()
     };
     format!(
-        "machine build(builder: @mut Build) {{\nBuild::application(builder, \"portable_filesystem_values\");\n{dependency}\nBuild::bind(builder, windows_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_arm64\\ProgramEntry, main);\nBuild::bind(builder, macos_arm64\\ProgramEntry, main);\n}}\n"
+        "machine build(builder: @mutable Build) {{\nBuild::application(builder, \"portable_filesystem_values\");\n{dependency}\nBuild::bind(builder, windows_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_arm64\\ProgramEntry, main);\nBuild::bind(builder, macos_arm64\\ProgramEntry, main);\n}}\n"
     )
 }
 

@@ -13,7 +13,7 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
 machine issue() -> Region in Owned ensures result.length == 48 {
     Region { length: 48 }
 }
-machine drop_region(region: @mut Region) {}
+machine drop_region(region: @mutable Region) {}
 data Parts { taken: Region in Owned; rest: Region in Owned; }
 data Strategy requires remaining == tail.length { tail: Region in Owned; remaining: u64; }
 machine partition(whole: Region in Owned, requested: u64) -> Parts
@@ -28,7 +28,7 @@ ensures result.taken.length == requested,
     let { length } = whole;
     Parts { taken: Region { length: requested }, rest: Region { length: length - requested } }
 }
-machine carve(strategy: @mut Strategy, remaining: u64, requested: u64) -> Region in Owned
+machine carve(strategy: @mutable Strategy, remaining: u64, requested: u64) -> Region in Owned
 requires remaining == strategy.tail.length && requested <= remaining
 ensures result.length == requested, strategy.tail.length == remaining - requested
 {
@@ -39,9 +39,9 @@ ensures result.length == requested, strategy.tail.length == remaining - requeste
     parts.taken
 }
 machine main() crashes Trap {
-    let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(@mut strategy, 48, 16);
-    let second: Region in Owned = carve(@mut strategy, 32, 8);
+    let mutable strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
+    let first: Region in Owned = carve(@mutable strategy, 48, 16);
+    let second: Region in Owned = carve(@mutable strategy, 32, 8);
     let correct: bool = first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24;
     drop(first);
     drop(second);

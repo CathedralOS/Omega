@@ -124,7 +124,7 @@ transition remaining {
 An arm's call can be one that waits. The marker stays on the call:
 
 ```omega
-machine finish_read(storage: @mut Storage) -> u32
+machine finish_read(storage: @mutable Storage) -> u32
 suspends
 {
     transition {

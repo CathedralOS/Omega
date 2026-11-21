@@ -6,7 +6,7 @@ public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
 
 public CAbiPolicy<T> satisfies FixedLayout<T> {
     public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        let mut entries: [FieldEntry; 64];
+        let mutable entries: [FieldEntry; 64];
         let initial: LayoutPlan = LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 };
         match schema.case_count == 0 && schema.field_count > 0 {
             true -> c_abi_fields(schema, initial, 0, 0, 1, 33),
@@ -17,7 +17,7 @@ public CAbiPolicy<T> satisfies FixedLayout<T> {
 
 // A plan cannot certify unsupported input. The ordinary receiving validator
 // rejects this out-of-capacity count before exposing storage or projections.
-machine c_abi_unsupported(mut plan: LayoutPlan) -> LayoutPlan reaches none terminates {
+machine c_abi_unsupported(mutable plan: LayoutPlan) -> LayoutPlan reaches none terminates {
     plan.entry_count = 65;
     plan
 }
@@ -33,7 +33,7 @@ ensures result < alignment
 
 // One represented field per step, then trailing padding. Bounds include the final step;
 // checked arithmetic rejects unrepresentable extents rather than wrapping them.
-machine c_abi_fields(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
+machine c_abi_fields(schema: Schema, mutable plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
 reaches none terminates by remaining_steps
 requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 33
 {
@@ -41,7 +41,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         true -> place(schema, plan, index, offset, alignment, remaining_steps - 1),
         _ -> finish(plan, offset, alignment)
     }
-    machine place(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
+    machine place(schema: Schema, mutable plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
     terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
@@ -66,7 +66,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
             _ -> c_abi_unsupported(plan)
         }
     }
-    machine checked(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, padding: u64, size: u64) -> LayoutPlan
+    machine checked(schema: Schema, mutable plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, padding: u64, size: u64) -> LayoutPlan
     terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
@@ -75,7 +75,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
             _ -> c_abi_unsupported(plan)
         }
     }
-    machine extent(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
+    machine extent(schema: Schema, mutable plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
     terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
@@ -84,7 +84,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
             _ -> c_abi_unsupported(plan)
         }
     }
-    machine append(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
+    machine append(schema: Schema, mutable plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
     terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32 && size <= 18446744073709551615u64 - offset
     {
@@ -92,7 +92,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         plan.entry_count = index + 1;
         c_abi_fields(schema, plan, index + 1, offset + size, alignment, remaining_steps)
     }
-    machine finish(mut plan: LayoutPlan, offset: u64, alignment: u64) -> LayoutPlan
+    machine finish(mutable plan: LayoutPlan, offset: u64, alignment: u64) -> LayoutPlan
     requires alignment >= 1 && alignment <= 16
     {
         let padding: u64 = c_abi_padding(offset, alignment);
@@ -101,7 +101,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
             _ -> c_abi_unsupported(plan)
         }
     }
-    machine complete(mut plan: LayoutPlan, size: u64, alignment: u64) -> LayoutPlan {
+    machine complete(mutable plan: LayoutPlan, size: u64, alignment: u64) -> LayoutPlan {
         plan.size_fixed = size;
         plan.align = alignment;
         plan

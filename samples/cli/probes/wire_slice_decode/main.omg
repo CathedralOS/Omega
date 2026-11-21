@@ -1,12 +1,12 @@
-// Wire round-trip on a borrowed `&[u8]` member: `#0 bytes:
-// &[u8]` synthesizes `Blob::encode`/`Blob::decode` — decode
+// Wire round-trip on a borrowed `@[u8]` member: `#0 bytes:
+// @[u8]` synthesizes `Blob::encode`/`Blob::decode` — decode
 // reads a byte-length varint, bounds-checks, then stores a
 // fat `{ptr, len}` descriptor VIEWING the decode buffer in
 // place (no allocator, no copy) and advances the cursor
 // past content. Re-encoding the decoded view reproduces
 // the same frame.
 //
-//   * `data Blob { #0 bytes: &[u8]; }` — wire-tagged
+//   * `data Blob { #0 bytes: @[u8]; }` — wire-tagged
 //     borrow member; `data BlobSample` is the plain decode
 //     target with the same shape.
 //   * `WireVerdict` sum: `Invalid` is ZII — an untouched
@@ -39,15 +39,15 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.source[0] = 72;
     main.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
-    Blob::encode(@sample, @mut main.buffer, @mut main.written);
-    let mut decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
-    Blob::decode(@mut decoded, @main.buffer, @mut main.read, @mut main.verdict);
-    Blob::encode(@decoded, @mut main.buffer2, @mut main.written2);
+    Blob::encode(@sample, @mutable main.buffer, @mutable main.written);
+    let mutable decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
+    Blob::decode(@mutable decoded, @main.buffer, @mutable main.read, @mutable main.verdict);
+    Blob::encode(@decoded, @mutable main.buffer2, @mutable main.written2);
     let matches: bool = main.verdict == WireVerdict::Sound
         && main.read == 5
         && main.written2 == 5
@@ -58,12 +58,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

@@ -235,7 +235,7 @@ impl SyntaxParser<'_> {
         matches!(self.nth_punctuation(0), Some(Punctuation::Plus | Punctuation::Minus | Punctuation::Equal))
     }
 
-    /// `( '@' ('mut' | 'write')? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
+    /// `( '@' ('mutable' | 'write')? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
     fn parse_prefix(
         &mut self,
         context: ExpressionContext,

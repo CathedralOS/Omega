@@ -22,9 +22,9 @@ requires can_window(items, low) == true
 }
 machine exercise(choose: bool, expected_path: u64) crashes Trap {
     let items: [u8; 4] = [11u8, 23u8, 37u8, 53u8];
-    let mut first_path: u64 = 0;
+    let mutable first_path: u64 = 0;
     let first: u8 = read(@items, 1, choose, @write first_path);
-    let mut second_path: u64 = 0;
+    let mutable second_path: u64 = 0;
     let second: u8 = read(@items, 2, choose, @write second_path);
     transition first == 37u8 && second == 53u8
         && first_path == expected_path && second_path == expected_path {

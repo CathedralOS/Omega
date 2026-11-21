@@ -146,7 +146,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     fs::create_dir(&workspace).unwrap();
     fs::write(
         workspace.join("build.omg"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::member(builder, "member");
         Build::member(builder, "unselected");
     }"#,
@@ -154,7 +154,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     .unwrap();
     write_package(
         &workspace.join("member"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::package(builder, "workspace_selected");
     }"#,
     );
@@ -168,12 +168,12 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     let build = fs::read_to_string(fixture.join("unselected/build.omg")).unwrap();
     // Looking up the default name of this candidate settles its dependencies first.
     // The subsequent explicit "naming" request reaches its child through a different Git ref.
-    let build = build.replace("    let mut naming_dependency:", r#"    let candidate: DependencyDescription = dependency\from_source(Source::Git {
+    let build = build.replace("    let mutable naming_dependency:", r#"    let candidate: DependencyDescription = dependency\from_source(Source::Git {
         repository: "ssh://git@candidate-fixture.invalid/candidate.git", revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
     let candidate_registration: DependencyRegistration = Build::build_dependency(builder, candidate);
-    let mut naming_dependency:"#);
+    let mutable naming_dependency:"#);
     fs::write(
         observer.join("build.omg"),
         build.replace(
@@ -190,7 +190,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     let candidate = directory.join("candidate");
     write_package(
         &candidate,
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::package(builder, "candidate");
         let helper: DependencyDescription = dependency\from_source(Source::Git {
             repository: "ssh://git@helper-fixture.invalid/catalog-helper.git", revision: "also-helper",
@@ -213,7 +213,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     git(&helper, &["branch", "also-helper", "HEAD"]);
     write_package(
         &directory.join("client"),
-        r#"machine build(builder: @mut Build) {
+        r#"machine build(builder: @mutable Build) {
         Build::application(builder, "client");
         let member: DependencyDescription = dependency\from_source(Source::Git {
             repository: "ssh://git@omega-fixture.invalid/workspace.git", revision: "executed-build-fixture-v1",

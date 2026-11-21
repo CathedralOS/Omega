@@ -4,7 +4,7 @@ data RoomLookup {
 
 machine find_room(level: Level,
     cell: CellId,
-    out_room: @mut Room)
+    out_room: @mutable Room)
 ensures
     out_room.label.storage in Utf8,
     out_room.event.enemy.name.storage in Utf8
@@ -20,7 +20,7 @@ ensures
     machine find_room_at(rooms: @[Room],
         room_count: u64,
         cell: CellId,
-        out_room: @mut Room,
+        out_room: @mutable Room,
         index: u64 in Wrapping)
     requires room_count <= 16, index < 16, rooms.length == 16
     {
@@ -38,7 +38,7 @@ ensures
     }
 
     machine apply_room(room: Room,
-        out_room: @mut Room) {
+        out_room: @mutable Room) {
         out_room.cell = room.cell;
         out_room.depth = room.depth;
         out_room.branch = room.branch;
@@ -47,7 +47,7 @@ ensures
         out_room.exit_count = room.exit_count;
         out_room.discovered = room.discovered;
 
-        let out_exits: @mut [Exit] = @mut out_room.exits[..];
+        let out_exits: @mutable [Exit] = @mutable out_room.exits[..];
         let room_exits: @[Exit] = @room.exits[..];
         out_exits[0] = room_exits[0];
         out_exits[1] = room_exits[1];
@@ -61,20 +61,20 @@ ensures
     }
 }
 
-machine find_room_mut(level: @mut Level,
-    cell: CellId) -> @mut Room {
-    let rooms: @mut [Room] = @mut level.rooms[..];
+machine find_room_mut(level: @mutable Level,
+    cell: CellId) -> @mutable Room {
+    let rooms: @mutable [Room] = @mutable level.rooms[..];
 
     transition level.room_count > 0 {
         true -> find_room_mut_at(rooms, level.room_count, cell, 0),
-        false -> @mut rooms[0]
+        false -> @mutable rooms[0]
     }
 
 
-    machine find_room_mut_at(rooms: @mut [Room],
+    machine find_room_mut_at(rooms: @mutable [Room],
         room_count: u64,
         cell: CellId,
-        index: u64 in Wrapping) -> @mut Room
+        index: u64 in Wrapping) -> @mutable Room
     requires room_count <= 16, index < 16, rooms.length == 16
     {
         let found: bool = rooms[index].cell == cell;
@@ -82,9 +82,9 @@ machine find_room_mut(level: @mut Level,
         let has_next: bool = next_index < room_count;
 
         transition {
-            found -> @mut rooms[index],
+            found -> @mutable rooms[index],
             has_next && next_index < 16 -> find_room_mut_at(rooms, room_count, cell, next_index),
-            _ -> @mut rooms[0]
+            _ -> @mutable rooms[0]
         }
     }
 }

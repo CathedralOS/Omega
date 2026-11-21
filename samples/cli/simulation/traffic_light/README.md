@@ -17,7 +17,7 @@ Features exercised:
 - `data Phase [copy] { case Red; case Green; case Yellow; }`
 - `data Light [copy]` holding a `Phase` field
 - `transition main.light.phase { Phase::Green -> ... _ -> ... }`
-- Repeated `advance(main)` calls mutate the explicit `main: &mut Main` context
+- Repeated `advance(main)` calls mutate the explicit `main: @mutable Main` context
 
 ## Scalar contract migration
 

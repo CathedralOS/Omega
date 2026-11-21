@@ -5,7 +5,7 @@ use controller\model\power_three;
 // Enumerate all base-three words in numeric order, most significant digit
 // first. This is lexicographic order for -1,0,1. Strict improvement retains
 // the first equal-cost word. No pruning or heuristic can hide an optimum.
-public machine optimize(problem: @Problem, plan: @mut Plan) {
+public machine optimize(problem: @Problem, plan: @mutable Plan) {
     plan.candidates = power_three(problem.horizon);
     plan.feasible = 0;
     plan.boundary_rejected = 0;
@@ -14,14 +14,14 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
     plan.cost = 10000;
     let divisor: i32 in Wrapping = power_three(problem.horizon - 1);
     transition { _ -> candidate(problem, plan, 0, divisor) }
-    machine candidate(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping,
+    machine candidate(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping,
                     divisor: i32 in Wrapping) {
         transition code < plan.candidates {
             true -> evaluate(problem, plan, code, divisor),
             _ -> done()
         }
     }
-    machine evaluate(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping,
+    machine evaluate(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping,
                    divisor: i32 in Wrapping) {
         let cost: i32 in Wrapping = sequence_cost(problem, code, divisor);
         transition cost {
@@ -30,15 +30,15 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
             _ -> feasible(problem, plan, code, divisor, cost)
         }
     }
-    machine boundary(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine boundary(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping, divisor: i32 in Wrapping) {
         plan.boundary_rejected = plan.boundary_rejected + 1;
         transition { _ -> candidate(problem, plan, code + 1, divisor) }
     }
-    machine terminal(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine terminal(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping, divisor: i32 in Wrapping) {
         plan.terminal_rejected = plan.terminal_rejected + 1;
         transition { _ -> candidate(problem, plan, code + 1, divisor) }
     }
-    machine feasible(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping,
+    machine feasible(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping,
                    divisor: i32 in Wrapping, cost: i32 in Wrapping) {
         plan.feasible = plan.feasible + 1;
         transition cost < plan.cost {
@@ -46,7 +46,7 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
             _ -> candidate(problem, plan, code + 1, divisor)
         }
     }
-    machine improve(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping,
+    machine improve(problem: @Problem, plan: @mutable Plan, code: i32 in Wrapping,
                   divisor: i32 in Wrapping, cost: i32 in Wrapping) {
         plan.code = code;
         plan.cost = cost;

@@ -14,7 +14,7 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     // Two bright sources: 180 + 140 = 320 -> clamps at full brightness.
     let source_a: u8 in Saturating = 180 as +Saturating;
     let source_b: u8 in Saturating = 140 as +Saturating;
@@ -23,13 +23,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine dim() {
         // Dimming below zero stays off, never wraps to bright.
-        let mut channel: u8 in Saturating = 40 as +Saturating;
+        let mutable channel: u8 in Saturating = 40 as +Saturating;
         channel = channel - 90;
         transition channel == 0 { true -> gamma(), _ -> wrong_dim() }
     }
     machine gamma() {
         // Gamma boost: 100 * 3 = 300 -> clamps at full brightness.
-        let mut channel: u8 in Saturating = 100 as +Saturating;
+        let mutable channel: u8 in Saturating = 100 as +Saturating;
         channel = channel * 3;
         transition channel == 255 { true -> ambient_mix(), _ -> wrong_gamma() }
     }
@@ -46,7 +46,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine frame_roll() {
         // The frame counter WRAPS by design: 250 + 10 rolls to 4.
-        let mut frames: u8 in Wrapping = 250 as +Wrapping;
+        let mutable frames: u8 in Wrapping = 250 as +Wrapping;
         frames = frames + 10;
         transition frames == 4 { true -> done(), _ -> wrong_roll() }
     }
@@ -64,6 +64,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    main(@mutable entry_storage);
 }

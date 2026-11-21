@@ -5,10 +5,10 @@ without gaining permission to read it. Each example writes 73 through a `Viewed`
 view, then checks that the original `Original` record contains 73.
 
 Fact: a write-only representation view writes 73 to the original record without
-granting observation. `&write` is a borrow that permits writing but forbids reading
+granting observation. `@write` is a borrow that permits writing but forbids reading
 stored content. `Original` and `Viewed` each contain one unrestricted `u32`, so
 their layouts and valid representations match in both directions. The recast
-(`storage as &write Viewed`) changes the stated shape of the same storage; it
+(`storage as @write Viewed`) changes the stated shape of the same storage; it
 does not copy the record or grant readable access.
 
 This row supports `DOMAIN-ACCESS-AUTHORITY` and the remaining source migration in
@@ -41,7 +41,7 @@ or borrow permission still refuses; no source spelling grants a new address.
 
 Every positive, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for all four hosted targets. Every invalid program keeps the same
-caller and store, but requests a readable `&mut` view from write-only storage.
+caller and store, but requests a readable `@mutable` view from write-only storage.
 That access increase must reject.
 
 The match example executes both choices. Only its helper branch writes a separate
@@ -64,7 +64,7 @@ and [Build-owned target selection](../../../../wiki/spec/build/provider_selectio
 - Composition: every place performs the same store and checks the original
   backing afterward. The twin changes only the requested view access and its
   receiving types, never an unrelated caller guard.
-- Soundness: readable access cannot arise from `&write`. Checked provider bodies
+- Soundness: readable access cannot arise from `@write`. Checked provider bodies
   prove that their calls never observe the write-only data. An implementation
   whose body is unavailable still needs a separately admitted proof tied to the
   selected implementation.

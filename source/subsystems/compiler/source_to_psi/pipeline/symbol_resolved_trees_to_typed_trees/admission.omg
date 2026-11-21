@@ -155,8 +155,8 @@ crashes Trap
     }
 
     // A bare range meets only a shared-reference destination: a mutable
-    // subrange is written `&mut items[start..end]`, and an expected
-    // `&mut [T]` never inserts the borrow
+    // subrange is written `@mutable items[start..end]`, and an expected
+    // `@mutable [T]` never inserts the borrow
     // (wiki/spec/language/expressions.md#borrowed-range-access).
     machine access(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
         transition wanted.access == ReferenceAccess::Shared {
@@ -165,15 +165,15 @@ crashes Trap
         }
     }
 
-    // A `&write T` destination carries a mutable reference to `T`; whether
-    // the attenuation is spelled `&write` at the argument is judged where
+    // A `@write T` destination carries a mutable reference to `T`; whether
+    // the attenuation is spelled `@write` at the argument is judged where
     // the admission is bound (`typer_admit`), so a candidate taking it is
     // selected and its unspelled attenuation is named, not a missing
     // machine.
     machine attenuating(wanted: TypeRow, given: TypeRow) -> Admission {
-        let mutable: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::Mutable
+        let is_mutable_reference: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::Mutable
             && given.inner == wanted.inner;
-        transition wanted.access == ReferenceAccess::WriteOnly && mutable {
+        transition wanted.access == ReferenceAccess::WriteOnly && is_mutable_reference {
             true -> exact(),
             _ -> rejected()
         }
@@ -334,7 +334,7 @@ crashes Trap
 // shared loan (only where `lend` allows one: a call argument), or reject at
 // the expression, or at an unlanded value's number that does not land.
 // Whether it was admitted.
-public machine typer_admit(typer: @mut Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
+public machine typer_admit(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
 crashes Trap
 {
     let admission: Admission = typer_admission(typer, syntax, destination, expression);
@@ -352,10 +352,10 @@ crashes Trap
         _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written, blamed)
     }
 
-    // A `&write` destination is met only by a `&write` borrow: attenuation
+    // A `@write` destination is met only by a `@write` borrow: attenuation
     // from mutable access, and forwarding, are spelled at the argument
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
-    machine judged(typer: @mut Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression, blamed: u64 in Trapping) -> bool {
+    machine judged(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression, blamed: u64 in Trapping) -> bool {
         transition admission {
             Admission::Exact -> admitted(),
             Admission::Landed -> landing(typer, syntax, destination, expression, chosen),
@@ -371,7 +371,7 @@ crashes Trap
         }
     }
 
-    machine fractional_origin(typer: @mut Typer, syntax: @SyntaxTrees, blamed: u64 in Trapping) -> bool {
+    machine fractional_origin(typer: @mutable Typer, syntax: @SyntaxTrees, blamed: u64 in Trapping) -> bool {
         let origin: u64 in Trapping = typing_fractional_origin(@typer.output, blamed);
         transition origin > 0 {
             true -> origin_span(typer, syntax, origin - 1),
@@ -379,34 +379,34 @@ crashes Trap
         }
     }
 
-    machine origin_span(typer: @mut Typer, syntax: @SyntaxTrees, origin: u64 in Trapping) -> bool {
+    machine origin_span(typer: @mutable Typer, syntax: @SyntaxTrees, origin: u64 in Trapping) -> bool {
         let written: Expression = syntax_trees_expression(syntax, origin);
         transition { _ -> reject(typer, written, TypeDiagnosticCode::FractionalIntermediate) }
     }
 
     machine invalid_origin() -> bool { crash Trap; }
 
-    machine landing(typer: @mut Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {
+    machine landing(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {
         transition chosen {
             true -> chosen_arms(typer, syntax, destination, expression),
             _ -> landed(typer, destination, expression)
         }
     }
 
-    machine landed(typer: @mut Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        set_expression_type(@mut typer.output, expression, destination);
-        set_adaptation(@mut typer.output, expression, Adaptation::Landed);
+    machine landed(typer: @mutable Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
+        set_expression_type(@mutable typer.output, expression, destination);
+        set_adaptation(@mutable typer.output, expression, Adaptation::Landed);
         transition { _ -> admitted() }
     }
 
-    machine chosen_arms(typer: @mut Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
+    machine chosen_arms(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
         typer_land(typer, syntax, destination, expression);
         transition { _ -> admitted() }
     }
 
     // A call argument lends implicitly; elsewhere only a range slice, a
     // view of its collection.
-    machine lent(typer: @mut Typer, syntax: @SyntaxTrees, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
+    machine lent(typer: @mutable Typer, syntax: @SyntaxTrees, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
         let selector: Expression = syntax_trees_expression(syntax, written.right);
         let sliced: bool = written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range;
         transition lend || sliced {
@@ -415,23 +415,23 @@ crashes Trap
         }
     }
 
-    machine qualified(typer: @mut Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mut typer.output, expression, Adaptation::Qualified);
+    machine qualified(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
+        set_adaptation(@mutable typer.output, expression, Adaptation::Qualified);
         transition { _ -> admitted() }
     }
 
-    machine read(typer: @mut Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mut typer.output, expression, Adaptation::Read);
+    machine read(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
+        set_adaptation(@mutable typer.output, expression, Adaptation::Read);
         transition { _ -> admitted() }
     }
 
-    machine mark_lent(typer: @mut Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mut typer.output, expression, Adaptation::SharedLend);
+    machine mark_lent(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
+        set_adaptation(@mutable typer.output, expression, Adaptation::SharedLend);
         transition { _ -> admitted() }
     }
 
-    machine reject(typer: @mut Typer, written: Expression, code: TypeDiagnosticCode) -> bool {
-        typing_reject(@mut typer.output, code, written.source_span);
+    machine reject(typer: @mutable Typer, written: Expression, code: TypeDiagnosticCode) -> bool {
+        typing_reject(@mutable typer.output, code, written.source_span);
         transition { _ -> refused() }
     }
 

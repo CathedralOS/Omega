@@ -25,7 +25,7 @@ use omega\language\core\narrow_i64_to_u64_saturating;
 // Per-target raw seam. The read and the wait share one boundary trait so
 // selection names the trait, not a carrier-owned requirement.
 boundary trait LinuxArm64TimeRead {
-    machine clock_gettime(clock_id: u32, instant: @mut LinuxArm64TimeHostInstant) -> i64
+    machine clock_gettime(clock_id: u32, instant: @mutable LinuxArm64TimeHostInstant) -> i64
     reaches TimeHost
     crashes none;
     machine nanosleep(request: @LinuxArm64TimeHostInstant, remainder: u64) -> i64

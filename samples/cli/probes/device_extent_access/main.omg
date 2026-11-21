@@ -19,7 +19,7 @@
 // Pending-retry custody. They are deliberately unreachable from the bound
 // entry: the native product carries every accepted `DeviceLoanProvider`
 // requirement plan and the ten intrinsic leaves as checked boundary plans
-// (a requirement lending a linear opaque, `publish(loan: &DeviceLoan)`,
+// (a requirement lending a linear opaque, `publish(loan: @DeviceLoan)`,
 // included), but the toolchain's closed compiler-intrinsic inventory realizes
 // no device crossing yet, so a reachable driver would stop at provider
 // admission. Native realization of the ten crossings is the next edge; this
@@ -64,7 +64,7 @@ public DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
 // writes back, and restores `Granted` custody, and release returns the range.
 public data LoopbackDeviceLoanProvider {}
 
-macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: @mut LoopbackDeviceLoanProvider) {
+macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: @mutable LoopbackDeviceLoanProvider) {
     LoopbackDeviceLoanProvider::select_provider::<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
 }
 

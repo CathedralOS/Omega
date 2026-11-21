@@ -3,19 +3,19 @@
 // `items[0..which + 2]` has length 2, the same as the other arm.
 // Expected exit: 0
 
-machine from_state<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
+machine from_state<'row>(items: @'row mutable [u8; 4], which: i64) -> @'row mutable [u8]
     ensures result.length == 2
 {
     transition { _ -> pick(items, which) }
-    machine pick(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8] {
+    machine pick(items: @'row mutable [u8; 4], which: i64) -> @'row mutable [u8] {
         match which {
-            0 -> @mut items[0..which + 2],
-            _ -> @mut items[2..4]
+            0 -> @mutable items[0..which + 2],
+            _ -> @mutable items[2..4]
         }
     }
 }
 
-machine write_pair(window: @mut [u8])
+machine write_pair(window: @mutable [u8])
     requires window.length >= 2
 {
     window[0] = 9;
@@ -23,8 +23,8 @@ machine write_pair(window: @mut [u8])
 }
 
 machine main() crashes Trap {
-    let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    let window: @mut [u8] = from_state(@mut bytes, 0);
+    let mutable bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: @mutable [u8] = from_state(@mutable bytes, 0);
     write_pair(window);
     transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
         true -> done(),

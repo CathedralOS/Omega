@@ -8,7 +8,7 @@ public boundary trait Grants {
 Provider satisfies Grants {
     machine grant(value: u64) -> Token { Token { identity: value } }
 }
-machine consume(value: @Token, calls: @mut u64) -> u64
+machine consume(value: @Token, calls: @mutable u64) -> u64
 requires value in Token::Fair
 terminates
 {
@@ -16,14 +16,14 @@ terminates
     value.identity
 }
 public boundary trait SelectedProgress {
-    machine select(left: @Token, right: @Token, index: u64, calls: @mut u64) -> u64
+    machine select(left: @Token, right: @Token, index: u64, calls: @mutable u64) -> u64
     reaches none
     requires left in Token::Fair, index < 2
     terminates crashes none;
 }
 
 LinuxX86Selector satisfies SelectedProgress {
-    machine select(left: @Token, right: @Token, index: u64, calls: @mut u64) -> u64
+    machine select(left: @Token, right: @Token, index: u64, calls: @mutable u64) -> u64
     requires left in Token::Fair, index < 2
     terminates
     {
@@ -33,7 +33,7 @@ LinuxX86Selector satisfies SelectedProgress {
 }
 
 LinuxArmSelector satisfies SelectedProgress {
-    machine select(left: @Token, right: @Token, index: u64, calls: @mut u64) -> u64
+    machine select(left: @Token, right: @Token, index: u64, calls: @mutable u64) -> u64
     requires left in Token::Fair, index < 2
     terminates
     {
@@ -43,7 +43,7 @@ LinuxArmSelector satisfies SelectedProgress {
 }
 
 MacosSelector satisfies SelectedProgress {
-    machine select(left: @Token, right: @Token, index: u64, calls: @mut u64) -> u64
+    machine select(left: @Token, right: @Token, index: u64, calls: @mutable u64) -> u64
     requires left in Token::Fair, index < 2
     terminates
     {
@@ -53,7 +53,7 @@ MacosSelector satisfies SelectedProgress {
 }
 
 WindowsSelector satisfies SelectedProgress {
-    machine select(left: @Token, right: @Token, index: u64, calls: @mut u64) -> u64
+    machine select(left: @Token, right: @Token, index: u64, calls: @mutable u64) -> u64
     requires left in Token::Fair, index < 2
     terminates
     {
@@ -65,9 +65,9 @@ WindowsSelector satisfies SelectedProgress {
 machine main() reaches Grants crashes Trap {
     let left: Token = Grants::grant(37);
     let right: Token = Grants::grant(43);
-    let mut calls: u64 = 0;
-    let first: u64 = SelectedProgress::select(@left, @right, 0, @mut calls);
-    let second: u64 = SelectedProgress::select(@left, @right, 1, @mut calls);
+    let mutable calls: u64 = 0;
+    let first: u64 = SelectedProgress::select(@left, @right, 0, @mutable calls);
+    let second: u64 = SelectedProgress::select(@left, @right, 1, @mutable calls);
     transition first == 37 && second == 43 && calls == 2 {
         true -> done(),
         false -> wrong()

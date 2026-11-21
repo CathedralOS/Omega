@@ -71,7 +71,7 @@ literal-bound, predicate-helper and mutable-recast programs still execute in
 both engines.
 
 The parent remains open for scalar-recast source-domain restoration: assigning
-`0xFFFFFFFFu32` through `&mut pair.start as &mut u32` without restoring the parent
+`0xFFFFFFFFu32` through `@mutable pair.start as @mutable u32` without restoring the parent
 still passes Source checking on both baseline and repair. Its restored counterpart
 executes correctly in both engines. That write-alias/restoration obligation is
 separate from this read-premise repair. GUI policy/native qualification and the

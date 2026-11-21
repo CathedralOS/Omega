@@ -38,7 +38,7 @@ EfiLoadedImageLayout satisfies FixedLayout<EfiLoadedImage> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches none
     terminates {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
@@ -102,7 +102,7 @@ EfiSystemTableViewLayout satisfies FixedLayout<EfiSystemTableView> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches none
     terminates {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
@@ -129,7 +129,7 @@ EfiBootServicesViewLayout satisfies FixedLayout<EfiBootServicesView> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches none
     terminates {
-    let mut entries: [FieldEntry; 64];
+    let mutable entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
     LayoutPlan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }

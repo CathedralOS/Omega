@@ -1,4 +1,4 @@
-// Updating a record field through an exclusive mutable borrow (&mut Counter) and retiring the loan establishes the updated field bound (counter.used <= 80u64) while preserving unrelated fields, discharging exact subtraction 80u64 - counter.used.
+// Updating a record field through an exclusive mutable borrow (@mutable Counter) and retiring the loan establishes the updated field bound (counter.used <= 80u64) while preserving unrelated fields, discharging exact subtraction 80u64 - counter.used.
 // Expected rejection: exact arithmetic in machine main state entry local diff may overflow `u64`.
 data Counter [copy] requires used <= 81u64 {
     used: u64;
@@ -6,11 +6,11 @@ data Counter [copy] requires used <= 81u64 {
 }
 
 machine choose(flag: bool) -> Counter {
-    let mut c1: Counter = Counter { used: 0u64, limit: 80u64 };
-    let r1: @mut Counter = @mut c1;
+    let mutable c1: Counter = Counter { used: 0u64, limit: 80u64 };
+    let r1: @mutable Counter = @mutable c1;
     r1.used = 81u64;
-    let mut c2: Counter = Counter { used: 0u64, limit: 80u64 };
-    let r2: @mut Counter = @mut c2;
+    let mutable c2: Counter = Counter { used: 0u64, limit: 80u64 };
+    let r2: @mutable Counter = @mutable c2;
     r2.used = 81u64;
     match flag {
         true -> c1,

@@ -11,7 +11,7 @@ public machine fill(counter: @write Counter, source: @Source)
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
-    let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
+    let mutable counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
     let source: Source = Source { before: 31, cell: Cell { left: 17, value: replacement, right: 53 }, peer: 13, after: 47, unused: [79] };
     fill(@write counter, @source);
     counter

@@ -125,7 +125,7 @@ impl BodyTyper<'_, '_> {
             };
             let ty = self.unit.runtime_annotation(annotation, &self.catalog.types)?;
             self.record_obligation(node_index, ObligationKind::ZeroValue(ty.clone()));
-            if source.nodes[node_index].words().any(|w| w.text == "mut") {
+            if source.nodes[node_index].words().any(|w| w.text == "mutable") {
                 self.writable.insert(source.span(pattern));
                 self.output.mutable_bindings.insert(source.node_id(pattern));
             }
@@ -172,7 +172,7 @@ impl BodyTyper<'_, '_> {
         if local_type == ValueType::NoResult {
             return Err(TypeError::at(source, expr, "binding requires a value"));
         }
-        if source.nodes[node_index].words().any(|w| w.text == "mut") {
+        if source.nodes[node_index].words().any(|w| w.text == "mutable") {
             self.writable.insert(source.span(pattern));
             self.output.mutable_bindings.insert(source.node_id(pattern));
         }

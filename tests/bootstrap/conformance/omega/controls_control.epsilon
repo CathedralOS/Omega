@@ -67,7 +67,7 @@ machine Main::main(&mut self) {
         // copy/result
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine make()->Mode{let value:Mode=Mode::Second;value} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let value:Mode=first(make(),Mode::First);choose(value)}",43,101);
         // field
-        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder [copy]{mode:Mode;} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Holder=holder;holder.mode=Mode::First;choose(snapshot.mode)}",43,102);
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder [copy]{mode:Mode;} machine main()->u8{let mutable holder:Holder;holder.mode=Mode::Second;let snapshot:Holder=holder;holder.mode=Mode::First;choose(snapshot.mode)}",43,102);
         // parallel tail
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{transition{_->again(Mode::First,Mode::Second,false)} machine again(a:Mode,b:Mode,done:bool)->u8{transition done{true->finish(a),_->again(b,a,true)}} machine finish(value:Mode)->u8{choose(value)}}",43,103);
         // ordered wildcard
@@ -77,9 +77,9 @@ machine Main::main(&mut self) {
         // hash collision
         self.positive("data Mode [copy]{case Ab;case BA;} machine choose(value:Mode)->u8{transition value{Mode::Ab->a(),Mode::BA->b()} machine a()->u8{1} machine b()->u8{42}} machine main()->u8{choose(Mode::BA)}",42,106);
         // argument snapshot
-        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder {mode:Mode;} machine change(holder:@mut Holder)->Mode{holder.mode=Mode::First;holder.mode} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Mode=first(holder.mode,change(@mut holder));choose(snapshot)}",43,107);
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder {mode:Mode;} machine change(holder:@mutable Holder)->Mode{holder.mode=Mode::First;holder.mode} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let mutable holder:Holder;holder.mode=Mode::Second;let snapshot:Mode=first(holder.mode,change(@mutable holder));choose(snapshot)}",43,107);
         // subject once
-        self.positive("data Mode [copy] {case First;case Second;}data Counter {value:u32 in Trapping;} machine subject(counter:@mut Counter)->Mode{counter.value=counter.value+1;let result:Mode=Mode::Second;result} machine observe(counter:@mut Counter)->u8{transition subject(counter){Mode::First->bad(),Mode::Second->good()} machine bad()->u8{1} machine good()->u8{42}} machine main()->u8{let mut counter:Counter;let answer:u8=observe(@mut counter);transition answer==42 && counter.value==1{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}",42,108);
+        self.positive("data Mode [copy] {case First;case Second;}data Counter {value:u32 in Trapping;} machine subject(counter:@mutable Counter)->Mode{counter.value=counter.value+1;let result:Mode=Mode::Second;result} machine observe(counter:@mutable Counter)->u8{transition subject(counter){Mode::First->bad(),Mode::Second->good()} machine bad()->u8{1} machine good()->u8{42}} machine main()->u8{let mutable counter:Counter;let answer:u8=observe(@mutable counter);transition answer==42 && counter.value==1{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}",42,108);
         // nominal mismatch
         self.refusal("data Mode [copy] {case First;case Second;}data Other [copy]{case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Other::First)}",1,120);
         // missing case
@@ -110,7 +110,7 @@ machine Main::main(&mut self) {
         self.named_terminal_values();
         self.nested_machines();
         // The product type checker strips the source domain before widening and reapplying it.
-        self.positive("data Index [copy]{value:u32 in Trapping;} machine main()->u8{let mut s:Index;s.value=42 as +Trapping;let w:u64 in Trapping=s.value as -Trapping as u64 +Trapping;transition (w as -Trapping)==42{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}", 42, 212);
+        self.positive("data Index [copy]{value:u32 in Trapping;} machine main()->u8{let mutable s:Index;s.value=42 as +Trapping;let w:u64 in Trapping=s.value as -Trapping as u64 +Trapping;transition (w as -Trapping)==42{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}", 42, 212);
         self.positive("machine main()->u8{let w:u64=42 as u8 as u64;transition w==42{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}", 42, 213);
         self.refusal("machine main()->u8{let v:u32 in Trapping=42 as +Trapping;let w:u64 in Trapping=v as u64 +Trapping;42}", 1, 214);
         self.integer_patterns();
@@ -166,7 +166,7 @@ machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
 // Removing that edge must refuse, even after the successful lookup; restoring
 // it must rebuild rather than inheriting a partial failed invocation.
 machine Main::source_sets(&mut self) {
-    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {let mut s:Score;s.points=42;read_score(@s)}machine read_score(s:@Score)->u8{s.points}data Score requires points<=42,{points:u8;}";
+    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {let mutable s:Score;s.points=42;read_score(@s)}machine read_score(s:@Score)->u8{s.points}data Score requires points<=42,{points:u8;}";
     self.compiler.parser.sources.package_count = 2;
     self.compiler.parser.sources.packages[0].name.start = 0;
     self.compiler.parser.sources.packages[0].name.end = 3;
@@ -237,9 +237,9 @@ machine Main::payload_bindings(&mut self) {
     // Zero storage establishes the first case with a zero-valued payload.
     self.positive("data M [copy]{case P(a:u8);}machine main()->u8{let p:M;transition p{M::P{a as result}->done(result)}machine done(x:u8)->u8{x}}",0,161);
     // The selected sum owns its copy of the record.
-    self.positive("data Box [copy]{value:u8;} data M [copy]{case P(box:Box);} machine read(s:M)->u8 {transition s{M::P{box as saved}->done(saved.value)}machine done(x:u8)->u8{x}} machine main()->u8{let mut b:Box;b.value=42;let p:M=M::P{box:b};b.value=0;read(p)}",42,162);
+    self.positive("data Box [copy]{value:u8;} data M [copy]{case P(box:Box);} machine read(s:M)->u8 {transition s{M::P{box as saved}->done(saved.value)}machine done(x:u8)->u8{x}} machine main()->u8{let mutable b:Box;b.value=42;let p:M=M::P{box:b};b.value=0;read(p)}",42,162);
     // A mutation in a terminal sibling cannot invalidate this arm's entry bound.
-    self.positive("data C { bytes:[u8;2]; length:u64; } data S [copy] {case First(v:u8);case Last;} machine change(c:@mut C)->u8 {c.length=2;0} machine choose(c:@mut C,s:S)->u8 { transition c.length<2 {true->pick(c,s),_->miss()} machine pick(c:@mut C,s:S)->u8 requires c.length<2 { transition s {S::First {v as _}->done(change(c)),S::Last->done(c.bytes[c.length])} } machine done(x:u8)->u8 {x} machine miss()->u8 {1} } machine main()->u8 {let mut c:C;c.bytes[0]=42;choose(@mut c,S::Last)}",42,163);
+    self.positive("data C { bytes:[u8;2]; length:u64; } data S [copy] {case First(v:u8);case Last;} machine change(c:@mutable C)->u8 {c.length=2;0} machine choose(c:@mutable C,s:S)->u8 { transition c.length<2 {true->pick(c,s),_->miss()} machine pick(c:@mutable C,s:S)->u8 requires c.length<2 { transition s {S::First {v as _}->done(change(c)),S::Last->done(c.bytes[c.length])} } machine done(x:u8)->u8 {x} machine miss()->u8 {1} } machine main()->u8 {let mutable c:C;c.bytes[0]=42;choose(@mutable c,S::Last)}",42,163);
 }
 
 machine Main::rejected_at(&mut self, source: &[u8], coordinate: i32, failure: i32) {

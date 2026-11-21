@@ -3,8 +3,8 @@
 //!
 //! A write-only loan of an existing valid `Cell` may locate `value` and store
 //! into it without reading anything. Psi keeps the formal's write-only access,
-//! so the checker can tell this store from the same store through `@mut`: the
-//! `@mut` control lowers to the identical operation, and only the loan's
+//! so the checker can tell this store from the same store through `@mutable`: the
+//! `@mutable` control lowers to the identical operation, and only the loan's
 //! access differs.
 #[path = "support/source.rs"]
 mod source;
@@ -220,7 +220,7 @@ const STORED: &str = "data Leaf{v:u8;} data Node{next:@write Leaf;}";
 #[test]
 fn the_reader_names_the_deepest_crossing_of_a_stored_write_only_loan() {
     use PlaceProjection::{Field, Referent};
-    for (parent, crossing) in [("Node", 1), ("@mut Node", 2)] {
+    for (parent, crossing) in [("Node", 1), ("@mutable Node", 2)] {
         let package = lowered(&format!("{STORED} machine f(x:{parent}){{x.next.v = 1u8;}}"));
         let next = Field(declared(&package, "Node::next"));
         let path = if crossing == 1 {
@@ -303,16 +303,16 @@ fn the_reader_keeps_case_identity_on_either_side_of_the_loan() {
 
 /// `x: @write Node` cannot reach the referent of a descriptor stored in the
 /// node: crossing `next` loads that descriptor through the write-only loan.
-/// This holds whether `next` is `@mut` or `@write`; a mutable deepest loan does
+/// This holds whether `next` is `@mutable` or `@write`; a mutable deepest loan does
 /// not make the path above it readable. L3 refuses the source, so the product
-/// is corrupted from the readable `@mut Node` parent, which the reader admits.
+/// is corrupted from the readable `@mutable Node` parent, which the reader admits.
 #[test]
 fn a_write_only_parent_cannot_supply_a_stored_descriptor() {
-    for stored in ["@mut", "@write"] {
-        let text = format!("data Leaf{{v:u8;}} data Node{{next:{stored} Leaf;}} machine h(a:@write Node){{}} machine f(x:@mut Node){{x.next.v = 1u8;}}");
+    for stored in ["@mutable", "@write"] {
+        let text = format!("data Leaf{{v:u8;}} data Node{{next:{stored} Leaf;}} machine h(a:@write Node){{}} machine f(x:@mutable Node){{x.next.v = 1u8;}}");
         let mut package = lowered(&text);
         let control = write_only_stores(&package, "f").map(|stores| stores.iter().map(|s| s.crossing).collect::<Vec<_>>());
-        assert_eq!(control, Ok(if stored == "@mut" { vec![] } else { vec![2] }), "{stored}");
+        assert_eq!(control, Ok(if stored == "@mutable" { vec![] } else { vec![2] }), "{stored}");
         let write_only = formal_type(&package, "h");
         let body = body_mut(&mut package, "f");
         let omega_lowering::Parameter::Structural(x) = body.parameters[0] else {
@@ -445,7 +445,7 @@ fn write_only_authority_follows_claims_and_selected_cleanup() {
     let package = lowered("data Claim [linear]{n:u8;} data Hook dropped by release {n:u8;}
         machine release(x:Hook){let Hook{n as _}=x;}
         data Nested{case Plain(n:u8); case Claimed(c:Claim);}
-        data Hooked{values:[Hook;2];} data Loan{r:@mut Hook;} data Cells{values:[u8;4];}");
+        data Hooked{values:[Hook;2];} data Loan{r:@mutable Hook;} data Cells{values:[u8;4];}");
     let capability = |name: &str| package.data.iter().find(|schema| schema.declaration.path == name).unwrap().write_only_cleanup;
     assert_eq!(["Claim", "Hook", "Nested", "Hooked", "Loan", "Cells"].map(capability),
                [None, None, None, None, Some(DescriptorCleanup), Some(NoCodeAffine)]);
@@ -485,7 +485,7 @@ fn the_reader_names_a_structural_replacement_through_a_write_only_loan() {
     for (formal, store, crossing) in [
         ("@write Leaf", "x.c", 0),
         ("Node", "x.next.c", 1),
-        ("@mut Node", "x.next.c", 2),
+        ("@mutable Node", "x.next.c", 2),
     ] {
         let package = lowered(&format!("{COPY} machine f(x:{formal}){{ {store} = C{{v:1u8}}; }}"));
         let next = Field(declared(&package, "Node::next"));

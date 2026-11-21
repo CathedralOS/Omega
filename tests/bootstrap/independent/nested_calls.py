@@ -43,12 +43,12 @@ CASES = (
     ), 42),
     ("nested-predicate-effect", """data Counter { changed: bool; }
         machine main() -> u8 {
-            let mut counter: Counter;
-            run(@mut counter)
+            let mutable counter: Counter;
+            run(@mutable counter)
         }
-        machine run(counter: @mut Counter) -> u8 {
+        machine run(counter: @mutable Counter) -> u8 {
             transition { advance(counter) -> selected(counter.changed), _ -> 7 }
-            machine advance(counter: @mut Counter) -> bool {
+            machine advance(counter: @mutable Counter) -> bool {
                 counter.changed = !counter.changed;
                 counter.changed
             }
@@ -78,15 +78,15 @@ CASES = (
             forward(source)
             machine forward(source: @B) -> u8 { source.bytes[0] }
         }
-        machine main() -> u8 { let mut b: B; b.bytes[0] = 51; read(@b) }
+        machine main() -> u8 { let mutable b: B; b.bytes[0] = 51; read(@b) }
     """, 51),
     ("exclusive-loan-forwarding", """data C { value: u8; }
-        machine update(cell: @mut C) -> u8 {
+        machine update(cell: @mutable C) -> u8 {
             let result: u8 = write(cell);
             cell.value
-            machine write(cell: @mut C) -> u8 { cell.value = 42; 0 }
+            machine write(cell: @mutable C) -> u8 { cell.value = 42; 0 }
         }
-        machine main() -> u8 { let mut cell: C; update(@mut cell) }
+        machine main() -> u8 { let mutable cell: C; update(@mutable cell) }
     """, 42),
     ("tail-cycle-without-suspended-caller", """machine main() -> u8 {
         transition false { true -> repeat(), _ -> 42 }
@@ -117,17 +117,17 @@ REFUSALS = (
     ("unacknowledged-block", "machine main() -> u8 { helper() machine helper() -> u8 blocks { 42 } }"),
     ("forbidden-block", "machine main() -> u8 blocks false { block helper() machine helper() -> u8 blocks { 42 } }"),
     ("overlapping-call-arguments", """data C { value: u8; }
-        machine victim(cell: @mut C) -> u8 {
+        machine victim(cell: @mutable C) -> u8 {
             write(cell, cell.value)
-            machine write(cell: @mut C, value: u8) -> u8 { value }
+            machine write(cell: @mutable C, value: u8) -> u8 { value }
         }
-        machine main() -> u8 { let mut cell: C; victim(@mut cell) }
+        machine main() -> u8 { let mutable cell: C; victim(@mutable cell) }
     """),
     ("mutation-invalidates-fact", """data Cell requires length <= 2, { bytes: [u8; 2]; length: u64; }
         machine combine(first: u8, second: u8) -> u8 { second }
-        machine victim(cell: @mut Cell) -> u8 requires cell.length < 2 {
+        machine victim(cell: @mutable Cell) -> u8 requires cell.length < 2 {
             combine(mutate(cell), cell.bytes[cell.length])
-            machine mutate(cell: @mut Cell) -> u8 { cell.length = 2; 0 }
+            machine mutate(cell: @mutable Cell) -> u8 { cell.length = 2; 0 }
         }
         machine main() -> u8 { 0 }
     """),

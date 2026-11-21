@@ -36,7 +36,7 @@ machine entry() crashes Trap {
 ";
 
 const BUILD: &str = "\
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, \"selected_provider\");
     Build::select_provider::<Service, Native>(builder, linux_x86_64);
     Build::select_provider::<Service, Native>(builder, linux_arm64);

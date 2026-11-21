@@ -4,9 +4,9 @@ A match on one evaluation of a copyable flag returns the exclusive loan of the
 selected primitive, writes 41 through that loan, and leaves the unselected
 primitive unchanged.
 
-`choose(&mut visits)` runs exactly once (`visits == 1` after) and the single
-evaluation selects the exclusive loan `&mut chosen` (or, on the false arm,
-`&mut other`). The write `selected = 41` goes through that loan, the consumer
+`choose(@mutable visits)` runs exactly once (`visits == 1` after) and the single
+evaluation selects the exclusive loan `@mutable chosen` (or, on the false arm,
+`@mutable other`). The write `selected = 41` goes through that loan, the consumer
 reads it back (`observed == 41`), the selected primitive holds the written
 value (`chosen == 41`), and the unselected primitive is unchanged
 (`other == 0`). Every place copies that sentence and performs the same
@@ -24,8 +24,8 @@ borrow checker (``while local borrow `selected` is still active``).
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the primitives are local `let`s |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the primitives are record fields (`Pair.left`, `Pair.right`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the primitives arrive as `&mut i64` parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select(&mut chosen, &mut other, …)` returns the exclusive loan |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the primitives arrive as `@mutable i64` parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select(@mutable chosen, @mutable other, …)` returns the exclusive loan |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the copyable flag arrives from a match join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the flag is the named constant `DECIDE` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the primitives and returns the loan |
@@ -106,8 +106,8 @@ row.
 ### Specification and Lowering Layers
 
 1. **Establishment:** The loan is established where it originates: the single
-   evaluation `choose(&mut visits)` fixes the selected arm (`requires counter
-   == 0` / `ensures result == true`), and the arm expression `&mut chosen`
+   evaluation `choose(@mutable visits)` fixes the selected arm (`requires counter
+   == 0` / `ensures result == true`), and the arm expression `@mutable chosen`
    (a primitive place, a field, a parameter, a call result, a join, a const
    value, or a nested machine's parameter) forms the exclusive loan bound by the
    match join. No caller equality guard substitutes for the loan.

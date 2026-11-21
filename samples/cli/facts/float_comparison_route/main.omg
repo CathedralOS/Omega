@@ -2,9 +2,9 @@
 // Place: root. The entry machine holds both operands and the comparison result as locals.
 // Expected exit: 0
 machine main() crashes Trap {
-    let mut left: f64 = 212.0;
-    let mut right: f64 = 2.0;
-    let mut equal: bool = left == right;
+    let mutable left: f64 = 212.0;
+    let mutable right: f64 = 2.0;
+    let mutable equal: bool = left == right;
     transition equal { true -> bad(), _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }

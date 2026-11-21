@@ -1422,7 +1422,7 @@ mod tests {
                 let view: @[u8] = @buffer.storage[..];
             }
             machine indexed(buffer: @Buffer) -> u8 { buffer.storage[0u64] }
-            machine direct(items: @mut [u8; 4] in Marked) {
+            machine direct(items: @mutable [u8; 4] in Marked) {
                 let view: @[u8] = @items[..];
             }
         "#,
@@ -1840,9 +1840,9 @@ mod tests {
             ),
             (
                 "client.omg",
-                "machine ordinary(bytes: @mut [u8; 3]) { kit\\pick(bytes[..]); } \
-                 machine exclusive(bytes: @mut [u8; 3]) { sink(@mut bytes[..]); } \
-                 machine sink(value: @mut [u8]) {}",
+                "machine ordinary(bytes: @mutable [u8; 3]) { kit\\pick(bytes[..]); } \
+                 machine exclusive(bytes: @mutable [u8; 3]) { sink(@mutable bytes[..]); } \
+                 machine sink(value: @mutable [u8]) {}",
             ),
         ])
         .expect("the source retains its range and written borrow");
@@ -1912,7 +1912,7 @@ mod tests {
             public machine pick(value: u32) -> u32 { value }
             public machine pick(value: u64) -> u64 { value }
             public machine borrow(value: @u32) {}
-            public machine borrow(value: @mut u32) {}
+            public machine borrow(value: @mutable u32) {}
             public machine array(values: [u32]) {}
             public machine array(values: [u64]) {}
             public machine view(values: @[u32]) {}
@@ -1927,7 +1927,7 @@ mod tests {
             machine statement(value: u64) { kit\pick(value); }
             machine terminal(value: u32) -> u32 { transition { _ -> kit\pick(value) } }
             machine shared(value: @u32) { kit\borrow(value); }
-            machine exclusive(value: @mut u32) { kit\borrow(value); }
+            machine exclusive(value: @mutable u32) { kit\borrow(value); }
             machine array_value(value: u64) { kit\array([value]); }
             machine slice_view(value: @[u32]) { kit\view(value); }
             machine before_local(value: u32) { kit\pick(value); let kit: u32 = 0; }
@@ -2233,7 +2233,7 @@ mod tests {
             machine stored<'text>(value: kit\Payload<'text>) -> u32 { kit\choose(value) }
             machine shared(value: @u32) -> u32 { kit\choose(value) }
             machine incompatible(value: bool) -> u32 { kit\choose(value) }
-            machine access_mismatch(value: @mut u32) -> u32 { kit\choose(value) }
+            machine access_mismatch(value: @mutable u32) -> u32 { kit\choose(value) }
         "#;
         let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("select actual lifetime-bound headers from their argument carriers");
@@ -2296,7 +2296,7 @@ mod tests {
             public machine pick(value: u32) -> u32 { value }
             public machine pick(value: u64) -> u64 { value }
             public machine borrow(value: @u32) {}
-            public machine borrow(value: @mut u32) {}
+            public machine borrow(value: @mutable u32) {}
             public machine domain_value(value: u32 in Tagged) {}
             public machine domain_value(value: u32 in OtherTagged) {}
             public machine view(values: @[u32]) {}

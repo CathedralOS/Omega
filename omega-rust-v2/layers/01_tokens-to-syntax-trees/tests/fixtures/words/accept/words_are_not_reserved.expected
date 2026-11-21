@@ -73,7 +73,7 @@ File
         ';'
       Let
         'let'
-        BindingPattern 'mut'
+        BindingPattern 'mutable'
         '='
         PathExpression 'move'
         ';'
@@ -113,7 +113,7 @@ File
         Binary
           PathExpression 'if'
           '+'
-          PathExpression 'mut'
+          PathExpression 'mutable'
         ';'
       Assign
         PathExpression 'match'
@@ -159,13 +159,13 @@ File
       '{'
       Let
         'let'
-        'mut'
-        BindingPattern 'mut'
+        'mutable'
+        BindingPattern 'mutable'
         '='
         PathExpression 'move'
         ';'
       Tail
-        PathExpression 'mut'
+        PathExpression 'mutable'
       '}'
   Data
     'data'

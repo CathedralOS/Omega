@@ -164,7 +164,7 @@ mod tests {
         std::fs::write(&main, "machine main() {}\n").expect("stage Product source");
         std::fs::write(
             root.join("build.omg"),
-            "machine build(builder: @mut Build) {}",
+            "machine build(builder: @mutable Build) {}",
         )
         .expect("stage the ordinary Build entry");
         let mut timings = artifacts::compile_timings::CompileTimings::default();

@@ -10,7 +10,7 @@ fixed `[u8; 8]` byte keys.
 
 The driver builds an integer table — inserts 5/21/37, removes 21 (tombstone),
 inserts 53 and overwrites 37 — then a byte-keyed table with the same pattern.
-Every operand is an anonymous shared borrow (`&5`, `&[65,0,…]`), exercising
+Every operand is an anonymous shared borrow (`&5`, `@[65,0,…]`), exercising
 expression-rooted temporary retention through machine-parameter calls.
 
 Oracle: every lookup must return its expected value and the live counts must

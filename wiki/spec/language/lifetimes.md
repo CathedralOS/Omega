@@ -14,7 +14,7 @@ repacking cannot extend those lifetimes. See [some packages](some_packages.md).
 
 Lifetime binders use tick spelling in the declaration's `<>` list alongside
 type, const and static-machine parameters. A reference places its lifetime
-before its access modifier: `@'buffer T`, `@'buffer mut T`, or
+before its access modifier: `@'buffer T`, `@'buffer mutable T`, or
 `@'buffer write T`. Borrow-carrying data declares the lifetimes of its views:
 
 ```omega

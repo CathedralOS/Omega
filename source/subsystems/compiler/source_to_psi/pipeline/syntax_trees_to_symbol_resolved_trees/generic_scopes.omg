@@ -90,19 +90,19 @@ machine same_generic_coordinate(left: GenericCoordinate, right: GenericCoordinat
 // declaration it may not use a builtin type spelling: `machine pick<u32>`
 // would otherwise make `u32` in its signature mean the binder. A value,
 // machine or proposition binder may, because it never competes with a type.
-public machine check_generic_names(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope)
+public machine check_generic_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, 0) }
 
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count {
             true -> named(resolver, sources, syntax, scope, offset),
             _ -> done()
         }
     }
 
-    machine named(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine named(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.kind == GenericParameterKind::Type {
             true -> type_binder(resolver, sources, syntax, scope, offset, parameter.name),
@@ -110,7 +110,7 @@ crashes Trap
         }
     }
 
-    machine type_binder(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine type_binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan) {
         let builtin: bool = builtin_type_spelling(sources, name.source_span);
         transition builtin {
             true -> shadow(resolver, name),
@@ -118,18 +118,18 @@ crashes Trap
         }
     }
 
-    machine shadow(resolver: @mut Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::ShadowsBuiltin, name.source_span);
+    machine shadow(resolver: @mutable Resolver, name: IdentifierSpan) {
+        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::ShadowsBuiltin, name.source_span);
     }
 
-    machine prior(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
+    machine prior(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
         transition earlier < offset {
             true -> compare(resolver, sources, syntax, scope, offset, name, earlier),
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
 
-    machine compare(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
+    machine compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
         let earlier_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + earlier);
         let equal: bool = spans_equal(sources, name.source_span,
             earlier_parameter.name.source_span
@@ -140,8 +140,8 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: @mut Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::DuplicateGenericParameter, name.source_span);
+    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
+        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateGenericParameter, name.source_span);
     }
 
     machine done() {}
@@ -154,19 +154,19 @@ crashes Trap
 // type would reject the trait name and would also hide that the binder
 // selects code. Earlier binders of the same telescope are already in scope,
 // so `Reading<Value>` sees `Value` whether it was declared before `Reader`.
-public machine bind_generic_annotations(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool)
+public machine bind_generic_annotations(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, 0) }
 
-    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
+    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count && resolver.output.accepted {
             true -> annotation(resolver, sources, syntax, scope, trait_parameters, offset),
             _ -> done()
         }
     }
 
-    machine annotation(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
+    machine annotation(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
             true -> role(resolver, sources, syntax, scope, trait_parameters, offset, parameter),
@@ -174,7 +174,7 @@ crashes Trap
         }
     }
 
-    machine role(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping, parameter: GenericParameter) {
+    machine role(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping, parameter: GenericParameter) {
         let role: TypeRole = generic_annotation_role(parameter.kind, trait_parameters);
         bind_type_reference(resolver, sources, syntax, scope, parameter.type_reference, role);
         transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, offset + 1) }

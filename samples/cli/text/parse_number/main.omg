@@ -25,7 +25,7 @@ data Main {
     value: i32;
 }
 
-machine main(main: @mut Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("parse_number: reading the two-digit text 25 back into an integer");
     main.text = "25";
 
@@ -37,16 +37,16 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     transition { _ -> block done(main) }
 
-    machine done(main: @mut Main) {
+    machine done(main: @mutable Main) {
         Console::write_line("result: the parsed value, 25 for this text (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mut main.pause[..]);
+        _ = block Console::read_line(@mutable main.pause[..]);
         ProcessExit::exit_process(main.value);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

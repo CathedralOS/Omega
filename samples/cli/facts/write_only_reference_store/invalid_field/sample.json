@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "permits replacement or exact `&write` forwarding, never observation"
+    "permits replacement or exact `@write` forwarding, never observation"
   ]
 }

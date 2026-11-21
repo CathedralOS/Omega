@@ -12,15 +12,15 @@ use model\registration\solve;
 use io\output;
 use io\output\emit;
 data Main { }
-machine main(main: @mut Main) reaches ProcessExit + Console {
-    let mut raw: Raw;
-    let accepted: bool = block read(@mut raw);
+machine main(main: @mutable Main) reaches ProcessExit + Console {
+    let mutable raw: Raw;
+    let accepted: bool = block read(@mutable raw);
     transition accepted { true -> validate(@raw), false -> invalid() }
     machine validate(raw: @Raw) {
-        let mut problem: Problem;
-        transition decode(raw, @mut problem) { true -> fit(@mut problem), false -> invalid() }
+        let mutable problem: Problem;
+        transition decode(raw, @mutable problem) { true -> fit(@mutable problem), false -> invalid() }
     }
-    machine fit(problem: @mut Problem) {
+    machine fit(problem: @mutable Problem) {
         transition solve(problem) { true -> report(problem), false -> unidentified() }
     }
     machine report(problem: @Problem) { emit(problem); ProcessExit::exit_process(0); }
@@ -30,6 +30,6 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block main(@mutable entry_storage);
 }

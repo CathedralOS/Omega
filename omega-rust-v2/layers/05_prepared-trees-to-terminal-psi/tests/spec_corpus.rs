@@ -1261,7 +1261,7 @@ fn check_float_view_recast(package: &LoweredPackage) -> Result<(), String> {
     Ok(())
 }
 
-/// `clear(@mut counter)` writes zero into the caller's own `Counter::value`.
+/// `clear(@mutable counter)` writes zero into the caller's own `Counter::value`.
 fn check_explicit_mutable_argument(package: &LoweredPackage) {
     use omega_lowering::{CallArgument, CallTarget, CleanupAction, Parameter, PlaceProjection, ReferenceAccess};
     let machine = |path: &str| {

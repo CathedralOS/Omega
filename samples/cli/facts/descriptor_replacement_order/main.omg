@@ -8,13 +8,13 @@ machine observe<'storage>(bundle: @Bundle<'storage>) -> bool {
     bundle.entries[0].first.value == 41 && bundle.entries[0].second.value == 19
 }
 
-machine change<'storage>(bundle: @mut Bundle<'storage>, incoming: @'storage Cell) -> @'storage Cell {
+machine change<'storage>(bundle: @mutable Bundle<'storage>, incoming: @'storage Cell) -> @'storage Cell {
     bundle.entries[0].first = incoming;
     incoming
 }
 
-machine replace<'storage>(mut bundle: Bundle<'storage>, incoming: @'storage Cell) -> bool {
-    bundle.entries[0].first = change(@mut bundle, incoming);
+machine replace<'storage>(mutable bundle: Bundle<'storage>, incoming: @'storage Cell) -> bool {
+    bundle.entries[0].first = change(@mutable bundle, incoming);
     observe(@bundle)
 }
 

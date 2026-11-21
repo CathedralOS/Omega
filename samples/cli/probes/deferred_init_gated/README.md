@@ -3,7 +3,7 @@
 Depend-free compile-scope probe: deferred locals and gated nested records
 — the first sample declaring a primitive local without an initializer.
 
-- `let mut total: i32 in Wrapping;` binds storage first and assigns
+- `let mutable total: i32 in Wrapping;` binds storage first and assigns
   later; the local keeps its own storage through assignment and
   observation, then takes a compound `+=` step.
 - `Session` is a gated record (`retries <= 3`) nested inside `Registry`;

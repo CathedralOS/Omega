@@ -10,16 +10,16 @@ data ReadOutcome {
     case End(count: u64);
     case Full(count: u64);
 }
-machine receive(line: @mut [u8; 64]) -> ReadOutcome {
+machine receive(line: @mutable [u8; 64]) -> ReadOutcome {
     line[0] = 37;
     ReadOutcome::Complete { count: 5 }
 }
 machine main() -> u64 in Wrapping {
-    let mut application: Application;
-    transition { _ -> read(@mut application) }
-    machine read(application: @mut Application) -> u64 in Wrapping {
-        let mut line: [u8; 64];
-        let result: ReadOutcome = receive(@mut line);
+    let mutable application: Application;
+    transition { _ -> read(@mutable application) }
+    machine read(application: @mutable Application) -> u64 in Wrapping {
+        let mutable line: [u8; 64];
+        let result: ReadOutcome = receive(@mutable line);
         transition result {
             ReadOutcome::Complete { count } -> observe(application, @line, count),
             ReadOutcome::End { count } -> observe(application, @line, count),
@@ -27,7 +27,7 @@ machine main() -> u64 in Wrapping {
             ReadOutcome::Invalid -> (0)
         }
     }
-    machine observe(application: @mut Application, line: @[u8; 64], count: u64) -> u64 in Wrapping {
+    machine observe(application: @mutable Application, line: @[u8; 64], count: u64) -> u64 in Wrapping {
         application.ledger.count = count as u64 +Wrapping;
         ((line[0] as u64 +Wrapping) + application.ledger.count)
     }

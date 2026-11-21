@@ -158,7 +158,7 @@ boundary trait Fs {
 }
 machine read(value: @u8) -> u8 { $value }
 machine entry() -> u8 reaches Fs invokes Fs {
-    let mut token: Token = Token { bytes: [47u8, 61u8] };
+    let mutable token: Token = Token { bytes: [47u8, 61u8] };
     let view: @[u8] = Fs::path(@token);
     match view.length > 0u64 { true -> read(@view[0]), false -> 0u8 }
 }
@@ -191,17 +191,17 @@ fn a_provider_reference_keeps_its_declared_input_borrow_until_the_read() {
     let source = r#"
 data Token { id: u64; }
 boundary trait ErrorState { machine slot(token: @Token) -> @i32 reaches none crashes none; }
-machine read(other: @mut Token, slot: @i32) -> i32 { other.id = 4; slot }
+machine read(other: @mutable Token, slot: @i32) -> i32 { other.id = 4; slot }
 machine entry() -> i32 reaches ErrorState invokes ErrorState {
-    let mut token: Token = Token { id: 1 };
-    let mut other: Token = Token { id: 2 };
+    let mutable token: Token = Token { id: 1 };
+    let mutable other: Token = Token { id: 2 };
     let slot: @i32 = ErrorState::slot(@token);
-    read(@mut other, slot)
+    read(@mutable other, slot)
 }
 "#;
     assert_eq!(verdict(source), "accepted");
     let conflicts = match crate::checking::judge(elaborate(
-        &source.replace("read(@mut other, slot)", "read(@mut token, slot)"),
+        &source.replace("read(@mutable other, slot)", "read(@mutable token, slot)"),
     )) {
         Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts,
         other => panic!("the provider reference must keep token borrowed: {other:?}"),
@@ -287,19 +287,19 @@ data Token { id: u64; }
 boundary trait Fs { machine path(source: @Token) -> @[u8] reaches none crashes none; }
 machine helper(source: @Token) -> @[u8] reaches Fs invokes Fs { Fs::path(source) }
 machine see(bytes: @[u8]) {}
-machine use_path(other: @mut Token, bytes: @[u8]) { see(bytes); other.id = 4; }
+machine use_path(other: @mutable Token, bytes: @[u8]) { see(bytes); other.id = 4; }
 machine entry() reaches Fs invokes Fs {
-    let mut source: Token = Token { id: 1 };
-    let mut other: Token = Token { id: 2 };
+    let mutable source: Token = Token { id: 1 };
+    let mutable other: Token = Token { id: 2 };
     let bytes: @[u8] = helper(@source);
-    use_path(@mut other, bytes);
+    use_path(@mutable other, bytes);
     source.id = 9;
 }
 "#;
     assert_eq!(verdict(source), "accepted");
     let invalid = source.replace(
-        "use_path(@mut other, bytes)",
-        "use_path(@mut source, bytes)",
+        "use_path(@mutable other, bytes)",
+        "use_path(@mutable source, bytes)",
     );
     assert_ne!(source, invalid);
     let rejected = crate::checking::judge(elaborate(&invalid));
@@ -452,7 +452,7 @@ boundary trait Fs {{ machine echo(bytes: @[u8]) -> @[u8] reaches none crashes no
 machine pass(bytes: @[u8]) -> @[u8] reaches Fs invokes Fs {{ Fs::echo(bytes) }}
 machine see(bytes: @[u8]) {{ }}
 machine entry() reaches Fs invokes Fs {{
-    let mut name: [u8; 4] = [1, 2, 3, 4];
+    let mutable name: [u8; 4] = [1, 2, 3, 4];
     let rest: @[u8] = pass(@name[..]);
     {before}
     see(rest);
@@ -1185,7 +1185,7 @@ data View<'a> { bytes: @'a [u8]; }
 boundary trait Fs { machine path(view: View) -> @[u8] reaches none crashes none; }
 machine see(bytes: @[u8]) { }
 machine entry() reaches Fs invokes Fs {
-    let mut name: [u8; 4] = [1, 2, 3, 4];
+    let mutable name: [u8; 4] = [1, 2, 3, 4];
     let view: View = View { bytes: @name[..] };
     let path: @[u8] = Fs::path(view);
     see(path);

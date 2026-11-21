@@ -112,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 30,311 lines / 1,198,645 bytes with SHA-256
-`8dc0bee09f15dce0649a439f9998a00873af2e6d3c2ba93babb1cd9481b1bc52`.
+The manifest materializes 30,311 lines / 1,198,693 bytes with SHA-256
+`c3ccd816d4280a44a6eecd9c537f84546591dac966fcc83a7ccce15576fa1468`.
 The manifest itself is 2,905 bytes, SHA-256
-`b30642488d7f8aeb28564b76acdb233aa51cd0d56418a7aa4fabedac01f4b686`;
+`679a5405ac7bd96e470afc5c7ac33fc3154f949219e63de552354b34e3d3ed2c`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -834,8 +834,10 @@ argumented view, ranking ranges, the bare guarantee on ordinary machines,
 generic satisfies arguments, aliases, other external binding cases, and empty or
 installation-bound reach rows remain incomplete. The parameter list
 retains canonical optional `const` and leading
-`mut`, consuming or borrowed `self`, and shared/mutable/write-only
-binding-reference forms.
+`mutable`, consuming or borrowed `self`, and shared/mutable/write-only
+binding-reference forms. Omega writes these as `@T`, `@mutable T` and
+`@write T`. Borrow expressions use the same `@` marker. Binary `&`
+computes bitwise AND.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
 fields, case-payload fields, and immediate machine return types share one engine
 for bare named/Self/Unit, outer references, unqualified domains, inclusive
@@ -923,9 +925,9 @@ target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
 incomplete, and no body is skipped as opaque text.
-Local-data statements retain canonical `let [mut] name: Type [= expression];`
-syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
-immutable local named `mut`. Locals share the borrow-capable type engine and the
+Local-data statements retain canonical `let [mutable] name: Type [= expression];`
+syntax in a dedicated row. `mutable` is contextual, so `let mutable: T;` still binds an
+immutable local named `mutable`. Locals share the borrow-capable type engine and the
 same bounded expression reducer as assignments, including repeatable postfix
 indexing with path or decimal indexes and the same canonical range shapes;
 absent initializers are represented by an explicit presence bit rather than a

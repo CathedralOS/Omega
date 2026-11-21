@@ -1,7 +1,7 @@
 // Formals passed by reference and the loans a call forms for them.
 //
-//     machine bump(x: @mut u32) requires x < 10 { x = x + 1; }
-//     machine main() { let mut y: u32 = 3; bump(&mut y); }
+//     machine bump(x: @mutable u32) requires x < 10 { x = x + 1; }
+//     machine main() { let mutable y: u32 = 3; bump(@mutable y); }
 //
 // The callee reads and stores the caller's storage in place, its `requires`
 // names what that storage holds at entry, and the caller lends a home of its
@@ -125,7 +125,7 @@ pub(super) fn field(base: Expression, field: usize) -> Expression {
     )
 }
 
-/// `&place` or `&mut place`; `home` when the place is an SSA scalar local.
+/// `@place` or `@mutable place`; `home` when the place is an SSA scalar local.
 pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Expression {
     let result = place.result.unwrap();
     of(
@@ -204,7 +204,7 @@ fn referent_below_ten() -> Proposition {
     )
 }
 
-/// `machine bump(x: @mut u32) requires x < 10 { x = x + 1; }`
+/// `machine bump(x: @mutable u32) requires x < 10 { x = x + 1; }`
 fn bump() -> Lending {
     Lending {
         borrowed: vec![(0, ReferenceAccess::Mutable)],
@@ -506,7 +506,7 @@ fn loans_of_two_fields_of_one_record_do_not_conflict_but_of_a_field_and_its_reco
 
 #[test]
 fn an_exclusive_loan_changes_only_the_lent_field() {
-    // `setb(&mut q.a); q.b + 1` and `q.a + 1` after `q = Pair { a: MAX, b: 2 }`:
+    // `setb(@mutable q.a); q.b + 1` and `q.a + 1` after `q = Pair { a: MAX, b: 2 }`:
     // the sibling still holds 2, the lent field holds what the callee left.
     let after = |read: usize| Lending {
         locals: vec![pair()],
@@ -554,7 +554,7 @@ fn an_exclusive_loan_changes_only_the_lent_field() {
 
 #[test]
 fn a_borrowed_formal_passed_on_reborrows_its_incoming_loan() {
-    // `forward(v: &mut u32) { set(v) }` and `peek(v: &u32) { set(v) }`.
+    // `forward(v: @mutable u32) { set(v) }` and `peek(v: @u32) { set(v) }`.
     let forward = |access: ReferenceAccess| Lending {
         borrowed: vec![(0, access)],
         ..unit(
@@ -640,8 +640,8 @@ fn a_loan_row_the_lowered_form_does_not_owe_is_a_defect() {
 
 #[test]
 fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
-    // `machine main(c: bool) { let mut y: u32 = 3;
-    //   transition c { true -> set(&mut y) } y + 1; }`: the arm completes
+    // `machine main(c: bool) { let mutable y: u32 = 3;
+    //   transition c { true -> set(@mutable y) } y + 1; }`: the arm completes
     // the machine, so the continuation still reads the value `y` was bound
     // to, which every path establishes.
     let set = Lending {
@@ -703,18 +703,18 @@ fn a_selected_reference_result_needs_its_public_requirement_contract() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let text = r#"
 trait Handoff {
-    machine hand(source: @mut i64) -> @mut i64 crashes none;
+    machine hand(source: @mutable i64) -> @mutable i64 crashes none;
 }
 Direct satisfies Handoff {
-    machine hand(source: @mut i64) -> @mut i64 crashes none { source }
+    machine hand(source: @mutable i64) -> @mutable i64 crashes none { source }
 }
-machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
-    let child: @mut i64 = Chosen::hand(source);
+machine relay<Chosen satisfies Handoff>(source: @mutable i64) crashes none {
+    let child: @mutable i64 = Chosen::hand(source);
     $child = 41;
 }
 machine entry() crashes none {
-    let mut backing: i64 = 17;
-    relay::<Direct>(@mut backing);
+    let mutable backing: i64 = 17;
+    relay::<Direct>(@mutable backing);
 }
 "#;
     let typed =
@@ -1239,7 +1239,7 @@ fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
     );
 }
 
-/// `cell = Cell { .. }` replaces the record a live `&cell` observes, so the
+/// `cell = Cell { .. }` replaces the record a live `@cell` observes, so the
 /// checker must see that write. The positive twin uses the reference before
 /// the assignment and also reassigns a local, a declared local and an owned
 /// parameter after a whole move, a `[copy]` record, and a record whose
@@ -1436,11 +1436,11 @@ fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
             "data Pair {{ left: u32; right: u32; }}
 machine see(pair: @Pair) -> u32 {{ pair.left }}
 machine both(first: @Pair, second: @Pair) -> u32 {{ first.left }}
-machine relay(pair: @mut Pair) -> u32 {{ see(@mut pair) }}
+machine relay(pair: @mutable Pair) -> u32 {{ see(@mutable pair) }}
 machine watch(pair: @Pair) -> u32 {{ see(@pair) }}
 machine build_entry() {{
     let {binding}: Pair = Pair {{ left: 1, right: 2 }};
-    let mut other: Pair = Pair {{ left: 3, right: 4 }};
+    let mutable other: Pair = Pair {{ left: 3, right: 4 }};
     use({call});
     pair_left(pair.left);
 }}
@@ -1451,22 +1451,22 @@ machine pair_left(left: u32) {{ }}"
     // The loan as written, through a reference the machine holds, and beside
     // a loan of other storage.
     for call in [
-        "see(@mut pair)",
-        "relay(@mut pair)",
+        "see(@mutable pair)",
+        "relay(@mutable pair)",
         "watch(@pair)",
-        "both(@mut pair, @other)",
-        "both(@mut pair, @mut other)",
+        "both(@mutable pair, @other)",
+        "both(@mutable pair, @mutable other)",
     ] {
-        assert_eq!(verdict(&program("mut pair", call)), "accepted", "{call}");
+        assert_eq!(verdict(&program("mutable pair", call)), "accepted", "{call}");
     }
     // The place does not admit an exclusive loan.
     assert_eq!(
-        verdict(&program("pair", "see(@mut pair)")),
+        verdict(&program("pair", "see(@mutable pair)")),
         "call exclusive loan of an immutable binding while reading the body of `build_entry`"
     );
     // The exclusive loan overlaps another loan of its storage.
-    for call in ["both(@mut pair, @pair)", "both(@pair, @mut pair)"] {
-        let judged = judge_build(&program("mut pair", call));
+    for call in ["both(@mutable pair, @pair)", "both(@pair, @mutable pair)"] {
+        let judged = judge_build(&program("mutable pair", call));
         assert!(
             matches!(&judged,
                 Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
@@ -1478,13 +1478,13 @@ machine pair_left(left: u32) {{ }}"
     }
     // The other direction has no row: observation does not become mutation.
     assert!(
-        verdict(&program("mut pair", "relay(@pair)")).contains("lends only immutable access"),
+        verdict(&program("mutable pair", "relay(@pair)")).contains("lends only immutable access"),
         "{}",
-        verdict(&program("mut pair", "relay(@pair)"))
+        verdict(&program("mutable pair", "relay(@pair)"))
     );
 }
 
-/// `&mut item` written for a `&Item` formal is an exclusive formation that
+/// `@mutable item` written for a `@Item` formal is an exclusive formation that
 /// lends shared access (loans.md, "Reborrow lineage and access"). `cohort`
 /// places the shared reference `view`'s uses around that call.
 fn exclusive_formation_beside(cohort: &str) -> String {
@@ -1492,7 +1492,7 @@ fn exclusive_formation_beside(cohort: &str) -> String {
         "data Item {{ value: u32; }}
 machine observe(value: @Item) {{ }}
 machine build_entry() {{
-    let mut item: Item = Item {{ value: 3 }};
+    let mutable item: Item = Item {{ value: 3 }};
     let view: @Item = @item;
 {cohort}
 }}"
@@ -1502,7 +1502,7 @@ machine build_entry() {{
 #[test]
 fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
     let verdict = super::build_purpose::judge_build(&exclusive_formation_beside(
-        "    observe(@mut item);\n    observe(view);",
+        "    observe(@mutable item);\n    observe(view);",
     ))
     .unwrap();
     let RouteVerdict::Rejected { conflicts, .. } = verdict else {
@@ -1518,7 +1518,7 @@ fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
 fn an_exclusive_formation_for_a_shared_formal_follows_an_ended_cohort() {
     for cohort in [
         // The view's last use precedes the exclusive formation.
-        "    observe(view);\n    observe(@mut item);",
+        "    observe(view);\n    observe(@mutable item);",
         // An ordinary shared loan joins the live cohort.
         "    observe(@item);\n    observe(view);",
     ] {
@@ -1538,8 +1538,8 @@ fn a_shared_reference_formed_from_an_exclusive_loan_holds_it_exclusively() {
             "data Item {{ value: u32; }}
 machine observe(value: @Item) {{ }}
 machine build_entry() {{
-    let mut item: Item = Item {{ value: 3 }};
-    let view: @Item = @mut item;
+    let mutable item: Item = Item {{ value: 3 }};
+    let view: @Item = @mutable item;
 {uses}
 }}"
         )
@@ -1572,10 +1572,10 @@ machine build_entry() {{
 
 const HANDOFF: &str = "
 trait Handoff {
-    machine hand(source: @mut i64) -> @mut i64 crashes none;
+    machine hand(source: @mutable i64) -> @mutable i64 crashes none;
 }
 Direct satisfies Handoff {
-    machine hand(source: @mut i64) -> @mut i64 crashes none { source }
+    machine hand(source: @mutable i64) -> @mutable i64 crashes none { source }
 }
 ";
 
@@ -1634,8 +1634,8 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
     // selected call reads from its public header, and no body-origin row.
     // `relay`'s generic form keeps `source` exclusively lent while `child`
     // is live.
-    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
-    let child: @mut i64 = Chosen::hand(source);
+    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: @mutable i64) crashes none {
+    let child: @mutable i64 = Chosen::hand(source);
     $child = 41;
 }";
     let (form, discharged) = rigid_relay(ASSIGN);
@@ -1670,8 +1670,8 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
 
     // The negative twin writes the lent input while `child` is still used.
     let (_, discharged) = rigid_relay(
-        "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
-    let child: @mut i64 = Chosen::hand(source);
+        "machine relay<Chosen satisfies Handoff>(source: @mutable i64) crashes none {
+    let child: @mutable i64 = Chosen::hand(source);
     $source = 5;
     $child = 41;
 }",
@@ -1696,7 +1696,7 @@ fn a_returned_requirement_result_publishes_its_input_region() {
     // `source`'s region. The generic form publishes that region rather than
     // inventing an exact projection.
     let (form, discharged) = rigid_relay(
-        "machine relay<Chosen satisfies Handoff>(source: @mut i64) -> @mut i64 crashes none {
+        "machine relay<Chosen satisfies Handoff>(source: @mutable i64) -> @mutable i64 crashes none {
     Chosen::hand(source)
 }",
     );
@@ -1718,7 +1718,7 @@ fn a_returned_requirement_result_publishes_its_input_region() {
 /// selected call's result.
 fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
     let text = format!(
-        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: @mut i64) -> @mut i64 crashes none {{
+        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: @mutable i64) -> @mutable i64 crashes none {{
     Chosen::hand(source)
 }}
 {entry}"
@@ -1753,8 +1753,8 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let verdict = returned_relay(
         "machine entry() -> i64 crashes none {
-    let mut backing: i64 = 17;
-    let child: @mut i64 = relay::<Direct>(@mut backing);
+    let mutable backing: i64 = 17;
+    let child: @mutable i64 = relay::<Direct>(@mutable backing);
     $child = 41;
     backing
 }",
@@ -1784,8 +1784,8 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     // The negative twin writes `backing` while the returned `child` is live.
     let verdict = returned_relay(
         "machine entry() crashes none {
-    let mut backing: i64 = 17;
-    let child: @mut i64 = relay::<Direct>(@mut backing);
+    let mutable backing: i64 = 17;
+    let child: @mutable i64 = relay::<Direct>(@mutable backing);
     backing = 5;
     $child = 41;
 }",

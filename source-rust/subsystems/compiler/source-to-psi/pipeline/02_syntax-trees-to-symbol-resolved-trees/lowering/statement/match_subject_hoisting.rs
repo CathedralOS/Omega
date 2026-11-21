@@ -169,9 +169,9 @@ pub(crate) fn hoist_comparison_match_subject(
 /*
     Whether `expression` is a member read through a SHARED reference-to-struct
     parameter of the current state (`table.con_out` with `table:
-    &EfiSystemTable`) -- the shape whose flat fold reads frame garbage. The
+    @EfiSystemTable`) -- the shape whose flat fold reads frame garbage. The
     receiver must be a bare single-segment name matching one of the recorded
-    `&Named` params.
+    `@Named` params.
 */
 pub(crate) fn is_reference_struct_parameter_member(
     lowerer: &Lowerer,

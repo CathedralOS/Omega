@@ -24,16 +24,16 @@ requires
     player.health
 }
 
-machine Main::main(main: @mut Main) {
-    let mut copy: Player = HERO;
+machine Main::main(main: @mutable Main) {
+    let mutable copy: Player = HERO;
     main.observed = Main::inspect(copy);
 }
 
 machine entry() crashes Trap {
-    let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(@mut a);
-    let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(@mut b);
+    let mutable a: Main = Main { player: Player { health: 42 }, observed: 0 };
+    Main::main(@mutable a);
+    let mutable b: Main = Main { player: Player { health: 1 }, observed: 0 };
+    Main::main(@mutable b);
     transition a.observed == 3 && b.observed == 3 {
         true -> done(),
         _ -> bad()

@@ -870,8 +870,8 @@ fn a_local_borrow_keeps_its_backing_storage_in_the_public_plan() {
 data Cell { mark: u32; }
 public machine may_wait() -> u32 suspends { 7u32 }
 machine main() -> bool suspends {
-    let mut cell: Cell = Cell { mark: 3u32 };
-    let held: @mut Cell = @mut cell;
+    let mutable cell: Cell = Cell { mark: 3u32 };
+    let held: @mutable Cell = @mutable cell;
     let seven: u32 = suspend may_wait();
     held.mark = seven;
     cell.mark == 7u32
@@ -887,8 +887,8 @@ fn storing_a_scalar_through_a_loan_keeps_its_backing_in_the_public_plan() {
         r#"
 public machine may_wait() -> u32 suspends { 7u32 }
 machine main() -> bool suspends {
-    let mut amount: u32 = 3u32;
-    let held: @mut u32 = @mut amount;
+    let mutable amount: u32 = 3u32;
+    let held: @mutable u32 = @mutable amount;
     let seven: u32 = suspend may_wait();
     $held = seven;
     amount == 7u32
@@ -904,8 +904,8 @@ fn a_fixed_array_element_loan_retains_its_exact_index_in_the_public_plan() {
         r#"
 public machine may_wait() -> u32 suspends { 7u32 }
 machine main() -> bool suspends {
-    let mut amounts: [u32; 2] = [3u32, 9u32];
-    let held: @mut u32 = @mut amounts[0u64];
+    let mutable amounts: [u32; 2] = [3u32, 9u32];
+    let held: @mutable u32 = @mutable amounts[0u64];
     let seven: u32 = suspend may_wait();
     $held = seven;
     amounts[0u64] == 7u32

@@ -7,44 +7,44 @@ use omega\language\core\narrow_i32_to_u32_saturating;
 use omega\language\core\narrow_u32_to_i32_saturating;
 use omega\language\core\F64::from_u64;
 public data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
-machine digits(coefficient:u64 in Wrapping,result:@mut Digits) {
+machine digits(coefficient:u64 in Wrapping,result:@mutable Digits) {
  result.length=0;
  transition { _ -> read(coefficient,result) }
- machine read(coefficient:u64 in Wrapping,result:@mut Digits) {
+ machine read(coefficient:u64 in Wrapping,result:@mutable Digits) {
   transition coefficient > 0 && result.length < 36 { true -> append(coefficient,result), false -> done() }
  }
- machine append(coefficient:u64 in Wrapping,result:@mut Digits) {
+ machine append(coefficient:u64 in Wrapping,result:@mutable Digits) {
   result.values[result.length%36]=coefficient%10;
   result.length=result.length+1;
   transition { _ -> read(coefficient/10,result) }
  }
  machine done() { }
 }
-machine multiply(left:@Digits,right:@Digits,result:@mut Digits) {
+machine multiply(left:@Digits,right:@Digits,result:@mutable Digits) {
  transition { _ -> outer(left,right,result,0) }
- machine outer(left:@Digits,right:@Digits,result:@mut Digits,index:u32 in Saturating) {
+ machine outer(left:@Digits,right:@Digits,result:@mutable Digits,index:u32 in Saturating) {
   transition index < left.length { true -> inner(left,right,result,index,0,0), false -> length(result,36) }
  }
- machine inner(left:@Digits,right:@Digits,result:@mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+ machine inner(left:@Digits,right:@Digits,result:@mutable Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
   transition offset < right.length { true -> cell(left,right,result,index,offset,carry), false -> carry(left,right,result,index,offset,carry) }
  }
- machine cell(left:@Digits,right:@Digits,result:@mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+ machine cell(left:@Digits,right:@Digits,result:@mutable Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
   let total:u64 in Wrapping=result.values[(index+offset)%36]+left.values[index%36]*right.values[offset%36]+carry;
   result.values[(index+offset)%36]=total%10;
   transition { _ -> inner(left,right,result,index,offset+1,total/10) }
  }
- machine carry(left:@Digits,right:@Digits,result:@mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+ machine carry(left:@Digits,right:@Digits,result:@mutable Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
   result.values[(index+offset)%36]=carry;
   transition { _ -> outer(left,right,result,index+1) }
  }
- machine length(result:@mut Digits,length:u32 in Saturating) {
+ machine length(result:@mutable Digits,length:u32 in Saturating) {
   transition length > 0 { true -> last(result,length), false -> zero(result) }
  }
- machine last(result:@mut Digits,length:u32 in Saturating) {
+ machine last(result:@mutable Digits,length:u32 in Saturating) {
   transition result.values[(length-1)%36] == 0 { true -> length(result,length-1), false -> finish(result,length) }
  }
- machine finish(result:@mut Digits,length:u32 in Saturating) { result.length=length; }
- machine zero(result:@mut Digits) { result.length=0; }
+ machine finish(result:@mutable Digits,length:u32 in Saturating) { result.length=length; }
+ machine zero(result:@mutable Digits) { result.length=0; }
 }
 machine significant(number:@Digits,offset:u32 in Saturating) -> u64 in Wrapping {
  transition offset < number.length { true -> digit(number,offset), false -> zero() }
@@ -53,11 +53,11 @@ machine significant(number:@Digits,offset:u32 in Saturating) -> u64 in Wrapping 
 }
 // -1 means stable below one,0 exactly one,+1 unstable above one.
 public machine classify(input:@io\input\Input) -> i32 in Wrapping {
- let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
- digits(input.coefficients[2],@mut speed);
- digits(input.coefficients[4],@mut duration);
- digits(input.coefficients[3],@mut spacing);
- multiply(@speed,@duration,@mut product);
+ let mutable speed:Digits; let mutable duration:Digits; let mutable spacing:Digits; let mutable product:Digits;
+ digits(input.coefficients[2],@mutable speed);
+ digits(input.coefficients[4],@mutable duration);
+ digits(input.coefficients[3],@mutable spacing);
+ multiply(@speed,@duration,@mutable product);
  compare_digits(@product,input.powers[2]+input.powers[4],@spacing,input.powers[3])
 }
 // Compute the other convex weight before rounding can cancel it. When the
@@ -66,11 +66,11 @@ public machine classify(input:@io\input\Input) -> i32 in Wrapping {
 // their digits first. A36-digit product can need a37th spacing digit here.
 // Only the positive difference and denominator are converted to f64.
 public machine complement(input:@io\input\Input,rounded_fraction:f64) -> f64 {
- let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
- digits(input.coefficients[2],@mut speed);
- digits(input.coefficients[4],@mut duration);
- digits(input.coefficients[3],@mut spacing);
- multiply(@speed,@duration,@mut product);
+ let mutable speed:Digits; let mutable duration:Digits; let mutable spacing:Digits; let mutable product:Digits;
+ digits(input.coefficients[2],@mutable speed);
+ digits(input.coefficients[4],@mutable duration);
+ digits(input.coefficients[3],@mutable spacing);
+ multiply(@speed,@duration,@mutable product);
  complementary_digits(@product,input.powers[2]+input.powers[4],@spacing,input.powers[3],rounded_fraction)
 }
 machine complementary_digits(product:@Digits,product_power:i32 in Wrapping,spacing:@Digits,spacing_power:i32 in Wrapping,rounded_fraction:f64) -> f64 {
@@ -124,8 +124,8 @@ machine subtract(product:@Digits,product_shift:i32 in Wrapping,spacing:@Digits,s
 }
 // Compare exact nonnegative decimals, including distinct spellings and zero.
 public machine compare_decimal(left:u64 in Wrapping,left_power:i32 in Wrapping,right:u64 in Wrapping,right_power:i32 in Wrapping) -> i32 in Wrapping {
- let mut first:Digits; let mut second:Digits;
- digits(left,@mut first); digits(right,@mut second);
+ let mutable first:Digits; let mutable second:Digits;
+ digits(left,@mutable first); digits(right,@mutable second);
  compare_digits(@first,left_power,@second,right_power)
 }
 machine compare_digits(product:@Digits,left_power:i32 in Wrapping,spacing:@Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {

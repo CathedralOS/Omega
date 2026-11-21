@@ -10,7 +10,7 @@ use omega\language\core\widen_u32_to_u64;
 use omega_language_std\targets\macos_arm64\filesystem_abi;
 
 public boundary trait StatExchange {
-    machine fill(value: @mut DarwinStat) reaches none crashes none;
+    machine fill(value: @mutable DarwinStat) reaches none crashes none;
     machine check(value: @DarwinStat) -> u64 reaches none crashes none;
     machine extent() -> u64 reaches none crashes none;
     machine alignment() -> u64 reaches none crashes none;
@@ -30,7 +30,7 @@ machine inspect(record: DarwinStat) reaches StatExchange crashes Trap {
     machine bad() { crash Trap; }
 }
 machine main() reaches StatExchange crashes Trap {
-    let mut record: DarwinStat;
+    let mutable record: DarwinStat;
     record.dev = 0i32;
     record.mode = 0u16;
     record.nlink = 0u16;
@@ -54,6 +54,6 @@ machine main() reaches StatExchange crashes Trap {
     record.reserved = 0i32;
     record.spare[0] = 0i64;
     record.spare[1] = 0i64;
-    StatExchange::fill(@mut record);
+    StatExchange::fill(@mutable record);
     inspect(record);
 }

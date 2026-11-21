@@ -31,7 +31,7 @@ public data TypeFrame [copy] {
 
 // The one type grammar every type position shares:
 //
-//     type     = `&` [`'` tag] [`mut`] type
+//     type     = `@` [`'` tag] [`mutable`] type
 //              | `[` type [`;` length] `]` [`in` Domain]
 //              | Name [`<` argument {`,` argument} `>`] [`in` Domain]
 //     argument = `'` tag | type | integer
@@ -39,14 +39,14 @@ public data TypeFrame [copy] {
 //     Domain   = Name {`::` Name}
 //
 // Types nest, so the grammar keeps an explicit frame stack instead of
-// recursing: `&`, `[` and `Name<` each open a frame, and each completed type
+// recursing: `@`, `[` and `Name<` each open a frame, and each completed type
 // closes the frames above it until one still expects more input. Every row
 // is appended after its children, so one type fills a contiguous run of
 // `SyntaxTrees::type_references` that ends at its root, and every row records
 // where its own run begins. The root's handle lands in `type_result` and its
 // source end in `type_end`. `missing` is the caller's diagnostic for an absent
 // type; nested positions use the array and static-argument diagnostics.
-public machine parse_type_reference(parser: @mut Parser, input: @TokenStream, missing: ParseDiagnosticCode)
+public machine parse_type_reference(parser: @mutable Parser, input: @TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
     parser.type_frame_depth = 0;
@@ -55,7 +55,7 @@ crashes Trap
     // The start of one type: open frames for its prefixes, then read its name.
     // Among a list's arguments, `'tag` is a lifetime argument, which is no
     // type and leaves no row.
-    machine operand(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine operand(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         let reference: bool = at_punctuation(parser, input, PunctuationKind::At);
         let tick: bool = at_punctuation(parser, input, PunctuationKind::Apostrophe);
         let argument: bool = in_type_arguments(parser)
@@ -66,14 +66,14 @@ crashes Trap
         }
     }
 
-    machine operand_type(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode, reference: bool) {
+    machine operand_type(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode, reference: bool) {
         transition reference {
             true -> reference_open(parser, input, code),
             _ -> array_word(parser, input, code)
         }
     }
 
-    machine lifetime_argument(parser: @mut Parser, input: @TokenStream) {
+    machine lifetime_argument(parser: @mutable Parser, input: @TokenStream) {
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedLifetimeName);
         transition parser.output.accepted {
@@ -82,7 +82,7 @@ crashes Trap
         }
     }
 
-    machine lifetime_staged(parser: @mut Parser, input: @TokenStream) {
+    machine lifetime_staged(parser: @mutable Parser, input: @TokenStream) {
         let tag: IdentifierSpan = identifier_span(parser, parser.name_start, parser.name_end);
         let listed: bool = in_type_arguments(parser);
         push_type_lifetime(parser, input, tag);
@@ -93,7 +93,7 @@ crashes Trap
     }
 
     // Lifetime arguments precede the other arguments of a list.
-    machine lifetime_listed(parser: @mut Parser, input: @TokenStream) {
+    machine lifetime_listed(parser: @mutable Parser, input: @TokenStream) {
         let frame: TypeFrame = top_type_frame(parser);
         let staged: u64 in Trapping = parser.pending_type_argument_count as +Trapping;
         transition staged == frame.first_argument {
@@ -103,19 +103,19 @@ crashes Trap
     }
 
     // A static argument that is a lifetime: no row results.
-    machine lifetime_static(parser: @mut Parser, input: @TokenStream) {
+    machine lifetime_static(parser: @mutable Parser, input: @TokenStream) {
         transition parser.output.accepted {
             true -> lifetime_only(parser),
             _ -> done()
         }
     }
 
-    machine lifetime_only(parser: @mut Parser) {
+    machine lifetime_only(parser: @mutable Parser) {
         parser.type_result = 0;
         parser.type_lifetime_argument = true;
     }
 
-    machine array_word(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine array_word(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         let array: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition array {
             true -> array_open(parser, input),
@@ -124,7 +124,7 @@ crashes Trap
     }
 
     // An integer is a static argument; it is a type only inside `<...>`.
-    machine literal_word(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine literal_word(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         let integer: bool = at_integer(parser, input);
         let argument: bool = in_type_arguments(parser)
             || parser.type_static_argument && parser.type_frame_depth == 0;
@@ -134,9 +134,9 @@ crashes Trap
         }
     }
 
-    // `&`, then an optional lifetime tag `'tag` before the access modifier
+    // `@`, then an optional lifetime tag `'tag` before the access modifier
     // (wiki/spec/language/lifetimes.md#binders-and-source-applications).
-    machine reference_open(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine reference_open(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
         let tick: bool = at_punctuation(parser, input, PunctuationKind::Apostrophe);
@@ -147,7 +147,7 @@ crashes Trap
         }
     }
 
-    machine reference_lifetime(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping, code: ParseDiagnosticCode) {
+    machine reference_lifetime(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping, code: ParseDiagnosticCode) {
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedLifetimeName);
         let tag: IdentifierSpan = identifier_span(parser, parser.name_start, parser.name_end);
@@ -158,38 +158,38 @@ crashes Trap
     }
 
     machine reference_access(
-        parser: @mut Parser,
+        parser: @mutable Parser,
         input: @TokenStream,
         start: u64 in Trapping,
         code: ParseDiagnosticCode,
         has_lifetime: bool,
         lifetime: IdentifierSpan
     ) {
-        let mutable: bool = at_word(parser, input, "mut");
+        let marked_mutable: bool = at_word(parser, input, "mutable");
         let write_only: bool = at_word(parser, input, "write");
         let opened: TypeFrame = type_frame(parser, TypeFrameKind::Reference, ReferenceAccess::Shared, start);
         let frame: TypeFrame = lifetime_frame(opened, has_lifetime, lifetime);
-        transition mutable {
+        transition marked_mutable {
             true -> accessed(parser, input, frame, code, ReferenceAccess::Mutable),
             _ -> unqualified(parser, input, frame, code, write_only)
         }
     }
 
-    machine unqualified(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, write_only: bool) {
+    machine unqualified(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, write_only: bool) {
         transition write_only {
             true -> accessed(parser, input, frame, code, ReferenceAccess::WriteOnly),
             _ -> push(parser, input, frame, code)
         }
     }
 
-    // `mut` lends exclusively; `write` lends exclusively without observation.
-    machine accessed(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, access: ReferenceAccess) {
+    // `mutable` lends exclusively; `write` lends exclusively without observation.
+    machine accessed(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, access: ReferenceAccess) {
         take_current(parser, input);
         let qualified: TypeFrame = frame_access(frame, access);
         transition { _ -> push(parser, input, qualified, code) }
     }
 
-    machine array_open(parser: @mut Parser, input: @TokenStream) {
+    machine array_open(parser: @mutable Parser, input: @TokenStream) {
         take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
         transition {
@@ -199,22 +199,22 @@ crashes Trap
         }
     }
 
-    machine push(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
+    machine push(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
         transition parser.type_frame_depth < 16 {
             true -> pushed(parser, input, frame, code),
             _ -> reject(parser, input, ParseDiagnosticCode::TypeNestingCapacityExceeded)
         }
     }
 
-    machine pushed(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
+    machine pushed(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
         parser.type_frames[parser.type_frame_depth] = frame;
         parser.type_frame_depth = parser.type_frame_depth + 1;
         transition { _ -> operand(parser, input, code) }
     }
 
-    machine literal(parser: @mut Parser, input: @TokenStream) {
+    machine literal(parser: @mutable Parser, input: @TokenStream) {
         let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
-        let mut row: TypeReference = type_row(parser, TypeReferenceKind::Literal,
+        let mutable row: TypeReference = type_row(parser, TypeReferenceKind::Literal,
             parser.token_start, parser.token_end, parser.token_start, parser.token_end);
         row.literal = literal_handle;
         transition parser.output.accepted {
@@ -223,7 +223,7 @@ crashes Trap
         }
     }
 
-    machine name(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine name(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         expect_name(parser, input, code);
         transition parser.output.accepted {
             true -> path(parser, input, parser.name_start),
@@ -233,7 +233,7 @@ crashes Trap
 
     // `a\b\Name` names one declaration through its path; the row's name
     // spans the whole path.
-    machine path(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping) {
+    machine path(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping) {
         let qualified: bool = at_path_separator(parser, input);
         transition qualified {
             true -> path_member(parser, input, start),
@@ -241,7 +241,7 @@ crashes Trap
         }
     }
 
-    machine path_member(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping) {
+    machine path_member(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping) {
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
@@ -250,7 +250,7 @@ crashes Trap
         }
     }
 
-    machine named(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping) {
+    machine named(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping) {
         let end: u64 in Trapping = parser.name_end;
         let applied: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition applied {
@@ -259,12 +259,12 @@ crashes Trap
         }
     }
 
-    machine named_row(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+    machine named_row(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
         let row: TypeReference = type_row(parser, TypeReferenceKind::Named, start, end, start, end);
         transition { _ -> domain(parser, input, row) }
     }
 
-    machine arguments_open(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+    machine arguments_open(parser: @mutable Parser, input: @TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
         take_current(parser, input);
         let frame: TypeFrame = type_frame(parser, TypeFrameKind::Arguments, ReferenceAccess::Shared, start);
         transition { _ -> push(parser, input, named_frame(frame, end), ParseDiagnosticCode::ExpectedStaticArgument) }
@@ -274,7 +274,7 @@ crashes Trap
     // the domain may be a path such as a case's implied domain `Type::Case`:
     // its last member is the qualifier's own name and the members before it
     // its owner path.
-    machine domain(parser: @mut Parser, input: @TokenStream, row: TypeReference) {
+    machine domain(parser: @mutable Parser, input: @TokenStream, row: TypeReference) {
         let qualified: bool = at_word(parser, input, "in");
         transition qualified {
             true -> domain_name(parser, input, row),
@@ -282,7 +282,7 @@ crashes Trap
         }
     }
 
-    machine domain_name(parser: @mut Parser, input: @TokenStream, row: TypeReference) {
+    machine domain_name(parser: @mutable Parser, input: @TokenStream, row: TypeReference) {
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
         transition parser.output.accepted {
@@ -293,7 +293,7 @@ crashes Trap
 
     // The path so far runs from `start`; its members before the latest end
     // at `owner_end`, which is `start` while it has one member.
-    machine domain_path(parser: @mut Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
+    machine domain_path(parser: @mutable Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         let separated: bool = at_path_separator(parser, input);
         transition separated {
             true -> domain_member(parser, input, row, start, parser.name_end),
@@ -301,7 +301,7 @@ crashes Trap
         }
     }
 
-    machine domain_member(parser: @mut Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
+    machine domain_member(parser: @mutable Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
@@ -310,21 +310,21 @@ crashes Trap
         }
     }
 
-    machine qualified(parser: @mut Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
+    machine qualified(parser: @mutable Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         let domain: IdentifierSpan = identifier_span(parser, parser.name_start, parser.name_end);
         let owner: IdentifierSpan = identifier_span(parser, start, owner_end);
         let span: SourceSpan = parser_source_span(parser, row.source_span.span.start, parser.name_end);
         transition { _ -> append(parser, input, with_domain(row, owner_end > start, owner, domain, span)) }
     }
 
-    machine append(parser: @mut Parser, input: @TokenStream, row: TypeReference) {
+    machine append(parser: @mutable Parser, input: @TokenStream, row: TypeReference) {
         transition parser.output.type_reference_count < 65536 {
             true -> appended(parser, input, row),
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
     }
 
-    machine appended(parser: @mut Parser, input: @TokenStream, row: TypeReference) {
+    machine appended(parser: @mutable Parser, input: @TokenStream, row: TypeReference) {
         parser.type_result = parser.output.type_reference_count as +Trapping;
         parser.type_end = row.source_span.span.end;
         parser.output.type_references[parser.output.type_reference_count] = row;
@@ -333,19 +333,19 @@ crashes Trap
     }
 
     // A type just completed: hand it to the innermost open frame.
-    machine complete(parser: @mut Parser, input: @TokenStream) {
+    machine complete(parser: @mutable Parser, input: @TokenStream) {
         transition parser.type_frame_depth > 0 {
             true -> innermost(parser, input),
             _ -> done()
         }
     }
 
-    machine innermost(parser: @mut Parser, input: @TokenStream) {
+    machine innermost(parser: @mutable Parser, input: @TokenStream) {
         let frame: TypeFrame = top_type_frame(parser);
         transition { _ -> close(parser, input, frame) }
     }
 
-    machine close(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine close(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         transition frame.kind {
             TypeFrameKind::Reference -> reference_close(parser, input, frame),
             TypeFrameKind::Array -> element_close(parser, input, frame),
@@ -353,7 +353,7 @@ crashes Trap
         }
     }
 
-    machine reference_close(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine reference_close(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         pop_type_frame(parser);
         let row: TypeReference = type_row(parser, TypeReferenceKind::Reference, frame.start, parser.type_end, 0, 0);
         let reference: TypeReference = with_children(row, frame.first_row, parser.type_result, 0);
@@ -364,7 +364,7 @@ crashes Trap
 
     // After an array's element: `;` and a length make a fixed array, `]` a
     // slice.
-    machine element_close(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine element_close(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         let element: u64 in Trapping = parser.type_result;
         let fixed: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition fixed {
@@ -373,7 +373,7 @@ crashes Trap
         }
     }
 
-    machine slice_end(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+    machine slice_end(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         expect_punctuation(parser, input, PunctuationKind::RightBracket,
             ParseDiagnosticCode::ExpectedArraySeparatorOrEnd
         );
@@ -383,7 +383,7 @@ crashes Trap
         }
     }
 
-    machine slice(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+    machine slice(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         pop_type_frame(parser);
         let row: TypeReference = type_row(parser, TypeReferenceKind::Slice,
             frame.start, parser.token_end, 0, 0);
@@ -392,7 +392,7 @@ crashes Trap
 
     // The length is its own `Literal` or `Named` row, appended before the
     // array row so the run stays contiguous.
-    machine length(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+    machine length(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         take_current(parser, input);
         let integer: bool = at_integer(parser, input);
         transition integer {
@@ -401,7 +401,7 @@ crashes Trap
         }
     }
 
-    machine length_literal(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+    machine length_literal(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
         transition parser.output.accepted {
             true -> length_row(parser, input, frame, element, TypeReferenceKind::Literal, literal_handle),
@@ -409,7 +409,7 @@ crashes Trap
         }
     }
 
-    machine length_name(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+    machine length_name(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedArrayLength);
         transition parser.output.accepted {
             true -> length_row(parser, input, frame, element, TypeReferenceKind::Named, 0),
@@ -418,14 +418,14 @@ crashes Trap
     }
 
     machine length_row(
-        parser: @mut Parser,
+        parser: @mutable Parser,
         input: @TokenStream,
         frame: TypeFrame,
         element: u64 in Trapping,
         kind: TypeReferenceKind,
         literal_handle: u64 in Trapping
     ) {
-        let mut row: TypeReference = type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end);
+        let mutable row: TypeReference = type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end);
         row.literal = literal_handle;
         transition parser.output.type_reference_count < 65536 {
             true -> length_appended(parser, input, frame, element, row),
@@ -434,7 +434,7 @@ crashes Trap
     }
 
     machine length_appended(
-        parser: @mut Parser,
+        parser: @mutable Parser,
         input: @TokenStream,
         frame: TypeFrame,
         element: u64 in Trapping,
@@ -451,7 +451,7 @@ crashes Trap
     }
 
     machine array(
-        parser: @mut Parser,
+        parser: @mutable Parser,
         input: @TokenStream,
         frame: TypeFrame,
         element: u64 in Trapping,
@@ -464,7 +464,7 @@ crashes Trap
     }
 
     // After a static argument: `,` opens the next and `>` closes the list.
-    machine argument_close(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine argument_close(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         let argument: u64 in Trapping = parser.type_result;
         push_type_argument(parser, input, argument);
         transition parser.output.accepted {
@@ -473,7 +473,7 @@ crashes Trap
         }
     }
 
-    machine argument_separator(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine argument_separator(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
             true -> next_argument(parser, input),
@@ -481,12 +481,12 @@ crashes Trap
         }
     }
 
-    machine next_argument(parser: @mut Parser, input: @TokenStream) {
+    machine next_argument(parser: @mutable Parser, input: @TokenStream) {
         take_current(parser, input);
         transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedStaticArgument) }
     }
 
-    machine arguments_end(parser: @mut Parser, input: @TokenStream, frame: TypeFrame) {
+    machine arguments_end(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame) {
         expect_punctuation(parser, input, PunctuationKind::Greater,
             ParseDiagnosticCode::ExpectedStaticArgumentEnd
         );
@@ -496,7 +496,7 @@ crashes Trap
         }
     }
 
-    machine applied(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
+    machine applied(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
         pop_type_frame(parser);
         commit_type_arguments(parser, input, frame.first_argument);
         transition parser.output.accepted {
@@ -505,7 +505,7 @@ crashes Trap
         }
     }
 
-    machine applied_lifetimes(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
+    machine applied_lifetimes(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
         commit_type_lifetimes(parser, input, frame.first_lifetime);
         transition parser.output.accepted {
             true -> applied_row(parser, input, frame, end),
@@ -513,7 +513,7 @@ crashes Trap
         }
     }
 
-    machine applied_row(parser: @mut Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
+    machine applied_row(parser: @mutable Parser, input: @TokenStream, frame: TypeFrame, end: u64 in Trapping) {
         let row: TypeReference = type_row(parser, TypeReferenceKind::Named,
             frame.start, end, frame.start, frame.name_end);
         let applied: TypeReference = with_children(row, frame.first_row, 0, 0);
@@ -522,7 +522,7 @@ crashes Trap
         transition { _ -> domain(parser, input, tagged) }
     }
 
-    machine reject(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         reject_current(parser, input, code);
     }
 
@@ -749,7 +749,7 @@ crashes Trap
     }
 }
 
-machine pop_type_frame(parser: @mut Parser)
+machine pop_type_frame(parser: @mutable Parser)
 crashes Trap
 {
     transition parser.type_frame_depth > 0 {
@@ -757,7 +757,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine pop(parser: @mut Parser) {
+    machine pop(parser: @mutable Parser) {
         parser.type_frame_depth = parser.type_frame_depth - 1;
     }
 
@@ -794,7 +794,7 @@ crashes Trap
 }
 
 // Stage one completed argument until its list closes.
-machine push_type_argument(parser: @mut Parser, input: @TokenStream, argument: u64 in Trapping)
+machine push_type_argument(parser: @mutable Parser, input: @TokenStream, argument: u64 in Trapping)
 crashes Trap
 {
     transition parser.pending_type_argument_count < 32 {
@@ -802,12 +802,12 @@ crashes Trap
         _ -> full(parser, input)
     }
 
-    machine stage(parser: @mut Parser, argument: u64 in Trapping) {
+    machine stage(parser: @mutable Parser, argument: u64 in Trapping) {
         parser.pending_type_arguments[parser.pending_type_argument_count] = argument as u64 +Trapping;
         parser.pending_type_argument_count = parser.pending_type_argument_count + 1;
     }
 
-    machine full(parser: @mut Parser, input: @TokenStream) {
+    machine full(parser: @mutable Parser, input: @TokenStream) {
         reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
     }
 }
@@ -815,21 +815,21 @@ crashes Trap
 // Move the innermost list's staged arguments, from `base` up, into
 // `SyntaxTrees::type_arguments`; their range lands in
 // `committed_type_first`/`committed_type_count`.
-machine commit_type_arguments(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping)
+machine commit_type_arguments(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping)
 crashes Trap
 {
     parser.committed_type_first = parser.output.type_argument_count as +Trapping;
     parser.committed_type_count = (parser.pending_type_argument_count as +Trapping) - base;
     transition { _ -> next(parser, input, base, base) }
 
-    machine next(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+    machine next(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
         transition cursor < parser.pending_type_argument_count && cursor < 32 {
             true -> capacity(parser, input, base, cursor),
             _ -> close(parser, base)
         }
     }
 
-    machine capacity(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    machine capacity(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 32
     {
         transition parser.output.type_argument_count < 1024 {
@@ -838,7 +838,7 @@ crashes Trap
         }
     }
 
-    machine copy(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    machine copy(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 32, parser.output.type_argument_count < 1024
     {
         parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor];
@@ -846,7 +846,7 @@ crashes Trap
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
 
-    machine close(parser: @mut Parser, base: u64 in Trapping) {
+    machine close(parser: @mutable Parser, base: u64 in Trapping) {
         let restored: u64 = base as u64;
         transition restored <= 32 {
             true -> truncate(parser, restored),
@@ -854,13 +854,13 @@ crashes Trap
         }
     }
 
-    machine truncate(parser: @mut Parser, base: u64)
+    machine truncate(parser: @mutable Parser, base: u64)
     requires base <= 32
     {
         parser.pending_type_argument_count = base;
     }
 
-    machine full(parser: @mut Parser, input: @TokenStream) {
+    machine full(parser: @mutable Parser, input: @TokenStream) {
         reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
     }
 
@@ -873,7 +873,7 @@ crashes Trap
 // argument is a type, or an integer static value, staged on the type
 // argument stack until `>` commits the list to `type_arguments`; its range
 // lands in `committed_type_first`/`committed_type_count`.
-public machine parse_static_arguments(parser: @mut Parser, input: @TokenStream)
+public machine parse_static_arguments(parser: @mutable Parser, input: @TokenStream)
 crashes Trap
 {
     let base: u64 in Trapping = parser.pending_type_argument_count as +Trapping;
@@ -881,7 +881,7 @@ crashes Trap
     take_current(parser, input);
     transition { _ -> argument(parser, input, base, lifetime_base) }
 
-    machine argument(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine argument(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         parse_static_argument(parser, input);
         transition parser.output.accepted {
             true -> staged(parser, input, base, lifetime_base),
@@ -891,14 +891,14 @@ crashes Trap
 
     // A lifetime argument of an invocation names a region the call binds
     // afresh; it leaves no row and the list keeps only its types.
-    machine staged(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine staged(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         transition parser.type_lifetime_argument {
             true -> separated(parser, input, base, lifetime_base),
             _ -> typed(parser, input, base, lifetime_base)
         }
     }
 
-    machine typed(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine typed(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         let argument: u64 in Trapping = parser.type_result;
         push_type_argument(parser, input, argument);
         transition parser.output.accepted {
@@ -907,7 +907,7 @@ crashes Trap
         }
     }
 
-    machine separated(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine separated(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
             true -> comma(parser, input, base, lifetime_base),
@@ -915,19 +915,19 @@ crashes Trap
         }
     }
 
-    machine comma(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine comma(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         take_current(parser, input);
         transition { _ -> argument(parser, input, base, lifetime_base) }
     }
 
-    machine close(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine close(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         transition parser.output.accepted {
             true -> greater(parser, input, base, lifetime_base),
             _ -> done()
         }
     }
 
-    machine greater(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine greater(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         expect_punctuation(parser, input, PunctuationKind::Greater,
             ParseDiagnosticCode::ExpectedStaticArgumentEnd
         );
@@ -937,7 +937,7 @@ crashes Trap
         }
     }
 
-    machine commit(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine commit(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
         commit_type_arguments(parser, input, base);
         drop_type_lifetimes(parser, lifetime_base);
     }
@@ -948,7 +948,7 @@ crashes Trap
 // One static argument: a type, or at its root an integer static value
 // (`AtMost<8>`, `Build::f<8>(x)`). Rows and diagnostics are the type
 // grammar's.
-public machine parse_static_argument(parser: @mut Parser, input: @TokenStream)
+public machine parse_static_argument(parser: @mutable Parser, input: @TokenStream)
 crashes Trap
 {
     parser.type_static_argument = true;
@@ -958,7 +958,7 @@ crashes Trap
 }
 
 // Forget the lifetimes staged from `base` up: an invocation's are not kept.
-machine drop_type_lifetimes(parser: @mut Parser, base: u64 in Trapping)
+machine drop_type_lifetimes(parser: @mutable Parser, base: u64 in Trapping)
 crashes Trap
 {
     let restored: u64 = base as u64;
@@ -967,7 +967,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine truncate(parser: @mut Parser, base: u64)
+    machine truncate(parser: @mutable Parser, base: u64)
     requires base <= 32
     {
         parser.pending_type_lifetime_count = base;
@@ -1025,7 +1025,7 @@ machine with_lifetimes(row: TypeReference, first_lifetime: u64 in Trapping, life
 }
 
 // Stage one lifetime argument until its list closes.
-machine push_type_lifetime(parser: @mut Parser, input: @TokenStream, tag: IdentifierSpan)
+machine push_type_lifetime(parser: @mutable Parser, input: @TokenStream, tag: IdentifierSpan)
 crashes Trap
 {
     transition parser.pending_type_lifetime_count < 32 {
@@ -1033,12 +1033,12 @@ crashes Trap
         _ -> full(parser, input)
     }
 
-    machine stage(parser: @mut Parser, tag: IdentifierSpan) {
+    machine stage(parser: @mutable Parser, tag: IdentifierSpan) {
         parser.pending_type_lifetimes[parser.pending_type_lifetime_count] = tag;
         parser.pending_type_lifetime_count = parser.pending_type_lifetime_count + 1;
     }
 
-    machine full(parser: @mut Parser, input: @TokenStream) {
+    machine full(parser: @mutable Parser, input: @TokenStream) {
         reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
     }
 }
@@ -1046,21 +1046,21 @@ crashes Trap
 // Move the innermost list's staged lifetimes, from `base` up, into
 // `SyntaxTrees::type_lifetimes`; their range lands in
 // `committed_lifetime_first`/`committed_lifetime_count`.
-machine commit_type_lifetimes(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping)
+machine commit_type_lifetimes(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping)
 crashes Trap
 {
     parser.committed_lifetime_first = parser.output.type_lifetime_count as +Trapping;
     parser.committed_lifetime_count = (parser.pending_type_lifetime_count as +Trapping) - base;
     transition { _ -> next(parser, input, base, base) }
 
-    machine next(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+    machine next(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
         transition cursor < parser.pending_type_lifetime_count && cursor < 32 {
             true -> capacity(parser, input, base, cursor),
             _ -> close(parser, base)
         }
     }
 
-    machine capacity(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    machine capacity(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 32
     {
         transition parser.output.type_lifetime_count < 1024 {
@@ -1069,7 +1069,7 @@ crashes Trap
         }
     }
 
-    machine copy(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    machine copy(parser: @mutable Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 32, parser.output.type_lifetime_count < 1024
     {
         let tag: IdentifierSpan = parser.pending_type_lifetimes[cursor];
@@ -1078,7 +1078,7 @@ crashes Trap
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
 
-    machine close(parser: @mut Parser, base: u64 in Trapping) {
+    machine close(parser: @mutable Parser, base: u64 in Trapping) {
         let restored: u64 = base as u64;
         transition restored <= 32 {
             true -> truncate(parser, restored),
@@ -1086,13 +1086,13 @@ crashes Trap
         }
     }
 
-    machine truncate(parser: @mut Parser, base: u64)
+    machine truncate(parser: @mutable Parser, base: u64)
     requires base <= 32
     {
         parser.pending_type_lifetime_count = base;
     }
 
-    machine full(parser: @mut Parser, input: @TokenStream) {
+    machine full(parser: @mutable Parser, input: @TokenStream) {
         reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
     }
 

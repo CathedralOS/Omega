@@ -30,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: @mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
     Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     main.frame.bytes[0] = 255;
     main.frame.bytes[1] = 10;
@@ -42,12 +42,12 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let checksum: i32 = sum(full[1..4], 0) as i32;
     Console::write_line("result: the payload checksum, 60 for this frame (the exit code)");
     Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(@mut main.pause);
+    _ = block Console::read_line(@mutable main.pause);
     ProcessExit::exit_process(checksum);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
-    let mut entry_storage: Main;
-    block Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    block Main::main(@mutable entry_storage);
 }

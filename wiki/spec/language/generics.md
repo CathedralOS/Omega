@@ -61,7 +61,7 @@ remove a binder kind that its checked implementation may use.
 ```omega
 boundary trait Sorting {
     machine sort<T, const Order: Ordering<T>>(
-        items: @mut [T]
+        items: @mutable [T]
     )
         crashes none;
 }
@@ -644,9 +644,9 @@ machine apply<const F: Transform>(x: u32) -> u32 {
     F(x)
 }
 
-machine sort<T, const Order: Ranked<T>>(items: @mut [T]) { ... }
+machine sort<T, const Order: Ranked<T>>(items: @mutable [T]) { ... }
 
-machine install<const Handler: HookProcedure::call>(slot: @mut HookSlot) { ... }
+machine install<const Handler: HookProcedure::call>(slot: @mutable HookSlot) { ... }
 ```
 
 `const` says when the value is known. It does not require the selected machine
@@ -766,16 +766,16 @@ noted below.
 
 ```omega
 public trait ElementStep<T> {
-    machine apply(item: @mut T) terminates;
+    machine apply(item: @mutable T) terminates;
 }
 
-public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mut T)
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mutable T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, const F: machine>(item: @mut T)
+public machine visit_one<T, const F: machine>(item: @mutable T)
 terminates
 {
     apply_one::<T, F>(item);

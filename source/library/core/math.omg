@@ -421,11 +421,11 @@ public machine sin(x: f64) -> f64 {
     // Guard subjects materialize into slotted locals first (the guard
     // encoder compares places, not computed expressions).
     machine reduce(x: f64, k: f64) -> f64 {
-        let mut hi: f64 = 3.14159265358979312;
+        let mutable hi: f64 = 3.14159265358979312;
         hi = hi * k;
-        let mut lo: f64 = 0.0;
+        let mutable lo: f64 = 0.0;
         lo = lo - hi;
-        let mut step: f64 = 6.28318530717958623;
+        let mutable step: f64 = 6.28318530717958623;
         step = step * k;
         transition {
             k < 1.0 -> fold(x),
@@ -445,16 +445,16 @@ public machine sin(x: f64) -> f64 {
     }
 
     // Degree-17 Taylor in Horner form over x*x. The accumulator is
-    // `let mut`: plain lets BIND-FOLD into their consumers, which would
+    // `let mutable`: plain lets BIND-FOLD into their consumers, which would
     // rebuild the whole chain as one deeply nested expression and exhaust
-    // the MVP encoders' small scratch pools -- a mut local is slotted, so
+    // the MVP encoders' small scratch pools -- a mutable local is slotted, so
     // every step stays a two-op store.
     machine poly(x: f64) -> f64 {
         let xx: f64 = x * x;
         // The x^17 coefficient is exactly 1/17!, not ten times that value.
         // Endpoint error matters when repeated cos(0) butterfly factors accumulate.
-        let mut p: f64 = 0.000000000000002811457254345520763198946;
-        let mut term: f64 = xx * p;
+        let mutable p: f64 = 0.000000000000002811457254345520763198946;
+        let mutable term: f64 = xx * p;
         p = -0.00000000000076471637318198164759011320 + term;
         term = xx * p;
         p = 0.00000000016059043836821614599392377170 + term;
@@ -468,7 +468,7 @@ public machine sin(x: f64) -> f64 {
         p = 0.00833333333333333333333333333333333333 + term;
         term = xx * p;
         p = -0.16666666666666666666666666666666666667 + term;
-        let mut tail: f64 = x * xx;
+        let mutable tail: f64 = x * xx;
         tail = tail * p;
         transition { _ -> (x + tail) }
     }

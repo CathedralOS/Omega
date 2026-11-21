@@ -11,11 +11,11 @@
 //! The loan a store uses is the one its deepest `Referent` step crosses. The
 //! reader finds it from types alone: it walks each place's path from the root
 //! place's declared type, and each `Referent` takes the access of the reference
-//! type it crosses. A store through `x: Node` or `x: @mut Node` into
+//! type it crosses. A store through `x: Node` or `x: @mutable Node` into
 //! `x.next.v`, where `next: @write Leaf`, loads the stored descriptor through
 //! a readable owner and then writes through the stored `@write`. The reverse
-//! nesting, `x: @write Node` with `next: @mut Leaf`, must load the stored
-//! `@mut` descriptor through the write-only loan, which is a read; the reader
+//! nesting, `x: @write Node` with `next: @mutable Leaf`, must load the stored
+//! `@mutable` descriptor through the write-only loan, which is a read; the reader
 //! refuses it even though the deepest loan is mutable.
 //!
 //! The unrestricted form requires [closed copy storage](closed_copy_storage).

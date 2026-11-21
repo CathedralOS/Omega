@@ -5,17 +5,17 @@ A call spelled through a dependency's package alias selects the data type's mach
 Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The requirement this row
 establishes is the named route to a declared operation across packages: a
 consumer reaches a dependency's `machine + Wrapped::add` (or plain
-`Wrapped::describe`) as `lib::ops::Wrapped::add(&left, &right)`, with the
+`Wrapped::describe`) as `lib::ops::Wrapped::add(@left, @right)`, with the
 callee's `requires` premise proved on the exact operands and its `ensures`
 result recorded for the caller. The row does not close the item ([What remains
 open](#what-remains-open)).
 
-Every place copies that sentence and the same operation. `describe(left: &Wrapped, right: &Wrapped)` in the dependency carries `requires left.value > 0` and `ensures result == (left.value as u64) + (right.value as u64)`; the caller's `hold(total)` carries `requires total == 260` and is proved from the recorded result alone. A runtime conjunct `total == 260` follows `hold`, so a wrong callee, operand order or sum takes `bad()` (`crash Trap`). The reject twin changes only the operands, `left` from 250 to 0 and `right` from 10 to 260, so the sum stays 260, the premise is the only thing broken, and nothing reaches `bad()`. Only the transport of the two operands changes between places.
+Every place copies that sentence and the same operation. `describe(left: @Wrapped, right: @Wrapped)` in the dependency carries `requires left.value > 0` and `ensures result == (left.value as u64) + (right.value as u64)`; the caller's `hold(total)` carries `requires total == 260` and is proved from the recorded result alone. A runtime conjunct `total == 260` follows `hold`, so a wrong callee, operand order or sum takes `bad()` (`crash Trap`). The reject twin changes only the operands, `left` from 250 to 0 and `right` from 10 to 260, so the sum stays 260, the premise is the only thing broken, and nothing reaches `bad()`. Only the transport of the two operands changes between places.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both operands are local bindings |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | both operands are fields of one record, borrowed as `&pair.left` |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | both operands are fields of one record, borrowed as `@pair.left` |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `observe` receives both operands and forwards its own `requires` and `ensures` |
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | each operand is a call result whose `ensures` names its value |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | each operand is chosen by a `match` whose arms both yield the same record |
@@ -42,7 +42,7 @@ At base `2f167b2a795` every positive above was refused, and every twin was refus
 machine `main` state `entry` statement 2: normal reference-slot completion for Handle { … } has no unique checked invocation
 ```
 
-(`observe`, `check` and `X86Observe::observe` in the places that call from another machine.) Three neighbors of the same call ran at base and bound the defect: `use lib::ops::Wrapped;` followed by `Wrapped::describe(&left, &right)`; a same-package nested module spelled `outer::ops::Wrapped::describe(…)`; and the module-qualified `lib::ops::describe(…)`.
+(`observe`, `check` and `X86Observe::observe` in the places that call from another machine.) Three neighbors of the same call ran at base and bound the defect: `use lib::ops::Wrapped;` followed by `Wrapped::describe(@left, @right)`; a same-package nested module spelled `outer::ops::Wrapped::describe(…)`; and the module-qualified `lib::ops::describe(…)`.
 
 The call target resolved correctly. The receiver `lib::ops::Wrapped` did not keep its declaration chain. `lib` is a loader-certified package alias with no declaration symbol, so name resolution selects the longest exact prefix, the data type `Wrapped`, as the head of a three-member path. `assign_name_symbol` (`02_syntax-trees-to-symbol-resolved-trees`, `symbols/expressions/references.rs`) wrote the per-member chain only when every entry was valid, so the alias and module segments, which have no identity of their own, withheld the whole chain. `resolve_name_path_member_symbol` (`checking`, `receiver_topology.rs`) then re-derived the chain from the head: the first member from `head_symbol`, the last from `symbol`, the middle member `ops` as a child of `Wrapped`, which does not exist. The receiver symbol came back invalid, `call_receiver_parts` reported no receiver, the borrow-call collection skipped the call as not a machine call, and the later reference-slot completion found no invocation. A path of one or two members never reaches a middle member, and `outer::ops::Wrapped` resolves `outer` as a module, so its chain is complete.
 
@@ -76,7 +76,7 @@ The base producer rejects every twin, but with the reference-slot diagnostic. Th
 ## Requirements and Evidence
 
 1. **Establishment:** the dependency's `requires left.value > 0` is proved from the literal operand each place builds; the `ensures` sum is the only source of the caller's `total == 260`. Nothing re-establishes either after the call.
-2. **Identity and lifetime:** `lib::ops::Wrapped` is the exact data declaration of the dependency package; its attached `describe` is selected by that identity, never by the spelling `Wrapped`. The call borrows `&left` and `&right` for its duration and neither is written.
+2. **Identity and lifetime:** `lib::ops::Wrapped` is the exact data declaration of the dependency package; its attached `describe` is selected by that identity, never by the spelling `Wrapped`. The call borrows `@left` and `@right` for its duration and neither is written.
 3. **Composition:** the recorded result composes into `hold` at all nine places and three productions. The parameter place and another machine forward the dependency's premise and result through their own `requires` and `ensures`, and the nested machine receives the operands as arguments.
 4. **Soundness boundaries:** the repaired path still refuses an unproved premise and a package-private callee. The chain stays empty when selection fails.
 5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** each call lowers to an ordinary call of the dependency's machine with two reference arguments (value arguments for `by_value`); the package alias leaves no runtime trace. The Terminal Psi interpreter executes all twelve positives and agrees with native execution.

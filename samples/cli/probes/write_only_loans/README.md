@@ -1,7 +1,7 @@
 # write_only_loans
 
-First sample spelling `&write` — an attenuated
-write-only loan: `replace(&write destination, 42)`
+First sample spelling `@write` — an attenuated
+write-only loan: `replace(@write destination, 42)`
 stores without read access, and `forward` re-lends the
 same qualifier through a second parameter.
 

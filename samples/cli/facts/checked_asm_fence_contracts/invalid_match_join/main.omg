@@ -67,8 +67,8 @@ machine joined(branch: bool, path: @write u32) -> u32 ensures result == 37 {
     match branch { true -> marked_ordered(path), false -> SelectedOrdered::ordered(37) }
 }
 machine main() crashes Trap {
-    let mut first_path: u32 = 0;
-    let mut second_path: u32 = 0;
+    let mutable first_path: u32 = 0;
+    let mutable second_path: u32 = 0;
     consume(joined(true, @write first_path));
     consume(joined(false, @write second_path));
     transition first_path == 1 && second_path == 0 { true -> finished(), false -> failed() }

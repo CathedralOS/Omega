@@ -11,7 +11,7 @@ requires start <= end
     end: u32;
 }
 
-machine shift(span: @mut Span, delta: u32)
+machine shift(span: @mutable Span, delta: u32)
 requires span.end <= 1000
 requires delta <= 1000
 {
@@ -32,7 +32,7 @@ machine width(span: @Span) -> u32 {
     span.end - span.start
 }
 
-machine unfinished_shift(span: @mut Span, delta: u32)
+machine unfinished_shift(span: @mutable Span, delta: u32)
 requires span.end <= 1000
 requires delta <= 1000
 {
@@ -85,7 +85,7 @@ data Pair {
 
 domain Pair::Ordered requires self.low <= self.high;
 
-machine reset(pair: @mut Pair, value: u32)
+machine reset(pair: @mutable Pair, value: u32)
 ensures pair in Pair::Ordered
 {
     pair.low = value;
@@ -93,7 +93,7 @@ ensures pair in Pair::Ordered
         _ -> finish(pair, value)
     }
 
-    machine finish(pair: @mut Pair, value: u32)
+    machine finish(pair: @mutable Pair, value: u32)
     requires pair.low == value
     ensures pair in Pair::Ordered
     {
@@ -104,7 +104,7 @@ ensures pair in Pair::Ordered
 
 `finish` receives a plain `Pair`, which any two numbers satisfy, and
 establishes `Ordered`. A caller that stores a `Pair in Pair::Ordered` lends it
-out as `&mut pair as -Pair::Ordered` and gets it back ordered.
+out as `@mutable pair as -Pair::Ordered` and gets it back ordered.
 
 | Guarantee | Must hold |
 | --- | --- |

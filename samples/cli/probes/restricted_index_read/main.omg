@@ -1,5 +1,5 @@
 // A nonconstant checked selector reads a constrained scalar field through a
-// call: `data Byte where value >= 0 && value <= 1` + `&main.bytes[position]
+// call: `data Byte where value >= 0 && value <= 1` + `@main.bytes[position]
 // .value` element member borrow.
 data Byte requires value >= 0 && value <= 1 { value: u8; }
 data Main { bytes: [Byte; 4]; }
@@ -13,7 +13,7 @@ machine inspect(main: @Main, position: u64) -> u8 {
         take(@main.bytes[position].value)
     }
 }
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.bytes[2].value = 1;
     let chosen: u8 = inspect(main, 2);
     let neighbor: u8 = inspect(main, 1);
@@ -27,6 +27,6 @@ machine Main::main(main: @mut Main) {
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

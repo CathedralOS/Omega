@@ -58,7 +58,7 @@ machine Main::main(&mut self) {
         // u32-mul-overflow; Alpha must Trap, not return normally.
         self.positive("machine operation(value:u32 in Trapping)->u32 in Trapping {value*2} machine main()->u8 {let result:u32 in Trapping=operation(4294967295 as +Trapping);42}",0,23);
         // capture-order; expected normal completion.
-        self.positive("data Cell [copy] {value:u32 in Trapping;} machine change(cell:@mut Cell)->u32 in Trapping {cell.value=9 as +Trapping;cell.value} machine main()->u8 {let mut cell:Cell=Cell{value:7 as +Trapping};let result:u32 in Trapping=cell.value+change(@mut cell);transition result==16 && cell.value==9 {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}",42,24);
+        self.positive("data Cell [copy] {value:u32 in Trapping;} machine change(cell:@mutable Cell)->u32 in Trapping {cell.value=9 as +Trapping;cell.value} machine main()->u8 {let mutable cell:Cell=Cell{value:7 as +Trapping};let result:u32 in Trapping=cell.value+change(@mutable cell);transition result==16 && cell.value==9 {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}",42,24);
         // short-circuit; expected normal completion.
         self.positive("machine overflow()->bool {let value:u32 in Trapping=4294967295 as +Trapping;let sum:u32 in Trapping=value+1;sum==0} machine main()->u8 {transition false && overflow() {true->no(),_->yes()} machine yes()->u8{42} machine no()->u8{1}}",42,25);
         // plain-peer; expected normal completion.
@@ -85,9 +85,9 @@ machine Main::main(&mut self) {
         // A crashes-none declaration needs evidence that the runtime product fits.
         self.refusal("public machine product(a:u64 in Trapping,b:u64)->u64 in Trapping crashes none {a*b} machine main()->u8{0}",2,52);
         // ordinary forwarding retains loan.
-        self.refusal("data Cell [copy] {value:u8;} machine take(cell:@mut Cell,value:u8)->u8 {value} machine forward(cell:@mut Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
+        self.refusal("data Cell [copy] {value:u8;} machine take(cell:@mutable Cell,value:u8)->u8 {value} machine forward(cell:@mutable Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
         // ordinary forwarding holds later borrow.
-        self.refusal("data Cell [copy] {value:u8;} machine change(cell:@mut Cell)->u8{cell.value=1;1} machine take(cell:@mut Cell,value:u8)->u8 {value} machine forward(cell:@mut Cell)->u8 {take(cell,change(cell))} machine main()->u8{0}",1,54);
+        self.refusal("data Cell [copy] {value:u8;} machine change(cell:@mutable Cell)->u8{cell.value=1;1} machine take(cell:@mutable Cell,value:u8)->u8 {value} machine forward(cell:@mutable Cell)->u8 {take(cell,change(cell))} machine main()->u8{0}",1,54);
         // local backing in tail transfer.
         self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell;transition{_->again(@seed,42,false)} machine again(view:@Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(@temp,44,true)}}",2,55);
         // Unsupported indexed carriers remain coverage failures; known mismatches reject.
@@ -182,7 +182,7 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8 {let x:u32 in Trapping=5 as +Trapping; transition true {true->finish(x==3*x)} machine finish(n:u32 in Trapping)->u8 {transition n==20 {true->pass(),_->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",1,154);
         self.refusal("machine main()->u8 {let x:u32 in Trapping=5 as +Trapping; transition true {true->finish(x+unknown())} machine finish(n:u32 in Trapping)->u8 {transition n==20 {true->pass(),_->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",2,155);
         // A mutation in the middle argument is observed once, from left to right.
-        self.positive("data Cell [copy] {n:u32 in Trapping;} machine tick(cell:@mut Cell)->u32 in Trapping {let old:u32 in Trapping=cell.n;cell.n=old+1;cell.n} machine main()->u8 {let mut cell:Cell;cell.n=1 as +Trapping; transition true {true->finish(cell.n,tick(@mut cell),cell.n)} machine finish(a:u32 in Trapping,b:u32 in Trapping,c:u32 in Trapping)->u8 {transition a==1 && b==2 && c==2 {true->pass(),_->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",42,156);
+        self.positive("data Cell [copy] {n:u32 in Trapping;} machine tick(cell:@mutable Cell)->u32 in Trapping {let old:u32 in Trapping=cell.n;cell.n=old+1;cell.n} machine main()->u8 {let mutable cell:Cell;cell.n=1 as +Trapping; transition true {true->finish(cell.n,tick(@mutable cell),cell.n)} machine finish(a:u32 in Trapping,b:u32 in Trapping,c:u32 in Trapping)->u8 {transition a==1 && b==2 && c==2 {true->pass(),_->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",42,156);
     }
 
     state batch_7() {
@@ -191,12 +191,12 @@ machine Main::main(&mut self) {
         self.positive("machine fail()->bool crashes Trap {crash Trap;} machine main()->u8 {transition true {true->pick(true && fail()),_->pick(fail())} machine pick(n:bool)->u8 {transition n {true->miss(),_->pass()}} machine pass()->u8 {42} machine miss()->u8 {1}}",0,158);
         self.positive("machine leaf()->u8 blocks {43} machine main()->u8 blocks {transition true {true->take(block leaf())} machine take(n:u8)->u8 {n}}",43,159);
         // A loan and a blocking call nested in an operand keep their normal obligations.
-        self.refusal("data I {n:u32 in Trapping;} machine go(input:@mut I)->u8 { transition true {true->block rows(input,input.n+1)} machine rows(input:@mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(@mut x)}",1,160);
+        self.refusal("data I {n:u32 in Trapping;} machine go(input:@mutable I)->u8 { transition true {true->block rows(input,input.n+1)} machine rows(input:@mutable I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mutable x:I;block go(@mutable x)}",1,160);
         self.refusal("machine leaf()->u8 blocks {43} machine main()->u8 blocks {transition true {true->take(leaf())} machine take(n:u8)->u8 {n}}",1,161);
         // Plain unsigned arithmetic and the target precondition still require proof.
         self.refusal("machine step(index:u64)->u8 requires index<4 {transition true {true->next(index+1)} machine next(n:u64)->u8 requires n<2 {44}} machine main()->u8 {step(2)}",2,162);
         self.refusal("machine choose(v:u64)->u8 {transition true {true->take(v*3)} machine take(n:u64)->u8 {42}} machine main()->u8 {choose(3)}",2,163);
-        self.positive("data I {n:u32 in Trapping;} machine go(input:@mut I)->u8 {let n:u32 in Trapping=input.n; transition true {true->block rows(input,n+1)} machine rows(input:@mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(@mut x)}",43,164);
+        self.positive("data I {n:u32 in Trapping;} machine go(input:@mutable I)->u8 {let n:u32 in Trapping=input.n; transition true {true->block rows(input,n+1)} machine rows(input:@mutable I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mutable x:I;block go(@mutable x)}",43,164);
         self.positive("machine step(index:u64)->u8 requires index<4 {transition true {true->next(index+1)} machine next(n:u64)->u8 requires n<=4 {44}} machine main()->u8 {step(2)}",44,165);
     }
 
@@ -214,7 +214,7 @@ machine Main::main(&mut self) {
         self.positive("machine mark(n:u64)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,180);
         self.positive("machine mark(n:u64)->u64 in Trapping {(n as u64) as +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,181);
         self.positive("machine mark(n:u32)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(4294967295);let y:u64 in Trapping=x+1;transition y>4294967295 {true->pass(),_->miss()} machine pass()->u8 {43} machine miss()->u8 {1}}",43,182);
-        self.positive("data Cell {n:u32 in Trapping;} machine take(c:@mut Cell)->u32 {let before:u32 in Trapping=c.n;c.n=before+1;before as -Trapping} machine main()->u8 {let mut c:Cell;c.n=1 as +Trapping;let v:u64 in Trapping=(take(@mut c)) as u64 +Trapping;transition c.n==2 && v==1 {true->pass(),_->miss()} machine pass()->u8 {44} machine miss()->u8 {1}}",44,183);
+        self.positive("data Cell {n:u32 in Trapping;} machine take(c:@mutable Cell)->u32 {let before:u32 in Trapping=c.n;c.n=before+1;before as -Trapping} machine main()->u8 {let mutable c:Cell;c.n=1 as +Trapping;let v:u64 in Trapping=(take(@mutable c)) as u64 +Trapping;transition c.n==2 && v==1 {true->pass(),_->miss()} machine pass()->u8 {44} machine miss()->u8 {1}}",44,183);
         // A carrier cast accepts a plain operand. Unsupported proofs produce no artifact.
         self.refusal("machine mark(n:u64 in Trapping)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3 as +Trapping);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,184);
         self.refusal("machine bad(n:u64 in Trapping)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {42}",1,185);
@@ -263,15 +263,15 @@ machine Main::main(&mut self) {
         self.positive("machine main()->u8 crashes Trap {transition{_->route()} machine route()->u8 crashes Trap {crash Trap;}}",0,214);
         self.positive("machine main()->u8 crashes none {transition{_->route(42)} machine route(n:u8)->u8 crashes none {n}}",42,215);
         // The source checker uses a parameter named target in a bound.
-        self.positive("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",42,150);
-        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(2)}",2,151);
-        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires missing<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",1,152);
+        self.positive("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mutable b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",42,150);
+        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mutable b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(2)}",2,151);
+        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires missing<2 {let mutable b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",1,152);
     }
 
     state batch_12() {
         // Modular results retain their domain. Each operand runs once, left to right.
         self.positive("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine main()->u8 {let zero:u64 in Wrapping=word(0);let max:u64 in Wrapping=zero-1;let plain:u64=max as -Wrapping;transition plain > 4294967295 && max+1==zero && max*max==1 && 0-max==1 {true->pass(),_->miss()} machine pass()->u8{42} machine miss()->u8{7}}",42,220);
-        self.positive("data Cell [copy] {n:u64 in Wrapping;} machine next(c:@mut Cell)->u64 in Wrapping {let old:u64 in Wrapping=c.n;c.n=old+1;old} machine main()->u8 {let mut c:Cell;c.n=4 as +Wrapping;let answer:u64 in Wrapping=next(@mut c)-next(@mut c);transition answer+1==0 && c.n==6 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {7}}",42,221);
+        self.positive("data Cell [copy] {n:u64 in Wrapping;} machine next(c:@mutable Cell)->u64 in Wrapping {let old:u64 in Wrapping=c.n;c.n=old+1;old} machine main()->u8 {let mutable c:Cell;c.n=4 as +Wrapping;let answer:u64 in Wrapping=next(@mutable c)-next(@mutable c);transition answer+1==0 && c.n==6 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {7}}",42,221);
         self.refusal("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine mix(a:u64 in Wrapping,b:u64 in Trapping)->u64 in Wrapping{a-b} machine main()->u8 {42}",1,222);
         self.refusal("machine mix(a:u64 in Wrapping,b:u64 in Trapping)->bool{a==b} machine main()->u8 {42}",1,223);
         self.refusal("machine mix(a:u64 in Wrapping)->u64 {a as -Trapping} machine main()->u8 {42}",1,224);
@@ -306,21 +306,21 @@ machine Main::main(&mut self) {
         self.refusal("machine f(n:u32 in Trapping)->u32 in Trapping crashes none requires n<=48 {n-48} machine main()->u8{42}",2,235);
         self.refusal("machine take(n:u64)->u8 requires n<2 {42} machine send(n:u64)->u8 requires n>=1 {take(n)} machine main()->u8{send(2)}",2,236);
         self.refusal("machine main()->u8{send(47)} machine send(n:u64)->u8{transition n>=48 {true->miss(),_->take(n)} machine take(n:u64)->u8 requires n>=48 {42} machine miss()->u8{7}}",2,237);
-        self.refusal("data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mut Cell)->u32 in Trapping crashes none requires cell.key>=48 { cell.key=0 as +Trapping; cell.key-48 } machine main()->u8 {42}",2,238);
-        self.refusal("machine zero(cell:@mut Cell) {cell.key=0 as +Trapping;} data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mut Cell)->u32 in Trapping crashes none requires cell.key>=48 { zero(cell); cell.key-48 } machine main()->u8 {42}",2,239);
+        self.refusal("data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mutable Cell)->u32 in Trapping crashes none requires cell.key>=48 { cell.key=0 as +Trapping; cell.key-48 } machine main()->u8 {42}",2,238);
+        self.refusal("machine zero(cell:@mutable Cell) {cell.key=0 as +Trapping;} data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mutable Cell)->u32 in Trapping crashes none requires cell.key>=48 { zero(cell); cell.key-48 } machine main()->u8 {42}",2,239);
         self.positive("machine bad(n:u32 in Trapping)->u32 in Trapping crashes Trap requires n>=47 {n-48} machine main()->u8 crashes Trap {let under:u32 in Trapping=bad(47 as +Trapping);42}",0,240);
         self.positive("machine main()->u8{send(49)} machine send(n:u64)->u8{transition 48<n {true->take(n),_->miss()} machine take(n:u64)->u8 requires n>47 {42} machine miss()->u8{7}}",42,241);
     }
     state array_literals() {
         // Ordered element effects, packed bytes, word limbs, and copy record layouts.
-        self.positive("data Counter { digit:u8; } machine put(counter:@mut Counter,value:u8)->u8 {counter.digit=value;value} machine main()->u8{let mut v:Counter;let a:[u8;2]=[put(@mut v,7),put(@mut v,42)];v.digit}",42,30);
+        self.positive("data Counter { digit:u8; } machine put(counter:@mutable Counter,value:u8)->u8 {counter.digit=value;value} machine main()->u8{let mutable v:Counter;let a:[u8;2]=[put(@mutable v,7),put(@mutable v,42)];v.digit}",42,30);
         self.positive("machine main()->u8{let a:[u64 in Trapping;2]=[0 as +Trapping,42 as +Trapping];let n:u64 in Trapping=a[1];transition (n as -Trapping)==42 {true -> 42, _ -> 1}}",42,31);
         self.positive("machine main()->u8{let a:[u64;2]=[4294967296u64,18446744073709551615u64];transition a[0]<a[1] {true -> 42, _ ->1}}",42,32);
         self.positive("data Item [copy] { n:u8; } machine main()->u8 {let a:[Item;2]=[Item{n:1},Item{n:42}];a[1].n}",42,33);
         self.refusal("machine b()->u8{3} machine main()->u8 {let buffer:[u8;3]=[3,42u8];buffer[2]}",1,34);
         self.refusal("machine b()->u8{3} machine main()->u8 {let buffer:[u8;3]=[3,1,2,42u8];buffer[2]}",1,35);
         self.refusal("machine main()->u8 {let zero:u64 in Trapping=0 as +Trapping;let buffer:[u64 in Trapping;3]=[0,42 as +Trapping,zero];let result:u64=buffer[1] as -Trapping; transition result==42 {_ -> answer(42)} machine answer(value:u8)->u8{value}}",1,36);
-        self.refusal("machine main()->u8{let mut a:[u64 in Trapping;2]=[0 as +Trapping,42 as +Trapping];a[0]=0;42}",1,37);
+        self.refusal("machine main()->u8{let mutable a:[u64 in Trapping;2]=[0 as +Trapping,42 as +Trapping];a[0]=0;42}",1,37);
         self.refusal("machine b()->u8{3} machine main()->u8 {let buffer:[u8;3]=[3,b(),42u32];buffer[2]}",1,38);
         self.refusal("machine b()->u8{3} machine main()->u8 {let buffer:[u8;3]=[3,b(),42u8);buffer[2]}",2,39);
         self.refusal("machine b()->u8{3} machine main()->u8 {let buffer:[u8;3]=[3,b(),42u8,];buffer[2]}",2,40);
@@ -338,15 +338,15 @@ machine Main::main(&mut self) {
     state array_loans() {
         self.positive(self.source.as_slice[0..self.length],42,40);
         self.positive("machine read(value: @[u8; 2])->u8{value[1]} machine main()->u8{let x:[u8;2]=[1,42];read(@x)}",42,41);
-        self.positive("machine put(x:@mut [u8;2]){x[1]=42;} machine via(x:@mut [u8;2]){put(x);} machine main()->u8{let mut x:[u8;2]=[1,2];via(@mut x);x[1]}",42,42);
+        self.positive("machine put(x:@mutable [u8;2]){x[1]=42;} machine via(x:@mutable [u8;2]){put(x);} machine main()->u8{let mutable x:[u8;2]=[1,2];via(@mutable x);x[1]}",42,42);
         self.positive("machine via(x:@[u8;2])->u8{transition {_ -> second(x)} machine second(x:@[u8;2])->u8{x[1]}} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",42,43);
         self.refusal("machine read(x:@[u8;3])->u8{x[1]} machine via(x:@[u8;2])->u8{read(x)} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",1,44);
-        self.refusal("machine both(x:@mut [u8;2],y:@[u8;2]) { x[0]=y[1]; } machine main()->u8 {let mut x:[u8;2]=[1,42]; both(@mut x,@x);x[0]}",1,45);
+        self.refusal("machine both(x:@mutable [u8;2],y:@[u8;2]) { x[0]=y[1]; } machine main()->u8 {let mutable x:[u8;2]=[1,42]; both(@mutable x,@x);x[0]}",1,45);
         self.refusal("machine main()->u8{let x:[u8;2]=[1,42];transition {_ -> second(@x)} machine second(x:@[u8;2])->u8{x[1]}}",2,46);
-        self.refusal("machine put(values: @mut [u64 in Trapping; 2], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,47);
-        self.refusal("machine put(values: @mut [u64 in Trapping; 3], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,48);
-        self.refusal("machine put(values: @mut [u64 in Wrapping; 2], value: u64 in Trapping) { let keep:u64 in Wrapping=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,49);
-        self.refusal("machine put(values: @mut [u32; 2], value: u64 in Trapping) { let keep:u32=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,50);
+        self.refusal("machine put(values: @mutable [u64 in Trapping; 2], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let values: [u64 in Trapping; 2] = [zero, zero]; put(@mutable values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,47);
+        self.refusal("machine put(values: @mutable [u64 in Trapping; 3], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mutable values: [u64 in Trapping; 2] = [zero, zero]; put(@mutable values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,48);
+        self.refusal("machine put(values: @mutable [u64 in Wrapping; 2], value: u64 in Trapping) { let keep:u64 in Wrapping=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mutable values: [u64 in Trapping; 2] = [zero, zero]; put(@mutable values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,49);
+        self.refusal("machine put(values: @mutable [u32; 2], value: u64 in Trapping) { let keep:u32=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mutable values: [u64 in Trapping; 2] = [zero, zero]; put(@mutable values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,50);
         self.positive("machine read(x:@[u8;2])->u8{x[1]} machine via(x:@[u8;2])->u8{read(x)} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",42,51);
     }
 }

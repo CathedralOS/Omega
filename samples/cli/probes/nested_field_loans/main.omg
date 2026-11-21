@@ -1,10 +1,10 @@
-// Nested-field loans through a borrowed receiver: `&outer.inner`
+// Nested-field loans through a borrowed receiver: `@outer.inner`
 // lends the parameter's nested field — the path's head names the
 // state's own binding even though the member symbol's parent is
 // `Outer`. Works from the entry parameter and from a forwarded
 // state parameter.
 //
-//   * `Inner::inspect(&outer.inner)` and `&outer.inner.value`.
+//   * `Inner::inspect(@outer.inner)` and `@outer.inner.value`.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -43,7 +43,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
     let outer: Outer = Outer { inner: Inner { value: 7 }, extra: 10 };
     let answer: u64 = probe(@outer);
@@ -51,12 +51,12 @@ machine Main::main(main: @mut Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

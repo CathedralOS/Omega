@@ -4,7 +4,7 @@ use omega_language_std\Console;
 public data InvalidEntry { }
 // This is a complete executable source control. It must fail Exact overflow
 // admission, independently of the valid application's runtime input rejection.
-public machine main(application: @mut InvalidEntry) reaches ProcessExit + Console
+public machine main(application: @mutable InvalidEntry) reaches ProcessExit + Console
 invokes Console
 {
     let maximum: i32 = 2147483647;
@@ -17,6 +17,6 @@ invokes Console
 machine entry_start() reaches ProcessExit + Console
 invokes Console
 {
-    let mut entry_storage: InvalidEntry;
-    main(@mut entry_storage);
+    let mutable entry_storage: InvalidEntry;
+    main(@mutable entry_storage);
 }

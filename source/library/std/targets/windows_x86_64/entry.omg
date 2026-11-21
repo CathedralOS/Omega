@@ -74,7 +74,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 
     machine build_physical() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 0;
         output.call.has_result = true;
         // Process completion status returns in eax; the loader maps it to the
@@ -116,7 +116,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 
     machine build_semantic() -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
+        let mutable output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots as
         // Microsoft x64 indirect aggregates: their pointers arrive in rcx and
@@ -129,7 +129,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 
     machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = output;
+        let mutable plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::MicrosoftX64;
         plan.call.stack_alignment = 16;
         plan.call.shadow_bytes = 32;
@@ -138,7 +138,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 
     machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan = plan;
+        let mutable output: BoundaryEntryPlan = plan;
         // Microsoft x64 caller-saved banks.
         output.call.ordinary_clobbers.register_count = 13;
         output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
@@ -194,7 +194,7 @@ machine windows_x86_64_entry_extent_reference(register: MachineRegister,
 {
     // Integer fragments describe ABI placement only. The source application
     // retains the core Extent record, qualifications, and requirement identity.
-    let mut value: ValuePlacement;
+    let mutable value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = 16;
     value.shape.alignment = 8;

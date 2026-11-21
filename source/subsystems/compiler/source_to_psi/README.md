@@ -79,7 +79,7 @@ binders at arbitrary nesting depth; children need not occupy contiguous rows.
 After trailing declarations begin, no executable statement may follow. The
 resolver still refuses unsupported higher-order contracts; parsing them does
 not mean they are checked.
-Statements are `let [mut] name: Type [= value];`,
+Statements are `let [mutable] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
 `_ = value;`, `value;`, `transition [subject] { arms }` and a final
 unterminated result expression.
@@ -100,7 +100,7 @@ and explicit singleton policy casts `as +Policy`, `as =Policy`, `as -Policy`
 or `as Type +Policy` (retired whole-type qualification and simultaneous
 multi-entry accounting refuse),
 `Path { field: value }` constructions (always inside brackets, never before an
-unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut`, `&write` and the call
+unbracketed body), prefix `!`, `-`, `~`, `@`, `@mutable`, `@write` and the call
 acknowledgements `suspend`, `block` and `suspend block`, the binary
 operators in the reference grammar's two precedence tiers, memberships
 `value in Domain {& Domain}` or `{| Domain}` between those tiers (one
@@ -111,7 +111,7 @@ and fixed-array literals `[element, ...]`, a trailing comma allowed, or `[]`,
 all on explicit stacks rather than
 recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
-grammar in [`pipeline/tokens_to_syntax_trees/types.omg`](pipeline/tokens_to_syntax_trees/types.omg): references `&['tag] [mut] T`,
+grammar in [`pipeline/tokens_to_syntax_trees/types.omg`](pipeline/tokens_to_syntax_trees/types.omg): references `@['tag] [mutable] T`,
 arrays `[T; N]`, slices `[T]` and named types, possibly `::` paths, with
 lifetime and static arguments `Name<'tag, T, 4>` (the lifetimes a run of
 their own, before the type arguments), nested on an explicit frame stack, each form that
@@ -405,7 +405,7 @@ call's unit, whose parameters admit its arguments
 value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, a range slice lent as a view at any
 shared-reference destination (a mutable subrange is written
-`&mut items[start..end]`; an expected `&mut [T]` never inserts the borrow,
+`@mutable items[start..end]`; an expected `@mutable [T]` never inserts the borrow,
 per the [explicit mutable range rule](../../../../wiki/spec/language/expressions.md#borrowed-range-access)),
 a reference to a whole array viewing it as a
 slice, a reference to a builtin scalar read as its referent, a quoted literal copied into an unqualified
@@ -467,7 +467,7 @@ selects among the callee's resolved candidates by argument type. A trait require
 runs only through a selected conformance), a generic conformance's member, a
 legacy target-family body, a conformance named as
 a call's static argument and a case domain qualifier reject as unsupported. A
-declared domain qualifies its carrier (through a reference, `&[u8] in
+declared domain qualifies its carrier (through a reference, `@[u8] in
 Path` qualifies the slice): a value of the carrier meets a qualified
 destination by a membership checking proves (adaptation `Qualified`), a
 literal lands there, a predicate-only qualification disappears where the
@@ -485,11 +485,11 @@ the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field and pattern
 field records the member it denotes, a common or a payload field, found by
 one search ([`pipeline/symbol_resolved_trees_to_typed_trees/calls.omg`](pipeline/symbol_resolved_trees_to_typed_trees/calls.omg)); an assignment writes a
-`let mut` local, a `mut` parameter, or a place behind an exclusive or
+`let mutable` local, a `mutable` parameter, or a place behind an exclusive or
 write-only reference (an assignment to a name holding such a loan writes its
-referent), and any other target rejects as an immutable place; `&write place`
-forms from the same places, a `&write` destination is met only by a `&write`
-borrow (attenuation from `&mut` and forwarding are spelled at the argument,
+referent), and any other target rejects as an immutable place; `@write place`
+forms from the same places, a `@write` destination is met only by a `@write`
+borrow (attenuation from `@mutable` and forwarding are spelled at the argument,
 else `ImplicitAttenuation`), and a write-only reference reads as nothing
 ([borrows and aliases](../../../../wiki/spec/language/ownership.md#borrows-and-aliases)). A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
@@ -615,7 +615,7 @@ index lies in `0..len`, a range slice's start is at most its exclusive end
 and that end at most the length (an inclusive end is a valid index, not
 negative), an Exact (unqualified) operation's result fits its
 carrier, an `as` conversion's value fits its target whatever the target's
-policy (`as` never changes the denoted value), a recast `reference as &T` views
+policy (`as` never changes the denoted value), a recast `reference as @T` views
 scalars whose representations the target's admit, a shared view one way
 and a mutable view both ([`pipeline/typed_trees_to_checked_trees/recasts.omg`](pipeline/typed_trees_to_checked_trees/recasts.omg)),
 a divisor is nonzero and a

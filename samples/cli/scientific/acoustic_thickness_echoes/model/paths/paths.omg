@@ -4,15 +4,15 @@
 use model\records;
 use model\records\Acquisition;
 use model\records\EchoResult;
-public machine build_boundaries(acquisition: @mut Acquisition) {
+public machine build_boundaries(acquisition: @mutable Acquisition) {
     transition { _ -> step(acquisition, 0, 0) }
-    machine step(acquisition: @mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
+    machine step(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
         transition layer < acquisition.layers && layer < 4 {
             true -> store(acquisition, layer, cumulative),
             false -> done()
         }
     }
-    machine store(acquisition: @mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating)
+    machine store(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating)
     requires layer < 4 {
         let speed: i64 in Saturating = acquisition.speeds[layer];
         transition speed > 0 {
@@ -20,7 +20,7 @@ public machine build_boundaries(acquisition: @mut Acquisition) {
             false -> done()
         }
     }
-    machine calculate(acquisition: @mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating, speed: i64 in Saturating)
+    machine calculate(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating, speed: i64 in Saturating)
     requires layer < 4
     requires speed > 0 {
         let duration: i64 in Saturating = acquisition.thicknesses[layer] * 2000 / speed;

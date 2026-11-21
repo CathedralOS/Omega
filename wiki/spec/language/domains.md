@@ -251,15 +251,15 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect\TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = access\new_plan(
+        let mutable plan: AccessPlan = access\new_plan(
             @schema,
             Issuance::Only { routes: [reflect\callable(create_cell)] }
         );
         access\allow_readers(
-            @mut plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
+            @mutable plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
         );
         access\allow_writers(
-            @mut plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
+            @mutable plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
         );
         plan
     }
@@ -319,7 +319,7 @@ projected writes, whole-value replacement of a governed place, and atomic stores
 requires write authority. Read-modify-write operations require both. Operations
 that return or inspect displaced content must also satisfy their observation and
 custody contracts. The operation's semantics determine its access, not whether
-its parameter spells `@` or `@mut`.
+its parameter spells `@` or `@mutable`.
 
 An authorized route removes only its domain's access restriction for the supplied
 subject and applicable axis. It does not create backing, widen a borrow, bypass
@@ -803,15 +803,15 @@ mutable reference, `-D` is accepted exactly when the lender could write
 [establishment rules](#domain-only-casts) for whatever the place then holds.
 
 ```omega
-machine reset(n: @mut i32) ensures n == 1 { n = 1; }
-machine scribble(n: @mut i32) { n = 0; }
+machine reset(n: @mutable i32) ensures n == 1 { n = 1; }
+machine scribble(n: @mutable i32) { n = 0; }
 
-let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
+let mutable trip: i32 in Km & Positive = 5 as +Km +Positive;
 
-reset(@mut trip as -Km -Positive);
+reset(@mutable trip as -Km -Positive);
 // `Km` returns with nothing to prove. `Positive` is proved by `n == 1`.
 
-scribble(@mut trip as -Km -Positive);
+scribble(@mutable trip as -Km -Positive);
 measure(trip);
 // Rejected: `Positive` is not re-established for `trip` after `scribble`.
 ```

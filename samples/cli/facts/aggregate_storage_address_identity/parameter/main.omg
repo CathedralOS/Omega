@@ -2,7 +2,7 @@
 // Expected exit: 0.
 data Pair [copy] { left: u64; right: u64; }
 machine expose(value: @Pair) -> addr { address_of(value) }
-machine probe(mut value: Pair) -> bool {
+machine probe(mutable value: Pair) -> bool {
     let original: addr = address_of(@value);
     let forwarded: addr = expose(@value);
     value.left = 13;

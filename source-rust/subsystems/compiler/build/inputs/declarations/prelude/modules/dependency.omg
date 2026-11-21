@@ -2,7 +2,7 @@ public machine from_source<'storage>(source: Source<'storage>) -> DependencyDesc
     DependencyDescription { source: source, explicit_alias: false, alias: "" }
 }
 
-public machine with_alias<'storage>(description: @mut DependencyDescription<'storage>, alias: @'storage [u8]) {
+public machine with_alias<'storage>(description: @mutable DependencyDescription<'storage>, alias: @'storage [u8]) {
     description.explicit_alias = true;
     description.alias = alias;
 }

@@ -20,7 +20,7 @@ fn fixed_image_supplies_only_its_authenticated_member_on_uefi() {
         &path,
         r#"use omega\language\core\ProgramImage;
 use omega\language\core\ProgramImageNativeProvider;
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::package(builder, "firmware_provider");
     Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
 }"#,
@@ -140,7 +140,7 @@ fn published_firmware_application() -> CanonicalTerminalArtifact {
         &path,
         r#"use omega\language\core\ProgramImage;
 use omega\language\core\ProgramImageNativeProvider;
-machine build(builder: @mut Build) {
+machine build(builder: @mutable Build) {
     Build::application(builder, "firmware");
     Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
     Build::bind(builder, uefi_x86_64\ProgramEntry, entry);
@@ -226,7 +226,7 @@ fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
             "firmware-observation-footprint", false,
         ).unwrap();
         let path = temporary.path().join("build.omg");
-        std::fs::write(&path, r#"machine build(b: @mut Build) {
+        std::fs::write(&path, r#"machine build(b: @mutable Build) {
             Build::application(b, "firmware");
             Build::bind(b, uefi_x86_64\ProgramEntry, entry);
         }"#).unwrap();
@@ -267,7 +267,7 @@ fn storage_transport_requires_a_grant_on_each_owned_argument() {
     let path = temporary.path().join("build.omg");
     std::fs::write(&path, r#"use omega\language\core\ProgramStorageEntry;
 use omega\language\core\ProgramStorageEntryNativeProvider;
-machine build(b: @mut Build) {
+machine build(b: @mutable Build) {
     Build::package(b, "transport");
     Build::select_provider::<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(b, uefi_x86_64);
 }"#).unwrap();

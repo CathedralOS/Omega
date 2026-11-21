@@ -9,14 +9,14 @@ requires bytes.length == 1
 }
 
 data Flag { value: bool; }
-machine settle(flag: @mut Flag) { flag.value = true; }
+machine settle(flag: @mutable Flag) { flag.value = true; }
 
 machine main() crashes Trap {
     let packet: [u8; 4] = [11, 23, 29, 31];
     let windows: [@[u8]; 2] = [@packet[0..1], @packet[2..3]];
     let other: [@[u8]; 2] = [@packet[1..2], @packet[3..4]];
-    let mut flag: Flag = Flag { value: false };
-    settle(@mut flag);
+    let mutable flag: Flag = Flag { value: false };
+    settle(@mutable flag);
     let selected: [@[u8]; 2] = match flag.value {
         true -> windows,
         false -> other

@@ -3,7 +3,7 @@
 const ADD_FLAGS: u64 = 85u64;
 
 machine main() crashes Trap {
- let mut snapshot: u64 = 0;
+ let mutable snapshot: u64 = 0;
  asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 4294967295;

@@ -2,27 +2,27 @@
 // Place: local.
 // Expected exit: 0
 data Counter { count: u64 in Wrapping; }
-data Token<'c> dropped by drop_token<'c> { counter: @'c mut Counter; mark: u64; }
+data Token<'c> dropped by drop_token<'c> { counter: @'c mutable Counter; mark: u64; }
 
-machine drop_token<'c>(token: @mut Token<'c>) {
+machine drop_token<'c>(token: @mutable Token<'c>) {
     token.counter.count = token.counter.count + (token.mark as u64 +Wrapping);
 }
 
 machine relay<'c>(token: Token<'c>) -> Token<'c> {
-    let mut kept: Token<'c> = token;
+    let mutable kept: Token<'c> = token;
     kept.mark = 40;
     kept
 }
 
-machine refill<'c>(slot: @mut Token<'c>, counter: @'c mut Counter, flag: bool) -> bool {
+machine refill<'c>(slot: @mutable Token<'c>, counter: @'c mutable Counter, flag: bool) -> bool {
     $slot = Token { counter: counter, mark: 5 };
     flag
 }
 
-machine exercise(a: @mut Counter, b: @mut Counter, c: @mut Counter, flag: bool) -> u64 {
-    let mut slot: Token = Token { counter: a, mark: 11 };
+machine exercise(a: @mutable Counter, b: @mutable Counter, c: @mutable Counter, flag: bool) -> u64 {
+    let mutable slot: Token = Token { counter: a, mark: 11 };
     let other: Token = Token { counter: b, mark: 13 };
-    let held: Token = match refill(@mut slot, c, flag) {
+    let held: Token = match refill(@mutable slot, c, flag) {
         true -> relay(slot),
         false -> relay(other)
     };
@@ -30,14 +30,14 @@ machine exercise(a: @mut Counter, b: @mut Counter, c: @mut Counter, flag: bool) 
 }
 
 machine main() crashes Trap {
-    let mut a1: Counter = Counter { count: 0 };
-    let mut b1: Counter = Counter { count: 0 };
-    let mut c1: Counter = Counter { count: 0 };
-    let mut a2: Counter = Counter { count: 0 };
-    let mut b2: Counter = Counter { count: 0 };
-    let mut c2: Counter = Counter { count: 0 };
-    let m1: u64 = exercise(@mut a1, @mut b1, @mut c1, true);
-    let m2: u64 = exercise(@mut a2, @mut b2, @mut c2, false);
+    let mutable a1: Counter = Counter { count: 0 };
+    let mutable b1: Counter = Counter { count: 0 };
+    let mutable c1: Counter = Counter { count: 0 };
+    let mutable a2: Counter = Counter { count: 0 };
+    let mutable b2: Counter = Counter { count: 0 };
+    let mutable c2: Counter = Counter { count: 0 };
+    let m1: u64 = exercise(@mutable a1, @mutable b1, @mutable c1, true);
+    let m2: u64 = exercise(@mutable a2, @mutable b2, @mutable c2, false);
     transition m1 == 40 && a1.count == 11 && b1.count == 13 && c1.count == 40
         && m2 == 40 && a2.count == 11 && b2.count == 40 && c2.count == 5 {
         true -> done(),

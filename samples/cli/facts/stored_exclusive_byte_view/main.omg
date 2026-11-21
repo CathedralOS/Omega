@@ -1,8 +1,8 @@
 // An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
 // Expected exit: 0
 machine main() crashes Trap {
-    let mut backing: [u8; 1] = [19];
-    let windows: [@mut [u8]; 1] = [@mut backing[..]];
+    let mutable backing: [u8; 1] = [19];
+    let windows: [@mutable [u8]; 1] = [@mutable backing[..]];
     let length: u64 = windows[0].length;
     let observed: bool = windows[0][0] == 19 && length == 1;
     transition observed {

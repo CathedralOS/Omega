@@ -10,7 +10,7 @@ boundary trait SelectedRestore {
 }
 X86Restore satisfies SelectedRestore {
     machine restore() reaches MachineControl crashes Trap {
-        let mut saved: u64 = 0;
+        let mutable saved: u64 = 0;
         asm clobbers rax, rflags, r10, r15 {
             entry:
                 mov eax, 1;

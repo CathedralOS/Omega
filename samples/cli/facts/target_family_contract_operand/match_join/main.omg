@@ -46,10 +46,10 @@ requires machine Callback(argument: @Value, count: u64) -> bool;
 
 machine run_case(item_code: u64, expected: bool, choose: bool, expected_route: u64) reaches Choosing crashes Trap {
     let item: Item = Item { code: item_code };
-    let mut route: u64 = 0;
+    let mutable route: u64 = 0;
     let number: u64 = match choose {
-        true -> mark_number(42, @mut route, 11),
-        false -> mark_number(42, @mut route, 22)
+        true -> mark_number(42, @mutable route, 11),
+        false -> mark_number(42, @mutable route, 22)
     };
     let direct: bool = Choosing::choose::<Item, matches>(@item, number);
     let forwarded: bool = forward::<Item, matches>(@item);
@@ -61,7 +61,7 @@ machine run_case(item_code: u64, expected: bool, choose: bool, expected_route: u
     machine bad() crashes Trap { crash Trap; }
 }
 
-machine mark_number(number: u64, route: @mut u64, tag: u64) -> u64
+machine mark_number(number: u64, route: @mutable u64, tag: u64) -> u64
 ensures result == number { $route = tag; number }
 
 machine main() reaches Choosing crashes Trap {

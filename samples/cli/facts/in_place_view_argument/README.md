@@ -1,7 +1,7 @@
 # In-place view argument
 
 Owner: `RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY` in [TASKS.md](../../../../TASKS.md),
-the requirement to lower the call argument `Input { bytes: &main.packet }` built
+the requirement to lower the call argument `Input { bytes: @main.packet }` built
 in place.
 
 Fact: a shared byte view formed inside a constructed call argument borrows the
@@ -24,7 +24,7 @@ Rules: [structural access](../../../../wiki/spec/terminal-psi/structural_access.
 | Other machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
 | Selected implementation | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
-Every place passes `Input { tag, bytes: &packet, tail }` straight into the call.
+Every place passes `Input { tag, bytes: @packet, tail }` straight into the call.
 The backing array is a local, a field of the caller's borrowed record (between
 canaries 3 and 4), an owned parameter, a call result, the array each match arm
 selects (29 or 31 at index 2), an array sized and filled by named constants,
@@ -46,7 +46,7 @@ fails with ``needs fact `packet.bytes.length >= 4` here``.
 On base `ca41410e2`, the checker already rejected all nine twins, and all nine
 positives refused lowering: `call operation: structural arguments: retained
 temporary` (`boundary argument parameter` for the selected implementation).
-The formation `&packet` has no statement loan, because no local owns it. Borrow
+The formation `@packet` has no statement loan, because no local owns it. Borrow
 admission records it only in the call's ordered access roster. Value planning
 (`scalar_computations/reference_captures.rs`) looked for statement loans,
 returned loans and call-loan resources; those resources are installed after
@@ -59,7 +59,7 @@ local owns a statement loan.
 
 ## Requirements
 
-- **Establishment:** the formation `&packet` establishes the view's length from
+- **Establishment:** the formation `@packet` establishes the view's length from
   the array's extent. No caller guard restates it; the twins remove it by
   shrinking the array.
 - **Identity and lifetime:** the view names the caller's exact array for the
@@ -71,6 +71,6 @@ local owns a statement loan.
   the Linux x86-64 native image with exit 0 (`omega run --both`).
 
 All four hosted `ProgramEntry` rows are authored; executions were observed on Linux
-x86-64 only. A mutable `&mut [u8]` field formed in place (`fill(Output { bytes: &mut
+x86-64 only. A mutable `@mutable [u8]` field formed in place (`fill(Output { bytes: @mutable
 packet })`) and a view nested two records deep were checked by probes but are not
 pinned rows.

@@ -14,7 +14,7 @@
 // and accepts only when every read agrees. Compile-checked only: no
 // standard-library dependency, no ProcessExit provider.
 machine operator_desugars() {
-    let mut v: i32 = 10;
+    let mutable v: i32 = 10;
     v += 5;  // 15
     v -= 3;  // 12
     v *= 2;  // 24

@@ -8,8 +8,8 @@ the same nine places. Its controls exercise RHS effects and current selectors.
 
 Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` in [TASKS.md](../../../../TASKS.md).
 The nine places now read `items[0]` through an opaque generic reference result:
-`capture<View>(source: View, marker: &mut u64, event: u64) -> View`, with
-`View == &'source u64`. The owned `u64` receiving context performs the read
+`capture<View>(source: View, marker: @mutable u64, event: u64) -> View`, with
+`View == @'source u64`. The owned `u64` receiving context performs the read
 after the helper completes. The helper writes a caller-visible marker so an
 omitted call or incorrect match arm cannot silently satisfy the runtime oracle.
 

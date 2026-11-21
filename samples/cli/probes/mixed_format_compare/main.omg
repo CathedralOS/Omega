@@ -10,7 +10,7 @@
 //     exact.
 //   * `calls = ((calls as +Wrapping) + 1) as -Wrapping`
 //     — domain-cast + erase around an increment gives
-//     wrapping count semantics through a `&mut` param.
+//     wrapping count semantics through a `@mutable` param.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
@@ -25,7 +25,7 @@ machine widen(value: f32) -> f64 { value as f64 }
 
 machine identity(value: f32) -> f32 { value }
 
-machine compare(calls: @mut u64) -> Observations {
+machine compare(calls: @mutable u64) -> Observations {
     $calls = (($calls as u64 +Wrapping) + 1) as u64;
     Observations {
         widened: widen(1.5f32) == 1.5,
@@ -35,20 +35,20 @@ machine compare(calls: @mut u64) -> Observations {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mut Main) {
+machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let mut calls: u64 = 0;
-    let seen: Observations = compare(@mut calls);
+    let mutable calls: u64 = 0;
+    let seen: Observations = compare(@mutable calls);
     transition seen.widened && !seen.rounded && calls == 1 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mut Main) { main.hits = 1; }
-    machine fail(main: @mut Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine fail(main: @mutable Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    let mutable entry_storage: Main;
+    Main::main(@mutable entry_storage);
 }

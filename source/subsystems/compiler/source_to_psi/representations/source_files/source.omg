@@ -28,20 +28,20 @@ requires
     last_retained: bool;
 }
 
-machine source_unit_clear(source_unit: @mut SourceUnit, id: SourceId) {
+machine source_unit_clear(source_unit: @mutable SourceUnit, id: SourceId) {
     source_unit.id = id;
     source_unit.length = 0;
     source_unit.last_retained = true;
 }
 
-machine source_unit_append(source_unit: @mut SourceUnit, byte: u8) {
+machine source_unit_append(source_unit: @mutable SourceUnit, byte: u8) {
     source_unit.last_retained = false;
     transition source_unit.length < 131072 {
         true -> retain(source_unit, byte),
         _ -> full(source_unit)
     }
 
-    machine retain(source_unit: @mut SourceUnit, byte: u8)
+    machine retain(source_unit: @mutable SourceUnit, byte: u8)
     requires source_unit.length < 131072
     {
         source_unit.bytes[source_unit.length] = byte;
@@ -49,7 +49,7 @@ machine source_unit_append(source_unit: @mut SourceUnit, byte: u8) {
         source_unit.last_retained = true;
     }
 
-    machine full(source_unit: @mut SourceUnit) {
+    machine full(source_unit: @mutable SourceUnit) {
         source_unit.last_retained = false;
     }
 }
@@ -97,18 +97,18 @@ requires
     length: u64;
 }
 
-public machine module_path_clear(module_path: @mut ModulePath) {
+public machine module_path_clear(module_path: @mutable ModulePath) {
     module_path.length = 0;
 }
 
 // Append one byte; the path's provision is exhausted when it reports false.
-public machine module_path_append(module_path: @mut ModulePath, byte: u8) -> bool {
+public machine module_path_append(module_path: @mutable ModulePath, byte: u8) -> bool {
     transition module_path.length < 256 {
         true -> retain(module_path, byte),
         _ -> full()
     }
 
-    machine retain(module_path: @mut ModulePath, byte: u8) -> bool
+    machine retain(module_path: @mutable ModulePath, byte: u8) -> bool
     requires module_path.length < 256
     {
         module_path.bytes[module_path.length] = byte;
@@ -183,7 +183,7 @@ requires
     dependency_count: u64;
 }
 
-public machine source_set_clear(sources: @mut SourceSet) {
+public machine source_set_clear(sources: @mutable SourceSet) {
     sources.byte_count = 0;
     sources.path_byte_count = 0;
     sources.unit_count = 0;
@@ -195,7 +195,7 @@ public machine source_set_clear(sources: @mut SourceSet) {
 // when the package is not in the set or the set's provisions cannot hold
 // the unit.
 public machine source_set_add(
-    sources: @mut SourceSet,
+    sources: @mutable SourceSet,
     unit: @SourceUnit,
     package: u64 in Trapping,
     module_path: @ModulePath
@@ -210,19 +210,19 @@ crashes Trap
         _ -> full()
     }
 
-    machine path(sources: @mut SourceSet, unit: @SourceUnit, package: u64 in Trapping, module_path: @ModulePath) -> bool {
+    machine path(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, module_path: @ModulePath) -> bool {
         let path: SourceRange = store_name(sources, module_path);
         transition { _ -> bytes(sources, unit, package, path, 0 as +Trapping) }
     }
 
-    machine bytes(sources: @mut SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
+    machine bytes(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         transition index < unit.length {
             true -> unit_byte(sources, unit, package, path, index),
             _ -> record(sources, unit, package, path)
         }
     }
 
-    machine unit_byte(sources: @mut SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
+    machine unit_byte(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as +Trapping) + index;
         let byte: u8 = source_unit_byte_or_nul(unit, index);
         transition at < 4194304 {
@@ -232,7 +232,7 @@ crashes Trap
     }
 
     machine store_unit_byte(
-        sources: @mut SourceSet,
+        sources: @mutable SourceSet,
         unit: @SourceUnit,
         package: u64 in Trapping,
         path: SourceRange,
@@ -247,7 +247,7 @@ crashes Trap
     }
 
     // The unit's bytes begin where the arena ended before it.
-    machine record(sources: @mut SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange) -> bool {
+    machine record(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange) -> bool {
         let unit_count: u64 in Trapping = sources.unit_count as +Trapping;
         let unit_start: u64 in Trapping = sources.byte_count as +Trapping;
         let unit_length: u64 in Trapping = unit.length as +Trapping;
@@ -259,7 +259,7 @@ crashes Trap
     }
 
     machine store_ranges(
-        sources: @mut SourceSet,
+        sources: @mutable SourceSet,
         unit_count: u64 in Trapping,
         unit_start: u64 in Trapping,
         unit_length: u64 in Trapping,
@@ -289,7 +289,7 @@ crashes Trap
 // Add a package named `name`, or the toolchain package (whose name is
 // empty), as the next package index, or report false when the set's
 // provisions cannot hold it.
-public machine add_package(sources: @mut SourceSet, name: @ModulePath, toolchain: bool) -> bool
+public machine add_package(sources: @mutable SourceSet, name: @ModulePath, toolchain: bool) -> bool
 crashes Trap
 {
     transition sources.package_count < 64 && name.length <= 16384 - sources.path_byte_count {
@@ -297,7 +297,7 @@ crashes Trap
         _ -> full()
     }
 
-    machine store(sources: @mut SourceSet, name: @ModulePath, toolchain: bool) -> bool {
+    machine store(sources: @mutable SourceSet, name: @ModulePath, toolchain: bool) -> bool {
         let range: SourceRange = store_name(sources, name);
         let index: u64 in Trapping = sources.package_count as +Trapping;
         transition index < 64 {
@@ -306,7 +306,7 @@ crashes Trap
         }
     }
 
-    machine record(sources: @mut SourceSet, index: u64 in Trapping, range: SourceRange, toolchain: bool) -> bool
+    machine record(sources: @mutable SourceSet, index: u64 in Trapping, range: SourceRange, toolchain: bool) -> bool
     requires index < 64
     {
         sources.packages[index as -Trapping] = PackageRow { name: range, toolchain: toolchain };
@@ -323,7 +323,7 @@ crashes Trap
 // `requester`'s `scope` imports, or report false when either package is not
 // in the set or the set's provisions cannot hold the edge.
 public machine add_dependency(
-    sources: @mut SourceSet,
+    sources: @mutable SourceSet,
     requester: u64 in Trapping,
     scope: DependencyScope,
     alias: @ModulePath,
@@ -340,7 +340,7 @@ crashes Trap
     }
 
     machine store(
-        sources: @mut SourceSet,
+        sources: @mutable SourceSet,
         requester: u64 in Trapping,
         scope: DependencyScope,
         alias: @ModulePath,
@@ -355,7 +355,7 @@ crashes Trap
     }
 
     machine record(
-        sources: @mut SourceSet,
+        sources: @mutable SourceSet,
         index: u64 in Trapping,
         requester: u64 in Trapping,
         scope: DependencyScope,
@@ -376,19 +376,19 @@ crashes Trap
 
 // Append `name` to the path arena and give its range. Callers check the
 // arena's provision first, so running out of it is an internal fault.
-machine store_name(sources: @mut SourceSet, name: @ModulePath) -> SourceRange
+machine store_name(sources: @mutable SourceSet, name: @ModulePath) -> SourceRange
 crashes Trap
 {
     transition { _ -> next(sources, name, 0 as +Trapping) }
 
-    machine next(sources: @mut SourceSet, name: @ModulePath, index: u64 in Trapping) -> SourceRange {
+    machine next(sources: @mutable SourceSet, name: @ModulePath, index: u64 in Trapping) -> SourceRange {
         transition index < name.length {
             true -> byte(sources, name, index),
             _ -> stored(sources, name)
         }
     }
 
-    machine byte(sources: @mut SourceSet, name: @ModulePath, index: u64 in Trapping) -> SourceRange {
+    machine byte(sources: @mutable SourceSet, name: @ModulePath, index: u64 in Trapping) -> SourceRange {
         let at: u64 in Trapping = (sources.path_byte_count as +Trapping) + index;
         transition index < 256 && at < 16384 {
             true -> store(sources, name, index, at),
@@ -396,7 +396,7 @@ crashes Trap
         }
     }
 
-    machine store(sources: @mut SourceSet, name: @ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange
+    machine store(sources: @mutable SourceSet, name: @ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange
     requires index < 256, at < 16384
     {
         let byte: u8 = name.bytes[index as -Trapping];
@@ -404,7 +404,7 @@ crashes Trap
         transition { _ -> next(sources, name, index + 1) }
     }
 
-    machine stored(sources: @mut SourceSet, name: @ModulePath) -> SourceRange {
+    machine stored(sources: @mutable SourceSet, name: @ModulePath) -> SourceRange {
         let start: u64 in Trapping = sources.path_byte_count as +Trapping;
         let length: u64 in Trapping = name.length as +Trapping;
         let end: u64 in Trapping = start + length;
@@ -414,7 +414,7 @@ crashes Trap
         }
     }
 
-    machine advance(sources: @mut SourceSet, start: u64 in Trapping, length: u64 in Trapping, end: u64 in Trapping) -> SourceRange
+    machine advance(sources: @mutable SourceSet, start: u64 in Trapping, length: u64 in Trapping, end: u64 in Trapping) -> SourceRange
     requires end <= 16384
     {
         sources.path_byte_count = end as -Trapping;

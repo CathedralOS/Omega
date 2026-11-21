@@ -16,22 +16,22 @@ Unchanged satisfies Retain<Reading> {
     machine test(value: @Reading) -> bool { value.current == value.previous }
 }
 
-machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [T])
-    -> @'input mut [T]
+machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mutable [T])
+    -> @'input mutable [T]
 {
     transition { _ -> scan(selected, values, 0, 0) }
 
-    machine scan(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine scan(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor <= values.length {
         transition cursor < values.length {
             true -> visit(selected, values, cursor, retained),
-            false -> (@mut values[..retained])
+            false -> (@mutable values[..retained])
         }
     }
 
-    machine visit(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine visit(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor < values.length {
         transition Retain::test(selected, @values[cursor]) {
             true -> keep(selected, values, cursor, retained),
@@ -39,8 +39,8 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
         }
     }
 
-    machine keep(selected: dyn Retain<T>, values: @'input mut [T], cursor: u64, retained: u64)
-        -> @'input mut [T]
+    machine keep(selected: dyn Retain<T>, values: @'input mutable [T], cursor: u64, retained: u64)
+        -> @'input mutable [T]
     requires retained <= cursor && cursor < values.length {
         values[retained] = values[cursor];
         transition { _ -> scan(selected, values, cursor + 1, retained + 1) }
@@ -48,7 +48,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
 }
 
 machine main() crashes Trap {
-    let mut readings: [Reading; 6] = [
+    let mutable readings: [Reading; 6] = [
         Reading { address: 999, previous: 99, current: 98 },
         Reading { address: 10, previous: -5, current: -2 },
         Reading { address: 20, previous: 7, current: 3 },
@@ -56,18 +56,18 @@ machine main() crashes Trap {
         Reading { address: 40, previous: 8, current: 9 },
         Reading { address: 888, previous: 88, current: 87 }
     ];
-    let mut selection: dyn Retain<Reading> = Increased as dyn Retain<Reading>;
-    let first: @mut [Reading] = compact(selection, @mut readings[1..5]);
+    let mutable selection: dyn Retain<Reading> = Increased as dyn Retain<Reading>;
+    let first: @mutable [Reading] = compact(selection, @mutable readings[1..5]);
     let first_count: u64 = first.length;
     selection = Positive as dyn Retain<Reading>;
-    let second: @mut [Reading] = compact(selection, first);
+    let second: @mutable [Reading] = compact(selection, first);
     let correct: bool = verify(second);
-    let all: @mut [Reading] = compact(selection, second);
+    let all: @mutable [Reading] = compact(selection, second);
     let all_correct: bool = verify(all);
     selection = Unchanged as dyn Retain<Reading>;
-    let none: @mut [Reading] = compact(selection, all);
+    let none: @mutable [Reading] = compact(selection, all);
     let none_count: u64 = none.length;
-    let empty: @mut [Reading] = compact(selection, none);
+    let empty: @mutable [Reading] = compact(selection, none);
     let empty_correct: bool = is_empty(empty);
     transition correct && all_correct && first_count == 3
         && none_count == 0 && empty_correct

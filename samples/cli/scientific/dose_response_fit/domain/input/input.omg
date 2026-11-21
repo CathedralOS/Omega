@@ -18,7 +18,7 @@ data Token {
     case Number(value: i32);
 }
 // The caller sets a 4096-byte budget; exhaustion is distinct from real EOF.
-machine next_byte(reader: @mut InputReader) -> ByteRead reaches Console
+machine next_byte(reader: @mutable InputReader) -> ByteRead reaches Console
 invokes Console
 blocks
 crashes Trap
@@ -28,7 +28,7 @@ crashes Trap
         ByteRead::Eof -> ByteRead::Eof,
         ByteRead::Byte { value } -> capacity(reader, value)
     }
-    machine capacity(reader: @mut InputReader, value: i32) -> ByteRead
+    machine capacity(reader: @mutable InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
@@ -36,50 +36,50 @@ crashes Trap
             _ -> limit(reader)
         }
     }
-    machine consume(reader: @mut InputReader, value: i32) -> ByteRead
+    machine consume(reader: @mutable InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         reader.remaining = reader.remaining - 1;
         ByteRead::Byte { value: value }
     }
-    machine limit(reader: @mut InputReader) -> ByteRead {
+    machine limit(reader: @mutable InputReader) -> ByteRead {
         reader.exhausted = true;
         ByteRead::Eof
     }
 }
-machine token(reader: @mut InputReader) -> Token reaches Console
+machine token(reader: @mutable InputReader) -> Token reaches Console
 invokes Console
 blocks
 crashes Trap
 {
     transition { _ -> skip(reader) }
-    machine skip(reader: @mut InputReader) -> Token {
+    machine skip(reader: @mutable InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End,
             ByteRead::Byte { value } -> first(reader, value)
         }
     }
-    machine first(reader: @mut InputReader, byte: i32) -> Token {
+    machine first(reader: @mutable InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> skip(reader),
             _ -> sign(reader, byte)
         }
     }
-    machine sign(reader: @mut InputReader, byte: i32) -> Token {
+    machine sign(reader: @mutable InputReader, byte: i32) -> Token {
         transition byte == 45 {
             true -> next(reader, 0, 0, true),
             _ -> digit(reader, byte, 0, 0, false)
         }
     }
-    machine digit(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine digit(reader: @mutable InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 7 {
             true -> accumulate(reader, byte, magnitude, digits, negative),
             _ -> Token::Invalid
         }
     }
-    machine accumulate(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine accumulate(reader: @mutable InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 +Wrapping) - 48;
         transition updated <= 1000000 {
@@ -87,7 +87,7 @@ crashes Trap
             _ -> Token::Invalid
         }
     }
-    machine next(reader: @mut InputReader, magnitude: i32 in Wrapping,
+    machine next(reader: @mutable InputReader, magnitude: i32 in Wrapping,
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
@@ -95,7 +95,7 @@ crashes Trap
             ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
         }
     }
-    machine delimiter(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine delimiter(reader: @mutable InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative),
@@ -116,7 +116,7 @@ crashes Trap
     }
 }
 data Row { dose: i32; replicate: i32; role: i32; }
-public machine read_input(reader: @mut InputReader, observations: @mut Observations) -> bool reaches Console
+public machine read_input(reader: @mutable InputReader, observations: @mutable Observations) -> bool reaches Console
 invokes Console
 blocks
 crashes Trap
@@ -126,46 +126,46 @@ crashes Trap
         Token::Number { value } -> direction(reader, observations, value),
         _ -> false
     }
-    machine direction(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
+    machine direction(reader: @mutable InputReader, observations: @mutable Observations, value: i32) -> bool {
         observations.direction = value;
         transition value == 1 || value == -1 {
             true -> size(reader, observations),
             _ -> false
         }
     }
-    machine size(reader: @mut InputReader, observations: @mut Observations) -> bool {
+    machine size(reader: @mutable InputReader, observations: @mutable Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
             Token::Number { value } -> count(reader, observations, value),
             _ -> false
         }
     }
-    machine count(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
+    machine count(reader: @mutable InputReader, observations: @mutable Observations, value: i32) -> bool {
         observations.count = value as +Wrapping;
         transition value >= 8 && value <= 32 {
             true -> noise(reader, observations),
             _ -> false
         }
     }
-    machine noise(reader: @mut InputReader, observations: @mut Observations) -> bool {
+    machine noise(reader: @mutable InputReader, observations: @mutable Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
             Token::Number { value } -> sigma(reader, observations, value),
             _ -> false
         }
     }
-    machine sigma(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
+    machine sigma(reader: @mutable InputReader, observations: @mutable Observations, value: i32) -> bool {
         observations.sigma = F64::from_i32(value) / 1000.0;
         transition value >= 1 && value <= 10000 {
             true -> begin(reader, observations),
             _ -> false
         }
     }
-    machine begin(reader: @mut InputReader, observations: @mut Observations) -> bool {
-        let mut row: Row;
-        transition { _ -> rows(reader, observations, @mut row, 0, 0) }
+    machine begin(reader: @mutable InputReader, observations: @mutable Observations) -> bool {
+        let mutable row: Row;
+        transition { _ -> rows(reader, observations, @mutable row, 0, 0) }
     }
-    machine rows(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine rows(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                position: i32 in Wrapping, field: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
@@ -181,14 +181,14 @@ crashes Trap
             _ -> false
         }
     }
-    machine capacity(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine capacity(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                    position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> select(reader, observations, row, position, field, value),
             _ -> false
         }
     }
-    machine select(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine select(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                  position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition field {
             0 -> dose(reader, observations, row, position, value),
@@ -197,7 +197,7 @@ crashes Trap
             _ -> response(reader, observations, row, position, value)
         }
     }
-    machine dose(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine dose(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                position: i32 in Wrapping, value: i32) -> bool {
         row.dose = value;
         transition value >= 0 && value <= 10000 {
@@ -205,7 +205,7 @@ crashes Trap
             _ -> false
         }
     }
-    machine replicate(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine replicate(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                     position: i32 in Wrapping, value: i32) -> bool {
         row.replicate = value;
         transition value >= 1 && value <= 32 {
@@ -213,7 +213,7 @@ crashes Trap
             _ -> false
         }
     }
-    machine role(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine role(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                position: i32 in Wrapping, value: i32) -> bool {
         row.role = value;
         transition value >= 0 && value <= 2 {
@@ -221,7 +221,7 @@ crashes Trap
             _ -> false
         }
     }
-    machine response(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine response(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition value >= -20000 && value <= 120000
             && ((row.role == 0 && row.dose > 0) || (row.role != 0 && row.dose == 0)) {
@@ -229,7 +229,7 @@ crashes Trap
             _ -> false
         }
     }
-    machine store(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
+    machine store(reader: @mutable InputReader, observations: @mutable Observations, row: @mutable Row,
                 position: i32 in Wrapping, value: i32) -> bool {
         observations.dose[position] = row.dose;
         observations.replicate[position] = row.replicate;

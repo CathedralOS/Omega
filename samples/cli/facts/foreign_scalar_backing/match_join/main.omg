@@ -26,7 +26,7 @@ machine posix_through(choice: bool) crashes Trap {
         false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
     };
     demand(joined.branch == choice);
-    let mut backing: Cell = joined.cell;
+    let mutable backing: Cell = joined.cell;
     let selected: @u32 = @backing.word;
     let written: i64 = Words::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
@@ -40,7 +40,7 @@ machine windows_through(choice: bool) crashes Trap {
         false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
     };
     demand(joined.branch == choice);
-    let mut backing: Cell = joined.cell;
+    let mutable backing: Cell = joined.cell;
     let selected: @u32 = @backing.word;
     let written: i32 = WindowsWords::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);

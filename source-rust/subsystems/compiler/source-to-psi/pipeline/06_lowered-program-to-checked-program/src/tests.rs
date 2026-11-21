@@ -2616,7 +2616,7 @@ fn arm_constant(elaboration: &crate::lowering::Elaboration) -> (OperationId, Val
 #[test]
 fn a_stored_leaf_reads_as_the_stored_value_and_its_sibling_keeps_its_content() {
     // f(a: u32) -> u32 {
-    //     let mut p = Point { x: a, y: 7 };
+    //     let mutable p = Point { x: a, y: 7 };
     //     let old = p.y;
     //     p.y = 99;
     //     bounded(old);        // old is still the 7 it was read as
@@ -2665,7 +2665,7 @@ fn a_stored_leaf_reads_as_the_stored_value_and_its_sibling_keeps_its_content() {
 #[test]
 fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
     // f(g: bool) -> u32 {
-    //     let mut p = Point { x: 1, y: 2 };
+    //     let mutable p = Point { x: 1, y: 2 };
     //     transition g { true -> 0 }     // the arm completes the machine
     //     let q = p;                     // a whole copy in the continuation
     //     p.x & q.x                      // a read and a read of the copy
@@ -2723,7 +2723,7 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
 #[test]
 fn a_store_before_a_branch_reaches_both_sides() {
     // f(g: bool) -> u32 {
-    //     let mut p = Point { x: 1, y: 2 };
+    //     let mutable p = Point { x: 1, y: 2 };
     //     p.x = 5;
     //     transition g { true -> p.x }   // the arm reads it
     //     let q = p;
@@ -2755,9 +2755,9 @@ fn a_store_before_a_branch_reaches_both_sides() {
 #[test]
 fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
     // f(a: u32) -> u32 {
-    //     let mut p = Point { x: 1, y: 2 };
+    //     let mutable p = Point { x: 1, y: 2 };
     //     p = Point { x: p.y, y: a };     // the operand reads the old `p`
-    //     let mut l = Line { from: p, to: p };
+    //     let mutable l = Line { from: p, to: p };
     //     l.to = Point { x: 8, y: 9 };    // replaces `l.to` whole
     //     p.x & p.y & l.to.x & l.to.y & l.from.y
     // }
@@ -2917,7 +2917,7 @@ fn a_read_of_a_gated_local_nothing_was_stored_into_is_unestablished() {
         refusal.site.in_machine().unwrap().1,
         terminal_check_tables::Construct::Operation(field_reads(&elaboration)[0].0)
     );
-    // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
+    // f() -> u32 { let mutable g: Gated; g.v = 3; g.v }: the store establishes
     // it, and the read equals the stored value.
     let (elaboration, result) = run_constrained(vec![unwritten(vec![
         declare(0, data(GATED)),
@@ -2948,7 +2948,7 @@ fn home_read(elaboration: &crate::lowering::Elaboration) -> (OperationId, ValueI
 
 #[test]
 fn a_scalar_local_without_an_initializer_is_established_as_zero() {
-    // f() -> u32 { let mut x: u32; zero(x) }, with `zero requires v == 0`.
+    // f() -> u32 { let mutable x: u32; zero(x) }, with `zero requires v == 0`.
     // The local is zero-constructed and `u32` admits zero, so the read is
     // established, it equals the zero constant the module holds, and
     // `zero`'s requirement follows from that equation.
@@ -2973,7 +2973,7 @@ fn a_scalar_local_without_an_initializer_is_established_as_zero() {
     let required = verdicts_of(&elaboration, &result);
     assert_eq!(required.len(), 1);
     assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
-    // f() -> u32 { let mut x: u32; x = 3; x }: the store replaces the zero,
+    // f() -> u32 { let mutable x: u32; x = 3; x }: the store replaces the zero,
     // and the read equals the stored value.
     let (elaboration, result) = run_places(vec![unwritten(vec![
         declare(0, u32_type().into()),
@@ -2988,7 +2988,7 @@ fn a_scalar_local_without_an_initializer_is_established_as_zero() {
 
 #[test]
 fn a_record_local_without_an_initializer_holds_the_zero_value() {
-    // f() -> Point { let mut p: Point; p.x = 1; [p.y = 2;] p }
+    // f() -> Point { let mutable p: Point; p.x = 1; [p.y = 2;] p }
     let built = |every_leaf: bool| {
         let mut statements = vec![declare(0, point()), store(0, &[0], unsigned(1))];
         if every_leaf {
@@ -3011,7 +3011,7 @@ fn a_record_local_without_an_initializer_holds_the_zero_value() {
     // `Unestablished`.)
     assert_eq!(uses(&built(true)), [Ok(()), Ok(())]);
     assert_eq!(uses(&built(false)), [Ok(()), Ok(())]);
-    // g() -> u32 { let mut l: Line; l.from = Point { x: 1, y: 2 }; l.to.x = 3;
+    // g() -> u32 { let mutable l: Line; l.from = Point { x: 1, y: 2 }; l.to.x = 3;
     //              l.from.y & l.to.x & l.to.y }
     // A whole store into `l.from` supplies both its leaves, `l.to.x` its
     // own store, and `l.to.y` the zero the declaration established.
@@ -3054,7 +3054,7 @@ fn a_record_local_without_an_initializer_holds_the_zero_value() {
 #[test]
 fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // f(a: bool, b: bool) -> u32 {
-    //     let mut g: Gated;      // `Gated requires 1 <= v`: zero is not a value
+    //     let mutable g: Gated;      // `Gated requires 1 <= v`: zero is not a value
     //     let c = a && !b;       // the `!b` block is one of two ways to the join
     //     g.v
     // }
@@ -3755,7 +3755,7 @@ fn a_membership_test_establishes_its_case_on_its_true_edge_and_a_write_to_the_su
     );
     assert_eq!(verdicts, [Ok(()), Ok(())]);
 
-    // let mut h = Holder { shape: Shape::Dot { at: 3 } };
+    // let mutable h = Holder { shape: Shape::Dot { at: 3 } };
     // let t = h.shape in Shape::Dot;
     // h.shape = Shape::Empty;                      -- a whole write to the sum
     // transition t { true -> h.shape.at }          -- the test's fact is retired
@@ -4155,7 +4155,7 @@ fn at_most_value(value: ValueId, limit: u128) -> Proposition {
 #[test]
 fn a_construction_binds_the_value_that_reaches_it_and_not_the_initializer() {
     // The stale-local witness (`fail/data/constructor_stale_local_bounds`):
-    //   f() -> Bounded { let mut current = 1; current = 7;
+    //   f() -> Bounded { let mutable current = 1; current = 7;
     //                    Bounded { value: current } }
     // The clause `value <= 5` is owed over the operand the literal reads,
     // which is the reassigned `7`, never the initializer `1`.
@@ -4219,7 +4219,7 @@ fn a_literal_on_a_sibling_field_is_no_evidence_for_the_bounded_field() {
     }
 }
 
-/// `f() -> u32 { let mut s = Span { low: 1, high: 9 }; s.low = stored; s.high }`.
+/// `f() -> u32 { let mutable s = Span { low: 1, high: 9 }; s.low = stored; s.high }`.
 fn span_store(stored: u128) -> (crate::lowering::Elaboration, Discharge) {
     run_constrained(vec![closed(
         vec![data(SPAN)],
@@ -4283,7 +4283,7 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
     assert_eq!(uses(&result), [Ok(())]);
 }
 
-/// `f() -> u32 { let mut s = make(); s.low = stored; s.high }`, with
+/// `f() -> u32 { let mutable s = make(); s.low = stored; s.high }`, with
 /// `make() -> Span { Span { low: 1, high: 9 } }`.
 fn returned_span_store(stored: u128) -> (crate::lowering::Elaboration, Discharge) {
     run_constrained(vec![
@@ -4336,7 +4336,7 @@ fn a_clause_over_a_field_a_call_returned_is_stated_over_that_calls_result_leaf()
     assert_opens_a_window(owed[0].1);
 }
 
-/// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
+/// `f() -> u32 { let mutable w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
 ///               w.span.high = stored; w.top }`.
 fn nested_store(stored: u128) -> (crate::lowering::Elaboration, Discharge) {
     run_constrained(vec![closed(
@@ -4535,7 +4535,7 @@ fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
         why.reason
     );
     assert_eq!(uses(&result), [Err(RefusalReason::Unestablished)]);
-    // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
+    // f() -> u32 { let mutable g: Gated; g.v = 3; g.v }: the store establishes
     // the value, over the stored `3`, before anything observes it.
     let (elaboration, result) = run_constrained(vec![closed(
         vec![data(GATED)],
@@ -4551,7 +4551,7 @@ fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
     assert!(matches!(owed[0].1, Ok(Discharged::Window(_))));
     assert_kernel_checked(&elaboration, 1, owed[1].0, certificate(owed[1].1));
     assert_eq!(uses(&result), [Ok(())]);
-    // f() -> u32 { let mut g: Gated; g = Gated { v: 3 }; g.v }: the zeroed
+    // f() -> u32 { let mutable g: Gated; g = Gated { v: 3 }; g.v }: the zeroed
     // storage is never observed, so nothing about the program is refused.
     let (elaboration, result) = run_constrained(vec![closed(
         vec![data(GATED)],
@@ -4820,7 +4820,7 @@ fn a_dispatched_payload_this_machine_built_lends_no_clause() {
 
 #[test]
 fn a_place_this_machine_wrote_lends_no_clause_to_a_read() {
-    // f(b: Bounded) -> u32 { let mut c = b; c.value = 99; bounded(c.value) }
+    // f(b: Bounded) -> u32 { let mutable c = b; c.value = 99; bounded(c.value) }
     // The store does not keep `value <= 5` and would open a window. The read after it
     // equals the stored `99` and carries no clause: a broken place supplies
     // no premise, and `bounded`'s requirement is unproved too.
@@ -5197,7 +5197,7 @@ fn owing(elaboration: &crate::lowering::Elaboration, obligation: ObligationId) -
 }
 
 /// The three ways this subset passes a whole `Span` on, each after
-/// `let mut s = Span { low: 1, high: 9 }; s.low = 12;` and, when `restored`,
+/// `let mutable s = Span { low: 1, high: 9 }; s.low = 12;` and, when `restored`,
 /// `s.high = 20;`: a call argument, a whole read into another local and a
 /// return.
 fn span_consumers(restored: bool) -> Vec<Vec<Shaped>> {
@@ -5337,7 +5337,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
 #[test]
 fn a_window_is_proved_again_at_its_consumption_point_from_what_flow_adds() {
     // f(h: u32) -> u32 {
-    //     let mut s = Span { low: 1, high: 9 };
+    //     let mutable s = Span { low: 1, high: 9 };
     //     s.high = h;                 // `1 <= h` is not known here: a window
     //     when 0 < h -> take(s);      // known under the guard: proved there
     //     s.high = 9;                 // the other way restores it
@@ -5435,7 +5435,7 @@ fn span_of_wrap(slot: usize) -> Expression {
 fn an_inner_and_an_outer_window_are_opened_and_consumed_independently() {
     // `Wrap { span: Span, top } requires span.high <= top` around
     // `Span requires low <= high`, from
-    // `let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };`.
+    // `let mutable w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };`.
     let program = |path: &[usize], top: Option<u128>, consume: Expression| {
         let mut statements = vec![
             bind(
@@ -5522,7 +5522,7 @@ fn an_inner_and_an_outer_window_are_opened_and_consumed_independently() {
 fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
     // `Paired { neighbor, value } requires value <= 255, 1 <= value`.
     // f() -> u32 {
-    //     let mut p = Paired { neighbor: 1, value: 7 };
+    //     let mutable p = Paired { neighbor: 1, value: 7 };
     //     p.value = 0;       // keeps `value <= 255`, opens `1 <= value`
     //     p.neighbor = 5;    // writes nothing either clause reads
     //     take(p)
@@ -5633,7 +5633,7 @@ const LIMITS: u64 = 9;
 
 #[test]
 fn a_field_read_that_takes_a_clause_as_a_premise_consumes_an_open_window() {
-    // f(p: Limits) -> u32 { let mut q = p; q.b = stored; bounded(q.a) }
+    // f(p: Limits) -> u32 { let mutable q = p; q.b = stored; bounded(q.a) }
     // `q.a` is still what arrived in `p`, so its read carries `a <= 5`: it
     // relies on the domain. With `q.b = 0` the window for `1 <= b` is open
     // at that read, which therefore consumes it and is rejected; a read
@@ -5723,7 +5723,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
         let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
-    // let mut g: Both; g.a = 3; g.b = 2; take(g): each store proves the
+    // let mutable g: Both; g.a = 3; g.b = 2; take(g): each store proves the
     // clause of the field it writes, and after the second nothing of the
     // declaration's debt is open.
     let (elaboration, result, fresh) = program(BOTH, &[(0, 3), (1, 2)], true);
@@ -5744,7 +5744,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
     assert!(windows(&result).is_empty(), "{:?}", windows(&result));
     assert!(uses(&result).iter().all(Result::is_ok));
     assert_accepted(fresh);
-    // let mut g: Both; g.a = 3; take(g): `g.b` is still the zero the
+    // let mutable g: Both; g.a = 3; take(g): `g.b` is still the zero the
     // declaration left, and `1 <= b` does not hold of it.
     let (elaboration, result, fresh) = program(BOTH, &[(0, 3)], true);
     let copy = whole_copies(&elaboration)[0];
@@ -5777,13 +5777,13 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
     let (_, result, _) = program(BOTH, &[(0, 3)], false);
     assert!(windows(&result).is_empty());
     assert_eq!(uses(&result), [Ok(())]);
-    // let mut g: Half; g.a = 3; take(g): `Half` constrains `a` alone, so
+    // let mutable g: Half; g.a = 3; take(g): `Half` constrains `a` alone, so
     // one store establishes it although `g.b` was never stored into.
     let (_, result, fresh) = program(HALF, &[(0, 3)], true);
     assert!(windows(&result).is_empty());
     assert!(uses(&result).iter().all(Result::is_ok));
     assert_accepted(fresh);
-    // let mut g: Half; take(g): used before any store.
+    // let mutable g: Half; take(g): used before any store.
     let (_, result, fresh) = program(HALF, &[], true);
     assert_eq!(
         uses(&result).first(),
@@ -5798,7 +5798,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
 #[test]
 fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
     // f(a: bool, b: bool) -> u32 {
-    //     let mut s = Span { low: 1, high: 9 };
+    //     let mutable s = Span { low: 1, high: 9 };
     //     s.low = 12;            // opens a window
     //     let c = a && !b;       // the `!b` block is one of two ways to the join
     //     take(s)
@@ -5901,7 +5901,7 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
 #[test]
 fn every_consumption_point_of_an_open_window_has_exactly_one_verdict() {
     // f() -> u32 {
-    //     let mut s = Span { low: 1, high: 9 };
+    //     let mutable s = Span { low: 1, high: 9 };
     //     take(s);               // before the window: not a consumption of it
     //     s.low = 12;            // opens it
     //     let t = s;             // consumption point: a whole read
@@ -5998,7 +5998,7 @@ fn every_consumption_point_of_an_open_window_has_exactly_one_verdict() {
 #[test]
 fn a_store_that_does_not_restore_an_open_window_opens_no_second_one() {
     // f() -> u32 {
-    //     let mut s = Span { low: 1, high: 9 };
+    //     let mutable s = Span { low: 1, high: 9 };
     //     s.low = 12;            // opens the window: 12 <= 9 unproved
     //     s.high = 11;           // still unproved: the window stays open
     //     take(s)                // consumed: one rejection, naming `s.low = 12`

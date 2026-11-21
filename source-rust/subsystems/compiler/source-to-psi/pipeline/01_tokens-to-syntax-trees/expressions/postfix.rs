@@ -148,15 +148,8 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
     let mut form = language_core::cast_form::CastForm::Value;
     if input.at_punctuation(PunctuationKind::At) {
         input = input.take_punctuation(PunctuationKind::At, "@")?;
-        let access = if input.at_contextual("mut") {
-            input = input.take_contextual("mut")?;
-            language_core::ReferenceAccess::Mutable
-        } else if input.at_contextual("write") {
-            input = input.take_contextual("write")?;
-            language_core::ReferenceAccess::WriteOnly
-        } else {
-            language_core::ReferenceAccess::Shared
-        };
+        let (access, rest) = input.take_reference_access()?;
+        input = rest;
         form = language_core::cast_form::CastForm::Recast(access);
     }
     let target_start = input;

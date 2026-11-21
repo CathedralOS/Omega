@@ -1253,7 +1253,7 @@ mod tests {
         let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
         fs::write(
             directory.join("build.omg"),
-            r#"machine build(builder: @mut Build) {
+            r#"machine build(builder: @mutable Build) {
                 Build::bind(builder, windows_x86_64\ProgramEntry, main);
                 Build::bind (builder,
                     linux_arm64 \ ProgramEntry,
@@ -1306,7 +1306,7 @@ mod tests {
         )
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
-            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
+            "machine build(builder: @mutable Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
         fs::write(
             directory.join("sample.json"),
             r#"{"source_inputs":["main.omg","build.omg"]}"#,

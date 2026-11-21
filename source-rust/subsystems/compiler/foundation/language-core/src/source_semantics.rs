@@ -412,7 +412,7 @@ impl ReferenceAccess {
     /// loans.md, "Reborrow lineage and access": a Mutable parent may form a
     /// Shared child, "Freeze mutation until the complete shared cohort
     /// ends", and "Attenuation never changes the parent's original access".
-    /// So `&mut place` written for a `&T` formal is an exclusive formation
+    /// So `@mutable place` written for a `@T` formal is an exclusive formation
     /// that lends shared access; every other formation lends what it forms.
     pub const fn forms(self, lent: Self) -> bool {
         matches!(
@@ -425,7 +425,7 @@ impl ReferenceAccess {
 
     pub const fn borrow_prefix(self) -> &'static str {
         match self {
-            Self::Mutable => "@mut ",
+            Self::Mutable => "@mutable ",
             Self::WriteOnly => "@write ",
             Self::Shared => "@",
         }

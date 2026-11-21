@@ -29,7 +29,7 @@ ArmReader satisfies Reader {
     }
 }
 machine main() reaches Reader crashes Trap {
-    let mut packet: [u8; 3];
+    let mutable packet: [u8; 3];
     packet[0] = 11;
     packet[2] = 29;
     let third: u8 = Reader::read_third(Input { tag: 5, bytes: @packet, tail: 9 });

@@ -109,7 +109,7 @@ pub(crate) fn publish_requirements(
 }
 
 /// A returned reference keeps only the storage its published origin names
-/// borrowed: `pick(&mut grid, i)` returning `&mut grid.cells[i].x` retains
+/// borrowed: `pick(@mutable grid, i)` returning `@mutable grid.cells[i].x` retains
 /// `grid.cells`, not `grid`. The call's own argument loan covers the whole
 /// argument for the call and ends when it returns; a second `Loan` row,
 /// formed at the same point, captures the narrower region and carries the

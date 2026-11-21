@@ -15,7 +15,7 @@ boundary trait Measuring {
 }
 CountingMeasuring satisfies Measuring {
     machine measure(supplied: [u8; 8]) -> u64 crashes Trap {
-        let mut text: [u8; 8] = supplied;
+        let mutable text: [u8; 8] = supplied;
         let selected: @u8 = @text[0];
         let measured: u64 = Text::length(selected);
         let rest: u64 = Text::length(@text[2]);

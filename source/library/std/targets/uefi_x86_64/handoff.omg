@@ -24,7 +24,7 @@ use uefi_os_handoff_terminal_transfer;
 // `descriptor_size`/`descriptor_version` evidence or the required size. The
 // checked helper calls the firmware requirement and stores its scalar result
 // on `status` for the enclosing cycle's dispatch.
-machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mut UefiOsHandoffLegs)
+machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices
 {
@@ -33,18 +33,18 @@ machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mut UefiOsHandoffLeg
     let map_in: u64 = uefi_os_handoff_legs.map;
     let status_out: u64 = UefiBootServices::get_memory_map(
         table_in,
-        @mut uefi_os_handoff_legs.map_size,
+        @mutable uefi_os_handoff_legs.map_size,
         map_in,
-        @mut uefi_os_handoff_legs.key,
-        @mut uefi_os_handoff_legs.descriptor_size,
-        @mut uefi_os_handoff_legs.descriptor_version
+        @mutable uefi_os_handoff_legs.key,
+        @mutable uefi_os_handoff_legs.descriptor_size,
+        @mutable uefi_os_handoff_legs.descriptor_version
     );
     uefi_os_handoff_legs.status = status_out;
 }
 
 // Allocate the staged replacement buffer. A rejected grow leaves the retained
 // `map`/`map_pages` storage live and untouched.
-machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mut UefiOsHandoffLegs)
+machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices
 {
@@ -55,13 +55,13 @@ machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mut UefiOsHandoffLegs)
         EFI_ALLOCATE_ANY_PAGES,
         EFI_LOADER_DATA,
         pages_in,
-        @mut uefi_os_handoff_legs.next_map
+        @mutable uefi_os_handoff_legs.next_map
     );
     uefi_os_handoff_legs.status = status_out;
 }
 
 // Release the superseded map storage before the grown buffer is adopted.
-machine uefi_os_handoff_legs_free_map(uefi_os_handoff_legs: @mut UefiOsHandoffLegs)
+machine uefi_os_handoff_legs_free_map(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices
 {
@@ -74,7 +74,7 @@ machine uefi_os_handoff_legs_free_map(uefi_os_handoff_legs: @mut UefiOsHandoffLe
 
 // The successful leg transfers custody out of Boot Services entirely; a
 // rejected exit leaves the retained evidence live for the cycle's retry.
-machine uefi_os_handoff_legs_attempt_exit(uefi_os_handoff_legs: @mut UefiOsHandoffLegs)
+machine uefi_os_handoff_legs_attempt_exit(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices
 {
@@ -85,46 +85,46 @@ machine uefi_os_handoff_legs_attempt_exit(uefi_os_handoff_legs: @mut UefiOsHando
     uefi_os_handoff_legs.status = status_out;
 }
 
-machine uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle)
+machine uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices
 {
-    uefi_os_handoff_legs_acquire(@mut uefi_os_handoff_cycle.legs);
+    uefi_os_handoff_legs_acquire(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle)
+machine uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices
 {
-    uefi_os_handoff_legs_grow(@mut uefi_os_handoff_cycle.legs);
+    uefi_os_handoff_legs_grow(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle)
+machine uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices
 {
-    uefi_os_handoff_legs_free_map(@mut uefi_os_handoff_cycle.legs);
+    uefi_os_handoff_legs_free_map(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle)
+machine uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices
 {
-    uefi_os_handoff_legs_attempt_exit(@mut uefi_os_handoff_cycle.legs);
+    uefi_os_handoff_legs_attempt_exit(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle, status: u64)
+machine uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle, status: u64)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination
 {
-    uefi_os_handoff_terminal_firmware_return(@mut uefi_os_handoff_cycle.terminal, status);
+    uefi_os_handoff_terminal_firmware_return(@mutable uefi_os_handoff_cycle.terminal, status);
 }
 
-machine uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle)
+machine uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination
 {
-    uefi_os_handoff_terminal_transfer(@mut uefi_os_handoff_cycle.terminal);
+    uefi_os_handoff_terminal_transfer(@mutable uefi_os_handoff_cycle.terminal);
 }
 
 machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) -> bool {

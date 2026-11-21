@@ -1,7 +1,7 @@
 //! Admit the toolchain declaration for the Build value the host issues.
 //!
 //! A Build script runs against one compiler-owned `Build` value: the host
-//! builds it, hands the script `@mut Build`, and decodes what the script left
+//! builds it, hands the script `@mutable Build`, and decodes what the script left
 //! in it by field. Two things must hold before that is sound.
 //!
 //! The first is the vocabulary the host decodes: the program declares the
