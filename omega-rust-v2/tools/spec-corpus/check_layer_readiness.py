@@ -2,7 +2,6 @@
 from collections import Counter
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +33,7 @@ import refusal_evidence
 import reviewed_comparisons
 import rule_diagnostics
 import sample_diagnostics
+from source_fingerprint import source_identity
 import resolver_kind_evidence
 
 LAYERS = ("omega-lexer", "omega-parser", "omega-resolver", "omega-typer", "omega-preparation", "omega-lowering")
@@ -45,19 +45,6 @@ CASE_STATUSES = BLOCKERS | {"recorded refusal", "executable product inspected", 
 
 def git(*args):
     return subprocess.check_output(["git", *args], text=True, encoding="utf-8").strip()
-
-
-def source_fingerprint():
-    digest = hashlib.sha256()
-    digest.update(subprocess.check_output(["git", "diff", "--binary", "HEAD", "--", "."]))
-    digest.update(subprocess.check_output(["git", "diff", "--binary", "HEAD", "--", ":(top)wiki/spec"]))
-    paths = subprocess.check_output(["git", "ls-files", "-z", "--others", "--exclude-standard", "--", "."])
-    for name in paths.split(b"\0"):
-        if name:
-            path = Path(os.fsdecode(name))
-            digest.update(name + b"\0")
-            digest.update(hashlib.sha256(os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes()).digest())
-    return digest.hexdigest()
 
 
 def reflection_exports(lines, errors):
@@ -565,7 +552,7 @@ def summarize(report):
              f"Of {len(gaps)} L0–L4 contract entries awaiting evidence at this cutoff, {deferred} have their outstanding comparison in a later suite.",
              "",
              *completion(report),
-             f"Revision {report['revision']}. Working changes, source fingerprint and per-test results are in [evidence.json](evidence.json).",
+             f"Checkout revision {report['revision']}. Measured source fingerprint `{report['fingerprint']}`. Tree digests and per-test results are in [evidence.json](evidence.json).",
              "", "| Suite | Passed | Failed | Ignored | Runner exit | Log |",
              "| --- | ---: | ---: | ---: | ---: | --- |"]
     for stage, suite in report["suites"].items():
@@ -739,8 +726,12 @@ def main():
     parent = Path("target/layer-readiness")
     parent.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-"), dir=parent))
-    report = {"revision": git("rev-parse", "HEAD"), "cohort_sources": {"spec_tree_at_head": git("rev-parse", "HEAD:wiki/spec")},
-              "fingerprint": source_fingerprint(), "working_changes": git("status", "--short", "--", ".").splitlines(),
+    try:
+        inputs = source_identity(Path.cwd())
+    except (OSError, ValueError, RuntimeError) as error:
+        sys.exit(f"Cannot identify readiness inputs: {error}")
+    report = {**inputs, "revision": git("rev-parse", "HEAD"), "cohort_sources": {"spec_tree_at_head": git("rev-parse", "HEAD:wiki/spec")},
+              "working_changes": git("status", "--short", "--", ".").splitlines(),
               "suites": {}, "cases": {}, "expected": {}, "obligations": {}, "package_fixtures": [], "measurement_errors": [], "last_layer": f"L{len(layers)-1}"}
     environment = dict(os.environ, OMEGA_LAYER_REPORT="1", OMEGA_BLESS="0", CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "1"))
     print(f"Report directory: {directory}", flush=True)
@@ -790,8 +781,16 @@ def main():
         report["fragment_agreement"] = comparison
         report["measurement_errors"].extend(f"{label}: {detail}" for label, detail in comparison["differences"].items())
     frontend_fixture_cli.finish(report, directory, environment)
-    if report["revision"] != git("rev-parse", "HEAD") or report["fingerprint"] != source_fingerprint():
-        report["measurement_errors"].append("V2 sources changed during this run; repeat for a single-revision measurement")
+    try:
+        finished = source_identity(Path.cwd())
+    except (OSError, ValueError, RuntimeError) as error:
+        report["measurement_errors"].append(f"cannot verify final source identity: {error}")
+    else:
+        for name, tree in inputs["source_trees"].items():
+            if finished["source_trees"][name] != tree:
+                report["measurement_errors"].append(f"{name} source tree changed during this run; repeat on the same inputs")
+    if report["revision"] != git("rev-parse", "HEAD"):
+        report["measurement_errors"].append("checkout revision changed during this run")
     (directory / "evidence.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (directory / "report.md").write_text(summarize(report), encoding="utf-8")
     print(f"Summary: {directory / 'report.md'}", flush=True)
