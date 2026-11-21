@@ -112,13 +112,10 @@ pub fn prepare<'scope>(
 
 /// The numeric catalog operations the scope's target selection realizes.
 ///
-/// A canonical float operation reaches Terminal Psi as a bodyless boundary.
-/// Provider selection has already chosen each one from the target's declared
-/// realization table, as a compiler-intrinsic row of the retained plans, and
-/// left unchosen any the target declares unsupported. Constant evaluation
-/// executes exactly those rows, through the same catalog admission and
-/// `FloatSemantics` adapters that run them for a Build program, so a constant
-/// never sees a value the target's own realization would not produce.
+/// An initializer can call a sealed numeric declaration outside the runtime
+/// entry's reach. Both that declaration and an authored provider selection
+/// must have a realization on the selected target. Feature-dependent operations
+/// also require the product's admitted deployment features.
 struct TargetRealizedIntrinsics {
     profile: target::TargetProfile,
     x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
