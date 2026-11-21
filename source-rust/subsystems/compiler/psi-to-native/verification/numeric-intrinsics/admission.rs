@@ -1,7 +1,9 @@
 //! Bind a reference executor's numeric imports to checked provider rows and exact published Psi.
 #![forbid(unsafe_code)]
 mod catalog;
+mod direct;
 pub use catalog::catalog_realization;
+pub use direct::direct_numeric_target;
 pub mod selection;
 pub mod signature;
 use diagnostics::Diagnostic;

@@ -53,6 +53,7 @@ pub use model::{
     NativeBoundaryRealization, NativeCallbackArgumentProposal, NativeProviderSettlement,
     ProviderAdmissionRequest,
 };
+pub use numeric_intrinsic_admission::direct_numeric_target;
 pub use provider_installation::{
     AdmittedProviderInstallation, ProviderInstallationError, SelectedProviderAdapter,
 };

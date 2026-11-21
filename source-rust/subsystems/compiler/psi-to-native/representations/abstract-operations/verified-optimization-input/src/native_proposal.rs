@@ -67,6 +67,10 @@ impl TerminalNativeRealizationProposal {
         std::slice::from_ref(&self.target_provider)
     }
 
+    pub fn x86_scalar_fma(&self) -> Option<target::AdmittedX86ScalarFmaProvider> {
+        self.providers.x86_scalar_fma
+    }
+
     pub fn native_target(&self) -> target::NativeTarget {
         self.target_profile().native_target()
     }
