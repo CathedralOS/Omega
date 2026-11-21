@@ -108,6 +108,53 @@ machine build(builder: @mut Build) {
     );
 }
 
+/// Zero descriptors make poll a timer. Every call to the selected import
+/// must support that conclusion before Build can certify a physical exclusion.
+#[test]
+fn darwin_poll_exclusions_check_each_invocation() {
+    let build = r#"
+machine build(builder: @mut Build) {
+    Build::application(builder, "poll_counts");
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+        }
+    });
+    Build::exclude_physical_authority(builder, PhysicalAuthorityClass::ProcessOutput);
+}
+"#;
+    let program = r#"
+boundary trait Wait {
+    machine poll(descriptors: u64, count: u32, milliseconds: i32) -> i32
+    reaches none crashes none;
+}
+machine main() reaches none invokes Wait {
+    let first: i32 = Wait::poll(0u64, 0u32, 0i32);
+    let second: i32 = Wait::poll(0u64, COUNT, 0i32);
+}
+"#;
+    let args = ["--target", "macos_arm64", "build.omg"];
+    let (passed, report) = execute(
+        "descriptor-free",
+        build,
+        &program.replace("COUNT", "0u32"),
+        &args,
+    );
+    assert!(passed, "{report}");
+
+    let (passed, report) = execute(
+        "descriptor-bearing",
+        build,
+        &program.replace("COUNT", "1u32"),
+        &args,
+    );
+    assert!(
+        !passed && report.contains("no physical authority classification"),
+        "{report}"
+    );
+}
+
 /// A Build that excludes nothing has nothing for that admission to refuse.
 #[test]
 fn a_build_without_exclusions_is_not_refused_for_one() {

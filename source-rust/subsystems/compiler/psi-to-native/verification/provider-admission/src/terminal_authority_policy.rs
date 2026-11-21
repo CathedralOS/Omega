@@ -17,6 +17,8 @@ argument contracts are never valid policy keys.
 
 #[path = "terminal_authority_policy/classification.rs"]
 mod classification;
+#[path = "terminal_authority_policy/darwin_poll.rs"]
+pub(crate) mod darwin_poll;
 #[path = "terminal_authority_policy/external_mechanisms.rs"]
 mod external_mechanisms;
 #[path = "terminal_authority_policy/host_cohorts.rs"]
@@ -286,6 +288,8 @@ pub(crate) fn reviewed_host_operation(
         {
             windows_imports::mechanism_row(import)
         }
+        // Darwin poll gains its wait classification from checked call arguments.
+        TerminalMechanismIdentity::NormalizedForeign(import) if darwin_poll::is_poll(import) => None,
         _ => posix_operations::mechanism_row(mechanism),
     }
 }

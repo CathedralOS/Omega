@@ -19,6 +19,7 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
+use crate::terminal_authority_policy::darwin_poll;
 use crate::terminal_authority_review::reachability::AuthorityGraph;
 use crate::{
     AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -197,7 +198,7 @@ pub fn admit_native_providers<'request>(
             installation.as_ref(),
             request.terminal_authority_policy,
         )?;
-    let (settlements, executions, mut mechanisms, cohort_rows) =
+    let (settlements, executions, mut mechanisms, mut cohort_rows) =
         settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
     settlements.extend(interrupt_settlements);
@@ -254,6 +255,16 @@ pub fn admit_native_providers<'request>(
         access_lifecycles::settle_empty_releases(input, request.terminal_authority_policy)?;
     settlements.extend(run_settlements);
     mechanisms.extend(run_mechanisms);
+    if request.profile == target::TargetProfile::MacosArm64 {
+        darwin_poll::classify_checked_waits(
+            artifact,
+            input.plan(),
+            &settlements,
+            &mut mechanisms,
+            request.terminal_authority_policy,
+            &mut cohort_rows,
+        );
+    }
     let effective_policy = request
         .terminal_authority_policy
         .with_reviewed_operations(cohort_rows, mechanisms.iter().map(|leaf| leaf.mechanism))

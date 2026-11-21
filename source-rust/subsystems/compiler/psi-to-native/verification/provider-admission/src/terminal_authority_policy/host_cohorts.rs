@@ -154,27 +154,28 @@ fn reviewed_darwin_clock_symbol(
     match method.name.as_str() {
         "clock_ns" => Some(b"_clock_gettime_nsec_np"),
         "mach_absolute_time" => Some(b"_mach_absolute_time"),
-        "poll" => Some(b"_poll"),
         _ => None,
     }
+}
+
+pub(super) fn darwin_clock_locator(symbol: &[u8]) -> Option<target::ForeignLocatorIdentityDigest> {
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::MachODylibSymbol {
+            install_name: LIBSYSTEM_INSTALL_NAME.to_vec(),
+            symbol: symbol.to_vec(),
+        },
+        target::TargetProfile::MacosArm64,
+    ).ok()?;
+    Some(locator.identity_digest())
 }
 
 fn is_reviewed_darwin_clock_import(mechanism: TerminalMechanismIdentity, symbol: &[u8]) -> bool {
     let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism else {
         return false;
     };
-    let Ok(reviewed) = target::normalize_foreign_locator(
-        target::ForeignLocatorCandidate::MachODylibSymbol {
-            install_name: LIBSYSTEM_INSTALL_NAME.to_vec(),
-            symbol: symbol.to_vec(),
-        },
-        target::TargetProfile::MacosArm64,
-    ) else {
-        return false;
-    };
-    foreign.target() == reviewed.target()
-        && foreign.locator_identity() == reviewed.identity_digest()
+    foreign.target() == target::TargetProfile::MacosArm64
         && foreign.argument_contract() == NormalizedForeignArgumentContract::AdmittedPlan
+        && darwin_clock_locator(symbol) == Some(foreign.locator_identity())
 }
 
 pub(crate) fn darwin_clock_mechanism_row(
