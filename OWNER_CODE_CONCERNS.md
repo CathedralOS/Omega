@@ -211,14 +211,6 @@ framework or a list of unimplemented features.
 - Cost: Each branch rebuilds facts from its parent, even when its new assumption leaves those facts unchanged. Measure how much of that work branches can share while keeping their assumptions and search budget separate.
 - Reported: 2026-11-18, Codex, while investigating slow range checks in the portable filesystem and standard library.
 
-### Descriptor lifetime queries repeat the same graph walk
-
-- Category: One idea, several implementations
-- Where: [entry lifetime transport](source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_lifetimes.rs#L513), [all-arrivals transport](source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_lifetimes.rs#L798), [arrival distinction](source-rust/subsystems/compiler/psi-semantics/src/descriptors/descriptor_lifetimes/resource_tests.rs#L193).
-- Saw: Entry and successor lifetime queries compute where each descriptor can survive. The solver computes those same locations internally to seed the all-arrivals authorization check. Local lifetime queries repeat the walk when authorization exists.
-- Cost: These paths solve the same graph twice. Share the first result while keeping the distinction between a descriptor that can survive on one arrival and one authorized on every arrival.
-- Reported: 2026-11-18, Codex, while investigating the Console binding test timeout.
-
 ### Individual proof citations copy their entire compound premise
 
 - Category: Verifying costs more than writing

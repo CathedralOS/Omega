@@ -361,8 +361,25 @@ pub fn descriptor_location_live_positions(
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
 ) -> BTreeSet<DescriptorPosition> {
-    location_live_positions(steps, birth, descriptor, false, false, None, |_, _| false).live
+    location_live_positions(
+        steps,
+        birth,
+        descriptor,
+        DescriptorStart::AfterDefinition,
+        false,
+        |_, _| false,
+    )
+    .live
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DescriptorStart {
+    AtEntry,
+    AfterDefinition,
+    OnEdgeTo(DescriptorPosition),
+}
+
+type LocationsByPosition = BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>;
 
 struct DescriptorDemand {
     live: BTreeSet<DescriptorPosition>,
@@ -373,24 +390,25 @@ fn location_live_positions(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
-    at_entry: bool,
+    start: DescriptorStart,
     borrowed_authority: bool,
-    successor: Option<DescriptorPosition>,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorDemand {
     type Occurrence = (DescriptorPosition, DescriptorLocation);
     let mut pending = Vec::new();
-    if let Some(target) = successor {
-        pending.push((target, descriptor.clone()));
-    } else if at_entry {
-        pending.push((birth, descriptor.clone()));
-    } else if let Some(step) = steps.get(&birth) {
-        for edge in &step.successors {
-            pending.extend(
-                edge.forward(descriptor)
-                    .into_iter()
-                    .map(|name| (edge.target, name)),
-            );
+    match start {
+        DescriptorStart::OnEdgeTo(target) => pending.push((target, descriptor.clone())),
+        DescriptorStart::AtEntry => pending.push((birth, descriptor.clone())),
+        DescriptorStart::AfterDefinition => {
+            if let Some(step) = steps.get(&birth) {
+                for edge in &step.successors {
+                    pending.extend(
+                        edge.forward(descriptor)
+                            .into_iter()
+                            .map(|name| (edge.target, name)),
+                    );
+                }
+            }
         }
     }
     let mut visited = BTreeSet::new();
@@ -504,14 +522,13 @@ pub(crate) fn descriptor_entry_lifetime_with_contents(
     descriptor: &DescriptorLocation,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorLifetime {
-    let demand =
-        location_live_positions(steps, entry, descriptor, true, true, None, needs_contents);
-    DescriptorLifetime {
-        live: demand.live,
-        demanded: demand.names,
-        authorized: transported_locations(steps, entry, descriptor, true, false, false, None),
-        surviving: transported_locations(steps, entry, descriptor, true, false, true, None),
-    }
+    descriptor_lifetime(
+        steps,
+        entry,
+        descriptor,
+        DescriptorStart::AtEntry,
+        needs_contents,
+    )
 }
 
 pub(crate) fn descriptor_continuation_locations(
@@ -519,7 +536,7 @@ pub(crate) fn descriptor_continuation_locations(
     at: DescriptorPosition,
     descriptor: &DescriptorLocation,
 ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
-    transported_locations(steps, at, descriptor, true, false, false, None)
+    transported_locations(steps, at, descriptor, DescriptorStart::AtEntry, false, None)
 }
 
 pub fn descriptor_location_lifetime(
@@ -536,20 +553,13 @@ pub(crate) fn descriptor_location_lifetime_with_contents(
     descriptor: &DescriptorLocation,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorLifetime {
-    let demand =
-        location_live_positions(steps, birth, descriptor, false, true, None, needs_contents);
-    let authorized = authorized_locations(steps, birth, descriptor, &demand.live);
-    let surviving = if authorized.is_empty() {
-        BTreeMap::new()
-    } else {
-        transported_locations(steps, birth, descriptor, false, false, true, None)
-    };
-    DescriptorLifetime {
-        live: demand.live,
-        demanded: demand.names,
-        authorized,
-        surviving,
-    }
+    descriptor_lifetime(
+        steps,
+        birth,
+        descriptor,
+        DescriptorStart::AfterDefinition,
+        needs_contents,
+    )
 }
 
 /// A new edge borrow starts under the selected successor name. Its
@@ -574,47 +584,51 @@ pub fn descriptor_successor_lifetime(
     {
         return None;
     }
-    let demand = location_live_positions(
+    Some(descriptor_lifetime(
         steps,
         birth,
         descriptor,
-        false,
-        true,
-        Some(target),
+        DescriptorStart::OnEdgeTo(target),
         |_, _| false,
-    );
-    let authorized =
-        transported_locations(steps, birth, descriptor, false, false, false, Some(target));
-    let surviving =
-        transported_locations(steps, birth, descriptor, false, false, true, Some(target));
-    Some(DescriptorLifetime {
+    ))
+}
+
+fn descriptor_lifetime(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    start: DescriptorStart,
+    needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+) -> DescriptorLifetime {
+    let demand = location_live_positions(steps, birth, descriptor, start, true, needs_contents);
+    let mut surviving = BTreeMap::new();
+    let authorized = if start == DescriptorStart::AfterDefinition
+        && !is_fresh_definition(steps, birth, descriptor, &demand.live)
+    {
+        BTreeMap::new()
+    } else {
+        transported_locations(steps, birth, descriptor, start, false, Some(&mut surviving))
+    };
+    DescriptorLifetime {
         live: demand.live,
         demanded: demand.names,
         authorized,
         surviving,
-    })
+    }
 }
 
-fn authorized_locations(
+fn is_fresh_definition(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     live: &BTreeSet<DescriptorPosition>,
-) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
-    let Some(formation) = steps.get(&birth) else {
-        return BTreeMap::new();
-    };
-    if !formation
-        .definitions
-        .iter()
-        .any(|definition| definition.contains(descriptor))
-    {
-        return BTreeMap::new();
-    }
-    if live.contains(&birth) {
-        return BTreeMap::new();
-    }
-    transported_locations(steps, birth, descriptor, false, false, false, None)
+) -> bool {
+    !live.contains(&birth)
+        && steps.get(&birth).is_some_and(|step| {
+            step.definitions
+                .iter()
+                .any(|definition| definition.contains(descriptor))
+        })
 }
 
 pub(crate) fn value_locations(
@@ -623,19 +637,16 @@ pub(crate) fn value_locations(
     value: &DescriptorLocation,
     at_entry: bool,
 ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
-    if !at_entry {
+    let start = if at_entry {
+        DescriptorStart::AtEntry
+    } else {
         let live = descriptor_location_live_positions(steps, establishment, value);
-        if live.contains(&establishment)
-            || !steps.get(&establishment).is_some_and(|step| {
-                step.definitions
-                    .iter()
-                    .any(|definition| definition.contains(value))
-            })
-        {
+        if !is_fresh_definition(steps, establishment, value, &live) {
             return BTreeMap::new();
         }
-    }
-    transported_locations(steps, establishment, value, at_entry, true, false, None)
+        DescriptorStart::AfterDefinition
+    };
+    transported_locations(steps, establishment, value, start, true, None)
 }
 
 pub type LoanChoiceLocation = (DescriptorPosition, DescriptorLocation);
@@ -768,11 +779,10 @@ fn transported_locations(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
-    at_entry: bool,
+    start: DescriptorStart,
     invalidate_containers: bool,
-    may: bool,
-    arrival: Option<DescriptorPosition>,
-) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+    surviving: Option<&mut LocationsByPosition>,
+) -> LocationsByPosition {
     let mut predecessors =
         BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
     for (position, step) in steps {
@@ -783,32 +793,14 @@ fn transported_locations(
                 .push((*position, edge));
         }
     }
-    let mut established = if may {
-        steps
-            .keys()
-            .map(|position| (*position, BTreeSet::new()))
-            .collect::<BTreeMap<_, _>>()
-    } else {
-        // Must transport descends from the possible names at each cut.
-        // Starting at empty loses unchanged authority at every loop join.
-        // The possible names come only from this genuine formation, so
-        // disconnected cycles gain nothing. Empty incoming paths still
-        // participate in the intersection below; possibility never
-        // substitutes for a path's retained authority.
-        transported_locations(
-            steps,
-            birth,
-            descriptor,
-            at_entry,
-            invalidate_containers,
-            true,
-            arrival,
-        )
-    };
-    if at_entry {
+    let mut established: LocationsByPosition = steps
+        .keys()
+        .map(|&position| (position, BTreeSet::new()))
+        .collect();
+    if start == DescriptorStart::AtEntry {
         established.insert(birth, BTreeSet::from([descriptor.clone()]));
     }
-    loop {
+    let propagate = |established: &mut LocationsByPosition, may: bool| loop {
         let mut changed = false;
         for position in steps.keys().copied() {
             if position == birth {
@@ -831,12 +823,12 @@ fn transported_locations(
                             invalidate_containers,
                             may,
                         );
-                        if !at_entry && arrival.is_none() && *predecessor == birth {
+                        if start == DescriptorStart::AfterDefinition && *predecessor == birth {
                             after.insert(descriptor.clone());
                         }
                         let mut transported =
                             edge.transport_locations(&after, invalidate_containers, may);
-                        if arrival == Some(position) && *predecessor == birth {
+                        if start == DescriptorStart::OnEdgeTo(position) && *predecessor == birth {
                             transported.insert(descriptor.clone());
                         }
                         transported
@@ -855,9 +847,17 @@ fn transported_locations(
             }
         }
         if !changed {
-            return established;
+            break;
         }
+    };
+    // Start with every name this borrow can reach, then remove names missing
+    // on any arrival. Starting from empty would lose unchanged borrows at loops.
+    propagate(&mut established, true);
+    if let Some(surviving) = surviving {
+        surviving.clone_from(&established);
     }
+    propagate(&mut established, false);
+    established
 }
 
 fn transport_authority<'locations>(
