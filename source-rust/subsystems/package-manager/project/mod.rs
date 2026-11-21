@@ -1,15 +1,15 @@
-//! Execute acquired Build declarations and join their issuing activations to the resolved graph.
+//! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
 mod services;
 
-use artifacts::compile_timings::CompileTimings;
-use diagnostics::Diagnostic;
-use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
-use package_manager::resolution::source::{
+use crate::resolution::source::{
     AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
     DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
     WorkspaceMemberObservation,
 };
-use package_manager::{PackageBuildSession, PackageCommandError};
+use crate::{PackageBuildSession, PackageCommandError};
+use artifacts::compile_timings::CompileTimings;
+use diagnostics::Diagnostic;
+use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
 use std::path::Path;
 use std::rc::Rc;
@@ -17,14 +17,14 @@ use target::TargetProfile;
 
 /// The original root Build has joined its own requests to this graph. Ordinary
 /// compilation can now admit the graph against the project lock and open its Product.
-pub(crate) struct ResolvedProject {
-    pub(crate) sources: ResolvedBuildSources,
-    pub(crate) root: ReturnedPlanningStage,
-    pub(crate) inputs: PackageCompilationInputs,
+struct ResolvedProject {
+    sources: ResolvedBuildSources,
+    root: ReturnedPlanningStage,
+    inputs: PackageCompilationInputs,
 }
 
 impl ResolvedProject {
-    pub(crate) fn settle(
+    fn settle(
         self,
         session: &mut PackageBuildSession,
     ) -> Result<ResolvedBuildSources, PackageCommandError> {
@@ -38,13 +38,13 @@ impl ResolvedProject {
     }
 }
 
-pub(crate) fn resolve(
+/// Execute a package transaction's root Build and settle the dependency graph it requested.
+pub fn resolve_build_sources(
     session: &mut PackageBuildSession,
-    entry: &Path,
     acquired: AcquiredBuildSource,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
     snapshot: Option<BuildSnapshotRequest>,
-) -> Result<ResolvedProject, PackageCommandError> {
+) -> Result<ResolvedBuildSources, PackageCommandError> {
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
@@ -57,14 +57,15 @@ pub(crate) fn resolve(
         active: Vec::new(),
         settled: Vec::new(),
     };
-    let result = host.resolve(entry, acquired, snapshot);
+    let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
     if let Err(error) = &result {
         host.session
             .record_source_completion(error.source_completion_accounting().clone());
     }
-    result.map_err(|error| {
+    let project = result.map_err(|error| {
         error.with_source_completion_accounting(host.session.source_completion_accounting().clone())
-    })
+    })?;
+    project.settle(host.session)
 }
 
 type SettledSource = (
@@ -265,7 +266,8 @@ impl SourceHost<'_, '_> {
 
 type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
 
-pub(crate) struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
+/// The Product prepared for each requested deployment target.
+pub struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
 
 impl ProjectProducts {
     fn shared(profiles: &[TargetProfile], planned: project_build::PlannedProduct) -> Self {
@@ -306,7 +308,7 @@ fn planning_timings(enabled: bool) -> CompileTimings {
 }
 
 /// A package check can name its conventional main file to select that existing package.
-pub(crate) enum ProjectInput<'a> {
+pub enum ProjectInput<'a> {
     File(&'a Path),
     PackageCheck(&'a Path),
 }
@@ -319,11 +321,12 @@ impl ProjectInput<'_> {
     }
 }
 
-pub(crate) fn open_product(
+/// Prepare a project for a single deployment target.
+pub fn open_product(
     root: &Path,
     profile: TargetProfile,
     offline: bool,
-    build_directory: Option<&Path>,
+    build_directory: &Path,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Deployment {
     open_products(ProjectInput::File(root), &[profile], offline, false, build_directory, snapshot)?
@@ -336,16 +339,16 @@ pub(crate) fn open_product(
 
 /// Resolve and execute the authored Build once for the entire deployment set.
 /// The returned Product keeps the same source capture, grant joins and Build return.
-pub(crate) fn open_products(
+pub fn open_products(
     input: ProjectInput<'_>,
     profiles: &[TargetProfile],
     offline: bool,
     timings: bool,
-    build_directory: Option<&Path>,
+    build_directory: &Path,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
+    use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
-    use package_manager::operations::begin_local_project_preparation;
     let error = |error: PackageCommandError| {
         error
             .compilation_failure()
@@ -361,8 +364,7 @@ pub(crate) fn open_products(
     let root = input.path();
     let preparation =
         begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
-    let workspace = product_publication::output_directory::base(root, build_directory);
-    let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
+    let mut session = PackageBuildSession::create(&build_directory.join("package-manager"))
         .map_err(|e| error(e.into()))?;
     let result = (|| -> Result<_, PackageCommandError> {
         let rejected: Vec<_> = preparation
@@ -476,6 +478,3 @@ pub(crate) fn open_products(
     })();
     session.dispose(result).map_err(error)
 }
-
-#[cfg(test)]
-mod tests;

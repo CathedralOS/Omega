@@ -14,11 +14,11 @@ fn compile(
     requested: Product,
 ) -> Result<CompletedProduct, Vec<diagnostics::Diagnostic>> {
     let profile = TargetProfile::MacosArm64;
-    let product = super::open_product(
+    let product = package_manager::project::open_product(
         &project.join("build.omg"),
         profile,
         true,
-        None,
+        &project.join("build"),
         None,
     )?;
     let stage = product.product_stage(&[profile])?;

@@ -16,7 +16,7 @@ A release or bootstrap input set can omit the Rust compiler when its dependency 
 | [Psi artifacts](subsystems/compiler/psi-artifact/README.md) | Encode a published program as a portable `.psi` file and reopen it for a receiving host. |
 | [Psi to native](subsystems/compiler/psi-to-native/README.md) | Admit the program and its providers, then run the numbered native stages for the receiving target. |
 | [Interpreter](subsystems/interpreter/README.md) | Execute admitted Psi using the services supplied by its host. |
-| [Package manager](subsystems/package-manager/README.md) | Acquire package sources and maintain dependency, review and publication records. |
+| [Package manager](subsystems/package-manager/README.md) | Prepare projects and their dependencies for Build, and maintain package review and publication records. |
 
 The normal source-to-native route passes checked Psi in memory. Saving `.psi` and
 reopening it are explicit file operations. A requested native stage validator

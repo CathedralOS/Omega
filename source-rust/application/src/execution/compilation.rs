@@ -136,11 +136,11 @@ pub(super) fn compile(
         }
         let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
             .map_err(|error| vec![error])?;
-        let planned = crate::project_sources::open_product(
+        let planned = package_manager::project::open_product(
             &root_path,
             profile,
             false,
-            Some(&build_directory),
+            &build_directory,
             build_snapshot,
         )?;
         let stage = planned.product_stage(&[profile])?;

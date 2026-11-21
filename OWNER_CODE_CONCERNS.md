@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A workspace member loses the dependency graph of a provider it ran
+
+- Category: Knowledge crossing a boundary.
+- Where: [workspace member selection](source-rust/subsystems/package-manager/project/mod.rs), [member observation](source-rust/subsystems/package-manager/dependencies/source/workspace_acquisition.rs), [catalog review](source-rust/subsystems/package-manager/dependencies/graph/subject/catalog.rs).
+- Saw: A member can run a provider before declaring its package name. `select_workspace` passes an empty list of dependency graphs to `WorkspaceMemberObservation::new`. With a local Git workspace and a separate provider repository, preparation stopped with `workspace observation lost a demanded dependency source graph`. The [executed workspace fixture](source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace/README.md) includes a member that uses a provider to choose its name.
+- Cost: Selecting another member can fail while reading the catalog. Retain the source graph of each provider the member actually used so package review can account for it. Check that the provider stays outside the selected Product's dependencies.
+- Reported: 2026-11-20, Codex, while moving project preparation into the package manager.
+
 ### Computing native entry reach imports the optimizer's complete provider proposal
 
 - Category: Knowledge crossing a boundary.
@@ -97,14 +105,6 @@ framework or a list of unimplemented features.
 - Where: [receipt fields](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L85), [recording a call](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/calls/execution.rs#L52), [charge validation](source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts/accounting.rs#L332), [Product accounting](source-rust/subsystems/compiler/source-to-psi/driver/compile_product.rs#L234).
 - Saw: An invocation receipt keeps the requesting typed program, the frozen caller and the published program alive. Checking its charge reads the caller's sole state and last transition to establish that it returned the recorded call. Product checks the accumulated charges after settling provider work.
 - Cost: A completed receipt keeps trees alive for later accounting. Make the source producer issue the checked association between the requester, call and emitted site while those trees are available. Bind it to the exact executed artifact, inputs, sponsor, outcome and measured work. Test a substituted site or charge and measure retained memory over many calls before removing the source-tree references from completed receipts.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
-### The CLI owns workspace dependency planning and provider lookup
-
-- Category: Knowledge crossing a boundary.
-- Where: [project host](source-rust/application/src/project_sources.rs#L76), [workspace member reuse](source-rust/application/src/project_sources.rs#L217), [provider alias selection](source-rust/application/src/project_sources/services.rs#L176), [recursive Product handoffs](source-rust/application/src/project_sources/services.rs#L238), [package command caller](source-rust/application/src/commands/packages/transaction.rs#L2).
-- Saw: `project_sources` suggests file loading. It keeps the active, observed and settled Builds, reuses the actual workspace member invocation, decides whether a provider alias is ambiguous, and recursively chooses the host or deployment target for each dependency handoff. Compile, run and package review reach this code through the binary.
-- Cost: A library caller cannot use that project preparation without reproducing part of the CLI. Expose project preparation from the package manager using Build's existing planning requests and returns. Keep acquisition, aliases and graph traversal with the package manager and execution with Build. Test preparation without linking the CLI, including exactly-once workspace execution, alias ambiguity and distinct host/deployment targets. The CLI can then pass options and render the result.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
 ### Interpreter admission runs native abstract optimization to obtain borrowed storage layouts

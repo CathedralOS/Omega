@@ -1,5 +1,7 @@
 //! Acquire the exact dependency occurrences requested by a suspended Build.
 use super::SourceHost;
+use crate::PackageCommandError;
+use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
 use build_execution::host::requests::BuildDependencyPreparation;
@@ -9,8 +11,6 @@ use build_execution::{
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
 use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
-use package_manager::PackageCommandError;
-use package_manager::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use project_build::PlanningServices;
 
 pub(super) struct SourceServices<'a, 's, 'p> {
@@ -217,7 +217,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
 }
 
 pub(super) struct HandoffSources<'a> {
-    pub accepted: Option<package_manager::operations::AcceptedDeployment<'a>>,
+    pub accepted: Option<crate::operations::AcceptedDeployment<'a>>,
     pub profile: target::TargetProfile,
     pub settled: &'a [super::SettledSource],
 }
