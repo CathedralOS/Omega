@@ -1155,3 +1155,6 @@ fn contract_fields_rejoin_their_declarations_when_sibling_numbers_are_swapped() 
     new.types.structural_types[0].requires[0] = predicate(first);
     assert!(CheckedPrefix::check(&old, cut, &new, cut).is_err());
 }
+
+#[path = "checked_continuation/record_fields.rs"]
+mod record_fields;

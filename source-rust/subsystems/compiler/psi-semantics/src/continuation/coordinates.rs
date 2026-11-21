@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Operation, OperationKind, OperationResult, RecordFieldValue, StructuralArgument,
-    StructuralPathSegment, TerminalMachine,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine,
 };
 
 fn shared_member<T: Copy + Eq>(mut candidates: impl Iterator<Item = Option<T>>) -> Option<T> {
@@ -16,6 +16,57 @@ fn shared_member<T: Copy + Eq>(mut candidates: impl Iterator<Item = Option<T>>) 
     candidates
         .all(|found| found == Some(first))
         .then_some(first)
+}
+
+// Keep the declaration order for matching old and new members, then sort by
+// the old selector for lookup. A repeated selector in either roster is ambiguous.
+struct MemberPairs<Id>(Vec<(Id, Option<Id>)>);
+
+impl<Id: Ord + Copy> MemberPairs<Id> {
+    fn new<D, I>(
+        old: impl Iterator<Item = D>,
+        new: impl Fn() -> I,
+        id: impl Fn(&D) -> Id,
+        matches: impl Fn(D, D) -> bool,
+    ) -> Self
+    where
+        I: Iterator<Item = D>,
+    {
+        let mut successor_ids: Vec<_> = new().map(|entry| id(&entry)).collect();
+        successor_ids.sort_unstable();
+        let mut successors = new();
+        let mut pairs: Vec<_> = old
+            .map(|a| {
+                let original = id(&a);
+                let mapped = successors.next().and_then(|b| {
+                    let target = id(&b);
+                    unique(&successor_ids, target, |&id| id)?;
+                    matches(a, b).then_some(target)
+                });
+                (original, mapped)
+            })
+            .collect();
+        pairs.sort_unstable_by_key(|&(old, _)| old);
+        Self(pairs)
+    }
+
+    fn get(&self, id: Id) -> Option<Id> {
+        unique(&self.0, id, |&(old, _)| old)?.1
+    }
+}
+
+fn unique<R, Id: Copy + Ord>(rows: &[R], id: Id, key: impl Fn(&R) -> Id) -> Option<&R> {
+    let at = rows.partition_point(|row| key(row) < id);
+    let row = rows.get(at)?;
+    (key(row) == id && rows.get(at + 1).is_none_or(|next| key(next) != id)).then_some(row)
+}
+
+type MembersByType<Id> = std::cell::RefCell<Vec<(StructuralTypeId, MemberPairs<Id>)>>;
+
+#[derive(Default)]
+pub(super) struct ReachedMembers {
+    cases: MembersByType<StructuralCaseId>,
+    fields: MembersByType<StructuralFieldId>,
 }
 
 impl CheckedPrefix<'_> {
@@ -44,27 +95,30 @@ impl CheckedPrefix<'_> {
         parent: StructuralTypeId,
         field: StructuralFieldId,
     ) -> Option<StructuralFieldId> {
-        let (target, rejoined) = self.nominal_type(parent)?;
-        let old = &self.old.structural_type(parent)?.shape;
-        let new = &self.new.structural_type(target)?.shape;
-        let mut selected = old
-            .fields_with_case()
-            .enumerate()
-            .filter(|(_, (_, f))| f.id == field);
-        let (ordinal, (a_case, a)) = selected.next()?;
-        let (b_case, b) = new.fields_with_case().nth(ordinal)?;
-        let same_case = match (a_case, b_case) {
-            (None, None) => true,
-            (Some(x), Some(y)) => self.nominal_case_id(parent, x.id) == Some(y.id),
-            _ => false,
-        };
-        (same_case
-            && selected.next().is_none()
-            && new.fields().filter(|f| f.id == b.id).count() == 1
-            && (a.id == b.id || !a.identity.is_absent() || rejoined)
-            && self.identity(a.identity, b.identity)
-            && (rejoined || self.identity(a.declaration_identity, b.declaration_identity)))
-        .then_some(b.id)
+        self.member(
+            &self.types.members.fields,
+            parent,
+            field,
+            |old, new, rejoined| {
+                MemberPairs::new(
+                    old.fields_with_case(),
+                    || new.fields_with_case(),
+                    |(_, field)| field.id,
+                    |(a_case, a), (b_case, b)| {
+                        let same_case = match (a_case, b_case) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => self.nominal_case_id(parent, x.id) == Some(y.id),
+                            _ => false,
+                        };
+                        same_case
+                            && (a.id == b.id || !a.identity.is_absent() || rejoined)
+                            && self.identity(a.identity, b.identity)
+                            && (rejoined
+                                || self.identity(a.declaration_identity, b.declaration_identity))
+                    },
+                )
+            },
+        )
     }
 
     pub(super) fn nominal_case_id(
@@ -72,18 +126,45 @@ impl CheckedPrefix<'_> {
         parent: StructuralTypeId,
         case: StructuralCaseId,
     ) -> Option<StructuralCaseId> {
-        let (target, rejoined) = self.nominal_type(parent)?;
-        let old = self.old.structural_type(parent)?.shape.cases();
-        let new = self.new.structural_type(target)?.shape.cases();
-        let mut selected = old.iter().enumerate().filter(|(_, c)| c.id == case);
-        let (ordinal, a) = selected.next()?;
-        let b = new.get(ordinal)?;
-        (selected.next().is_none()
-            && new.iter().filter(|c| c.id == b.id).count() == 1
-            && (a.id == b.id || !a.identity.is_absent() || rejoined)
-            && self.identity(a.identity, b.identity)
-            && (rejoined || self.identity(a.declaration_identity, b.declaration_identity)))
-        .then_some(b.id)
+        self.member(
+            &self.types.members.cases,
+            parent,
+            case,
+            |old, new, rejoined| {
+                MemberPairs::new(
+                    old.cases().iter(),
+                    || new.cases().iter(),
+                    |case| case.id,
+                    |a, b| {
+                        (a.id == b.id || !a.identity.is_absent() || rejoined)
+                            && self.identity(a.identity, b.identity)
+                            && (rejoined
+                                || self.identity(a.declaration_identity, b.declaration_identity))
+                    },
+                )
+            },
+        )
+    }
+
+    fn member<Id: Ord + Copy>(
+        &self,
+        by_type: &MembersByType<Id>,
+        parent: StructuralTypeId,
+        id: Id,
+        compare: impl FnOnce(&StructuralTypeShape, &StructuralTypeShape, bool) -> MemberPairs<Id>,
+    ) -> Option<Id> {
+        let mut reached = by_type.borrow_mut();
+        let slot = match reached.binary_search_by_key(&parent, |&(ty, _)| ty) {
+            Ok(slot) => slot,
+            Err(slot) => {
+                let (target, rejoined) = self.nominal_type(parent)?;
+                let old = &self.old.structural_type(parent)?.shape;
+                let new = &self.new.structural_type(target)?.shape;
+                reached.insert(slot, (parent, compare(old, new, rejoined)));
+                slot
+            }
+        };
+        reached[slot].1.get(id)
     }
 
     pub fn unambiguous_field_id(&self, field: StructuralFieldId) -> Option<StructuralFieldId> {

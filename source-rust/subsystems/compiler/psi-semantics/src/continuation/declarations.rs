@@ -15,6 +15,7 @@ type NominalType = (TerminalIdentityIndex, TerminalIdentityIndex);
 pub(super) struct ReachedTypes {
     candidates: std::cell::OnceCell<Vec<(NominalType, StructuralTypeId)>>,
     verified: std::cell::RefCell<Vec<(StructuralTypeId, StructuralTypeId)>>,
+    pub(super) members: super::coordinates::ReachedMembers,
 }
 
 impl CheckedPrefix<'_> {
