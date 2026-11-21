@@ -18,6 +18,13 @@ use review_evidence::record::{
 use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachineCallable};
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 
+pub(super) fn exposes_machine_interface(
+    machine: &source_compiler::representations::source_state::machine::Machine,
+) -> bool {
+    use source_compiler::representations::declaration_selection::AuthoredDeclarationSelectionExposure;
+    machine.interface_exposure == AuthoredDeclarationSelectionExposure::PublicInterface
+}
+
 struct CallableInventory<'a> {
     source: &'a source_compiler::representations::source_state::TypedTrees,
     module: &'a TerminalModule,
@@ -137,7 +144,7 @@ impl PolicySource<'_> {
         bodies.sort_unstable_by_key(|(original, _)| key(*original));
         for declaration in self.typed().machines() {
             if !self.owns(declaration.symbol, package)?
-                || (!declaration.is_public && declaration.supplies_checked_body())
+                || (!exposes_machine_interface(declaration) && declaration.supplies_checked_body())
             {
                 continue;
             }
@@ -1017,4 +1024,24 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
         structural_runtime_requirements: None,
         inferred: PackagePolicyInferredCrash::Unknown,
     })
+}
+
+#[cfg(test)]
+mod exposure_tests {
+    #[test]
+    fn exported_boundary_supply_exposes_its_contract_without_publishing_its_name() {
+        use source_compiler::representations::{
+            declaration_selection::AuthoredDeclarationSelectionExposure as Exposure,
+            source_state::machine::Machine,
+        };
+        let mut machine = Machine {
+            is_public: false,
+            interface_exposure: Exposure::PublicInterface,
+            supply_mode: source_declarations::MachineSupplyMode::Boundary,
+            ..Default::default()
+        };
+        assert!(super::exposes_machine_interface(&machine));
+        machine.interface_exposure = Exposure::PrivateImplementation;
+        assert!(!super::exposes_machine_interface(&machine));
+    }
 }

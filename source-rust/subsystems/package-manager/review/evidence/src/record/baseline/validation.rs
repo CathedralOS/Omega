@@ -64,7 +64,7 @@ impl PackagePolicyBaseline {
         self.validate_external_associations()?;
         ordered(&self.dangerous_capabilities)?;
         ordered(&self.slack_uses)?;
-        ordered(&self.semantic_dependencies)?;
+        self.validated_semantic_dependencies()?;
         ordered(&self.service_audits)?;
         ordered(&self.component_assumptions)?;
         for row in &self.component_assumptions {
@@ -140,22 +140,62 @@ impl PackagePolicyBaseline {
                 return Err("restricted build request belongs to another target activation");
             }
         }
+        Ok(())
+    }
+
+    pub(crate) fn validated_semantic_dependencies(
+        &self,
+    ) -> Result<&[crate::record::PackagePolicySemanticDependency], &'static str> {
+        ordered(&self.semantic_dependencies)?;
+        let mut previous_carried: Option<(
+            &crate::record::PackageReviewNominalIdentity,
+            source_provenance::PackageSourceConsumptionCommitment,
+        )> = None;
         for dependency in &self.semantic_dependencies {
-            dependency.dependency.validate_resolved()?;
-            match &dependency.consumer {
-                PackagePolicySemanticDependencyConsumer::Callable(identity) => {
-                    self.callable(identity)?;
-                }
-                PackagePolicySemanticDependencyConsumer::PackageImplementation => {
-                    if dependency.exposure
-                        != PackageReviewSemanticDependencyExposure::PrivateImplementation
-                    {
-                        return Err("private package consumer claims public semantic exposure");
+            use crate::record::{PackagePolicySemanticDependency, PackageReviewNominalOwner};
+            dependency.dependency().validate_resolved()?;
+            match dependency {
+                PackagePolicySemanticDependency::Declaration {
+                    consumer, exposure, ..
+                } => match consumer {
+                    PackagePolicySemanticDependencyConsumer::Callable(identity) => {
+                        self.callable(identity)?;
                     }
+                    PackagePolicySemanticDependencyConsumer::PackageImplementation => {
+                        if *exposure
+                            != PackageReviewSemanticDependencyExposure::PrivateImplementation
+                        {
+                            return Err("private package consumer claims public semantic exposure");
+                        }
+                    }
+                },
+                PackagePolicySemanticDependency::CarriedType {
+                    dependency,
+                    supplier_sources,
+                    ..
+                } => {
+                    if self.schema_version < crate::encoding::BASELINE_WITH_CARRIED_TYPES
+                        || !matches!(dependency.owner(), PackageReviewNominalOwner::Package(owner) if owner != self.package)
+                    {
+                        return Err(
+                            "carried type requires a different package's checked source commitment",
+                        );
+                    }
+                    // Carried rows are ordered by nominal owner and declaration.
+                    if let Some((previous, commitment)) = previous_carried
+                        && (previous == dependency
+                            || (previous.owner() == dependency.owner()
+                                && commitment != *supplier_sources))
+                    {
+                        return Err(
+                            "carried types disagree about their supplier or repeat a declaration",
+                        );
+                    }
+                    previous_carried = Some((dependency, *supplier_sources));
                 }
             }
         }
-        Ok(())
+        Ok(&self.semantic_dependencies)
     }
 
     fn callable(&self, identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {

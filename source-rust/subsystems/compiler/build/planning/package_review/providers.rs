@@ -1077,7 +1077,9 @@ impl PolicySource<'_> {
         let result = signature
             .return_type
             .is_valid()
-            .then(|| self.type_identity_for_private_contract(signature.return_type))
+            .then(|| {
+                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+            })
             .transpose()?;
         let invocation_authority = callable
             .declared_synchronous_invocations
@@ -1119,8 +1121,10 @@ impl PolicySource<'_> {
             .map(|parameter| {
                 Ok(PackageReviewSignatureParameter {
                     name: parameter.name.as_str().to_owned(),
-                    type_identity: self
-                        .type_identity_for_private_contract(parameter.type_reference)?,
+                    type_identity: self.type_identity_for_private_contract(
+                        signature.symbol,
+                        parameter.type_reference,
+                    )?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                 })
@@ -1227,10 +1231,10 @@ impl PolicySource<'_> {
                 let kind = match parameter.kind {
                     Source::Type => Kind::Type,
                     Source::Const { type_reference } => {
-                        Kind::Const(self.type_identity_for_private_contract(type_reference)?)
+                        Kind::Const(self.type_identity_for_private_contract(signature.symbol, type_reference)?)
                     }
                     Source::Value { type_reference } => {
-                        Kind::Value(self.type_identity_for_private_contract(type_reference)?)
+                        Kind::Value(self.type_identity_for_private_contract(signature.symbol, type_reference)?)
                     }
                     _ => {
                         return Err(unavailable(
@@ -1250,7 +1254,9 @@ impl PolicySource<'_> {
         let return_type = signature
             .return_type
             .is_valid()
-            .then(|| self.type_identity_for_private_contract(signature.return_type))
+            .then(|| {
+                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+            })
             .transpose()?;
         let termination = if boundary.unconditional_termination {
             PackagePolicyTermination::Terminates {

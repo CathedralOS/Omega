@@ -242,10 +242,10 @@ impl PolicySource<'_> {
             PackageReviewSemanticDependencyExposure::PrivateImplementation
         };
         for formal in &formals {
-            self.require_type_dependencies(formal.type_reference, exposure)?;
+            self.require_type_dependencies(signature.symbol, formal.type_reference, exposure)?;
         }
         if signature.return_type.is_valid() {
-            self.require_type_dependencies(signature.return_type, exposure)?;
+            self.require_type_dependencies(signature.symbol, signature.return_type, exposure)?;
         }
         let parameters = formals
             .iter()

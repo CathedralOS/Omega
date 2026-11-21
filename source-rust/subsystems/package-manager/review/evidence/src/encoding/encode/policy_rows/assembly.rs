@@ -137,7 +137,7 @@ pub(super) fn project(
         native_bindings,
         dangerous_capabilities,
         slack_uses,
-        semantic_dependencies,
+        semantic_dependencies: _,
         boundary_applications,
         restricted_build_requests,
         assumed_bindings,
@@ -271,7 +271,27 @@ pub(super) fn project(
             |encoder| super::super::declarations::encode_dangerous_authority_slack(encoder, slack),
         )?;
     }
-    for dependency in semantic_dependencies {
+    for dependency in policy
+        .validated_semantic_dependencies()
+        .map_err(PackageReviewEncodingError::new)?
+    {
+        if let crate::record::PackagePolicySemanticDependency::CarriedType {
+            dependency: nominal,
+            ..
+        } = dependency
+        {
+            builder.push_versioned(
+                (
+                    PackagePolicyRowKind::SemanticDependency,
+                    crate::encoding::BASELINE_WITH_CARRIED_TYPES,
+                ),
+                false,
+                false,
+                |encoder| baseline::carried_type_key(encoder, nominal),
+                |encoder| baseline::semantic_dependency(encoder, dependency),
+            )?;
+            continue;
+        }
         builder.push(
             PackagePolicyRowKind::SemanticDependency,
             false,

@@ -112,60 +112,43 @@ impl<'a> PolicySource<'a> {
 
     pub(super) fn type_identity(
         &self,
+        owner: SymbolHandle,
         reference: TypeReferenceHandle,
-    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-        self.type_identity_with_lifetimes(reference, None)
-    }
-
-    fn type_identity_with_lifetimes(
-        &self,
-        reference: TypeReferenceHandle,
-        lifetime_scope: Option<(
-            SymbolHandle,
-            &[(
-                source_compiler::representations::source_state::type_identity::LifetimeParameterIdentity,
-                usize,
-            )],
-        )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
             return Err(unavailable("an absent declared type"));
         }
         self.require_type_dependencies(
+            owner,
             reference,
             PackageReviewSemanticDependencyExposure::PublicInterface,
         )?;
-        self.exact_signature_type_identity(reference, lifetime_scope)
+        self.exact_signature_type_identity(reference)
     }
 
     pub(super) fn type_identity_for_private_contract(
         &self,
+        owner: SymbolHandle,
         reference: TypeReferenceHandle,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         self.require_type_dependencies(
+            owner,
             reference,
             PackageReviewSemanticDependencyExposure::PrivateImplementation,
         )?;
-        self.exact_signature_type_identity(reference, None)
+        self.exact_signature_type_identity(reference)
     }
 
     fn exact_signature_type_identity(
         &self,
         reference: TypeReferenceHandle,
-        lifetime_scope: Option<(
-            SymbolHandle,
-            &[(
-                source_compiler::representations::source_state::type_identity::LifetimeParameterIdentity,
-                usize,
-            )],
-        )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let canonical = self
             .typed()
             .exact_owner_type_identity(
                 source_compiler::representations::source_state::type_identity::ExactOwnerTypeIdentityRequest {
                     type_reference: reference,
-                    lifetime_scope,
+                    lifetime_scope: None,
                     binders: &[],
                     substitutions: &[],
                     exact_toolchain_sources: self.sources().exact_toolchain_sources(),
@@ -179,44 +162,65 @@ impl<'a> PolicySource<'a> {
 
     pub(super) fn require_type_dependencies(
         &self,
+        owner: SymbolHandle,
         reference: TypeReferenceHandle,
         exposure: PackageReviewSemanticDependencyExposure,
     ) -> Result<(), Vec<Diagnostic>> {
+        use source_compiler::representations::source_state::{
+            references::collect_type_symbol_dependencies, visibility::declaration_visibility,
+        };
         let package = self
             .sources()
             .package_identity()
             .ok_or_else(|| unavailable("a type outside the reviewed package subject"))?;
-        let symbols = &self.typed().symbols;
-        for symbol in source_compiler::representations::source_state::references::collect_type_symbol_dependencies(
-            self.typed(),
-            reference,
-        ) {
+        let source = self.typed();
+        let declaration = source
+            .closed_requirement_application(owner)
+            .map_or(owner, |application| application.template);
+        let declaration = source
+            .trait_machine_signature(declaration)
+            .map_or(declaration, |(service, _)| service.symbol);
+        // Reading the supplier's schema establishes the meaning of a grant,
+        // but only a declaration owned by this Product contributes a use.
+        if !self.owns(declaration, package)? {
+            return Ok(());
+        }
+        let exposure = if exposure == PackageReviewSemanticDependencyExposure::PublicInterface {
+            let exposed = match source.machine_by_symbol(declaration) {
+                Some(machine) => super::callables::exposes_machine_interface(machine),
+                None => declaration_visibility(source, declaration)
+                    .ok_or_else(|| {
+                        unavailable("the visibility of the declaration that uses a carried type")
+                    })?
+                    .is_public(),
+            };
+            if exposed {
+                PackageReviewSemanticDependencyExposure::PublicInterface
+            } else {
+                PackageReviewSemanticDependencyExposure::PrivateImplementation
+            }
+        } else {
+            exposure
+        };
+        let symbols = &source.symbols;
+        for symbol in collect_type_symbol_dependencies(source, reference) {
             if !symbols.symbols().nodes().is_valid(symbol) {
                 return Err(unavailable("a stale declaration in a public type"));
             }
             if matches!(symbols.get(symbol).kind, symbols::SymbolKind::BuiltinType | symbols::SymbolKind::TypeParameter | symbols::SymbolKind::ConformanceParameter) {
                 continue;
             }
-            match symbols.symbol_package_identity(symbol) {
-                Some(owner) if owner != package => {
-                    return Err(unavailable(
-                        "an imported public type's semantic dependency contract",
-                    ));
-                }
-                Some(_) if exposure == PackageReviewSemanticDependencyExposure::PublicInterface => {
-                    let retained = matches!(symbols.get(symbol).kind,
-                        symbols::SymbolKind::Data | symbols::SymbolKind::Domain | symbols::SymbolKind::Conformance | symbols::SymbolKind::Trait | symbols::SymbolKind::TypeAlias)
-                        && source_compiler::representations::source_state::visibility::declaration_visibility(self.typed(), symbol)
-                            .is_some_and(|declaration| declaration.is_public());
-                    if !retained {
-                        return Err(unavailable(
-                            "a private semantic dependency of a public type",
-                        ));
-                    }
-                }
-                _ => {
-                    self.nominal(symbol)?;
-                }
+            let dependency_owner = symbols.symbol_package_identity(symbol);
+            if dependency_owner.is_some()
+                && exposure == PackageReviewSemanticDependencyExposure::PublicInterface
+                && !declaration_visibility(source, symbol)
+                    .is_some_and(|declaration| declaration.is_public())
+            {
+                return Err(unavailable("a non-public declaration in a public type"));
+            }
+            let dependency = self.nominal(symbol)?;
+            if dependency_owner.is_some_and(|owner| owner != package) {
+                self.carried_types.retain(dependency, exposure)?;
             }
         }
         Ok(())
@@ -416,7 +420,7 @@ impl<'a> PolicySource<'a> {
             };
             rows.push(PackageReviewConstShape {
                 identity: self.nominal(declaration.symbol)?,
-                declared_type: self.type_identity(declaration.declared_type)?,
+                declared_type: self.type_identity(declaration.symbol, declaration.declared_type)?,
                 meaning,
             });
         }
@@ -478,7 +482,7 @@ impl<'a> PolicySource<'a> {
             rows.push(PackagePolicyDomainShape {
                 identity: self.nominal(definition.symbol)?,
                 type_parameters: Vec::new(),
-                target_type: self.type_identity(definition.target_type)?,
+                target_type: self.type_identity(definition.symbol, definition.target_type)?,
                 index_arguments: Vec::new(),
                 predicate_presence: definition.predicate_presence,
                 predicate_facts,

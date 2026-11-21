@@ -37,6 +37,7 @@ impl PackagePolicyBaseline {
             BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
                 | crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS
                 | crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
+                | crate::encoding::BASELINE_WITH_TYPE_ALIASES
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
@@ -54,7 +55,9 @@ impl PackagePolicyBaseline {
             external_supplies: reader.sequence(1, external::policy)?,
             dangerous_capabilities: reader.sequence(1, dependencies::dangerous_authority)?,
             slack_uses: reader.sequence(1, dependencies::slack)?,
-            semantic_dependencies: reader.sequence(1, dependencies::semantic_dependency)?,
+            semantic_dependencies: reader.sequence(1, |reader| {
+                dependencies::semantic_dependency(reader, schema_version)
+            })?,
             boundary_applications: boundary::applications(&mut reader)?,
             restricted_build_requests: restricted_build::requests(&mut reader)?,
             assumed_bindings: reader.sequence(1, |reader| reader.string())?,

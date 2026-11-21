@@ -173,7 +173,7 @@ pub(super) fn prepare(
                 "the numeric declaration's exact accepted application",
             ));
         }
-        let dependency = review_evidence::record::PackagePolicySemanticDependency {
+        let dependency = review_evidence::record::PackagePolicySemanticDependency::Declaration {
             consumer: review_evidence::record::PackagePolicySemanticDependencyConsumer::PackageImplementation,
             dependency: nominal.clone(),
             exposure: review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
@@ -193,14 +193,17 @@ pub(super) fn prepare(
             .map(|parameter| {
                 Ok(PackageReviewSignatureParameter {
                     name: parameter.name.as_str().to_owned(),
-                    type_identity: input
-                        .type_identity_for_private_contract(parameter.type_reference)?,
+                    type_identity: input.type_identity_for_private_contract(
+                        requirement.symbol,
+                        parameter.type_reference,
+                    )?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let result = input.type_identity_for_private_contract(requirement.return_type)?;
+        let result = input
+            .type_identity_for_private_contract(requirement.symbol, requirement.return_type)?;
         declarations.push(NumericDeclaration {
             boundary: boundary.id,
             dependency,
