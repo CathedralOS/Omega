@@ -360,15 +360,6 @@ mod carriers {
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
     }
 
-    pub(crate) fn find_object_function(
-        functions: &[ObjectFunction],
-        machine: MachineId,
-    ) -> Option<&ObjectFunction> {
-        functions
-            .iter()
-            .find(|function| function.machine == machine)
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectFunction {
         pub location: object_file::ObjectFunctionLocation,
@@ -2855,7 +2846,6 @@ pub use carriers::{
 };
 pub(crate) use carriers::{
     ObjectCompilerPrivateFunction, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
-    find_object_function,
 };
 pub use object_file::{
     ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
