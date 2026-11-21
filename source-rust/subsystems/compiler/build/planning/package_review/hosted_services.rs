@@ -7,7 +7,7 @@ use provider_acceptance::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole as Role,
     ServiceTerminalAuthorityPermission,
 };
-use provider_plans::ProviderBinding;
+use provider_plans::{ProviderBinding, ProviderPlan};
 use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::{
     PackageKeyIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
@@ -17,7 +17,6 @@ use terminal_semantics::callable_values::{CallableBoundaryImplementation, reache
 pub(super) fn nominations(
     input: &PolicySource<'_>,
     selected: &compiler::SelectedProviderResult,
-    owner: PackageKeyIdentity,
 ) -> Result<Vec<SemanticBindingReviewCandidate>, Vec<Diagnostic>> {
     let plans = selected.plans().plans();
     if plans.is_empty() {
@@ -42,18 +41,8 @@ pub(super) fn nominations(
         .collect();
     let mut nominations = Vec::new();
     for (plan, executions) in plans.iter().zip(selected.realization().row_executions()) {
-        if plan.provider_type_package_identity != Some(owner)
-            || plan.origin_package_identity != Some(owner)
-        {
+        let Some((supplier, role, name)) = hosted_supplier(plan) else {
             continue;
-        }
-        let name = plan
-            .schema
-            .identity_text(plan.schema.declaration.trait_name);
-        let role = match (name, plan.schema.declaration.trait_package_identity) {
-            ("ProcessExit", None) => Role::ProcessExitExitProcessI32,
-            ("Console", Some(supplier)) if supplier == owner => Role::ConsoleIo,
-            _ => continue,
         };
         if executions.len() != plan.rows.len() {
             return Err(unavailable(
@@ -142,7 +131,7 @@ pub(super) fn nominations(
         }
         let binding = AcceptedSemanticBinding::new(
             role,
-            owner,
+            supplier,
             name,
             plan.schema.identity_digest(),
             plan.identity_digest(),
@@ -154,4 +143,63 @@ pub(super) fn nominations(
         nominations.push(SemanticBindingReviewCandidate::new(binding, schema));
     }
     Ok(nominations)
+}
+
+/// The plan and its provider must have the same supplier. The consumer whose Product
+/// selected this plan is recorded independently by the package review occurrence.
+fn hosted_supplier(plan: &ProviderPlan) -> Option<(PackageKeyIdentity, Role, &str)> {
+    let supplier = plan.provider_type_package_identity?;
+    if plan.origin_package_identity != Some(supplier) {
+        return None;
+    }
+    let name = plan
+        .schema
+        .identity_text(plan.schema.declaration.trait_name);
+    let role = match (name, plan.schema.declaration.trait_package_identity) {
+        ("ProcessExit", None) => Role::ProcessExitExitProcessI32,
+        ("Console", Some(declaration)) if declaration == supplier => Role::ConsoleIo,
+        _ => return None,
+    };
+    Some((supplier, role, name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_hosted_provider_keeps_its_supplier_in_a_different_consumers_product() {
+        let consumer = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let supplier = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let mut plan = ProviderPlan {
+            provider_type_package_identity: Some(supplier),
+            origin_package_identity: Some(supplier),
+            ..Default::default()
+        };
+        let schema = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        schema.trait_package_identity = Some(supplier);
+        schema.trait_name = schema.identities.intern("Console");
+        assert_eq!(
+            hosted_supplier(&plan),
+            Some((supplier, Role::ConsoleIo, "Console"))
+        );
+
+        plan.origin_package_identity = Some(consumer);
+        assert!(hosted_supplier(&plan).is_none());
+        plan.origin_package_identity = Some(supplier);
+        std::sync::Arc::make_mut(&mut plan.schema.declaration).trait_package_identity =
+            Some(consumer);
+        assert!(hosted_supplier(&plan).is_none());
+
+        let schema = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        schema.trait_package_identity = None;
+        schema.trait_name = schema.identities.intern("ProcessExit");
+        assert_eq!(
+            hosted_supplier(&plan),
+            Some((supplier, Role::ProcessExitExitProcessI32, "ProcessExit"))
+        );
+        std::sync::Arc::make_mut(&mut plan.schema.declaration).trait_package_identity =
+            Some(supplier);
+        assert!(hosted_supplier(&plan).is_none());
+    }
 }

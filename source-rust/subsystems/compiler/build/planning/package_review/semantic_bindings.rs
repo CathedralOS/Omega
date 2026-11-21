@@ -199,7 +199,7 @@ pub(super) fn candidates(
     let source = input.typed();
     let accepted = input.accepted();
     let mut rows = host_services(input, selected, policy, target)?;
-    rows.extend(super::hosted_services::nominations(input, selected, owner)?);
+    rows.extend(super::hosted_services::nominations(input, selected)?);
     // Consent can constrain an active role. Only a new nomination produces
     // a candidate; replaying an old binding must not nominate its supplier.
     for candidate in &rows {
