@@ -1,17 +1,16 @@
-// Canonical ASCII encoding and bounded recovery for historical package policy decision sections across version-1 source-graph indices and version-2 comparison subjects.
-// Each canonical version-1 decision occupies at least 83 bytes, and both allocations are charged against the remaining storage budget before reserving retained rows; exact conflict fingerprints are sorted to reject duplicate conflict ownership across package indices.
+//! Encode and recover the bounded decision record for one source graph and comparison.
 
 use super::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
+    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject as Subject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
     HistoricalPackagePolicyLimits, HistoricalPackagePolicyRecoveryUsage,
 };
-use crate::hex_digest;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
+use crate::{Hex, hex_digest};
 use std::fmt::Write;
 
-const HEADER: &str = "omega-policy-decisions 1\n";
+const HEADER: &str = "omega-policy-decisions 2\n";
 
 impl HistoricalPackagePolicyDecisions {
     pub fn canonical_text(
@@ -23,36 +22,38 @@ impl HistoricalPackagePolicyDecisions {
         if self.source_subject() != subject.fingerprint() {
             return Err(Error::SourceSubjectMismatch);
         }
-        if self.comparison.is_some() {
-            return super::policy::encode(self, limits);
-        }
         if self.decisions.len() > limits.maximum_decisions {
             return Err(Error::DecisionLimitExceeded);
         }
-        validate_decisions(&self.decisions, subject.packages().len())?;
+        let baseline = self
+            .baseline_source_subject
+            .map_or_else(|| "none".to_owned(), |digest| Hex(&digest).to_string());
         let prefix = format!(
-            "{HEADER}source {}\ndecisions {}\n",
+            "{HEADER}source {}\nbaseline {baseline}\ncomparison {}\ndecisions {}\n",
             self.source_subject.to_hex(),
+            Hex(&self.comparison),
             self.decisions.len()
         );
-        let length =
-            self.decisions
-                .iter()
-                .try_fold(prefix.len() + "end\n".len(), |length, decision| {
-                    length
-                        .checked_add(
-                            "decision ".len()
-                                + decimal_digits(
-                                    decision.package_index().expect("validated legacy subject"),
-                                )
-                                + 1
-                                + 64
-                                + 1
-                                + disposition_token(decision.disposition).len()
-                                + 1,
-                        )
-                        .ok_or(Error::ByteLimitExceeded)
-                })?;
+        let mut length = prefix.len() + "end\n".len();
+        let mut previous = None;
+        for decision in &self.decisions {
+            validate_order(previous, decision.subject)?;
+            previous = Some(decision.subject);
+            let subject_length = match decision.subject {
+                Subject::RootRole => "root-role".len(),
+                Subject::SourceReplacement(_) => "source-replacement ".len() + 64,
+                Subject::Row(_) => "row ".len() + 64,
+            };
+            length = length
+                .checked_add(
+                    "decision ".len()
+                        + subject_length
+                        + 1
+                        + disposition_token(decision.disposition).len()
+                        + 1,
+                )
+                .ok_or(Error::ByteLimitExceeded)?;
+        }
         if length > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
@@ -60,20 +61,18 @@ impl HistoricalPackagePolicyDecisions {
         crate::reserve!(text, length, Error);
         text.push_str(&prefix);
         for decision in &self.decisions {
-            write!(
-                text,
-                "decision {} ",
-                decision.package_index().expect("validated legacy subject")
-            )
-            .expect("write preallocated string");
-            write!(
-                text,
-                "{}",
-                crate::Hex(&decision.conflict().expect("validated legacy subject"))
-            )
-            .expect("write preallocated string");
+            text.push_str("decision ");
+            match decision.subject {
+                Subject::RootRole => text.push_str("root-role"),
+                Subject::SourceReplacement(digest) => {
+                    write!(text, "source-replacement {}", Hex(&digest)).expect("preallocated text")
+                }
+                Subject::Row(digest) => {
+                    write!(text, "row {}", Hex(&digest)).expect("preallocated text")
+                }
+            }
             writeln!(text, " {}", disposition_token(decision.disposition))
-                .expect("write preallocated string");
+                .expect("preallocated text");
         }
         text.push_str("end\n");
         debug_assert_eq!(text.len(), length);
@@ -82,76 +81,72 @@ impl HistoricalPackagePolicyDecisions {
 
     pub fn recover_text_with_usage(
         text: &str,
-        subject: &CanonicalSourceClosureSubject,
+        source: &CanonicalSourceClosureSubject,
         limits: HistoricalPackagePolicyLimits,
         maximum_owned_bytes: usize,
-    ) -> Result<(Self, HistoricalPackagePolicyRecoveryUsage), Error> {
+    ) -> Result<
+        (
+            HistoricalPackagePolicyDecisions,
+            HistoricalPackagePolicyRecoveryUsage,
+        ),
+        Error,
+    > {
         let limits = limits.bounded();
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
-        if text.starts_with(super::policy::HEADER) {
-            return super::policy::recover(text, subject, limits, maximum_owned_bytes);
-        }
-        let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
-        let (source_line, body) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
-        if source_line
-            .strip_prefix("source ")
-            .and_then(|value| parse_digest(value).ok())
-            .as_ref()
-            != Some(subject.fingerprint().as_bytes())
-        {
+        let mut body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
+        if parse_digest(field(&mut body, "source")?)? != *source.fingerprint().as_bytes() {
             return Err(Error::SourceSubjectMismatch);
         }
-        let (count_line, body) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
-        let count = parse_number(
-            count_line
-                .strip_prefix("decisions ")
-                .ok_or(Error::InvalidFraming)?,
-        )?;
+        let baseline_source_subject = match field(&mut body, "baseline")? {
+            "none" => None,
+            digest => Some(parse_digest(digest)?),
+        };
+        let comparison = parse_digest(field(&mut body, "comparison")?)?;
+        let count = parse_number(field(&mut body, "decisions")?)?;
         if count > limits.maximum_decisions {
             return Err(Error::DecisionLimitExceeded);
         }
-        if count > body.len() / 83 {
+        if count > body.len() / "decision root-role accept\n".len() {
             return Err(Error::InvalidFraming);
         }
         let usage =
-            HistoricalPackagePolicyRecoveryUsage::for_decisions(count, maximum_owned_bytes)?;
+            HistoricalPackagePolicyRecoveryUsage::for_policy_decisions(count, maximum_owned_bytes)?;
         let mut decisions = Vec::new();
         crate::reserve!(decisions, count, Error);
-        let mut lines = body.split('\n');
+        let mut previous = None;
         for _ in 0..count {
-            let line = lines.next().ok_or(Error::InvalidFraming)?;
-            let mut fields = line.split(' ');
-            if fields.next() != Some("decision") {
-                return Err(Error::InvalidFraming);
-            }
-            let package_index = parse_number(fields.next().ok_or(Error::InvalidFraming)?)?;
-            if package_index >= subject.packages().len() {
-                return Err(Error::UnknownPackage);
-            }
-            let conflict = parse_digest(fields.next().ok_or(Error::InvalidFraming)?)?;
-            let disposition = super::text::parse_disposition(&mut fields)?;
+            let mut fields = field(&mut body, "decision")?.split(' ');
+            let subject = match fields.next() {
+                Some("root-role") => Subject::RootRole,
+                Some("source-replacement") => Subject::SourceReplacement(parse_digest(
+                    fields.next().ok_or(Error::InvalidFraming)?,
+                )?),
+                Some("row") => {
+                    Subject::Row(parse_digest(fields.next().ok_or(Error::InvalidFraming)?)?)
+                }
+                _ => return Err(Error::InvalidFraming),
+            };
+            let disposition = parse_disposition(&mut fields)?;
             if fields.next().is_some() {
                 return Err(Error::InvalidFraming);
             }
+            validate_order(previous, subject)?;
+            previous = Some(subject);
             decisions.push(HistoricalPackagePolicyDecision {
-                subject: HistoricalPackagePolicyDecisionSubject::LegacyConflict {
-                    package_index,
-                    conflict,
-                },
+                subject,
                 disposition,
             });
         }
-        if lines.next() != Some("end") || lines.next() != Some("") || lines.next().is_some() {
+        if body != "end\n" {
             return Err(Error::InvalidFraming);
         }
-        validate_decisions(&decisions, subject.packages().len())?;
         Ok((
-            Self {
-                source_subject: subject.fingerprint().clone(),
-                baseline_source_subject: None,
-                comparison: None,
+            HistoricalPackagePolicyDecisions {
+                source_subject: source.fingerprint().clone(),
+                baseline_source_subject,
+                comparison,
                 decisions,
             },
             usage,
@@ -159,38 +154,24 @@ impl HistoricalPackagePolicyDecisions {
     }
 }
 
-fn validate_decisions(
-    decisions: &[HistoricalPackagePolicyDecision],
-    package_count: usize,
-) -> Result<(), Error> {
-    if decisions.iter().any(|decision| {
-        decision
-            .package_index()
-            .is_none_or(|index| index >= package_count)
-    }) {
-        return Err(Error::UnknownPackage);
+fn field<'text>(body: &mut &'text str, name: &str) -> Result<&'text str, Error> {
+    let (line, remaining) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
+    let (label, value) = line.split_once(' ').ok_or(Error::InvalidFraming)?;
+    if label != name {
+        return Err(Error::InvalidFraming);
     }
-    if decisions
-        .windows(2)
-        .any(|pair| pair[0].subject >= pair[1].subject)
-    {
-        return Err(Error::NonCanonicalDecisions);
-    }
-    let mut fingerprints = Vec::new();
-    crate::reserve!(fingerprints, decisions.len(), Error);
-    fingerprints.extend(
-        decisions
-            .iter()
-            .map(|decision| decision.conflict().expect("validated legacy subject")),
-    );
-    fingerprints.sort_unstable();
-    if fingerprints.windows(2).any(|pair| pair[0] == pair[1]) {
+    *body = remaining;
+    Ok(value)
+}
+
+fn validate_order(previous: Option<Subject>, subject: Subject) -> Result<(), Error> {
+    if previous.is_some_and(|previous| previous >= subject) {
         return Err(Error::NonCanonicalDecisions);
     }
     Ok(())
 }
 
-pub(super) fn parse_number(text: &str) -> Result<usize, Error> {
+fn parse_number(text: &str) -> Result<usize, Error> {
     if text.is_empty()
         || (text.len() > 1 && text.starts_with('0'))
         || !text.bytes().all(|byte| byte.is_ascii_digit())
@@ -200,20 +181,11 @@ pub(super) fn parse_number(text: &str) -> Result<usize, Error> {
     text.parse().map_err(|_| Error::InvalidFraming)
 }
 
-pub(super) fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
+fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
     hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
-fn decimal_digits(mut number: usize) -> usize {
-    let mut digits = 1;
-    while number >= 10 {
-        number /= 10;
-        digits += 1;
-    }
-    digits
-}
-
-pub(super) fn parse_disposition(
+fn parse_disposition(
     fields: &mut std::str::Split<'_, char>,
 ) -> Result<ReviewOnlyRootPolicyDisposition, Error> {
     match fields.next() {
@@ -223,7 +195,7 @@ pub(super) fn parse_disposition(
     }
 }
 
-pub(super) fn disposition_token(disposition: ReviewOnlyRootPolicyDisposition) -> &'static str {
+fn disposition_token(disposition: ReviewOnlyRootPolicyDisposition) -> &'static str {
     match disposition {
         ReviewOnlyRootPolicyDisposition::AcceptCandidateChange => "accept",
         ReviewOnlyRootPolicyDisposition::RejectCandidateChange => "reject",

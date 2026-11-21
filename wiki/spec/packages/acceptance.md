@@ -81,11 +81,9 @@ restricted-build grants or receiver permissions and creates no acceptance
 state. Dependencies needing those inputs still require explicit review. When
 a lock exists, its exact target and occurrence inputs must match before Build
 execution; malformed, obsolete or stale locks never become unlocked requests.
-Format version 4 requires
-accepted compilation inputs; older versions reject on the ordinary compile route.
-Explicit review/update can recover version 3 pins, targets and decisions as a
-historical baseline. It must freshly review the candidate before publishing a
-version 4 lock; missing compiler identity and bindings are never inferred.
+Format version 4 requires accepted compilation inputs on every route, including
+explicit review and update. Archive an obsolete lock before starting fresh
+review. The new lock records the decisions made against the current candidate.
 
 ## Review and publication
 

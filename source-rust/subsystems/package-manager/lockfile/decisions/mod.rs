@@ -20,10 +20,6 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum HistoricalPackagePolicyDecisionSubject {
-    LegacyConflict {
-        package_index: usize,
-        conflict: [u8; 32],
-    },
     RootRole,
     SourceReplacement([u8; 32]),
     Row([u8; 32]),
@@ -35,31 +31,11 @@ pub(crate) struct HistoricalPackagePolicyDecision {
     disposition: ReviewOnlyRootPolicyDisposition,
 }
 
-impl HistoricalPackagePolicyDecision {
-    pub const fn package_index(&self) -> Option<usize> {
-        match self.subject {
-            HistoricalPackagePolicyDecisionSubject::LegacyConflict { package_index, .. } => {
-                Some(package_index)
-            }
-            _ => None,
-        }
-    }
-
-    pub const fn conflict(&self) -> Option<[u8; 32]> {
-        match self.subject {
-            HistoricalPackagePolicyDecisionSubject::LegacyConflict { conflict, .. } => {
-                Some(conflict)
-            }
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HistoricalPackagePolicyDecisions {
     source_subject: CanonicalSourceClosureSubjectFingerprint,
     baseline_source_subject: Option<[u8; 32]>,
-    comparison: Option<[u8; 32]>,
+    comparison: [u8; 32],
     decisions: Vec<HistoricalPackagePolicyDecision>,
 }
 
@@ -86,20 +62,6 @@ impl HistoricalPackagePolicyRecoveryUsage {
 
     pub const fn decisions(&self) -> usize {
         self.decisions
-    }
-
-    fn for_decisions(
-        decisions: usize,
-        maximum_owned_bytes: usize,
-    ) -> Result<Self, HistoricalPackagePolicyError> {
-        let owned_bytes = decisions
-            .checked_mul(std::mem::size_of::<HistoricalPackagePolicyDecision>() + 32)
-            .filter(|bytes| *bytes <= maximum_owned_bytes)
-            .ok_or(HistoricalPackagePolicyError::AllocationLimitExceeded)?;
-        Ok(Self {
-            owned_bytes,
-            decisions,
-        })
     }
 
     fn for_policy_decisions(
@@ -154,7 +116,6 @@ pub(crate) enum HistoricalPackagePolicyError {
     InvalidFraming,
     UnsupportedVersion,
     SourceSubjectMismatch,
-    UnknownPackage,
     NonCanonicalDecisions,
     ResolutionMismatch,
 }
@@ -167,9 +128,8 @@ impl fmt::Display for HistoricalPackagePolicyError {
             Self::AllocationLimitExceeded => "historical policy exceeds the owned-storage limit",
             Self::AllocationFailed => "historical policy allocation failed",
             Self::InvalidFraming => "historical policy has invalid canonical framing",
-            Self::UnsupportedVersion => "unsupported historical policy version; retain the existing pins and recover with a compatible toolchain",
+            Self::UnsupportedVersion => "unsupported historical policy version; archive omega.lock and run omega packages update for a fresh review",
             Self::SourceSubjectMismatch => "historical policy belongs to a different source graph, root, or target",
-            Self::UnknownPackage => "historical policy references a package outside its source graph",
             Self::NonCanonicalDecisions => "historical policy repeats or misorders decisions",
             Self::ResolutionMismatch => "historical policy capture requires the exact complete current resolution",
         })

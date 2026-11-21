@@ -1,6 +1,6 @@
 // Retained occurrence consent and acceptance rows in `omega.lock`.
 // Exact readable risk rows are opaque historical intent here; only fresh compiler output interprets their meaning, and equality never turns them into checked facts.
-// `PackagePolicyOccurrence` retains independent consent for one exact checked package occurrence (with execution profile recorded as context rather than inferred from the host, and `compilation` absent on historical schema versions so fresh review must supply compilation inputs before compilation or publication).
+// Every occurrence carries its checked compilation inputs and execution context.
 // `PackageAcceptanceRow` commits to an exact semantic coordinate digest plus its complete readable acceptance meaning.
 
 use super::PackageLockError;
@@ -17,7 +17,7 @@ use target::TargetProfile;
 pub(crate) struct PackagePolicyOccurrence {
     pub(super) acceptance: PackagePolicyAcceptance,
     pub(super) context: super::PackageCheckedContext,
-    pub(super) compilation: Option<super::AcceptedPackageCompilation>, // Absent on version 3 records, which remain usable as review baselines but not compile inputs.
+    pub(super) compilation: super::AcceptedPackageCompilation,
 }
 
 impl PackagePolicyOccurrence {
@@ -39,7 +39,7 @@ impl PackagePolicyOccurrence {
         let value = Self {
             acceptance: PackagePolicyAcceptance::from_policy(review.policy())?,
             context,
-            compilation: Some(compilation),
+            compilation,
         };
         value.validate()?;
         Ok(value)
@@ -52,22 +52,16 @@ impl PackagePolicyOccurrence {
         self.context
     }
 
-    pub const fn compilation(&self) -> Option<&super::AcceptedPackageCompilation> {
-        if self.acceptance.schema_version == PACKAGE_POLICY_ROW_VERSION {
-            self.compilation.as_ref()
-        } else {
-            None
-        }
+    pub const fn compilation(&self) -> &super::AcceptedPackageCompilation {
+        &self.compilation
     }
 
     pub(super) fn validate(&self) -> Result<(), PackageLockError> {
-        if self.compilation().is_some_and(|compilation| {
-            compilation.native_bindings.iter().any(|binding| {
-                self.context.purpose() != DependencyPurpose::Product
-                    || binding.target != self.context.target().target_name()
-                    || binding.supplier_package != self.acceptance.package()
-                    || binding.evaluation.validate().is_err()
-            })
+        if self.compilation.native_bindings.iter().any(|binding| {
+            self.context.purpose() != DependencyPurpose::Product
+                || binding.target != self.context.target().target_name()
+                || binding.supplier_package != self.acceptance.package()
+                || binding.evaluation.validate().is_err()
         }) {
             return Err(PackageLockError::OccurrenceCoverage);
         }
@@ -83,7 +77,6 @@ impl PackagePolicyOccurrence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyAcceptance {
-    pub(super) schema_version: u16,
     pub(super) package: PackageKeyIdentity,
     pub(super) target: TargetProfile,
     pub(super) rows: Vec<PackageAcceptanceRow>,
@@ -109,7 +102,6 @@ impl PackagePolicyAcceptance {
         rows.sort_unstable_by_key(|row| (row.kind, row.key));
         Ok((
             Self {
-                schema_version: PACKAGE_POLICY_ROW_VERSION,
                 package: policy.package(),
                 target: policy.target(),
                 rows,
@@ -130,7 +122,7 @@ impl PackagePolicyAcceptance {
 
     pub(crate) fn terminal_permissions(&self) -> TerminalPermissionAcceptance {
         TerminalPermissionAcceptance {
-            schema_version: self.schema_version,
+            schema_version: PACKAGE_POLICY_ROW_VERSION,
             package: self.package,
             target: self.target,
             rows: self
