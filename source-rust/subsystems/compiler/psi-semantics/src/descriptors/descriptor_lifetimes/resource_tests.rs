@@ -221,6 +221,71 @@ fn a_carrier_surviving_one_arrival_is_not_a_closed_resource() {
 }
 
 #[test]
+fn a_local_or_edge_borrow_can_survive_only_one_branch() {
+    let local = root(1);
+    let parameter = root(2);
+    let mut transfer = edge(1);
+    transfer.parameters.push(parameter.clone());
+    transfer.bindings.push(
+        DescriptorFlowBinding::new(
+            local.clone(),
+            parameter.clone(),
+            terminal_psi::StructuralAccess::SharedBorrow,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )
+        .unwrap(),
+    );
+    let mut steps = BTreeMap::from([
+        (
+            position(0),
+            DescriptorFlowStep {
+                definitions: vec![local.clone()],
+                successors: vec![transfer.clone()],
+                ..Default::default()
+            },
+        ),
+        (
+            position(1),
+            DescriptorFlowStep {
+                successors: vec![edge(2), edge(3)],
+                ..Default::default()
+            },
+        ),
+        (
+            position(2),
+            DescriptorFlowStep {
+                definitions: vec![local.clone(), parameter.clone()],
+                successors: vec![edge(4)],
+                ..Default::default()
+            },
+        ),
+        (
+            position(3),
+            DescriptorFlowStep {
+                successors: vec![edge(4)],
+                ..Default::default()
+            },
+        ),
+        (position(4), DescriptorFlowStep::default()),
+    ]);
+    let formed = descriptor_location_lifetime(&steps, position(0), &local);
+    let borrowed =
+        descriptor_successor_lifetime(&steps, position(0), position(1), &parameter).unwrap();
+    for (lifetime, location) in [(formed, &local), (borrowed, &parameter)] {
+        assert!(lifetime.authorized[&position(1)].contains(location));
+        assert!(lifetime.surviving[&position(4)].contains(location));
+        assert!(lifetime.authorized[&position(4)].is_empty());
+    }
+    let birth = steps.get_mut(&position(0)).unwrap();
+    birth.definitions.clear();
+    birth.successors.push(transfer);
+    let unformed = descriptor_location_lifetime(&steps, position(0), &local);
+    assert!(unformed.authorized.is_empty());
+    assert!(unformed.surviving.is_empty());
+    assert!(descriptor_successor_lifetime(&steps, position(0), position(1), &parameter).is_none());
+}
+
+#[test]
 fn a_selected_edge_captures_swapped_carriers_before_consuming_old_names() {
     let mut transfer = edge(1);
     transfer.parameters = vec![root(1), root(2)];
