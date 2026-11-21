@@ -338,33 +338,33 @@ impl Program<'_> {
                 ));
             }
             let mut guarantees = Vec::new();
-            for (owner, contracts) in [
-                (declaration.symbol, typed.machine_contracts(declaration)),
-                (state.symbol, typed.state_contracts(state)),
-            ] {
-                for contract in contracts {
-                    if contract.kind != SignatureContractKind::Ensures || contract.binding.is_some()
-                    {
-                        return Err(unavailable(
-                            id,
-                            "float meaning call has an unserved requirement or guarantee",
-                        ));
-                    }
-                    for fact in super::span(
-                        |span| typed.proof_facts.span(span),
-                        contract.facts,
+            for contract in typed
+                .machine_contracts(declaration)
+                .iter()
+                .chain(typed.state_contracts(state))
+            {
+                if contract.kind != SignatureContractKind::Ensures || contract.binding.is_some() {
+                    return Err(unavailable(
                         id,
-                        "float meaning guarantees",
-                    )? {
-                        guarantees.push((owner, program.fact(id, fact)?));
-                    }
+                        "float meaning call has an unserved requirement or guarantee",
+                    ));
+                }
+                for fact in super::span(
+                    |span| typed.proof_facts.span(span),
+                    contract.facts,
+                    id,
+                    "float meaning guarantees",
+                )? {
+                    guarantees.push(program.fact(id, fact)?);
                 }
             }
-            Ok(guarantees)
+            // Stage 02 binds reserved result in a machine contract to its
+            // entry state, as it does for the ordinary signature reader.
+            Ok((state.symbol, guarantees))
         })?;
         let (slot, _) =
             self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
-                if !unfolded.result.is_empty() {
+                if !unfolded.result.1.is_empty() {
                     program.verify_meaning_wrapper(id, &unfolded)?;
                 }
                 let actual = callee_scope(&unfolded.bound, unfolded.machine);
@@ -380,7 +380,7 @@ impl Program<'_> {
     fn verify_meaning_wrapper(
         &mut self,
         id: MachineId,
-        unfolded: &Unfolded<Vec<(SymbolHandle, ExpressionHandle)>>,
+        unfolded: &Unfolded<(SymbolHandle, Vec<ExpressionHandle>)>,
     ) -> Checked<()> {
         let formals = unfolded
             .bound
@@ -396,7 +396,9 @@ impl Program<'_> {
         let (proof, pending) = self.with_clause_arguments(id, |program| {
             let mut values = Vec::new();
             let body = program.meaning_term(id, &nested, unfolded.body, &mut values, None)?;
-            for &(owner, expression) in &unfolded.result {
+            nested.owner = unfolded.result.0;
+            nested.formal_fields = true;
+            for &expression in &unfolded.result.1 {
                 let typed = program.typed;
                 let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
                 else {
@@ -415,8 +417,6 @@ impl Program<'_> {
                         "float meaning guarantee has no exact identity",
                     ));
                 }
-                nested.owner = owner;
-                nested.formal_fields = true;
                 let (ty, [left, right], _) =
                     program.identity_inputs(id, &nested, expression, call)?;
                 if typed.core_vocabulary(ty) != Some(CoreVocabulary::FloatMeaning) {
