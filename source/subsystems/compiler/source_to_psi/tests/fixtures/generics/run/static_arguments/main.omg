@@ -1,0 +1,99 @@
+// Expected exit: 0
+// The driver includes the product binder and both resolver queries unchanged.
+// These tables supply just the rows the test reads. Rows 0 and 1 contain
+// integer literals. Call arguments start at row 5.
+data SyntaxTrees [copy] { left: IntegerLiteral; right: IntegerLiteral; }
+data GenericParameter [copy] { kind: GenericParameterKind; }
+data TypeReference [copy] {
+    kind: TypeReferenceKind;
+    access: ReferenceAccess;
+    argument_count: u64;
+    literal: u64 in Trapping;
+}
+data NameResolution [copy] { binding_count: u64 in Trapping; machine_row: u64 in Trapping; }
+data Resolver [copy] { output: NameResolution; }
+data TypedReferences [copy] {}
+data Typer { output: TypedReferences; }
+
+machine syntax_trees_type_reference(syntax: @SyntaxTrees, row: u64 in Trapping) -> TypeReference {
+    TypeReference { kind: TypeReferenceKind::Literal, access: ReferenceAccess::Shared, argument_count: 0, literal: row }
+}
+machine syntax_trees_integer_literal(syntax: @SyntaxTrees, row: u64 in Trapping) -> IntegerLiteral {
+    transition row == 0 { true -> value(syntax.left), _ -> value(syntax.right) }
+    machine value(integer: IntegerLiteral) -> IntegerLiteral { integer }
+}
+machine domain_binding_at(resolution: @NameResolution, row: u64 in Trapping) -> DomainBinding { DomainBinding::Unqualified }
+machine name_resolution_domain_item(resolution: @NameResolution, row: u64 in Trapping) -> u64 in Trapping { 0u64 as +Trapping }
+machine type_binding_at(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding {
+    transition {
+        row < 2 -> literal(),
+        row == resolution.machine_row -> callee(row),
+        _ -> builtin()
+    }
+    machine literal() -> TypeBinding { TypeBinding::Literal }
+    machine callee(row: u64 in Trapping) -> TypeBinding { TypeBinding::Machine { handle: row } }
+    machine builtin() -> TypeBinding { TypeBinding::Builtin { builtin: BuiltinType::Bool } }
+}
+machine syntax_trees_generic_parameter(syntax: @SyntaxTrees, row: u64 in Trapping) -> GenericParameter {
+    transition row {
+        0 -> parameter(GenericParameterKind::Lifetime),
+        1 -> parameter(GenericParameterKind::Type),
+        _ -> parameter(GenericParameterKind::Machine)
+    }
+    machine parameter(kind: GenericParameterKind) -> GenericParameter { GenericParameter { kind: kind } }
+}
+machine type_argument(syntax: @SyntaxTrees, row: u64 in Trapping) -> u64 in Trapping { row }
+machine reference_type(output: @TypedReferences, row: u64 in Trapping) -> u64 in Trapping { row }
+machine typer_bind(typer: @mut Typer, handle: u64 in Trapping, argument: u64 in Trapping) crashes Trap {
+    transition handle == 1 && argument == 5 { true -> done(), _ -> wrong_binding() }
+    machine done() {}
+    machine wrong_binding() { crash Trap; }
+}
+machine bind_machine(typer: @mut Typer, handle: u64 in Trapping, argument: MachineArgument) crashes Trap {
+    transition argument {
+        MachineArgument::Declared { machine as selected } -> check(handle, selected),
+        _ -> wrong_binding()
+    }
+    machine check(handle: u64 in Trapping, selected: u64 in Trapping) {
+        transition handle == 2 && selected == 6 { true -> done(), _ -> wrong_binding() }
+    }
+    machine done() {}
+    machine wrong_binding() { crash Trap; }
+}
+
+machine call_fits(syntax: @SyntaxTrees, machine_row: u64, count: u64, expected: bool) -> bool crashes Trap {
+    let mut typer: Typer = Typer { output: TypedReferences {} };
+    let resolution: NameResolution = NameResolution { binding_count: 9u64 as +Trapping, machine_row: machine_row as +Trapping };
+    let arguments: StaticArguments = StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
+    let fits: bool = bind_static_arguments(@mut typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);
+    fits == expected
+}
+
+machine same_integer(left: IntegerLiteral, right: IntegerLiteral, expected: bool) -> bool crashes Trap {
+    let syntax: SyntaxTrees = SyntaxTrees { left: left, right: right };
+    let resolver: Resolver = Resolver { output: NameResolution { binding_count: 2u64 as +Trapping, machine_row: 6u64 as +Trapping } };
+    let zero: u64 in Trapping = 0u64 as +Trapping;
+    let one: u64 in Trapping = 1u64 as +Trapping;
+    let scope: TypeScope = TypeScope { lexical_machine: zero, first_generic_parameter: zero, generic_parameter_count: zero, first_outer_parameter: zero, outer_parameter_count: zero };
+    same_head(@resolver, @syntax, zero, one) == expected
+        && same_type_row(@resolver, @syntax, scope, zero, scope, one) == expected
+}
+
+machine main() crashes Trap {
+    let four: IntegerLiteral = IntegerLiteral { magnitude: 4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
+    let hex: IntegerLiteral = IntegerLiteral { magnitude: 0x4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
+    let five: IntegerLiteral = IntegerLiteral { magnitude: 5u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
+    let overflow: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: false, empty_digits: false, suffix: IntegerSuffix::None };
+    let empty: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: true, suffix: IntegerSuffix::None };
+    let suffixed: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: false, suffix: IntegerSuffix::U8 };
+    let syntax: SyntaxTrees = SyntaxTrees { left: four, right: hex };
+    transition same_integer(four, hex, true) && same_integer(four, five, false)
+        && same_integer(overflow, four, false) && same_integer(four, empty, false) && same_integer(suffixed, suffixed, false)
+        && call_fits(@syntax, 6, 2, true) && call_fits(@syntax, 5, 2, false)
+        && call_fits(@syntax, 6, 1, true) && call_fits(@syntax, 5, 1, false)
+        && call_fits(@syntax, 6, 0, true) && call_fits(@syntax, 6, 3, false) {
+        true -> done(), _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

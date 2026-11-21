@@ -422,10 +422,10 @@ integer may land too. Float arithmetic, negation and IEEE comparisons take
 one format, so formats never mix, and `as` never converts between floats and
 integers (named conversion machines do). A call to a generic machine binds
 its generic parameters ([`pipeline/symbol_resolved_trees_to_typed_trees/generics.omg`](pipeline/symbol_resolved_trees_to_typed_trees/generics.omg)) from
-explicit static arguments `path<arguments>(...)`, one per non-lifetime
-parameter, and by unifying each parameter's type with its argument's type;
-every parameter must be bound, each argument is admitted at its substituted
-parameter type, and the result is substituted the same way. A construction
+explicit static arguments `path<arguments>(...)`, in declaration order, skipping lifetimes. It infers
+omitted arguments by unifying parameter and argument types. Every parameter
+must have a binding. The compiler then checks each argument against its
+substituted parameter type and substitutes the result type the same way. A construction
 of generic data infers its arguments from its fields' values. A
 value-position match ([`pipeline/symbol_resolved_trees_to_typed_trees/matches.omg`](pipeline/symbol_resolved_trees_to_typed_trees/matches.omg)) admits its
 patterns at its subject as a transition arm's head, gives its arms' values
@@ -489,7 +489,7 @@ expressions
 ([`pipeline/symbol_resolved_trees_to_typed_trees/clauses.omg`](pipeline/symbol_resolved_trees_to_typed_trees/clauses.omg)); a requirement with generic
 parameters of its own rejects as unsupported. A machine binder's call is
 typed through its contract, and a generic call's static machine arguments
-match its machine binders in order, each argument's signature refining its
+occupy the declared machine binder positions, each argument's signature refining its
 binder's contract under the call's bindings and binding the callee's other
 generic parameters the contract names
 ([`pipeline/symbol_resolved_trees_to_typed_trees/binders.omg`](pipeline/symbol_resolved_trees_to_typed_trees/binders.omg)). An arithmetic or order

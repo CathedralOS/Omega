@@ -16,7 +16,7 @@ use representations\syntax_trees\IdentifierSpan;
 use representations\syntax_trees\NamePath;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\TypeReferenceKind;
+use representations\syntax_trees\same_type_form;
 use representations\syntax_trees\syntax_trees_domain_item;
 use representations\syntax_trees\syntax_trees_member;
 use representations\syntax_trees\syntax_trees_name_path;
@@ -118,7 +118,7 @@ crashes Trap
     machine carriers(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping, earlier_item: DomainItem) {
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         let earlier_scope: TypeScope = resolver_scope(earlier_item.first_generic_parameter, earlier_item.generic_parameter_count);
-        let same: bool = same_type(resolver, sources, syntax, scope, item.carrier, earlier_scope, earlier_item.carrier);
+        let same: bool = same_type(resolver, syntax, scope, item.carrier, earlier_scope, earlier_item.carrier);
         transition same {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, item.name),
             _ -> prior(resolver, sources, syntax, index, item, earlier + 1)
@@ -235,7 +235,7 @@ crashes Trap
     }
 
     machine carried(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item: DomainItem, row: u64 in Trapping) -> bool {
-        carrier_matches(resolver, sources, syntax, item, row)
+        carrier_matches(resolver, syntax, item, row)
     }
 
     machine no() -> bool {
@@ -249,17 +249,16 @@ crashes Trap
 // order whenever the rows agree. A carrier row naming one of the domain's
 // own generic parameters stands for any type: the walk skips the whole
 // subtree the actual type has in its place. No recursion or stack is needed.
-public machine carrier_matches(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
+public machine carrier_matches(resolver: @Resolver, syntax: @SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
 crashes Trap
 {
     let carrier_root: TypeReference = syntax_trees_type_reference(syntax, item.carrier);
     let actual_root: TypeReference = syntax_trees_type_reference(syntax, actual);
-    transition { _ -> step(resolver, sources, syntax, item, carrier_root.first_row, item.carrier + 1, actual_root.first_row, actual + 1) }
+    transition { _ -> step(resolver, syntax, item, carrier_root.first_row, item.carrier + 1, actual_root.first_row, actual + 1) }
 
     // `carrier_end` and `actual_end` are one past the next rows to compare.
     machine step(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -268,14 +267,13 @@ crashes Trap
         actual_end: u64 in Trapping
     ) -> bool {
         transition carrier_end > carrier_first {
-            true -> pair(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
+            true -> pair(resolver, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
             _ -> finished(actual_first, actual_end)
         }
     }
 
     machine pair(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -284,14 +282,13 @@ crashes Trap
         actual_end: u64 in Trapping
     ) -> bool {
         transition actual_end > actual_first {
-            true -> wildcard(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
+            true -> wildcard(resolver, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
             _ -> different()
         }
     }
 
     machine wildcard(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -301,14 +298,13 @@ crashes Trap
     ) -> bool {
         let carrier_binding: TypeBinding = type_binding_at(@resolver.output, carrier_end - 1);
         transition carrier_binding {
-            TypeBinding::GenericParameter { parameter } -> generic(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end, parameter),
-            _ -> head(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
+            TypeBinding::GenericParameter { parameter } -> generic(resolver, syntax, item, carrier_first, carrier_end, actual_first, actual_end, parameter),
+            _ -> head(resolver, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
         }
     }
 
     machine generic(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -319,14 +315,13 @@ crashes Trap
     ) -> bool {
         let skipped: TypeReference = syntax_trees_type_reference(syntax, actual_end - 1);
         transition parameter >= item.first_generic_parameter && parameter < item.first_generic_parameter + item.generic_parameter_count {
-            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, skipped.first_row),
-            _ -> head(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
+            true -> step(resolver, syntax, item, carrier_first, carrier_end - 1, actual_first, skipped.first_row),
+            _ -> head(resolver, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
         }
     }
 
     machine head(
         resolver: @Resolver,
-        sources: @SourceSet,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -334,9 +329,9 @@ crashes Trap
         actual_first: u64 in Trapping,
         actual_end: u64 in Trapping
     ) -> bool {
-        let same: bool = same_head(resolver, sources, syntax, carrier_end - 1, actual_end - 1);
+        let same: bool = same_head(resolver, syntax, carrier_end - 1, actual_end - 1);
         transition same {
-            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, actual_end - 1),
+            true -> step(resolver, syntax, item, carrier_first, carrier_end - 1, actual_first, actual_end - 1),
             _ -> different()
         }
     }
@@ -351,24 +346,15 @@ crashes Trap
 }
 
 // Whether two rows agree in form, access, argument count and binding,
-// regardless of their own `in` qualifiers. Integer rows compare by spelling.
-machine same_head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
+// regardless of their own `in` qualifiers. Integer rows compare by value.
+machine same_head(resolver: @Resolver, syntax: @SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
     let left_row: TypeReference = syntax_trees_type_reference(syntax, left);
     let right_row: TypeReference = syntax_trees_type_reference(syntax, right);
-    transition left_row.kind == right_row.kind && left_row.access == right_row.access
-        && left_row.argument_count == right_row.argument_count {
-        true -> spelling(resolver, sources, left, right, left_row, right_row),
+    transition same_type_form(syntax, left_row, right_row) {
+        true -> bindings(resolver, left, right),
         _ -> different()
-    }
-
-    machine spelling(resolver: @Resolver, sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping, left_row: TypeReference, right_row: TypeReference) -> bool {
-        let same: bool = spans_equal(sources, left_row.name.source_span, right_row.name.source_span);
-        transition left_row.kind == TypeReferenceKind::Literal && !same {
-            true -> different(),
-            _ -> bindings(resolver, left, right)
-        }
     }
 
     machine bindings(resolver: @Resolver, left: u64 in Trapping, right: u64 in Trapping) -> bool {

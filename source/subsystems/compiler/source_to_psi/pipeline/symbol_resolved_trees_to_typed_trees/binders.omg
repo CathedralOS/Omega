@@ -3,7 +3,6 @@ use representations\symbol_resolved_trees\BinderContract;
 use representations\symbol_resolved_trees\MachineArgument;
 use representations\symbol_resolved_trees\NameResolution;
 use representations\symbol_resolved_trees\binder_contract;
-use representations\symbol_resolved_trees\name_resolution_machine_argument;
 use representations\syntax_trees\Contract;
 use representations\syntax_trees\Expression;
 use representations\syntax_trees\GenericParameter;
@@ -46,25 +45,6 @@ public data CallableSignature [copy] {
 
 // Whether a machine binder's argument selects a machine.
 public machine selects_machine_argument(argument: MachineArgument) -> bool {
-    transition argument {
-        MachineArgument::Absent -> no(),
-        _ -> yes()
-    }
-
-    machine yes() -> bool {
-        true
-    }
-
-    machine no() -> bool {
-        false
-    }
-}
-
-// Whether a static argument row names a machine (declared or forwarded).
-public machine names_machine(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) -> bool
-crashes Trap
-{
-    let argument: MachineArgument = name_resolution_machine_argument(syntax, resolution, row);
     transition argument {
         MachineArgument::Absent -> no(),
         _ -> yes()

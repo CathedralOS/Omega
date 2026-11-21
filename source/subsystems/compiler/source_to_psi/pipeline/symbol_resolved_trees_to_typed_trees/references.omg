@@ -9,11 +9,14 @@ use representations\symbol_resolved_trees\type_binding_at;
 use representations\syntax_trees\DataItem;
 use representations\syntax_trees\GenericParameter;
 use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\IntegerLiteral;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\TraitItem;
 use representations\syntax_trees\TypeReference;
+use representations\syntax_trees\static_integer_is_valid;
 use representations\syntax_trees\syntax_trees_data_item;
 use representations\syntax_trees\syntax_trees_generic_parameter;
+use representations\syntax_trees\syntax_trees_integer_literal;
 use representations\syntax_trees\syntax_trees_type_reference;
 use representations\syntax_trees\trait_item;
 use representations\syntax_trees\type_argument;
@@ -31,7 +34,7 @@ use representations\typed_trees\typing_reject;
 // Every written type, row by row. A type's rows follow their children in the
 // syntax table, so one pass in table order meets each row after the rows it
 // names and interns it from their types and its own binding. Integer static
-// arguments and array lengths read their spelling here; a named static value
+// arguments and array lengths use their decoded values; a named static value
 // (a `const` parameter) has no value before evaluation exists and rejects.
 public machine type_references(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
@@ -310,10 +313,10 @@ crashes Trap
         index: u64 in Trapping,
         reference: TypeReference
     ) {
-        let value: LiteralValue = literal_value(syntax, reference.literal);
+        let value: IntegerLiteral = syntax_trees_integer_literal(syntax, reference.literal);
         let mut row: TypeRow = type_row_of(TypeKind::StaticInteger);
         row.length = value.magnitude as u64 +Trapping;
-        transition value.valid && !value.has_suffix {
+        transition static_integer_is_valid(value) {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> literal_rejected(typer, reference)
         }
