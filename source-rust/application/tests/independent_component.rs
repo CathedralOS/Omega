@@ -108,7 +108,8 @@ fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     let first = run();
     assert!(
         first.status.success(),
-        "{}",
+        "consumer exited with {}: {}",
+        first.status,
         String::from_utf8_lossy(&first.stderr)
     );
     for component in &components {
