@@ -327,6 +327,73 @@ mod facts {
             }
         }
 
+        fn check_operands(
+            function: &SelectedFunction,
+            operands: &[selected_instructions::SelectedOperand],
+            required: &[register_model::RegisterOperandConstraint],
+        ) -> Result<(), String> {
+            if operands.len() != required.len() {
+                return Err(format!(
+                    "operand count is {}, expected {}",
+                    operands.len(),
+                    required.len()
+                ));
+            }
+            for (operand, expected) in operands.iter().zip(required) {
+                let number = expected.operand;
+                let register_id = operand.virtual_register;
+                let register = function
+                    .virtual_registers
+                    .get(register_id.0 as usize)
+                    .ok_or_else(|| {
+                        format!(
+                            "operand {number} refers to missing virtual register {}",
+                            register_id.0
+                        )
+                    })?;
+
+                check_operand_field(number, "number", number, operand.operand)?;
+                check_operand_field(number, "access", expected.access, operand.access)?;
+                check_operand_field(number, "register class", expected.class, operand.class)?;
+                check_operand_field(
+                    number,
+                    "fixed register view",
+                    expected.fixed_view,
+                    operand.fixed_view,
+                )?;
+                check_operand_field(number, "tied operand", expected.tied_to, operand.tied_to)?;
+                check_operand_field(
+                    number,
+                    "early clobber",
+                    expected.early_clobber,
+                    operand.early_clobber,
+                )?;
+                check_operand_field(number, "virtual register ID", register_id.0, register.id.0)?;
+                check_operand_field(
+                    number,
+                    "declared register class",
+                    expected.class,
+                    register.class,
+                )?;
+            }
+            Ok(())
+        }
+
+        fn check_operand_field<T: Eq + std::fmt::Debug>(
+            number: u16,
+            field: &str,
+            expected: T,
+            actual: T,
+        ) -> Result<(), String> {
+            if actual == expected {
+                Ok(())
+            } else {
+                Err(format!(
+                    "operand {number} {field}: expected {expected:?}, found {actual:?}"
+                ))
+            }
+        }
+
         fn compute_instruction(
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
@@ -350,34 +417,15 @@ mod facts {
             }
             let constraint =
                 super::foreign_call::constraint(function, instruction, physical, constraints)?;
-            if instruction.operands.len() != constraint.operands.len() {
-                return Err(MachineEffectError::ConstraintOperandMismatch {
+            check_operands(function, &instruction.operands, &constraint.operands).map_err(
+                |detail| MachineEffectError::ConstraintOperandMismatch {
+                    machine: function.machine,
                     instruction: instruction.id,
-                });
-            }
-            for (operand, expected) in instruction.operands.iter().zip(&constraint.operands) {
-                let Some(register) = function
-                    .virtual_registers
-                    .get(operand.virtual_register.0 as usize)
-                else {
-                    return Err(MachineEffectError::ConstraintOperandMismatch {
-                        instruction: instruction.id,
-                    });
-                };
-                if operand.operand != expected.operand
-                    || operand.access != expected.access
-                    || operand.class != expected.class
-                    || operand.fixed_view != expected.fixed_view
-                    || operand.tied_to != expected.tied_to
-                    || operand.early_clobber != expected.early_clobber
-                    || register.id != operand.virtual_register
-                    || register.class != expected.class
-                {
-                    return Err(MachineEffectError::ConstraintOperandMismatch {
-                        instruction: instruction.id,
-                    });
-                }
-            }
+                    semantic: machine_semantic_kind(instruction.kind),
+                    constraint: instruction.constraint,
+                    detail,
+                },
+            )?;
             if instruction.implicit_uses != constraint.implicit_uses
                 || instruction.implicit_defs != constraint.implicit_defs
                 || instruction.clobbers != constraint.clobbers
@@ -946,7 +994,11 @@ mod facts {
             instruction: SelectedInstructionId,
         },
         ConstraintOperandMismatch {
+            machine: semantic_vocabulary::MachineId,
             instruction: SelectedInstructionId,
+            semantic: selected_instructions::MachineSemanticKind,
+            constraint: register_model::RegisterConstraintKey,
+            detail: String,
         },
         WorkProvenanceMismatch {
             instruction: SelectedInstructionId,
@@ -1360,13 +1412,48 @@ mod indirect_call_tests {
                 let wrong_selector = changed(&selected, |function| {
                     function.blocks[0].instructions[0].operands[0].fixed_view = None;
                 });
-                for invalid in [missing_selector, wrong_selector] {
-                    assert!(matches!(
-                        analyze(&invalid, &environment),
-                        Err(MachineEffectError::ConstraintOperandMismatch {
-                            instruction: SelectedInstructionId(0)
-                        })
-                    ));
+                let register_missing = changed(&selected, |function| {
+                    function.virtual_registers.clear();
+                });
+                let register_renumbered = changed(&selected, |function| {
+                    function.virtual_registers[0].id = VirtualRegisterId(7);
+                });
+                let instruction = &selected.plan.functions[0].blocks[0].instructions[0];
+                let fixed_view = instruction.operands[0].fixed_view.unwrap();
+                for (invalid, reason) in [
+                    (
+                        missing_selector,
+                        "operand count is 0, expected 1".to_owned(),
+                    ),
+                    (
+                        wrong_selector,
+                        format!(
+                            "operand 0 fixed register view: expected Some({fixed_view:?}), found None"
+                        ),
+                    ),
+                    (
+                        register_missing,
+                        "operand 0 refers to missing virtual register 0".to_owned(),
+                    ),
+                    (
+                        register_renumbered,
+                        "operand 0 virtual register ID: expected 0, found 7".to_owned(),
+                    ),
+                ] {
+                    let error = analyze(&invalid, &environment).unwrap_err();
+                    let report =
+                        super::MachineEffectStageError::Analysis(error.clone()).to_string();
+                    assert!(report.contains(&reason), "{report}");
+                    assert_eq!(
+                        error,
+                        MachineEffectError::ConstraintOperandMismatch {
+                            machine: selected.plan.functions[0].machine,
+                            instruction: instruction.id,
+                            semantic: super::machine_semantic_kind(instruction.kind),
+                            constraint: instruction.constraint,
+                            detail: reason,
+                        }
+                    );
                 }
                 let missing_receipt = changed(&selected, |function| function.calls.clear());
                 let duplicate_receipt = changed(&selected, |function| {

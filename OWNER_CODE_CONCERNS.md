@@ -235,14 +235,6 @@ framework or a list of unimplemented features.
 - Cost: These controls cannot reuse a single compiled implementation. A historical macOS run on `a827cf2c269` spent 22m17s building 24 controls across 12 binaries and 177s executing them. Measure the same selection and feature sets before attributing that time to this split.
 - Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
 
-### Native operand failures discard the instruction context
-
-- Category: Verifying costs more than writing
-- Where: [operand failure](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses/src/machine_effects.rs#L354), [diagnostic formatting](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses/src/machine_effects.rs#L948), [CLI compilation failure and retention](source-rust/application/src/execution/mod.rs#L203).
-- Saw: A selected-instruction operand failure still reports only its function-local instruction ID. A missing callable declaration already reports the machine and constraint. The CLI returns on compilation failure before retaining the stage artifacts.
-- Cost: The instruction ID alone cannot identify the function or explain which operand was refused. Include that context at the point of failure. The original stored-machine case required a 175-second compilation.
-- Reported: 2026-11-17, Codex, while repairing native calls through stored machines
-
 ### Capture comparisons leave their time scope implicit
 
 - Category: Knowledge crossing a boundary.
