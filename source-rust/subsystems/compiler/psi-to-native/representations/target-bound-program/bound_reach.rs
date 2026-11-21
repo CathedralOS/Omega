@@ -49,7 +49,9 @@ impl TargetBoundReach {
             .last()
             .is_some_and(|position| *position >= module.interfaces.provider_candidates.len())
         {
-            return Err("selected native provider candidate is outside the canonical catalog".into());
+            return Err(
+                "selected native provider candidate is outside the canonical catalog".into(),
+            );
         }
         let owned_sequence_bounds =
             closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))?;
