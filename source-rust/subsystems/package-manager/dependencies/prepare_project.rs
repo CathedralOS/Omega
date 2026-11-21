@@ -46,6 +46,7 @@ use source_acquisition::{
 };
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use target::TargetProfile;
 
 #[cfg(test)]
@@ -56,7 +57,7 @@ pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
 
 pub struct PreparedLocalProject {
     entry_path: PathBuf,
-    source_closure: ResolvedPackageSourceClosure,
+    source_closure: Arc<ResolvedPackageSourceClosure>,
     targets: Vec<PreparedProjectTarget>,
 }
 
@@ -503,13 +504,14 @@ impl LocalProjectPreparation {
         self,
         resolved: crate::resolution::source::ResolvedBuildSources,
     ) -> Result<PreparedLocalProject, PrepareLocalProjectError> {
-        self.complete(resolved.into_source_closure())
+        self.complete(resolved.closure)
     }
 
     fn complete(
         self,
-        closure: ResolvedPackageSourceClosure,
+        closure: impl Into<Arc<ResolvedPackageSourceClosure>>,
     ) -> Result<PreparedLocalProject, PrepareLocalProjectError> {
+        let closure = closure.into();
         let expected = PackageRootSourceRequest::ExternalLocal {
             requested_root: self.canonical_root.clone(),
             source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),

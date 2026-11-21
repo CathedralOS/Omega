@@ -11,6 +11,7 @@ use crate::resolution::graph::reconcile::{
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceClosure};
 use package_compilation::{CapturedLocalSource, PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DeclaredBuildSource {
@@ -64,9 +65,9 @@ impl ExecutedSourceResolution {
     pub(super) fn from_step(step: SourceClosureStep) -> Self {
         match step {
             SourceClosureStep::Request(request) => Self::Request(PendingBuildSource { request }),
-            SourceClosureStep::Complete(closure) => {
-                Self::Complete(ResolvedBuildSources { closure })
-            }
+            SourceClosureStep::Complete(closure) => Self::Complete(ResolvedBuildSources {
+                closure: Arc::new(closure),
+            }),
         }
     }
 }
@@ -173,9 +174,9 @@ impl AcquiredBuildDependency {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedBuildSources {
-    pub(crate) closure: ResolvedPackageSourceClosure,
+    pub(crate) closure: Arc<ResolvedPackageSourceClosure>,
 }
 
 impl ResolvedBuildSources {
@@ -187,7 +188,60 @@ impl ResolvedBuildSources {
     }
 
     pub(crate) fn into_source_closure(self) -> ResolvedPackageSourceClosure {
-        self.closure
+        Arc::unwrap_or_clone(self.closure)
+    }
+
+    /// A Build encountered while resolving a provider can itself be requested later.
+    /// Review it with its own root and only the dependencies reachable from that root.
+    pub(crate) fn rooted_at(
+        &self,
+        declared: &DeclaredBuildSource,
+        acquisition: &AcquiredBuildSource,
+    ) -> Result<Self, String> {
+        let root = &declared.custody;
+        if self.closure.graph().root() == root.key()
+            && self.closure.source_requests().root().request() == &acquisition.root_request
+            && root.selection_evidence() == &acquisition.selection
+        {
+            return Ok(self.clone());
+        }
+        // Two requests can reach the same captured package through different Git revisions.
+        // Begin with this request's selection and follow the dependency edges already checked.
+        let mut step = begin_source_closure::<String>(
+            acquisition.root_request.clone(),
+            root.clone()
+                .with_selection_evidence(acquisition.selection.clone()),
+            Default::default(),
+        )
+        .map_err(|error| error.to_string())?;
+        loop {
+            let request = match step {
+                SourceClosureStep::Complete(closure) => {
+                    return Ok(Self {
+                        closure: Arc::new(closure),
+                    });
+                }
+                SourceClosureStep::Request(request) => request,
+            };
+            let edge = self
+                .closure
+                .graph()
+                .package(request.requester().key())
+                .and_then(|node| {
+                    node.dependencies().iter().find(|edge| {
+                        edge.purpose() == request.purpose()
+                            && edge.dependency_index() == request.dependency_index()
+                    })
+                })
+                .ok_or("settled package has no source for this dependency request")?;
+            let child = self
+                .closure
+                .custody(edge.target())
+                .ok_or("settled dependency has no captured source")?;
+            step = request
+                .complete::<String>(child.clone())
+                .map_err(|error| error.to_string())?;
+        }
     }
 
     pub fn root(&self) -> PackageKeyIdentity {

@@ -1,5 +1,7 @@
 //! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
 mod services;
+#[cfg(all(test, unix))]
+mod workspace_tests;
 
 use crate::resolution::source::{
     AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
@@ -8,11 +10,14 @@ use crate::resolution::source::{
 };
 use crate::{PackageBuildSession, PackageCommandError};
 use artifacts::compile_timings::CompileTimings;
+use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::Arc;
 use target::TargetProfile;
 
 /// The original root Build has joined its own requests to this graph. Ordinary
@@ -68,11 +73,56 @@ pub fn resolve_build_sources(
     project.settle(host.session)
 }
 
-type SettledSource = (
-    AcquiredBuildSource,
-    DeclaredBuildSource,
-    project_build::SettledDependency,
-);
+struct SettledSource {
+    source: AcquiredBuildSource,
+    declaration: DeclaredBuildSource,
+    build: project_build::SettledDependency,
+    graph: ResolvedBuildSources,
+}
+
+struct PreparedRequest {
+    settled: usize,
+    acquisition: AcquiredBuildSource,
+}
+
+struct ExecutedBuild {
+    stage: ReturnedPlanningStage,
+    /// Each issued request uses a purpose-local ordinal. Alias lookup can inspect
+    /// several candidates before the Build actually selects one.
+    requests: BTreeMap<(DependencyPurpose, usize), PreparedRequest>,
+}
+
+impl ExecutedBuild {
+    fn observe(
+        &mut self,
+        source: &AcquiredBuildSource,
+        settled: &[SettledSource],
+    ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
+        let declaration = self.stage.observe_source_declaration()?;
+        let result = self.stage.source_result()?;
+        let mut graphs = Vec::with_capacity(result.demanded_sources().len());
+        for demand in result.demanded_sources() {
+            let request = self
+                .requests
+                .get(&(demand.purpose, demand.request_ordinal))
+                .ok_or_else(|| {
+                    "workspace member demanded a dependency that was never prepared".to_owned()
+                })?;
+            let provider = &settled[request.settled];
+            graphs.push(Arc::new(
+                provider
+                    .graph
+                    .rooted_at(&provider.declaration, &request.acquisition)?,
+            ));
+        }
+        Ok(WorkspaceMemberObservation::new(
+            source,
+            declaration,
+            &result,
+            graphs,
+        )?)
+    }
+}
 
 struct SourceHost<'session, 'policy> {
     session: &'session mut PackageBuildSession,
@@ -81,7 +131,7 @@ struct SourceHost<'session, 'policy> {
     timings: bool,
     // Workspace members are executed to read their names. Retain their actual returns
     // so selection can settle those same invocations without charging for a second run.
-    observed: Vec<(AcquiredBuildSource, ReturnedPlanningStage)>,
+    observed: Vec<(AcquiredBuildSource, ExecutedBuild)>,
     active: Vec<AcquiredBuildSource>,
     settled: Vec<SettledSource>,
 }
@@ -93,7 +143,7 @@ impl SourceHost<'_, '_> {
         acquired: &AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
         dependency: bool,
-    ) -> Result<ReturnedPlanningStage, PackageCommandError> {
+    ) -> Result<ExecutedBuild, PackageCommandError> {
         self.acquisitions
             .admit_build_descent(&self.active, acquired)?;
         self.acquisitions.admit_locked_activation(acquired)?;
@@ -111,18 +161,20 @@ impl SourceHost<'_, '_> {
             planning_timings(self.timings),
         )?;
         self.active.push(acquired.clone());
+        let mut requests = BTreeMap::new();
         let result = project_build::interpret(
             stage,
             &mut services::SourceServices {
                 host: self,
                 acquired,
+                requests: &mut requests,
             },
         );
         self.active.pop();
         let stage = result?;
         self.session
             .record_source_completion(stage.source_completion_accounting().clone());
-        Ok(stage)
+        Ok(ExecutedBuild { stage, requests })
     }
 
     fn resolve(
@@ -132,7 +184,7 @@ impl SourceHost<'_, '_> {
         snapshot: Option<BuildSnapshotRequest>,
     ) -> Result<ResolvedProject, PackageCommandError> {
         let root = self.execute(entry, &acquired, snapshot, false)?;
-        self.join(acquired, root)
+        self.join(acquired, root.stage)
     }
 
     fn join(
@@ -161,12 +213,17 @@ impl SourceHost<'_, '_> {
                         self.session.record_source_completion(
                             settled.evaluated().source_completion_accounting.clone(),
                         );
-                        self.settled.push((acquired, declaration, settled));
+                        self.settled.push(SettledSource {
+                            source: acquired,
+                            declaration,
+                            build: settled,
+                            graph: graph.clone(),
+                        });
                     }
                     for i in reused {
-                        let (_, declaration, settled) = &self.settled[i];
-                        let current = graph.compilation_inputs(declaration.identity())?;
-                        if current.source_inputs() != settled.inputs().source_inputs() {
+                        let settled = &self.settled[i];
+                        let current = graph.compilation_inputs(settled.declaration.identity())?;
+                        if current.source_inputs() != settled.build.inputs().source_inputs() {
                             return Err("settled helper Build differs from the final source graph"
                                 .to_owned()
                                 .into());
@@ -195,16 +252,16 @@ impl SourceHost<'_, '_> {
                         if let Some(i) = self
                             .settled
                             .iter()
-                            .position(|(source, _, _)| source.same_source(acquired))
+                            .position(|settled| settled.source.same_source(acquired))
                         {
-                            let (source, declaration, _) = &self.settled[i];
-                            acquired.verify_reused_capture(source)?;
-                            let (_, next) = dependency.complete_declared(declaration)?;
+                            let settled = &self.settled[i];
+                            acquired.verify_reused_capture(&settled.source)?;
+                            let (_, next) = dependency.complete_declared(&settled.declaration)?;
                             reused.push(i);
                             break next;
                         }
                         let acquired = acquired.clone();
-                        let stage = self.member_or_execute(&acquired)?;
+                        let stage = self.member_or_execute(&acquired)?.stage;
                         let declaration = acquired.declare_build(stage.returned())?;
                         let (_, next) = dependency.complete_declared(&declaration)?;
                         returns.push((acquired, declaration, stage));
@@ -218,7 +275,7 @@ impl SourceHost<'_, '_> {
     fn member_or_execute(
         &mut self,
         acquired: &AcquiredBuildSource,
-    ) -> Result<ReturnedPlanningStage, PackageCommandError> {
+    ) -> Result<ExecutedBuild, PackageCommandError> {
         if let Some(i) = self
             .observed
             .iter()
@@ -242,21 +299,15 @@ impl SourceHost<'_, '_> {
             None,
             true,
         )?;
-        let declaration = root.settle_workspace_declaration()?;
+        let declaration = root.stage.settle_workspace_declaration()?;
         let members = self
             .acquisitions
             .workspace_members(workspace, declaration)?;
         let mut observations = Vec::new();
         for source in members.sources() {
-            let mut stage = self.member_or_execute(source)?;
-            let declaration = stage.observe_source_declaration()?;
-            observations.push(WorkspaceMemberObservation::new(
-                source,
-                declaration,
-                &stage.source_result()?,
-                Vec::new(),
-            )?);
-            self.observed.push((source.clone(), stage));
+            let mut member = self.member_or_execute(source)?;
+            observations.push(member.observe(source, &self.settled)?);
+            self.observed.push((source.clone(), member));
         }
         Ok(self
             .acquisitions
@@ -329,12 +380,19 @@ pub fn open_product(
     build_directory: &Path,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Deployment {
-    open_products(ProjectInput::File(root), &[profile], offline, false, build_directory, snapshot)?
-        .0
-        .into_iter()
-        .next()
-        .expect("one deployment was requested")
-        .1
+    open_products(
+        ProjectInput::File(root),
+        &[profile],
+        offline,
+        false,
+        build_directory,
+        snapshot,
+    )?
+    .0
+    .into_iter()
+    .next()
+    .expect("one deployment was requested")
+    .1
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -401,7 +459,7 @@ pub fn open_products(
             }
             _ => preparation.entry_path(),
         };
-        let returned = host.execute(&entry, &acquired, snapshot, false)?;
+        let returned = host.execute(&entry, &acquired, snapshot, false)?.stage;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
             return Ok(ProjectProducts::shared(
