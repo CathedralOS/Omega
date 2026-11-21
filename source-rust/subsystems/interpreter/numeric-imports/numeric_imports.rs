@@ -31,14 +31,8 @@ pub fn bind_numeric_import_slot(
     slot: semantic_vocabulary::BoundaryMachineId,
     realization: NearestIeeeFloatArithmeticRealization,
 ) -> Result<(), NumericImportError> {
-    let mut adapter = NumericImport::for_import(instance.program(), instance.import(slot), realization)
+    let adapter = NumericImport::for_import(instance.program(), instance.import(slot), realization)
         .map_err(NumericImportError::InvalidProvision)?;
-    adapter.evaluation =
-        instance
-            .float_evaluation()
-            .ok_or(NumericImportError::InvalidProvision(
-                "numeric import requires an open execution",
-            ))?;
     instance
         .bind_import(slot, adapter)
         .map_err(NumericImportError::Binding)
@@ -46,7 +40,6 @@ pub fn bind_numeric_import_slot(
 
 /// A result-aware interpreter adapter checked against a scalar or classification signature.
 pub struct NumericImport {
-    evaluation: FloatEvaluation,
     signature: TerminalImportSignature,
     realization: NearestIeeeFloatArithmeticRealization,
     classification: Option<ClassificationResult>,
@@ -104,7 +97,6 @@ impl NumericImport {
             return Err("numeric realization differs from its admitted contract");
         }
         Ok(Self {
-            evaluation: FloatEvaluation::Runtime,
             signature,
             realization,
             classification,
@@ -128,6 +120,7 @@ impl TerminalEffectHandler for NumericImport {
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let TerminalEffect::BoundaryCall {
+            float_evaluation,
             arguments,
             structural_arguments,
             ..
@@ -185,7 +178,7 @@ impl TerminalEffectHandler for NumericImport {
                 ),
             ));
         }
-        let result = evaluate(self.evaluation, self.realization, arguments)?;
+        let result = evaluate(*float_evaluation, self.realization, arguments)?;
         if let TerminalEffectResult::Scalar(value) = result
             && Some(value.scalar_type()) != self.signature.result.scalar()
         {

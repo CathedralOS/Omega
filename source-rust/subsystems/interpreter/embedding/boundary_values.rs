@@ -727,6 +727,12 @@ pub(crate) mod errors {
     /// A host-returned `addr` is opaque: only storing, copying, comparing
     /// with another host address or null, and passing it back to a native
     /// import are defined (terminal-psi/boundary_calls.md#host-result-validation).
+    pub(crate) fn undetermined_nan_bits() -> TerminalInterpretError {
+        TerminalInterpretError::UnsupportedSemanticVariant(
+            "compile-time representation observation requires determined NaN bits",
+        )
+    }
+
     pub(crate) fn host_address_mixed() -> TerminalInterpretError {
         TerminalInterpretError::HostAddressMixed
     }
@@ -2515,7 +2521,7 @@ pub(crate) mod values {
         value: TerminalScalarValue,
     ) -> Result<terminal_semantics::ScalarViewValue, crate::boundary::errors::TerminalInterpretError>
     {
-        use crate::boundary::errors::{TerminalInterpretError, host_address_mixed, malformed};
+        use crate::boundary::errors::{host_address_mixed, malformed, undetermined_nan_bits};
         use terminal_semantics::ScalarViewValue;
         match value {
             TerminalScalarValue::Callable { .. } => Err(malformed()),
@@ -2523,11 +2529,7 @@ pub(crate) mod values {
             TerminalScalarValue::Boolean(value) => Ok(ScalarViewValue::Boolean(value)),
             TerminalScalarValue::Integer { value, .. } => Ok(ScalarViewValue::Integer(value)),
             TerminalScalarValue::IeeeFloat(value) => Ok(ScalarViewValue::IeeeFloat(value)),
-            TerminalScalarValue::UndeterminedNaN(_) => {
-                Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "compile-time representation observation requires determined NaN bits",
-                ))
-            }
+            TerminalScalarValue::UndeterminedNaN(_) => Err(undetermined_nan_bits()),
         }
     }
 

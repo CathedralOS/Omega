@@ -4101,6 +4101,7 @@ pub enum TerminalEffect {    MemoryFence {
         kind: terminal_psi::MemoryFenceKind,
     },
     BoundaryCall {
+        float_evaluation: crate::float_result_policy::FloatEvaluation,
         site: crate::TerminalEffectWait,
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,

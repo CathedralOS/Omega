@@ -522,6 +522,7 @@ pub(crate) mod instance {
                 let mut instance = self
                     .program
                     .instantiate(crate::TerminalInstantiation {
+                        float_evaluation: caller.float_evaluation,
                         scalar_arguments: arguments,
                         structural_inputs: TerminalStructuralInputs {
                             arguments: &inputs.values,
@@ -1693,12 +1694,6 @@ pub(crate) mod instance {
 
         pub fn program(&self) -> &TerminalProgram<'artifact> {
             &self.program
-        }
-
-        pub fn float_evaluation(&self) -> Option<crate::float_result_policy::FloatEvaluation> {
-            self.execution
-                .as_ref()
-                .map(|execution| execution.float_evaluation)
         }
 
         pub(super) fn install_compiler_observations(

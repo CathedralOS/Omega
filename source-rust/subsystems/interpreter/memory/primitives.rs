@@ -1794,6 +1794,9 @@ pub(crate) mod primitive_storage {
                 TerminalScalarValue::HostAddress { .. } => {
                     return Err(crate::boundary::errors::host_address_mixed());
                 }
+                TerminalScalarValue::UndeterminedNaN(_) => {
+                    return Err(crate::boundary::errors::undetermined_nan_bits());
+                }
                 TerminalScalarValue::Boolean(value) => u128::from(value),
                 TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(value),
