@@ -75,12 +75,10 @@ fn pending_argument(
     };
     if !(matches!(carrier_atom, Some(symbols::BuiltinTypeAtom::Integer(_)))
         || (application.is_some() && carrier_atom == Some(symbols::BuiltinTypeAtom::Bool)))
-        || program
-            .static_const_literal_from_type_reference(argument)
-            .is_some()
         || matches!(
             program.expression_table.expression(expression),
-            crate::source_state::expression::ExpressionNode::Boolean(_)
+            crate::source_state::expression::ExpressionNode::Integer(_)
+                | crate::source_state::expression::ExpressionNode::Boolean(_)
         )
         || program.pending_const_range_endpoints.contains(&expression)
         || !crate::source_state::domain::index_argument_is_closed(program, argument)
