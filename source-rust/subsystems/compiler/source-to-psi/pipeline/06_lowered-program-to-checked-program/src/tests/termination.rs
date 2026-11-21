@@ -496,6 +496,10 @@ fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
     assert!(!failures.is_empty());
     for failure in &failures {
         assert_no_descent(std::slice::from_ref(failure));
+        assert!(
+            failure.detail.contains("complete cycle of such transfers"),
+            "{failure:?}"
+        );
     }
 }
 
