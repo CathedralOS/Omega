@@ -1954,6 +1954,15 @@ impl Bindings for ErasedTerms<'_> {
         self.runtime.field(version, root, path, scalar_type)
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.structural_read(root, path, scalar_type)
+    }
+
     fn field_alternatives(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,

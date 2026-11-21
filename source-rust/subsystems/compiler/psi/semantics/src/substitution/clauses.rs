@@ -8,6 +8,40 @@ use semantic_vocabulary::{
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 
+/// Resolve a structural read through an ordinary field binding when every
+/// selector has a concrete position in the receiving scope.
+pub fn bind_fixed_read<B: ClauseBindings + ?Sized>(
+    bindings: &mut B,
+    root: PlaceId,
+    path: &[ScalarReadProjection],
+    ty: ScalarType,
+) -> Result<ScalarTerm, B::Error> {
+    let fixed = path
+        .iter()
+        .map(|step| match step {
+            ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
+            ScalarReadProjection::Static(step) => Some(*step),
+            ScalarReadProjection::Index(index) => {
+                let (_, literal) = index.integer_value()?;
+                let index = match literal {
+                    semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                        u64::try_from(value).ok()?
+                    }
+                    semantic_vocabulary::IntegerValue::Signed(value) => {
+                        u64::try_from(value).ok()?
+                    }
+                };
+                Some(CanonicalStructuralPathSegment::FixedIndex(index))
+            }
+            ScalarReadProjection::Extent => None,
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            B::Error::from("indexed clause needs a current observation of its selected storage")
+        })?;
+    bindings.field(ContentPlaceVersion::Current, root, &fixed, ty)
+}
+
 /// What each name of a clause stands for where the clause is used. A clause
 /// is written over its owner's names: a callee's formals, or the fields of
 /// the value a data type's `requires` is about.
@@ -43,32 +77,7 @@ pub trait ClauseBindings {
         path: &[ScalarReadProjection],
         ty: ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
-        let fixed = path
-            .iter()
-            .map(|step| match step {
-                ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
-                ScalarReadProjection::Static(step) => Some(*step),
-                ScalarReadProjection::Index(index) => {
-                    let (_, literal) = index.integer_value()?;
-                    let index = match literal {
-                        semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                            u64::try_from(value).ok()?
-                        }
-                        semantic_vocabulary::IntegerValue::Signed(value) => {
-                            u64::try_from(value).ok()?
-                        }
-                    };
-                    Some(CanonicalStructuralPathSegment::FixedIndex(index))
-                }
-                ScalarReadProjection::Extent => None,
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| {
-                Self::Error::from(
-                    "indexed clause needs a current observation of its selected storage",
-                )
-            })?;
-        self.field(ContentPlaceVersion::Current, root, &fixed, ty)
+        bind_fixed_read(self, root, path, ty)
     }
 
     /// A conservative set of values this same scalar cell may hold. Goal

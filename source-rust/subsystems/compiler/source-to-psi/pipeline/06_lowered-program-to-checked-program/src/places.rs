@@ -7511,6 +7511,24 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         })
     }
 
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if terminal_psi::StructuralParameterDeclaration::find_by_place(
+            self.inputs.callee_formals,
+            root,
+        )
+        .is_some()
+        {
+            self.inputs.structural_read(root, path, ty)
+        } else {
+            terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty)
+        }
+    }
+
     fn field_alternatives(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,

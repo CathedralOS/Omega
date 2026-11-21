@@ -202,6 +202,32 @@ machine entry(buffer: @Buffer) -> u16 { buffer.large[4095] }
     );
 }
 
+#[test]
+fn a_recursive_edge_owes_the_element_at_its_own_selector() {
+    let source = r#"machine selected(items: @[u8; 4], index: u64, remaining: u64) -> u8
+        requires index < 4u64
+        requires items[index] == 71u8
+        terminates by remaining
+        {
+            transition remaining > 0u64 {
+                true -> selected(items, index, remaining - 1u64),
+                _ -> items[index]
+            }
+        }
+        machine main() -> u8 {
+            let bytes: [u8; 4] = [1, 2, 3, 71];
+            selected(@bytes, 3u64, 2u64)
+        }"#;
+    let kept = judge(invocation(source, "main")).unwrap();
+    assert!(matches!(kept, RouteVerdict::Accepted(_)), "{kept:?}");
+    let changed = source.replace("selected(items, index,", "selected(items, 0u64,");
+    let refused = judge(invocation(&changed, "main")).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { .. }),
+        "{refused:?}"
+    );
+}
+
 const NATIVE: &str =
     include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
