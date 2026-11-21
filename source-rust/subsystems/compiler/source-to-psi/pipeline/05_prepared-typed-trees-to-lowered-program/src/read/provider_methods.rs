@@ -16,10 +16,14 @@ impl<'program> Program<'program> {
         required: &'program StateSignature,
         supplied: &'program Machine,
     ) -> Checked<Vec<(&'program StateSignature, &'program Machine)>> {
-        if !application.declaration.is_boundary || required.type_parameters.is_empty() {
-            return Ok(vec![(required, supplied)]);
-        }
         let typed = self.typed;
+        if !application.declaration.is_boundary || required.type_parameters.is_empty() {
+            let header = typed
+                .applied_callable_signature(application, required.symbol)
+                .or_else(|| application.keeps_declared_signatures(typed).then_some(required))
+                .ok_or_else(|| services::unavailable(context, "conformance lost its prepared requirement header"))?;
+            return Ok(vec![(header, supplied)]);
+        }
         if !self.generic_templates.contains(&supplied.symbol) {
             self.generic_templates.push(supplied.symbol);
         }
