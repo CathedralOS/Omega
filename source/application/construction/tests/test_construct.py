@@ -58,6 +58,24 @@ class BuildSourceTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.frame(**changes)
 
+    def test_fixture_packages_do_not_change_the_compiler_input(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(construct, 'ROOT', Path(temp)):
+            for _, package, _ in construct.PACKAGES:
+                root = Path(temp) / package
+                root.mkdir(parents=True)
+                (root / 'build.omg').write_text('machine build(builder: @mut Build) {}')
+                (root / 'main.omg').write_text('machine entry_start() {}')
+            psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
+            before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
+            fixture = psi / 'tests/fixtures/example'
+            fixture.mkdir(parents=True)
+            (fixture / 'build.omg').write_text('machine build(builder: @mut Build) {}')
+            (fixture / 'main.omg').write_text('machine main() -> u8 { 42 }')
+            self.assertEqual(before, [construct.compiler_input(scoped)[0] for scoped in (False, True)])
+            (psi / 'main.omg').write_text('machine changed() {}')
+            for scoped, original in zip((False, True), before):
+                self.assertNotEqual(original, construct.compiler_input(scoped)[0])
+
     def test_complete_capture_preserves_product_coordinates(self):
         legacy, before = construct.compiler_input()
         scoped, after = construct.compiler_input(with_build_sources=True)
