@@ -2059,7 +2059,7 @@ pub(crate) mod structural_encoding {
         bytes: &mut CanonicalBytes,
         declaration: &StructuralDomainDeclaration,
     ) {
-        let encoded = terminal_codec::encode_structural_domain_declaration(declaration)
+        let encoded = psi_declaration_encoding::encode_structural_domain_declaration(declaration)
             .expect("a checked domain declaration has a bounded canonical encoding");
         bytes.bytes(&encoded);
     }

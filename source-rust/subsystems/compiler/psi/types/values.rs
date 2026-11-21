@@ -144,6 +144,20 @@ pub(crate) mod places {
         }
     }
 
+    /// A declared lifetime names static leaves or a whole family of elements.
+    pub fn declared_lifetime_path_is_static(path: &[StructuralPathSegment]) -> bool {
+        path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::Case(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::Referent
+                    | StructuralPathSegment::AllElements
+            )
+        })
+    }
+
     pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
         path.iter().all(|segment| {
             !matches!(segment, StructuralPathSegment::AllElements)
@@ -1547,8 +1561,9 @@ pub use reference_origins::{ReferenceOriginProjection, ReferenceOriginSource};
 
 pub use places::{
     OperationProjection, ResolvedStructuralPathSegment, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralStorageUse, is_static_structural_path,
-    is_static_structural_scalar_store_path, is_structural_scalar_store_path,
+    StructuralPlaceDeclaration, StructuralStorageUse, declared_lifetime_path_is_static,
+    is_static_structural_path, is_static_structural_scalar_store_path,
+    is_structural_scalar_store_path,
 };
 pub use signatures::{
     ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration,

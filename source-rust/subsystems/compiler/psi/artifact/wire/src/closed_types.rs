@@ -4,8 +4,6 @@
 //! that keeps this catalog beside its bytes and identity is
 //! `terminal_codec::ClosedTerminalModule`.
 
-use std::collections::BTreeMap;
-
 use semantic_vocabulary::{
     CallableContractId, ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType,
 };
@@ -14,32 +12,23 @@ use crate::CodecError;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClosedTypeCatalog {
-    integers: BTreeMap<IntegerType, ClosedIntegerType>,
+    integers: psi_declaration_encoding::EncodedIntegerTypes,
     callables: Vec<CallableContractId>,
 }
 
 impl ClosedTypeCatalog {
-    pub(crate) fn record(&mut self, integer: IntegerType) -> Result<ClosedIntegerType, CodecError> {
-        if let Some(closed) = self.integers.get(&integer) {
-            return Ok(*closed);
+    pub(crate) fn from_encoded_integers(
+        integers: psi_declaration_encoding::EncodedIntegerTypes,
+    ) -> Self {
+        Self {
+            integers,
+            callables: Vec::new(),
         }
-        let closed =
-            ClosedIntegerType::try_from(integer).map_err(CodecError::IntegerWidthClosure)?;
-        self.integers.insert(integer, closed);
-        Ok(closed)
     }
 
-    /// A raw input must name a descriptor this module actually retains.
-    /// Independently constructed native constants use the core closed types.
     pub fn integer(&self, integer: IntegerType) -> Result<ClosedIntegerType, CodecError> {
-        self.integers
-            .get(&integer)
-            .copied()
-            .ok_or(CodecError::MalformedStructuralFoundation(
-                "integer type is not retained by this closed module",
-            ))
+        self.integers.integer(integer)
     }
-
     /// Membership comes from the exact module catalog at complete encoding.
     pub(crate) fn record_callables(&mut self, module: &terminal_psi::TerminalModule) {
         self.callables = module
@@ -104,7 +93,7 @@ mod tests {
         ] {
             let mut writer = Writer::default();
             encode_integer_type(&mut writer, integer).unwrap();
-            let (bytes, catalog) = writer.finish_closed();
+            let (bytes, catalog) = writer.finish_with_integer_types();
             assert_eq!(bytes, expected);
             assert_eq!(catalog.integer(integer).unwrap().as_checking(), integer);
         }
@@ -189,7 +178,7 @@ mod tests {
         let mut key = writer.nested();
         encode_integer_type(&mut key, integer).unwrap();
         writer.bytes(&key.finish());
-        let (bytes, catalog) = writer.finish_closed();
+        let (bytes, catalog) = writer.finish_with_integer_types();
         assert_eq!(bytes, [2, 13, 0]);
         assert_eq!(catalog.integer(integer).unwrap().bits(), 13);
     }

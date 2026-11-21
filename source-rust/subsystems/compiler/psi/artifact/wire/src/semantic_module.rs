@@ -22,7 +22,7 @@ pub(crate) mod canonical_order {
 
     use std::collections::BTreeSet;
 
-    use semantic_vocabulary::{Proposition, PropositionId, ScalarTerm};
+    use semantic_vocabulary::{Proposition, PropositionId};
     use terminal_psi::{
         BoundaryApplication, BoundaryApplicationArgument, BoundaryMachineResult,
         ContentIdentityReshuffle, CrashRouteBucket, CrashRouteGuard, FloatMeaningSource,
@@ -32,9 +32,9 @@ pub(crate) mod canonical_order {
     };
 
     use super::CodecError;
-    use super::proposition_wire::encode_proposition;
-    use super::scalar_term_wire::encode_scalar_term;
-    use super::wire::{Writer, require_increasing, strictly_increasing};
+    use super::wire::{require_increasing, strictly_increasing};
+    pub use psi_declaration_encoding::terms::proposition::canonical_proposition_order_key;
+    pub use psi_declaration_encoding::terms::scalar::canonical_scalar_term_order_key;
 
     macro_rules! noncanonical {
         ($reason:expr) => {
@@ -1038,7 +1038,8 @@ pub(crate) mod canonical_order {
                     }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::Equal(left, right) => {
-                        if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)?
+                        if canonical_scalar_term_order_key(left)?
+                            > canonical_scalar_term_order_key(right)?
                         {
                             return Err(noncanonical!("equality operands"));
                         }
@@ -1130,35 +1131,13 @@ pub(crate) mod canonical_order {
     ) -> Result<bool, CodecError> {
         let mut previous = None;
         for proposition in propositions {
-            let bytes = canonical_proposition_bytes(proposition)?;
+            let bytes = canonical_proposition_order_key(proposition)?;
             if previous.as_ref().is_some_and(|previous| previous >= &bytes) {
                 return Ok(false);
             }
             previous = Some(bytes);
         }
         Ok(true)
-    }
-
-    fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::checking_identity();
-        encode_proposition(&mut writer, proposition)?;
-        Ok(writer.finish())
-    }
-
-    pub fn canonical_proposition_order_key(
-        proposition: &Proposition,
-    ) -> Result<Vec<u8>, CodecError> {
-        canonical_proposition_bytes(proposition)
-    }
-
-    pub fn canonical_scalar_term_order_key(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
-        canonical_scalar_term_bytes(term)
-    }
-
-    fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::checking_identity();
-        encode_scalar_term(&mut writer, term)?;
-        Ok(writer.finish())
     }
 
     fn validate_identity_reshuffles(rows: &[ContentIdentityReshuffle]) -> Result<(), CodecError> {
@@ -2304,6 +2283,7 @@ pub(crate) mod reach_application_wire {
     use crate::semantic_module::wire::{
         decode_counted, decode_ids, decode_optional_id, encode_optional_id,
     };
+    use crate::wire_fields::{Field, InvocationSite};
     use terminal_psi::TerminalIdentityIndex;
 
     pub(crate) fn encode(
@@ -2349,7 +2329,7 @@ pub(crate) mod reach_application_wire {
         }
         writer.len("reach calls", application.calls.len())?;
         for call in &application.calls {
-            super::wire::encode_invocation_site(writer, call.site);
+            InvocationSite::write(writer, &call.site)?;
             writer.u32(call.binder);
             writer.boolean(call.application.is_some());
             if let Some(application) = &call.application {
@@ -2492,7 +2472,7 @@ pub(crate) mod reach_application_wire {
             dependencies: decode_counted(reader, |reader| reader.u32())?,
             calls: decode_counted(reader, |reader| {
                 Ok(ClosedReachCall {
-                    site: super::wire::decode_invocation_site(reader)?,
+                    site: InvocationSite::read(reader)?,
                     binder: reader.u32()?,
                     application: if reader.boolean()? {
                         Some(ClosedReachCallApplication {
@@ -5093,8 +5073,6 @@ pub(crate) const FORMAT_MARKER: u16 = 289;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
-pub(crate) const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
-
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     if module.identities.invocation_scope().is_some() {
         return Err(CodecError::MalformedStructuralFoundation(
@@ -5129,17 +5107,7 @@ pub fn encode_invocation_prefix(
     Ok((bytes, types))
 }
 
-/// The complete domain declaration has one encoding for artifact transport
-/// and downstream identity checks. Omitting a rule from an identity would let
-/// a changed permission reuse an earlier checked optimization unit.
-pub fn encode_structural_domain_declaration(
-    declaration: &terminal_psi::StructuralDomainDeclaration,
-) -> Result<Vec<u8>, CodecError> {
-    use self::wire_fields::Field;
-    let mut writer = Writer::default();
-    module_wire::declaration_wire::Domain::write(&mut writer, declaration)?;
-    Ok(writer.finish())
-}
+pub use psi_declaration_encoding::encode_structural_domain_declaration;
 
 pub fn encode_structural_type_declaration(
     declaration: &terminal_psi::StructuralTypeDeclaration,
