@@ -590,6 +590,7 @@ fn discharge_inner(
                 activity,
             )
         })?;
+    scope.publish_rankings(&machines)?;
     Ok(Discharge {
         machines,
         inferred_calls: scope.inferred_calls,
@@ -922,6 +923,24 @@ fn check_prepared_machine(
         });
         decided[index] = Some(verdict);
     }
+    rankings::settle_comparisons(
+        lowered,
+        ranking_bindings,
+        &mut decided,
+        |obligation, edge, goal| {
+            decide(
+                context,
+                graph,
+                tables,
+                id,
+                obligation,
+                ProgramPoint::Edge(edge),
+                goal,
+                unreached,
+                activity,
+            )
+        },
+    )?;
     if layout_conditions.next().is_some() || target_ranges.next().is_some() {
         return Err(refusal(
             RefusalReason::ForeignIdentity,
@@ -2209,9 +2228,14 @@ fn stated_goal<'a>(
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
-        ObligationKind::RankComparison { component, edge } => {
-            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
-        }
+        ObligationKind::RankComparison { component, edge } => rankings::goal(
+            lowered,
+            ranking_bindings,
+            obligation,
+            component,
+            edge,
+            rankings::Comparison::Claimed,
+        ),
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }

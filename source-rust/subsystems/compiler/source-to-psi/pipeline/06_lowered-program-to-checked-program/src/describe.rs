@@ -178,7 +178,7 @@ pub(crate) fn unproved(
                 ),
                 _ => format!(
                     "cannot prove the `terminates by` measure decreases at this call in {} \
-                     (the recursive call must pass a strictly smaller measure; establish it \
+                     (each complete cycle requires strict descent; establish it \
                      via a guard or a `requires` of this machine)",
                     owner(names, site)
                 ),

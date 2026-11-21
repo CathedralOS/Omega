@@ -344,11 +344,12 @@ fn assert_kernel_accepted(
             })
             .collect::<Vec<_>>()
     };
-    let context = PropositionContext::from_value_types(
-        tables
-            .values
-            .iter()
-            .map(|(value, row)| (value, row.scalar_type)),
+    let lowered = elaboration.module.machine(id(machine)).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        tables.values.iter().filter_map(|(value, row)| {
+            row.rigid.is_none().then_some((value, row.scalar_type))
+        }),
+        lowered.structural_places.iter().map(|place| (place.id, place.kind)),
     )
     .unwrap();
     let decide = |goal: &Proposition, certificate: &CertificateEnvelope| {

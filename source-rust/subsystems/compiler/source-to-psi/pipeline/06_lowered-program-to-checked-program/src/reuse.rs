@@ -96,6 +96,16 @@ pub fn reverify(
     )?;
     let hypotheses =
         crate::checking::hypotheses(&prepared.graph, tables, machine, obligation, row.created_at)?;
+    // `decide` numbers premises in the goal's connected component first.
+    // Reconstruct that same view from the consumer's available rows. A
+    // proof found by the producer's full-context fallback uses its ordinals.
+    if let Some(narrowed) = crate::checking::connected(&goal, &hypotheses)
+        && let Ok(evidence) = crate::checking::verify(
+            &prepared.context, machine, obligation, goal.clone(), narrowed, saved.clone(),
+        )
+    {
+        return Ok(evidence);
+    }
     crate::checking::verify(
         &prepared.context,
         machine,

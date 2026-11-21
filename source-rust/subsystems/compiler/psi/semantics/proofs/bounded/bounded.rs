@@ -450,6 +450,7 @@ pub use predicate_denotation::{
     check_predicate_denotations_with_value_equalities, check_predicate_evaluation_size,
     check_value_equality_denotation, check_value_equality_substitution,
 };
+pub use proof::subtract_antitone::{UnsignedDifference, unsigned_difference};
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, ProofError, ProofNode, ProofRule, accept_certificate,

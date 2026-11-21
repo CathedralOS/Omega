@@ -899,7 +899,12 @@ judgment containing the checked bindings and finite carriers. It does not ask
 the prover for a carrier-floor proposition. Each edge comparison separately
 goes through the ordinary prover and kernel: strict edges owe lexicographic
 `successor < source`, and preserving edges owe `successor <= source`. A finite
-carrier cannot substitute for a missing comparison proof.
+carrier cannot substitute for a missing comparison proof. A transfer can change
+the rank expression while preserving its value, for example from a slice length
+to a bounded cursor distance. If its strict comparison fails, the checker can
+prove the nonstrict comparison instead. It publishes that certificate and the
+revised edge only after checking that the remaining strict edges still intersect
+every cycle. Replaying the result checks the comparison on the published edge.
 
 Storage observations relate exact captured values. Earlier reads can supply an
 equality only while their backing is unchanged and the observation remains in

@@ -2630,12 +2630,68 @@ impl<'a> Prover<'a> {
         larger: &ScalarTerm,
         strict: bool,
     ) -> Option<ProofNode> {
-        let (smaller_equation, smaller_minuend, smaller_subtrahend) =
-            self.saturating_subtract_definition(smaller)?;
-        let (larger_equation, larger_minuend, larger_subtrahend) =
-            self.saturating_subtract_definition(larger)?;
-        let minuends = (smaller_minuend, larger_minuend.clone());
-        let subtrahends = (larger_subtrahend.clone(), smaller_subtrahend);
+        let definition = |subject: &ScalarTerm| {
+            let ScalarTerm::Value { id, .. } = subject else {
+                return None;
+            };
+            let index = self.definitions.get(*id)?.as_ref()?;
+            self.facts.get(self.equations[*index])
+        };
+        let smaller_fact = definition(smaller);
+        let larger_fact = definition(larger);
+        let saturated = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+            matches!(subject, ScalarTerm::SaturatingIntegerSubtract { .. })
+                || fact.is_some_and(|fact| {
+                    matches!(
+                        &fact.proposition,
+                        Proposition::Equal(_, ScalarTerm::SaturatingIntegerSubtract { .. })
+                    )
+                })
+        };
+        if !saturated(smaller_fact, smaller) && !saturated(larger_fact, larger) {
+            return None;
+        }
+        // Even when a value is itself a formed difference, its reflexive
+        // equation can name it as a whole: (end - cursor) -| 0 is compared
+        // with that exact value without needing cursor itself to be zero.
+        let equations = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+            let definition = fact
+                .filter(|fact| proof_admission::unsigned_difference(&fact.proposition).is_some())
+                .map(|fact| fact.proof(&self.facts));
+            [
+                definition,
+                self.reflexive(Proposition::Equal(subject.clone(), subject.clone())),
+            ]
+        };
+        let smaller = equations(smaller_fact, smaller);
+        let larger = equations(larger_fact, larger);
+        for after in smaller.iter().flatten() {
+            for before in larger.iter().flatten() {
+                if let Some(proof) = self.unsigned_difference_order(after, before, strict) {
+                    return Some(proof);
+                }
+            }
+        }
+        None
+    }
+
+    fn unsigned_difference_order(
+        &mut self,
+        smaller_equation: &ProofNode,
+        larger_equation: &ProofNode,
+        strict: bool,
+    ) -> Option<ProofNode> {
+        let after = proof_admission::unsigned_difference(&smaller_equation.conclusion)?;
+        let before = proof_admission::unsigned_difference(&larger_equation.conclusion)?;
+        if !after.saturated && !before.saturated {
+            return None;
+        }
+        let smaller = after.result;
+        let larger = before.result;
+        let larger_minuend = before.minuend.clone();
+        let larger_subtrahend = before.subtrahend;
+        let minuends = (after.minuend.clone(), larger_minuend.clone());
+        let subtrahends = (larger_subtrahend.clone(), after.subtrahend);
         let mut proofs;
         let conclusion = if strict {
             let positive = self
@@ -2683,40 +2739,10 @@ impl<'a> Prover<'a> {
         Some(node(
             conclusion,
             ProofRule::IntegerSubtractAntitone {
-                smaller: Box::new(smaller_equation),
-                larger: Box::new(larger_equation),
+                smaller: Box::new(smaller_equation.clone()),
+                larger: Box::new(larger_equation.clone()),
                 order: Box::new(order),
             },
-        ))
-    }
-
-    fn saturating_subtract_definition(
-        &self,
-        subject: &ScalarTerm,
-    ) -> Option<(ProofNode, ScalarTerm, ScalarTerm)> {
-        let ScalarTerm::Value { id, .. } = subject else {
-            return None;
-        };
-        let index = self.definitions.get(*id)?.as_ref()?;
-        let fact = self.facts.get(self.equations[*index])?;
-        let Proposition::Equal(
-            _,
-            ScalarTerm::SaturatingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            },
-        ) = &fact.proposition
-        else {
-            return None;
-        };
-        if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned {
-            return None;
-        }
-        Some((
-            fact.proof(&self.facts),
-            left.as_ref().clone(),
-            right.as_ref().clone(),
         ))
     }
 
