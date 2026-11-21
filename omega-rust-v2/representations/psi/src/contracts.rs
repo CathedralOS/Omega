@@ -150,6 +150,17 @@ pub enum PredicateStep {
     ElementViewLength,
     Boolean(bool),
     Integer(BigInt),
+    /// The exact bits of a float literal or anonymous number, landed once in
+    /// its format by preparation. It is never rounded again.
+    IeeeFloat(crate::IeeeFloatBits),
+    /// The IEEE comparison of the two preceding terms, both of `format`, as a
+    /// Boolean. Ordered kinds and `Equal` are false when either operand is NaN,
+    /// `NotEqual` is true then, and signed zeros compare equal. It asserts no
+    /// mathematical or `FloatMeaning` equality and no integer order law.
+    IeeeComparison {
+        kind: IeeeComparisonKind,
+        format: crate::IeeeFloatFormat,
+    },
     /// An erased mathematical term in this clause, including any application admission obligations.
     /// In a `LogicalTheorem` clause a sole term ending in `FormProposition` is a strict fact,
     /// not a Boolean; its truth remains an obligation or assumption.
@@ -168,6 +179,17 @@ pub enum PredicateStep {
         operand_count: usize,
     },
     Apply(PredicateOperator),
+}
+
+/// The canonical IEEE comparison kinds a proposition asserts. There is no
+/// greater-than kind: source `a > b` is `LessThan` of `b` then `a`, and
+/// `a >= b` is `LessOrEqual` of `b` then `a`, which agree on every input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IeeeComparisonKind {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessOrEqual,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

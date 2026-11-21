@@ -102,6 +102,19 @@ pub(crate) fn lower_predicate(
         let current = &file.nodes[node];
         let site = site_at(tree, node);
         let unsupported = |reason| LoweringError::new(&site, reason);
+        // A float literal or anonymous number landed in `f32` or `f64` is the
+        // term preparation rounded; the predicate never rounds it again.
+        if inherited.is_none()
+            && let Some(bits) = crate::machines::arithmetic::folded_float(tree, prepared, node, ty)?
+        {
+            predicate.push(PredicateStep::IeeeFloat(bits));
+            continue;
+        }
+        // Psi predicate terms have no IEEE arithmetic application yet; a typed
+        // float operation is refused rather than read as exact arithmetic.
+        if matches!(current.kind, NodeKind::Binary | NodeKind::Unary) && matches!(ty, ValueType::Float32 | ValueType::Float64) {
+            return Err(unsupported("float arithmetic in a contract predicate has no Psi term"));
+        }
         if matches!(current.kind, NodeKind::Binary | NodeKind::Unary)
             && let Some(value) = crate::machines::arithmetic::folded_exact_operator(tree, node, ty, inherited)?
         {
@@ -247,6 +260,23 @@ pub(crate) fn lower_predicate(
                         left: super::type_expression::type_expression(left, &site)?,
                         right: super::type_expression::type_expression(right, &site)?,
                     });
+                    continue;
+                }
+                if let Some((comparison, reversed)) = ieee_comparison(&operation.token, &operation.operands).filter(|_| operands.len() == 2) {
+                    // The proposition is typed, not an executable operation:
+                    // `a > b` is `LessThan` of `b` then `a`, identical under IEEE.
+                    work.push(Step::Emit(comparison));
+                    let mut ordered: Vec<_> = operands.iter().zip(&operation.operands).collect();
+                    if reversed {
+                        ordered.reverse();
+                    }
+                    for (&operand, carrier) in ordered.into_iter().rev() {
+                        work.push(Step::Visit {
+                            node: operand,
+                            ty: carrier,
+                            inherited: None,
+                        });
+                    }
                     continue;
                 }
                 let operator = predicate_operator(&operation.token, &operation.operands)
@@ -460,6 +490,19 @@ pub(crate) fn lower_predicate(
                     Some(Symbol::Declaration(constant)) if semantic.constant == Some(constant) => match prepared.constant(constant) {
                         Some(PreparedValue::Bool(value)) if ty == &ValueType::Bool => PredicateStep::Boolean(*value),
                         Some(PreparedValue::Integer(value)) if ty.contains_integer(value) => PredicateStep::Integer(value.clone()),
+                        Some(PreparedValue::Float {
+                            value: omega_prepared::PreparedFloat::Binary32(bits),
+                            ..
+                        }) if ty == &ValueType::Float32 => PredicateStep::IeeeFloat(crate::IeeeFloatBits::Binary32(*bits)),
+                        Some(PreparedValue::Float {
+                            value: omega_prepared::PreparedFloat::Binary64(bits),
+                            ..
+                        }) if ty == &ValueType::Float64 => PredicateStep::IeeeFloat(crate::IeeeFloatBits::Binary64(*bits)),
+                        // A NaN computed without exact bits has no term to state.
+                        Some(PreparedValue::Float {
+                            value: omega_prepared::PreparedFloat::UnspecifiedNaN(_),
+                            ..
+                        }) => return Err(unsupported("an unspecified NaN constant has no exact bits to materialize")),
                         _ => return Err(unsupported("contract constant has no matching frozen scalar")),
                     },
                     _ => return Err(unsupported("unsupported contract subject")),
@@ -808,7 +851,35 @@ fn records<'a>(
 /// result domain predicates already do. Typing admits it only where a
 /// qualified operand is accepted, such as a cast that removes its domains.
 fn is_contract_operand(ty: &ValueType) -> bool {
-    crate::lowering::types::uses_structural_place(ty) || is_scalar(ty) || matches!(ty, ValueType::Qualified(base, _) if is_scalar(base))
+    crate::lowering::types::uses_structural_place(ty)
+        || is_scalar(ty)
+        || matches!(ty, ValueType::Float32 | ValueType::Float64)
+        || matches!(ty, ValueType::Qualified(base, _) if is_scalar(base))
+}
+
+/// The builtin IEEE comparison typing selected for two unqualified operands of
+/// one format, and whether its canonical kind reads them in reverse order. A
+/// user operator is a call, never this; integer order laws never apply here.
+fn ieee_comparison(
+    token: &str,
+    operands: &[ValueType],
+) -> Option<(PredicateStep, bool)> {
+    use crate::IeeeComparisonKind::*;
+    let format = match operands {
+        [ValueType::Float32, ValueType::Float32] => crate::IeeeFloatFormat::Binary32,
+        [ValueType::Float64, ValueType::Float64] => crate::IeeeFloatFormat::Binary64,
+        _ => return None,
+    };
+    let (kind, reversed) = match token {
+        "==" => (Equal, false),
+        "!=" => (NotEqual, false),
+        "<" => (LessThan, false),
+        "<=" => (LessOrEqual, false),
+        ">" => (LessThan, true),
+        ">=" => (LessOrEqual, true),
+        _ => return None,
+    };
+    Some((PredicateStep::IeeeComparison { kind, format }, reversed))
 }
 
 fn is_scalar(ty: &ValueType) -> bool {

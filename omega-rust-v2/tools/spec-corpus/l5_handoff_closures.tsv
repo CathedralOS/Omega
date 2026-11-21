@@ -115,3 +115,4 @@ projected replacement of a stored shared descriptor at suspension	checker-input	
 store through a write-only record view	checker-input	psi-output/write-only-view-store
 reading a stored exclusive reference	checker-input	psi-output/stored-exclusive-transfer
 copy record replacement through a write-only loan	checker-input	psi-output/write-only-copy-record
+float comparison in a contract	product	psi-output/float-contract-requirement|psi-output/float-contract-requirement-consumer

@@ -7,6 +7,8 @@ use omega_psi::{
 mod assembly;
 mod domain_completions;
 mod floats;
+mod ieee_predicates;
+pub use ieee_predicates::{PredicateValue, evaluate_ieee_clause};
 mod trapping;
 pub use assembly::{LocationSupply, assembly_branch, assembly_changed_registers, assembly_location, assembly_location_supply, assembly_state_writes};
 pub use domain_completions::cast_completions;
