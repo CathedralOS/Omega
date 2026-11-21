@@ -126,11 +126,28 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
 
     // Alpha has no C record geometry. Its selected provider can still return
     // a constant while an unrelated declaration in the same library mentions CLayout.
-    for (formal, uses_layout) in [("", false), ("pair: @PacketPair", true)] {
+    for (formal, representation, refusal) in [
+        ("", "CLayout<Packet>", None),
+        (
+            "pair: @PacketPair",
+            "CLayout<Packet>",
+            Some(
+                "layout policy for `Packet` on `alpha_bootstrap`: target has no complete layout facts",
+            ),
+        ),
+        (
+            "",
+            "LayoutStorage<Packet, CAbiPolicy<OtherPacket>>",
+            Some("selected layout policy belongs to another semantic type"),
+        ),
+    ] {
         let source = format!(
             r#"use omega\language\core\CLayout;
+            use omega\language\core\CAbiPolicy;
+            use omega\language\core\LayoutStorage;
             public data Packet [copy] {{ a: i64; b: i64; }}
-            public data PacketPair = [CLayout<Packet>; 2];
+            public data OtherPacket [copy] {{ a: i64; b: i64; }}
+            public data PacketPair = [{representation}; 2];
             public machine accepts_pair(pair: @PacketPair) reaches none crashes none {{}}
             public boundary trait Reading {{
                 machine value({formal}) -> i32 reaches none crashes none;
@@ -152,9 +169,10 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert_eq!(output.status.success(), !uses_layout, "{stderr}");
-        if uses_layout {
-            assert!(stderr.contains("layout policy for `Packet` on `alpha_bootstrap`: target has no complete layout facts"), "{stderr}");
+        assert_eq!(output.status.success(), refusal.is_none(), "{stderr}");
+        if let Some(reason) = refusal {
+            assert!(stderr.contains(reason), "{stderr}");
+            assert!(!stderr.contains("defect of the checker"), "{stderr}");
         } else {
             let bytes = std::fs::read(root.path().join("library.psi")).unwrap();
             let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();

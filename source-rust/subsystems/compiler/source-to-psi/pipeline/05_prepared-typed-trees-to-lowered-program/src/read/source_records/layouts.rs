@@ -108,9 +108,24 @@ impl Program<'_> {
             };
             // The declaration must select a policy for this exact semantic
             // type even when no target has asked the policy to run.
-            storage
-                .plan_requirement(typed, storage.argument_owner(typed, storage.policy))
-                .map_err(|reason| malformed(machine, reason))?;
+            let owner = storage.argument_owner(typed, storage.policy);
+            storage.plan_requirement(typed, owner).map_err(|issue| {
+                use crate::source_state::layout_storage::LayoutPolicyError;
+                match issue {
+                    LayoutPolicyError::MissingEvidence(reason) => malformed(machine, reason),
+                    LayoutPolicyError::WrongSemanticType => {
+                        let span = owner
+                            .is_valid()
+                            .then(|| typed.symbols.symbol_source_span(owner))
+                            .flatten();
+                        crate::lowering::reject(
+                            machine,
+                            crate::lowering::SourceOrigin::of(span.unwrap_or_default()),
+                            issue.message(),
+                        )
+                    }
+                }
+            })?;
             let selected = plans
                 .binary_search_by_key(
                     &typed.normalized_type_identity(storage.application),

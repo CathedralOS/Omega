@@ -2283,6 +2283,29 @@ pub mod layout_storage {
         pub contract: SymbolHandle,
     }
 
+    #[derive(Debug, Clone, Copy)]
+    pub enum LayoutPolicyError {
+        MissingEvidence(&'static str),
+        WrongSemanticType,
+    }
+
+    impl LayoutPolicyError {
+        pub fn message(self) -> &'static str {
+            match self {
+                Self::MissingEvidence(reason) => reason,
+                Self::WrongSemanticType => {
+                    "selected layout policy belongs to another semantic type"
+                }
+            }
+        }
+    }
+
+    impl From<&'static str> for LayoutPolicyError {
+        fn from(reason: &'static str) -> Self {
+            Self::MissingEvidence(reason)
+        }
+    }
+
     impl TypedTrees {
         pub fn field_layout_source(
             &self,
@@ -2500,16 +2523,16 @@ pub mod layout_storage {
             &self,
             program: &TypedTrees,
             requester: SymbolHandle,
-        ) -> Result<SymbolHandle, &'static str> {
+        ) -> Result<SymbolHandle, LayoutPolicyError> {
             use crate::source_state::type_identity::portable_applied_type_identity;
             let contract = program
                 .trait_definition_by_symbol(self.contract)
                 .ok_or("layout storage lost its exact core contract")?;
             let Some([parameter]) = program.trait_type_parameters(contract).as_array() else {
-                return Err("core layout contract lost its exact semantic parameter");
+                return Err("core layout contract lost its exact semantic parameter".into());
             };
             let Some([requirement]) = program.trait_machine_signatures(contract).as_array() else {
-                return Err("fixed layout contract has no exact plan requirement");
+                return Err("fixed layout contract has no exact plan requirement".into());
             };
             let policy = program
                 .applied_requirement_scope(requester, self.policy)
@@ -2522,7 +2545,7 @@ pub mod layout_storage {
                 portable_applied_type_identity(program, self.semantic_type, requester, &[])
                     .ok_or("layout storage lost its complete semantic argument")?;
             if selected != semantic {
-                return Err("selected layout policy belongs to another semantic type");
+                return Err(LayoutPolicyError::WrongSemanticType);
             }
             Ok(requirement.symbol)
         }

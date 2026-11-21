@@ -198,7 +198,9 @@ fn evaluate_application(
         .as_ref()
         .ok_or("target has no complete layout facts")?;
     let policy = typed.static_operand_from_type_reference(storage.policy)?;
-    let requirement_symbol = storage.plan_requirement(typed, requester)?;
+    let requirement_symbol = storage
+        .plan_requirement(typed, requester)
+        .map_err(|issue| issue.message())?;
     let data = typed
         .closed_data_definition(storage.semantic_type)
         .ok_or("layout application lost its closed semantic type")?;
