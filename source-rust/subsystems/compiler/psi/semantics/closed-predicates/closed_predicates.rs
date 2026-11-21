@@ -8,7 +8,7 @@ mod ieee;
 mod integer;
 
 pub use budget::{PredicateBudget, PredicateSizeLimit, check_predicate_evaluation_size};
-pub use guard::{closed_guard, closed_guard_with};
+pub use guard::{closed_guard, closed_guard_with, closed_guard_with_float_meanings};
 pub use ieee::closed_ieee_relation;
 pub use integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, big_integer_literal,

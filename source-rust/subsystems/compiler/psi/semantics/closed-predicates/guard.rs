@@ -2,7 +2,8 @@
 //! Short-circuit evaluation preserves a deciding child alongside unknown operands.
 //! Build evaluation and the interpreter share this decision.
 
-use semantic_vocabulary::{Proposition, ScalarType};
+use numerics::float_semantics::FloatMeaning;
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 use crate::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
 
@@ -23,7 +24,17 @@ pub fn closed_guard(
     proposition: &Proposition,
     integers: &mut ClosedIntegerEvaluator,
 ) -> Result<Option<bool>, ClosedIntegerEvaluationError> {
-    closed_guard_with(proposition, |leaf| closed_leaf(leaf, integers))
+    closed_guard_with_float_meanings(proposition, integers, &|_| None)
+}
+
+/// A float observation can have a mathematical meaning without established
+/// representation bits. Only IEEE comparisons and meaning projections consult it.
+pub fn closed_guard_with_float_meanings(
+    proposition: &Proposition,
+    integers: &mut ClosedIntegerEvaluator,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
+) -> Result<Option<bool>, ClosedIntegerEvaluationError> {
+    closed_guard_with(proposition, |leaf| closed_leaf(leaf, integers, observe))
 }
 
 fn walk<E>(
@@ -58,6 +69,7 @@ fn walk<E>(
 fn closed_leaf(
     proposition: &Proposition,
     integers: &mut ClosedIntegerEvaluator,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
 ) -> Result<Option<bool>, ClosedIntegerEvaluationError> {
     Ok(match proposition {
         Proposition::Truth => Some(true),
@@ -65,9 +77,11 @@ fn closed_leaf(
         Proposition::FloatMeaningEqual(clause) => {
             crate::check_predicate_evaluation_size([proposition])
                 .map_err(|_| ClosedIntegerEvaluationError::ResourceLimitExceeded)?;
-            crate::ieee::closed_float_meaning_equality(clause)
+            crate::ieee::closed_float_meaning_equality(clause, observe)
         }
-        Proposition::ScalarIeeeFloatComparison { .. } => crate::closed_ieee_relation(proposition),
+        Proposition::ScalarIeeeFloatComparison { .. } => {
+            crate::ieee::ieee_relation(proposition, observe)
+        }
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
             .boolean_value()
             .zip(right.boolean_value())
