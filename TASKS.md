@@ -145,7 +145,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **ARRAY-ELEMENT-VIEWS.** Implement [views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) and migrate the programs that assumed a conversion.
   - Diagnose an implicit fixed-array borrow used where a slice is required, and point to `&array[..]` or `&mut array[..]`.
-  - Full-range formation on a fixed array establishes `len == N` for the lowered-form checker.
+  - Full-range formation on a fixed array establishes `view.length == N` for the lowered-form checker.
   - Migrate remaining `Console::read_line` callers that pass a borrowed fixed array and exercise the explicit view through both engines.
 
 - **APPLIED-BOUNDARY-SERVICE-REACH.** Implement [boundary services with parameters](wiki/spec/language/effects.md#boundary-services-with-parameters): name a boundary trait with parameters in `reaches` and `invokes` rows by its application, and carry that application end to end.

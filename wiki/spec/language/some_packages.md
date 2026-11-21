@@ -14,7 +14,7 @@ type object.
 
 ```omega
 data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64
-    ensures result <= output.len
+    ensures result <= output.length
     reaches none
     crashes none;
 
@@ -70,7 +70,7 @@ spelling; it does not recognize a special `reader.read(reader.state)` idiom.
 
 ```omega
 machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
-ensures result <= output.len
+ensures result <= output.length
 {
     (reader.read)(reader.state, output)
 }

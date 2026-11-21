@@ -152,7 +152,7 @@ requires value < Limit
 }
 
 machine prefix_count<Count: u32>(items: @[u8]) -> u32
-requires embed(Count) <= embed(items.len)
+requires embed(Count) <= embed(items.length)
 {
     Count
 }

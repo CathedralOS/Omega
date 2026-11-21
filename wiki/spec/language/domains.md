@@ -10,7 +10,7 @@ Multiplicity, content, carry, and provider evidence keep their own judgments.
 
 Qualification never selects or changes storage representation, capacity, live
 length, layout, or collection kind. In particular, `[u8; N] in D` is the same
-exact `N`-byte fixed-array carrier as `[u8; N]`; its `.len` is `N`, and removing
+exact `N`-byte fixed-array carrier as `[u8; N]`; its `.length` is `N`, and removing
 `D` with a cast changes no bits or geometry. A variable-fill owner must name
 an explicit variable-length carrier such as `FixedVec<u8, N> in D` or
 `Vec<u8> in D`. Ordinary accessor machines may lend that owner's live prefix as

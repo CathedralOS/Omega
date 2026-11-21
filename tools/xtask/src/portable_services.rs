@@ -13,8 +13,8 @@
 //! provider block, follows the top-level machines each member calls inside
 //! that target's files, and collects four kinds of fact:
 //! - `refuse K`: an `ErrorKind::K }` the adapter returns itself;
-//! - `limit OP N`: an integer literal or `x.len` compared in a `transition`,
-//!   `requires` or `ensures` clause (`< 255`, `<= buffer.len`);
+//! - `limit OP N`: an integer literal or `x.length` compared in a `transition`,
+//!   `requires` or `ensures` clause (`< 255`, `<= buffer.length`);
 //! - `const f(..N..)`: an integer literal of three or more digits passed as a
 //!   whole call argument (modes, budgets, flag words);
 //! - `clamp f`: a call to a `min_u64`, `saturating` or `wrapping` helper.
@@ -837,7 +837,7 @@ fn facts(body: &str) -> BTreeSet<String> {
 }
 
 /// `limit OP RHS` for each comparison against an integer literal (other than
-/// 0, 1 and -1) or an `x.len` in a guard or contract clause.
+/// 0, 1 and -1) or an `x.length` in a guard or contract clause.
 fn limits(clause: &str, out: &mut BTreeSet<String>) {
     let bytes = clause.as_bytes();
     let mut at = 0;
@@ -859,7 +859,7 @@ fn limits(clause: &str, out: &mut BTreeSet<String>) {
     }
 }
 
-/// A signed integer literal or `name.len` that ends at a word boundary.
+/// A signed integer literal or `name.length` that ends at a word boundary.
 fn comparison_operand(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     let digits_from = usize::from(bytes.first() == Some(&b'-'));
@@ -874,10 +874,10 @@ fn comparison_operand(text: &str) -> Option<&str> {
             .iter()
             .take_while(|b| b.is_ascii_lowercase() || **b == b'_')
             .count();
-        if name == 0 || !text[name..].starts_with(".len") {
+        if name == 0 || !text[name..].starts_with(".length") {
             return None;
         }
-        name + ".len".len()
+        name + ".length".len()
     };
     bytes
         .get(end)
@@ -916,7 +916,7 @@ mod tests {
     #[test]
     fn facts_read_refusals_limits_constants_and_clamps() {
         let body = "machine f(path: @[u8], count: u64) -> R\n\
-            requires count <= buffer.len\n{\n\
+            requires count <= buffer.length\n{\n\
             transition count > 4294967295 && count != 0 {\n\
             true -> R::Err { kind: ErrorKind::InvalidInput }\n\
             _ -> raw_write(path, 438, min_u64(count, 7))\n}\n}\n";
@@ -926,7 +926,7 @@ mod tests {
             [
                 "clamp min_u64",
                 "const raw_write(..438..)",
-                "limit <= buffer.len",
+                "limit <= buffer.length",
                 "limit > 4294967295",
                 "refuse InvalidInput",
             ]
@@ -937,7 +937,7 @@ mod tests {
     fn limits_skip_trivial_bounds_and_glued_suffixes() {
         let mut out = BTreeSet::new();
         limits(
-            "a < 1 && b >= -1 && c < 255u8 && d == -4 && e < self.buffer.len",
+            "a < 1 && b >= -1 && c < 255u8 && d == -4 && e < self.buffer.length",
             &mut out,
         );
         assert_eq!(out.into_iter().collect::<Vec<_>>(), ["limit == -4"]);

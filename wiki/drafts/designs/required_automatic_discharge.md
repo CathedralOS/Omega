@@ -10,9 +10,9 @@ names a floor every checker discharges unaided:
 ```omega
 machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
-requires n <= items.len
+requires n <= items.length
 {
-    items[i]             // order reasoning: i < n <= items.len
+    items[i]             // order reasoning: i < n <= items.length
 }
 
 machine area(count: u32, size: u32) -> u32

@@ -410,7 +410,7 @@ A by-copy read has this declaration shape in the authorized core package:
 
 ```omega
 machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
-requires index < items.len;
+requires index < items.length;
 ```
 
 Its bodyless supply is the sealed compiler primitive, not an unproved boundary
@@ -429,7 +429,7 @@ grammar. Existing operator selection and ambiguity rules still apply.
 
 Specialized integer, length, range and const-extent strategies may accelerate
 the shared prover. Their conclusions must describe the exact operands and be
-usable by other contracts; a syntactic `index < collection.len` recognizer has
+usable by other contracts; a syntactic `index < collection.length` recognizer has
 no independent authority to admit an access. Collection metadata remains tied
 to the actual descriptor and backing. A same-spelled user field or unrelated
 length observation supplies no substitute evidence.
@@ -531,7 +531,7 @@ access or by a named adapter such as `ArrayAccess::as_slice` or `as_mut_slice`.
 
 ```omega
 machine set_first(buffer: @mut [u8], value: u8)
-requires buffer.len > 0
+requires buffer.length > 0
 {
     buffer[0] = value;
 }
@@ -543,7 +543,7 @@ set_first(@mut bytes, 7);     // Rejected: a reference to the array, not a view.
 
 A full-array view covers elements `0..N` of the same array, with no copy or
 allocation, and establishes that its length is `N`. That fact can discharge the
-receiving machine's preconditions, as `buffer.len > 0` above. The view keeps the
+receiving machine's preconditions, as `buffer.length > 0` above. The view keeps the
 backing, access, lifetime and custody obligations of any borrowed range. A
 mutable view is formed directly under exclusive access, never by upgrading a
 shared view. A zero-length array gives an empty view and no element reference.

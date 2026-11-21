@@ -227,7 +227,7 @@ it is not an already supported parser/compiler example:
 ```omega
 machine prefix_count<Count: u32>(items: @[u8]) -> u32
 requires
-    embed(Count) <= embed(items.len)
+    embed(Count) <= embed(items.length)
 {
     Count
 }

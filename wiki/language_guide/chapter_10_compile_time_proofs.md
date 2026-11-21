@@ -22,13 +22,13 @@ case splitting. For example:
 ```omega
 machine get(items: @[u8], index: u64, limit: u64) -> u8
 requires index < limit
-requires limit <= items.len
+requires limit <= items.length
 {
     items[index]
 }
 ```
 
-The requirements establish `index < items.len`. No lemma or extra search budget
+The requirements establish `index < items.length`. No lemma or extra search budget
 is needed for that implication. A conforming checker that fails this required
 reasoning needs repair; a source workaround is not a language requirement.
 

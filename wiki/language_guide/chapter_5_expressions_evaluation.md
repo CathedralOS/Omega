@@ -98,7 +98,7 @@ evidence that it is in bounds, usually from a `requires` or a branch:
 
 ```omega
 machine read_at(items: @[u8], index: u64) -> u8
-requires index < items.len
+requires index < items.length
 {
     items[index]
 }
