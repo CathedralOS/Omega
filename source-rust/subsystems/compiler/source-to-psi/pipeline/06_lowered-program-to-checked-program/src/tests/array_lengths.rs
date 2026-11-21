@@ -662,6 +662,7 @@ fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>)
 #[test]
 fn forwarding_an_extent_to_a_boundary_checks_the_declared_contract() {
     let source = r#"
+boundary trait Other {}
 boundary trait Text {
     machine send<const Count: u64>(bytes: @[u8; Count]) -> u64
     requires Count > 0u64
@@ -669,30 +670,32 @@ boundary trait Text {
     reaches none
     crashes none;
 }
-machine entry<const Size: u64>(bytes: @[u8; Size]) -> u64
+machine forward<const Size: u64>(bytes: @[u8; Size]) -> u64
 requires Size > 0u64
 requires bytes[Size - 1u64] == 0u8
 reaches none
 crashes none
 { Text::send::<Size>(bytes) }
+machine entry() -> u64 {
+    let bytes: [u8; 4] = [1, 2, 3, 0];
+    forward::<4u64>(@bytes)
+}
 "#;
-    let check = |source: &str| judge(Ok(rigid_array_form(source))).unwrap();
-    let valid = check(source);
-    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
-    // The selected provider can promise an entry of its own. An explicitly
-    // closed caller must still account for it when forwarding the extent.
-    let both_invoke = source.replace("reaches none", "reaches none\ninvokes Text");
-    let allowed = check(&both_invoke);
-    assert!(matches!(allowed, RouteVerdict::Accepted(_)), "{allowed:?}");
-    let missing = check(&both_invoke.replace(
-        "0u8\nreaches none\ninvokes Text\ncrashes none\n{", "0u8\nreaches none\ninvokes none\ncrashes none\n{",
-    ));
-    assert!(matches!(missing, RouteVerdict::Rejected { .. }), "{missing:?}");
-    let wrong_byte = check(&source.replace("Size - 1u64] == 0u8", "Size - 1u64] == 7u8"));
-    assert!(
-        matches!(wrong_byte, RouteVerdict::Rejected { .. }),
-        "{wrong_byte:?}"
-    );
+    let valid = array_subject(source);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    // The caller must account for a synchronous entry published by the
+    // method. Two bodyless services distinguish an exact grant from a near miss.
+    let grants = source.replace("reaches none", "reaches none\ninvokes Text");
+    let valid = array_subject(&grants);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    let missing = array_subject(&grants.replace("invokes Text\ncrashes none\n{", "invokes Other\ncrashes none\n{"));
+    assert!(missing.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { exceeded, .. })
+        if exceeded.iter().any(|row| row.message().contains("synchronous invocation")))), "{missing:?}");
+    let different = source.replace("Size - 1u64] == 0u8", "Size - 1u64] == 7u8")
+        .replace("[1, 2, 3, 0]", "[1, 2, 3, 7]");
+    let wrong_byte = array_subject(&different);
+    assert!(wrong_byte.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+        if !unproved.is_empty())), "{wrong_byte:?}");
 }
 
 #[test]
