@@ -267,7 +267,10 @@ fn run(
     context: &mut Option<BuildDiagnosticContext>,
 ) -> Result<StageStop, CompileFailure> {
     loop {
-        match activation.advance(1024).map_err(refusal)? {
+        match activation.advance_diagnostic(1024).map_err(|mut diagnostic| {
+            diagnostic.message = format!("Build activation failed: {}", diagnostic.message);
+            vec![*diagnostic]
+        })? {
             TerminalBuildStep::Returned => return Ok(StageStop::Returned),
             TerminalBuildStep::AtPreparation(index) => return Ok(StageStop::AtPreparation(index)),
             TerminalBuildStep::NeedsWork => continue,

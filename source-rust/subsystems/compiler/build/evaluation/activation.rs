@@ -193,6 +193,7 @@ pub struct TerminalBuildHost {
     unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
+    accepted: Arc<source_compiler::publication::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
@@ -211,6 +212,7 @@ impl TerminalBuildHost {
     pub(crate) fn new(
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
         produced: Arc<ProducedTerminalProgram>,
+        accepted: Arc<source_compiler::publication::AcceptedTerminalSource>,
         providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
         account: &EvaluationInvocationAccount,
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -280,6 +282,7 @@ impl TerminalBuildHost {
             unbound_acquisition,
             execution_purpose,
             produced,
+            accepted,
             providers,
             account: account.clone(),
             original,
@@ -320,7 +323,6 @@ impl TerminalBuildHost {
         self: &Arc<Self>,
         carried: CarriedStage,
         previous_source: &source_compiler::publication::AcceptedTerminalSource,
-        next_source: &source_compiler::publication::AcceptedTerminalSource,
     ) -> Result<TerminalBuildActivation, String> {
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err("Build host has already started its activation".into());
@@ -340,7 +342,7 @@ impl TerminalBuildHost {
             previous_source,
             old_program.module(),
             &stack,
-            next_source,
+            &self.accepted,
             new_program.module(),
             new_call,
         )?;
@@ -350,7 +352,7 @@ impl TerminalBuildHost {
             self,
             &binding_host,
             previous_source,
-            next_source,
+            &self.accepted,
         )?;
         for (installation, request) in binding_host.installed_providers.iter_mut().zip(providers) {
             provider_installation::admit_request(
@@ -804,66 +806,127 @@ impl TerminalBuildActivation {
     }
 
     pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep, String> {
+        self.advance_diagnostic(additional_work)
+            .map_err(|error| error.message)
+    }
+
+    /// Preserve a host refusal's authored call in the currently executing Build stage.
+    pub fn advance_diagnostic(
+        &mut self,
+        additional_work: u64,
+    ) -> Result<TerminalBuildStep, Box<diagnostics::Diagnostic>> {
+        fn refusal(reason: impl Into<String>) -> Box<diagnostics::Diagnostic> {
+            Box::new(diagnostics::Diagnostic::error(reason))
+        }
+
         match self.state {
-            ActivationState::Returned => return Err("Build activation has already returned".into()),
-            ActivationState::AtPreparation(_) => return Err("a parked Build needs its checked successor".into()),
-            ActivationState::Refused => return Err("Build activation has already failed".into()),
+            ActivationState::Returned => return Err(refusal("Build activation has already returned")),
+            ActivationState::AtPreparation(_) => return Err(refusal("a parked Build needs its checked successor")),
+            ActivationState::Refused => return Err(refusal("Build activation has already failed")),
             ActivationState::Running => {}
         }
         self.state = ActivationState::Refused;
         if self.host.machine.preparation_allows_return().is_some() && self.cut.is_none() {
-            return Err("an unfinished Build requires its checked preparation paths".into());
+            return Err(refusal("an unfinished Build requires its checked preparation paths"));
         }
-        self.work.replenish(additional_work).map_err(describe)?;
+        self.work
+            .replenish(additional_work)
+            .map_err(|error| refusal(describe(error)))?;
         let status = match &self.cut {
             Some(cut) => self
                 .instance
                 .invoke_until_entry_calls(&cut.calls, &mut self.work),
             None => self.instance.invoke(&mut self.work).map(Some),
         }
-        .map_err(describe)?;
-        self.requests.extend(self.host.requests.drain_requests()?);
+        .map_err(|error| Box::new(self.guest_diagnostic(error)))?;
+        self.requests
+            .extend(self.host.requests.drain_requests().map_err(refusal)?);
         let Some(status) = status else {
             let index = self
                 .instance
                 .completed_call_path_index()
-                .ok_or("the stopped interpreter has no completed preparation path")?;
+                .ok_or_else(|| refusal("the stopped interpreter has no completed preparation path"))?;
             self.state = ActivationState::AtPreparation(index);
             return Ok(TerminalBuildStep::AtPreparation(index));
         };
         let step = match status {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                 if self.cut.as_ref().is_some_and(|cut| !cut.can_return) {
-                    return Err("the Build returned before its checked preparation".into());
+                    return Err(refusal("the Build returned before its checked preparation"));
                 }
                 TerminalBuildStep::Returned
             }
             TerminalExecutionStatus::SponsorExhausted(_) => TerminalBuildStep::NeedsWork,
             TerminalExecutionStatus::AwaitingEffect(_) => match (
-                self.host.bindings.awaiting_provider()?,
-                self.host.requests.awaiting_preparation()?,
+                self.host.bindings.awaiting_provider().map_err(refusal)?,
+                self.host.requests.awaiting_preparation().map_err(refusal)?,
             ) {
                 (Some(provider), None) => TerminalBuildStep::Provide(provider),
                 (None, Some(dependency)) => TerminalBuildStep::Prepare(dependency),
                 (None, None) => {
-                    return Err("Build paused without an admitted provider or dependency demand".into());
+                    return Err(refusal("Build paused without an admitted provider or dependency demand"));
                 }
                 (Some(_), Some(_)) => {
-                    return Err("one Build effect requested both a provider and a dependency".into());
+                    return Err(refusal("one Build effect requested both a provider and a dependency"));
                 }
             },
             TerminalExecutionStatus::HostComputationPending(_) => {
-                let query = self.host.bindings.awaiting_query()?
-                    .ok_or("Build paused without an admitted Product query")?;
+                let query = self.host.bindings.awaiting_query().map_err(refusal)?
+                    .ok_or_else(|| refusal("Build paused without an admitted Product query"))?;
                 TerminalBuildStep::Query(query)
             }
-            other => return Err(format!("Build did not return normally: {other:?}")),
+            other => return Err(refusal(format!("Build did not return normally: {other:?}"))),
         };
         self.state = match &step {
             TerminalBuildStep::Returned => ActivationState::Returned,
             _ => ActivationState::Running,
         };
         Ok(step)
+    }
+
+    fn guest_diagnostic(
+        &self,
+        error: terminal_interpreter::TerminalInstanceError,
+    ) -> diagnostics::Diagnostic {
+        use terminal_interpreter::{TerminalInstanceError, TerminalInterpretError};
+        if let TerminalInstanceError::Execution(TerminalInterpretError::ExecutionSite {
+            machine,
+            cause,
+            ..
+        }) = &error
+            && let TerminalInterpretError::EffectRejected {
+                operation,
+                rejection,
+            } = cause.as_ref()
+        {
+            let mut diagnostic = diagnostics::Diagnostic::error(&rejection.reason);
+            let accepted = &self.host.accepted;
+            if let Some(files) = accepted.source().symbols.source_map() {
+                // Build services run in toolchain helpers. Walk the actual callers
+                // so repeated uses of one helper still point at the call that ran.
+                use terminal_psi::CallSite;
+                diagnostic.source_span =
+                    std::iter::once((*machine, CallSite::Operation(*operation)))
+                        .chain(self.instance.caller_sites())
+                        .find_map(|(machine, site)| {
+                            let sources = accepted.closure().elaboration().sources.get(machine)?;
+                            let span = match site {
+                                CallSite::Operation(id) => sources.operations.get(id),
+                                CallSite::Edge(id) => sources.edges.get(id),
+                            }?
+                            .span()?;
+                            let file = files.file_at(span)?;
+                            (!file.origin.is_toolchain()).then_some(span)
+                        });
+                package_compilation::attribute_diagnostics(
+                    std::slice::from_mut(&mut diagnostic),
+                    &files,
+                    None,
+                );
+            }
+            return diagnostic;
+        }
+        diagnostics::Diagnostic::error(describe(error))
     }
 
     pub fn complete(mut self) -> Result<ReturnedBuild, String> {

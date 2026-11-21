@@ -1051,7 +1051,10 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
         &["--check", "build.omg"],
     );
     assert!(
-        !ran && report.contains("filesystem value was not issued by this activation"),
+        !ran && report.contains("Build filesystem value was not issued by this activation")
+            && report.contains("build.omg:17:")
+            && !report.contains("ExecutionSite")
+            && !report.contains("EffectRejected"),
         "{report}"
     );
 }

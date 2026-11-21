@@ -741,6 +741,8 @@ pub(crate) mod errors {
 
         pub(crate) fn in_argument_preparation(self, stage: &'static str) -> Self {
             let detail = match self {
+                // A host refusal already names the operation and its reason.
+                Self::EffectRejected { .. } => return self,
                 Self::StructuralArgumentPreparation { stage, detail } => {
                     format!("{stage}: {detail}")
                 }
