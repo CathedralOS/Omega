@@ -9,7 +9,6 @@ use crate::{
 use omega_resolved::{IndexedSource, Symbol};
 use omega_syntax::NodeKind;
 use omega_typed::{Access, NodeSemantics, ObligationKind, Projection, Site, ValueType};
-use std::collections::BTreeMap;
 
 pub(super) fn has_literal_test(
     file: &IndexedSource<'_>,
@@ -33,17 +32,47 @@ pub(super) fn has_literal_test(
 
 /// Keep the borrowed backing, not a speculatively copied scalar. For a named
 /// binding L4 attaches CopyRead to the use, not to the field declaration.
-pub(in crate::machines) struct PayloadRead {
+pub(in crate::machines) struct PayloadPlace {
     source: ProjectedPlace,
     ty: TypeId,
-    site: Site,
 }
-impl PayloadRead {
-    pub(in crate::machines) fn emit(
-        self,
+impl PayloadPlace {
+    fn emit(
+        &self,
         body: &mut MachineBody,
+        site: Site,
     ) -> ValueId {
-        emit_scalar(body, self.ty, OperationKind::ProjectedScalarRead { source: self.source }, self.site)
+        emit_scalar(body, self.ty, OperationKind::ProjectedScalarRead { source: self.source.clone() }, site)
+    }
+
+    pub(in crate::machines) fn read_binding(
+        &self,
+        expressions: &Expressions<'_>,
+        binder: usize,
+        node: usize,
+        carrier: &ValueType,
+        body: &mut MachineBody,
+    ) -> Result<ValueId, LoweringError> {
+        let tree = expressions.tree;
+        let file = tree.resolved().file;
+        let typed = expressions.prepared.typed();
+        if typed.place_path(file.node_id(node)) != typed.place_path(file.node_id(binder)) {
+            return Err(unsupported_node(file, node, "payload binding use disagrees with its borrowed backing"));
+        }
+        let mut expression = false;
+        let mut copy = None;
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Expression(e) if !expression && e.static_argument_slot.is_none() && &e.ty == carrier => expression = true,
+                NodeSemantics::Obligation(o) if copy.is_none() && matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier) => copy = Some(&o.site),
+                _ => return Err(unsupported_node(file, node, "unsupported payload read record")),
+            }
+        }
+        if !expression || expressions.types.id_for(carrier).ok() != Some(self.ty) {
+            return Err(unsupported_node(file, node, "payload binding lacks its typed scalar use"));
+        }
+        let site = copy.ok_or_else(|| unsupported_node(file, node, "payload lacks its integer copy-read obligation"))?;
+        Ok(self.emit(body, site.clone()))
     }
 }
 
@@ -97,14 +126,15 @@ pub(in crate::machines) fn plan<'a>(
 
 struct PayloadTest<'a> {
     case: CaseSelection,
-    field: PayloadRead,
+    field: PayloadPlace,
+    field_site: Site,
     carrier: &'a ValueType,
     literal: usize,
-    bound_result: Option<PayloadRead>,
+    bindings: Vec<(usize, PayloadPlace)>,
 }
 
 /// Verify both the case-owned field identity and the read's precise L4 type
-/// and obligation. A binding is currently admitted for a direct arm result only.
+/// and obligation. Keep the remaining projected places for reads in the selected arm.
 fn payload_test<'a>(
     expressions: &'a Expressions<'_>,
     subject: usize,
@@ -112,8 +142,6 @@ fn payload_test<'a>(
     owner: DataId,
     access: &Access,
     pattern: usize,
-    result: usize,
-    result_carrier: &ValueType,
 ) -> Result<PayloadTest<'a>, LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
@@ -132,7 +160,7 @@ fn payload_test<'a>(
         .find(|c| c.declaration == case)
         .ok_or_else(|| unsupported_node(file, *head, "case does not belong to the subject"))?;
     let mut test = None;
-    let mut bound_result = None;
+    let mut bindings = Vec::new();
     for &field in fields {
         if file.nodes[field].kind != NodeKind::FieldPattern {
             return Err(unsupported_node(file, field, "expected an explicit payload field"));
@@ -152,11 +180,22 @@ fn payload_test<'a>(
             .iter()
             .find(|f| f.declaration == field_id)
             .ok_or_else(|| unsupported_node(file, field, "payload field does not belong to the selected case"))?;
-        let (use_node, literal) = match file.nodes[field].children[..] {
-            [literal] if test.is_none() => (field, Some(literal)),
+        let mut place = source.clone();
+        place.path.extend([
+            PlaceProjection::Case(case.clone()),
+            PlaceProjection::Field(field_id),
+        ]);
+        let payload = PayloadPlace {
+            source: place,
+            ty: member.carrier,
+        };
+        let literal = match file.nodes[field].children[..] {
+            [literal] if test.is_none() => literal,
             [] if resolved.pattern_binding(field).is_some()
-                && matches!(resolved.symbol(result), Some(Symbol::Binding{binder_node,..}) if *binder_node==field)
-                && file.nodes[result].kind == NodeKind::PathExpression =>
+                && matches!(
+                    expressions.types.get(member.carrier),
+                    Some(TypeShape::PrimitiveScalar(crate::ScalarType::Integer { .. }))
+                ) =>
             {
                 if tree
                     .semantics_at(field)
@@ -164,62 +203,36 @@ fn payload_test<'a>(
                 {
                     return Err(unsupported_node(file, field, "unsupported payload binding record"));
                 }
-                if typed.place_path(file.node_id(result)) != backing {
-                    return Err(unsupported_node(file, result, "payload binding use disagrees with its borrowed backing"));
-                }
-                (result, None)
+                bindings.push((field, payload));
+                continue;
             }
             _ => return Err(unsupported_node(file, field, "payload requires one literal test and direct value bindings")),
         };
         let mut copied = None;
-        let mut typed_use = false;
-        for row in tree.semantics_at(use_node) {
+        for row in tree.semantics_at(field) {
             match row {
                 NodeSemantics::Field(f) if f == id.as_ref() => {}
-                NodeSemantics::Expression(e)
-                    if literal.is_none()
-                        && e.static_argument_slot.is_none()
-                        && &e.ty == result_carrier
-                        && expressions.types.id_for(&e.ty).ok() == Some(member.carrier) =>
-                {
-                    typed_use = true
-                }
                 NodeSemantics::Obligation(o)
                     if copied.is_none()
                         && let ObligationKind::CopyRead(ty @ ValueType::Integer { width: Some(1..), .. }) = &o.kind
                         && expressions.types.id_for(ty).ok() == Some(member.carrier) =>
                 {
-                    copied = Some(ty)
+                    copied = Some((ty, o.site.clone()))
                 }
-                _ => return Err(unsupported_node(file, use_node, "unsupported payload read record")),
+                _ => return Err(unsupported_node(file, field, "unsupported payload read record")),
             }
         }
-        let carrier = copied.ok_or_else(|| unsupported_node(file, use_node, "payload lacks its integer copy-read obligation"))?;
-        let mut place = source.clone();
-        place.path.extend([
-            PlaceProjection::Case(case.clone()),
-            PlaceProjection::Field(field_id),
-        ]);
-        let read = PayloadRead {
-            source: place,
-            ty: member.carrier,
-            site: site_at(file, use_node),
-        };
-        if let Some(literal) = literal {
-            test = Some((read, carrier, literal));
-        } else if typed_use {
-            bound_result = Some(read);
-        } else {
-            return Err(unsupported_node(file, use_node, "payload binding lacks its typed scalar use"));
-        }
+        let (carrier, site) = copied.ok_or_else(|| unsupported_node(file, field, "payload lacks its integer copy-read obligation"))?;
+        test = Some((payload, site, carrier, literal));
     }
-    let (field, carrier, literal) = test.ok_or_else(|| unsupported_node(file, pattern, "payload alternative needs its literal test"))?;
+    let (field, field_site, carrier, literal) = test.ok_or_else(|| unsupported_node(file, pattern, "payload alternative needs its literal test"))?;
     Ok(PayloadTest {
         case: CaseSelection { source: source.clone(), case },
         field,
         carrier,
         literal,
-        bound_result,
+        field_site,
+        bindings,
     })
 }
 
@@ -227,10 +240,8 @@ pub(in crate::machines) fn lower(
     expressions: &Expressions<'_>,
     dispatch: usize,
     captured: Subject<'_>,
-    result_carrier: &ValueType,
     body: &mut MachineBody,
     flow: &mut BlockFlow,
-    bound_results: &mut BTreeMap<usize, PayloadRead>,
 ) -> Result<Vec<(BlockId, usize)>, LoweringError> {
     let tree = expressions.tree;
     let file = tree.resolved().file;
@@ -258,17 +269,15 @@ pub(in crate::machines) fn lower(
         return Err(unsupported_node(file, fallback, "literal alternatives require a final wildcard"));
     }
     for (i, &pattern) in tests.iter().enumerate() {
-        let (target, result) = targets[i];
+        let (target, _) = targets[i];
         let last = i + 1 == tests.len();
         let next = if last { targets[i + 1].0 } else { flow.reserve() };
         let failed_site = site_at(file, patterns[i + 1]);
         let (left, carrier, literal) = match (&captured, file.nodes[pattern].kind, &file.nodes[pattern].children[..]) {
             (Subject::Integer(value, carrier), NodeKind::ValuePattern, [literal]) => (*value, *carrier, *literal),
             (Subject::Borrowed { source, owner, access }, NodeKind::RecordPattern, _) => {
-                let test = payload_test(expressions, subject, source, *owner, access, pattern, result, result_carrier)?;
-                if let Some(read) = test.bound_result {
-                    bound_results.insert(result, read);
-                }
+                let test = payload_test(expressions, subject, source, *owner, access, pattern)?;
+                flow.payload_bindings.extend(test.bindings);
                 let site = site_at(file, pattern);
                 let condition = emit_scalar(
                     body,
@@ -292,7 +301,7 @@ pub(in crate::machines) fn lower(
                     },
                 );
                 flow.open(body, compare, None);
-                (test.field.emit(body), test.carrier, test.literal)
+                (test.field.emit(body, test.field_site), test.carrier, test.literal)
             }
             _ => return Err(unsupported_node(file, pattern, "unsupported alternative in literal dispatch")),
         };

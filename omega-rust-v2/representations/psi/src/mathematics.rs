@@ -46,6 +46,8 @@ pub enum TheoremBinder {
 pub struct LogicalHypothesis {
     pub site: Site,
     pub parameters: Vec<TypeExpression>,
+    /// Optional mathematical result of this premise, never a machine return slot.
+    pub result: Option<TypeExpression>,
     pub premises: Vec<ContractClause>,
     pub conclusions: Vec<ContractClause>,
 }
@@ -65,6 +67,8 @@ pub enum MathematicalStep {
         hypothesis: usize,
         index: usize,
     },
+    /// The result subject in the indexed hypothesis's conclusion, not the theorem's result.
+    HypothesisResult(usize),
     GenericParameter {
         owner: DeclarationId,
         index: usize,

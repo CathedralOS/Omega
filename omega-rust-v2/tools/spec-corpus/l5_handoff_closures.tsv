@@ -13,3 +13,6 @@ unequal-width scalar recast from u16 to i32	checker-input	psi-output/differing-r
 unequal-width scalar recast from u32 to i16	checker-input	psi-output/differing-recast-carriers
 unequal-width scalar recast from u64 to u32	checker-input	psi-output/differing-recast-carriers
 recast of a Boolean referent	checker-input	psi-output/differing-recast-carriers
+attributed data alias	product	psi-output/alias-multiplicity-assertion
+mathematical result on a logical hypothesis	product	psi-output/logical-hypothesis-result|psi-output/logical-hypothesis-result-subject
+compound use of a binding after a payload literal test	product	psi-output/compound-payload-binding

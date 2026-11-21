@@ -24,6 +24,12 @@ pub(crate) struct Bound<'a> {
     binder: usize,
 }
 
+impl<'a> Bound<'a> {
+    pub(super) fn result(&self) -> Option<&'a ValueType> {
+        (self.typed.result != ValueType::NoResult).then_some(&self.typed.result)
+    }
+}
+
 pub(crate) fn lower(
     prepared: &PreparedTrees<'_>,
     tree: &TypedTree<'_>,
@@ -145,18 +151,16 @@ pub(crate) fn lower(
     let mut hypotheses = Vec::with_capacity(bounds.len());
     for (index, bound) in bounds.iter().enumerate() {
         let hypothesis = bound.typed;
-        if hypothesis.result != ValueType::NoResult {
-            let site = file.child(bound.node, NodeKind::Result).map(|result| site_at(tree, result));
-            return Err(LoweringError::new(
-                site.as_ref().unwrap_or(&hypothesis.site),
-                format!("Psi cannot represent result `{}` on logical hypothesis `{}`", hypothesis.result, hypothesis.name),
-            ));
-        }
+        let mut result = None;
         let owner = ClauseOwner::Theorem(sig, bounds.as_slice(), Some(index));
         let (mut premises, mut conclusions) = (Vec::new(), Vec::new());
         for &part in &file.nodes[bound.node].children {
             let (clauses, expected) = match file.nodes[part].kind {
                 NodeKind::Params => continue,
+                NodeKind::Result if result.is_none() && hypothesis.result != ValueType::NoResult => {
+                    result = Some(logical_type(&hypothesis.result, &site_at(tree, part))?);
+                    continue;
+                }
                 NodeKind::Requires => (&mut premises, &hypothesis.premises),
                 NodeKind::Ensures => (&mut conclusions, &hypothesis.conclusions),
                 kind => {
@@ -180,6 +184,9 @@ pub(crate) fn lower(
                 "logical hypothesis clauses disagree with its checked record",
             ));
         }
+        if result.is_none() && hypothesis.result != ValueType::NoResult {
+            return Err(LoweringError::new(&hypothesis.site, "logical hypothesis lacks its checked result annotation"));
+        }
         let parameters = hypothesis
             .parameters
             .iter()
@@ -192,6 +199,7 @@ pub(crate) fn lower(
         hypotheses.push(crate::LogicalHypothesis {
             site: hypothesis.site.clone(),
             parameters,
+            result,
             premises,
             conclusions,
         });
@@ -271,15 +279,15 @@ pub(super) fn strict_fact(
     })
 }
 
-/// A parameter bound by the hypothesis whose clause is being lowered. Spans
-/// and binder nodes identify it, so a shadowed theorem formal never matches.
+/// Proof formals are identified by their binding and exact checked logical type,
+/// not by whether their carrier is supported as a runtime contract operand.
 pub(super) fn parameter(
     owner: ClauseOwner<'_>,
     tree: &LoweringTree<'_>,
     node: usize,
     ty: &ValueType,
 ) -> Option<PredicateStep> {
-    let ClauseOwner::Theorem(_, bounds, Some(hypothesis)) = owner else {
+    let ClauseOwner::Theorem(theorem, bounds, local) = owner else {
         return None;
     };
     let Some(Symbol::Binding {
@@ -291,16 +299,15 @@ pub(super) fn parameter(
     else {
         return None;
     };
-    let bound = bounds.get(hypothesis)?;
-    if !(bound.node..tree.resolved().file.nodes[bound.node].end).contains(binder_node) {
-        return None;
+    let matches = |(name, carrier): &_| name == span && carrier == ty;
+    if let Some(hypothesis) = local {
+        let bound = bounds.get(hypothesis)?;
+        if (bound.node..tree.resolved().file.nodes[bound.node].end).contains(binder_node) {
+            let index = bound.typed.parameters.iter().position(matches)?;
+            return Some(PredicateStep::HypothesisParameter { hypothesis, index });
+        }
     }
-    let index = bound
-        .typed
-        .parameters
-        .iter()
-        .position(|(name, carrier)| name == span && carrier == ty)?;
-    Some(PredicateStep::HypothesisParameter { hypothesis, index })
+    theorem.parameters.iter().position(matches).map(PredicateStep::Formal)
 }
 
 /// `Step::ensures(subjects)` applies the hypothesis's conclusions at exact
@@ -360,10 +367,12 @@ pub(super) fn guarantee<'o>(
         return Err(refuse("logical guarantee projection lacks its Boolean or proof obligation record"));
     }
     let subjects = &file.nodes[args].children;
+    // The checked relation takes its inputs in order, then the mathematical
+    // result subject if present. None of these operands is a runtime return.
+    let result = bound.result();
     if file.nodes[args].kind != NodeKind::Args
-        || bound.typed.result != ValueType::NoResult
         || subjects.len() != operands.len()
-        || subjects.len() != bound.typed.parameters.len()
+        || subjects.len() != bound.typed.parameters.len() + usize::from(result.is_some())
         || subjects
             .iter()
             .zip(operands)
@@ -374,7 +383,7 @@ pub(super) fn guarantee<'o>(
     let carriers = subjects
         .iter()
         .copied()
-        .zip(bound.typed.parameters.iter().map(|(_, ty)| ty))
+        .zip(bound.typed.parameters.iter().map(|(_, ty)| ty).chain(result))
         .collect();
     Ok(Some((
         PredicateStep::HypothesisGuarantee {

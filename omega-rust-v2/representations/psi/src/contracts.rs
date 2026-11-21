@@ -98,7 +98,7 @@ pub enum PredicateStep {
     ElementViewLength,
     Boolean(bool),
     Integer(BigInt),
-    /// An erased mathematical application in this clause, including its admission obligations.
+    /// An erased mathematical term in this clause, including any application admission obligations.
     /// In a `LogicalTheorem` clause a sole term ending in `FormProposition` is a strict fact,
     /// not a Boolean; its truth remains an obligation or assumption.
     MathematicalTerm(Vec<crate::MathematicalStep>),
@@ -108,8 +108,9 @@ pub enum PredicateStep {
         hypothesis: usize,
         index: usize,
     },
-    /// The conclusions of this hypothesis at the preceding operands. Proof-only:
-    /// it never denotes a call, callback entry or runtime result.
+    /// The conclusions of this hypothesis at the preceding operands: parameters
+    /// in order, followed by the result subject if present. Proof-only: it
+    /// never denotes a call, callback entry or runtime result.
     HypothesisGuarantee {
         hypothesis: usize,
         operand_count: usize,

@@ -155,7 +155,7 @@ class LayerReportTests(unittest.TestCase):
         self.assertFalse(self.report["frontend_diagnostics"]["products"]["L3"]["verified"])
 
     def test_lowering_diagnostic_requires_its_own_successful_cli_test_and_stage_controls(self):
-        name = "attributed_alias_refused_by_lowering"
+        name = "a_carry_annotated_alias_stops_at_its_attributes"
         rendered = "case.omg:2:5: lowering: unsupported alias (bytes 9..12)"
         line = (f"OMEGA_FRONTEND\tL5\t{name}\tlower\tlowering\tcase.omg\t2\t5\t9\t12\tgood-twin-lowers,bad-input-prepares\tunsupported alias"
                 f"\t{rendered}\tcase.omg\tu64%0D%0A    u64\t9\tu64")

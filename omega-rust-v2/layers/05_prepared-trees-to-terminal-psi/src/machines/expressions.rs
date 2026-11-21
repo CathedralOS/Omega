@@ -361,8 +361,6 @@ impl Expressions<'_> {
             landing: None,
         }];
         let mut values = Vec::new();
-        // A direct payload binding is keyed by its unique arm-local use node.
-        let mut bound_results = std::collections::BTreeMap::<usize, value_patterns::PayloadRead>::new();
         while let Some(step) = work.pop() {
             let (expression, carrier, inherited) = match step {
                 ExpressionStep::Frozen { node, value, carrier } => {
@@ -416,8 +414,11 @@ impl Expressions<'_> {
                     continue;
                 }
                 ExpressionStep::Visit { node, carrier, landing } => {
-                    if let Some(read) = bound_results.remove(&node) {
-                        values.push(OperationResult::Scalar(read.emit(block)));
+                    if file.nodes[node].kind == NodeKind::PathExpression
+                        && let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node)
+                        && let Some(place) = flow.payload_bindings.get(binder_node)
+                    {
+                        values.push(OperationResult::Scalar(place.read_binding(self, *binder_node, node, carrier, block)?));
                         continue;
                     }
                     (node, carrier, landing)
@@ -427,7 +428,7 @@ impl Expressions<'_> {
                         return Err(unsupported_node(file, file.nodes[dispatch].children[0], "integer pattern needs a scalar subject"));
                     };
                     let captured = value_patterns::Subject::Integer(value, subject_carrier);
-                    let targets = value_patterns::lower(self, dispatch, captured, carrier, block, flow, &mut bound_results)?;
+                    let targets = value_patterns::lower(self, dispatch, captured, block, flow)?;
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
@@ -995,7 +996,7 @@ impl Expressions<'_> {
                             work.push(ExpressionStep::Visit { node: subject, carrier: subject_carrier, landing: None });
                         }
                         value_patterns::SubjectPlan::Captured(subject) => {
-                            let targets = value_patterns::lower(self, expression, subject, carrier, block, flow, &mut bound_results)?;
+                            let targets = value_patterns::lower(self, expression, subject, block, flow)?;
                             work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                         }
                     }

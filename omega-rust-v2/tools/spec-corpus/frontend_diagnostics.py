@@ -23,7 +23,8 @@ CLI_CASES = {
     "a_domain_alias_with_no_matching_evaluated_width_identifies_its_target": ("L3", "typer (after static evaluation)"),
     "failed_precondition_during_static_evaluation": ("L4", "preparation"),
     "unavailable_target_for_a_required_extent": ("L4", "preparation (target input)"),
-    "attributed_alias_refused_by_lowering": ("L5", "lowering"),
+    "a_carry_annotated_alias_stops_at_its_attributes": ("L5", "lowering"),
+    "a_transparent_alias_cannot_change_its_targets_multiplicity": ("L3", "typer"),
     "a_ranked_indirect_terminal_call_identifies_the_unsupported_edge": ("L5", "lowering"),
 }
 # Each stop must carry the controls that separate it from its neighbouring layer.
@@ -34,7 +35,7 @@ CONTROLS = {
 # L5 CLI refusals must agree with the layer test that pins the same message and span.
 LAYER_WITNESSES = {
     "a_ranked_indirect_terminal_call_identifies_the_unsupported_edge": ("ranking", "a_ranked_terminal_descriptor_call_refuses_at_the_invocation"),
-    "attributed_alias_refused_by_lowering": ("declarations", "aliases_with_attributes_still_refuse"),
+    "a_carry_annotated_alias_stops_at_its_attributes": ("declarations", "alias_with_carry_stops_at_its_attributes"),
 }
 
 

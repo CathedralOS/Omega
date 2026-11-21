@@ -26,6 +26,9 @@ pub(crate) struct BlockFlow {
     reserved: usize,
     active: BlockId,
     operation_start: usize,
+    // Binder identities, not spellings: only uses resolved in the successful arm
+    // can refer to its backing, including in nested expression/terminal dispatch.
+    pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadPlace>,
     parameter: Option<crate::Parameter>,
 }
 
@@ -42,6 +45,7 @@ impl BlockFlow {
             reserved: 1,
             active: BlockId(next_id(0)),
             operation_start: 0,
+            payload_bindings: Default::default(),
             parameter: None,
         }
     }
@@ -186,7 +190,6 @@ struct PendingArm {
     block: BlockId,
     expression: usize,
     terminal_call: bool,
-    bound_result: Option<value_patterns::PayloadRead>,
 }
 
 pub(crate) fn lower_tail_dispatch(
@@ -233,11 +236,7 @@ pub(crate) fn lower_tail_dispatch(
             );
             continue;
         }
-        let value = if let Some(read) = arm.bound_result {
-            OperationResult::Scalar(read.emit(body))
-        } else {
-            expressions.lower(arm.expression, &expressions.signature.result, body, flow)?
-        };
+        let value = expressions.lower(arm.expression, &expressions.signature.result, body, flow)?;
         emit_return_block(body, flow, Some(value), result_type, site_at(file, arm.expression))?;
     }
     Ok(())
@@ -270,7 +269,6 @@ fn enqueue_dispatch(
             _ => return Err(unsupported_node(file, dispatch, "expected a terminal Boolean dispatch")),
         }
     }
-    let mut bound_results = std::collections::BTreeMap::new();
     let tested = tested_dispatch(file, dispatch);
     let targets = if let Some(TestedDispatch::Literal { subject }) = tested {
         let captured = match value_patterns::plan(expressions, subject, body)? {
@@ -282,7 +280,7 @@ fn enqueue_dispatch(
             }
             value_patterns::SubjectPlan::Captured(subject) => subject,
         };
-        value_patterns::lower(expressions, dispatch, captured, &expressions.signature.result, body, flow, &mut bound_results)?
+        value_patterns::lower(expressions, dispatch, captured, body, flow)?
     } else if let Some(TestedDispatch::Guards) = tested {
         lower_guards(expressions, dispatch, body, flow)?
     } else if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
@@ -302,7 +300,6 @@ fn enqueue_dispatch(
             block,
             expression,
             terminal_call,
-            bound_result: bound_results.remove(&expression),
         });
     }
     Ok(())

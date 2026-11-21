@@ -299,13 +299,25 @@ fn a_ranked_indirect_terminal_call_identifies_the_unsupported_edge() {
 }
 
 #[test]
-fn attributed_alias_refused_by_lowering() {
+fn a_transparent_alias_cannot_change_its_targets_multiplicity() {
+    check(Case {
+        stage: "L3",
+        producer: "typer",
+        good: b"// alias\r\ndata Alias [copy] = u64;",
+        bad: b"// alias\r\ndata Alias [linear] = u64;",
+        occurrence: b"data Alias [linear] = u64;",
+        reason: "a transparent alias cannot change its target's multiplicity",
+    });
+}
+
+#[test]
+fn a_carry_annotated_alias_stops_at_its_attributes() {
     check(Case {
         stage: "L5",
         producer: "lowering",
-        good: b"// alias\r\ndata Alias = u64;",
-        bad: b"// alias\r\ndata Alias [copy] = u64;",
-        occurrence: b"u64",
-        reason: "data alias or unsupported member requires declaration lowering",
+        good: b"// alias\r\ndata Alias [copy] = u64;",
+        bad: b"// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;",
+        occurrence: b"[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]",
+        reason: "transparent alias carry policy requires a checked relation to its expansion",
     });
 }

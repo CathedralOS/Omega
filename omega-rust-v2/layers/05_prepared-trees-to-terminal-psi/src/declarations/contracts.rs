@@ -81,6 +81,10 @@ pub(crate) fn lower_predicate(
     };
     let node_is_guarantee = role == PredicateRole::Guarantee;
     let guarantee = signature.filter(|_| node_is_guarantee && super::hypotheses::proves_guarantee(owner));
+    let hypothesis_result = match (role, owner) {
+        (PredicateRole::Guarantee, ClauseOwner::Theorem(_, bounds, Some(slot))) => bounds.get(slot).and_then(|bound| bound.result()).map(|ty| (slot, ty)),
+        _ => None,
+    };
     let mut predicate = Vec::new();
     let mut work = vec![Step::Visit {
         node: root,
@@ -131,6 +135,7 @@ pub(crate) fn lower_predicate(
                         theorem: formals,
                         local: &file.nodes[locals].children,
                         slot,
+                        result: hypothesis_result.map(|(_, ty)| ty),
                     }
                 }
                 _ => super::mathematics::TermScope::Parameters(formals),
@@ -296,10 +301,8 @@ pub(crate) fn lower_predicate(
             (NodeKind::PathExpression, []) if semantic.operation.is_none() && landing.is_none() => {
                 let resolved = tree.resolved();
                 let term = match resolved.symbol(node) {
-                    Some(Symbol::Binding { kind: NodeKind::Param, .. })
-                        if semantic.constant.is_none() && is_contract_operand(ty) && super::hypotheses::parameter(owner, tree, node, ty).is_some() =>
-                    {
-                        super::hypotheses::parameter(owner, tree, node, ty).expect("checked hypothesis parameter")
+                    Some(Symbol::Binding { kind: NodeKind::Param, .. }) if semantic.constant.is_none() && matches!(owner, ClauseOwner::Theorem(..)) => {
+                        super::hypotheses::parameter(owner, tree, node, ty).ok_or_else(|| unsupported("contract binding is not a formal of this theorem or hypothesis"))?
                     }
                     Some(Symbol::Binding {
                         span, kind: NodeKind::Param, ..
@@ -363,6 +366,11 @@ pub(crate) fn lower_predicate(
                         }
                         predicate.push(PredicateStep::SelfValue);
                         PredicateStep::Field(crate::identity::declaration(field, &site)?)
+                    }
+                    Some(Symbol::Builtin(name)) if name == "result" && semantic.constant.is_none()
+                        && let Some((slot, _)) = hypothesis_result.filter(|(_, carrier)| *carrier == ty) =>
+                    {
+                        PredicateStep::MathematicalTerm(vec![crate::MathematicalStep::HypothesisResult(slot)])
                     }
                     Some(Symbol::Builtin(name))
                         if name == "result"

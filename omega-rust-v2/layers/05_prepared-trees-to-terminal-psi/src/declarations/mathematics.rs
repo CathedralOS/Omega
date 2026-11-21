@@ -85,6 +85,8 @@ pub(super) enum TermScope<'a> {
         theorem: &'a [usize],
         local: &'a [usize],
         slot: usize,
+        /// Only in a conclusion over a mathematical result.
+        result: Option<&'a ValueType>,
     },
     Data {
         owner: &'a DeclarationId,
@@ -239,7 +241,7 @@ pub(super) fn lower_term(
                                 .position(|p| p == binder_node)
                                 .ok_or_else(|| error("mathematical term refers to an unsupported binding"))?,
                         ),
-                        TermScope::Hypothesis { theorem, local, slot } => {
+                        TermScope::Hypothesis { theorem, local, slot, .. } => {
                             if let Some(index) = local.iter().position(|p| p == binder_node) {
                                 MathematicalStep::HypothesisParameter { hypothesis: *slot, index }
                             } else {
@@ -259,6 +261,9 @@ pub(super) fn lower_term(
                                 .ok_or_else(|| error("mathematical term refers to an unsupported data binder"))?,
                         },
                     },
+                    Some(Symbol::Builtin(name)) if name == "result"
+                        && let TermScope::Hypothesis { slot, result: Some(carrier), .. } = &scope
+                        && ty == Some(*carrier) => MathematicalStep::HypothesisResult(*slot),
                     Some(Symbol::Declaration(id)) if matches!(&scope, TermScope::Data{fields,..} if fields.iter().any(|field|&field.declaration==id)) => {
                         MathematicalStep::SelfField(crate::identity::declaration(id, &site)?)
                     }

@@ -64,7 +64,10 @@ pub(crate) fn check(
             return Err(TypeError::at(unit.file, node, "a transparent alias cannot change its target's multiplicity"));
         }
         output.type_alias_targets.insert(id.clone(), target);
-        // Only a nominal declaration contributes a new ownership identity.
+        if let Some(properties) = properties {
+            // Provenance on this alias, not a new nominal ownership identity.
+            output.type_alias_properties.insert(id.clone(), properties.clone());
+        }
         return Ok(());
     }
     let packaged = catalog.types.witness_count(id) != 0;

@@ -172,32 +172,57 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
 }
 
 #[test]
-fn a_result_bearing_hypothesis_stops_at_its_result_annotation() {
-    // Squashed existence does not promise to produce the underlying byte. It
-    // is a valid typed result even though Psi cannot publish it yet.
-    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8)->core\\Squash<u8> requires y != 0; requires x != 0 {}";
-    let files = [("proof.omg", source)];
-    let resolved = sources::resolve(&files);
-    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
-    let [step] = prepared.typed().logical_hypotheses.as_slice() else { panic!("expected Step") };
-    assert_eq!(step.result, ValueType::Squash(Box::new(ValueType::Integer { signed: false, width: Some(8) })));
-    sources::refuse_prepared(
-        &prepared,
-        &files,
-        "proof.omg",
-        sources::unique_span(source, "->core\\Squash<u8>"),
-        "Psi cannot represent result `core\\Squash<u8>` on logical hypothesis `Step`",
-    );
+fn a_logical_hypothesis_preserves_its_optional_mathematical_result() {
+    for (annotation, witness) in [
+        ("->core\\Squash<u8>", Some((ValueType::Integer { signed: false, width: Some(8) }, ScalarType::Integer { signed: false, width: 8 }))),
+        ("->core\\Squash<bool>", Some((ValueType::Bool, ScalarType::Boolean))),
+        ("", None),
+    ] {
+        let source = format!("machine theorem<machine Step>(x:u8) requires machine Step(y:u8){annotation} requires y != 0; requires x != 0 {{}}");
+        let files = [("proof.omg", source.as_str())];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let [step] = prepared.typed().logical_hypotheses.as_slice() else { panic!("expected Step") };
+        assert_eq!(step.result, witness.as_ref().map_or(ValueType::NoResult, |(ty, _)| ValueType::Squash(Box::new(ty.clone()))));
 
-    let twin = source.replace("->core\\Squash<u8>", "");
-    let package = sources::lower(&[("proof.omg", &twin)]).unwrap();
-    assert!(package.machines.is_empty());
-    let [theorem] = package.theorems.as_slice() else { panic!("expected one theorem") };
-    assert_eq!(theorem.binders, [TheoremBinder::Hypothesis(0)]);
+        let package = sources::lower_prepared(&prepared, &files).unwrap();
+        assert!(package.machines.is_empty() && package.machine_templates.is_empty() && package.callable_contracts.is_empty());
+        let [theorem] = package.theorems.as_slice() else { panic!("expected one proof-only theorem") };
+        assert_eq!(theorem.binders, [TheoremBinder::Hypothesis(0)]);
+        let [hypothesis] = theorem.hypotheses.as_slice() else { panic!("expected only Step") };
+        assert_eq!(hypothesis.site, step.site);
+        assert_eq!(hypothesis.parameters, [byte()]);
+        let [premise] = hypothesis.premises.as_slice() else { panic!("expected one premise") };
+        assert_eq!(premise.predicate, [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(NotEqual)]);
+        spec_corpus::observe_handoff!(psi "psi-output/logical-hypothesis-result", assert_eq!(
+            hypothesis.result,
+            witness.map(|(_, carrier)| TypeExpression(vec![TypeExpressionStep::Scalar(carrier), TypeExpressionStep::Squash]))
+        ));
+    }
+}
+
+#[test]
+fn projecting_a_result_bearing_hypothesis_supplies_the_result_as_a_proof_subject() {
+    let source = "boundary let accepted(p:core\\Squash<u8>):core\\Strict<0>;
+        machine theorem<machine Other,machine Step>(x:u8,p:core\\Squash<u8>)
+        requires machine Other(z:u8)->core\\Squash<u8> ensures accepted(result);
+        requires machine Step(y:u8)->core\\Squash<u8> ensures Other::ensures(y,result);
+        ensures Step::ensures(x,p) {}";
+    let package = sources::lower(&[("proof.omg", source)]).unwrap();
+    let [theorem] = package.theorems.as_slice() else { panic!("expected the theorem") };
+    let [other, step] = theorem.hypotheses.as_slice() else { panic!("expected Other and Step") };
+    let [MathematicalTerm(term)] = other.conclusions[0].predicate.as_slice() else { panic!("expected accepted(result)") };
+    assert_eq!(term[1], MathematicalStep::HypothesisResult(0));
     assert_eq!(
-        theorem.hypotheses[0].premises[0].predicate,
-        [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(NotEqual)]
+        step.conclusions[0].predicate,
+        [HypothesisParameter { hypothesis: 1, index: 0 }, MathematicalTerm(vec![MathematicalStep::HypothesisResult(1)]),
+         HypothesisGuarantee { hypothesis: 0, operand_count: 2 }]
     );
+    let [goal] = theorem.ensures.as_slice() else { panic!("expected the projection") };
+    assert!(package.machines.is_empty() && package.machine_templates.is_empty() && package.callable_contracts.is_empty());
+    spec_corpus::observe_handoff!(psi "psi-output/logical-hypothesis-result-subject", assert_eq!(
+        goal.predicate, [Formal(0), Formal(1), HypothesisGuarantee { hypothesis: 1, operand_count: 2 }]
+    ));
 }
 
 #[test]

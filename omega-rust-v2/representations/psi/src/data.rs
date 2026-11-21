@@ -65,6 +65,8 @@ pub struct LoweredCase {
 pub struct LoweredAlias {
     pub declaration: DeclarationId,
     pub target: AliasTarget,
+    /// Authored assertion checked against the expanded type; never a multiplicity override.
+    pub asserted_multiplicity: Option<Multiplicity>,
     pub public: bool,
     pub site: Site,
 }

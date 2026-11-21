@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -285,17 +283,82 @@ fn transparent_aliases_share_the_underlying_schema_and_field_carrier() {
 }
 
 #[test]
-fn aliases_with_attributes_still_refuse() {
+fn alias_multiplicity_asserts_the_expansion_without_creating_an_owner() {
     let source = "data Alias [copy] = u64;";
-    let error = sources::refuse(
+    let plain = lower(&[("alias.omg", "data Alias = u64;")]).unwrap();
+    let files = [("alias.omg", source)];
+    let package = {
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let typed = prepared.typed();
+        let (id, target) = typed.type_alias_targets.iter().find(|(id, _)| id.path == "Alias").unwrap();
+        assert_eq!(target, &omega_typer::ValueType::Integer { signed: false, width: Some(64) });
+        assert_eq!(typed.type_alias_properties[id].multiplicity, Multiplicity::Copy);
+        assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
+        sources::lower_prepared(&prepared, &files).unwrap()
+    };
+    let ([alias], [unmarked]) = (package.aliases.as_slice(), plain.aliases.as_slice()) else {
+        panic!("expected one alias in each package");
+    };
+    assert_eq!(alias.declaration.path, "Alias");
+    assert_eq!(alias.site.span.slice(source.as_bytes()), Some(source.as_bytes()));
+    assert_eq!(unmarked.target, AliasTarget::Builtin("u64".into()));
+    spec_corpus::observe_handoff!(psi "psi-output/alias-multiplicity-assertion",
+        assert_eq!(
+            (alias.asserted_multiplicity, unmarked.asserted_multiplicity, &alias.target, package.data.len()),
+            (Some(Multiplicity::Copy), None, &unmarked.target, 0)
+        ),
+    );
+
+    let source = "data Lease [linear] {} data Handle [linear] = Lease; data Slot { handle:Handle; }";
+    let package = lower(&[("alias.omg", source)]).unwrap();
+    let ([handle], [lease, slot]) = (package.aliases.as_slice(), package.data.as_slice()) else {
+        panic!("the alias should introduce no third schema");
+    };
+    assert_eq!(handle.asserted_multiplicity, Some(Multiplicity::Linear));
+    assert_eq!(handle.target, AliasTarget::Declaration(lease.declaration.clone()));
+    assert_eq!(lease.multiplicity, Multiplicity::Linear);
+    assert_eq!(slot.fields[0].carrier, lease.carrier);
+}
+
+#[test]
+fn alias_multiplicity_cannot_override_the_expansion() {
+    for source in ["data Alias [linear] = u64;", "data Alias [copy] = @mut u64;", "data Alias<T> [copy] = T;"] {
+        let resolved = sources::resolve(&[("alias.omg", source)]);
+        let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
+        assert_eq!(error.message, "a transparent alias cannot change its target's multiplicity");
+        assert_eq!(error.file, "alias.omg");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(source.as_bytes()));
+    }
+}
+
+#[test]
+fn alias_assertion_survives_structural_and_generic_expansion() {
+    use omega_lowering::{DeclarationTerm, TemplateBinder, TypeExpression, TypeExpressionStep};
+    let source = "data Words [copy] = [u64;2]; data Same<T [copy]> [copy] = T;";
+    let package = lower(&[("alias.omg", source)]).unwrap();
+    let [_, words] = package.aliases.as_slice() else { panic!("expected Same and Words") };
+    let AliasTarget::Structural(ty) = words.target else { panic!("expected array type row") };
+    let Some(TypeShape::FixedArray { element, length: 2 }) = package.types.get(ty) else { panic!("expected two elements") };
+    assert_eq!(package.types.get(*element), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 64 })));
+    assert_eq!(words.asserted_multiplicity, Some(Multiplicity::Copy));
+    let (same, expansion) = alias_expansion(&package, "Same");
+    assert_eq!(same.asserted_multiplicity, Some(Multiplicity::Copy));
+    assert_eq!(expansion.parameters, [TemplateBinder::Type { multiplicity: Some(Multiplicity::Copy) }]);
+    assert_eq!(expansion.expansion, DeclarationTerm::Type(TypeExpression(vec![TypeExpressionStep::GenericParameter {
+        owner: same.declaration.clone(), index: 0,
+    }])));
+}
+
+#[test]
+fn alias_with_carry_stops_at_its_attributes() {
+    let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
+    sources::refuse(
         &[("alias.omg", source)],
         "alias.omg",
-        sources::unique_span(source, "u64"),
-        "data alias or unsupported member requires declaration lowering",
+        sources::unique_span(source, "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]"),
+        "transparent alias carry policy requires a checked relation to its expansion",
     );
-    assert_eq!(error.message, "data alias or unsupported member requires declaration lowering");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"u64".as_slice()));
-    known_gap::report("attributed data alias", "The alias needs its attributes and expansion", source, &error);
 }
 
 fn alias_expansion<'a>(

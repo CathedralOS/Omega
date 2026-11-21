@@ -115,6 +115,9 @@ pub struct TypedStage {
     pub domain_carriers: std::collections::HashMap<DeclarationId, ValueType>,
     /// The underlying type of a transparent alias in its defining binder scope.
     pub type_alias_targets: std::collections::HashMap<DeclarationId, ValueType>,
+    /// Authored properties on transparent aliases. Explicit multiplicity has been
+    /// checked against the expansion, not installed as a new ownership identity.
+    pub type_alias_properties: std::collections::HashMap<DeclarationId, DataProperties>,
     /// The normalized constituents of each domain alias, including their arguments.
     pub domain_alias_members: std::collections::HashMap<DeclarationId, Vec<crate::DomainApplication>>,
     pub static_data_shapes: std::collections::HashMap<ValueType, StaticDataShape>,
