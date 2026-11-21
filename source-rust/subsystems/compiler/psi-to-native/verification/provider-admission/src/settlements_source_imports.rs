@@ -1,5 +1,5 @@
 // Source-selected import and syscall demand to exact terminal mechanism
-// custody, and toolchain-settled host cohort row minting.
+// custody. The Darwin clock policy also requires the selected service declaration.
 //
 // `prepare_source_evaluated_bindings` already settled one execution per
 // demanded import and syscall from these selected plans, and provider
@@ -8,7 +8,7 @@
 // re-compare targets, locators, and syscall numbers. Each leaf must still
 // resolve to one selected row, one Terminal boundary, and (for an import or
 // table binding) one external implementation contract to derive its
-// `TerminalMechanismIdentity` and optional toolchain-settled host cohort row.
+// `TerminalMechanismIdentity` and optional Darwin clock review.
 
 use std::collections::BTreeMap;
 
@@ -198,7 +198,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
             }
             _ => continue,
         };
-        let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
+        let cohort_row = selected_darwin_clock_row(provider_plan, row, mechanism);
         if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
             cohort_rows.push(row);
         }
@@ -211,7 +211,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
     Ok((admitted_mechanisms, cohort_rows))
 }
 
-fn settled_host_cohort_row(
+fn selected_darwin_clock_row(
     provider_plan: &ProviderPlan,
     row: &ProviderPlanRow,
     mechanism: terminal_authority_receipts::TerminalMechanismIdentity,
@@ -234,7 +234,7 @@ fn settled_host_cohort_row(
     if methods.next().is_some() {
         return None;
     }
-    crate::terminal_authority_policy::cohort_mechanism_row(
+    crate::terminal_authority_policy::darwin_clock_mechanism_row(
         mechanism,
         &provider_plan.schema,
         method,

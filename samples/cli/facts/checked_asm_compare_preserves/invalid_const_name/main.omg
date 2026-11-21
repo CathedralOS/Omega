@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // Comparing a register with itself establishes the zero flag without changing its value; both label edges preserve the original register.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

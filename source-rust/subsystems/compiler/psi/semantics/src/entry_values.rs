@@ -2,7 +2,8 @@
 //! provenance, and structural inputs retain their exact path and qualifications.
 
 use semantic_vocabulary::{
-    IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralDomainId, StructuralTypeId,
+    IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralDomainId,
+    StructuralTypeId,
 };
 use terminal_psi::{StructuralPathSegment, TerminalAccessViewInput};
 
@@ -28,6 +29,9 @@ pub enum TerminalScalarValue {
         scalar_type: IntegerType,
         address: u64,
     },
+    /// A pure invocation computed NaN without determining a sign or payload.
+    /// Copying the value preserves its meaning without creating observable bits.
+    UndeterminedNaN(IeeeFloatFormat),
 }
 
 impl TerminalScalarValue {
@@ -38,11 +42,16 @@ impl TerminalScalarValue {
         if let Self::HostAddress { scalar_type, .. } = self {
             return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(expected)) if *expected == scalar_type);
         }
+        if let Self::UndeterminedNaN(format) = self {
+            return matches!(field, terminal_psi::StructuralFieldType::IeeeFloat(expected)
+                | terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(expected))
+                if *expected == format);
+        }
         self.literal()
             .is_some_and(|literal| crate::scalar_field_accepts_literal(field, &literal))
     }
 
-    /// Opaque code selections have no mathematical literal.
+    /// A literal is available only for scalars with an established representation.
     pub fn literal(self) -> Option<semantic_vocabulary::ScalarTerm> {
         Some(match self {
             Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
@@ -50,7 +59,9 @@ impl TerminalScalarValue {
                 semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
             }
             Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-            Self::Callable { .. } | Self::HostAddress { .. } => return None,
+            Self::Callable { .. } | Self::HostAddress { .. } | Self::UndeterminedNaN(_) => {
+                return None;
+            }
         })
     }
 
@@ -59,6 +70,7 @@ impl TerminalScalarValue {
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
+            Self::UndeterminedNaN(format) => ScalarType::IeeeFloat(format),
             Self::Callable { contract, .. } => ScalarType::Callable(contract),
             Self::HostAddress { scalar_type, .. } => ScalarType::Integer(scalar_type),
         }

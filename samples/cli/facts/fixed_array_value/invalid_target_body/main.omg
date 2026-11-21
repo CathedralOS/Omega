@@ -2,7 +2,7 @@
 // Invalid: all target bodies weaken the index bound to index <= 2, so the index may exceed length 2.
 // Expected exit: 0
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -4,7 +4,7 @@ const REPLACEMENT: u32 = 99;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 data Held { outcome: AtomicCompareExchangeOnceOutcome<u32>; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

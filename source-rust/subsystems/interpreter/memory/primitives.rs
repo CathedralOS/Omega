@@ -1794,6 +1794,9 @@ pub(crate) mod primitive_storage {
                 TerminalScalarValue::HostAddress { .. } => {
                     return Err(crate::boundary::errors::host_address_mixed());
                 }
+                TerminalScalarValue::UndeterminedNaN(_) => {
+                    return Err(crate::boundary::errors::undetermined_nan_bits());
+                }
                 TerminalScalarValue::Boolean(value) => u128::from(value),
                 TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(value),
@@ -4767,7 +4770,7 @@ pub(crate) mod primitive_storage {
         if stored.scalar_type() == target {
             return Ok(stored);
         }
-        let input = crate::boundary::values::scalar_view_value(&stored).ok_or_else(malformed)?;
+        let input = crate::boundary::values::scalar_view_value(stored)?;
         let observed =
             terminal_semantics::scalar_reference_view_value(stored.scalar_type(), target, input)
                 .ok_or(malformed())?;

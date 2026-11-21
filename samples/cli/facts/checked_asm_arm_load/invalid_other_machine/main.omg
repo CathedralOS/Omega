@@ -1,7 +1,7 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

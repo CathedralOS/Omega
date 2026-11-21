@@ -5,7 +5,7 @@ domain u64::Nested requires self in Small;
 domain u64::Nested::Inherited;
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

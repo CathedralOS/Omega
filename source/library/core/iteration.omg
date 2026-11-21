@@ -3,8 +3,7 @@ public trait ElementStep<Element> {
     terminates;
 }
 
-public machine for_each<Element, machine Step>(items: @mut [Element])
-requires machine Step satisfies ElementStep<Element>::apply;
+public machine for_each<Element, const Step: ElementStep<Element>::apply>(items: @mut [Element])
 terminates
 terminates by items -> Slice::Length
 {

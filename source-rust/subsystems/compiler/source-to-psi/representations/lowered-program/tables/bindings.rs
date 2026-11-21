@@ -62,6 +62,41 @@ pub enum PlaceOrigin {
 // captured selectors and representation views. The representation owns them.
 pub use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
+/// A dynamic projection can name entry contents only when its selector is
+/// already bound at the same entry as its structural root.
+pub fn entry_snapshot_segment(
+    segment: Segment,
+    owner: semantic_vocabulary::StructuralPlaceKind,
+    values: &IdTable<ValueId, crate::values::ValueRow>,
+) -> bool {
+    use crate::values::ValueOrigin;
+    use semantic_vocabulary::StructuralPlaceKind;
+    if let Segment::RuntimeIndex { selector } = segment {
+        return values.get(selector).is_some_and(|value| {
+            value.scalar_type.as_integer().is_some()
+                && match (value.origin, owner) {
+                    (ValueOrigin::MachineParameter { .. }, _) => true,
+                    (
+                        ValueOrigin::BlockParameter { block, .. },
+                        StructuralPlaceKind::BlockParameter {
+                            block: root_block, ..
+                        },
+                    ) => block == root_block,
+                    _ => false,
+                }
+        });
+    }
+    matches!(owner, StructuralPlaceKind::Parameter { .. })
+        || matches!(
+            segment,
+            Segment::Field(_)
+                | Segment::Case(_)
+                | Segment::FixedIndex(_)
+                | Segment::Referent
+                | Segment::Extent
+        )
+}
+
 /// One write, in program order: within a block, `WriteId`s increase in
 /// operation order.
 ///

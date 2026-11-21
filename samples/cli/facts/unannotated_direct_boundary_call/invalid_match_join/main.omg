@@ -7,7 +7,7 @@ public boundary trait Mark {
 MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
-machine take(flag: bool) -> u64 reaches {
+machine take(flag: bool) -> u64 reaches none {
     match flag { true -> Mark::read(), false -> Mark::read() }
 }
 machine main() crashes Trap {

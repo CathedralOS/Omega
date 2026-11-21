@@ -2,7 +2,7 @@
 // Invalid: the guard and target-body preconditions omit the upper bound value < 1000000000.0, so I32::from_f64(value) is not proved in range.
 use omega\language\core\I32::from_f64;
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

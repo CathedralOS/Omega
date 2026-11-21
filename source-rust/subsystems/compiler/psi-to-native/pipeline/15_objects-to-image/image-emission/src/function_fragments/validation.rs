@@ -347,7 +347,7 @@ fn validate_original(
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
     if artifact.emission_input.as_ref()
-        != &crate::object_input::ObjectEmissionInput::from_publication(source.publication())?
+        != &crate::object_input::ObjectEmissionInput::from_publication(source.publication())
     {
         return Err(Error::Mismatch(
             "body readback records differ from retained original",

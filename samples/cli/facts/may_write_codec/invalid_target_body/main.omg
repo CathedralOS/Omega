@@ -16,12 +16,12 @@ data Counter<'a> { slot: @'a mut u64; }
 
 boundary trait CodecProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-        reaches requires chosen < 4 && other < 4 crashes none;
+        reaches none requires chosen < 4 && other < 4 crashes none;
 }
 
 StoredCursorProbe satisfies CodecProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-    reaches requires $chosen < 4 && $other < 4
+    reaches none requires $chosen < 4 && $other < 4
     {
         let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let sample: Value = Value { value: 200 };

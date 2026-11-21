@@ -5,7 +5,7 @@ machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

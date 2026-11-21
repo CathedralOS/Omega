@@ -26,14 +26,14 @@ public boundary trait InitialSupply {
     ensures result in Buffer::Owned, result.pointer != 0;
 }
 public boundary trait Writer {
-    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
+    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches none
     ensures result in PendingWrite::Retained,
         result.pointer == buffer.pointer,
         core\Identity::<CountedQuantity<ByteUnit>>(
             Owned::content(old(@buffer)),
             Retained::content(@result)
         ) crashes none;
-    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
+    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches none
     ensures result in Buffer::Owned,
         result.pointer == pending.pointer,
         core\Identity::<CountedQuantity<ByteUnit>>(
@@ -44,23 +44,23 @@ public boundary trait Writer {
 // This is the actual native supply/custody leaf. The raw allocation result
 // has no Owned qualification; a null result never becomes a normal grant.
 public boundary trait NativeBytes {
-    machine allocate(count: u64, width: u64) -> addr reaches crashes none;
-    machine release(buffer: Buffer in Buffer::Owned) reaches crashes none;
+    machine allocate(count: u64, width: u64) -> addr reaches none crashes none;
+    machine release(buffer: Buffer in Buffer::Owned) reaches none crashes none;
 }
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
     ensures result.pointer != 0 {
         let pointer: addr = NativeBytes::allocate(ALLOCATION_COUNT, ALLOCATION_WIDTH);
         transition pointer != 0 { true -> supplied(pointer), _ -> failed() }
-        machine supplied(pointer: addr) -> Buffer reaches
+        machine supplied(pointer: addr) -> Buffer reaches none
         requires pointer != 0 ensures result.pointer == pointer {
             Buffer { pointer: pointer }
         }
-        machine failed() -> Buffer reaches crashes Trap { crash Trap; }
+        machine failed() -> Buffer reaches none crashes Trap { crash Trap; }
     }
 }
 WriterProvider satisfies Writer {
-    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
+    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches none
     ensures result.pointer == buffer.pointer,
         core\Identity::<CountedQuantity<ByteUnit>>(
             Owned::content(old(@buffer)),
@@ -69,7 +69,7 @@ WriterProvider satisfies Writer {
         let { pointer } = buffer;
         PendingWrite { pointer: pointer }
     }
-    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
+    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches none
     ensures result.pointer == pending.pointer,
         core\Identity::<CountedQuantity<ByteUnit>>(
             Retained::content(old(@pending)),
@@ -93,8 +93,8 @@ machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBy
     let same_backing: bool = restored.pointer == original_pointer;
     NativeBytes::release(restored);
     transition same_backing { true -> done(), _ -> failed() }
-    machine done() reaches {}
-    machine failed() reaches crashes Trap { crash Trap; }
+    machine done() reaches none {}
+    machine failed() reaches none crashes Trap { crash Trap; }
 }
 
 // The hosted entry owns its ordinary application storage.

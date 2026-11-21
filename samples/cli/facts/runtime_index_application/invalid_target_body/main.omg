@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Index<Limit: u32> [copy] requires value < Limit { value: u32; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

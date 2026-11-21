@@ -6,7 +6,7 @@ crashes Trap value == 0
     machine bad() -> i64 { crash Trap; }
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
@@ -23,7 +23,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedForward {
-    machine forward(value: i64) -> i64 reaches crashes Trap value == 0;
+    machine forward(value: i64) -> i64 reaches none crashes Trap value == 0;
 }
 X86Forward satisfies SelectedForward {
     machine forward(value: i64) -> i64

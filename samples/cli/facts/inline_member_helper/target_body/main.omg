@@ -47,7 +47,7 @@ ensures (result as i64) == (a as i64) + (b as i64)
 }
 
 boundary trait BodyTag {
-    machine check(tag: u64) reaches crashes Trap;
+    machine check(tag: u64) reaches none crashes Trap;
 }
 
 X86Tag satisfies BodyTag {

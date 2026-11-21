@@ -220,16 +220,30 @@ fn a_recursive_edge_owes_the_element_at_its_own_selector() {
         }"#;
     let kept = judge(invocation(source, "main")).unwrap();
     assert!(matches!(kept, RouteVerdict::Accepted(_)), "{kept:?}");
-    let changed = source.replace("selected(items, index,", "selected(items, 0u64,");
-    let refused = judge(invocation(&changed, "main")).unwrap();
-    assert!(
-        matches!(refused, RouteVerdict::Rejected { .. }),
-        "{refused:?}"
-    );
+    for (case, changed) in [
+        (
+            "different recursive selector",
+            source.replace("selected(items, index,", "selected(items, 0u64,"),
+        ),
+        (
+            "different input byte",
+            source.replace("[1, 2, 3, 71]", "[1, 2, 3, 70]"),
+        ),
+        (
+            "selector past the end",
+            source.replace("@bytes, 3u64", "@bytes, 4u64"),
+        ),
+    ] {
+        assert_ne!(source, changed);
+        let refused = judge(invocation(&changed, "main")).unwrap();
+        assert!(
+            matches!(refused, RouteVerdict::Rejected { .. }),
+            "{case}: {refused:?}"
+        );
+    }
 }
 
-const NATIVE: &str =
-    include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
+const NATIVE: &str = include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
 #[test]
 fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {

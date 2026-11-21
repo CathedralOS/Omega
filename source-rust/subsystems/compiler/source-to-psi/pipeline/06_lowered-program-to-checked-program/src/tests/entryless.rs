@@ -181,6 +181,73 @@ fn transparent_data_aliases_cannot_erase_a_parameter_property() {
 }
 
 #[test]
+fn specialized_callback_reach_keeps_omission_empty_and_named_services_distinct() {
+    use crate::source_state::types::TypeReferenceNode;
+
+    for (clause, expected) in [
+        ("", None),
+        ("reaches none", Some(vec![])),
+        ("reaches Output", Some(vec!["Output"])),
+    ] {
+        let text = format!(
+            "boundary trait Output {{}}
+             data Observe = machine(value: u64) -> u64 {clause} crashes none;
+             machine read(value: u64) -> u64 reaches none crashes none {{ value }}
+             machine choose<T>(operation: Observe, value: T) -> u64 {{ operation(47u64) }}
+             machine main() -> u64 {{ choose::<u64>(read, 1u64) }}"
+        );
+        let program = crate::preparation::prepare_typed_trees(typed(&text), &[]).unwrap();
+        let template = program
+            .machines()
+            .iter()
+            .find(|m| m.name.as_str() == "choose")
+            .unwrap();
+        let instance = program
+            .machine_specializations
+            .iter()
+            .find(|row| row.template == template.symbol)
+            .unwrap();
+        let machine = program.machine_by_symbol(instance.instance).unwrap();
+        let state = program.machine_states(machine).first().unwrap();
+        let formal = program
+            .state_parameters
+            .span(state.parameters)
+            .unwrap()
+            .first()
+            .unwrap();
+        let TypeReferenceNode::Callable { contract } = program
+            .type_reference_table
+            .type_reference(formal.type_reference)
+        else {
+            panic!("the specialized parameter must retain its structural callable");
+        };
+        let signature = &program.runtime_callable_contract(*contract).signature;
+        let rows = program
+            .authored_service_reach_rows_for(signature.symbol)
+            .collect::<Vec<_>>();
+        match expected {
+            None => assert!(rows.is_empty()),
+            Some(services) => {
+                let [row] = rows.as_slice() else {
+                    panic!("one written clause on the copied signature")
+                };
+                assert_eq!(row.keyword_source_spans.len(), 1);
+                let targets = row
+                    .targets
+                    .iter()
+                    .map(|target| {
+                        program
+                            .symbols
+                            .name(target.service.symbol(&program).unwrap())
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(targets, services);
+            }
+        }
+    }
+}
+
+#[test]
 fn declared_callback_lifetimes_bind_in_the_named_owners_parameter_identity() {
     fn named_key(left: &str, right: &str, captured: &str) -> String {
         let source = format!(

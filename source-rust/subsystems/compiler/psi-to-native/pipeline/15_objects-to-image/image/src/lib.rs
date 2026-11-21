@@ -289,7 +289,6 @@ pub use final_image::{
 };
 pub use output::{
     CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
-    CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
     ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,

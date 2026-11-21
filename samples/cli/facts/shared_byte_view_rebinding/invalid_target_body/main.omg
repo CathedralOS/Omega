@@ -2,7 +2,7 @@
 // Rebinding a shared byte-view parameter retains its declared descriptor identity and observes replacement backing without mutating either backing.
 machine identity<'storage>(view: @'storage [u8]) -> @'storage [u8] requires view.len == 1 ensures result.len == 1 { view }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

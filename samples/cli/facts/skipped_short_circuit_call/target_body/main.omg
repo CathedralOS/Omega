@@ -17,7 +17,7 @@ ensures result == 0u64
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {
@@ -37,7 +37,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedGate {
-    machine ready() -> bool reaches ensures result == false crashes none;
+    machine ready() -> bool reaches none ensures result == false crashes none;
 }
 
 X86Gate satisfies SelectedGate {

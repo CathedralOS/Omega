@@ -136,6 +136,7 @@ fn effect(
         .expect("the actual emitted call's block")
         .id;
     TerminalEffect::BoundaryCall {
+        float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
         site: TerminalEffectWait {
             program: program.view().custody_identity(),
             machine: call.site.machine,

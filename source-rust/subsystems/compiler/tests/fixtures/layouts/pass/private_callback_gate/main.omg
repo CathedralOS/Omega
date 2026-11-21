@@ -7,12 +7,12 @@ use omega\language\core\layout_plan_place_private_field;
 use omega\language\core\LayoutTarget;
 use omega\language\core\LayoutStorage;
 use omega\language\core\FixedLayout;
-public boundary trait FatalVector00 { machine enter() reaches crashes Abort ensures false; }
+public boundary trait FatalVector00 { machine enter() reaches none crashes Abort ensures false; }
 public data InterruptGate { selector: u16; ist: u8; attributes: u8; reserved: u32; }
 
 public GateSlot00 satisfies PrivateCallbackSlot<InterruptGate, GateLayout00, FatalVector00::enter> {}
 public GateLayout00 satisfies FixedLayout<InterruptGate> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 2 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };

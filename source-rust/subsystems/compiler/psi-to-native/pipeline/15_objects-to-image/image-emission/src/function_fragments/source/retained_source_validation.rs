@@ -119,7 +119,7 @@ fn validate_image_selection_origins(
 ) -> Result<(), Error> {
     use selected_instructions::SelectedImageAddressReference as Reference;
     let current_input =
-        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication());
     let catalogs = super::code_catalogs(&current_input);
     for address in &source.source().text_section().unresolved_image_addresses {
         if !matches!(
@@ -284,7 +284,7 @@ pub(in crate::function_fragments) fn admit(
 ) -> Result<(), Error> {
     let source = replay.fragment_source();
     let current_input =
-        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication());
     let fragments = fragments(&current_input);
     if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8

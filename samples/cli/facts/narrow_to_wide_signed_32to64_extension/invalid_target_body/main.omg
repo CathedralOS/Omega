@@ -11,7 +11,7 @@ machine verify_wide(wide: i64) -> i32 requires wide >= 70000i64 && wide <= 90000
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

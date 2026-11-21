@@ -163,6 +163,7 @@ mod tests {
             output.clone(),
         );
         let effect = |scalar_type, value| TerminalEffect::BoundaryCall {
+            float_evaluation: terminal_interpreter::float_result_policy::FloatEvaluation::Runtime,
             site: terminal_interpreter::TerminalEffectWait {
                 program: terminal_codec::TerminalExecutionIdentity::portable(
                     terminal_psi::TerminalPsiIdentity {

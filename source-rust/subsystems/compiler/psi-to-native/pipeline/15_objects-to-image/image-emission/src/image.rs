@@ -224,7 +224,7 @@ pub(crate) mod dynamic_elf {
         emission: &DynamicElfImageEmission,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
-        let expected = derive_output(artifact, &emission.admitted, &emission.output)?;
+        let expected = derive_output(artifact, &emission.admitted)?;
         if emission.output != expected {
             return Err(Diagnostic::error(
                 "dynamic ELF production output drifted from exact admitted-byte custody",
@@ -236,13 +236,12 @@ pub(crate) mod dynamic_elf {
     fn derive_output(
         artifact: &ObjectArtifact,
         admitted: &ValidatedElfDynamicExecutable,
-        retained: &EmittedImageOutput,
     ) -> Result<EmittedImageOutput, Diagnostic> {
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let mut output = emitted_output(artifact, admitted)?;
-        let replayed = validate_terminal_image(
+        let output = emitted_output(artifact, admitted)?;
+        validate_terminal_image(
             artifact,
             prepared.object,
             prepared.relocations,
@@ -250,13 +249,6 @@ pub(crate) mod dynamic_elf {
             prepared.entry_shim.clone(),
             &output,
         )?;
-        super::final_image_validation::authenticate_retained_compiler_evidence(
-            retained.compiler_text_validation,
-            retained.compiler_function_validation,
-            replayed,
-            None,
-        )?;
-        output.compiler_text_validation = retained.compiler_text_validation;
         let mut replayed_image = image::build_final_image(FinalImageInput {
             target: artifact.target(),
             import_program: &artifact.imports,
@@ -496,8 +488,7 @@ pub(crate) mod entry_effects {
 pub(crate) mod final_image_validation {
     use diagnostics::Diagnostic;
     use image::{
-        CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
-        validate_final_text_relocation_envelope,
+        EmittedImageOutput, FinalExecutableRegionOrigin, validate_final_text_relocation_envelope,
     };
 
     use crate::ObjectArtifact;
@@ -805,109 +796,6 @@ pub(crate) mod final_image_validation {
         }
     }
 
-    /// Fresh images carry no replay report. Authenticate an older producer's
-    /// supplied report only after independently checking the actual bytes.
-    /// A function report cannot stand alone: it commits to the text report.
-    pub(crate) fn authenticate_retained_compiler_evidence(
-        text: Option<CompilerTextValidationEvidence>,
-        functions: Option<image::CompilerFunctionValidationEvidence>,
-        expected_text: CompilerTextValidationEvidence,
-        expected_functions: Option<image::CompilerFunctionValidationEvidence>,
-    ) -> Result<(), Diagnostic> {
-        let Some(text) = text else {
-            return if functions.is_none() {
-                Ok(())
-            } else {
-                Err(Diagnostic::error(
-                    "compiler-function validation evidence has no retained text evidence",
-                ))
-            };
-        };
-        if text != expected_text {
-            return Err(Diagnostic::error(
-                "terminal executable image retained stale final-text validation evidence",
-            ));
-        }
-        if functions != expected_functions {
-            return Err(Diagnostic::error(
-                "terminal executable image retained stale compiler-function validation evidence",
-            ));
-        }
-        Ok(())
-    }
-
-    #[cfg(test)]
-    mod retained_evidence_tests {
-        use super::authenticate_retained_compiler_evidence as authenticate;
-        use image::{
-            CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
-            CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence,
-            EncodedCompilerTextDigest, FinalCompilerTextDigest,
-        };
-        fn text_evidence(encoded_digest: [u8; 32]) -> CompilerTextValidationEvidence {
-            let mut evidence = CompilerTextValidationEvidence {
-                encoded_text_digest: EncodedCompilerTextDigest::from_digest(encoded_digest),
-                final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
-                relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
-                    [3; 32],
-                ),
-                derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-                encoded_text_report_fingerprint: 11,
-                final_compiler_text_report_fingerprint: 12,
-                relocation_envelope_report_fingerprint: 13,
-                checked_instruction_validation_report_fingerprint: 14,
-                checked_instruction_footprint_report_fingerprint: 15,
-                derivation_report_fingerprint: 16,
-                text_relocation_count: 17,
-                checked_instruction_validation_count: 18,
-            };
-            evidence.derivation_digest = evidence.recomputed_derivation_digest();
-            evidence
-        }
-        fn function_evidence() -> CompilerFunctionValidationEvidence {
-            CompilerFunctionValidationEvidence {
-                function_count: 1,
-                instruction_count: 5,
-                zero_width_instruction_count: 3,
-                frame_prologue_byte_count: 4,
-                frame_epilogue_byte_count: 8,
-                fragment_manifest_report_fingerprint: 6,
-                frame_application_report_fingerprint: 7,
-                boundary_contract_report_fingerprint: Some(11),
-                final_region_binding_report_fingerprint: 14,
-                final_text_validation_report_fingerprint: 15,
-            }
-        }
-
-        #[test]
-        fn fresh_images_need_no_report_but_legacy_reports_must_match_their_route() {
-            let text = text_evidence([1; 32]);
-            let functions = function_evidence();
-            for expected in [None, Some(functions)] {
-                authenticate(None, None, text, expected).unwrap();
-                authenticate(Some(text), expected, text, expected).unwrap();
-            }
-            assert!(authenticate(None, Some(functions), text, Some(functions)).is_err());
-            assert!(authenticate(Some(text), Some(functions), text, None).is_err());
-            assert!(authenticate(Some(text), None, text, Some(functions)).is_err());
-        }
-
-        #[test]
-        fn supplied_legacy_reports_cannot_hide_stale_text_or_function_custody() {
-            let text = text_evidence([1; 32]);
-            let functions = function_evidence();
-            let stale_text = text_evidence([2; 32]);
-            let mut stale_functions = functions;
-            stale_functions.final_region_binding_report_fingerprint += 1;
-            assert!(
-                authenticate(Some(stale_text), Some(functions), text, Some(functions)).is_err()
-            );
-            assert!(
-                authenticate(Some(text), Some(stale_functions), text, Some(functions)).is_err()
-            );
-        }
-    }
-
     pub(crate) fn validate_terminal_image(
         artifact: &ObjectArtifact,
         object: &object_file::ObjectPlan,
@@ -915,7 +803,7 @@ pub(crate) mod final_image_validation {
         text_bytes: &[u8],
         entry_shim: Option<EntryShim>,
         output: &EmittedImageOutput,
-    ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         super::require_ordinary_image_root(artifact)?;
         let expected_imports = object
             .layout
@@ -942,7 +830,7 @@ pub(crate) mod final_image_validation {
         entry_shim: Option<EntryShim>,
         output: &EmittedImageOutput,
         expected_imports: usize,
-    ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         if artifact.target().object_format == target::ObjectFormat::MachO {
             image_macho::validate_macho_loader_mapping(
                 &output.bytes,
@@ -1155,11 +1043,7 @@ pub(crate) mod final_image_validation {
                 }
             }
         }
-        let evidence = validate_final_text_relocation_envelope(
-            text_bytes,
-            &output.final_text_bytes,
-            relocations,
-        )?;
+        validate_final_text_relocation_envelope(text_bytes, &output.final_text_bytes, relocations)?;
         if output.data_bytes != output.final_data_bytes.len() {
             return Err(Diagnostic::error(
                 "terminal-Psi image initialized-data count does not match its exact final bytes",
@@ -1179,7 +1063,7 @@ pub(crate) mod final_image_validation {
             validate_byte_literal_address_targets(&namespace, output)?;
         }
         validate_callback_relocation_targets(artifact, object, relocations, output)?;
-        Ok(evidence)
+        Ok(())
     }
 
     fn validate_byte_literal_address_targets(
@@ -1533,8 +1417,6 @@ pub(crate) mod final_image_validation {
                 },
                 data_regions: PlacedDataRegionInventory::empty(),
                 import_data_regions: PlacedDataRegionInventory::empty(),
-                compiler_text_validation: None,
-                compiler_function_validation: None,
                 compiler_entry_region_binding: None,
                 compiler_entry_footprint_binding: None,
             }
@@ -1923,7 +1805,7 @@ pub(crate) mod image_output {
                 "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
             ));
         }
-        let recomputed = validate_terminal_image(
+        validate_terminal_image(
             artifact,
             prepared.object,
             prepared.relocations,
@@ -1943,14 +1825,7 @@ pub(crate) mod image_output {
                 output,
             )?;
         }
-        let function_validation =
-            crate::object::function_fragments::reporting::summarize(artifact, output, &recomputed)?;
-        super::final_image_validation::authenticate_retained_compiler_evidence(
-            output.compiler_text_validation,
-            output.compiler_function_validation,
-            recomputed,
-            function_validation,
-        )
+        Ok(())
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

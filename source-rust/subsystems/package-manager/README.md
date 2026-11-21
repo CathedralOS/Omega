@@ -234,10 +234,8 @@ subject. `HistoricalPackagePolicyDecisions::capture_policy` takes the
 complete-policy comparison and its exact resolved project choices. Version 2
 keeps the comparison identity, an optional link to the prior source, and typed
 row, root-role and source-replacement subjects. Decisions about removed
-packages do not index the candidate-only graph. Version 1 records stay
-readable in their original indexed form; loading does not invent a modern
-comparison for them. Recovery needs only the kept source subject, not an old
-checkout or a recreated compiler conflict. Acceptances and rejections stay
+packages do not index the candidate-only graph. Recovery checks the current decision record against its retained source subject
+and comparison identity. Acceptances and rejections stay
 trusted project records, not fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and
@@ -263,7 +261,7 @@ Version 4 `omega.lock` text holds canonical source, compact acceptance,
 required accepted-compilation and historical-decision sections, each with an
 explicit byte length. Older versions, including version 3, are rejected rather
 than guessing compiler identity or bindings. The compact acceptance section
-uses policy row schema 3. No section is stored as an opaque escaped payload. Loading requires no checkout,
+uses the current policy row schema. Loading requires no checkout,
 source acquisition, compiler run, proof certificate, or native replay. Recovery
 checks outer framing and every child's canonical meaning and associations.
 `PackageLockRecoveryLimits` bounds the entire input, requested owned storage

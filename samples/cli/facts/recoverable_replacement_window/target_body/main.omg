@@ -23,7 +23,7 @@ machine recover(outcome: Outcome) -> Token {
 }
 machine observe(sibling: @mut u64) -> u64 { $sibling = 19; $sibling }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

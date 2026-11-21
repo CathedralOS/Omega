@@ -13,7 +13,7 @@ machine demand(result: bool) crashes Trap {
 }
 const LOWER: i32 = 104;
 const DIGIT: i32 = 54;
-machine start() reaches crashes Trap {
+machine start() reaches none crashes Trap {
     let lower: i32 = CharacterCase::upper(LOWER);
     let digit: i32 = CharacterCase::upper(DIGIT);
     demand(lower == 72 && digit == 54);
