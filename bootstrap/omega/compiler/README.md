@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 29,408 lines / 1,157,581 bytes with SHA-256
-`07a6fd31811a15f0f57f9fa2e1d663180fa6ba15e28b3c2edbac052487d6a999`.
+The manifest materializes 29,434 lines / 1,159,224 bytes with SHA-256
+`7f10ad4d2ab558be08ed285ded681c6da8546279f183ba20aa7a1d0cbd63aef4`.
 The manifest itself is 2,905 bytes, SHA-256
-`a298b919162c9c52cf28956ddbf4c376451be9c52b31c69f04185523a0fd0e4b`;
+`af604a71d162f2f9fe2326f4d1226babf6ebf39afb25b149eba88a166193b34f`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -498,13 +498,15 @@ A machine taking `@[u8]` can read the live length of a shared byte slice.
 A literal index needs a proved lower bound on that length. A scalar index
 can also carry the declared requirement `index < bytes.len`. A half-open
 endpoint can use `index <= bytes.len`; it still needs a strict bound for
-a byte read. Two plain `u64` parameters may require `start <= index` or
+a byte read. Two parameters with the same plain `u8`, `u32` or `u64` type
+may require `start <= index` or
 `start < index`. At each call or transfer the compiler substitutes both
 actual arguments. Literals, pure selected comparisons and preserved entry
 requirements can establish the relation on that exact pair. A true conjunction
 can supply either of its comparisons. With `index < bytes.len`, the plain
 `u64` successor `index + 1` cannot overflow and can reach the endpoint.
-Reading at that successor requires a further bound. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
+Reading at that successor requires a further bound. A preserved strict pair
+`unit < limit` likewise establishes that `unit + 1` fits its unsigned carrier. Callers can borrow a whole packed byte array or a half-open subrange with literal endpoints,
 including an empty range. The descriptor carries the original address and
 the live length in two words. The caller retains the shared loan through
 argument evaluation. The storage test forwards the final two bytes of the
