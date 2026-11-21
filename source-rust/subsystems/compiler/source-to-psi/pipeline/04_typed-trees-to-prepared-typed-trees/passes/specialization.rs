@@ -98,7 +98,7 @@ pub(crate) fn prepare(
     let mut position = 0;
     loop {
         if position == program.machines().len() {
-            selected_methods.prepare_applications(program)?;
+            selected_methods.prepare_applications(program, &mut generated)?;
             if position == program.machines().len() {
                 break;
             }
@@ -203,7 +203,13 @@ pub(crate) fn prepare(
 }
 
 // Newer slots sort first so ascending applications need fewer comparisons within each tree node.
-type ApplicationKey = std::cmp::Reverse<((u32, u32), Vec<Identity>)>;
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct ApplicationKey {
+    template: (u32, u32),
+    // Each selected body implements the contract of one closed public method.
+    requirement: Option<(u32, u32)>,
+    arguments: Vec<Identity>,
+}
 
 struct Generated {
     machine: SymbolHandle,
@@ -214,18 +220,23 @@ struct Generated {
 /// machines in that encounter order. This lookup only answers repeated calls.
 #[derive(Default)]
 struct GeneratedMachines {
-    applications: std::collections::BTreeMap<ApplicationKey, Generated>,
+    applications: std::collections::BTreeMap<std::cmp::Reverse<ApplicationKey>, Generated>,
 }
 
 impl GeneratedMachines {
     fn get_or_generate(
         &mut self,
         template: SymbolHandle,
+        requirement: Option<SymbolHandle>,
         arguments: Vec<Identity>,
         generate: impl FnOnce() -> Served<Generated>,
     ) -> Served<&Generated> {
         use std::collections::btree_map::Entry;
-        let key = std::cmp::Reverse((symbol_order(template), arguments));
+        let key = std::cmp::Reverse(ApplicationKey {
+            template: symbol_order(template),
+            requirement: requirement.map(symbol_order),
+            arguments,
+        });
         match self.applications.entry(key) {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
             Entry::Vacant(entry) => Ok(entry.insert(generate()?)),
@@ -588,7 +599,14 @@ fn specialize_application(
         .iter()
         .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
-    let entry = generated.get_or_generate(callee, key, || {
+    let registration = program
+        .expression_table
+        .static_machine_application(application)
+        .registration_operation;
+    let requirement = program
+        .closed_requirement_application(registration)
+        .map(|closed| closed.signature.symbol);
+    let entry = generated.get_or_generate(callee, requirement, key, || {
         generate(program, callee, application, &operands)
     })?;
     Ok(Some((entry.machine, entry.state)))

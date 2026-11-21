@@ -11,7 +11,6 @@ use symbols::SymbolHandle;
 pub(super) struct SelectedMethods {
     providers: Vec<(SymbolHandle, SymbolHandle, SymbolHandle)>,
     prepared: HashSet<(SymbolHandle, SymbolHandle)>,
-    generated: GeneratedMachines,
 }
 
 impl SelectedMethods {
@@ -40,13 +39,13 @@ impl SelectedMethods {
         Self {
             providers,
             prepared: HashSet::new(),
-            generated: GeneratedMachines::default(),
         }
     }
 
     pub(super) fn prepare_applications(
         &mut self,
         program: &mut TypedTrees,
+        generated: &mut GeneratedMachines,
     ) -> Result<(), Vec<Diagnostic>> {
         if self.providers.is_empty() {
             return Ok(());
@@ -110,7 +109,7 @@ impl SelectedMethods {
                 &parameters,
                 application,
                 &mut arguments,
-                &mut self.generated,
+                generated,
             )
             .map_err(|reason| {
                 let detail = match reason {
