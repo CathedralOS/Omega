@@ -1287,8 +1287,10 @@ fn lower_call<'a>(
         }
         if file.nodes[node].kind == NodeKind::Borrow && temporary {
             let operand = borrowed_formal(inputs.ok_or_else(bad)?.prepared, tree, sig, node).ok_or_else(bad)?;
-            if let TemplateOperand::Borrow { formal, .. } = &operand {
-                if let Some(builder) = steps.as_deref() { borrowed.push((operands.len(), *formal, builder.body.len(), node)); }
+            if let TemplateOperand::Borrow { formal, .. } = &operand
+                && let Some(builder) = steps.as_deref()
+            {
+                borrowed.push((operands.len(), *formal, builder.body.len(), node));
             }
             operands.push(operand);
             continue;
