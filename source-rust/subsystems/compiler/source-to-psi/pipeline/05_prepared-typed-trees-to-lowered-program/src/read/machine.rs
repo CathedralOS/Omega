@@ -2202,8 +2202,11 @@ impl<'t> Program<'t> {
                     )
                     .map_err(unserved)?
                     .ok_or_else(|| unserved("conformer lost its exact owning application"))?;
-                let requirement = typed
-                    .applied_callable_signature(&scope, row.requirement)
+                let public_method = self.provider_method_requirement(id, machine.symbol, row.requirement)?;
+                if public_method.is_some_and(|method| !typed.requirement_application_matches_contract_scope(method.symbol, &scope)) {
+                    return Err(unserved("the selected method belongs to another trait application"));
+                }
+                let requirement = public_method.or_else(|| typed.applied_callable_signature(&scope, row.requirement))
                     .or_else(|| {
                         (scope.substitutions.is_empty()
                             && scope.declaration.lifetime_parameters.is_empty())
@@ -3078,21 +3081,26 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        // Closing a signature substitutes its types; it does not prove the
-        // original binders' storage or copying requirements.
-        if self
-            .typed
-            .closed_requirement_application(requirement.symbol)
-            .is_some_and(|closed| {
-                closed
-                    .invocation_contract_parameters
-                    .iter()
-                    .any(|parameter| {
-                        parameter.bounds != crate::source_state::data::DataProperties::default()
-                    })
-            })
-        {
-            return unserved("closed requirement parameter eligibility");
+        if let Some(closed) = self.typed.closed_requirement_application(requirement.symbol) {
+            use crate::source_state::static_operand_binding::{Stop, type_argument_meets_bounds};
+            if closed.invocation_contract_parameters.len() != closed.local_arguments.len() {
+                return unserved("closed requirement lost one or more arguments");
+            }
+            for (parameter, actual) in closed.invocation_contract_parameters.iter().zip(closed.local_arguments.iter()) {
+                if parameter.bounds == crate::source_state::data::DataProperties::default() {
+                    continue;
+                }
+                let Some(reference) = actual.static_operand().filter(|_| {
+                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                }) else {
+                    return unserved("a bounded requirement parameter needs a static type argument");
+                };
+                type_argument_meets_bounds(self.typed, parameter, reference).map_err(|reason| match reason {
+                    Stop::Rejected(detail) => crate::lowering::reject(id, self.declared_at(requirement.symbol), detail),
+                    Stop::Unserved(reason) => super::services::unavailable(id, reason),
+                    Stop::Defect(reason) => super::services::unavailable(id, reason),
+                })?;
+            }
         }
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
