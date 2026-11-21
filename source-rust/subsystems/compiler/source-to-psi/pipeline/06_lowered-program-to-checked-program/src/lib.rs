@@ -1788,7 +1788,10 @@ pub(crate) fn substitute_goal(
     // that correlation before trying the branches this arrival can observe.
     match substitute_sufficient_clause(clause, bindings) {
         Err(Unbound::Unproved(_))
-            if matches!(clause, Proposition::Conjunction(_) | Proposition::Disjunction(_)) =>
+            if matches!(
+                clause,
+                Proposition::Conjunction(_) | Proposition::Disjunction(_)
+            ) =>
         {
             goal_from_observed_parts(clause, bindings)
         }
