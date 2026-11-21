@@ -322,11 +322,9 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         for (index, argument) in instance.application.arguments.iter().enumerate() {
             if let ValueType::Implementation(selected) = argument {
                 let bound = crate::declarations::members::evidence_bound(typed, instance, index)?;
+                // An exported wrapper also publishes its open template beside
+                // this instance; see `machine_templates::plan`.
                 if typed.refinement_bases.contains_key(&bound.declaration) {
-                    if instance.tree.resolved().is_exported(sig.node.node) {
-                        // A private instance cannot replace an externally usable template.
-                        return Err(LoweringError::new(&sig.site, "exported restricted evidence requires an open machine interface"));
-                    }
                     let alias_id = crate::identity::declaration(&bound.declaration, &sig.site)?;
                     let selected_id = crate::identity::declaration(selected, &sig.site)?;
                     let alias = traits.iter().find(|t| t.declaration == alias_id).and_then(|t| t.restriction.as_ref());

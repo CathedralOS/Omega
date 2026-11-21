@@ -17,8 +17,8 @@ pub struct MathematicalDeclaration {
 
 /// A resultless theorem whose machine-shaped hypotheses are logical evidence.
 /// It has no executable identity: no machine ID, body, call or callback entry.
-/// Its authored body is empty, so every `ensures` remains an obligation over
-/// `requires` and the hypotheses alone; this row proves nothing by itself.
+/// Every `ensures` remains an obligation over `requires`, the hypotheses and
+/// the authored `proof` steps; this row proves nothing by itself.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LogicalTheorem {
     pub declaration: DeclarationId,
@@ -30,6 +30,65 @@ pub struct LogicalTheorem {
     pub hypotheses: Vec<LogicalHypothesis>,
     pub requires: Vec<ContractClause>,
     pub ensures: Vec<ContractClause>,
+    /// The body's proof steps in authored order; empty for an empty body.
+    /// The checker reads them in order, under the theorem's `requires` and
+    /// hypotheses. An empty or incomplete list is not a success assertion:
+    /// checked automation must supply any missing term or the theorem fails.
+    pub proof: Vec<ProofStep>,
+}
+
+/// One authored step of a theorem body. A step executes nothing, reads no
+/// storage and demands no value: its subjects are erased.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProofStep {
+    /// `let name = subject;` names an erased subject for later steps, which
+    /// refer to it as `ProofInput::Local` with this step's position in
+    /// `LogicalTheorem::proof`. The binding proves nothing.
+    Bind { subject: ProofSubject<ProofInput>, site: Site },
+    /// A statement that cites a checked local machine as proof. Under the
+    /// substitution of `subjects` for its formals, the checker must establish
+    /// each indexed `requires` clause of `machine` and its total denotation by
+    /// `progress`. Only then do that machine's `ensures` clauses hold at the
+    /// same subjects for the following steps and the goal. The cited machine
+    /// is not called and its body is not entered.
+    CiteMachine {
+        machine: DeclarationId,
+        subjects: Vec<ProofSubject<ProofInput>>,
+        requirements: std::ops::Range<usize>,
+        progress: crate::PredicateProgress,
+        site: Site,
+    },
+}
+
+/// A variable that a theorem proof step may name.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProofInput {
+    /// The theorem formal at this position.
+    Formal(usize),
+    /// The subject bound by the `ProofStep::Bind` at this earlier position in
+    /// `LogicalTheorem::proof`.
+    Local(usize),
+}
+
+/// An erased proof subject. `Input` names a variable of the enclosing scope:
+/// a caller's value at an executable citation, a `ProofInput` in a theorem
+/// body. `Literal` is a closed scalar the source fixed at compile time (a
+/// literal, a folded exact expression or a frozen constant) and already fits
+/// the formal's carrier. No operation produces it and substitution never
+/// changes it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProofSubject<Input> {
+    Input(Input),
+    Literal(crate::ScalarLiteral),
+}
+
+impl<Input: Copy> ProofSubject<Input> {
+    pub fn input(&self) -> Option<Input> {
+        match self {
+            Self::Input(input) => Some(*input),
+            Self::Literal(_) => None,
+        }
+    }
 }
 
 /// A citation of a `LogicalTheorem` from a machine body. It executes nothing,
@@ -47,9 +106,10 @@ pub struct TheoremApplication {
     pub theorem: DeclarationId,
     /// One argument per `LogicalTheorem::binders`, in order.
     pub arguments: Vec<TheoremArgument>,
-    /// One value per `LogicalTheorem::parameters`, in order. Each is a proof
-    /// subject: the citation creates no runtime demand for it.
-    pub subjects: Vec<crate::ValueId>,
+    /// One subject per `LogicalTheorem::parameters`, in order: a caller value
+    /// or a closed literal. Each is erased: the citation creates no runtime
+    /// demand for a value, and no operation computes a literal.
+    pub subjects: Vec<ProofSubject<crate::ValueId>>,
     pub requirements: Vec<crate::CallRequirement>,
 }
 

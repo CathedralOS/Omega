@@ -81,8 +81,8 @@ fn nested_helpers_preserve_the_enclosing_binder_and_both_frozen_returns() {
         assert_eq!(site.span.slice(source.as_bytes()), Some(&b"FLAG"[..]));
         spec_corpus::observe_handoff!(psi "psi-output/nested-return-binder", assert_eq!((owner, *index), (&outer.declaration, usize::from(twin))));
         assert!(helper.body.is_empty() && !helper.public);
-        assert_eq!(outer.result, Some(TemplateResult::Call(0)));
-        let [call] = outer.body.as_slice() else { panic!("expected one executable call") };
+        assert_eq!(outer.result, Some(TemplateResult::Operand(omega_psi::TemplateOperand::Step(0))));
+        let [omega_psi::TemplateStep::Call(call)] = outer.body.as_slice() else { panic!("expected one executable call") };
         assert_eq!(call.operands, [omega_lowering::TemplateOperand::Formal(0)]);
         let captures = vec![(outer.declaration.clone(), (0..=usize::from(twin)).map(|index| TypeExpression(vec![TypeExpressionStep::GenericParameter { owner: outer.declaration.clone(), index }])).collect::<Vec<_>>())];
         if entry == "helper(input)" {
@@ -95,7 +95,7 @@ fn nested_helpers_preserve_the_enclosing_binder_and_both_frozen_returns() {
             let [TypeExpressionStep::MachineSelection(selection)] = steps.as_slice() else { panic!("not a selected callback") };
             assert!(selection.arguments.is_empty());
             assert_eq!(outer.invokes_machines.as_slice(), std::slice::from_ref(selection.as_ref()));
-            assert_eq!(invoke.body[0].target, TemplateCallTarget::StaticBinder(0));
+            assert_eq!(invoke.body[0].call().unwrap().target, TemplateCallTarget::StaticBinder(0));
             spec_corpus::observe_handoff!(psi "psi-output/nested-callback-capture", assert_eq!((&selection.declaration, &selection.enclosing_arguments, values), (&helper.declaration, &captures, [!twin,twin])));
         }
     }

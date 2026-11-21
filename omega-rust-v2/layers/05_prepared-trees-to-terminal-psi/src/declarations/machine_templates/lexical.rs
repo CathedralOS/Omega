@@ -39,7 +39,7 @@ pub(super) fn selection(typed: &TypedStage, application: &MachineApplication, si
 pub(super) fn static_result(typed: &TypedStage, tree: &TypedTree<'_>, sig: &TypedSignature, node: usize) -> Option<TemplateResult> {
     let mut rows = tree.semantics_at(node);
     let NodeSemantics::Expression(e) = rows.next()? else { return None };
-    if rows.next().is_some() || e.ty != ValueType::Bool || e.ty != sig.result || e.static_argument_slot.is_none() {
+    if rows.next().is_some() || !static_value_carrier(&e.ty) || e.ty != sig.result || e.static_argument_slot.is_none() {
         return None;
     }
     let resolved = tree.resolved();
@@ -50,4 +50,15 @@ pub(super) fn static_result(typed: &TypedStage, tree: &TypedTree<'_>, sig: &Type
     let param = typed.generic_parameters.get(owner)?.parameters.get(index)?;
     if param.kind != NodeKind::ConstParam || param.carrier.as_deref() != Some(&e.ty) { return None }
     Some(TemplateResult::StaticParameter { owner: crate::identity::portable(owner)?, index, site: e.site.clone() })
+}
+
+/// A static value binder publishes its carrier as a closed scalar type: `bool`
+/// or a fixed-width integer. A domain-qualified, indexed-width or structural
+/// carrier needs its own template binder form and still refuses.
+pub(super) fn static_value_carrier(carrier: &ValueType) -> bool {
+    match carrier {
+        ValueType::Bool => true,
+        ValueType::Integer { width: Some(width), .. } => *width > 0,
+        _ => false,
+    }
 }

@@ -854,19 +854,75 @@ fn reading_a_stored_exclusive_reference_still_needs_its_move_or_reborrow() {
     sources::refuse(&[(file, source)], file, sources::unique_span(source, "x.next"), "a stored reference read needs its shared field place");
 }
 
+/// Exporting `use_it` owes external callers its open interface, so the package
+/// publishes the template beside the closed instance that `f` selects. The
+/// template names the binder's restricted trait `Local` and calls the base
+/// requirement `Log::put` through that binder. A consumer reading Psi alone
+/// follows `Local` to its base and finds the requirement and the wildcard row
+/// (`reaches none`) that the checker must hold every later selection to.
 #[test]
 fn a_closed_restricted_instance_does_not_replace_an_exported_template() {
+    use omega_lowering::{MachineTemplateBinder, TemplateCallTarget, TemplateStep};
+    use psi_handoff_consumer::machine_templates::restricted_member;
     let file = "export.omg";
     let template = "machine use_it<const E:Local>(){E::put()}";
     let prefix = "public trait Log{machine put();} public trait Local=Log{machine * reaches none;} Quiet satisfies Log{machine put(){}}";
     let program = |wrapper: &str| format!("{prefix} {wrapper} machine f(){{use_it::<Quiet>()}}");
-    let local = program(template);
-    assert!(lower(file, &local).1.unwrap().machines.iter().any(|m| m.declaration.path == "use_it"));
-    let exported = format!("public {template}");
-    let public = program(&exported);
-    let message = "exported restricted evidence requires an open machine interface";
-    let (_, error) = refusal(file, &public, sources::unique_span(&public, &exported), message);
-    assert_eq!(error.message, message);
+    let local = lower(file, &program(template)).1.unwrap();
+    assert!(local.machines.iter().any(|m| m.declaration.path == "use_it"));
+    assert!(local.machine_templates.is_empty());
+
+    // The exact bytes of the readiness fixture `handoff/exported wrapper with a restricted evidence binder`.
+    let public = program(&format!("public {template}"));
+    let package = lower(file, &public).1.unwrap();
+    assert!(
+        package.machines.iter().any(|m| m.declaration.path == "use_it"),
+        "f still calls its closed instance"
+    );
+    let [open] = package.machine_templates.as_slice() else {
+        panic!("expected the exported use_it template")
+    };
+    let [MachineTemplateBinder::Implementation(slot)] = open.parameters.as_slice() else {
+        panic!("expected the evidence binder, got {:?}", open.parameters)
+    };
+    let [TemplateStep::Call(call)] = open.body.as_slice() else {
+        panic!("expected the one member call")
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exported-restricted-template",
+        assert!(
+            open.public && open.declaration.path == "use_it" && slot.declaration.path == "Local" && slot.arguments.is_empty()
+                && matches!(&call.target, TemplateCallTarget::Member { binder: 0, requirement } if requirement.path == "Log::put")
+                && open.result.is_none()
+        ),
+    );
+    assert_eq!(spelled(&call.site, file, &public), "E::put()");
+    let member = restricted_member(&package, open, 0).expect("Local resolves to its published base");
+    let limits: Vec<_> = member
+        .limits
+        .iter()
+        .map(|row| (row.prohibits_block, row.prohibits_suspend, row.reach.as_deref(), row.requires_termination))
+        .collect();
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exported-restricted-template-consumer",
+        assert_eq!(
+            (member.restriction.path.as_str(), member.base.path.as_str(), member.requirement.declaration.path.as_str(), limits.as_slice()),
+            ("Local", "Log", "Log::put", [(false, false, Some(&[][..]), false)].as_slice())
+        ),
+    );
+
+    // Without the local caller, only the template remains; the call through
+    // `Local` still names the base requirement.
+    let alone = format!("{} public {template}", prefix.replace(" Quiet satisfies Log{machine put(){}}", ""));
+    let package = lower(file, &alone).1.unwrap();
+    assert!(package.machines.iter().all(|m| m.declaration.path != "use_it"));
+    let [open] = package.machine_templates.as_slice() else {
+        panic!("expected the exported use_it template")
+    };
+    assert_eq!(
+        restricted_member(&package, open, 0).map(|m| m.requirement.declaration.path.as_str()),
+        Some("Log::put")
+    );
 }
 
 /// The selected instance owes the wildcard bound, not a nominal satisfaction

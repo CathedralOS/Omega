@@ -1,4 +1,4 @@
-use crate::{DeclarationId, DeclaredPauseBounds, PauseEffects, Site, TemplateBinder, TemplateCallable, TypeExpression};
+use crate::{DeclarationId, DeclaredPauseBounds, IntegerOperation, PauseEffects, Site, TemplateBinder, TemplateCallable, TypeExpression};
 
 /// A generic machine has no executable ID until its static parameters are selected.
 /// The checker can follow its calls and result without access to the source trees.
@@ -14,15 +14,18 @@ pub struct MachineTemplate {
     pub invokes: Vec<usize>,
     /// Selected callback invocations whose enclosing arguments are still open.
     pub invokes_machines: Vec<TemplateSelection>,
-    pub body: Vec<TemplateCall>,
+    /// Executable steps in evaluation order. A step reads formals or the
+    /// results of earlier steps.
+    pub body: Vec<TemplateStep>,
     /// What the machine returns; absent for a void return.
     pub result: Option<TemplateResult>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum TemplateResult {
-    /// Index of the call in `body` whose result the machine returns.
-    Call(usize),
+    /// The value this operand reads, such as a whole scalar formal or the
+    /// result of a step in `body`.
+    Operand(TemplateOperand),
     /// The value of a static binder, which may belong to an enclosing declaration.
     StaticParameter { owner: DeclarationId, index: usize, site: Site },
 }
@@ -65,6 +68,35 @@ pub struct TemplateRequirement {
     pub declared_pause: DeclaredPauseBounds,
 }
 
+/// One step of an open body. A call may pause or reach services; an integer
+/// step has no effect and owes the same proof questions as a closed body's
+/// `OperationKind::Integer`.
+#[derive(Debug, Eq, PartialEq)]
+pub enum TemplateStep {
+    Call(TemplateCall),
+    Integer(TemplateInteger),
+}
+
+impl TemplateStep {
+    pub fn call(&self) -> Option<&TemplateCall> {
+        match self {
+            Self::Call(call) => Some(call),
+            Self::Integer(_) => None,
+        }
+    }
+}
+
+/// The primitive, policy and checker questions are those a closed body
+/// publishes for the same source operator. Operand and result carriers are
+/// closed fixed-width integers.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateInteger {
+    pub operation: IntegerOperation,
+    pub operands: Vec<TemplateOperand>,
+    pub result_type: TypeExpression,
+    pub site: Site,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct TemplateCall {
     pub target: TemplateCallTarget,
@@ -80,7 +112,23 @@ pub struct TemplateCall {
 #[derive(Debug, Eq, PartialEq)]
 pub enum TemplateOperand {
     Formal(usize),
-    RecordField { formal: usize, field: DeclarationId },
+    /// A copy of one field below the formal `formal`, such as `track.tag.id`.
+    /// The read never moves anything: the formal stays whole and keeps every
+    /// obligation its type owes, so its siblings are disposed or consumed
+    /// exactly as if the field had not been read.
+    RecordField {
+        formal: usize,
+        /// The record fields from the formal to the record that declares
+        /// `field`, in source order; empty for a direct field such as `track.volume`.
+        carrier: Vec<DeclarationId>,
+        field: DeclarationId,
+        /// The copied value's lane and exact type: a scalar, or an
+        /// unrestricted structural value such as `[u8; 2]`.
+        argument: crate::Parameter<TypeExpression, TypeExpression>,
+    },
+    /// The result of the step at this index of `MachineTemplate::body`, which
+    /// precedes every step or result that reads it.
+    Step(usize),
 }
 
 #[derive(Debug, Eq, PartialEq)]

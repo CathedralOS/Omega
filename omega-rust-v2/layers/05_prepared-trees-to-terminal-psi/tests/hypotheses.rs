@@ -1,5 +1,3 @@
-#[path = "support/known_gap.rs"]
-mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -7,8 +5,9 @@ use MathematicalStep::{Apply as ApplyTerm, Declaration, FormProposition, Paramet
 use PredicateOperator::{GreaterThan, NotEqual};
 use PredicateStep::{Apply, Formal, HypothesisGuarantee, HypothesisParameter, Integer, MathematicalTerm};
 use omega_lowering::{
-    CallRequirement, CallSite, MathematicalStep, OperationKind, OperationResult, Parameter as BodyParameter, PredicateOperator, PredicateStep, ScalarType,
-    TheoremApplication, TheoremArgument, TheoremBinder, TypeExpression, TypeExpressionStep,
+    CallRequirement, CallSite, MathematicalStep, OperationKind, OperationResult, Parameter as BodyParameter, PredicateOperator, PredicateProgress,
+    PredicateStep, ProofInput, ProofStep, ProofSubject, ScalarLiteral, ScalarType, TheoremApplication, TheoremArgument, TheoremBinder, TypeExpression,
+    TypeExpressionStep,
 };
 use omega_typed::{CallUse, ObligationKind, ValueType};
 
@@ -131,15 +130,98 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
     };
     assert_eq!(term[1], MathematicalStep::HypothesisParameter { hypothesis: 0, index: 0 });
 
+    // The original body binds an erased proof local. The binding names the
+    // theorem's formal x and proves nothing; Step::ensures(x) stays the goal.
     let declaration = THEOREM.replace("ensures Step::ensures(x) {}", "ensures Step::ensures(x) { let w = x; }");
     let worked = format!("{TRUST} {declaration}");
-    let error = sources::refuse(
-        &[("proof.omg", &worked)],
-        "proof.omg",
-        sources::unique_span(&worked, &declaration),
-        "a logical theorem body requires checked proof-term lowering",
+    let package = sources::lower(&[("proof.omg", &worked)]).unwrap();
+    assert!(package.machines.is_empty() && package.machine_templates.is_empty() && package.callable_contracts.is_empty());
+    let [theorem] = package.theorems.as_slice() else { panic!("expected one logical theorem") };
+    let [ProofStep::Bind { site, .. }] = theorem.proof.as_slice() else { panic!("expected the binding step") };
+    assert_eq!(site.span.get_start_offset()..site.span.get_end_offset(), sources::unique_span(&worked, "let w = x;"));
+    spec_corpus::observe_handoff!(psi "psi-output/theorem-proof-binding", assert_eq!(
+        theorem.proof,
+        [ProofStep::Bind { subject: ProofSubject::Input(ProofInput::Formal(0)), site: site.clone() }]
+    ));
+    assert_eq!(theorem.ensures[0].predicate, [Formal(0), HypothesisGuarantee { hypothesis: 0, operand_count: 1 }]);
+    // Consumer: a binding owes and imports nothing. Binding z instead names formal 1.
+    assert!(psi_handoff_consumer::theorem_proof(&package, theorem).expect("well-formed proof").is_empty());
+    let other = format!("{TRUST} {}", declaration.replace("let w = x;", "let w = z;"));
+    let package = sources::lower(&[("proof.omg", &other)]).unwrap();
+    let [ProofStep::Bind { subject, .. }] = package.theorems[0].proof.as_slice() else { panic!("expected the binding step") };
+    assert_eq!(subject, &ProofSubject::Input(ProofInput::Formal(1)));
+}
+
+#[test]
+fn a_theorem_body_cites_a_checked_machine_at_erased_subjects() {
+    let theorem = |body: &str| THEOREM.replace("requires trusted(x) ", "").replace("{}", body);
+    let source = |body: &str| format!("{} {LEMMA}", theorem(body));
+    let cited = source("{ let w = x; lemma(w); lemma(7); }");
+    let package = sources::lower(&[("proof.omg", &cited)]).unwrap();
+    let [theorem_row] = package.theorems.as_slice() else { panic!("expected the theorem") };
+    // Only lemma is executable, and it has no operation that calls anything.
+    let [lemma] = package.machines.as_slice() else { panic!("expected only lemma") };
+    assert!(lemma.body.operations.is_empty());
+    let [ProofStep::Bind { .. }, ProofStep::CiteMachine { site: first, .. }, ProofStep::CiteMachine { site: second, .. }] = theorem_row.proof.as_slice()
+    else {
+        panic!("expected a binding and two citations, found {:?}", theorem_row.proof)
+    };
+    let cite = |subject, site: &omega_lowering::Site| ProofStep::CiteMachine {
+        machine: lemma.declaration.clone(),
+        subjects: vec![subject],
+        requirements: 0..1,
+        progress: PredicateProgress::CheckPrivateBody,
+        site: site.clone(),
+    };
+    assert_eq!(first.span.get_start_offset()..first.span.get_end_offset(), sources::unique_span(&cited, "lemma(w)"));
+    spec_corpus::observe_handoff!(psi "psi-output/theorem-proof-citation", assert_eq!(
+        theorem_row.proof[1..],
+        [
+            cite(ProofSubject::Input(ProofInput::Local(0)), first),
+            cite(ProofSubject::Literal(ScalarLiteral::Integer(7.into())), second),
+        ]
+    ));
+
+    // Consumer: each citation owes lemma's premise and imports its guarantee,
+    // with w resolved to formal x and the literal kept as itself.
+    let citations = psi_handoff_consumer::theorem_proof(&package, theorem_row).expect("well-formed proof");
+    let [at_w, at_seven] = citations.as_slice() else { panic!("expected two citations") };
+    assert_eq!((at_w.step, at_w.machine.declaration.clone()), (1, lemma.declaration.clone()));
+    assert_eq!(at_w.subjects, [ProofSubject::Input(0)]);
+    assert_eq!(at_seven.subjects, [ProofSubject::Literal(ScalarLiteral::Integer(7.into()))]);
+    assert_eq!(at_w.owed[0].predicate, [Formal(0), Integer(0.into()), Apply(NotEqual)]);
+    assert_eq!(at_w.imported[0].predicate, [Formal(0), Integer(0.into()), Apply(GreaterThan)]);
+    assert_eq!(at_w.progress, PredicateProgress::CheckPrivateBody);
+
+    // Twins: citing z directly names formal 1; a folded constant is the same
+    // literal, and a parenthesized literal keeps its landing.
+    let package = sources::lower(&[("proof.omg", &source("{ lemma(z); lemma(3+4); lemma((5)); }"))]).unwrap();
+    let subjects: Vec<_> = package.theorems[0]
+        .proof
+        .iter()
+        .map(|step| match step {
+            ProofStep::CiteMachine { subjects, .. } => subjects.clone(),
+            ProofStep::Bind { .. } => panic!("no binding expected"),
+        })
+        .collect();
+    assert_eq!(
+        subjects,
+        [
+            vec![ProofSubject::Input(ProofInput::Formal(1))],
+            vec![ProofSubject::Literal(ScalarLiteral::Integer(7.into()))],
+            vec![ProofSubject::Literal(ScalarLiteral::Integer(5.into()))]
+        ]
     );
-    known_gap::report("proof steps in a theorem body", "The theorem needs its checked proof term", &worked, &error);
+
+    // A helper with a Trap route supplies no total proof: the theorem has no
+    // crash route to cover it. Publishing `crashes none` lowers the citation.
+    let trapping = format!("{} machine lemma(y:u8) crashes Trap requires y != 0 ensures y > 0 {{}}", theorem("{ lemma(x); }"));
+    sources::refuse(
+        &[("proof.omg", &trapping)],
+        "proof.omg",
+        sources::unique_span(&trapping, "lemma(x)"),
+        "proof citation requires a terminating helper with an empty crash ceiling",
+    );
 }
 
 #[test]
@@ -183,7 +265,7 @@ fn citing_a_theorem_from_executable_code_applies_it_without_a_runtime_call() {
         OperationKind::ApplyTheorem(Box::new(TheoremApplication {
             theorem: theorem_row.declaration.clone(),
             arguments: vec![TheoremArgument::Citation(lemma.declaration.clone())],
-            subjects: vec![x, zero],
+            subjects: vec![ProofSubject::Input(x), ProofSubject::Input(zero)],
             requirements: vec![CallRequirement { site: CallSite::Operation(op.id), clause: 0 }],
         }))
     ));
@@ -194,7 +276,7 @@ fn citing_a_theorem_from_executable_code_applies_it_without_a_runtime_call() {
     // refinement of Step at z = zero, and then imports Step::ensures(x).
     let citations = psi_handoff_consumer::theorem_citations(&package, &run.body).expect("well-formed citation");
     let [citation] = citations.as_slice() else { panic!("expected one citation") };
-    assert_eq!(citation.subjects, [x, zero]);
+    assert_eq!(citation.subjects, [ProofSubject::Input(x), ProofSubject::Input(zero)]);
     let [owed] = citation.owed.as_slice() else { panic!("expected one owed premise") };
     assert_eq!(owed.predicate, [Formal(0), Integer(0.into()), Apply(NotEqual)]);
     assert_eq!(citation.evidence.iter().map(|(h, m)| (*h, &m.declaration)).collect::<Vec<_>>(), [(0, &lemma.declaration)]);
@@ -210,17 +292,76 @@ fn citing_a_theorem_from_executable_code_applies_it_without_a_runtime_call() {
         (application.subjects.clone(), application.arguments.clone(), other)
     };
     let (subjects, arguments, _) = application("theorem::<lemma>(zero,x)");
-    assert_eq!((subjects, arguments), (vec![zero, x], vec![TheoremArgument::Citation(lemma.declaration.clone())]));
+    let input = ProofSubject::Input;
+    assert_eq!((subjects, arguments), (vec![input(zero), input(x)], vec![TheoremArgument::Citation(lemma.declaration.clone())]));
     let (subjects, arguments, other) = application("theorem::<other>(x,zero)");
-    assert_eq!((subjects, arguments), (vec![x, zero], vec![TheoremArgument::Citation(other)]));
+    assert_eq!((subjects, arguments), (vec![input(x), input(zero)], vec![TheoremArgument::Citation(other)]));
 
-    // A computed subject would make the erased citation demand its value.
+    // The original literal subject is published in the citation. No operation
+    // computes 7, so run keeps only the zero binding and the citation. This
+    // substitution is an L6 negative: lemma's y > 0 does not refine y > 7.
     let computed = source("theorem::<lemma>(x,7)");
+    let package = sources::lower(&[("proof.omg", &computed)]).unwrap();
+    let run = package.machines.iter().find(|m| m.declaration.path == "run").unwrap();
+    let [constant, op] = run.body.operations.as_slice() else { panic!("expected the zero binding and the citation only") };
+    assert_eq!(constant.kind, OperationKind::Constant(ScalarLiteral::Integer(0.into())));
+    let OperationKind::ApplyTheorem(application) = &op.kind else { panic!("expected the citation") };
+    let BodyParameter::Scalar(x) = run.body.parameters[0] else { panic!("expected x") };
+    spec_corpus::observe_handoff!(psi "psi-output/theorem-literal-subject", assert_eq!(
+        application.subjects,
+        [ProofSubject::Input(x), ProofSubject::Literal(ScalarLiteral::Integer(7.into()))]
+    ));
+    let citations = psi_handoff_consumer::theorem_citations(&package, &run.body).expect("well-formed citation");
+    assert_eq!(citations[0].subjects, application.subjects.as_slice());
+    assert_eq!(citations[0].owed.len(), 1);
+
+    // Twins: the L6 positive 0, a folded 3+4 and a frozen constant N publish
+    // their literal; a subject computed from x still refuses at its operand.
+    let literal = |citation: &str, prefix: &str| {
+        let text = format!("{prefix}{}", source(citation));
+        let package = sources::lower(&[("proof.omg", &text)]).unwrap();
+        let run = package.machines.iter().find(|m| m.declaration.path == "run").unwrap();
+        let OperationKind::ApplyTheorem(application) = &run.body.operations.last().unwrap().kind else { panic!("expected the citation") };
+        (run.body.operations.len(), application.subjects[1].clone())
+    };
+    let seven = ProofSubject::Literal(ScalarLiteral::Integer(7.into()));
+    assert_eq!(literal("theorem::<lemma>(x,0)", ""), (2, ProofSubject::Literal(ScalarLiteral::Integer(0.into()))));
+    assert_eq!(literal("theorem::<lemma>(x,3+4)", ""), (2, seven.clone()));
+    assert_eq!(literal("theorem::<lemma>(x,N)", "const N:u8 = 7; "), (2, seven));
+}
+
+#[test]
+fn a_subject_computed_from_a_variable_has_no_erased_term() {
+    // Psi has no erased arithmetic term, and computing x+1 at runtime would
+    // make an erased citation demand x and possibly trap. Each form stops at
+    // its operand, in an executable citation and in a theorem proof alike.
+    let theorem = THEOREM.replace("requires trusted(x) ", "");
+    let executable = format!("{theorem} {LEMMA} machine run(x:u8) requires x != 0 {{theorem::<lemma>(x,x+1);}}");
+    let cited = format!("{} {LEMMA}", theorem.replace("{}", "{ lemma(x+1); }"));
+    let bound = format!("{} {LEMMA}", theorem.replace("{}", "{ let w = x + 1; }"));
+    for (text, occurrence) in [(&executable, "x+1"), (&cited, "x+1"), (&bound, "x + 1")] {
+        sources::refuse(
+            &[("proof.omg", text)],
+            "proof.omg",
+            sources::unique_span(text, occurrence),
+            "a theorem subject other than a variable or a closed literal needs an erased subject term",
+        );
+    }
+}
+
+#[test]
+fn a_theorem_body_citing_another_theorem_stops_at_the_citation() {
+    // The outer proof instantiates inner with lemma as evidence. A proof step
+    // for that application needs its binder evidence and subjects; only
+    // machine citations and bindings are proof steps today.
+    let inner = "machine inner<machine H>(a:u8) requires machine H(y:u8) requires y != 0 ensures y > 0; requires a != 0 ensures H::ensures(a) {}";
+    let outer = THEOREM.replace("requires trusted(x) ", "").replace("{}", "{ inner::<lemma>(x); }");
+    let text = format!("{inner} {outer} {LEMMA}");
     sources::refuse(
-        &[("proof.omg", &computed)],
+        &[("proof.omg", &text)],
         "proof.omg",
-        sources::unique_span(&computed, "7"),
-        "a theorem citation subject other than a named binding needs erased subject-term lowering",
+        sources::unique_span(&text, "inner::<lemma>(x)"),
+        "a theorem body citing another logical theorem needs theorem-application proof steps",
     );
 }
 

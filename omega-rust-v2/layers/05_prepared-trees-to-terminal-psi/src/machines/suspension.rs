@@ -83,11 +83,11 @@ impl Keys {
             Constant(_) | ConstructCallableDescriptor { .. } | EstablishZeroedStructural => {}
             // An erased citation names its subjects without demanding them at runtime.
             ApplyTheorem(_) => {}
-            Boolean { operands, .. } | Integer { operands, .. } | EstablishScalarArray { elements: operands } => {
+            Boolean { operands, .. } | Integer { operands, .. } | Float { operands, .. } | EstablishScalarArray { elements: operands } => {
                 reads.extend(operands.iter().map(|v| v.index()))
             }
             TrappingInteger { left, right, .. } => reads.extend([left.index(), right.index()]),
-            ExactIntegerCast { operand } | RefineCallableDescriptor { source: operand, .. } | EstablishPrimitiveLocal { value: operand } => {
+            ExactNumericCast { operand } | RefineCallableDescriptor { source: operand, .. } | EstablishPrimitiveLocal { value: operand } => {
                 reads.push(operand.index())
             }
             Call { callee, arguments, .. } => self.call(*callee, arguments, &mut reads),

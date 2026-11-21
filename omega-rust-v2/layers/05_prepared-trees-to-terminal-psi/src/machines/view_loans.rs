@@ -226,7 +226,7 @@ fn congruent(
     match (a, b) {
         (OperationKind::Constant(a), OperationKind::Constant(b)) => a == b,
         (OperationKind::Boolean { primitive: p, operands: a }, OperationKind::Boolean { primitive: q, operands: b }) => p == q && all(a, b),
-        (OperationKind::ExactIntegerCast { operand: a }, OperationKind::ExactIntegerCast { operand: b }) => congruent(body, *a, *b),
+        (OperationKind::ExactNumericCast { operand: a }, OperationKind::ExactNumericCast { operand: b }) => congruent(body, *a, *b),
         (
             OperationKind::TrappingInteger {
                 primitive: p,

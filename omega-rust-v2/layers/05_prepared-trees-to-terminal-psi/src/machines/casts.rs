@@ -66,7 +66,8 @@ pub(super) fn scalar_recast<'a>(
 
 pub(super) struct ScalarCast<'a> {
     pub operand_type: &'a ValueType,
-    pub convert_integer: bool,
+    /// An exact carrier change between two numeric carriers.
+    pub convert: bool,
     pub change: Option<ScalarChange>,
 }
 
@@ -93,7 +94,7 @@ pub(super) fn scalar_cast<'a>(
     let target = &operation.result;
     let literal = matches!(source, ValueType::Exact { .. });
     if operation.token != "as"
-        || crate::lowering::types::scalar_carrier(target.carrier()).is_err()
+        || crate::lowering::types::stored_scalar(target.carrier()).is_err()
         || types.id_for(target).is_err()
         || !literal && types.id_for(source).is_err()
     {
@@ -141,16 +142,18 @@ pub(super) fn scalar_cast<'a>(
         (true, false) => None,
         (false, true) => return Err(error("Psi has no specified edge for simultaneous domain removal and addition")),
     };
-    let convert_integer = !literal && source.carrier() != target.carrier();
-    if convert_integer
-        && !(before.is_empty()
-            && matches!(source, ValueType::Integer { width: Some(_), .. })
-            && matches!(target.carrier(), ValueType::Integer { width: Some(_), .. }))
-    {
+    // domains.md#carrier-casts: `value as T` keeps the denoted value, so a
+    // change between fixed-width integer and IEEE carriers is one exact
+    // conversion whose representability the checker proves. It is neither a
+    // bit reinterpretation (that is a reference recast) nor a rounding
+    // conversion (those are named destination requirements).
+    let convert = !literal && source.carrier() != target.carrier();
+    let numeric = |ty: &ValueType| matches!(ty, ValueType::Integer { width: Some(_), .. } | ValueType::Float32 | ValueType::Float64);
+    if convert && !(before.is_empty() && numeric(source) && numeric(target.carrier())) {
         return Err(error("unsupported scalar carrier conversion"));
     }
     let mut pending = added;
-    let mut needs_conversion = convert_integer;
+    let mut needs_conversion = convert;
     for obligation in obligations {
         match &obligation.kind {
             ObligationKind::EstablishDomain(domain) => {
@@ -170,7 +173,7 @@ pub(super) fn scalar_cast<'a>(
     }
     Ok(ScalarCast {
         operand_type: if literal { target.carrier() } else { source },
-        convert_integer,
+        convert,
         change,
     })
 }

@@ -25,14 +25,16 @@ fn refusal(
 
 #[test]
 fn identical_open_template_messages_retain_distinct_decisions() {
-    // A type binder has no callback bounds; an integer const binder has no
-    // callable bound for its slot. These branches used to share one `bad` closure.
+    // A type binder's formal has no scalar template operand; an array const
+    // binder has no template binder form and no callable bound for its slot.
+    // These branches used to share one `bad` closure.
     let reason = "open generic machine requires a closed application before lowering";
     // Equal byte extents in the same logical file make even Site equality uninformative.
-    let type_only = "machine relay<T>(x:T)->T{              x}";
-    let integer = "machine relay<const N:u64>(x:u64)->u64{x}";
+    let type_only = "machine relay<T>(x:T)->T{               x}";
+    let array = "machine relay<const N:[u8;2]>(x:u8)->u8{x}";
+    assert_eq!(type_only.len(), array.len());
     let a = refusal(type_only, 0, type_only.len(), reason);
-    let b = refusal(integer, 0, integer.len(), reason);
+    let b = refusal(array, 0, array.len(), reason);
 
     for origin in [a, b] {
         assert!(

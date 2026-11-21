@@ -107,8 +107,28 @@ pub enum OperationKind {
         primitive: BooleanPrimitive,
         operands: Vec<ValueId>,
     },
-    ExactIntegerCast {
+    /// `value as T` between two numeric carriers. The result denotes the same
+    /// value in its own carrier; nothing rounds, truncates, wraps or saturates.
+    /// The operand and result types select what the checker must prove: an
+    /// integer result must contain the value; an IEEE result must represent the
+    /// integer or float value exactly (binary32 to binary64 always does); an
+    /// integer result from an IEEE operand needs a finite integral value in
+    /// range, and negative zero is not an integer value.
+    ExactNumericCast {
         operand: ValueId,
+    },
+    /// One canonical IEEE 754 operation on operands of one format: negation,
+    /// the four arithmetic operations, or a comparison with a Boolean result.
+    /// `semantics` is the operation's executable contract. Under
+    /// `Ieee754NearestEvenV1` each arithmetic result is the exact result rounded
+    /// once to nearest, ties to even, with quiet non-finite results; ordered
+    /// comparisons and `==` are false on NaN, `!=` is true, and signed zeros
+    /// compare equal. The operation is total and owes no obligation. Psi names
+    /// no realization: the selected target's realization table supplies one later.
+    Float {
+        operation: crate::FloatOperation,
+        semantics: crate::FloatSemantics,
+        operands: Vec<ValueId>,
     },
     /// The operation itself stops with Trap if its primitive fails on these input
     /// carriers. Only the successful value reaches the following operation or edge.
@@ -362,6 +382,25 @@ pub enum PlaceProjection {
 pub enum ScalarLiteral {
     Integer(BigInt),
     Boolean(bool),
+    /// Exact IEEE 754 bits; the value type names the format.
+    IeeeFloat(IeeeFloatBits),
+}
+
+/// Exact interchange bits of one IEEE value, already rounded where a literal
+/// landed. Variant order follows the Terminal Psi value tags: 1 binary32, 2 binary64.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum IeeeFloatBits {
+    Binary32(u32),
+    Binary64(u64),
+}
+
+impl IeeeFloatBits {
+    pub fn format(self) -> crate::IeeeFloatFormat {
+        match self {
+            Self::Binary32(_) => crate::IeeeFloatFormat::Binary32,
+            Self::Binary64(_) => crate::IeeeFloatFormat::Binary64,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

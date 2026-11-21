@@ -259,7 +259,7 @@ fn equal_width_value_cast_remains_an_exact_conversion() {
     assert!(
         body.operations
             .iter()
-            .any(|op| matches!(op.kind, OperationKind::ExactIntegerCast { .. }))
+            .any(|op| matches!(op.kind, OperationKind::ExactNumericCast { .. }))
     );
     assert!(
         !body
@@ -480,25 +480,6 @@ fn borrowed_scalar_formal_has_one_home_for_every_view() {
     let unborrowed = "machine pair(bits:u32)->u32 { bits }";
     let pkg = sources::lower(&[("homes.omg", unborrowed)]).unwrap();
     assert!(pkg.machines[0].body.operations.is_empty(), "an unborrowed formal needs no home");
-}
-
-/// A value-level `as f32` is not a bit cast, and float arithmetic has no Psi operation yet.
-#[test]
-fn float_views_do_not_admit_owned_bit_casts_or_float_arithmetic() {
-    let owned = "machine build(bits:u32)->f32 { bits as f32 }";
-    sources::refuse(
-        &[("recast.omg", owned)],
-        "recast.omg",
-        sources::unique_span(owned, "bits as f32"),
-        "cast requires supported scalar types and domain declarations",
-    );
-    let arithmetic = "machine add(a:@f32, b:@f32)->f32 { $a + $b }";
-    sources::refuse(
-        &[("recast.omg", arithmetic)],
-        "recast.omg",
-        sources::unique_span(arithmetic, "$a + $b"),
-        "typed integer operator has incompatible carriers",
-    );
 }
 
 fn last_body(pkg: &LoweredPackage) -> &omega_lowering::MachineBody {

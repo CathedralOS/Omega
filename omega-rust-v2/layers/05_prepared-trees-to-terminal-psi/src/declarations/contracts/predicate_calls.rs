@@ -49,7 +49,97 @@ pub(super) fn application<'a>(
     if !typed || proved != guarantee.is_some() || total_guard != crash_guard || call.caller.as_ref() != caller || &call.result != ty {
         return Err(refuse("predicate application disagrees with its result or clause owner"));
     }
-    let unsupported = || LoweringError::new(&site, format!("unsupported machine call `{}` in a Psi contract predicate", call.machine.path));
+    let unsupported = || LoweringError::new(&site, HelperUse::Predicate.unsupported(&call.machine));
+    let (sig, progress, count) = checked_helper(prepared, call, precondition, &site, HelperUse::Predicate)?;
+    let [callee, args] = *file.nodes[node].children.as_slice() else {
+        return Err(unsupported());
+    };
+    if file.nodes[callee].kind != NodeKind::PathExpression
+        || !file.nodes[callee].children.is_empty()
+        || tree.semantics_at(callee).next().is_some()
+        || file.nodes[args].kind != NodeKind::Args
+        || tree.semantics_at(args).next().is_some()
+    {
+        return Err(unsupported());
+    }
+    let arguments = &file.nodes[args].children;
+    if sig.result != call.result || arguments.len() != call.operands.len() || call.operands.len() != sig.parameters.len() {
+        return Err(refuse("predicate application disagrees with its selected signature"));
+    }
+    let result = scalar_carrier(ty).map_err(|_| unsupported())?;
+    let mut operands = Vec::with_capacity(arguments.len());
+    let mut terms = Vec::with_capacity(arguments.len());
+    for ((&node, actual), (span, formal)) in arguments.iter().zip(&call.operands).zip(&sig.parameters) {
+        if actual.node != file.node_id(node)
+            || actual.site != site_at(tree, node)
+            || actual.parameter.package != sig.site.package
+            || actual.parameter.file != sig.site.file
+            || actual.parameter.span != *span
+            || actual.callable.is_some()
+        {
+            return Err(refuse("predicate operand disagrees with its selected occurrence or formal"));
+        }
+        if matches!(actual.subject, ValueType::Subject { version: Some(_), .. }) {
+            return Err(unsupported());
+        }
+        operands.push(scalar_carrier(formal).map_err(|_| unsupported())?);
+        terms.push((node, formal));
+    }
+    let step = PredicateStep::MachineApplication {
+        callee: crate::identity::declaration(&call.machine, &site)?,
+        operands,
+        result,
+        requirements: 0..count,
+        progress,
+        site,
+    };
+    Ok((step, terms))
+}
+
+/// Where a checked local helper is applied without being executed.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum HelperUse {
+    /// A machine application inside a contract predicate.
+    Predicate,
+    /// A machine cited as a step of a theorem proof.
+    Proof,
+}
+
+impl HelperUse {
+    fn unsupported(
+        self,
+        machine: &DeclarationId,
+    ) -> String {
+        match self {
+            Self::Predicate => format!("unsupported machine call `{}` in a Psi contract predicate", machine.path),
+            Self::Proof => format!("unsupported machine `{}` cited in a theorem proof", machine.path),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Predicate => "predicate application",
+            Self::Proof => "proof citation",
+        }
+    }
+}
+
+/// A helper applied in a predicate or cited in a proof is never entered, so
+/// it must have exactly one checked body and contract in this package: a
+/// plain top-level machine with no hypotheses and no static binders. Its
+/// denotation must also be total: an empty crash ceiling and a progress route.
+/// Returns its signature, that route and the count of its authored `requires`
+/// clauses, which are exactly the requirements its use owes. `precondition` is
+/// the `CallPrecondition` L3 recorded at the use.
+pub(crate) fn checked_helper<'a>(
+    prepared: &'a PreparedTrees<'_>,
+    call: &omega_typed::TypedCall,
+    precondition: Option<&DeclarationId>,
+    site: &omega_typed::Site,
+    usage: HelperUse,
+) -> Result<(&'a omega_typed::TypedSignature, PredicateProgress, usize), LoweringError> {
+    let refuse = |message: String| LoweringError::new(site, message);
+    let unsupported = || refuse(usage.unsupported(&call.machine));
     if call.machine.package != site.package
         || call.machine.kind != NodeKind::Machine
         || call.evidence.is_some()
@@ -87,49 +177,15 @@ pub(super) fn application<'a>(
         .find(|effects| effects.machine == sig.machine)
         .is_some_and(|effects| effects.crash_ceiling.as_ref().is_some_and(Vec::is_empty));
     if !crash_free {
-        return Err(refuse("predicate application requires a terminating helper with an empty crash ceiling"));
+        return Err(refuse(format!("{} requires a terminating helper with an empty crash ceiling", usage.name())));
     }
     let progress = if sig.terminates {
         PredicateProgress::CheckPromise
     } else if !target.resolved().is_exported(def) {
         PredicateProgress::CheckPrivateBody
     } else {
-        return Err(refuse("predicate application of an exported helper requires a termination promise"));
+        return Err(refuse(format!("{} of an exported helper requires a termination promise", usage.name())));
     };
-    let [callee, args] = *file.nodes[node].children.as_slice() else {
-        return Err(unsupported());
-    };
-    if file.nodes[callee].kind != NodeKind::PathExpression
-        || !file.nodes[callee].children.is_empty()
-        || tree.semantics_at(callee).next().is_some()
-        || file.nodes[args].kind != NodeKind::Args
-        || tree.semantics_at(args).next().is_some()
-    {
-        return Err(unsupported());
-    }
-    let arguments = &file.nodes[args].children;
-    if sig.result != call.result || arguments.len() != call.operands.len() || call.operands.len() != sig.parameters.len() {
-        return Err(refuse("predicate application disagrees with its selected signature"));
-    }
-    let result = scalar_carrier(ty).map_err(|_| unsupported())?;
-    let mut operands = Vec::with_capacity(arguments.len());
-    let mut terms = Vec::with_capacity(arguments.len());
-    for ((&node, actual), (span, formal)) in arguments.iter().zip(&call.operands).zip(&sig.parameters) {
-        if actual.node != file.node_id(node)
-            || actual.site != site_at(tree, node)
-            || actual.parameter.package != sig.site.package
-            || actual.parameter.file != sig.site.file
-            || actual.parameter.span != *span
-            || actual.callable.is_some()
-        {
-            return Err(refuse("predicate operand disagrees with its selected occurrence or formal"));
-        }
-        if matches!(actual.subject, ValueType::Subject { version: Some(_), .. }) {
-            return Err(unsupported());
-        }
-        operands.push(scalar_carrier(formal).map_err(|_| unsupported())?);
-        terms.push((node, formal));
-    }
     // Bare scalar formals have no implicit domain requirements. These indices
     // are precisely the authored prefix of the selected machine contract.
     let count = source.nodes[def]
@@ -138,15 +194,7 @@ pub(super) fn application<'a>(
         .filter(|&&n| source.nodes[n].kind == NodeKind::Requires)
         .count();
     if precondition != sig.requires.then_some(&sig.machine) || sig.requires != (count != 0) {
-        return Err(refuse("predicate application lacks its selected call precondition"));
+        return Err(refuse(format!("{} lacks its selected call precondition", usage.name())));
     }
-    let step = PredicateStep::MachineApplication {
-        callee: crate::identity::declaration(&call.machine, &site)?,
-        operands,
-        result,
-        requirements: 0..count,
-        progress,
-        site,
-    };
-    Ok((step, terms))
+    Ok((sig, progress, count))
 }

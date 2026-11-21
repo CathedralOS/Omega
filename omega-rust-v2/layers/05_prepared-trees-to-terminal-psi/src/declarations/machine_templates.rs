@@ -7,7 +7,7 @@ use super::{
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
     ContractClause, LoweringError, MachineTemplate, MachineTemplateBinder, PredicateStep, TemplateBinder, TemplateCall, TemplateCallTarget, TemplateCallable,
-    TemplateRequirementSlot, TypeExpression, site_at,
+    TemplateOperand, TemplateRequirementSlot, TemplateStep, TypeExpression, site_at,
 };
 use omega_prepared::PreparedTrees;
 use omega_resolved::Symbol;
@@ -254,15 +254,31 @@ pub(crate) fn plan(
             }
         }
     }
-    let callback_owners: HashSet<_> = prepared
+    // An exported machine whose caller supplies an operation, through a
+    // callable bound or an operation record such as `const E: Local`, keeps
+    // its interface for external callers beside any local instance.
+    let mut operation_owners: HashSet<_> = prepared
         .typed()
         .callable_bounds
         .iter()
         .map(|(owner, _, _)| owner)
         .collect();
+    operation_owners.extend(
+        prepared
+            .typed()
+            .generic_parameters
+            .iter()
+            .filter_map(|(owner, telescope)| {
+                telescope
+                    .parameters
+                    .iter()
+                    .any(|p| p.kind == NodeKind::ConstParam && matches!(p.carrier.as_deref(), Some(ValueType::Evidence(_))))
+                    .then_some(owner)
+            }),
+    );
     let mut open: HashSet<_> = signatures
         .iter()
-        .filter(|s| !instantiated.contains(&s.machine) || trees[s.node.file].resolved().is_exported(s.node.node) && callback_owners.contains(&s.machine))
+        .filter(|s| !instantiated.contains(&s.machine) || trees[s.node.file].resolved().is_exported(s.node.node) && operation_owners.contains(&s.machine))
         .map(|s| &s.machine)
         .collect();
     let mut work: Vec<_> = open.iter().copied().collect();
@@ -313,7 +329,6 @@ fn lower(
 ) -> Result<MachineTemplate, LoweringError> {
     let typed = prepared.typed();
     let file = tree.resolved().file;
-    const OPEN_TEMPLATE: &str = "open generic machine requires a closed application before lowering";
     // A nested declaration need not introduce parameters of its own.
     let empty = Default::default();
     let params = typed.generic_parameters.get(&sig.machine).unwrap_or(&empty);
@@ -338,8 +353,14 @@ fn lower(
             NodeKind::TypeParam if param.carrier.is_none() => MachineTemplateBinder::Type(TemplateBinder::Type {
                 multiplicity: param.multiplicity,
             }),
-            NodeKind::ConstParam if param.multiplicity.is_none() && param.carrier.as_deref() == Some(&ValueType::Bool) => {
-                MachineTemplateBinder::Const(type_expression(&ValueType::Bool, &sig.site)?)
+            // A static value binder such as `const N: u8` keeps its declared
+            // carrier; the caller's application supplies the value.
+            NodeKind::ConstParam
+                if param.multiplicity.is_none()
+                    && let Some(carrier) = param.carrier.as_deref()
+                    && lexical::static_value_carrier(carrier) =>
+            {
+                MachineTemplateBinder::Const(type_expression(carrier, &sig.site)?)
             }
             // A whole-trait binder such as `const Audio: Player` has no callable
             // bound. Its calls name requirements of that trait; the caller's
@@ -437,7 +458,15 @@ fn lower(
         }
     }
     let body_node = file.child(sig.node.node, NodeKind::Body).ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
-    let mut body = Vec::new();
+    let mut steps = Steps {
+        inputs: CallInputs { prepared, supplied_calls },
+        tree,
+        sig,
+        bounds: &bounds,
+        parameters: &parameters,
+        invokes: &invokes,
+        body: Vec::new(),
+    };
     let mut result = None;
     for &statement in &file.nodes[body_node].children {
         if file.nodes[statement].kind == NodeKind::Machine {
@@ -453,35 +482,21 @@ fn lower(
             result = Some(binding);
             continue;
         }
-        let mut call = outer;
-        while file.nodes[call].kind == NodeKind::CallMarker {
-            let [inner] = *file.nodes[call].children.as_slice() else {
-                return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
-            };
-            call = inner;
-        }
-        if result.is_some() || file.nodes[call].kind != NodeKind::Call || tree.semantics_at(statement).next().is_some() {
+        if result.is_some() || tree.semantics_at(statement).next().is_some() {
             return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
         }
-        let inputs = CallInputs { prepared, supplied_calls };
-        let (operation, ty) = lower_call(Some(inputs), tree, sig, call, &bounds)?;
-        if outer != call && (operation.acknowledgements == Default::default() || (outer..call).any(|n| !typed_subject(tree, n, ty))) {
-            return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
-        }
-        match &operation.target {
-            TemplateCallTarget::StaticBinder(slot) if !invokes.contains(slot) => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
-            TemplateCallTarget::Member { binder, .. } if !matches!(parameters.get(*binder), Some(MachineTemplateBinder::Implementation(_))) => {
-                return Err(LoweringError::new(&operation.site, "supplied member call lacks its operation-record binder"));
-            }
-            _ => {}
-        }
+        let (operand, ty) = steps.expression(outer)?;
         match file.nodes[statement].kind {
-            NodeKind::Tail if ty == &sig.result && ty != &ValueType::NoResult => result = Some(crate::TemplateResult::Call(body.len())),
-            NodeKind::ExpressionStatement if ty == &ValueType::NoResult => {}
+            NodeKind::Tail if ty == &sig.result && ty != &ValueType::NoResult => result = Some(crate::TemplateResult::Operand(operand)),
+            // Only a call without a result stands alone, with or without its
+            // semicolon; no value is discarded. A void tail in a machine with
+            // a result leaves `result` empty and refuses below.
+            NodeKind::ExpressionStatement | NodeKind::Tail
+                if ty == &ValueType::NoResult && matches!(operand, TemplateOperand::Step(i) if matches!(steps.body.get(i), Some(TemplateStep::Call(_)))) => {}
             _ => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         }
-        body.push(operation);
     }
+    let body = steps.body;
     if effects
         .callback_pause
         .keys()
@@ -506,6 +521,155 @@ fn lower(
         body,
         result,
     })
+}
+
+const OPEN_TEMPLATE: &str = "open generic machine requires a closed application before lowering";
+
+/// The open body under construction. Each source expression becomes the
+/// operand that reads its value; a call or an integer operation appends a step.
+struct Steps<'p, 't, 'a, 'y> {
+    inputs: CallInputs<'p, 't>,
+    tree: &'a TypedTree<'y>,
+    sig: &'a TypedSignature,
+    bounds: &'a [(usize, &'a CallableType)],
+    parameters: &'a [MachineTemplateBinder],
+    invokes: &'a [usize],
+    body: Vec<TemplateStep>,
+}
+
+impl<'a> Steps<'_, '_, 'a, '_> {
+    // Each refusing branch keeps its own diagnostic origin.
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
+    fn refuse(&self) -> LoweringError {
+        LoweringError::new(&self.sig.site, OPEN_TEMPLATE)
+    }
+
+    fn push(
+        &mut self,
+        step: TemplateStep,
+    ) -> TemplateOperand {
+        self.body.push(step);
+        TemplateOperand::Step(self.body.len() - 1)
+    }
+
+    fn expression(
+        &mut self,
+        node: usize,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let (tree, sig) = (self.tree, self.sig);
+        let file = tree.resolved().file;
+        match file.nodes[node].kind {
+            NodeKind::Paren => {
+                let [inner] = *file.nodes[node].children.as_slice() else {
+                    return Err(self.refuse());
+                };
+                let (operand, ty) = self.expression(inner)?;
+                // Parentheses add no typed record beyond the value itself.
+                if tree
+                    .semantics_at(node)
+                    .any(|row| !matches!(row, NodeSemantics::Expression(e) if &e.ty == ty && e.static_argument_slot.is_none()))
+                {
+                    return Err(self.refuse());
+                }
+                Ok((operand, ty))
+            }
+            NodeKind::CallMarker | NodeKind::Call => self.call(node),
+            NodeKind::Binary | NodeKind::Unary => self.integer(node),
+            // Reading a whole scalar formal copies it. A structural formal would
+            // need a published move or disposal, which a template does not carry.
+            NodeKind::PathExpression
+                if file.nodes[node].children.is_empty()
+                    && let Some(NodeSemantics::Expression(e)) = tree.semantics_at(node).next()
+                    && typed_subject(tree, node, &e.ty)
+                    && crate::lowering::types::scalar_carrier(&e.ty).is_ok()
+                    && let Some(formal) = formal(tree, sig, node, &e.ty) =>
+            {
+                Ok((TemplateOperand::Formal(formal), &e.ty))
+            }
+            _ => Err(self.refuse()),
+        }
+    }
+
+    fn call(
+        &mut self,
+        outer: usize,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let (tree, sig) = (self.tree, self.sig);
+        let file = tree.resolved().file;
+        let mut call = outer;
+        while file.nodes[call].kind == NodeKind::CallMarker {
+            let [inner] = *file.nodes[call].children.as_slice() else {
+                return Err(self.refuse());
+            };
+            call = inner;
+        }
+        if file.nodes[call].kind != NodeKind::Call {
+            return Err(self.refuse());
+        }
+        let (operation, ty) = lower_call(Some(self.inputs), tree, sig, call, self.bounds)?;
+        if outer != call && (operation.acknowledgements == Default::default() || (outer..call).any(|n| !typed_subject(tree, n, ty))) {
+            return Err(self.refuse());
+        }
+        match &operation.target {
+            TemplateCallTarget::StaticBinder(slot) if !self.invokes.contains(slot) => return Err(self.refuse()),
+            TemplateCallTarget::Member { binder, .. } if !matches!(self.parameters.get(*binder), Some(MachineTemplateBinder::Implementation(_))) => {
+                return Err(LoweringError::new(&operation.site, "supplied member call lacks its operation-record binder"));
+            }
+            _ => {}
+        }
+        Ok((self.push(TemplateStep::Call(operation)), ty))
+    }
+
+    /// The classifier a closed body uses selects the primitive, policy and
+    /// checker questions. A trapping operator would need a crash edge in the
+    /// template, and a folded constant a literal operand; both still refuse.
+    fn integer(
+        &mut self,
+        node: usize,
+    ) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let (tree, sig) = (self.tree, self.sig);
+        let file = tree.resolved().file;
+        let mut selected = None;
+        let mut obligations = Vec::new();
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Operation(op) if selected.is_none() => selected = Some(op),
+                NodeSemantics::Obligation(o) => obligations.push(o),
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => {}
+                _ => return Err(self.refuse()),
+            }
+        }
+        let op = selected.ok_or_else(|| self.refuse())?;
+        let fixed = |ty: &ValueType| matches!(ty, ValueType::Integer { width: Some(w), .. } if *w > 0);
+        if !fixed(&op.result) && op.result != ValueType::Bool
+            || !op.operands.iter().all(fixed)
+            || op.operands.len() != file.nodes[node].children.len()
+            || tree
+                .semantics_at(node)
+                .any(|row| matches!(row, NodeSemantics::Expression(e) if e.ty != op.result))
+        {
+            return Err(self.refuse());
+        }
+        let crate::machines::arithmetic::LoweredInteger::Ordinary(operation) = crate::machines::arithmetic::lower_integer(op, &obligations, &sig.machine)?
+        else {
+            return Err(self.refuse());
+        };
+        let mut operands = Vec::with_capacity(op.operands.len());
+        for (&child, carrier) in file.nodes[node].children.iter().zip(&op.operands) {
+            let (operand, ty) = self.expression(child)?;
+            if ty != carrier {
+                return Err(self.refuse());
+            }
+            operands.push(operand);
+        }
+        let step = crate::TemplateInteger {
+            operation,
+            operands,
+            result_type: type_expression(&op.result, &op.site)?,
+            site: op.site.clone(),
+        };
+        Ok((self.push(TemplateStep::Integer(step)), &op.result))
+    }
 }
 
 /// Entry formals can be substituted directly only when execution reaches
@@ -533,7 +697,7 @@ pub(crate) fn tail_binder_formals(
         .into_iter()
         .map(|operand| match operand {
             crate::TemplateOperand::Formal(formal) => Ok(formal),
-            crate::TemplateOperand::RecordField { .. } => Err(bad()),
+            crate::TemplateOperand::RecordField { .. } | crate::TemplateOperand::Step(_) => Err(bad()),
         })
         .collect()
 }
@@ -550,6 +714,8 @@ struct CallInputs<'p, 't> {
 
 /// Match the binder bound, the typed call's enclosing application and the owner
 /// of the packaged requirement. An equal signature does not select a member.
+/// A restricted bound such as `Local=Log` declares no members of its own; a
+/// call through it names a requirement of its base trait.
 fn evidence_member(
     prepared: &PreparedTrees<'_>,
     caller: &omega_resolved::DeclarationId,
@@ -560,9 +726,24 @@ fn evidence_member(
     let typed = prepared.typed();
     let param = typed.generic_parameters.get(caller)?.parameters.get(*index)?;
     let ValueType::Evidence(slot) = param.carrier.as_deref()? else { return None };
-    let [(home, args)] = call.enclosing_arguments.as_slice() else { return None };
-    (owner.as_ref() == caller && param.kind == NodeKind::ConstParam && home == packaged_owner && home == &slot.declaration
-        && args.is_empty() && slot.trait_arguments.is_empty() && call.type_arguments.is_empty()).then_some(*index)
+    // Typing records a call through a restriction as the restriction, then its
+    // base, as the closed member path reads it (`members::Key::from_call`).
+    let (home, args) = match (call.enclosing_arguments.as_slice(), typed.refinement_bases.get(&slot.declaration)) {
+        ([(home, args)], None) if home == &slot.declaration => (home, args),
+        ([(alias, alias_args), (home, args)], Some(base))
+            if alias == &slot.declaration && alias_args.is_empty() && base.trait_arguments.is_empty() && &base.declaration == home =>
+        {
+            (home, args)
+        }
+        _ => return None,
+    };
+    (owner.as_ref() == caller
+        && param.kind == NodeKind::ConstParam
+        && home == packaged_owner
+        && args.is_empty()
+        && slot.trait_arguments.is_empty()
+        && call.type_arguments.is_empty())
+    .then_some(*index)
 }
 
 fn lower_call<'a>(
@@ -719,62 +900,89 @@ fn lower_call<'a>(
     ))
 }
 
-/// A scalar field read on a formal record, without a case opening, loan or cleanup.
-/// A field read names the selected field alone, so only that field must be scalar;
-/// an unused array or plain record sibling leaves the operand unchanged.
+/// A copy of a field below a formal record, such as `track.volume` or
+/// `track.tag.id`. Every step is a plain record field of the value the previous
+/// step reached, starting from the formal itself; the operand keeps the whole
+/// path. The copied leaf must be unrestricted: a scalar, or a fixed array or
+/// `[copy]` record of such values. The read then leaves the formal whole, so
+/// the formal, its record and its siblings owe the same cleanup or linear use
+/// as when the field is not read; the receiver's and siblings' obligations
+/// are not conditions of the read. Moving an affine field is a partial
+/// transfer with a residual, and a case payload step needs its case
+/// established; neither has a template operand form, so both refuse.
 fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &TypedSignature, node: usize) -> Option<crate::TemplateOperand> {
     let file = tree.resolved().file;
-    let [base] = *file.nodes[node].children.as_slice() else { return None };
+    // The selections from the outermost field inward, then the formal below them.
+    let mut chain = vec![node];
+    let mut base = loop {
+        let [base] = *file.nodes[*chain.last()?].children.as_slice() else { return None };
+        if file.nodes[base].kind != NodeKind::FieldAccess {
+            break base;
+        }
+        chain.push(base);
+    };
     let mut base_rows = tree.semantics_at(base);
-    let NodeSemantics::Expression(receiver) = base_rows.next()? else { return None };
-    let ValueType::Nominal(owner) = &receiver.ty else { return None };
-    let typed = prepared.typed();
-    if base_rows.next().is_some() || receiver.static_argument_slot.is_some() || file.nodes[base].kind != NodeKind::PathExpression
+    let NodeSemantics::Expression(root) = base_rows.next()? else { return None };
+    if base_rows.next().is_some() || root.static_argument_slot.is_some() || file.nodes[base].kind != NodeKind::PathExpression
         || !file.nodes[base].children.is_empty()
-        || typed.cleanups.iter().any(|row| &row.owner == owner.as_ref())
-        || typed.data_properties.iter().any(|(id, p)| id == owner.as_ref() && p.multiplicity == omega_typed::Multiplicity::Linear)
-        || !typed.record_fields.get(owner.as_ref())?.iter().all(|f| discarded_plainly(typed, &f.ty, &mut vec![owner.as_ref()]))
     {
         return None;
     }
-    let formal = formal(tree, sig, base, &receiver.ty)?;
-    let (mut leaf, mut field) = (None, None);
-    for row in tree.semantics_at(node) {
-        match row {
-            NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && leaf.is_none() => leaf = Some(&e.ty),
-            NodeSemantics::Field(id) if field.is_none() => field = Some(id),
-            _ => return None,
+    let formal = formal(tree, sig, base, &root.ty)?;
+    let mut receiver = &root.ty;
+    let mut path = Vec::with_capacity(chain.len());
+    for &step in chain.iter().rev() {
+        let (mut leaf, mut field) = (None, None);
+        for row in tree.semantics_at(step) {
+            match row {
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && leaf.is_none() => leaf = Some(&e.ty),
+                NodeSemantics::Field(id) if field.is_none() => field = Some(id),
+                _ => return None,
+            }
         }
+        let leaf = leaf?;
+        // `field_segment` checks the typed place step and the field's declared
+        // carrier; a case payload field is not a record step.
+        let PredicateStep::Field(id) = contracts::field_segment(prepared, &LoweringTree::plain(tree), step, base, receiver, field?, leaf).ok()? else {
+            return None;
+        };
+        path.push(id);
+        (base, receiver) = (step, leaf);
     }
-    // `field_segment` checks the leaf against the field's declared carrier.
-    let leaf = leaf.filter(|ty| crate::lowering::types::scalar_carrier(ty).is_ok())?;
-    let PredicateStep::Field(field) = contracts::field_segment(prepared, &LoweringTree::plain(tree), node, base, &receiver.ty, field?, leaf).ok()? else { return None };
-    Some(crate::TemplateOperand::RecordField { formal, field })
+    let field = path.pop()?;
+    let ty = type_expression(receiver, &site_at(tree, node)).ok()?;
+    let argument = if crate::lowering::types::scalar_carrier(receiver).is_ok() {
+        crate::Parameter::Scalar(ty)
+    } else if copied_whole(prepared.typed(), receiver, &mut Vec::new()) {
+        crate::Parameter::Structural(ty)
+    } else {
+        return None;
+    };
+    Some(crate::TemplateOperand::RecordField { formal, carrier: path, field, argument })
 }
 
-/// The receiver stays in the formal after a projected read. Keep the operand to
-/// receivers whose every field is dropped by discarding it: a scalar, a fixed
-/// array of such values, or a record without cleanup or a linear declaration
-/// whose fields are dropped the same way. A sibling that owes cleanup, a linear
-/// use, a loan or a case still refuses, as it did before only the selected
-/// field had to be scalar.
-fn discarded_plainly<'a>(typed: &'a omega_typed::TypedTrees<'_>, ty: &'a ValueType, open: &mut Vec<&'a omega_resolved::DeclarationId>) -> bool {
+/// A structural value that a field read copies rather than moves: a fixed array
+/// of scalars or of such values, or a `[copy]` record without cleanup whose
+/// fields are all copied the same way. An affine or linear record, a reference
+/// and anything L5 cannot classify are not copies.
+fn copied_whole<'a>(typed: &'a omega_typed::TypedTrees<'_>, ty: &'a ValueType, open: &mut Vec<&'a omega_resolved::DeclarationId>) -> bool {
+    let copied = |ty: &'a ValueType, open: &mut Vec<_>| crate::lowering::types::scalar_carrier(ty).is_ok() || copied_whole(typed, ty, open);
     match ty {
-        ValueType::Array(element, _) => discarded_plainly(typed, element, open),
+        ValueType::Array(element, _) => copied(element, open),
         ValueType::Nominal(id) => {
             let id = id.as_ref();
             if open.contains(&id)
                 || typed.cleanups.iter().any(|row| &row.owner == id)
-                || typed.data_properties.iter().any(|(data, p)| data == id && p.multiplicity == omega_typed::Multiplicity::Linear)
+                || !typed.data_properties.iter().any(|(data, p)| data == id && p.multiplicity == omega_typed::Multiplicity::Copy)
             {
                 return false;
             }
             let Some(fields) = typed.record_fields.get(id) else { return false };
             open.push(id);
-            let plain = fields.iter().all(|f| discarded_plainly(typed, &f.ty, open));
+            let plain = fields.iter().all(|f| copied(&f.ty, open));
             open.pop();
             plain
         }
-        other => crate::lowering::types::scalar_carrier(other).is_ok(),
+        _ => false,
     }
 }

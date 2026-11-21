@@ -521,7 +521,7 @@ fn carrier_conversion_and_literal_landing_precede_domain_addition() {
             let omega_lowering::Parameter::Scalar(n) = body.parameters[0] else {
                 panic!("expected an integer parameter")
             };
-            assert_eq!(operation.kind, OperationKind::ExactIntegerCast { operand: n });
+            assert_eq!(operation.kind, OperationKind::ExactNumericCast { operand: n });
         }
         let OperationResult::Scalar(value) = operation.result else {
             panic!("expected scalar operation")

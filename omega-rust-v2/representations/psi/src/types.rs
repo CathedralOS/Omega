@@ -25,8 +25,9 @@ pub enum ScalarType {
         width: u64,
     },
     /// IEEE 754 bits of the stated interchange format. Storing, copying and
-    /// viewing these bits never rounds, converts or quiets a NaN; arithmetic,
-    /// comparison and conversion need their own target-selected operations.
+    /// viewing these bits never rounds, converts or quiets a NaN. Arithmetic
+    /// and comparison are `OperationKind::Float`; a carrier change is
+    /// `OperationKind::ExactNumericCast`.
     IeeeFloat(IeeeFloatFormat),
 }
 

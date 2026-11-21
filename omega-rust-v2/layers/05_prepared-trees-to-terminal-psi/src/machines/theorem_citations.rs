@@ -10,7 +10,8 @@
 
 use super::calls::Callees;
 use crate::lowering::applied_tree::LoweringTree;
-use crate::{LoweringError, TheoremArgument, TheoremBinder, site_at};
+use crate::{LoweringError, ScalarLiteral, TheoremArgument, TheoremBinder, site_at};
+use omega_prepared::{PreparedTrees, PreparedValue};
 use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
 use omega_typed::{CallUse, NodeSemantics, ObligationKind, PauseEffects, TypedSignature, ValueType};
@@ -25,13 +26,91 @@ pub(crate) struct TheoremCallee<'a> {
 pub(crate) struct TheoremCitation<'a> {
     pub theorem: crate::DeclarationId,
     pub arguments: Vec<TheoremArgument>,
-    /// Subject occurrences with their formal carriers, in formal order.
-    pub subjects: Vec<(usize, &'a ValueType)>,
+    /// One subject per formal, in formal order.
+    pub subjects: Vec<CitedSubject<'a>>,
     pub requirement_count: usize,
 }
 
+/// How the body supplies one theorem subject.
+pub(crate) enum CitedSubject<'a> {
+    /// A named binding, read as the caller's existing value at this formal carrier.
+    Binding(usize, &'a ValueType),
+    /// A closed scalar published in the citation itself; no operation computes it.
+    Literal(ScalarLiteral),
+}
+
+/// The closed value of a theorem subject that names no variable, or `None`
+/// for any other subject. It is an integer literal or folded exact
+/// expression that L3 landed at `formal`, a Boolean literal, or a frozen
+/// constant. Executable citations and theorem proofs both publish it as an
+/// erased `ProofSubject::Literal`; neither emits an operation for it.
+pub(crate) fn closed_subject(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    node: usize,
+    formal: &ValueType,
+) -> Result<Option<ScalarLiteral>, LoweringError> {
+    let file = tree.resolved().file;
+    let outer = node;
+    let node = file.ungroup(node);
+    let site = site_at(tree, node);
+    let refuse = |message: &str| LoweringError::new(&site, message);
+    let exact = match file.nodes[node].kind {
+        NodeKind::Binary | NodeKind::Unary => super::arithmetic::folded_exact_operator(tree, node, formal, None)?.cloned(),
+        NodeKind::Literal if file.nodes[node].children.is_empty() => tree.semantics_at(node).find_map(|row| match row {
+            NodeSemantics::Expression(e) => match &e.ty {
+                ValueType::Exact {
+                    value,
+                    fractional_origin: None,
+                } if value.is_integer() => Some(value.numer().clone()),
+                _ => None,
+            },
+            _ => None,
+        }),
+        NodeKind::PathExpression if file.nodes[node].children.is_empty() => {
+            return match tree.resolved().symbol(node) {
+                Some(Symbol::Builtin(name)) if *formal == ValueType::Bool && matches!(name.as_str(), "true" | "false") => {
+                    Ok(Some(ScalarLiteral::Boolean(name == "true")))
+                }
+                Some(Symbol::Declaration(id))
+                    if tree
+                        .semantics_at(node)
+                        .any(|row| matches!(row, NodeSemantics::Constant(c) if c == id)) =>
+                {
+                    match prepared.constant(id) {
+                        Some(PreparedValue::Bool(value)) if *formal == ValueType::Bool => Ok(Some(ScalarLiteral::Boolean(*value))),
+                        Some(PreparedValue::Integer(value)) if formal.contains_integer(value) => Ok(Some(ScalarLiteral::Integer(value.clone()))),
+                        _ => Err(refuse("a constant theorem subject has no frozen scalar of its formal's carrier")),
+                    }
+                }
+                _ => Ok(None),
+            };
+        }
+        _ => None,
+    };
+    let Some(value) = exact else { return Ok(None) };
+    // L3 records the landing, on the literal or on its outermost grouping,
+    // only after checking that the value fits.
+    let landed = [outer, node].into_iter().any(|at| {
+        tree.semantics_at(at).any(|row| {
+            matches!(row, NodeSemantics::Landing(landing)
+                if &landing.ty == formal && landing.value.is_integer() && landing.value.numer() == &value)
+        })
+    });
+    if !landed || !formal.contains_integer(&value) {
+        return Err(refuse("a literal theorem subject needs its exact landing at the formal's carrier"));
+    }
+    Ok(Some(ScalarLiteral::Integer(value)))
+}
+
+/// A subject that is neither a variable nor closed. Psi has no erased
+/// arithmetic or projection term, and computing the value at runtime would
+/// make an erased citation demand it (and possibly trap).
+pub(crate) const COMPUTED_SUBJECT: &str = "a theorem subject other than a variable or a closed literal needs an erased subject term";
+
 /// `None` when `node` does not cite a local logical theorem.
 pub(crate) fn select<'a>(
+    prepared: &PreparedTrees<'_>,
     tree: &LoweringTree<'_>,
     caller: &TypedSignature,
     node: usize,
@@ -112,8 +191,8 @@ pub(crate) fn select<'a>(
         return Err(error("theorem citation supplies evidence for no binder"));
     }
 
-    // A subject is named, never computed. Computing an operand would make the
-    // erased citation demand a runtime value.
+    // A subject is a named binding or a closed literal. Computing an operand
+    // would make the erased citation demand a runtime value.
     if call.operands.len() != signature.parameters.len() || signature.parameters.len() != theorem.parameters.len() {
         return Err(error("theorem citation and its formals disagree"));
     }
@@ -129,19 +208,18 @@ pub(crate) fn select<'a>(
         {
             return Err(error("theorem citation subject disagrees with its argument occurrence or formal"));
         }
-        if applied.callable.is_some()
-            || file.nodes[argument].kind != NodeKind::PathExpression
-            || !matches!(tree.resolved().symbol(argument), Some(Symbol::Binding { .. }))
-        {
-            return Err(LoweringError::new(
-                &applied.site,
-                "a theorem citation subject other than a named binding needs erased subject-term lowering",
-            ));
-        }
         if crate::lowering::types::scalar_carrier(formal).is_err() {
             return Err(LoweringError::new(&applied.site, "a theorem citation subject needs a scalar carrier"));
         }
-        subjects.push((argument, formal));
+        if applied.callable.is_some() {
+            return Err(LoweringError::new(&applied.site, COMPUTED_SUBJECT));
+        }
+        if file.nodes[argument].kind == NodeKind::PathExpression && matches!(tree.resolved().symbol(argument), Some(Symbol::Binding { .. })) {
+            subjects.push(CitedSubject::Binding(argument, formal));
+            continue;
+        }
+        let literal = closed_subject(prepared, tree, argument, formal)?.ok_or_else(|| LoweringError::new(&applied.site, COMPUTED_SUBJECT))?;
+        subjects.push(CitedSubject::Literal(literal));
     }
     Ok(Some(TheoremCitation {
         theorem: theorem.declaration.clone(),

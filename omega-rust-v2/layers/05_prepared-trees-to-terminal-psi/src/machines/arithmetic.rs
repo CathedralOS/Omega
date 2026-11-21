@@ -58,7 +58,7 @@ pub(crate) fn folded_exact_operator<'a>(
     Ok(Some(value))
 }
 
-pub(super) enum LoweredInteger {
+pub(crate) enum LoweredInteger {
     Ordinary(IntegerOperation),
     Trapping(crate::TrappingIntegerPrimitive),
 }
@@ -91,7 +91,7 @@ pub(crate) fn index_operation(
     }
 }
 
-pub(super) fn lower_integer(
+pub(crate) fn lower_integer(
     operation: &TypedOperation,
     obligations: &[&TypingObligation],
     machine: &omega_resolved::DeclarationId,
@@ -206,4 +206,99 @@ pub(super) fn lower_integer(
         policy,
         obligations: questions.to_vec(),
     }))
+}
+
+/// A primitive IEEE operator on two unqualified operands of one format, or
+/// negation of one. Typing selects it by the complete operand tuple and records
+/// the formation question only for the four arithmetic operations; the
+/// operation itself is total, so nothing else may accompany it. Policy
+/// spellings and mixed formats have no float candidate and stop in typing.
+pub(super) fn lower_float(
+    operation: &TypedOperation,
+    obligations: &[&TypingObligation],
+) -> Result<crate::FloatOperation, LoweringError> {
+    use crate::FloatOperation::*;
+    let error = |message| LoweringError::new(&operation.site, message);
+    let [first, rest @ ..] = operation.operands.as_slice() else {
+        return Err(error("float operator has no operands"));
+    };
+    if rest.iter().any(|operand| operand != first) {
+        return Err(error("float operator mixes formats"));
+    }
+    let primitive = match (operation.token.as_str(), operation.operands.len()) {
+        ("-", 1) => Negate,
+        ("+", 2) => Add,
+        ("-", 2) => Subtract,
+        ("*", 2) => Multiply,
+        ("/", 2) => Divide,
+        ("==", 2) => Equal,
+        ("!=", 2) => NotEqual,
+        ("<", 2) => Less,
+        ("<=", 2) => LessEqual,
+        (">", 2) => Greater,
+        (">=", 2) => GreaterEqual,
+        _ => return Err(error("unsupported typed float operator")),
+    };
+    let arithmetic = matches!(primitive, Add | Subtract | Multiply | Divide);
+    let comparison = !arithmetic && primitive != Negate;
+    if operation.result != if comparison { ValueType::Bool } else { first.clone() } {
+        return Err(error("typed float operator has an incompatible result"));
+    }
+    let mut has_contract = false;
+    for obligation in obligations {
+        match &obligation.kind {
+            ObligationKind::OperationContract { token, operands }
+                if arithmetic && !has_contract && obligation.node == operation.node && token == &operation.token && operands == &operation.operands =>
+            {
+                has_contract = true
+            }
+            _ => return Err(LoweringError::new(&obligation.site, "unexpected float operation obligation")),
+        }
+    }
+    if has_contract != arithmetic {
+        return Err(error("typed float operation has incomplete formation records"));
+    }
+    Ok(primitive)
+}
+
+/// An anonymous numeric expression that typing landed in `f32` or `f64`, such
+/// as `1.5` in `a + 1.5` or `-(1.0 / 3.0)`. Its exact rational value rounds once
+/// to the format; preparation publishes those bits, so lowering never rounds.
+pub(crate) fn folded_float(
+    tree: &LoweringTree<'_>,
+    prepared: &omega_prepared::PreparedTrees<'_>,
+    node: usize,
+    carrier: &ValueType,
+) -> Result<Option<crate::IeeeFloatBits>, LoweringError> {
+    let format = match carrier {
+        ValueType::Float32 => omega_target_contract::FloatFormat::Binary32,
+        ValueType::Float64 => omega_target_contract::FloatFormat::Binary64,
+        _ => return Ok(None),
+    };
+    let file = tree.resolved().file;
+    if !matches!(file.nodes[node].kind, NodeKind::Literal | NodeKind::Paren | NodeKind::Binary | NodeKind::Unary)
+        || !tree
+            .semantics_at(node)
+            .any(|record| matches!(record, NodeSemantics::Landing(landing) if &landing.ty == carrier))
+    {
+        return Ok(None);
+    }
+    for child in node..file.nodes[node].end {
+        if !matches!(file.nodes[child].kind, NodeKind::Literal | NodeKind::Paren | NodeKind::Binary | NodeKind::Unary) {
+            return Err(unsupported_node(file, child, "float landing contains a non-constant operand"));
+        }
+        for record in tree.semantics_at(child) {
+            match record {
+                NodeSemantics::Operation(op) if matches!(op.result, ValueType::Exact { .. }) => {}
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => {}
+                NodeSemantics::Landing(landing) if child == node && &landing.ty == carrier => {}
+                _ => return Err(unsupported_node(file, child, "float landing carries an unsupported typed record")),
+            }
+        }
+    }
+    match prepared.landed_float(file.node_id(node), format) {
+        Some(omega_prepared::PreparedFloat::Binary32(bits)) => Ok(Some(crate::IeeeFloatBits::Binary32(bits))),
+        Some(omega_prepared::PreparedFloat::Binary64(bits)) => Ok(Some(crate::IeeeFloatBits::Binary64(bits))),
+        _ => Err(unsupported_node(file, node, "float landing has no single prepared value")),
+    }
 }

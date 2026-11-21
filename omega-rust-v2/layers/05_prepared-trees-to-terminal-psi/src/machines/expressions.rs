@@ -68,8 +68,9 @@ pub(super) enum OperationOutput {
 enum PendingOperation {
     Construct(super::construction::Constructor),
     Integer(super::arithmetic::LoweredInteger),
+    Float(crate::FloatOperation),
     Boolean(BooleanPrimitive),
-    ExactIntegerCast,
+    ExactNumericCast,
     ScalarBitRecast {
         access: crate::ReferenceAccess,
         source_referent: crate::ScalarType,
@@ -84,6 +85,9 @@ enum PendingOperation {
     ApplyTheorem {
         theorem: crate::DeclarationId,
         arguments: Vec<crate::TheoremArgument>,
+        /// One entry per formal: a closed literal, or `None` for the next
+        /// visited binding operand.
+        literals: Vec<Option<ScalarLiteral>>,
         requirement_count: usize,
     },
     FixedArrayRead(Vec<usize>),
@@ -551,8 +555,9 @@ impl Expressions<'_> {
                     let kind = match operation {
                         PendingOperation::Construct(plan) => plan.finish(self, operands, block, &site_at(file, node))?,
                         PendingOperation::Integer(_)
+                        | PendingOperation::Float(_)
                         | PendingOperation::Boolean(_)
-                        | PendingOperation::ExactIntegerCast
+                        | PendingOperation::ExactNumericCast
                         | PendingOperation::EstablishScalarArray => {
                             let operands = operands
                                 .map(|operand| match operand {
@@ -562,8 +567,15 @@ impl Expressions<'_> {
                                 .collect::<Result<Vec<_>, _>>()?;
                             match operation {
                                 PendingOperation::Integer(operation) => operation.emit(operands),
+                                // Every canonical float operator rounds nearest-even; directed
+                                // rounding has its own named requirements, not operator syntax.
+                                PendingOperation::Float(operation) => OperationKind::Float {
+                                    operation,
+                                    semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+                                    operands,
+                                },
                                 PendingOperation::Boolean(primitive) => OperationKind::Boolean { primitive, operands },
-                                PendingOperation::ExactIntegerCast => OperationKind::ExactIntegerCast { operand: operands[0] },
+                                PendingOperation::ExactNumericCast => OperationKind::ExactNumericCast { operand: operands[0] },
                                 PendingOperation::EstablishScalarArray => OperationKind::EstablishScalarArray { elements: operands },
                                 _ => unreachable!(),
                             }
@@ -629,14 +641,23 @@ impl Expressions<'_> {
                         PendingOperation::ApplyTheorem {
                             theorem,
                             arguments,
+                            literals,
                             requirement_count,
                         } => {
-                            let subjects = operands
-                                .map(|operand| match operand {
-                                    OperationResult::Scalar(value) => Ok(value),
-                                    _ => Err(unsupported_node(file, node, "a theorem citation subject needs a scalar value")),
+                            let subjects = literals
+                                .into_iter()
+                                .map(|literal| match literal {
+                                    Some(literal) => Ok(crate::ProofSubject::Literal(literal)),
+                                    None => match operands.next() {
+                                        Some(OperationResult::Scalar(value)) => Ok(crate::ProofSubject::Input(value)),
+                                        _ => Err(unsupported_node(file, node, "a theorem citation subject needs a scalar value")),
+                                    },
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
+                            if operands.next().is_some() {
+                                return Err(unsupported_node(file, node, "a theorem citation has an unused subject value"));
+                            }
+                            drop(operands);
                             let operation = OperationId(next_id(block.operations.len()));
                             OperationKind::ApplyTheorem(Box::new(crate::TheoremApplication {
                                 theorem,
@@ -816,24 +837,32 @@ impl Expressions<'_> {
                     .semantics_at(expression)
                     .any(|s| matches!(s, NodeSemantics::Call(_)))
             {
-                if let Some(citation) = super::theorem_citations::select(self.tree, self.signature, expression, carrier, self.callees)? {
+                if let Some(citation) = super::theorem_citations::select(self.prepared, self.tree, self.signature, expression, carrier, self.callees)? {
+                    // Only named bindings are read; a closed literal is
+                    // published in the citation and computed by no operation.
+                    let mut visits = Vec::with_capacity(citation.subjects.len());
+                    let mut literals = Vec::with_capacity(citation.subjects.len());
+                    for subject in citation.subjects {
+                        match subject {
+                            super::theorem_citations::CitedSubject::Binding(node, carrier) => {
+                                visits.push(ExpressionStep::Visit { node, carrier, landing: None });
+                                literals.push(None);
+                            }
+                            super::theorem_citations::CitedSubject::Literal(literal) => literals.push(Some(literal)),
+                        }
+                    }
                     work.push(ExpressionStep::Emit {
                         node: expression,
                         output: OperationOutput::Unit,
                         operation: PendingOperation::ApplyTheorem {
                             theorem: citation.theorem,
                             arguments: citation.arguments,
+                            literals,
                             requirement_count: citation.requirement_count,
                         },
-                        arity: citation.subjects.len(),
+                        arity: visits.len(),
                     });
-                    work.extend(
-                        citation
-                            .subjects
-                            .iter()
-                            .rev()
-                            .map(|&(node, carrier)| ExpressionStep::Visit { node, carrier, landing: None }),
-                    );
+                    work.extend(visits.into_iter().rev());
                     continue;
                 }
                 let call = super::calls::select_call(self, expression, carrier, block)?;
@@ -1053,6 +1082,16 @@ impl Expressions<'_> {
                 });
                 continue;
             }
+            if inherited.is_none()
+                && let Some(bits) = crate::machines::arithmetic::folded_float(tree, self.prepared, expression, carrier)?
+            {
+                values.push(block.push_operation(
+                    OperationOutput::Scalar(lookup_type()?),
+                    OperationKind::Constant(ScalarLiteral::IeeeFloat(bits)),
+                    site_at(file, expression),
+                ));
+                continue;
+            }
             if matches!(node.kind, NodeKind::Binary | NodeKind::Unary)
                 && let Some(value) = crate::machines::arithmetic::folded_exact_operator(tree, expression, carrier, inherited)?
             {
@@ -1114,7 +1153,7 @@ impl Expressions<'_> {
                             change,
                         });
                     }
-                    if cast.convert_integer {
+                    if cast.convert {
                         let ty = self
                             .types
                             .id_for(carrier.carrier())
@@ -1122,7 +1161,7 @@ impl Expressions<'_> {
                         work.push(ExpressionStep::Emit {
                             node: expression,
                             output: OperationOutput::Scalar(ty),
-                            operation: PendingOperation::ExactIntegerCast,
+                            operation: PendingOperation::ExactNumericCast,
                             arity: 1,
                         });
                     }
@@ -1164,6 +1203,12 @@ impl Expressions<'_> {
                         _ => return Err(unsupported_node(file, expression, "unsupported typed Boolean primitive")),
                     };
                     PendingOperation::Boolean(primitive)
+                } else if op
+                    .operands
+                    .iter()
+                    .all(|t| matches!(t, ValueType::Float32 | ValueType::Float64))
+                {
+                    PendingOperation::Float(crate::machines::arithmetic::lower_float(op, &obligations)?)
                 } else {
                     PendingOperation::Integer(crate::machines::arithmetic::lower_integer(op, &obligations, &self.signature.machine)?)
                 };
@@ -1425,6 +1470,20 @@ fn frozen_literal(
     match value {
         PreparedValue::Bool(value) if *carrier == ValueType::Bool => Ok(ScalarLiteral::Boolean(*value)),
         PreparedValue::Integer(value) if carrier.contains_integer(value) => Ok(ScalarLiteral::Integer(value.clone())),
+        // An unspecified NaN has no exact bits to store; materializing it needs
+        // non-NaN proof, canonicalization or a selected exact NaN.
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::Binary32(bits),
+            ..
+        } if *carrier == ValueType::Float32 => Ok(ScalarLiteral::IeeeFloat(crate::IeeeFloatBits::Binary32(*bits))),
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::Binary64(bits),
+            ..
+        } if *carrier == ValueType::Float64 => Ok(ScalarLiteral::IeeeFloat(crate::IeeeFloatBits::Binary64(*bits))),
+        PreparedValue::Float {
+            value: omega_prepared::PreparedFloat::UnspecifiedNaN(_),
+            ..
+        } => Err(LoweringError::new(site, "an unspecified NaN constant has no exact bits to materialize")),
         _ => Err(LoweringError::new(site, "frozen constant does not match the supported return carrier")),
     }
 }

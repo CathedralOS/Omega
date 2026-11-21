@@ -38,7 +38,7 @@ macro_rules! families {
 
 families! {
     OperationKind => [
-        BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactIntegerCast, TrappingInteger, Integer, Call, ApplyTheorem,
+        BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactNumericCast, TrappingInteger, Integer, Float, Call, ApplyTheorem,
         ConstructCallableDescriptor, RefineCallableDescriptor, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast,
         MutableScalarBitRecast, BorrowedMove,
         StructuralStore, ElementViewLength, ElementViewRead, EstablishZeroedStructural, EstablishCase, EstablishRecord,

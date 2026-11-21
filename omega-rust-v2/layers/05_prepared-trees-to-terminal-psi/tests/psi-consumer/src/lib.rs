@@ -6,9 +6,11 @@ use omega_psi::{
 
 mod assembly;
 mod domain_completions;
+mod floats;
 mod trapping;
 pub use assembly::assembly_branch;
 pub use domain_completions::cast_completions;
+pub use floats::{FloatScalar, evaluate_float_body};
 pub use trapping::{DivisionOutcome, observe_byte_division};
 
 /// Every terminal external exit of a body, read from published terminators alone.
@@ -223,7 +225,7 @@ mod dependency_call;
 pub use dependency_call::{ReturnedCall, returned_call};
 
 mod theorem_citations;
-pub use theorem_citations::{CitationObligations, theorem_citations};
+pub use theorem_citations::{CitationObligations, ProofCitation, theorem_citations, theorem_proof};
 
 mod hooked_transfers;
 pub use hooked_transfers::{HookedFieldTransfer, hooked_field_transfers};
@@ -239,3 +241,9 @@ pub use scalar_terms::{Operand, Term, call_arguments, integer_comparisons};
 
 mod callback_premises;
 pub use callback_premises::{CallbackPremises, callback_premises};
+
+/// Open templates evaluated or resolved from Psi alone.
+pub mod machine_templates;
+
+mod template_operands;
+pub use template_operands::template_field_argument;

@@ -89,3 +89,15 @@ recursive relay of a caller-chosen boundary view at suspension	checker-input	psi
 shared float view of a mutable scalar local	checker-input	psi-output/mutable-scalar-home-view
 borrowed scalar home live across a suspension	checker-input	psi-output/parked-scalar-home
 premise-bearing closed static callback	checker-input	psi-output/closed-callback-owes-bound-premise
+arithmetic on float reads	product	psi-output/float-read-addition
+value-level cast from an integer to a float	product	psi-output/integer-float-exact-cast
+proof steps in a theorem body	checker-input	psi-output/theorem-proof-binding
+theorem citation with a computed subject	checker-input	psi-output/theorem-literal-subject
+open callback body beyond straight-line calls	product	psi-output/open-callback-sum|psi-output/open-callback-sum-consumer
+open template whose only static binder is a value	product	psi-output/value-binder-template|psi-output/value-binder-template-consumer
+exported wrapper with a restricted evidence binder	product	psi-output/exported-restricted-template|psi-output/exported-restricted-template-consumer
+nested scalar field operand of a formal record	product	psi-output/nested-template-operand-path|psi-output/nested-template-operand-carrier
+non-scalar field operand of a formal record	product	psi-output/structural-template-operand|psi-output/structural-template-operand-carrier
+projected field operand beside a sibling with cleanup or linear use	checker-input	psi-output/obligated-sibling-template-operand|psi-output/obligated-sibling-instance-cleanup|psi-output/obligated-sibling-template-consumption|psi-output/obligated-sibling-instance-consumption
+float comparison of two formals	product	psi-output/float-formal-comparison|psi-output/float-formal-comparison-consumer
+float literal result	product	psi-output/float-literal-result|psi-output/float-literal-result-consumer

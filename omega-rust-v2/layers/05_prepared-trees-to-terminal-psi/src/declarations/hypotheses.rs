@@ -2,14 +2,15 @@
 //!
 //! A hypothesis is a universal premise supplied by checked evidence, never by
 //! an executable selection. Its theorem therefore publishes no machine, body,
-//! call or callback entry: only erased contract and hypothesis rows. This
-//! module records those statements; it proves none of them. Shapes outside the
-//! supported fragment refuse instead of degrading to executable callbacks.
+//! call or callback entry: only erased contract, hypothesis and proof-step
+//! rows. This module records those statements; it proves none of them. Shapes
+//! outside the supported fragment refuse instead of degrading to executable
+//! callbacks or runtime work.
 
 use super::contracts::{self, ClauseOwner};
 use super::type_expression::type_expression;
 use crate::lowering::applied_tree::LoweringTree;
-use crate::{LoweringError, PredicateStep, TheoremBinder, TypeExpression, site_at};
+use crate::{LoweringError, PredicateStep, ProofInput, ProofStep, ProofSubject, TheoremBinder, TypeExpression, site_at};
 use omega_prepared::PreparedTrees;
 use omega_resolved::{DeclarationId, Symbol};
 use omega_syntax::NodeKind;
@@ -51,9 +52,6 @@ pub(crate) fn lower(
     let body = file
         .child(node, NodeKind::Body)
         .ok_or_else(|| refuse("a logical theorem must be an ordinary resultless machine with an authored body"))?;
-    if !file.nodes[body].children.is_empty() {
-        return Err(refuse("a logical theorem body requires checked proof-term lowering"));
-    }
     let effects = typed
         .machine_effects
         .iter()
@@ -223,6 +221,7 @@ pub(crate) fn lower(
             logical_type(ty, &site)
         })
         .collect::<Result<_, _>>()?;
+    let proof = proof_steps(prepared, &plain, sig, body)?;
     Ok(crate::LogicalTheorem {
         declaration: crate::identity::declaration(&sig.machine, &sig.site)?,
         public: tree.resolved().is_exported(node),
@@ -232,7 +231,190 @@ pub(crate) fn lower(
         hypotheses,
         requires,
         ensures,
+        proof,
     })
+}
+
+/// The theorem body as erased proof steps, in authored order. A `let` names
+/// an erased subject and a statement call cites a checked local machine. No
+/// step becomes an operation: the theorem has no executable body, so nothing
+/// here may evaluate a value, enter a helper or require a runtime carrier.
+fn proof_steps(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    sig: &TypedSignature,
+    body: usize,
+) -> Result<Vec<ProofStep>, LoweringError> {
+    let file = tree.resolved().file;
+    let resolved = tree.resolved();
+    let typed = prepared.typed();
+    // Each local's binder node, its step position and its checked carrier.
+    let mut locals: Vec<(usize, usize, &ValueType)> = Vec::new();
+    let mut steps = Vec::with_capacity(file.nodes[body].children.len());
+    for &statement in &file.nodes[body].children {
+        let site = site_at(tree, statement);
+        let refuse = |reason: &str| LoweringError::new(&site, reason);
+        match (file.nodes[statement].kind, file.nodes[statement].children.as_slice()) {
+            (NodeKind::Let, [binder, initializer] | [binder, _, initializer])
+                if file.nodes[*binder].kind == NodeKind::BindingPattern && resolved.pattern_binding(*binder).is_some() =>
+            {
+                // A zero-initialized `let x: T;` has no subject, and a mutable
+                // binding would name a changing value.
+                if tree.semantics_at(statement).next().is_some() || typed.mutable_bindings.contains(&file.node_id(*binder)) {
+                    return Err(refuse("a proof binding must name one immutable subject"));
+                }
+                let carrier = tree
+                    .semantics_at(*binder)
+                    .find_map(|row| match row {
+                        NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
+                        _ => None,
+                    })
+                    .ok_or_else(|| refuse("a proof binding has no checked carrier"))?;
+                let subject = proof_subject(prepared, tree, sig, &locals, *initializer, carrier)?;
+                locals.push((*binder, steps.len(), carrier));
+                steps.push(ProofStep::Bind { subject, site });
+            }
+            (NodeKind::ExpressionStatement, [call]) if file.nodes[*call].kind == NodeKind::Call => {
+                steps.push(cite_machine(prepared, tree, sig, &locals, *call)?);
+            }
+            _ => return Err(refuse("unsupported proof step in a logical theorem body")),
+        }
+    }
+    Ok(steps)
+}
+
+/// `lemma(x);` in a theorem body cites `lemma` as proof. L3 typed it as an
+/// ordinary statement call with the callee's precondition, so this checks
+/// that record and the helper's identity, then keeps the subjects erased.
+fn cite_machine(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    sig: &TypedSignature,
+    locals: &[(usize, usize, &ValueType)],
+    node: usize,
+) -> Result<ProofStep, LoweringError> {
+    let file = tree.resolved().file;
+    let id = file.node_id(node);
+    let site = site_at(tree, node);
+    let refuse = |reason: &str| LoweringError::new(&site, reason);
+    let (mut selected, mut statement, mut precondition, mut crash) = (None, false, None, None);
+    for row in tree.semantics_at(node) {
+        match row {
+            NodeSemantics::Call(call) if selected.is_none() && call.node == id && call.site == site => selected = Some(call),
+            NodeSemantics::Expression(e) if !statement && e.static_argument_slot.is_none() && e.ty == ValueType::NoResult => statement = true,
+            NodeSemantics::Obligation(o) if o.node == id && o.site == site => match &o.kind {
+                ObligationKind::CallPrecondition(machine) if precondition.is_none() => precondition = Some(machine),
+                // A crash route of the cited helper; the helper check below refuses it.
+                kind @ ObligationKind::CrashCoverage { .. } => crash = Some((kind, &o.site)),
+                ObligationKind::SupplyHypothesis { .. } => {
+                    return Err(refuse("a theorem body citing another logical theorem needs theorem-application proof steps"));
+                }
+                kind => return Err(LoweringError::new(&o.site, format!("unsupported proof citation obligation: {kind:?}"))),
+            },
+            _ => return Err(refuse("unsupported typed record on a proof citation")),
+        }
+    }
+    let call = selected.ok_or_else(|| refuse("a proof statement must cite a checked machine"))?;
+    if !statement || call.use_site != CallUse::Execution || call.caller.as_ref() != Some(&sig.machine) || call.result != ValueType::NoResult {
+        return Err(refuse("a proof citation is a resultless statement of this theorem"));
+    }
+    if prepared
+        .typed()
+        .logical_hypotheses
+        .iter()
+        .any(|h| h.owner == call.machine)
+    {
+        return Err(refuse("a theorem body citing another logical theorem needs theorem-application proof steps"));
+    }
+    let (helper, progress, count) =
+        super::contracts::predicate_calls::checked_helper(prepared, call, precondition, &site, super::contracts::predicate_calls::HelperUse::Proof)?;
+    if let Some((kind, site)) = crash {
+        return Err(LoweringError::new(site, format!("unsupported proof citation obligation: {kind:?}")));
+    }
+    let [_, args] = *file.nodes[node].children.as_slice() else {
+        return Err(refuse("a proof citation has no callee and subjects"));
+    };
+    let arguments = &file.nodes[args].children;
+    if file.nodes[args].kind != NodeKind::Args || arguments.len() != call.operands.len() || call.operands.len() != helper.parameters.len() {
+        return Err(refuse("a proof citation disagrees with its selected signature"));
+    }
+    let mut subjects = Vec::with_capacity(arguments.len());
+    for ((&argument, applied), (span, formal)) in arguments.iter().zip(&call.operands).zip(&helper.parameters) {
+        if applied.node != file.node_id(argument)
+            || applied.site != site_at(tree, argument)
+            || applied.parameter.package != helper.site.package
+            || applied.parameter.file != helper.site.file
+            || applied.parameter.span != *span
+            || applied.callable.is_some()
+        {
+            return Err(LoweringError::new(
+                &applied.site,
+                "a proof citation subject disagrees with its occurrence or formal",
+            ));
+        }
+        if crate::lowering::types::scalar_carrier(formal).is_err() {
+            return Err(LoweringError::new(&applied.site, "a proof citation subject needs a scalar carrier"));
+        }
+        subjects.push(proof_subject(prepared, tree, sig, locals, argument, formal)?);
+    }
+    Ok(ProofStep::CiteMachine {
+        machine: crate::identity::declaration(&call.machine, &site)?,
+        subjects,
+        requirements: 0..count,
+        progress,
+        site,
+    })
+}
+
+/// One erased subject of a proof step: a theorem formal, an earlier proof
+/// binding, or a closed literal, each at exactly `carrier`. Anything computed
+/// from a variable refuses: Psi has no erased arithmetic term for it.
+fn proof_subject(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    sig: &TypedSignature,
+    locals: &[(usize, usize, &ValueType)],
+    node: usize,
+    carrier: &ValueType,
+) -> Result<ProofSubject<ProofInput>, LoweringError> {
+    let file = tree.resolved().file;
+    let outer = node;
+    let node = file.ungroup(node);
+    let site = site_at(tree, node);
+    let typed_at = |ty: &ValueType| {
+        tree.semantics_at(node)
+            .any(|row| matches!(row, NodeSemantics::Expression(e) if &e.ty == ty && e.static_argument_slot.is_none()))
+    };
+    if file.nodes[node].kind == NodeKind::PathExpression
+        && let Some(Symbol::Binding { span, binder_node, kind, .. }) = tree.resolved().symbol(node)
+    {
+        let input = match kind {
+            NodeKind::Param => sig
+                .parameters
+                .iter()
+                .position(|(name, ty)| name == span && ty == carrier)
+                .map(ProofInput::Formal),
+            NodeKind::BindingPattern => locals
+                .iter()
+                .rev()
+                .find(|(binder, _, ty)| binder == binder_node && *ty == carrier)
+                .map(|&(_, step, _)| ProofInput::Local(step)),
+            _ => None,
+        };
+        return match input {
+            Some(input) if typed_at(carrier) => Ok(ProofSubject::Input(input)),
+            _ => Err(LoweringError::new(
+                &site,
+                "a proof subject must name a formal or earlier proof binding of its carrier",
+            )),
+        };
+    }
+    if crate::lowering::types::scalar_carrier(carrier).is_err() {
+        return Err(LoweringError::new(&site, "a closed proof subject needs a scalar carrier"));
+    }
+    crate::machines::theorem_citations::closed_subject(prepared, tree, outer, carrier)?
+        .map(ProofSubject::Literal)
+        .ok_or_else(|| LoweringError::new(&site, crate::machines::theorem_citations::COMPUTED_SUBJECT))
 }
 
 /// Borrowed proof inputs and domain-qualified subjects carry read and domain

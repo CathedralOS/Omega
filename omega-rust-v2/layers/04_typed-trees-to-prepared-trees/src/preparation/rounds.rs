@@ -315,6 +315,8 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     open_target_constants,
                 },
             ) => {
+                // Float landing needs no target: it rounds once to the format.
+                let landed_floats = crate::evaluation::floating_point::landed_floats(&typed);
                 return Ok(PreparationStep::Finished(PreparationProgress::Complete(PreparedTrees::from_preparation(
                     typed,
                     constants,
@@ -323,6 +325,7 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     state.target_observations,
                     state.resource_receipt,
                     state.dependencies,
+                    landed_floats,
                 ))));
             }
             (TypingProgress::Pending(pending), PreparationAnswers::Pending(answers)) => {

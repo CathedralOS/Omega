@@ -1,4 +1,4 @@
-mod predicate_calls;
+pub(super) mod predicate_calls;
 
 use crate::lowering::applied_tree::LoweringTree;
 use num_bigint::BigInt;

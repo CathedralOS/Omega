@@ -171,25 +171,116 @@ fn a_selected_suspending_callback_retains_both_closed_call_sites() {
     assert_ne!(instances[0], instances[1]);
 }
 
+/// An open template publishes the sum of two callback results as three steps:
+/// both binder calls in source order, then the `+` that reads their results.
+/// The `+` carries the same primitive, policy and checker question as the
+/// closed body below. A caller who selects `F` can evaluate the template from
+/// Psi alone, and an input whose sum exceeds `u64` makes that question false,
+/// which the checker, not lowering, must judge.
 #[test]
-fn open_callback_calls_preserve_operands_and_reject_an_unlowered_body() {
-    let source = "data Combine=machine(x:u64,y:u64)->u64; machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a)}";
-    let pkg = sources::lower(&[("template.omg", source)]).unwrap();
+fn open_callback_calls_preserve_operands_and_publish_their_sum() {
+    use omega_lowering::{
+        ArithmeticPolicy, IntegerObligation, IntegerOperation, IntegerPrimitive, TemplateCallTarget, TemplateOperand, TemplateResult, TemplateStep,
+    };
+    use psi_handoff_consumer::machine_templates::{Application, Evaluation, evaluate};
+    let single = "data Combine=machine(x:u64,y:u64)->u64; machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a)}";
+    let pkg = sources::lower(&[("template.omg", single)]).unwrap();
     let m = &pkg.machine_templates[0];
-    assert_eq!(m.body[0].target, omega_lowering::TemplateCallTarget::StaticBinder(0));
-    assert_eq!(m.body[0].operands, [1, 0].map(omega_psi::TemplateOperand::Formal));
-    assert_eq!(m.result, Some(omega_lowering::TemplateResult::Call(0)));
-    let bad = source.replace("F(b,a)", "F(b,a) + F(a,b)");
-    let declaration = "machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + F(a,b)}";
+    let [TemplateStep::Call(call)] = m.body.as_slice() else {
+        panic!("expected the one binder call")
+    };
+    assert_eq!(call.target, TemplateCallTarget::StaticBinder(0));
+    assert_eq!(call.operands, [1, 0].map(TemplateOperand::Formal));
+    assert_eq!(m.result, Some(TemplateResult::Operand(TemplateOperand::Step(0))));
+
+    // The exact bytes of the readiness fixture `handoff/open callback body beyond straight-line calls`.
+    let source = "data Combine=machine(x:u64,y:u64)->u64; machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + F(a,b)}";
+    let pkg = sources::lower(&[("template.omg", source)]).unwrap();
+    assert!(pkg.machines.is_empty());
+    let [flip] = pkg.machine_templates.as_slice() else {
+        panic!("expected the open flip")
+    };
+    let [
+        TemplateStep::Call(first),
+        TemplateStep::Call(second),
+        TemplateStep::Integer(sum),
+    ] = flip.body.as_slice()
+    else {
+        panic!("expected two binder calls and their sum, got {:?}", flip.body)
+    };
+    let spelled = |site: &omega_lowering::Site| {
+        site.span
+            .slice(source.as_bytes())
+            .map(|b| std::str::from_utf8(b).unwrap())
+    };
+    let calls = [first, second].map(|c| (&c.target, c.operands.as_slice(), spelled(&c.site)));
+    assert_eq!(
+        calls,
+        [
+            (
+                &TemplateCallTarget::StaticBinder(0),
+                [1, 0].map(TemplateOperand::Formal).as_slice(),
+                Some("F(b,a)")
+            ),
+            (
+                &TemplateCallTarget::StaticBinder(0),
+                [0, 1].map(TemplateOperand::Formal).as_slice(),
+                Some("F(a,b)")
+            ),
+        ]
+    );
+    let exact_add = IntegerOperation {
+        primitive: IntegerPrimitive::Add,
+        policy: ArithmeticPolicy::Exact,
+        obligations: vec![IntegerObligation::ResultFitsCarrier],
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/open-callback-sum",
+        assert_eq!(
+            (&sum.operation, sum.operands.as_slice(), &flip.result),
+            (&exact_add, [TemplateOperand::Step(0), TemplateOperand::Step(1)].as_slice(), &Some(TemplateResult::Operand(TemplateOperand::Step(2))))
+        ),
+    );
+    assert_eq!(spelled(&sum.site), Some("F(b,a) + F(a,b)"));
+    assert_eq!(sum.result_type, flip.signature.parameters[0]);
+    assert_eq!(flip.invokes, [0]);
+
+    // A specializer that selects `pick(x,y) = x` computes pick(b,a) + pick(a,b) = b + a.
+    let pick = |_: usize, args: &[u64]| args[0];
+    let apply = |formals: &[u64]| {
+        evaluate(
+            flip,
+            &Application {
+                formals,
+                statics: &[],
+                select: &pick,
+            },
+        )
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/open-callback-sum-consumer",
+        assert_eq!(
+            (apply(&[3, 5]), apply(&[u64::MAX, 1])),
+            (Some(Evaluation::Returned(8)), Some(Evaluation::QuestionFails { step: 2, question: IntegerObligation::ResultFitsCarrier }))
+        ),
+    );
+
+    // A constant operand has no template operand form yet; only that operand differs.
+    let constant = source.replace("F(b,a) + F(a,b)", "F(b,a) + 1");
+    let declaration = "machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a) + 1}";
     let message = "open generic machine requires a closed application before lowering";
-    let err = sources::refuse(&[("template.omg", &bad)], "template.omg", sources::unique_span(&bad, declaration), message);
+    let err = sources::refuse(
+        &[("template.omg", &constant)],
+        "template.omg",
+        sources::unique_span(&constant, declaration),
+        message,
+    );
     assert_eq!(err.message, message);
 }
 
-/// L5 refuses the open template whose body sums two callback results (above), but its
-/// inputs are complete: typing records both binder invocations and the sum, and the same
-/// body lowers once a caller selects the callback. What is missing is a Psi form for an
-/// unspecialized body beyond the straight-line call list, not a typed or prepared input.
+/// Typing records both binder invocations and the sum of the open template above, and
+/// the same body lowers once a caller selects the callback. The closed `+` is the same
+/// Psi `IntegerOperation` that the open template publishes for its integer step.
 #[test]
 fn an_open_callback_sum_has_complete_typed_inputs_and_lowers_once_closed() {
     use omega_lowering::{ArithmeticPolicy, CallArgument, CallTarget, IntegerObligation, IntegerOperation, IntegerPrimitive, OperationResult};
@@ -252,6 +343,11 @@ fn an_open_callback_sum_has_complete_typed_inputs_and_lowers_once_closed() {
         }
     );
     assert!(matches!(flip.body.blocks[0].terminator, BlockTerminator::Return{result: ReturnEdge::Scalar(v), ..} if v == result(add)));
+    let open = sources::lower(&[("template.omg", open)]).unwrap();
+    let [.., omega_lowering::TemplateStep::Integer(sum)] = open.machine_templates[0].body.as_slice() else {
+        panic!("expected the open sum")
+    };
+    assert!(matches!(&add.kind, OperationKind::Integer { operation, .. } if *operation == sum.operation));
 }
 
 #[test]
@@ -477,4 +573,37 @@ fn the_callback_premise_reader_rejects_a_listing_that_disagrees_with_the_call() 
         change(&mut package.machines[at], other);
         assert!(psi_handoff_consumer::callback_premises(&package, &package.machines[at]).is_none(), "{edit}");
     }
+}
+
+/// Combined control for three repairs that meet in one exported wrapper. An
+/// exported generic machine keeps its open template beside the closed instance
+/// its local caller selects. The closed `apply<witness>` owes the alias premise
+/// at its callback call, listed as an invocation of binder 0. The open `apply`
+/// is a template step calling binder 0 with formal 0; its premise stays on the
+/// binder's published signature, the only place an open call can find it.
+/// Neither product decides whether the premise holds.
+#[test]
+fn an_exported_premise_bearing_wrapper_keeps_its_template_beside_the_owing_instance() {
+    use omega_lowering::{CallRequirement, CallSite, CallbackInvocation, MachineTemplateBinder, TemplateCallTarget, TemplateOperand, TemplateStep};
+    let exported = PREMISE
+        .replace("machine apply<", "public machine apply<")
+        .replace("data Observer=", "public data Observer=")
+        .replace("machine premise(kept:bool)->bool {true}", "public machine premise(kept:bool)->bool crashes none terminates {true}");
+    let package = sources::lower(&[("premise.omg", &exported)]).unwrap();
+    let apply = named(&package, "apply");
+    let [bound] = selection(apply).requires.as_slice() else { panic!("expected the alias premise on the selection") };
+    let [call] = apply.body.operations.as_slice() else { panic!("one operation") };
+    let OperationKind::Call { requirements, .. } = &call.kind else { panic!("expected the callback call") };
+    let site = CallSite::Operation(call.id);
+    assert_eq!(requirements, &[CallRequirement { site, clause: 0 }]);
+    assert_eq!(apply.body.callback_invocations, [CallbackInvocation { call: site, binder: 0 }]);
+
+    let [template] = package.machine_templates.as_slice() else { panic!("expected the exported open template") };
+    assert!(template.public && template.declaration == apply.declaration);
+    let [MachineTemplateBinder::Callable { signature, .. }] = template.parameters.as_slice() else { panic!("expected the callable binder") };
+    let [open_bound] = signature.requires.as_slice() else { panic!("the binder signature keeps the alias premise") };
+    assert_eq!((open_bound.site.clone(), open_bound.predicate.len()), (bound.site.clone(), bound.predicate.len()));
+    let [TemplateStep::Call(open_call)] = template.body.as_slice() else { panic!("one call step") };
+    assert_eq!((&open_call.target, open_call.operands.as_slice()), (&TemplateCallTarget::StaticBinder(0), &[TemplateOperand::Formal(0)][..]));
+    assert_eq!(template.invokes, [0]);
 }

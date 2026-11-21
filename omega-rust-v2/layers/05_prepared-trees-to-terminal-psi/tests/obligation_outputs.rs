@@ -304,7 +304,7 @@ fn exact_cast_converts_the_selected_operand_to_the_destination_carrier_at_its_ca
             panic!("{cast}: expected one conversion, found {:?}", body.operations)
         };
         assert_eq!(operation_at(body, &obligation.site), operation, "{cast}: the cast site is the conversion");
-        assert_eq!(operation.kind, OperationKind::ExactIntegerCast { operand }, "{cast}");
+        assert_eq!(operation.kind, OperationKind::ExactNumericCast { operand }, "{cast}");
         let OperationResult::Scalar(result) = operation.result else {
             panic!("{cast}: a conversion yields a scalar")
         };
@@ -409,7 +409,7 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
             !body
                 .operations
                 .iter()
-                .any(|op| matches!(op.kind, OperationKind::ExactIntegerCast { .. })),
+                .any(|op| matches!(op.kind, OperationKind::ExactNumericCast { .. })),
             "{cast}: no value conversion"
         );
     }
@@ -443,7 +443,7 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
         "a value cast neither borrows nor reinterprets"
     );
     let conversion = operation_at(body, &obligation.site);
-    let OperationKind::ExactIntegerCast { operand } = conversion.kind else {
+    let OperationKind::ExactNumericCast { operand } = conversion.kind else {
         panic!("expected an exact conversion, found {:?}", conversion.kind)
     };
     let OperationKind::ProjectedScalarRead { source: read } = &value_producer(body, operand).kind else {

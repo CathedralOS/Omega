@@ -899,8 +899,8 @@ fn check_closed_callback(package: &LoweredPackage) {
         panic!("expected public template alongside its instance")
     };
     assert_eq!(template.declaration.path, "apply");
-    assert_eq!(template.body[0].target, omega_lowering::TemplateCallTarget::StaticBinder(0));
-    assert!(template.body[0].acknowledgements.suspend);
+    assert_eq!(template.body[0].call().unwrap().target, omega_lowering::TemplateCallTarget::StaticBinder(0));
+    assert!(template.body[0].call().unwrap().acknowledgements.suspend);
     assert_eq!(template.callback_pause, [(0, omega_lowering::PauseEffects { suspend: true, block: false })]);
     assert!(!template.fixed_pause.suspend);
     use omega_lowering::{CallArgument, Parameter, PauseEffects, StaticArgument};
@@ -950,9 +950,33 @@ fn check_machine_templates(
         let play = &player.requirements[0].declaration;
         assert_eq!((audio.declaration.path.as_str(), domain.declaration.path.as_str(), play.path.as_str()), ("Audio", "Audio::Audible", "Player::play"));
         assert_eq!(domain.carrier, audio.carrier);
-        assert_eq!(first.signature.requires[0].predicate, [PredicateStep::Formal(0), PredicateStep::InDomain(omega_psi::DomainAtom { declaration: domain.declaration.clone(), arguments: vec![] })]);
-        assert_eq!(first.body[0].target, TemplateCallTarget::Member { binder: 0, requirement: play.clone() });
-        assert_eq!(first.body[0].operands, [omega_psi::TemplateOperand::RecordField { formal: 0, field: audio.fields[0].declaration.clone() }]);
+        assert_eq!(
+            first.signature.requires[0].predicate,
+            [
+                PredicateStep::Formal(0),
+                PredicateStep::InDomain(omega_psi::DomainAtom {
+                    declaration: domain.declaration.clone(),
+                    arguments: vec![]
+                })
+            ]
+        );
+        assert_eq!(
+            first.body[0].call().unwrap().target,
+            TemplateCallTarget::Member {
+                binder: 0,
+                requirement: play.clone()
+            }
+        );
+        let byte = omega_psi::TypeExpression(vec![TypeExpressionStep::Scalar(ScalarType::Integer { signed: false, width: 8 })]);
+        assert_eq!(
+            first.body[0].call().unwrap().operands,
+            [omega_psi::TemplateOperand::RecordField {
+                formal: 0,
+                carrier: vec![],
+                field: audio.fields[0].declaration.clone(),
+                argument: omega_psi::Parameter::Scalar(byte)
+            }]
+        );
         return;
     }
     let callback = |m: &omega_lowering::MachineTemplate| {
@@ -965,13 +989,13 @@ fn check_machine_templates(
         unreachable!()
     };
     assert_eq!(first.body.len(), 1);
-    assert_eq!(first.body[0].target, TemplateCallTarget::StaticBinder(callback(first)));
+    assert_eq!(first.body[0].call().unwrap().target, TemplateCallTarget::StaticBinder(callback(first)));
     assert_eq!(first.invokes, [callback(first)]);
     assert_eq!(first.result.is_some(), first.signature.result.is_some());
     match label {
         "language/effects.md:576" => {
-            assert_eq!(first.body[0].operands, [omega_psi::TemplateOperand::Formal(0)]);
-            assert_eq!(first.result, Some(omega_lowering::TemplateResult::Call(0)));
+            assert_eq!(first.body[0].call().unwrap().operands, [omega_psi::TemplateOperand::Formal(0)]);
+            assert_eq!(first.result, Some(omega_lowering::TemplateResult::Operand(omega_psi::TemplateOperand::Step(0))));
             assert!(requirement.is_none());
             assert_eq!(
                 bound.ensures[0].predicate,
@@ -991,7 +1015,7 @@ fn check_machine_templates(
             );
         }
         "language/state_contracts.md:74" => {
-            assert!(first.body[0].operands.is_empty());
+            assert!(first.body[0].call().unwrap().operands.is_empty());
             assert!(bound.terminates);
             assert!(!first.signature.terminates);
             assert_eq!(first.signature.crash_ceiling, Some(vec![omega_typed::CrashCause::Trap]));
@@ -1003,9 +1027,12 @@ fn check_machine_templates(
             assert_eq!(member.declaration.path, "ElementStep::apply");
             assert!(member.signature.terminates);
             let wrapper = &package.machine_templates[1];
-            assert_eq!(wrapper.body[0].target, TemplateCallTarget::Declaration(first.declaration.clone()));
-            assert_eq!(wrapper.body[0].operands, [omega_psi::TemplateOperand::Formal(0)]);
-            for (index, arg) in wrapper.body[0].arguments.iter().enumerate() {
+            assert_eq!(
+                wrapper.body[0].call().unwrap().target,
+                TemplateCallTarget::Declaration(first.declaration.clone())
+            );
+            assert_eq!(wrapper.body[0].call().unwrap().operands, [omega_psi::TemplateOperand::Formal(0)]);
+            for (index, arg) in wrapper.body[0].call().unwrap().arguments.iter().enumerate() {
                 assert_eq!(
                     arg.0,
                     [TypeExpressionStep::GenericParameter {

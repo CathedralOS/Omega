@@ -359,7 +359,7 @@ fn exact_integer_cast_preserves_the_source_operand_and_destination_carrier() {
     let [cast] = body.operations.as_slice() else {
         panic!("expected one exact integer cast");
     };
-    assert_eq!(cast.kind, OperationKind::ExactIntegerCast { operand: selected });
+    assert_eq!(cast.kind, OperationKind::ExactNumericCast { operand: selected });
     let result = scalar_result(cast);
     assert_eq!(sole_return(body), ReturnEdge::Scalar(result));
     assert_eq!(

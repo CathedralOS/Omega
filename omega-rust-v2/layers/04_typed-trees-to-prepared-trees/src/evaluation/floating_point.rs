@@ -80,6 +80,17 @@ impl FloatFormatEvaluation for FloatFormat {
         exact.then_some(landed)
     }
 }
+/// The rounded bits of every float landing typing recorded, including those in
+/// runtime bodies that no evaluation visits. Lowering reads them instead of
+/// rounding a second time.
+pub(crate) fn landed_floats(typed: &omega_typed::TypedTrees<'_>) -> Vec<(omega_resolved::TreeNodeId, PreparedFloat)> {
+    typed
+        .landings
+        .iter()
+        .filter_map(|landing| Some((landing.node, FloatFormat::for_type(&landing.ty)?.land(&landing.value))))
+        .collect()
+}
+
 impl IeeeFormat for FloatFormat {
     fn fraction_bits(self) -> i64 {
         match self {
