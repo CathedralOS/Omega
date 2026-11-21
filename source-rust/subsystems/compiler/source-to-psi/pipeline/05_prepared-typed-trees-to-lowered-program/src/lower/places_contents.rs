@@ -273,6 +273,53 @@ impl Lowering<'_> {
         &mut self,
         machine: &terminal_psi::TerminalMachine,
     ) -> Checked<()> {
+        // Each predicate is already in its owner's scope. A call-site clause
+        // still uses the caller's substitutions and is never imported here.
+        let mut indexed = Vec::new();
+        for clause in machine
+            .contract
+            .requires
+            .iter()
+            .chain(self.invariants.iter().map(|row| &row.predicate))
+        {
+            clause.visit_scalar_terms(|term| {
+                let ScalarTerm::StructuralRead {
+                    root,
+                    path,
+                    scalar_type,
+                } = term
+                else {
+                    return;
+                };
+                use semantic_vocabulary::ScalarReadProjection as Read;
+                let segments: Option<Vec<_>> = path
+                    .iter()
+                    .map(|step| {
+                        Some(match step {
+                            Read::Referent => Segment::Referent,
+                            Read::Extent => Segment::Extent,
+                            Read::Static(step) => projection(*step),
+                            Read::Index(term) => match term.as_ref() {
+                                ScalarTerm::Value { id, .. } => {
+                                    Segment::RuntimeIndex { selector: *id }
+                                }
+                                _ => return None,
+                            },
+                        })
+                    })
+                    .collect();
+                if let Some(segments) = segments {
+                    indexed.push((*root, segments, *scalar_type));
+                }
+            });
+        }
+        for (root, segments, scalar_type) in indexed {
+            let mut leaf = self.exact_root(root)?;
+            for step in segments {
+                leaf = self.project(leaf, step)?;
+            }
+            self.initial_content(leaf, scalar_type)?;
+        }
         self.name_elements_beneath_formals()?;
         let mut call_operations: Vec<_> = machine
             .blocks
@@ -290,7 +337,7 @@ impl Lowering<'_> {
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
             let mut at = leaf;
             let mut calls = Vec::<OperationId>::new();
-            let mut block_observation = true;
+            let mut segments = Vec::new();
             let root = loop {
                 let row = self
                     .tables
@@ -313,27 +360,27 @@ impl Lowering<'_> {
                 match row.origin {
                     PlaceOrigin::Root(root) => break root,
                     PlaceOrigin::Projection { parent, segment } => {
-                        block_observation &= matches!(
-                            segment,
-                            Segment::Field(_)
-                                | Segment::Case(_)
-                                | Segment::FixedIndex(_)
-                                | Segment::Referent
-                                | Segment::Extent
-                        );
+                        segments.push(segment);
                         at = parent;
                     }
                 }
             };
             // Inference discovers a helper's condition after lowering. Every
             // demanded, readable field therefore needs its entry name, even
-            // when no authored header clause named it. Runtime selectors do
-            // not have a binding at that entry and cannot name a snapshot.
-            let named_entry = match self.roots.get(root).map(|(kind, _)| kind) {
+            // when no authored header clause named it. A selector must already
+            // be available when the formal receives its incoming storage.
+            let owner = self.roots.get(root).map(|(kind, _)| kind);
+            let named_entry = match owner.filter(|kind| {
+                segments.iter().all(|&step| {
+                    terminal_check_tables::bindings::entry_snapshot_segment(
+                        step,
+                        **kind,
+                        &self.tables.values,
+                    )
+                })
+            }) {
                 Some(StructuralPlaceKind::Parameter { .. }) => true,
-                Some(StructuralPlaceKind::BlockParameter { block, position })
-                    if block_observation =>
-                {
+                Some(StructuralPlaceKind::BlockParameter { block, position }) => {
                     let formal = machine
                         .blocks
                         .get(block.get() as usize - 1)
